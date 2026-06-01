@@ -43,8 +43,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
-from .tragedians import find_play
+from minerva.sources.tragedians import find_play
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -84,10 +84,7 @@ def _has_inner_textpart(elem: ET.Element) -> bool:
     """True when at least one direct ``<div type="textpart">`` child
     exists. Used by the walker to decide whether to recurse or emit."""
 
-    return any(
-        child.get("type") == "textpart"
-        for child in elem.findall("tei:div", _NS)
-    )
+    return any(child.get("type") == "textpart" for child in elem.findall("tei:div", _NS))
 
 
 def _gather_lines(elem: ET.Element) -> list[ET.Element]:
@@ -117,11 +114,7 @@ def _line_range(lines: list[ET.Element]) -> tuple[str | None, str | None]:
     these elements. Lines without a numeric ``@n`` are skipped — they
     occur for editorial stage directions and choral lacunae."""
 
-    numbered = [
-        ln.get("n", "").strip()
-        for ln in lines
-        if (ln.get("n") or "").strip()
-    ]
+    numbered = [ln.get("n", "").strip() for ln in lines if (ln.get("n") or "").strip()]
     if not numbered:
         return None, None
     return numbered[0], numbered[-1]
@@ -196,20 +189,12 @@ def parse_file(
         "tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:editor",
         _NS,
     )
-    editor_name = (
-        editor_el.text.strip()
-        if editor_el is not None and editor_el.text
-        else None
-    )
+    editor_name = editor_el.text.strip() if editor_el is not None and editor_el.text else None
     date_el = root.find(
         "tei:teiHeader/tei:fileDesc/tei:sourceDesc//tei:date",
         _NS,
     )
-    year = (
-        date_el.text.strip()
-        if date_el is not None and date_el.text
-        else None
-    )
+    year = date_el.text.strip() if date_el is not None and date_el.text else None
 
     for _breadcrumb, leaf in _walk_textparts(edition, []):
         lines = _gather_lines(leaf)
@@ -286,10 +271,7 @@ def parse_dir(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
             # editorial mistake (typo, half-applied rename). Skip with
             # a print so it surfaces in the ingest log but doesn't
             # block the rest.
-            print(
-                f"  ⚠ skipping {play_dir.name}: not in tragedians.TRAGEDIANS"
-                f"[{corpus!r}]"
-            )
+            print(f"  ⚠ skipping {play_dir.name}: not in tragedians.TRAGEDIANS[{corpus!r}]")
             continue
         for xml_file in sorted(play_dir.iterdir()):
             lang = _LANG_BY_FILENAME.get(xml_file.name)

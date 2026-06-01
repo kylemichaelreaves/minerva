@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from minerva import quran
 from minerva.authors import quran_works
+from minerva.sources import quran
 
 # Tanzil-shape fixture: minimal valid XML with the same structure as
 # ``quran-uthmani.xml`` (root <quran>, then <sura index name> with

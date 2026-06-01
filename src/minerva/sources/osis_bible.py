@@ -38,7 +38,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # OSIS namespace; lookups in iter() need this prefix.
 _OSIS_NS = "{http://www.bibletechnologies.net/2003/OSIS/namespace}"
@@ -194,7 +194,7 @@ def parse_file(
     skipped with a warning (most likely a deuterocanonical book we
     don't yet recognise; logged so coverage gaps are visible)."""
 
-    from .locations import BCV_BOOK_ABBR
+    from minerva.locations import BCV_BOOK_ABBR
 
     tree = ET.parse(path)
     root = tree.getroot()
@@ -211,10 +211,7 @@ def parse_file(
             continue
         sbl = BCV_BOOK_ABBR.get(title)
         if sbl is None:
-            print(
-                f"{corpus}: book {title!r} not in BCV_BOOK_ABBR; "
-                f"add it to locations._BCV_BOOKS"
-            )
+            print(f"{corpus}: book {title!r} not in BCV_BOOK_ABBR; add it to locations._BCV_BOOKS")
             continue
 
         # OSIS verse osisIDs encode the locator: "Gen.1.1" → book=Gen,

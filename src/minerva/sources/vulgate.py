@@ -29,7 +29,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _VERSE_LINE_RE = re.compile(r"^\s*(\d+)\s*:\s*(\d+)\s+(.*?)\s*$")
 _TRAILING_BACKSLASH_RE = re.compile(r"\\$")
@@ -105,8 +105,8 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     recognised Clementine Vulgate book file. Files whose stem isn't
     in ``vulgate_works._BOOKS`` are skipped with a warning."""
 
-    from .authors.vulgate_works import book_for_filename
-    from .locations import BCV_BOOK_ABBR
+    from minerva.authors.vulgate_works import book_for_filename
+    from minerva.locations import BCV_BOOK_ABBR
 
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or not entry.name.endswith(".lat"):
@@ -118,8 +118,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
         abbr = BCV_BOOK_ABBR.get(book.title)
         if abbr is None:
             print(
-                f"vulgate: book {book.title!r} not in BCV_BOOK_ABBR; "
-                f"add it to locations._BCV_BOOKS"
+                f"vulgate: book {book.title!r} not in BCV_BOOK_ABBR; add it to locations._BCV_BOOKS"
             )
             continue
         yield from parse_file(

@@ -53,8 +53,8 @@ import unicodedata
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
-from .authors.presocratic_works import _PHASE_1, find_by_chapter_heading
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.authors.presocratic_works import _PHASE_1, find_by_chapter_heading
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # Chapter heading: `12. HERAKLEITOS.` — uppercase Latin name, optional
 # trailing junk. The source has many variants:
@@ -77,9 +77,7 @@ _CHAPTER_HEADING_RE = re.compile(
 # Running-head with leading page number — distinct from a real chapter
 # heading because the integer is followed by whitespace (not period).
 # Examples: `78 12. HERAKLEITOS.`, `194 21. EMPEDOKLES.`.
-_RUNNING_HEAD_CHAPTER_RE = re.compile(
-    r"^\s*\d+\s+\d{1,3}\.\s+[A-ZÄÖÜ]{3,}"
-)
+_RUNNING_HEAD_CHAPTER_RE = re.compile(r"^\s*\d+\s+\d{1,3}\.\s+[A-ZÄÖÜ]{3,}")
 
 # `B. FRAGMENTE.` opens the canonical B-fragments block. We accept
 # both the standalone form (Heraclitus, Anaximenes) and the running-
@@ -145,14 +143,10 @@ _CRAMMED_FRAG_SPLIT_RE = re.compile(r"\s+(\d{1,3})\.\s+\[")
 # integer + dot-OR-comma (OCR sometimes reads `12.` as `12,`) + space
 # + Latin capital + Latin lowercase. The capital-lowercase pair
 # avoids splitting on incidental numbers inside the German prose.
-_CRAMMED_GERMAN_SPLIT_RE = re.compile(
-    r"\s+(\d{1,3})[.,]\s+(?=[A-ZÄÖÜ][a-zäöüß])"
-)
+_CRAMMED_GERMAN_SPLIT_RE = re.compile(r"\s+(\d{1,3})[.,]\s+(?=[A-ZÄÖÜ][a-zäöüß])")
 
 
-def _split_crammed_greek(
-    first_num: int, body: str
-) -> list[tuple[int, str]]:
+def _split_crammed_greek(first_num: int, body: str) -> list[tuple[int, str]]:
     """Split a Greek-fragment line that crams multiple ``N. [...]``
     openers onto one OCR-linearized text line. Returns
     ``[(num, body), ...]`` in source order.
@@ -182,9 +176,7 @@ def _split_crammed_greek(
     return out
 
 
-def _split_crammed_german(
-    first_num: int, body: str
-) -> list[tuple[int, str]]:
+def _split_crammed_german(first_num: int, body: str) -> list[tuple[int, str]]:
     """German analog of :func:`_split_crammed_greek`. Splits a German
     translation block on interior ``N. <CapitalizedWord>`` markers.
 
@@ -204,6 +196,7 @@ def _split_crammed_german(
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
         out.append((num, body[body_start:body_end].strip()))
     return out
+
 
 # Apparatus footnote: `N <word>` — integer NOT followed by period.
 # Skipped. Note: lines starting `N. ` (period) are fragment-starts, not
@@ -255,9 +248,7 @@ def _strip_source_citation(raw: str) -> tuple[str | None, str]:
     on Heraclitus B 4).
     """
 
-    tokens_with_pos = [
-        (m.group(0), m.start()) for m in re.finditer(r"\S+", raw)
-    ]
+    tokens_with_pos = [(m.group(0), m.start()) for m in re.finditer(r"\S+", raw)]
     if not tokens_with_pos:
         return None, _norm_text(raw)
 
@@ -413,7 +404,7 @@ def parse_file(
 
     current_phil: tuple[int, int, str, str] | None = None
     mode: str = "outside"  # outside | pre_b | in_b
-    block: str = "none"    # none | greek | german | apparatus | doubtful
+    block: str = "none"  # none | greek | german | apparatus | doubtful
     # Two separate "last fragment number" trackers, one per language.
     # The page layout interleaves apparatus + page-break running heads
     # between a fragment's Greek lines and its German translation;
@@ -429,9 +420,7 @@ def parse_file(
         nonlocal greek_buf, german_buf, last_greek_frag, last_german_frag
         if current_phil is None:
             return
-        yield from _emit_chapter_chunks(
-            current_phil, greek_buf, german_buf, path.name
-        )
+        yield from _emit_chapter_chunks(current_phil, greek_buf, german_buf, path.name)
         greek_buf = {}
         german_buf = {}
         last_greek_frag = None
@@ -580,10 +569,7 @@ def parse_file(
             # German continuation can ALSO contain crammed interior
             # `N. <CapitalizedWord>` markers (Heraclitus has many).
             # Split + route similarly to the Greek case.
-            if (
-                not has_greek
-                and block in ("german", "apparatus", "none")
-            ):
+            if not has_greek and block in ("german", "apparatus", "none"):
                 first_split = _CRAMMED_GERMAN_SPLIT_RE.search(text_payload)
                 if first_split is not None:
                     prefix = text_payload[: first_split.start()]
@@ -591,9 +577,7 @@ def parse_file(
                         german_buf[last_german_frag].append(prefix.strip())
                     rest = text_payload[first_split.end() :]
                     first_inner = int(first_split.group(1))
-                    for frag_num, head_text in _split_crammed_german(
-                        first_inner, rest
-                    ):
+                    for frag_num, head_text in _split_crammed_german(first_inner, rest):
                         german_buf.setdefault(frag_num, []).append(head_text)
                         last_german_frag = frag_num
                     block = "german"
@@ -649,8 +633,13 @@ def _emit_chapter_chunks(
             if text:
                 yield Chunk(
                     chunk_id=_make_chunk_id(
-                        source_file, work_title, "grc", str(dk_mod), section,
-                        "", text[:120],
+                        source_file,
+                        work_title,
+                        "grc",
+                        str(dk_mod),
+                        section,
+                        "",
+                        text[:120],
                     ),
                     corpus="presocratic",
                     author=canonical,
@@ -674,8 +663,13 @@ def _emit_chapter_chunks(
             if text:
                 yield Chunk(
                     chunk_id=_make_chunk_id(
-                        source_file, work_title, "deu", str(dk_mod), section,
-                        "", text[:120],
+                        source_file,
+                        work_title,
+                        "deu",
+                        str(dk_mod),
+                        section,
+                        "",
+                        text[:120],
                     ),
                     corpus="presocratic",
                     author=canonical,

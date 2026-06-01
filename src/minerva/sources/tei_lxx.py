@@ -27,7 +27,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -54,9 +54,7 @@ def _iter_verses(
         sub = child.get("subtype")
         n = child.get("n")
         new_crumb = (*breadcrumb, (sub, n))
-        has_inner = any(
-            d.get("type") == "textpart" for d in child.findall("tei:div", _NS)
-        )
+        has_inner = any(d.get("type") == "textpart" for d in child.findall("tei:div", _NS))
         if has_inner:
             yield from _iter_verses(child, new_crumb)
             continue
@@ -90,18 +88,10 @@ def parse_file(
     if edition is None:
         return
 
-    editor_el = root.find(
-        "tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:editor", _NS
-    )
-    editor_name = (
-        editor_el.text.strip() if editor_el is not None and editor_el.text else None
-    )
-    date_el = root.find(
-        "tei:teiHeader/tei:fileDesc/tei:sourceDesc//tei:date", _NS
-    )
-    year = (
-        date_el.text.strip() if date_el is not None and date_el.text else None
-    )
+    editor_el = root.find("tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:editor", _NS)
+    editor_name = editor_el.text.strip() if editor_el is not None and editor_el.text else None
+    date_el = root.find("tei:teiHeader/tei:fileDesc/tei:sourceDesc//tei:date", _NS)
+    year = date_el.text.strip() if date_el is not None and date_el.text else None
 
     for chapter, verse, paragraphs in _iter_verses(edition):
         # Multiple <p> per verse is rare but happens (Swete sometimes
@@ -144,8 +134,8 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     Septuagint book file. Files not registered in
     ``septuagint_works._BOOKS`` are skipped with a warning."""
 
-    from .authors.septuagint_works import book_for_filename
-    from .locations import BCV_BOOK_ABBR
+    from minerva.authors.septuagint_works import book_for_filename
+    from minerva.locations import BCV_BOOK_ABBR
 
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or not entry.name.endswith(".xml"):
@@ -156,10 +146,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             continue
         abbr = BCV_BOOK_ABBR.get(book.title)
         if abbr is None:
-            print(
-                f"lxx: book {book.title!r} not in BCV_BOOK_ABBR; "
-                f"add it to locations._BCV_BOOKS"
-            )
+            print(f"lxx: book {book.title!r} not in BCV_BOOK_ABBR; add it to locations._BCV_BOOKS")
             continue
         yield from parse_file(
             entry,

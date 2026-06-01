@@ -43,7 +43,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # Verse-number id is "<Book Name> <chap>:<verse>". Book names can
 # contain spaces ("1 Corinthians", "Song of Songs") — match greedily
@@ -175,8 +175,8 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     SBLGNT book file. Files whose stem isn't in
     ``new_testament_works._BOOKS`` are skipped with a warning."""
 
-    from .authors.new_testament_works import book_for_filename
-    from .locations import BCV_BOOK_ABBR
+    from minerva.authors.new_testament_works import book_for_filename
+    from minerva.locations import BCV_BOOK_ABBR
 
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or not entry.name.endswith(".xml"):
@@ -187,10 +187,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             continue
         abbr = BCV_BOOK_ABBR.get(book.title)
         if abbr is None:
-            print(
-                f"nt: book {book.title!r} not in BCV_BOOK_ABBR; "
-                f"add it to locations._BCV_BOOKS"
-            )
+            print(f"nt: book {book.title!r} not in BCV_BOOK_ABBR; add it to locations._BCV_BOOKS")
             continue
         yield from parse_file(
             entry,

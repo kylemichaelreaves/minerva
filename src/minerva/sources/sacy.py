@@ -15,8 +15,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 
-from . import osis_bible
-from .tei import Chunk
+from minerva.sources import osis_bible
+from minerva.tei import Chunk
 
 
 def parse_dir(directory: Path) -> Iterator[Chunk]:

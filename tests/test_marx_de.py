@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from minerva.marx_de import (
+from minerva.sources.marx_de import (
     _CHAPTER_HEADING_RE,
     _filter_toc_cluster,
     _heading_to_int,
@@ -36,14 +36,20 @@ _BD3 = _REPO_ROOT / "data" / "marx" / "raw_deu_ocr" / "kapital_bd3.txt"
 
 
 class TestFilterTocCluster:
-
     def test_bd1_pattern(self) -> None:
         # Bd 1's actual TOC + body shape (line numbers from the live
         # 1867 Fraktur scan). TOC: chapters 1-6 close together; body
         # starts with Erstes Kapitel (chapter resets to 1).
         candidates = [
-            (58, 1), (83, 2), (90, 3), (101, 4), (177, 5), (211, 6),
-            (499, 1), (5171, 2), (6751, 3),
+            (58, 1),
+            (83, 2),
+            (90, 3),
+            (101, 4),
+            (177, 5),
+            (211, 6),
+            (499, 1),
+            (5171, 2),
+            (6751, 3),
         ]
         out = _filter_toc_cluster(candidates)
         assert out == [(499, 1), (5171, 2), (6751, 3)]
@@ -82,7 +88,6 @@ class TestFilterTocCluster:
 
 
 class TestChapterHeadingRegex:
-
     @pytest.mark.parametrize(
         "line,expected_chap",
         [
@@ -90,10 +95,10 @@ class TestChapterHeadingRegex:
             ("Erstes Kapitel.", 1),
             ("Sechstes Kapitel.", 6),
             # Bd 2 OCR variants
-            ("Sechszehntes Kapitel.", 16),           # alt spelling with extra `s`
-            ("AchtzehntesKapitel.", 18),             # OCR-merged words
-            ("AchtzehntesKapitel.”“)", 18),          # OCR-merged + trailing junk
-            ("Neunzehntes Kapitel.)", 19),           # trailing close-paren
+            ("Sechszehntes Kapitel.", 16),  # alt spelling with extra `s`
+            ("AchtzehntesKapitel.", 18),  # OCR-merged words
+            ("AchtzehntesKapitel.”“)", 18),  # OCR-merged + trailing junk
+            ("Neunzehntes Kapitel.)", 19),  # trailing close-paren
             # Numeric / Roman fallback
             ("Kapitel 7", 7),
             ("Kapitel III.", 3),
@@ -109,12 +114,12 @@ class TestChapterHeadingRegex:
         "line",
         [
             # In-text cross references (must NOT match)
-            "Kap. XVI, 1. — F.E]",                   # Engels editorial ref
-            "siehe Sechstes Kapitel oben",            # body text mention
-            "wie im viertes Kapitel gezeigt",         # body text
-            "(Sechstes Kapitel)",                     # parenthetical
-            "",                                       # empty
-            "Eine Bemerkung über das Kapitel.",       # body sentence
+            "Kap. XVI, 1. — F.E]",  # Engels editorial ref
+            "siehe Sechstes Kapitel oben",  # body text mention
+            "wie im viertes Kapitel gezeigt",  # body text
+            "(Sechstes Kapitel)",  # parenthetical
+            "",  # empty
+            "Eine Bemerkung über das Kapitel.",  # body sentence
         ],
     )
     def test_rejects_non_headings(self, line: str) -> None:
@@ -143,7 +148,6 @@ def _parse(path: Path, code: str, title: str) -> list:
 
 
 class TestKapitalIntegration:
-
     def test_bd1_six_chapters(self) -> None:
         chunks = _parse(_BD1, "kapital_bd1", "Das Kapital, Band I")
         sections = sorted(int(c.section.split()[1]) for c in chunks)
@@ -158,9 +162,7 @@ class TestKapitalIntegration:
         # Engels 1885 / ldpd scan: 21 chapters. Was 17 before the
         # Sechszehntes / AchtzehntesKapitel / Neunzehntes-with-paren
         # fixes.
-        assert sections == list(range(1, 22)), (
-            f"expected chapters 1-21, got {sections}"
-        )
+        assert sections == list(range(1, 22)), f"expected chapters 1-21, got {sections}"
 
     def test_bd3_all_canonical_chapters(self) -> None:
         chunks = _parse(_BD3, "kapital_bd3", "Das Kapital, Band III")
@@ -168,6 +170,4 @@ class TestKapitalIntegration:
         # Engels 1894 / ldpd scan: 28 chapters present. (Canonical
         # Bd 3 has 52 across more Abschnitte but this scan stops at
         # 28.) Was 9 before the TOC-filter fix.
-        assert sections == list(range(1, 29)), (
-            f"expected chapters 1-28, got {sections}"
-        )
+        assert sections == list(range(1, 29)), f"expected chapters 1-28, got {sections}"

@@ -15,12 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from minerva import hebrew_mt
 from minerva.authors import hebrew_mt_works
 from minerva.locations import (
     BCV_BOOK_ORDINAL,
     TANAKH_BOOK_ORDINAL,
 )
+from minerva.sources import hebrew_mt
 
 # OSIS XML fragment matching the OSHB shape for Gen 1:1 — preserved
 # verbatim from the upstream master to lock the parser against the

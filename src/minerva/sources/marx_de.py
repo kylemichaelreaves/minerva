@@ -48,7 +48,7 @@ import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # ──────────────────────────────────────────────────────────────────
 # Wordform → integer
@@ -147,9 +147,9 @@ _PAGE_NUM_RE = re.compile(r"^\s*\d{1,4}\s*$")
 # beyond is OCR-noise or stray text). 1867 Bd 1 has 6 chapters;
 # Engels's Bd 2 + Bd 3 are larger.
 _MAX_CHAPTER_BY_CODE: dict[str, int] = {
-    "kapital_bd1": 6,      # 1867 first ed., 6-chapter structure
-    "kapital_bd2": 21,     # Engels 1885, 21 chapters across 3 Abschnitte
-    "kapital_bd3": 52,     # Engels 1894, 52 chapters across 7 Abschnitte
+    "kapital_bd1": 6,  # 1867 first ed., 6-chapter structure
+    "kapital_bd2": 21,  # Engels 1885, 21 chapters across 3 Abschnitte
+    "kapital_bd3": 52,  # Engels 1894, 52 chapters across 7 Abschnitte
 }
 
 # TOC cluster threshold: if two consecutive chapter-heading
@@ -335,12 +335,16 @@ def parse_file(
         # whole body (drop chrome). Better to have something
         # searchable than nothing.
         body = [ln.strip() for ln in lines if not _is_chrome(ln)]
-        text = unicodedata.normalize(
-            "NFC", _norm_text(" ".join(body))
-        )
+        text = unicodedata.normalize("NFC", _norm_text(" ".join(body)))
         if len(text) >= 80:
             chunk_id = _make_chunk_id(
-                path.name, work_title, "deu", "", "", "", text[:120],
+                path.name,
+                work_title,
+                "deu",
+                "",
+                "",
+                "",
+                text[:120],
             )
             yield Chunk(
                 chunk_id=chunk_id,
@@ -362,24 +366,20 @@ def parse_file(
 
     # Emit one chunk per chapter — body = lines[start:end] minus chrome.
     for i, (start_line, chap_num) in enumerate(candidates):
-        end_line = (
-            candidates[i + 1][0]
-            if i + 1 < len(candidates)
-            else len(lines)
-        )
-        body = [
-            ln.strip()
-            for ln in lines[start_line + 1 : end_line]
-            if not _is_chrome(ln)
-        ]
-        text = unicodedata.normalize(
-            "NFC", _norm_text(" ".join(body))
-        )
+        end_line = candidates[i + 1][0] if i + 1 < len(candidates) else len(lines)
+        body = [ln.strip() for ln in lines[start_line + 1 : end_line] if not _is_chrome(ln)]
+        text = unicodedata.normalize("NFC", _norm_text(" ".join(body)))
         if len(text) < 80:
             continue
         section = f"Kapitel {chap_num}"
         chunk_id = _make_chunk_id(
-            path.name, work_title, "deu", "", section, "", text[:120],
+            path.name,
+            work_title,
+            "deu",
+            "",
+            section,
+            "",
+            text[:120],
         )
         yield Chunk(
             chunk_id=chunk_id,
@@ -417,7 +417,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     """Walk `data/marx/raw_deu_ocr/` and parse each Marx OCR file
     via `marx_works.find_work` to recover its (title, code)."""
 
-    from .authors.marx_works import find_work
+    from minerva.authors.marx_works import find_work
 
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or not entry.name.endswith(".txt"):
@@ -426,6 +426,4 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
         if cw is None:
             print(f"marx_de: skipping unknown file {entry.name!r}")
             continue
-        yield from parse_file(
-            entry, work_title=cw.title, work_code=cw.code
-        )
+        yield from parse_file(entry, work_title=cw.title, work_code=cw.code)

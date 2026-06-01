@@ -32,7 +32,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # OSIS XML uses a default namespace; ElementTree exposes it as a
 # Clark-notation prefix on every tag. Bind it so XPath queries stay
@@ -96,8 +96,8 @@ def parse_file(path: Path) -> Iterator[Chunk]:
     else (e.g. VerseMap.xml) is silently skipped.
     """
 
-    from .authors.hebrew_mt_works import find_book
-    from .locations import BCV_BOOK_ABBR
+    from minerva.authors.hebrew_mt_works import find_book
+    from minerva.locations import BCV_BOOK_ABBR
 
     book = find_book(path.name)
     if book is None:
@@ -170,7 +170,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     ``hebrew_mt_works._BOOKS`` (e.g. VerseMap.xml metadata) are
     skipped silently."""
 
-    from .authors.hebrew_mt_works import find_book
+    from minerva.authors.hebrew_mt_works import find_book
 
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or entry.suffix != ".xml":

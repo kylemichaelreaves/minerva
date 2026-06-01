@@ -29,13 +29,13 @@ class Play:
 # (Agamemnon → Libation Bearers → Eumenides) → Prometheus Bound
 # (authorship disputed but traditionally part of the corpus).
 AESCHYLUS_PLAYS: tuple[Play, ...] = (
-    Play("suppliants",            "Suppliants"),
-    Play("persians",              "Persians"),
-    Play("prometheus_bound",      "Prometheus Bound"),
-    Play("seven_against_thebes",  "Seven Against Thebes"),
-    Play("agamemnon",             "Agamemnon"),
-    Play("libation_bearers",      "Libation Bearers"),
-    Play("eumenides",             "Eumenides"),
+    Play("suppliants", "Suppliants"),
+    Play("persians", "Persians"),
+    Play("prometheus_bound", "Prometheus Bound"),
+    Play("seven_against_thebes", "Seven Against Thebes"),
+    Play("agamemnon", "Agamemnon"),
+    Play("libation_bearers", "Libation Bearers"),
+    Play("eumenides", "Eumenides"),
 )
 
 # Sophocles — tlg0011. 7 surviving plays. The Theban cycle (Antigone /
@@ -44,38 +44,38 @@ AESCHYLUS_PLAYS: tuple[Play, ...] = (
 # the dramatic chronology runs OT → Antigone → Oedipus at Colonus too.
 # tlg008 (Ichneutae) is a satyr-play fragment — excluded.
 SOPHOCLES_PLAYS: tuple[Play, ...] = (
-    Play("trachiniae",          "Trachiniae"),
-    Play("antigone",            "Antigone"),
-    Play("ajax",                "Ajax"),
-    Play("oedipus_tyrannus",    "Oedipus Tyrannus"),
-    Play("electra",             "Electra"),
-    Play("philoctetes",         "Philoctetes"),
-    Play("oedipus_at_colonus",  "Oedipus at Colonus"),
+    Play("trachiniae", "Trachiniae"),
+    Play("antigone", "Antigone"),
+    Play("ajax", "Ajax"),
+    Play("oedipus_tyrannus", "Oedipus Tyrannus"),
+    Play("electra", "Electra"),
+    Play("philoctetes", "Philoctetes"),
+    Play("oedipus_at_colonus", "Oedipus at Colonus"),
 )
 
 # Euripides — tlg0006. 19 surviving plays. Cyclops is the only complete
 # satyr play we have. Rhesus's authorship is disputed but it sits in
 # the traditional Euripidean corpus.
 EURIPIDES_PLAYS: tuple[Play, ...] = (
-    Play("cyclops",              "Cyclops"),
-    Play("alcestis",             "Alcestis"),
-    Play("medea",                "Medea"),
-    Play("heraclidae",           "Heraclidae"),
-    Play("hippolytus",           "Hippolytus"),
-    Play("andromache",           "Andromache"),
-    Play("hecuba",               "Hecuba"),
-    Play("suppliants",           "Suppliants"),
-    Play("heracles",             "Heracles"),
-    Play("ion",                  "Ion"),
-    Play("trojan_women",         "Trojan Women"),
-    Play("electra",              "Electra"),
-    Play("iphigenia_in_tauris",  "Iphigenia in Tauris"),
-    Play("helen",                "Helen"),
-    Play("phoenician_women",     "Phoenician Women"),
-    Play("orestes",              "Orestes"),
-    Play("bacchae",              "Bacchae"),
-    Play("iphigenia_in_aulis",   "Iphigenia in Aulis"),
-    Play("rhesus",               "Rhesus"),
+    Play("cyclops", "Cyclops"),
+    Play("alcestis", "Alcestis"),
+    Play("medea", "Medea"),
+    Play("heraclidae", "Heraclidae"),
+    Play("hippolytus", "Hippolytus"),
+    Play("andromache", "Andromache"),
+    Play("hecuba", "Hecuba"),
+    Play("suppliants", "Suppliants"),
+    Play("heracles", "Heracles"),
+    Play("ion", "Ion"),
+    Play("trojan_women", "Trojan Women"),
+    Play("electra", "Electra"),
+    Play("iphigenia_in_tauris", "Iphigenia in Tauris"),
+    Play("helen", "Helen"),
+    Play("phoenician_women", "Phoenician Women"),
+    Play("orestes", "Orestes"),
+    Play("bacchae", "Bacchae"),
+    Play("iphigenia_in_aulis", "Iphigenia in Aulis"),
+    Play("rhesus", "Rhesus"),
 )
 
 

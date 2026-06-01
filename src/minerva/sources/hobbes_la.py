@@ -42,7 +42,7 @@ import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # ──────────────────────────────────────────────────────────────────
 # Chapter detection
@@ -89,8 +89,13 @@ _RUNNING_HEAD_CHAP_RE = re.compile(
 _PAGE_NUM_RE = re.compile(r"^\s*[\divxlcdmIVXLCDM]{1,4}[.,;]?\s*$")
 
 _ROMAN_VALUES = {
-    "I": 1, "V": 5, "X": 10, "L": 50,
-    "C": 100, "D": 500, "M": 1000,
+    "I": 1,
+    "V": 5,
+    "X": 10,
+    "L": 50,
+    "C": 100,
+    "D": 500,
+    "M": 1000,
 }
 
 
@@ -122,12 +127,7 @@ def _roman_to_int(roman: str) -> int | None:
     # that excludes legitimate `XL` (=40) and forms with a real
     # L-component (`XLI`, `LX`, `LXX`). Run before the I-final-stroke
     # rule below so "XXX  L" rewrites cleanly without colliding.
-    if (
-        len(upper) >= 3
-        and upper.endswith("L")
-        and upper[-2] == "X"
-        and "L" not in upper[:-1]
-    ):
+    if len(upper) >= 3 and upper.endswith("L") and upper[-2] == "X" and "L" not in upper[:-1]:
         upper = upper[:-1] + "I"
     if upper.endswith("L") and "I" in upper[-3:-1]:
         upper = upper[:-1] + "I"
@@ -153,11 +153,11 @@ def _roman_to_int(roman: str) -> int | None:
 
 def _classify(line: str) -> tuple[str, object]:
     """One line → (kind, payload). Kinds:
-      * ``chapter_heading`` (payload = chapter int) — explicit CAPVT
-      * ``running_head`` (payload = chapter int or None) — page header
-      * ``page_num`` — bare number, drop
-      * ``blank`` — whitespace only
-      * ``body`` — content for the current chunk
+    * ``chapter_heading`` (payload = chapter int) — explicit CAPVT
+    * ``running_head`` (payload = chapter int or None) — page header
+    * ``page_num`` — bare number, drop
+    * ``blank`` — whitespace only
+    * ``body`` — content for the current chunk
     """
 
     if not line.strip():
@@ -230,10 +230,7 @@ def parse_file(
     #     running head, requiring monotonic increases.
     # The threshold "≥10 CAPVTs" distinguishes a genuine chapter-
     # header system from one or two false-positive matches.
-    capvt_count = sum(
-        1 for ln in lines
-        if _CAPVT_HEADING_RE.match(ln) is not None
-    )
+    capvt_count = sum(1 for ln in lines if _CAPVT_HEADING_RE.match(ln) is not None)
     mode = "capvt" if capvt_count >= 10 else "running_head"
 
     current_chap: int | None = None
@@ -260,13 +257,8 @@ def parse_file(
         transition / end-of-file boundary."""
 
         nonlocal current_chap, current_buf, current_raw
-        if (
-            current_chap is not None
-            and current_chap not in chunk_seen_chapters
-        ):
-            pending.append(
-                (current_chap, list(current_buf), list(current_raw))
-            )
+        if current_chap is not None and current_chap not in chunk_seen_chapters:
+            pending.append((current_chap, list(current_buf), list(current_raw)))
             chunk_seen_chapters.add(current_chap)
         current_buf = []
         current_raw = []
@@ -276,16 +268,20 @@ def parse_file(
         # for the work, or non-positive).
         if chap <= 0 or chap > max_chap:
             return None
-        text = unicodedata.normalize(
-            "NFC", _norm_text(" ".join(buf))
-        )
+        text = unicodedata.normalize("NFC", _norm_text(" ".join(buf)))
         # Below 80 chars is essentially empty (OCR'd page chrome only)
         # — drop it; the section locator would point at nothing.
         if len(text) < 80:
             return None
         section = f"Cap {chap}"
         chunk_id = _make_chunk_id(
-            path.name, work_title, "lat", "", section, "", text[:120],
+            path.name,
+            work_title,
+            "lat",
+            "",
+            section,
+            "",
+            text[:120],
         )
         return Chunk(
             chunk_id=chunk_id,
@@ -319,10 +315,7 @@ def parse_file(
             # Backwards jumps after we've reached the final chapter
             # signal end-of-book apparatus (TOC restarts at Cap I).
             # Flush the final chapter and stop accumulating.
-            if (
-                current_chap == max_chap
-                and new_chap < current_chap
-            ):
+            if current_chap == max_chap and new_chap < current_chap:
                 flush_pending()
                 current_chap = None
                 # Stop processing — everything past here is TOC/index.
@@ -424,10 +417,7 @@ def _gap_fill_pending(
         # donor_buf: every body line in donor_raw appears in
         # donor_buf in the same order (running heads were filtered
         # out), so count body lines in donor_raw[:split].
-        body_lines_before = sum(
-            1 for ln in donor_raw[:split]
-            if _classify(ln)[0] == "body"
-        )
+        body_lines_before = sum(1 for ln in donor_raw[:split] if _classify(ln)[0] == "body")
         new_n_minus_1_buf = donor_buf[:body_lines_before]
         new_n_buf = donor_buf[body_lines_before:]
         new_n_minus_1_raw = donor_raw[:split]
@@ -443,9 +433,7 @@ def _gap_fill_pending(
     return rebuilt
 
 
-def _find_running_head_cluster(
-    raw_lines: list[str], *, target_chap: int
-) -> int | None:
+def _find_running_head_cluster(raw_lines: list[str], *, target_chap: int) -> int | None:
     """Find the index of the FIRST line in `raw_lines` that is a
     page-running-head for chapter ``target_chap``, provided the
     chapter has ≥2 such running heads anywhere in `raw_lines`. The
@@ -473,7 +461,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     """Walk ``data/hobbes/raw_lat/`` and parse each Latin Hobbes file.
     Maps filename → (work title, work code) via ``hobbes_works.find_work``."""
 
-    from .authors.hobbes_works import find_work
+    from minerva.authors.hobbes_works import find_work
 
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or not entry.name.endswith(".txt"):

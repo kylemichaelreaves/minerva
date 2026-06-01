@@ -54,7 +54,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _SECTION_HDR = re.compile(r"^SECTION\s+(\d+)\s*$", re.MULTILINE)
 _BOOK_HDR = re.compile(r"^BOOK\s+([IVXLC]+)\s*$", re.MULTILINE)
@@ -242,7 +242,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     filename, and keeps the source mapping in one place.
     """
 
-    from .authors.aristotle_works import works_with_ica
+    from minerva.authors.aristotle_works import works_with_ica
 
     by_slug = {_slug_for_title(w.canonical_title): w for w in works_with_ica()}
 

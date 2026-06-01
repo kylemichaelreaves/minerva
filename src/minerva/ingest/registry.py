@@ -74,7 +74,7 @@ def _corpus_label(label: str, works_module: str) -> ParseFn:
 
 
 def _presocratic_parse(path: Path) -> Iterator[tei.Chunk]:
-    from .. import presocratic
+    from minerva.sources import presocratic
 
     yield from presocratic.parse_file(path)
 
@@ -86,7 +86,7 @@ def _drama_dir(corpus: str, author: str) -> ParseFn:
     and looks up canonical play titles from ``tragedians.TRAGEDIANS``."""
 
     def parse(path: Path) -> Iterator[tei.Chunk]:
-        from .. import tei_drama
+        from minerva.sources import tei_drama
 
         yield from tei_drama.parse_dir(path, corpus=corpus, author=author)
 
@@ -137,67 +137,67 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     IngestSource(
         "lxx",
         _P / "perseus" / "raw_xml_lxx",
-        _module_parse_dir("tei_lxx"),
+        _module_parse_dir("sources.tei_lxx"),
         help="Directory of Septuagint TEI P5 XML from First1KGreek tlg0527.",
     ),
     IngestSource(
         "nt",
         _P / "data" / "nt" / "raw_grc",
-        _module_parse_dir("sblgnt"),
+        _module_parse_dir("sources.sblgnt"),
         help="Directory of SBLGNT per-book XML files (Matt.xml...Rev.xml).",
     ),
     IngestSource(
         "vulgate",
         _P / "data" / "vulgate" / "raw_lat",
-        _module_parse_dir("vulgate"),
+        _module_parse_dir("sources.vulgate"),
         help="Directory of Clementine Vulgate per-book .lat files.",
     ),
     IngestSource(
         "luther_1912",
         _P / "data" / "luther_1912" / "raw_deu",
-        _module_parse_dir("luther_1912"),
+        _module_parse_dir("sources.luther_1912"),
         help="Directory holding the Luther 1912 Zefania XML (single luther_1912.xml file).",
     ),
     IngestSource(
         "luther_1545",
         _P / "data" / "luther_1545" / "raw_deu",
-        _module_parse_dir("luther_1545"),
+        _module_parse_dir("sources.luther_1545"),
         help="Directory holding the Luther 1545 Zefania XML (Letzte-Hand, Frühneuhochdeutsch).",
     ),
     IngestSource(
         "kjv",
         _P / "data" / "kjv" / "raw_eng",
-        _module_parse_dir("kjv"),
+        _module_parse_dir("sources.kjv"),
         help="Directory holding the King James (1611) Zefania XML.",
     ),
     IngestSource(
         "sacy",
         _P / "data" / "sacy" / "raw_fra",
-        _module_parse_dir("sacy"),
+        _module_parse_dir("sources.sacy"),
         help="Directory holding the Lemaistre de Sacy (1696) per-book files (HTML or text).",
     ),
     IngestSource(
         "hebrew_mt",
         _P / "data" / "hebrew_mt" / "raw",
-        _module_parse_dir("hebrew_mt"),
+        _module_parse_dir("sources.hebrew_mt"),
         help="Directory of OSHB Westminster Leningrad Codex OSIS XML files (Gen.xml ... 2Chr.xml).",
     ),
     IngestSource(
         "quran",
         _P / "data" / "quran" / "raw",
-        _module_parse_dir("quran"),
+        _module_parse_dir("sources.quran"),
         help="Directory holding the Tanzil Uthmani Quran XML (quran-uthmani.xml).",
     ),
     IngestSource(
         "aristotle_first1k",
         _P / "perseus" / "raw_xml_aristotle_first1k",
-        _module_parse_dir("tei_p5"),
+        _module_parse_dir("sources.tei_p5"),
         help="Directory of supplemental First1KGreek Aristotle TEI P5 XML.",
     ),
     IngestSource(
         "aristotle_ica",
         _P / "perseus" / "raw_text_aristotle_ica",
-        _module_parse_dir("ica_parse"),
+        _module_parse_dir("sources.ica_parse"),
         help="Directory of ICA English Aristotle plain-text translations.",
     ),
     IngestSource(
@@ -257,7 +257,7 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     IngestSource(
         "hobbes_la",
         _P / "data" / "hobbes" / "raw_lat",
-        _module_parse_dir("hobbes_la"),
+        _module_parse_dir("sources.hobbes_la"),
         help="Directory of Hobbes Latin IA-OCR texts (see hobbes_la.py).",
     ),
     IngestSource(
@@ -293,7 +293,7 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     IngestSource(
         "marx_ocr",
         _P / "data" / "marx" / "raw_deu_ocr",
-        _module_parse_dir("marx_de"),
+        _module_parse_dir("sources.marx_de"),
         help="Directory of Marx Kapital IA-OCR texts (see marx_de.py).",
     ),
     IngestSource(
@@ -334,10 +334,7 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     ),
     IngestSource(
         "presocratic",
-        _P
-        / "data"
-        / "presocratic"
-        / "diefragmentederv12diel_hocr_searchtext.txt",
+        _P / "data" / "presocratic" / "diefragmentederv12diel_hocr_searchtext.txt",
         _presocratic_parse,
         path_kind="file",
         param_name="presocratic_text",
@@ -372,7 +369,7 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     IngestSource(
         "aesop",
         _P / "data" / "aesop",
-        _module_parse_dir("tei_p5"),
+        _module_parse_dir("sources.tei_p5"),
         help="Directory of Aesop's Fables — Phaedrus Latin + English (Perseus TEI P5).",
     ),
     # Babrius Greek verse + Davies English — archive.org OCR
@@ -401,7 +398,7 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     IngestSource(
         "origen_grc",
         _P / "data" / "origen",
-        _module_parse_dir("tei_p5"),
+        _module_parse_dir("sources.tei_p5"),
         help="Directory of Origen *Contra Celsum* Greek (First1KGreek TLG 2042, TEI P5).",
     ),
     IngestSource(

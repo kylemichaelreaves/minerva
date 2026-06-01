@@ -32,7 +32,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 
 def _normalize_ayah_text(s: str) -> str:
@@ -52,7 +52,7 @@ def parse_file(path: Path) -> Iterator[Chunk]:
     emit one Chunk per ``<aya>``.
     """
 
-    from .authors.quran_works import find_surah
+    from minerva.authors.quran_works import find_surah
 
     tree = ET.parse(path)
     root = tree.getroot()  # <quran>

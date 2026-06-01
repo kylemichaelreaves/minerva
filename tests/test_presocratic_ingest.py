@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from minerva import presocratic
 from minerva.authors.presocratic_works import _PHASE_1, find_by_chapter_heading
+from minerva.sources import presocratic
 
 # ════════════════════════════════════════════════════════════════════
 # Synthetic-fixture tests

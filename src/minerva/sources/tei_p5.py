@@ -39,7 +39,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -266,7 +266,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
     # Aristotle layout: subdirectories with grc.xml inside.
     sub_dirs = [e for e in directory.iterdir() if e.is_dir()]
     if sub_dirs:
-        from .authors.aristotle_works import works_with_first1k
+        from minerva.authors.aristotle_works import works_with_first1k
 
         by_slug = {_slug_for_title(w.canonical_title): w for w in works_with_first1k()}
         for entry in sorted(sub_dirs):

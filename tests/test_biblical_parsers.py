@@ -38,7 +38,7 @@ _VULGATE_DIR = REPO_ROOT / "data" / "vulgate" / "raw_lat"
 )
 def test_vulgate_genesis_first_verse() -> None:
     from minerva.authors.vulgate_works import book_for_filename
-    from minerva.vulgate import parse_file
+    from minerva.sources.vulgate import parse_file
 
     path = _VULGATE_DIR / "Gn.lat"
     book = book_for_filename(path.name)
@@ -71,7 +71,7 @@ def test_vulgate_psalm_50_is_miserere() -> None:
     Regression catches a Hebrew-vs-Vulgate numbering swap."""
 
     from minerva.authors.vulgate_works import book_for_filename
-    from minerva.vulgate import parse_file
+    from minerva.sources.vulgate import parse_file
 
     path = _VULGATE_DIR / "Ps.lat"
     book = book_for_filename(path.name)
@@ -101,7 +101,7 @@ def test_vulgate_daniel_includes_chapter_13_susanna() -> None:
     Vulgate convention)."""
 
     from minerva.authors.vulgate_works import book_for_filename
-    from minerva.vulgate import parse_file
+    from minerva.sources.vulgate import parse_file
 
     path = _VULGATE_DIR / "Dn.lat"
     book = book_for_filename(path.name)
@@ -134,7 +134,7 @@ _LXX_GENESIS = _LXX_DIR / "tlg0527.tlg001.1st1K-grc1.xml"
 )
 def test_lxx_genesis_first_verse() -> None:
     from minerva.authors.septuagint_works import book_for_filename
-    from minerva.tei_lxx import parse_file
+    from minerva.sources.tei_lxx import parse_file
 
     book = book_for_filename(_LXX_GENESIS.name)
     assert book is not None
@@ -181,7 +181,7 @@ def test_sblgnt_john_1_1() -> None:
     has regressed."""
 
     from minerva.authors.new_testament_works import book_for_filename
-    from minerva.sblgnt import parse_file
+    from minerva.sources.sblgnt import parse_file
 
     path = _NT_DIR / "John.xml"
     book = book_for_filename(path.name)
@@ -218,7 +218,7 @@ def test_sblgnt_1cor_13_1() -> None:
     last space (greedy book name + chap:verse)."""
 
     from minerva.authors.new_testament_works import book_for_filename
-    from minerva.sblgnt import parse_file
+    from minerva.sources.sblgnt import parse_file
 
     path = _NT_DIR / "1Cor.xml"
     book = book_for_filename(path.name)
@@ -247,7 +247,7 @@ def test_sblgnt_revelation_last_verse() -> None:
     trailing verse-number milestone."""
 
     from minerva.authors.new_testament_works import book_for_filename
-    from minerva.sblgnt import parse_file
+    from minerva.sources.sblgnt import parse_file
 
     path = _NT_DIR / "Rev.xml"
     book = book_for_filename(path.name)

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from minerva.hobbes_la import _roman_to_int, parse_file
+from minerva.sources.hobbes_la import _roman_to_int, parse_file
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _LEVIATHAN_LAT = _REPO_ROOT / "data" / "hobbes" / "raw_lat" / "leviathan_lat.txt"
