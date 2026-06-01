@@ -1,0 +1,221 @@
+"""Server tests for the reader endpoints: `/api/translate`, `/api/works`,
+`/api/works/:work`. Split from `test_server.py` to keep the chat-side
+test file focused on chat behaviour."""
+
+from __future__ import annotations
+
+from http import HTTPStatus
+
+import pytest
+from conftest import StubBackend
+from conftest import make_deps as _make_deps
+
+from minerva import server
+
+# ---------- /api/translate ----------
+
+
+def test_handle_translate_cache_miss_calls_llm_and_stores(populated_db, translations_conn):
+    backend = StubBackend(reply="Sing, goddess, the wrath")
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    body = server._handle_translate(
+        deps,
+        {
+            "source_text": "Μῆνιν ἄειδε θεὰ",
+            "target_lang": "eng",
+        },
+    )
+    assert body["translated_text"] == "Sing, goddess, the wrath"
+    assert body["cached"] is False
+    assert body["model"] == "stub"
+    # Persisted in the cache.
+    row = translations_conn.execute(
+        "SELECT translated_text, model FROM translations WHERE source_text=? AND target_lang=?",
+        ("Μῆνιν ἄειδε θεὰ", "eng"),
+    ).fetchone()
+    # sqlite3.Row supports tuple-like indexing.
+    assert (row[0], row[1]) == ("Sing, goddess, the wrath", "stub")
+
+
+def test_handle_translate_cache_hit_skips_llm(populated_db, translations_conn):
+    backend = StubBackend(reply="should not be called")
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    # First call populates the cache.
+    server._handle_translate(deps, {"source_text": "Μῆνιν", "target_lang": "eng"})
+    assert len(backend.captured) == 1
+    # Second call hits cache — backend is not invoked again.
+    body = server._handle_translate(deps, {"source_text": "Μῆνιν", "target_lang": "eng"})
+    assert body["cached"] is True
+    assert len(backend.captured) == 1  # unchanged
+
+
+def test_handle_translate_rejects_empty_source(populated_db, translations_conn):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_translate(deps, {"source_text": "   ", "target_lang": "eng"})
+    assert info.value.status == HTTPStatus.BAD_REQUEST
+
+
+def test_handle_translate_rejects_bad_lang(populated_db, translations_conn):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_translate(deps, {"source_text": "x", "target_lang": "zz"})
+    assert info.value.status == HTTPStatus.BAD_REQUEST
+
+
+def test_handle_translate_rejects_oversize_source(populated_db, translations_conn):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    huge = "x" * (server._MAX_TRANSLATE_CHARS + 1)
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_translate(deps, {"source_text": huge, "target_lang": "eng"})
+    assert info.value.status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+
+
+def test_handle_translate_none_backend_returns_placeholder(populated_db, translations_conn):
+    backend = StubBackend(name="none")
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    body = server._handle_translate(deps, {"source_text": "Μῆνιν", "target_lang": "eng"})
+    # Placeholder when there's no real LLM; nothing written to the cache.
+    assert (
+        "retrieval-only" in body["translated_text"].lower()
+        or "unavailable" in body["translated_text"].lower()
+    )
+    assert body["cached"] is False
+    assert translations_conn.execute("SELECT COUNT(*) FROM translations").fetchone()[0] == 0
+
+
+def test_handle_translate_uses_temperature_zero(populated_db, translations_conn):
+    backend = StubBackend(reply="t")
+    deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
+    server._handle_translate(deps, {"source_text": "x", "target_lang": "eng"})
+    # The stub records the temperature it was called with.
+    assert backend.captured[-1][1] == 0.0
+
+
+# ---------- /api/works ----------
+
+
+def test_handle_works_list_returns_distinct_work_lang_pairs(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    body = server._handle_works_list(deps)
+    works = body["works"]
+    assert len(works) > 0
+    # Each entry has the four key fields plus a count.
+    for w in works:
+        assert {"corpus", "author", "work", "lang", "chunks"} <= w.keys()
+    # Republic and Nicomachean Ethics are both in the populated fixture.
+    titles = {w["work"] for w in works}
+    assert "Republic" in titles
+
+
+def test_handle_work_range_returns_ordered_chunks(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    body = server._handle_work_range(deps, "Republic", {"lang": "eng"})
+    assert body["work"] == "Republic"
+    assert body["lang"] == "eng"
+    assert body["total"] >= 1
+    # Chunks come back ordered by ord.
+    ords = [c["ord"] for c in body["chunks"]]
+    assert ords == sorted(ords)
+
+
+def test_handle_work_range_404_for_unknown_work(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_work_range(deps, "Does Not Exist", {"lang": "eng"})
+    assert info.value.status == HTTPStatus.NOT_FOUND
+
+
+def test_handle_work_range_rejects_invalid_pagination(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    with pytest.raises(server._HTTPError):
+        server._handle_work_range(deps, "Republic", {"lang": "eng", "from": "-1"})
+    with pytest.raises(server._HTTPError):
+        server._handle_work_range(deps, "Republic", {"lang": "eng", "limit": "0"})
+    with pytest.raises(server._HTTPError):
+        server._handle_work_range(deps, "Republic", {"lang": "eng", "from": "abc"})
+
+
+def test_handle_work_range_with_around_centers_window_on_chunk(populated_db):
+    """`around=<chunk_id>` resolves to that chunk's (work, lang, ord) and
+    returns a window centered on it — frees citation deep-links from
+    needing to know the chunk's offset or even its containing work."""
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    # Find a known chunk to pivot around.
+    row = populated_db.execute(
+        "SELECT chunk_id, work, lang, ord FROM chunks_full "
+        "WHERE work='Republic' AND lang='eng' ORDER BY ord LIMIT 1 OFFSET 0"
+    ).fetchone()
+    body = server._handle_work_range(deps, "ignored", {"around": row[0], "limit": "5"})
+    assert body["work"] == row[1]
+    assert body["lang"] == row[2]
+    returned_ids = {c["chunk_id"] for c in body["chunks"]}
+    assert row[0] in returned_ids
+
+
+def test_handle_work_range_around_404_for_unknown_chunk(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_work_range(deps, "Republic", {"around": "nope"})
+    assert info.value.status == HTTPStatus.NOT_FOUND
+
+
+# ---------- /api/chunks/:id/context ----------
+
+
+def test_handle_chunk_context_returns_focus_and_neighbors(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    # Pick a non-edge chunk so before/after both have material.
+    row = populated_db.execute(
+        "SELECT chunk_id FROM chunks_full WHERE work='Republic' AND lang='eng' "
+        "ORDER BY ord LIMIT 1 OFFSET 1"
+    ).fetchone()
+    body = server._handle_chunk_context(deps, row[0], {"radius": "1"})
+    assert body["focus"]["chunk_id"] == row[0]
+    assert body["work"] == "Republic"
+    assert body["lang"] == "eng"
+    # Same-work, same-lang neighbors, ordered.
+    for n in body["before"] + body["after"]:
+        assert isinstance(n["text"], str)
+    if body["before"]:
+        assert body["before"][-1]["ord"] < body["focus"]["ord"]
+    if body["after"]:
+        assert body["after"][0]["ord"] > body["focus"]["ord"]
+
+
+def test_handle_chunk_context_radius_zero_skips_neighbors(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    row = populated_db.execute("SELECT chunk_id FROM chunks LIMIT 1").fetchone()
+    body = server._handle_chunk_context(deps, row[0], {"radius": "0"})
+    assert body["before"] == []
+    assert body["after"] == []
+    assert body["focus"]["chunk_id"] == row[0]
+
+
+def test_handle_chunk_context_404_for_unknown_chunk(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_chunk_context(deps, "does-not-exist", {})
+    assert info.value.status == HTTPStatus.NOT_FOUND
+
+
+def test_handle_chunk_context_rejects_invalid_radius(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    row = populated_db.execute("SELECT chunk_id FROM chunks LIMIT 1").fetchone()
+    with pytest.raises(server._HTTPError):
+        server._handle_chunk_context(deps, row[0], {"radius": "abc"})
+    with pytest.raises(server._HTTPError):
+        server._handle_chunk_context(deps, row[0], {"radius": "99"})

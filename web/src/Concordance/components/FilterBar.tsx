@@ -1,0 +1,232 @@
+// F1 desktop header-bar filter row — Sort dropdown, POS dropdown,
+// Frequency-range slider, and lemma search. Lives directly under the
+// scope pill on the index page. The mobile filter sheet renders the
+// same groups stacked.
+
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { isConcSort, type ConcSort } from "~/api/concordanceApi";
+
+/** UD POS tags that show up on the leaderboard. The backend default
+ *  whitelist is content words (NOUN/VERB/ADJ/PROPN); the dropdown lets
+ *  the user narrow further or override the default to surface function
+ *  words via the ``all`` value (passed to the backend as ``pos_in=all``). */
+export const POS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "default" },
+  { value: "NOUN", label: "noun" },
+  { value: "VERB", label: "verb" },
+  { value: "ADJ", label: "adj" },
+  { value: "PROPN", label: "propn" },
+  { value: "ADV", label: "adv" },
+  { value: "ADP", label: "prep" },
+  { value: "DET", label: "det" },
+  { value: "PRON", label: "pron" },
+  { value: "all", label: "all (incl. function words)" },
+];
+
+export interface FilterBarProps {
+  sort: ConcSort;
+  pos?: string;
+  freqMin?: number;
+  freqMax?: number;
+  /** Largest observed frequency in the current scope — drives the
+   *  slider's upper bound so the knob's position is meaningful. */
+  freqCeil: number;
+  q?: string;
+  onSetSort: (v: ConcSort) => void;
+  onSetPos: (v: string | undefined) => void;
+  onSetFreqRange: (min: number | undefined, max: number | undefined) => void;
+  onSetQ: (v: string | undefined) => void;
+}
+
+/** Pull-down dropdown — a lightweight click-to-toggle popover. We don't
+ *  reach for the project's `Select` because the surface area is small
+ *  enough to inline (no async loading, no grouping, no keyboard nav
+ *  beyond what native focus already gives us). */
+function Dropdown(props: {
+  label: string;
+  current: string;
+  options: { value: string; label: string }[];
+  onPick: (v: string) => void;
+}) {
+  const [open, setOpen] = createSignal(false);
+  return (
+    <span class="fbar-drop" classList={{ on: !!props.current }}>
+      <span class="trigger" onClick={() => setOpen((o) => !o)}>
+        {props.label}
+        <span class="chev">▾</span>
+      </span>
+      <Show when={open()}>
+        <span class="menu" onClick={() => setOpen(false)}>
+          <For each={props.options}>
+            {(o) => (
+              <span
+                class="opt"
+                classList={{ cur: o.value === props.current }}
+                onClick={() => {
+                  props.onPick(o.value);
+                  setOpen(false);
+                }}
+              >
+                {o.label}
+              </span>
+            )}
+          </For>
+        </span>
+      </Show>
+    </span>
+  );
+}
+
+/** Two-thumb range slider over [0, ceil]. Used both for the F1 desktop
+ *  filter bar and for the mobile filter sheet's "Frequency" row.
+ *
+ *  Implementation note: `<input type="range">` is one of Solid's
+ *  awkward primitives — Solid's standard JSX binding for `value` and
+ *  `max` sets the HTML *attribute* once but doesn't reliably push
+ *  subsequent signal changes onto the DOM `.value` / `.max`
+ *  properties. The visible thumb position is driven by the DOM
+ *  property, so a bare ``value={lo()}`` desynchronises the second
+ *  time the signal updates (e.g. after a Reset).
+ *
+ *  Fix: hold a ref per thumb and write `.value` / `.max` from a
+ *  ``createEffect`` whenever the source accessors fire. Solid tracks
+ *  the reads inside the effect; the DOM stays in sync.
+ */
+export function FreqRange(props: {
+  min: number | undefined;
+  max: number | undefined;
+  ceil: number;
+  onChange: (min: number | undefined, max: number | undefined) => void;
+}) {
+  const ceil = () => Math.max(1, props.ceil);
+  const lo = () => props.min ?? 1;
+  const hi = () => props.max ?? ceil();
+  const loPct = () => Math.min(99, Math.max(0, ((lo() - 1) / (ceil() - 1)) * 100));
+  const hiPct = () => Math.min(100, Math.max(1, ((hi() - 1) / (ceil() - 1)) * 100));
+
+  let loEl: HTMLInputElement | undefined;
+  let hiEl: HTMLInputElement | undefined;
+  createEffect(() => {
+    if (loEl) {
+      loEl.max = String(ceil());
+      loEl.value = String(lo());
+    }
+    if (hiEl) {
+      hiEl.max = String(ceil());
+      hiEl.value = String(hi());
+    }
+  });
+
+  return (
+    <span class="fbar-range">
+      <span class="ed">{lo().toLocaleString()}</span>
+      <span class="track">
+        <span
+          class="fill"
+          style={{ left: `${loPct()}%`, right: `${100 - hiPct()}%` }}
+        />
+        <input
+          ref={loEl}
+          class="thumb"
+          type="range"
+          min={1}
+          onInput={(e) => {
+            const v = Number(e.currentTarget.value);
+            const nextMin = v <= 1 ? undefined : v;
+            // Don't push past the upper knob — clamp to hi() so the
+            // slider can't invert (the backend tolerates it, but the
+            // UX is confusing).
+            const clamped =
+              nextMin !== undefined && nextMin > hi() ? hi() : nextMin;
+            props.onChange(clamped, props.max);
+          }}
+        />
+        <input
+          ref={hiEl}
+          class="thumb"
+          type="range"
+          min={1}
+          onInput={(e) => {
+            const v = Number(e.currentTarget.value);
+            const nextMax = v >= ceil() ? undefined : v;
+            const clamped =
+              nextMax !== undefined && nextMax < lo() ? lo() : nextMax;
+            props.onChange(props.min, clamped);
+          }}
+        />
+      </span>
+      <span class="ed">{hi().toLocaleString()}</span>
+    </span>
+  );
+}
+
+export function FilterBar(props: FilterBarProps) {
+  const sortLabel = createMemo(() => {
+    switch (props.sort) {
+      case "alpha":
+        return "A→Z";
+      case "pos":
+        return "POS";
+      default:
+        return "Frequency";
+    }
+  });
+  const posLabel = createMemo(() => {
+    if (!props.pos) return "default";
+    return POS_OPTIONS.find((o) => o.value === props.pos)?.label ?? props.pos;
+  });
+  return (
+    <div class="fbar">
+      <div class="grp">
+        <span class="lab">Sort</span>
+        <Dropdown
+          label={sortLabel()}
+          current={props.sort}
+          options={[
+            { value: "freq", label: "Frequency" },
+            { value: "alpha", label: "A→Z" },
+            { value: "pos", label: "POS" },
+          ]}
+          onPick={(v) => {
+            if (isConcSort(v)) props.onSetSort(v);
+          }}
+        />
+      </div>
+
+      <div class="grp">
+        <span class="lab">POS</span>
+        <Dropdown
+          label={posLabel()}
+          current={props.pos ?? ""}
+          options={POS_OPTIONS}
+          onPick={(v) => props.onSetPos(v || undefined)}
+        />
+      </div>
+
+      <div class="grp">
+        <span class="lab">Frequency ≥</span>
+        <FreqRange
+          min={props.freqMin}
+          max={props.freqMax}
+          ceil={props.freqCeil}
+          onChange={(lo, hi) => props.onSetFreqRange(lo, hi)}
+        />
+      </div>
+
+      <span class="fbar-spacer" />
+
+      <span class="fbar-search">
+        <span class="ico">⌕</span>
+        <input
+          type="text"
+          placeholder="Find lemma — type any word…"
+          value={props.q ?? ""}
+          onInput={(e) => {
+            const v = e.currentTarget.value.trim();
+            props.onSetQ(v || undefined);
+          }}
+        />
+      </span>
+    </div>
+  );
+}

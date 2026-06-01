@@ -1,0 +1,66 @@
+version: 1
+
+# Hegel's references to Kant + the ancients. Anchored against the
+# English Elements of the Philosophy of Right where §-numbering is
+# directly addressable (the German edition uses heading-prefixed
+# paragraph numbers that drift across the same § across multiple
+# treatments). Insert is idempotent via the content-key dedup; safe
+# to re-run.
+
+references:
+
+  # PR §29 (definition of right) → Kant Metaphysics of Morals
+  - source: { chunk_id: "e044e0e601e087ff6acb" }
+    target:
+      author: Kant
+      work: The Metaphysics of Morals
+    type: corrects
+    source_form: "Kant"
+    note: |
+      Hegel's "right is the existence (Dasein) of free will" is
+      explicitly framed against Kant's MS definition (right as the
+      sum of conditions under which one's choice can be united with
+      another's). Hegel reads Kant as too formal — right is not just
+      compatibility of arbitrary choices, but the actualization of
+      freedom.
+
+  # PR §142 (definition of Sittlichkeit) → Plato Republic
+  - source: { chunk_id: "a9b19bd9f464ed94cb98" }
+    target:
+      author: Plato
+      work: Republic
+    type: alludes
+    note: |
+      The transition from morality (Moralität) to ethical life
+      (Sittlichkeit) tacitly retrieves the Platonic Republic's vision
+      of justice as the harmony of objective and subjective will —
+      against Kantian individualism. Hegel's "ethical substance" is
+      the modern German cousin of Plato's politeia.
+
+  # PR §185 (civil society — Plato got it wrong) → Plato Republic
+  - source: { chunk_id: "bc41dc2f2996836b3976" }
+    target:
+      author: Plato
+      work: Republic
+    type: disputes
+    source_form: "Plato"
+    note: |
+      Hegel's defense of civil society as the moment of subjective
+      particularity reads Plato's Republic as the high-water mark of
+      ancient Sittlichkeit that nevertheless fails to make room for
+      the modern principle of subjectivity.
+
+  # PR §258 (the state as actuality of the ethical Idea) → Kant
+  # Critique of Pure Reason (and via that, the Metaphysics of Morals)
+  - source: { chunk_id: "1c412af61fcaa5e0902b" }
+    target:
+      author: Kant
+      work: Critique of Pure Reason
+    type: corrects
+    source_form: "Kant"
+    note: |
+      The flagship Hegel-against-Kant moment: the state is not a
+      contract among individuals (the Kantian construal) but the
+      "actuality of the ethical Idea." Hegel's polemic against
+      contractualism here is targeted at the social-contract tradition
+      Kant inherits and extends in the Metaphysik der Sitten.

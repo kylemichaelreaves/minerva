@@ -1,0 +1,49 @@
+# Boulainvilliers — Histoire de l'ancien gouvernement, Essai sur la noblesse.
+author: Boulainvilliers
+mentions:
+  - name: boulainvilliers_tacitus
+    target_author: Tacitus
+    target_work: Germania
+    forms:
+      - Tacite
+      - Tacit.
+      - Tacitus
+      - Tacito
+      - Germanie de Tacite
+      - la Germanie
+    langs: [fra, eng]
+    confidence: 0.85
+  - name: boulainvilliers_caesar
+    target_author: Caesar
+    target_work: De Bello Gallico
+    forms:
+      - César
+      - Caesar
+      - Caesar.
+      - Jules César
+      - Commentaires de César
+      - De bello Gallico
+    langs: [fra, eng]
+    confidence: 0.80
+  - name: boulainvilliers_gregory_of_tours
+    target_author: Gregory of Tours
+    target_work: Historia Francorum
+    forms:
+      - Grégoire de Tours
+      - Gregory of Tours
+      - Greg. Tur.
+      - Gregorius Turonensis
+      - Historia Francorum
+      - Histoire des Francs
+    langs: [fra, eng]
+    confidence: 0.85
+  - name: boulainvilliers_salic_law
+    target_author: Lex Salica
+    forms:
+      - Loi Salique
+      - Loi des Francs
+      - Lex Salica
+      - Salic Law
+      - Salique
+    langs: [fra, eng]
+    confidence: 0.75

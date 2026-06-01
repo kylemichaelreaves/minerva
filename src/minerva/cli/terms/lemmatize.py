@@ -1,0 +1,264 @@
+"""`minerva terms lemmatize` — populate the chunk_lemmas cache.
+
+One row per (chunk, token) for every grc/deu chunk; downstream the
+glossary importer joins this against `terms.lemma` to find term
+occurrences. Designed to be run once after a fresh ingest and then
+left alone — re-runs skip chunks already present unless ``--all`` is
+passed.
+
+The expensive step is loading the spaCy model (~1-2 s for
+``de_core_news_sm``) and running it over thousands of chunks (~10 k
+tokens/sec). We batch by chunk and commit every N inserts so a Ctrl-C
+mid-run doesn't lose all progress.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import sys
+import unicodedata
+
+from ...lemmatize import (
+    Lemmatizer,
+    UnsupportedLanguageError,
+    is_supported,
+    is_valid_lemma,
+)
+from ._io import _open
+
+# Commit every N chunk-batches. Bigger = fewer fsyncs; smaller = less
+# work lost on interrupt. At 2000 chunks an interrupt costs ~30s of
+# work in the worst case — acceptable for the SQLite-throughput
+# headroom we get back. See lemmatize-perf-plan memory.
+_COMMIT_BATCH = 2000
+
+
+def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
+    """Driver. Builds the list of chunks to process, instantiates the
+    lemmatizer once, streams tokens into ``chunk_lemmas`` in batches."""
+
+    lang = args.lang
+    if not is_supported(lang):
+        print(
+            f"lemmatize: language {lang!r} not supported on this Python "
+            "build. The glossary importer falls back to search_forms — "
+            "no action needed."
+        )
+        return 0
+
+    conn = _open(args)
+    try:
+        # Build the candidate-chunk query. `chunks_full` includes
+        # work_id / edition_id / corpus, so filtering by edition or
+        # by language stays a clean WHERE clause.
+        where: list[str] = ["cf.lang = ?"]
+        params: list[object] = [lang]
+        if args.edition_id is not None:
+            where.append("cf.edition_id = ?")
+            params.append(args.edition_id)
+        if not args.all:
+            # Skip chunks already in chunk_lemmas. The subquery EXISTS
+            # is cheaper than LEFT JOIN here because chunk_lemmas has
+            # a leading-column index on chunk_id (the PK).
+            where.append(
+                "NOT EXISTS (SELECT 1 FROM chunk_lemmas cl WHERE cl.chunk_id = cf.chunk_id)"
+            )
+        where_clause = " AND ".join(where)
+        count_sql = "SELECT COUNT(*) FROM chunks_full cf WHERE " + where_clause
+        select_sql = (
+            "SELECT cf.chunk_id, cf.text FROM chunks_full cf "
+            "WHERE " + where_clause + " ORDER BY cf.ord"
+        )
+        total = conn.execute(count_sql, params).fetchone()[0]
+        print(f"lemmatize: {total} chunks to process for lang={lang}")
+        if total == 0:
+            return 0
+
+        if args.dry_run:
+            # Tokenise the first few chunks just to confirm the model
+            # is loadable and produces plausible output — useful when
+            # the curator wants to sanity-check before committing to a
+            # full pass.
+            try:
+                lm = Lemmatizer(lang)
+            except UnsupportedLanguageError as exc:
+                print(f"lemmatize: {exc}")
+                return 1
+            print(
+                f"lemmatize: backend={getattr(lm, 'backend', '?')} "
+                f"model={getattr(lm, 'model', '?')} (dry-run)"
+            )
+            sample = conn.execute(select_sql + " LIMIT 3", params).fetchall()
+            for ch in sample:
+                tokens = list(lm.tokens(ch["text"]))
+                preview = ", ".join(
+                    f"{t.surface}→{t.lemma}" for t in tokens[:8]
+                )
+                print(f"  {ch['chunk_id']}: {len(tokens)} tokens · {preview}")
+            return 0
+
+        try:
+            lm = Lemmatizer(lang)
+        except UnsupportedLanguageError as exc:
+            print(f"lemmatize: {exc}")
+            return 1
+        print(
+            f"lemmatize: backend={getattr(lm, 'backend', '?')} "
+            f"model={getattr(lm, 'model', '?')}"
+        )
+
+        # Stream the candidate chunks through `Lemmatizer.batch_pipe`
+        # instead of materializing them all up front. On the full
+        # deu pass that's ~104 k rows × ~1-2 KB of text per row =
+        # ~200 MB held in RAM just to feed the generator. The
+        # streaming form starts processing chunk 1 immediately and
+        # never holds more than the current spaCy pipe batch in
+        # memory. SQLite cursors survive commits issued on the same
+        # connection — each Cursor owns its own prepared statement
+        # handle and resumes from its row position after the writer
+        # finishes. (A second connection would deadlock here because
+        # the read cursor's SHARED lock blocks the writer's EXCLUSIVE
+        # lock acquisition at commit time.)
+        # Tuple shape matches the INSERT in ``_flush`` — the lemma_fold
+        # slot was added with migration 0018 so KWIC lookups can seek
+        # ``chunk_lemmas_by_fold`` instead of forcing a scan via
+        # ``LOWER(lemma) = LOWER(?)``.
+        inserts: list[
+            tuple[str, int, str, int, int, str, str, str | None, str | None]
+        ] = []
+        tokens_total = 0
+        chunks_done = 0
+        progress = _progress_bar(total=total, lang=lang)
+        cursor = conn.execute(select_sql, params)
+        items = (
+            (unicodedata.normalize("NFC", row["text"]), row["chunk_id"])
+            for row in cursor
+        )
+        for tokens, chunk_id in lm.batch_pipe(
+            items, batch_size=args.batch_size, n_process=args.n_process
+        ):
+            # token_index is 0-based within the chunk and survives
+            # filtering — we increment only on valid lemmas so the
+            # stored indices stay dense. Original positions in the
+            # source text still recover via (surface_start, surface_end).
+            kept = 0
+            for tok in tokens:
+                if not is_valid_lemma(tok.lemma):
+                    continue
+                inserts.append(
+                    (
+                        chunk_id, kept,
+                        tok.surface, tok.start, tok.end,
+                        tok.lemma, tok.lemma.lower(),
+                        tok.pos, tok.feats,
+                    )
+                )
+                kept += 1
+                tokens_total += 1
+            chunks_done += 1
+            progress.update(1)
+            progress.set_postfix_str(f"{tokens_total} tokens", refresh=False)
+            if chunks_done % _COMMIT_BATCH == 0:
+                _flush(conn, inserts)
+                inserts.clear()
+        _flush(conn, inserts)
+        progress.close()
+        print(f"lemmatize: done · {chunks_done} chunks · {tokens_total} tokens")
+
+        # Rebuild the concordance aggregate table — the only consumer
+        # of chunk_lemmas at read time. Skipping this would leave the
+        # leaderboard stale until the next manual ``aggregate-lemmas``
+        # run. Cost: ~30s on the current corpus, dwarfed by the
+        # lemmatize pass itself.
+        if not getattr(args, "skip_aggregate", False):
+            from ...concordance import aggregate
+            summary = aggregate.build(conn, verbose=True)
+            print(
+                f"aggregate-lemmas: {summary['total']:,} rows in "
+                f"{summary['elapsed_seconds']:.1f}s"
+            )
+        return 0
+    finally:
+        conn.close()
+
+
+def _progress_bar(*, total: int, lang: str):
+    """Return a tqdm-compatible progress handle, gracefully degrading
+    to a no-op when stdout isn't a TTY (CI logs, piped output) or when
+    tqdm isn't importable. tqdm is a transitive dep via Stanza so
+    `import tqdm` succeeds on any install with `[lemma]`; the
+    fallback keeps the CLI usable on a no-extras install too."""
+
+    if not sys.stdout.isatty():
+        return _NoOpProgress(total=total)
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _NoOpProgress(total=total)
+    return tqdm(
+        total=total,
+        desc=f"lemmatize {lang}",
+        unit="chunk",
+        # ASCII-only so the bar renders cleanly in any terminal,
+        # including the basic line-buffered ones used by CI.
+        ascii=True,
+        # Sub-second refresh would burn CPU on a fast pass; once per
+        # chunk-batch is plenty of feedback for a multi-minute run.
+        mininterval=0.5,
+    )
+
+
+class _NoOpProgress:
+    """Drop-in for tqdm when no TTY is available. Keeps the call sites
+    identical and prevents `--report json` consumers from seeing
+    bar fragments in their stdout."""
+
+    def __init__(self, *, total: int) -> None:
+        self._total = total
+        self._done = 0
+        # Periodically write a plain `N/total` line so a non-TTY run
+        # (`make lemmatize | tee log`) still records progress.
+        self._next_milestone = max(total // 20, 1)
+
+    def update(self, n: int = 1) -> None:
+        self._done += n
+        if self._done >= self._next_milestone:
+            print(f"  {self._done}/{self._total} chunks")
+            self._next_milestone += max(self._total // 20, 1)
+
+    def set_postfix_str(self, _s: str, refresh: bool = True) -> None:
+        del refresh
+
+    def close(self) -> None:
+        pass
+
+
+def _flush(
+    conn: sqlite3.Connection,
+    rows: list[tuple[str, int, str, int, int, str, str, str | None, str | None]],
+) -> None:
+    """Bulk-insert the accumulated rows in one transaction.
+
+    `INSERT OR REPLACE` (vs. the prior `OR IGNORE`) lets a `--all`
+    re-pass overwrite legacy rows that lack the pos/feats columns
+    added by migration 0008. Without REPLACE the conflicting
+    (chunk_id, token_index) keys would silently drop and the
+    backfill would be a no-op. Trade-off: a partial earlier run
+    isn't preserved across a re-pass, but `--all` is opt-in.
+
+    Each tuple carries ``lemma_fold`` (added in migration 0018) after
+    ``lemma`` so the KWIC index can seek by case-folded value instead
+    of a runtime ``LOWER(lemma)`` that disables the index.
+    """
+
+    if not rows:
+        return
+    conn.executemany(
+        "INSERT OR REPLACE INTO chunk_lemmas "
+        "(chunk_id, token_index, surface_form, surface_start, "
+        " surface_end, lemma, lemma_fold, pos, feats) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()

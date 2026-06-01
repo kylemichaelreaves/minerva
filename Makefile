@@ -1,0 +1,211 @@
+# Top-level shortcuts so you can run common commands from the repo root
+# without `cd`-ing into web/ or fiddling with the venv path.
+#
+# Usage: `make <target>` from /Users/kreaves/src/minerva.
+
+WEB := web
+NPM := npm --prefix $(WEB)
+PYTHON := .venv/bin/python
+PYTEST := .venv/bin/pytest
+POIETES := .venv/bin/minerva
+RUFF := .venv/bin/ruff
+
+# Override on the command line, e.g. `make run LLM=anthropic LLM_MODEL=claude-sonnet-4-6`.
+LLM ?= none
+LLM_MODEL ?=
+PORT ?= 8000
+# Retrieval language. `any` (default) searches every language in the
+# index — required for non-English-primary authors (Nietzsche/Marx in
+# deu, Cicero/Spinoza in lat, Hebrew Bible in heb, …) to be visible
+# in chat. Override for English-only experiments: `make run LANG=eng`.
+# `:=` (not `?=`) because the shell's `LANG=en_US.UTF-8` locale env var
+# would otherwise shadow the default and get passed straight to argparse.
+# CLI overrides (`make run LANG=eng`) still win — they're in MAKEFLAGS.
+LANG := any
+LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
+
+.PHONY: help test test-unit test-e2e test-watch test-py test-all typecheck \
+        lint lint-py lint-web format format-py format-web check \
+        generate-authors check-authors check-author-imports \
+        build dev run run-host start ingest reindex reingest embed embed-eng stats
+
+help:
+	@echo "Targets:"
+	@echo "  make run          Start backend (:$(PORT)) + Vite dev (:5173). Ctrl-C stops both."
+	@echo "                    Override the model: make run LLM=anthropic LLM_MODEL=claude-sonnet-4-6"
+	@echo "  make run-host     Same as run, but Vite binds to 0.0.0.0 so a phone on the same"
+	@echo "                    LAN can hit the dev server. Backend stays on loopback — Vite's"
+	@echo "                    proxy bridges /api, so no CORS or auth changes needed."
+	@echo "  make start        Build the SolidJS bundle and serve it + the API on :$(PORT)"
+	@echo "  make dev          Vite dev server only (no Python backend)"
+	@echo "  make build        Build the production SolidJS bundle into web/dist"
+	@echo "  make test         Run the full frontend test suite (unit + components + e2e)"
+	@echo "  make test-unit    Fast loop: unit + component tests only (no Python)"
+	@echo "  make test-e2e     Integration tests that spawn 'minerva serve --llm none'"
+	@echo "  make test-watch   Vitest in watch mode"
+	@echo "  make test-py      Python backend tests (pytest)"
+	@echo "  make test-all     Backend pytest + frontend vitest"
+	@echo "  make typecheck    tsc --noEmit on web/"
+	@echo "  make lint         ruff check (Python) + eslint (TypeScript)"
+	@echo "  make lint-py      Python lint only (ruff check)"
+	@echo "  make lint-web     TypeScript lint only (eslint)"
+	@echo "  make format       Apply ruff format + prettier"
+	@echo "  make format-py    Python format only"
+	@echo "  make format-web   TypeScript format only (prettier)"
+	@echo "  make check        All gates: lint + typecheck + tests"
+	@echo "  make ingest       Parse raw corpus sources into data/chunks.jsonl"
+	@echo "  make reindex      Rebuild data/index.sqlite from the existing chunks.jsonl"
+	@echo "  make reingest     Re-parse + re-index in one shot (after parser changes)"
+	@echo "  make embed        Compute / refresh sentence-transformer embeddings (all languages)"
+	@echo "  make embed-eng    Embed English chunks only (faster for English-only experiments)"
+	@echo "  make stats        Print index statistics"
+
+test:
+	$(NPM) test
+
+test-unit:
+	$(NPM) run test:unit
+
+test-e2e:
+	$(NPM) run test:e2e
+
+test-watch:
+	$(NPM) run test:watch
+
+typecheck:
+	$(NPM) run typecheck
+
+build:
+	$(NPM) run build
+
+dev:
+	$(NPM) run dev
+
+test-py:
+	$(PYTEST)
+
+test-all: test-py test
+
+# Coverage targets — emit reports without enforcing a threshold. The
+# CI workflow uses the same flags; running locally with `make
+# coverage-py` / `make coverage-web` gives the same view contributors
+# get in PR logs.
+coverage-py:
+	$(PYTEST) --cov --cov-report=term --cov-report=html
+
+coverage-web:
+	$(NPM) run test:coverage
+
+coverage: coverage-py coverage-web
+
+# ---------- Lint / format / check ----------
+# Single-tool stacks per language: ruff handles Python (lint + format),
+# eslint + prettier handle TypeScript. `check` runs everything that has
+# to pass before a commit.
+
+lint-py:
+	$(RUFF) check src tests
+
+lint-web:
+	$(NPM) run lint
+
+lint: lint-py lint-web
+
+format-py:
+	$(RUFF) format src tests
+	$(RUFF) check --fix src tests
+
+format-web:
+	$(NPM) run format
+	$(NPM) run lint:fix
+
+format: format-py format-web
+
+generate-authors:
+	$(PYTHON) scripts/generate_author_artifacts.py --write
+
+check-authors:
+	$(PYTHON) scripts/generate_author_artifacts.py --check
+	$(PYTHON) scripts/check_author_ingest.py --all
+
+check-api-types:
+	$(PYTHON) scripts/check_api_types.py
+
+check-author-imports:
+	$(PYTHON) scripts/check_author_imports.py
+
+check: lint typecheck test-py test-unit check-authors check-api-types check-author-imports
+
+# Full local dev: Python API in the background, Vite in the foreground.
+# When Vite exits (or Ctrl-C), the trap kills the backend.
+run:
+	@$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(LANG) --port $(PORT) & \
+	SERVER_PID=$$!; \
+	trap "kill $$SERVER_PID 2>/dev/null; wait $$SERVER_PID 2>/dev/null" EXIT INT TERM; \
+	$(NPM) run dev || true
+
+# LAN-exposed dev: same as `run`, but Vite binds to 0.0.0.0 so any
+# device on the same Wi-Fi can browse the dev UI. The Python backend
+# stays on the loopback interface — Vite's /api proxy bridges to it
+# server-side, so no CORS, no LLM-billing exposure, no auth changes
+# needed. Vite will print a "Network:" line with the LAN IP.
+#
+# Phone testing tip: macOS Firewall may prompt on first run. Click
+# "Allow" so Node can accept inbound connections from your phone.
+run-host:
+	@$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(LANG) --port $(PORT) & \
+	SERVER_PID=$$!; \
+	trap "kill $$SERVER_PID 2>/dev/null; wait $$SERVER_PID 2>/dev/null" EXIT INT TERM; \
+	$(NPM) run dev -- --host || true
+
+# Production: one process, one port. Builds the SPA, then serves API + bundle.
+start: build
+	$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(LANG) --port $(PORT) --static $(WEB)/dist
+
+# ---------- Corpus ingest / index ----------
+# Re-run after editing parsers (minerva/corpus/, hegel_works.py, etc.).
+# `reingest` is the canonical command — it re-parses sources into JSONL
+# and rewrites the SQLite index from scratch. Conversation history lives
+# in a separate DB (data/conversations.sqlite) and is unaffected.
+
+ingest:
+	$(POIETES) ingest
+
+reindex:
+	$(POIETES) index --reset
+
+reingest: ingest reindex
+	@echo ""
+	@echo "Re-ingest complete. Run 'make embed' to refresh vector embeddings"
+	@echo "(only needed if you use --use-vectors retrieval)."
+
+# Single-corpus reingest. Pass ONLY=<source_id[,source_id...]> (one or
+# more IngestSource ids — see `minerva ingest --help`). Only the named
+# sources are re-parsed and only their chunks are re-indexed in place;
+# every other corpus's chunks, lemmas, embeddings, and cross_references
+# are preserved. Typical 10×+ faster than `make reingest` for a single-
+# corpus edit (~1.5s for theognis vs ~16s for `index --reset`).
+#
+# Example:
+#   make reingest-only ONLY=hegel_de
+#   make reingest-only ONLY=plato,aristotle
+ingest-only:
+	@if [ -z "$(ONLY)" ]; then echo "Usage: make ingest-only ONLY=<source_id[,...]>"; exit 1; fi
+	$(POIETES) ingest --only "$(ONLY)"
+
+reingest-only: ingest-only
+	$(POIETES) index --incremental --from-ingest-only
+	@echo ""
+	@echo "Incremental re-ingest complete. Other corpora preserved."
+
+# Default embed covers every language (non-English authors need vectors
+# in their source language for retrieval to find them). `embed-eng` is
+# the narrower English-only shortcut for English-primary experiments.
+embed:
+	$(POIETES) embed --lang any
+
+embed-eng:
+	$(POIETES) embed --lang eng
+
+stats:
+	$(POIETES) stats

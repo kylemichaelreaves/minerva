@@ -1,0 +1,1768 @@
+/* ════════════════════════════════════════════════════════════════
+   MOBILE — overrides applied at ≤768px. Sits alongside per-surface
+   stylesheets; nothing inside this file should leak above 768px
+   (every rule is wrapped in the media query).
+
+   Mobile model (from mobile-wireframes.html design):
+   - Sidebar is hidden by default and reveals as a left-edge drawer
+     overlay when `body[data-mobile-drawer="open"]`.
+   - A 44px MobileTopBar replaces the desktop sidebar's nav on
+     non-landing surfaces — hamburger left, title center, action right.
+   - Touch targets ≥ 44pt.
+   - Landing atlas hidden; owl-monogram hero; 2×2 mode grid (CTAs
+     matched to the composer width).
+   - Reader rail becomes a bottom sheet with grab handle.
+   - Refs filter selects open as full-screen sheets; filter row becomes
+     a horizontal chip strip.
+   - Network panels stack vertically; matrix + heatmap are hidden
+     (replaced, not shrunk).
+   ════════════════════════════════════════════════════════════════ */
+
+/* Default (desktop) — the mobile close button never appears. */
+.sidebar-close-mobile {
+  display: none;
+}
+
+.mobile-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  /* ---------- App shell ---------- */
+  .app {
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  /* Sidebar becomes a left-edge drawer overlay (off-screen by
+     default). The desktop `.sidebar` width is 260px; we keep that
+     but slide it via transform. Pointer-events off when closed so it
+     doesn't capture taps. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 360px;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    pointer-events: none;
+    box-shadow: 4px 0 20px -8px rgba(0, 0, 0, 0.2);
+    /* Honor iOS notch so the brand row clears the status bar. */
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  body[data-mobile-drawer="open"] .sidebar {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  /* The sidebar's collapsed-on-desktop state is irrelevant on mobile;
+     force the expanded layout so the drawer always renders content. */
+  .sidebar.collapsed {
+    width: 85%;
+    max-width: 360px;
+  }
+  /* Hide the sidebar's own collapse toggle on mobile — closing happens
+     via scrim tap or the in-drawer ✕ button. */
+  .sidebar-head .icon-btn {
+    display: none;
+  }
+  /* Mobile close button inside the drawer header. */
+  .sidebar-close-mobile {
+    display: inline-flex;
+    background: transparent;
+    border: 0;
+    color: var(--ink);
+    font-size: 17px;
+    font-family: var(--sans);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  /* Drawer brand header — bigger M, italic serif wordmark, breathing
+     room. The brand button keeps its identity (tap = home) but reads
+     as the drawer title in the mobile drawer pattern. */
+  .sidebar .sidebar-head {
+    padding: 14px 18px 18px;
+  }
+  .sidebar .brand-mark {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+  .sidebar .brand-mark .glyph {
+    color: var(--accent);
+    margin-right: 1px;
+  }
+
+  /* "New conversation" — full-width outlined button per design 2b/3e. */
+  .sidebar .new-btn {
+    margin: 0 18px 16px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    padding: 10px 12px;
+    font-family: var(--sans);
+    font-size: 13px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+  }
+
+  /* History items — slightly taller for touch; muted "when" timestamp
+     below the title. */
+  .sidebar .history-item {
+    min-height: 44px;
+    padding: 10px 18px;
+  }
+  .sidebar .history-label {
+    padding: 0 18px;
+    margin-bottom: 6px;
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 500;
+  }
+
+  /* Work tree (Reader mode) on mobile — design 3e shows one row per
+     author with the works-count on the right. The desktop tree
+     (author → expandable list of individual works) doesn't fit the
+     mobile drawer's narrower column and was clipping counts. Compress
+     to author-as-row by hiding the per-author works list. */
+  .sidebar .history-list {
+    display: none;
+  }
+  .sidebar .history-label-caret {
+    display: none;
+  }
+  .sidebar .history-label-toggle {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    padding: 10px 18px 11px 28px;
+    margin-bottom: 0;
+    min-height: 44px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14.5px;
+    color: var(--ink);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    background: transparent;
+    border: 0;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+  }
+  .sidebar .history-label-count {
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 10px;
+    color: var(--ink-faint);
+    margin-left: auto;
+    letter-spacing: 0.04em;
+  }
+  /* Highlight the author group whose work is currently open — design
+     3e shows the current row with an oxblood left rail and italic
+     emphasis. `:has()` reads the still-rendered (but display:none)
+     active descendant in the work list. */
+  .sidebar .history-label-toggle:has(+ .history-list .history-item.active),
+  .sidebar .history-label-toggle:has(+ .history-list .history-item-wrap.active) {
+    color: var(--accent);
+    position: relative;
+  }
+  .sidebar .history-label-toggle:has(+ .history-list .history-item.active)::before,
+  .sidebar .history-label-toggle:has(+ .history-list .history-item-wrap.active)::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--accent);
+  }
+
+  /* Drawer footer — design 2b/3e shows a user dot + ⚙ cog at the
+     bottom edge of the drawer. The cog is wired to the theme toggle
+     (the only setting we have today). */
+  .sidebar .sidebar-foot {
+    border-top: 1px solid var(--rule-soft);
+    padding: 12px 18px calc(env(safe-area-inset-bottom, 0) + 14px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: auto;
+  }
+  .sidebar .sidebar-foot-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar .sidebar-foot-dot {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1;
+  }
+  .sidebar .sidebar-foot-cog {
+    background: transparent;
+    border: 0;
+    color: var(--ink-faint);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 6px 8px;
+    line-height: 1;
+  }
+
+  /* Scrim behind the drawer when open. */
+  body[data-mobile-drawer="open"]::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(244, 239, 230, 0.4);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 55;
+  }
+  [data-theme="dark"] body[data-mobile-drawer="open"]::after {
+    background: rgba(20, 17, 14, 0.55);
+  }
+
+  /* Body scroll lock when drawer is open. */
+  body[data-mobile-drawer="open"] {
+    overflow: hidden;
+  }
+
+  /* Main always fills the screen on mobile (no sidebar gutter). */
+  .main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ---------- Mobile top-bar ---------- */
+  .mobile-topbar {
+    flex: 0 0 44px;
+    height: 44px;
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    /* Sit under iOS notch / status bar. */
+    padding-top: env(safe-area-inset-top, 0);
+    box-sizing: content-box;
+  }
+  .mobile-topbar-ham {
+    justify-self: start;
+    margin-left: 14px;
+    width: 28px;
+    height: 28px;
+    position: relative;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mobile-topbar-ham::before,
+  .mobile-topbar-ham::after,
+  .mobile-topbar-ham > span {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 1.4px;
+    background: var(--ink);
+  }
+  .mobile-topbar-ham::before {
+    top: 8px;
+  }
+  .mobile-topbar-ham > span {
+    top: 13px;
+    display: block;
+  }
+  .mobile-topbar-ham::after {
+    top: 18px;
+  }
+  .mobile-topbar-title {
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 8px;
+  }
+  .mobile-topbar-title em {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--ink-mute);
+  }
+  .mobile-topbar-action {
+    justify-self: end;
+    margin-right: 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: -0.005em;
+    background: transparent;
+    border: 0;
+    padding: 6px 4px;
+    min-height: 32px;
+    min-width: 32px;
+    cursor: pointer;
+  }
+
+  /* MobileTopBar shouldn't appear on landing (the landing has its
+     own header). App.tsx already gates this conditionally. */
+  .landing .mobile-topbar {
+    display: none;
+  }
+
+  /* ================================================================
+     LANDING — mobile layout
+     Design 1a/1b: atlas at TOP, then monogram-only hero, then composer
+     with pills inside, then vertical modes list. Header strip is the
+     brand mark right-aligned, very small.
+     ================================================================ */
+  .landing {
+    padding: 0 16px 24px;
+    min-height: 100dvh;
+    /* Re-order children via flex `order` — atlas moves above center. */
+  }
+  .landing-header {
+    height: 44px;
+    flex: 0 0 44px;
+    padding-top: env(safe-area-inset-top, 0);
+    box-sizing: content-box;
+    order: 1;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  /* Bring the brand mark back on mobile — the sidebar is hidden as a
+     drawer below 768px, so the landing-header is the only on-screen
+     brand affordance. (landing.css hides it on desktop where the
+     sidebar already shows it.) */
+  .landing-header .mark {
+    display: inline-flex;
+    font-size: 15px;
+  }
+  .landing-header .mark .pi {
+    font-size: 18px;
+  }
+  /* Atlas (chronological timeline) is hidden on mobile — the dense
+     author strip is too crowded at phone widths. Desktop keeps it. */
+  .landing-atlas {
+    display: none;
+  }
+  /* Center column (hero + modes) sits below the atlas. Generous
+     vertical rhythm: the hero monogram + composer + modes each get
+     room to breathe rather than crowding against each other. The
+     column shrinks to fit its content so the modes sit close under
+     the composer rather than getting pushed to the viewport floor. */
+  .landing-center {
+    order: 3;
+    flex: 0 1 auto;
+    padding-top: 32px;
+    padding-bottom: 0;
+    width: 100%;
+  }
+  .landing-hero {
+    padding-top: 0;
+  }
+  .landing-monogram {
+    font-size: 48px;
+    margin-bottom: 24px;
+  }
+  /* The desktop rose-cross tooltip sits to the LEFT of the monogram —
+     on a 390px-wide mobile viewport that 420px wide passage overflows
+     ~290px off the left edge of the screen. Reposition it BELOW the
+     monogram, horizontally centred, with viewport-constrained width.
+     Arrow flips to point upward at the cross. (Specificity matches
+     the desktop rule — `.landing-monogram-tooltip.landing-monogram-tooltip-long`
+     — so we override cleanly regardless of file order. See landing.css
+     for why that two-class form matters.) */
+  .landing-monogram-tooltip.landing-monogram-tooltip-long {
+    bottom: auto;
+    right: auto;
+    top: calc(100% + 16px);
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
+  }
+  .landing-monogram-tooltip.landing-monogram-tooltip-long::before {
+    /* Arrow at TOP of tooltip pointing UP. Original TOP + LEFT borders
+       of the rotated square form the diamond's top corner (12 o'clock
+       tip). `top: -7px` mirrors the desktop's `right: -7px` nudge so
+       the visible tip lands a hair outside the box. */
+    bottom: auto;
+    right: auto;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    border-top: 1px solid var(--ink);
+    border-left: 1px solid var(--ink);
+    border-right: none;
+    border-bottom: none;
+  }
+  .landing-input-wrap {
+    width: 100%;
+    margin-top: 28px;
+  }
+  .landing-pills {
+    gap: 6px;
+  }
+  .landing-pill {
+    font-size: 11px;
+    padding: 6px 9px;
+    min-height: 28px;
+  }
+
+  /* Landing send button — design 1a renders a small outlined 32pt
+     square with just a "→" arrow, not the "Begin →" text desktop
+     uses. font-size: 0 hides the "Begin" label; ::after carries the
+     arrow glyph at a fixed size. */
+  .landing-input-wrap .send-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--ink);
+    border-radius: 0;
+    font-size: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--paper);
+  }
+  .landing-input-wrap .send-btn::after {
+    content: "→";
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--accent);
+    margin-left: 0;
+  }
+  .landing-input-wrap .send-btn:hover::after {
+    transform: none;
+  }
+  .landing-input-wrap .send-btn.disabled {
+    background: transparent;
+    border-color: var(--rule);
+  }
+  /* CTAs sit in a 2×2 grid on mobile — the single side-by-side row is
+     too cramped at phone widths. The grid shrinks to its content and
+     centers under the composer rather than stretching to the chatbox
+     width. */
+  .landing-modes {
+    width: auto;
+    margin: 48px auto 0;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    gap: 0;
+  }
+  .landing-mode {
+    padding: 14px 16px;
+    border-right: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    min-height: 56px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    text-align: left;
+    gap: 2px;
+  }
+  /* Interior dividers only: drop the right border on the right column
+     and the bottom border on the last row. Tuned for the current four
+     CTAs (2×2) — the outer frame comes from .landing-modes' top/bottom
+     borders. */
+  .landing-mode:nth-child(even) {
+    border-right: 0;
+  }
+  .landing-mode:nth-child(n + 3) {
+    border-bottom: 0;
+  }
+  .landing-mode .lbl {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+  .landing-mode .lbl .arr {
+    display: none;
+  }
+  .landing-mode .sub {
+    margin: 2px 0 0;
+    text-align: left;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+  /* ================================================================
+     CHAT — mobile thread + composer (design 2a/2b)
+     ================================================================ */
+  /* Hide the desktop topbar on chat (MobileTopBar replaces it). */
+  .main > .topbar {
+    display: none;
+  }
+  .scroll {
+    padding: 16px 18px 0;
+  }
+  /* Composer pinned to bottom with safe-area inset. Tight mobile
+     padding (design 2a shows the composer flush with the screen edges
+     with 16px gutters), and the kbd hint row is hidden — the design's
+     mobile composer is just a field + outline-arrow send. */
+  .composer-wrap {
+    padding: 0 0 env(safe-area-inset-bottom, 0);
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+  }
+  .composer {
+    border: 0;
+    padding: 10px 16px 12px;
+    border-radius: 0;
+    max-width: none;
+    background: transparent;
+  }
+  .composer:focus-within {
+    border-color: transparent;
+  }
+  .composer-input {
+    font-size: 15px;
+    font-family: var(--serif);
+    font-style: italic;
+  }
+  .composer-input::placeholder {
+    font-style: italic;
+    color: var(--ink-faint);
+  }
+  .composer-foot {
+    border-top: 0;
+    padding-top: 0;
+    margin-top: 6px;
+  }
+  /* Chat composer: kbd hint row hidden on mobile. Virtual keyboards
+     have no Enter shortcut affordance for a user to learn. */
+  .composer-foot .left {
+    display: none;
+  }
+  /* Landing composer: hint row stays, but its content swaps to a
+     quiet "tap a prompt · or type" line per design 1a (the kbd
+     children are gone — they're replaced by .landing-mobile-hint
+     in Landing.tsx). */
+  .landing-input-foot {
+    align-items: center;
+  }
+  .landing-mobile-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  /* Send button — outlined 38pt arrow per design 2a. The "Send" text
+     label that desktop renders next to the icon is hidden via
+     font-size: 0 (the SVG keeps its intrinsic dimensions). */
+  .composer .send-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 0;
+    border: 1px solid var(--ink);
+    color: var(--accent);
+    font-size: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: none;
+    letter-spacing: 0;
+    flex-shrink: 0;
+  }
+  .composer .send-btn svg {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+  }
+
+  /* Citation chips inline in chat — design 2a swaps the desktop's
+     [N] superscript marker for a chip that shows source author +
+     locator inline ("Aug. civ. Dei XIV.13"). The .cite-mark wrapper
+     drops its superscript baseline; the [N] child is hidden and the
+     chip child shown. Whole chip is the tap target. */
+  .cite-mark {
+    vertical-align: 1px;
+    font-size: 11px;
+    border: 1px solid var(--rule);
+    background: var(--paper-soft);
+    color: var(--ink);
+    padding: 2px 7px 3px;
+    border-radius: 0;
+    line-height: 1.1;
+    margin: 0 2px;
+    text-decoration: none;
+    min-height: 22px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .cite-mark:hover {
+    text-decoration: none;
+  }
+  .cite-mark-n {
+    display: none;
+  }
+  .cite-mark-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .cite-mark-src {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .cite-mark-loc {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    letter-spacing: 0;
+  }
+
+  /* User-turn bubble — right-aligned, paper-soft background per design. */
+  .turn.turn-user {
+    padding: 14px 0;
+  }
+  .turn-user .turn-body {
+    background: var(--paper-soft);
+    border: 1px solid var(--rule);
+    padding: 9px 12px;
+    max-width: 78%;
+    margin-left: auto;
+    margin-right: 0;
+    border-radius: 0;
+    font-size: 14px;
+    line-height: 1.4;
+    border-left: 0;
+  }
+  /* Π attribution above minerva turns — design 2a shows "Minerva" in
+     serif italic. The desktop turn-philosopher hits the same spot. */
+  .turn-minerva .turn-meta,
+  .turn-minerva .turn-philosopher {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+
+  /* ================================================================
+     READER — mobile (design 3a–3e)
+     Single source body; rail becomes a bottom sheet.
+     ================================================================ */
+  .reader {
+    flex-direction: column;
+  }
+  .reader > .topbar,
+  .reader .topbar {
+    display: none;
+  }
+  /* Reader chrome (desktop top toolbar) replaced by MobileTopBar. */
+  .reader .chrome {
+    display: none;
+  }
+  /* Compress the head to the design 3a two-line layout. The desktop's
+     four-line head (super / h1 / subtitle / byline) reads like a
+     title-page on a 280pt column; on mobile it occupies a quarter of
+     the viewport before any source text. Drop the subtitle + byline
+     on mobile — both are redundant once the topbar shows "Plato ·
+     Republic" already. */
+  .reader .head {
+    padding: 8px 0 12px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .reader .head .super {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .reader .head h1 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    margin: 4px 0 0;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* Subtitle + byline hidden on mobile — already in the MobileTopBar
+     ("Plato · Republic"). */
+  .reader .head .subtitle,
+  .reader .head .byline {
+    display: none;
+  }
+  /* Reader head — work line + locator. Compact on mobile. */
+  .reader .stage {
+    position: static;
+    padding: 12px 18px 24px;
+    overflow-y: visible;
+  }
+  /* Per design 3a/3b: 18.5px serif at 390, 17.5px at 375. The desktop
+     22px is too dense at narrow widths. */
+  .reader .lines {
+    font-size: 18.5px;
+    line-height: 1.55;
+  }
+  /* When the rail is open the desktop adds 380px of right padding so
+     the source moves left of the rail. On mobile the rail is a bottom
+     sheet, so no horizontal shift is needed. */
+  .reader.has-rail .stage {
+    padding-right: 18px;
+  }
+  .reader .column {
+    width: 100%;
+  }
+
+  /* Rail as bottom sheet — slides up from the bottom edge with a
+     grab handle. Source text dims behind it but does not reflow
+     (per the design's "preserve reading position" rule). */
+  .reader .rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    height: 60dvh;
+    max-height: 60dvh;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--ink);
+    transform: translateY(100%);
+    transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    z-index: 70;
+    box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.25);
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    overflow-y: auto;
+  }
+  .reader .rail.open {
+    transform: translateY(0);
+  }
+  /* Grab handle — pseudo-element at the top edge of the sheet. */
+  .reader .rail.open::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--ink-faint);
+    opacity: 0.6;
+    margin: 8px auto 6px;
+    flex-shrink: 0;
+  }
+  /* Close button — top-right within the sheet, larger tap target. */
+  .reader .rail-close {
+    width: 36px;
+    height: 36px;
+    top: 4px;
+    right: 8px;
+  }
+  /* Pin row inside the sheet — the word/locator headline. */
+  .reader .rail .pin {
+    padding: 6px 22px 12px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .reader .rail .pin .ref {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-left: 8px;
+  }
+
+  /* Dim the source text while the sheet is open. The transform is
+     unchanged so reading position is preserved. */
+  .reader.has-rail .stage {
+    opacity: 0.55;
+    transition: opacity 180ms;
+  }
+
+  /* Tab strip — Translation · Lemma · Refs per design 3d. 44pt rows;
+     active tab carries an oxblood underline. */
+  .reader .rail .rail-tabs {
+    display: flex;
+    gap: 22px;
+    padding: 0 22px;
+    margin: 6px 0 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .reader .rail .rail-tab {
+    background: transparent;
+    border: 0;
+    padding: 12px 0;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--ink-mute);
+    cursor: pointer;
+    position: relative;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .reader .rail .rail-tab.cur {
+    color: var(--ink);
+  }
+  .reader .rail .rail-tab.cur::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--accent);
+  }
+  .reader .rail .rail-tab[disabled] {
+    color: var(--ink-faint);
+    cursor: default;
+  }
+  .reader .rail .rail-tab-sub {
+    color: var(--ink-faint);
+    margin-left: 4px;
+    font-size: 11px;
+  }
+  /* Tab panels — only the active one renders on mobile. */
+  .reader .rail .rail-tabpanel {
+    padding: 14px 22px 0;
+  }
+  .reader .rail .rail-tabpanel[aria-hidden="true"] {
+    display: none;
+  }
+
+  /* Selection toolbar — make sure it sits above the sheet boundary
+     when both are visible (the toolbar appears above the highlight,
+     not the sheet — but ensure it doesn't get clipped). */
+  .selection-toolbar {
+    z-index: 75;
+  }
+
+  /* ================================================================
+     REFS — mobile (design 4a/4b)
+     Hide the desktop page header h1; the MobileTopBar carries the
+     title. Chip strip replaces dropdown row. Cards get an oxblood
+     left rule on the quote. The Select popover (used by each filter
+     field) is restyled as a full-screen sheet on mobile.
+     ================================================================ */
+  .refs-page {
+    width: 100%;
+    padding: 0;
+  }
+  /* Hide the desktop page header — MobileTopBar shows "Cross-references". */
+  .refs-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 0;
+  }
+  .refs-head h1 {
+    display: none;
+  }
+  .refs-summary {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+    flex: 1;
+  }
+  .refs-meta {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: none;
+    letter-spacing: 0.04em;
+  }
+  .refs-review-link {
+    font-size: 11px;
+    padding: 3px 9px;
+  }
+
+  /* Filter chip strip — horizontal, no wrap, scrollable. */
+  .refs-filters {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 16px;
+    gap: 8px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 0;
+    align-items: center;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .refs-filters::-webkit-scrollbar {
+    display: none;
+  }
+  .refs-filter {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+  }
+  /* Label sits inline with the value to read as a chip "<key> <value>". */
+  .refs-filter-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    margin: 0;
+  }
+  /* Style the underlying Select trigger as a chip. */
+  .refs-filter .minerva-select__trigger {
+    height: 30px;
+    min-height: 30px;
+    padding: 4px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    gap: 4px;
+  }
+  /* "Active" filter chip = ink-filled when a value is selected. */
+  .refs-filter:has(.minerva-select__clear) .minerva-select__trigger {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .refs-filter:has(.minerva-select__clear) .minerva-select__primary,
+  .refs-filter:has(.minerva-select__clear) .minerva-select__caret {
+    color: var(--paper);
+  }
+  /* Hide labels next to active chips on mobile to keep them compact. */
+  .refs-filter:has(.minerva-select__clear) .refs-filter-label {
+    color: var(--ink-mute);
+  }
+  /* The include-rejected pip becomes its own chip-shaped slot. */
+  .refs-check {
+    height: 30px;
+    border: 1px solid var(--rule);
+    padding: 0 10px;
+    align-self: center;
+    font-family: var(--sans);
+    font-size: 11px;
+    border-radius: 0;
+    color: var(--ink-mute);
+    gap: 6px;
+  }
+  .refs-check-label {
+    font-family: var(--sans);
+    font-size: 11px;
+  }
+
+  /* Count line — full-width band below the chip strip per design. */
+  .refs-summary::before {
+    content: "";
+  }
+
+  /* Refs list — card layout, no horizontal page padding. */
+  .refs-list {
+    padding: 0;
+    gap: 0;
+  }
+  /* Card anatomy per design 4a:
+     SOURCE-ROW (author · locator)
+     ITALIC QUOTE with oxblood left rule (the quoted phrase OR the
+        curator note when no phrase exists)
+     → TARGET-ROW (arrow inline · author · locator)
+     The JSX nests source/arrow/target inside .ref-row-head. To get
+     the arrow INLINE with the target on mobile, we keep .ref-row-head
+     as a flex container in source-order and re-anchor the arrow to
+     the start of the target row via a CSS sibling layout (instead of
+     reordering everything with `display: contents`). */
+  .ref-row {
+    padding: 14px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--rule-soft);
+    background: transparent;
+    border-radius: 0;
+  }
+  .ref-row-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px 0;
+  }
+  /* Source row stays first; target row drops below the quote. The
+     arrow becomes a leading glyph on the target row via flex. */
+  .ref-row-head .ref-row-source {
+    grid-row: 1;
+  }
+  .ref-row-head .ref-arrow {
+    display: none; /* hidden inside head — the target row shows its own
+                      leading arrow via ::before below. */
+  }
+  .ref-row-head .ref-row-target {
+    grid-row: 2;
+  }
+  /* Chip (Alludes / Disputes / Cites) is desktop-only metadata —
+     hide on mobile per design 4a. */
+  .ref-row-head .ref-row-chip {
+    display: none;
+  }
+
+  .ref-row-source,
+  .ref-row-target {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    gap: 6px;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  /* Inline arrow on the target row only — oxblood, no extra wrap. */
+  .ref-row-target::before {
+    content: "→";
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 12px;
+    text-transform: none;
+    margin-right: 2px;
+  }
+  .ref-row-author {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  /* Work name in source/target rows is redundant on mobile — the
+     locator already disambiguates ("conf. I.1.1" implies Confessiones).
+     Hidden to match design 4a's two-token rows. */
+  .ref-row-work {
+    display: none;
+  }
+  .ref-row-locator {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    color: var(--ink-mute);
+  }
+  /* Quote with oxblood left rule per design 4a. Falls back to the
+     curator note when no quoted_phrase is present (most rows in the
+     current dataset). The .ref-row-quote and .ref-row-note selectors
+     share the visual treatment. */
+  .ref-row-quote,
+  .ref-row-note {
+    border-left: 2px solid var(--accent);
+    padding-left: 10px;
+    margin: 10px 0;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+  /* Meta row (conf / method / status) hidden on mobile — design 4a
+     replaces it with a tap-to-expand hint, which we don't have yet.
+     Suppression keeps the card uncluttered. */
+  .ref-row-meta {
+    display: none;
+  }
+
+  /* Filter popover → full-screen sheet on mobile. The Select panel
+     becomes the design-4b sheet: cancel/title/done strip up top,
+     scrollable list below. */
+  .minerva-select__panel {
+    position: fixed !important;
+    inset: 44px 0 0 0 !important;
+    top: calc(44px + env(safe-area-inset-top, 0)) !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    min-width: 0 !important;
+    border-top: 1px solid var(--ink);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.3);
+    z-index: 80;
+  }
+  .minerva-select__listbox {
+    max-height: none !important;
+    padding: 8px 0 calc(env(safe-area-inset-bottom, 0) + 8px);
+  }
+  /* Drag-handle pseudo-element at the top of the sheet. */
+  .minerva-select__panel::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--ink-faint);
+    opacity: 0.6;
+    margin: 8px auto 6px;
+  }
+
+  /* ================================================================
+     NETWORK — mobile (design 5a, 5b, 6)
+     Replace the 5-panel grid with: chip strip + hero card + Top-N
+     cards + drilldown links. Matrix + heatmap hidden (the design
+     calls them out as unviable at 358pt — they're replaced, not
+     shrunk).
+     ================================================================ */
+  .net {
+    padding: 0;
+    /* Desktop locks the network to one viewport (`height: 100vh;
+       overflow: hidden`) and scrolls each grid panel internally. On
+       mobile the panels stack into a single column, so that lock just
+       squeezes them below their content and they overlap. Let `.net`
+       grow with its content and scroll the page instead. */
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+  .net .net-body {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    grid-template-rows: none;
+    gap: 0;
+    padding: 0;
+  }
+  .net .net-panel {
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 16px;
+    border-radius: 0;
+    background: transparent;
+  }
+  .net .net-bottomright {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .net .net-head {
+    display: flex;
+    height: auto;
+    grid-template-columns: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .net .net-brand {
+    display: none;
+  }
+  .net .net-filters {
+    flex-wrap: nowrap;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .net .net-filters::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hero per design 5a — big mono xrefs number on its own line, then
+     a serif-italic byline "verified cross-references / across the
+     corpus" wrapping to two lines, then a mono-caps meta row of three
+     tokens ("authors · works · 2,400 yr"). The NetworkHeader switches
+     to this markup on mobile via useMobileShellOptional. */
+  .net .net-totals {
+    text-align: left;
+    padding: 22px 22px 22px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    line-height: 1.4;
+  }
+  .net .net-hero-num .big {
+    font-family: var(--mono);
+    font-size: 52px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-weight: 400;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: block;
+  }
+  .net .net-hero-what {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink-mute);
+    line-height: 1.4;
+    margin-top: 8px;
+  }
+  .net .net-hero-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-top: 14px;
+  }
+  .net .net-hero-meta .num {
+    color: var(--ink);
+  }
+  .net .net-hero-meta .sep {
+    color: var(--ink-ghost);
+    margin: 0 6px;
+  }
+
+  /* Panel headers as card titles per design 5a — serif italic title,
+     mono meta on the right. */
+  .net .net-panel-head {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 0 12px;
+    gap: 8px;
+    text-transform: none;
+  }
+  .net .net-panel-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .net .net-panel-q {
+    display: none; /* "Who, across 2,400 years…" — desktop-only copy */
+  }
+  .net .net-segment {
+    display: none;
+  }
+
+  /* Matrix and heatmap don't shrink usefully — hide on mobile,
+     replaced by the top-pairs strip and the leaderboard. Per the
+     decision-log: "matrix and heatmap are NOT shrunk — they're
+     replaced. The scripture heatmap is demoted behind 'More views →'
+     because it cannot work at 358pt of horizontal real estate." */
+  .net .net-panel[data-panel="matrix"],
+  .net .net-panel[data-panel="heatmap"] {
+    display: none;
+  }
+  /* Reorder so the leaderboard + verification card (the Top-N idiom
+     from design 5a) appears ABOVE the arc on mobile. */
+  .net .net-panel[data-panel="lists"] {
+    order: 1;
+  }
+  .net .net-panel[data-panel="arc"] {
+    order: 2;
+  }
+
+  /* Top-pairs strip + leaderboard rows are already vertical lists —
+     just polish their typography for mobile. */
+  .net-leader-rows,
+  .net-verif-rows {
+    gap: 0;
+  }
+  .net-leader-row,
+  .net-verif-row {
+    padding: 9px 0;
+    border-top: 1px solid var(--rule-soft);
+    min-height: 36px;
+  }
+  .net-leader-row:first-child,
+  .net-verif-row:first-child {
+    border-top: 0;
+  }
+
+  /* Footer links list — "More views →" affordance from design 5a. */
+  .net-footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px 16px 26px;
+    gap: 8px;
+    text-align: left;
+    border-top: 1px solid var(--rule-soft);
+    font-family: var(--sans);
+    font-size: 12px;
+  }
+
+  /* ================================================================
+     TRIPARTITE OT — mobile (design 3f)
+     The route doesn't exist in code yet, but if/when added these
+     selectors stack the three witnesses per verse. Hebrew row sets
+     direction: rtl while the corpus label stays LTR.
+     ================================================================ */
+  .ot-list .ot-verse {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ot-sub {
+    display: block;
+    padding: 6px 0;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .ot-sub:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .ot-sub.heb {
+    direction: rtl;
+    text-align: right;
+  }
+  .ot-sub.heb .corpus {
+    direction: ltr;
+    text-align: left;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Narrow-phone tightening (≤390px) — design 1b/3b checks. iPhone SE
+   sized screens get smaller monogram, smaller body padding, tighter
+   line heights. Mobile-only — these rules also need the @media wrap.
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  .landing {
+    padding: 0 12px 12px;
+  }
+  .landing-monogram {
+    font-size: 44px;
+  }
+  .landing-pill {
+    font-size: 10.5px;
+    padding: 5px 8px;
+  }
+  .reader .stage {
+    padding: 10px 16px 24px;
+  }
+  .reader .lines {
+    font-size: 17.5px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NETWORK — mobile cards + drilldown routes (design 5a / 5b / 6)
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Card head — italic serif title left, mono caps meta right */
+  .net .net-body-mobile {
+    padding: 0;
+  }
+  .net .net-body-mobile .net-panel {
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 22px 18px;
+  }
+  .net .nw-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .net .nw-card-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .net .nw-card-meta {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  /* Top author pairs — rank · "src → tgt" · count · mini bar below */
+  .net .nw-pair {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    column-gap: 10px;
+    align-items: baseline;
+    padding: 9px 0;
+    border-top: 1px solid var(--rule-soft);
+    background: transparent;
+    border-left: 0;
+    border-right: 0;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+  }
+  .net .nw-pair:first-of-type {
+    border-top: 0;
+  }
+  .net .nw-pair .rk {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-align: right;
+  }
+  .net .nw-pair .pair {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .net .nw-pair .pair .arr {
+    font-style: normal;
+    color: var(--accent);
+    margin: 0 4px;
+  }
+  .net .nw-pair .ct {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .net .nw-pair .barwrap {
+    grid-column: 1 / -1;
+    height: 2px;
+    background: var(--paper-edge);
+    margin-top: -2px;
+    margin-bottom: 4px;
+  }
+  .net .nw-pair .barwrap .fill {
+    height: 100%;
+    background: var(--accent);
+  }
+  .net .nw-more {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 12px;
+  }
+
+  /* Most-cited works — rank · ttl/au stack · count */
+  .net .nw-work {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    gap: 10px;
+    align-items: baseline;
+    padding: 8px 0 9px;
+    border-top: 1px solid var(--rule-soft);
+    background: transparent;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+  }
+  .net .nw-work:first-of-type {
+    border-top: 0;
+  }
+  .net .nw-work .rk {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-align: right;
+  }
+  .net .nw-work-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .net .nw-work .ttl {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14.5px;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+  .net .nw-work .au {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+  }
+  .net .nw-work .ct {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Footer drilldown links — 3 stacked rows, oxblood label + faint
+     italic description trailing the arrow. */
+  .net .nw-foot {
+    padding: 16px 22px 26px;
+    text-align: left;
+    background: transparent;
+    border-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .net .nw-foot-link {
+    background: transparent;
+    border: 0;
+    padding: 10px 0;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--accent);
+    text-align: left;
+    cursor: pointer;
+    min-height: 36px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .net .nw-foot-link:last-child {
+    border-bottom: 0;
+  }
+  .net .nw-foot-arr {
+    margin: 0 2px;
+  }
+  .net .nw-foot-desc {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-mute);
+    margin-left: 6px;
+  }
+
+  /* Desktop footer suppressed on mobile — design 5a replaces the
+     stat strip with the drilldown links above. */
+  .net > .net-footer {
+    display: none;
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+     Network arc drilldown (5b) — full-screen vertical chronology
+     ────────────────────────────────────────────────────────────── */
+  .net-arc-route,
+  .net-coverage-route {
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .net-arc-topbar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  .net-arc-back {
+    background: transparent;
+    border: 0;
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 6px 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+  }
+  .net-arc-back .arr {
+    color: var(--accent);
+    font-size: 16px;
+  }
+  .net-arc-meta {
+    padding: 10px 22px 12px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .net-arc-meta .num {
+    color: var(--ink);
+  }
+  .net-arc-meta em {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--accent);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .net-arc-svg-wrap {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0;
+    flex: 1;
+    /* Anchor for the .net-tooltip-mobile overlay (tap-to-show arc
+       tooltip pinned to the right gutter). */
+    position: relative;
+  }
+  .net-tooltip-mobile {
+    /* Pin to the right gutter of the arc panel — on mobile the
+       baseline + author labels live on the left, arcs bulge right,
+       and the right ~140 px is empty space ideal for the tooltip.
+       ``top`` is set inline (see ArcSvg) to align with the tapped
+       arc's midpoint. */
+    position: absolute;
+    right: 8px;
+    left: auto;
+    width: 180px;
+    /* Override .net-tooltip default of pointer-events:none so the
+       user can tap the tooltip itself to dismiss. */
+    pointer-events: auto;
+  }
+  .net-arc-svg {
+    display: block;
+    width: 100%;
+  }
+  .net-arc-yearlbl {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    fill: var(--ink-faint);
+    letter-spacing: 0.04em;
+  }
+  .net-arc-name {
+    font-family: var(--sans);
+    font-size: 10.5px;
+    fill: var(--ink);
+  }
+  .net-arc-author {
+    cursor: pointer;
+  }
+  .net-arc-author:hover .net-arc-name {
+    fill: var(--accent);
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+     Verification coverage drilldown (6) — per-author stacked bars
+     ────────────────────────────────────────────────────────────── */
+  .net-cov-summary {
+    padding: 10px 22px;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+  }
+  .net-cov-summary .num {
+    color: var(--ink);
+  }
+  .net-cov-summary .cov-v {
+    color: #3a6f4a;
+    font-weight: 500;
+  }
+  .net-cov-summary .cov-u {
+    color: var(--ink-ghost);
+    font-weight: 500;
+  }
+  .net-cov-summary .cov-x {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .net-cov-list {
+    padding: 8px 22px 24px;
+  }
+  .net-cov {
+    display: grid;
+    grid-template-columns: 80px 1fr 36px;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 0;
+    border-top: 1px solid var(--rule-soft);
+    min-height: 34px;
+  }
+  .net-cov:first-of-type {
+    border-top: 0;
+  }
+  .net-cov-au {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .net-cov-bar {
+    height: 12px;
+    background: var(--paper-edge);
+    display: flex;
+    overflow: hidden;
+  }
+  .net-cov-bar .v {
+    background: #3a6f4a;
+  }
+  .net-cov-bar .u {
+    background: var(--ink-ghost);
+  }
+  .net-cov-bar .x {
+    background: var(--accent);
+  }
+  .net-cov-pct {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink);
+    text-align: right;
+  }
+  .net-cov-legend {
+    display: flex;
+    gap: 14px;
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+    color: var(--ink-mute);
+  }
+  .net-cov-legend .sw {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 4px;
+    vertical-align: -1px;
+  }
+  .net-cov-legend .sw.v {
+    background: #3a6f4a;
+  }
+  .net-cov-legend .sw.u {
+    background: var(--ink-ghost);
+  }
+  .net-cov-legend .sw.x {
+    background: var(--accent);
+  }
+}

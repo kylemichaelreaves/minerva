@@ -1,0 +1,1697 @@
+{
+  "filter": "curator_status IN ('approved','manual') OR (curator_status='auto' AND confidence>=0.8)",
+  "total_visible_edges": 12878,
+  "in_corpus_source_authors": 18,
+  "all_target_authors": 68,
+  "per_source_author": [
+    {
+      "author": "Aquinas",
+      "outgoing": 3929,
+      "ordinal": 700
+    },
+    {
+      "author": "Marx",
+      "outgoing": 1986,
+      "ordinal": 920
+    },
+    {
+      "author": "Nietzsche",
+      "outgoing": 1956,
+      "ordinal": 930
+    },
+    {
+      "author": "Cicero",
+      "outgoing": 1863,
+      "ordinal": 430
+    },
+    {
+      "author": "Hegel",
+      "outgoing": 1246,
+      "ordinal": 910
+    },
+    {
+      "author": "Aristotle",
+      "outgoing": 615,
+      "ordinal": 410
+    },
+    {
+      "author": "Plato",
+      "outgoing": 486,
+      "ordinal": 400
+    },
+    {
+      "author": "Augustine",
+      "outgoing": 255,
+      "ordinal": 600
+    },
+    {
+      "author": "Kant",
+      "outgoing": 158,
+      "ordinal": 900
+    },
+    {
+      "author": "Epictetus",
+      "outgoing": 141,
+      "ordinal": 460
+    },
+    {
+      "author": "Rousseau",
+      "outgoing": 66,
+      "ordinal": 860
+    },
+    {
+      "author": "Marcus Aurelius",
+      "outgoing": 46,
+      "ordinal": 470
+    },
+    {
+      "author": "Pascal",
+      "outgoing": 35,
+      "ordinal": 820
+    },
+    {
+      "author": "Hobbes",
+      "outgoing": 32,
+      "ordinal": 810
+    },
+    {
+      "author": "Hume",
+      "outgoing": 23,
+      "ordinal": 850
+    },
+    {
+      "author": "Locke",
+      "outgoing": 21,
+      "ordinal": 840
+    },
+    {
+      "author": "Lucretius",
+      "outgoing": 14,
+      "ordinal": 420
+    },
+    {
+      "author": "Spinoza",
+      "outgoing": 6,
+      "ordinal": 830
+    }
+  ],
+  "per_target_author": [
+    {
+      "author": "Aristotle",
+      "incoming": 1593,
+      "in_corpus": true,
+      "ordinal": 410
+    },
+    {
+      "author": "Augustine",
+      "incoming": 1466,
+      "in_corpus": true,
+      "ordinal": 600
+    },
+    {
+      "author": "Plato",
+      "incoming": 1022,
+      "in_corpus": true,
+      "ordinal": 400
+    },
+    {
+      "author": "Vulgate",
+      "incoming": 974,
+      "in_corpus": true,
+      "ordinal": 520
+    },
+    {
+      "author": "Proudhon",
+      "incoming": 933,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Kant",
+      "incoming": 680,
+      "in_corpus": true,
+      "ordinal": 900
+    },
+    {
+      "author": "Wagner",
+      "incoming": 497,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Socrates",
+      "incoming": 475,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Homer",
+      "incoming": 444,
+      "in_corpus": true,
+      "ordinal": 100
+    },
+    {
+      "author": "Epicurus",
+      "incoming": 417,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Hegel",
+      "incoming": 349,
+      "in_corpus": true,
+      "ordinal": 910
+    },
+    {
+      "author": "Schopenhauer",
+      "incoming": 315,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Christ",
+      "incoming": 244,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Pseudo-Dionysius",
+      "incoming": 214,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Spinoza",
+      "incoming": 187,
+      "in_corpus": true,
+      "ordinal": 830
+    },
+    {
+      "author": "Pythagoras",
+      "incoming": 178,
+      "in_corpus": false,
+      "ordinal": 230
+    },
+    {
+      "author": "Stirner",
+      "incoming": 162,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Ricardo",
+      "incoming": 162,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Cicero",
+      "incoming": 162,
+      "in_corpus": true,
+      "ordinal": 430
+    },
+    {
+      "author": "Empedocles",
+      "incoming": 146,
+      "in_corpus": true,
+      "ordinal": 280
+    },
+    {
+      "author": "Heraclitus",
+      "incoming": 145,
+      "in_corpus": true,
+      "ordinal": 250
+    },
+    {
+      "author": "Goethe",
+      "incoming": 145,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Chrysippus",
+      "incoming": 132,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Carneades",
+      "incoming": 128,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Zeno",
+      "incoming": 123,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Feuerbach",
+      "incoming": 114,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Anaxagoras",
+      "incoming": 113,
+      "in_corpus": true,
+      "ordinal": 290
+    },
+    {
+      "author": "Hesiod",
+      "incoming": 85,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Democritus",
+      "incoming": 85,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Descartes",
+      "incoming": 79,
+      "in_corpus": true,
+      "ordinal": 800
+    },
+    {
+      "author": "Rousseau",
+      "incoming": 68,
+      "in_corpus": true,
+      "ordinal": 860
+    },
+    {
+      "author": "Smith",
+      "incoming": 67,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Saint-Simon",
+      "incoming": 67,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Panaetius",
+      "incoming": 67,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Fourier",
+      "incoming": 64,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Hume",
+      "incoming": 62,
+      "in_corpus": true,
+      "ordinal": 850
+    },
+    {
+      "author": "Averroes",
+      "incoming": 59,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Parmenides",
+      "incoming": 56,
+      "in_corpus": true,
+      "ordinal": 260
+    },
+    {
+      "author": "Pascal",
+      "incoming": 49,
+      "in_corpus": true,
+      "ordinal": 820
+    },
+    {
+      "author": "Locke",
+      "incoming": 49,
+      "in_corpus": true,
+      "ordinal": 840
+    },
+    {
+      "author": "Buddha",
+      "incoming": 47,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Fichte",
+      "incoming": 45,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Bauer",
+      "incoming": 44,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Schelling",
+      "incoming": 30,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Porphyry",
+      "incoming": 30,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Owen",
+      "incoming": 29,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Darwin",
+      "incoming": 29,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Avicenna",
+      "incoming": 28,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Hobbes",
+      "incoming": 27,
+      "in_corpus": true,
+      "ordinal": 810
+    },
+    {
+      "author": "Epictetus",
+      "incoming": 27,
+      "in_corpus": true,
+      "ordinal": 460
+    },
+    {
+      "author": "Diogenes",
+      "incoming": 25,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Leibniz",
+      "incoming": 24,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Newton",
+      "incoming": 14,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Hooker",
+      "incoming": 13,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Grotius",
+      "incoming": 12,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Berkeley",
+      "incoming": 12,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Plotinus",
+      "incoming": 11,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Ambrose",
+      "incoming": 11,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Montaigne",
+      "incoming": 10,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Marcus Aurelius",
+      "incoming": 6,
+      "in_corpus": true,
+      "ordinal": 470
+    },
+    {
+      "author": "Wolff",
+      "incoming": 5,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Montesquieu",
+      "incoming": 4,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Filmer",
+      "incoming": 4,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Aquinas",
+      "incoming": 4,
+      "in_corpus": true,
+      "ordinal": 700
+    },
+    {
+      "author": "Vergil",
+      "incoming": 3,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Pufendorf",
+      "incoming": 3,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Manichaeus",
+      "incoming": 3,
+      "in_corpus": false,
+      "ordinal": 10000
+    },
+    {
+      "author": "Barbeyrac",
+      "incoming": 1,
+      "in_corpus": false,
+      "ordinal": 10000
+    }
+  ],
+  "source_target_matrix": [
+    {
+      "source": "Aquinas",
+      "target": "Augustine",
+      "n": 1456
+    },
+    {
+      "source": "Aquinas",
+      "target": "Aristotle",
+      "n": 1098
+    },
+    {
+      "source": "Marx",
+      "target": "Proudhon",
+      "n": 933
+    },
+    {
+      "source": "Aquinas",
+      "target": "Vulgate",
+      "n": 911
+    },
+    {
+      "source": "Hegel",
+      "target": "Kant",
+      "n": 543
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Wagner",
+      "n": 497
+    },
+    {
+      "source": "Cicero",
+      "target": "Epicurus",
+      "n": 413
+    },
+    {
+      "source": "Cicero",
+      "target": "Plato",
+      "n": 386
+    },
+    {
+      "source": "Plato",
+      "target": "Homer",
+      "n": 340
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Schopenhauer",
+      "n": 315
+    },
+    {
+      "source": "Cicero",
+      "target": "Aristotle",
+      "n": 300
+    },
+    {
+      "source": "Marx",
+      "target": "Hegel",
+      "n": 300
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Christ",
+      "n": 244
+    },
+    {
+      "source": "Cicero",
+      "target": "Socrates",
+      "n": 227
+    },
+    {
+      "source": "Aquinas",
+      "target": "Pseudo-Dionysius",
+      "n": 214
+    },
+    {
+      "source": "Hegel",
+      "target": "Plato",
+      "n": 175
+    },
+    {
+      "source": "Marx",
+      "target": "Ricardo",
+      "n": 162
+    },
+    {
+      "source": "Marx",
+      "target": "Stirner",
+      "n": 162
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Socrates",
+      "n": 158
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Goethe",
+      "n": 145
+    },
+    {
+      "source": "Aristotle",
+      "target": "Empedocles",
+      "n": 144
+    },
+    {
+      "source": "Hegel",
+      "target": "Aristotle",
+      "n": 135
+    },
+    {
+      "source": "Cicero",
+      "target": "Carneades",
+      "n": 128
+    },
+    {
+      "source": "Cicero",
+      "target": "Pythagoras",
+      "n": 126
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Kant",
+      "n": 125
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Plato",
+      "n": 124
+    },
+    {
+      "source": "Hegel",
+      "target": "Spinoza",
+      "n": 115
+    },
+    {
+      "source": "Cicero",
+      "target": "Zeno",
+      "n": 114
+    },
+    {
+      "source": "Marx",
+      "target": "Feuerbach",
+      "n": 114
+    },
+    {
+      "source": "Aquinas",
+      "target": "Plato",
+      "n": 106
+    },
+    {
+      "source": "Aristotle",
+      "target": "Homer",
+      "n": 104
+    },
+    {
+      "source": "Cicero",
+      "target": "Chrysippus",
+      "n": 102
+    },
+    {
+      "source": "Augustine",
+      "target": "Plato",
+      "n": 93
+    },
+    {
+      "source": "Aristotle",
+      "target": "Plato",
+      "n": 90
+    },
+    {
+      "source": "Aristotle",
+      "target": "Democritus",
+      "n": 80
+    },
+    {
+      "source": "Aristotle",
+      "target": "Anaxagoras",
+      "n": 78
+    },
+    {
+      "source": "Plato",
+      "target": "Hesiod",
+      "n": 76
+    },
+    {
+      "source": "Epictetus",
+      "target": "Socrates",
+      "n": 73
+    },
+    {
+      "source": "Cicero",
+      "target": "Panaetius",
+      "n": 67
+    },
+    {
+      "source": "Marx",
+      "target": "Saint-Simon",
+      "n": 67
+    },
+    {
+      "source": "Marx",
+      "target": "Smith",
+      "n": 67
+    },
+    {
+      "source": "Marx",
+      "target": "Fourier",
+      "n": 64
+    },
+    {
+      "source": "Augustine",
+      "target": "Vulgate",
+      "n": 63
+    },
+    {
+      "source": "Aquinas",
+      "target": "Averroes",
+      "n": 59
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Heraclitus",
+      "n": 55
+    },
+    {
+      "source": "Hegel",
+      "target": "Descartes",
+      "n": 54
+    },
+    {
+      "source": "Aquinas",
+      "target": "Cicero",
+      "n": 53
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Rousseau",
+      "n": 53
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Hegel",
+      "n": 49
+    },
+    {
+      "source": "Hegel",
+      "target": "Cicero",
+      "n": 48
+    },
+    {
+      "source": "Aristotle",
+      "target": "Pythagoras",
+      "n": 47
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Buddha",
+      "n": 47
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Pascal",
+      "n": 47
+    },
+    {
+      "source": "Hegel",
+      "target": "Fichte",
+      "n": 45
+    },
+    {
+      "source": "Kant",
+      "target": "Hume",
+      "n": 45
+    },
+    {
+      "source": "Marx",
+      "target": "Bauer",
+      "n": 44
+    },
+    {
+      "source": "Augustine",
+      "target": "Cicero",
+      "n": 41
+    },
+    {
+      "source": "Hegel",
+      "target": "Heraclitus",
+      "n": 38
+    },
+    {
+      "source": "Aristotle",
+      "target": "Heraclitus",
+      "n": 32
+    },
+    {
+      "source": "Aristotle",
+      "target": "Parmenides",
+      "n": 31
+    },
+    {
+      "source": "Plato",
+      "target": "Anaxagoras",
+      "n": 31
+    },
+    {
+      "source": "Hegel",
+      "target": "Schelling",
+      "n": 30
+    },
+    {
+      "source": "Marx",
+      "target": "Owen",
+      "n": 29
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Darwin",
+      "n": 29
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Spinoza",
+      "n": 29
+    },
+    {
+      "source": "Aquinas",
+      "target": "Avicenna",
+      "n": 28
+    },
+    {
+      "source": "Augustine",
+      "target": "Porphyry",
+      "n": 26
+    },
+    {
+      "source": "Epictetus",
+      "target": "Chrysippus",
+      "n": 26
+    },
+    {
+      "source": "Marx",
+      "target": "Spinoza",
+      "n": 26
+    },
+    {
+      "source": "Epictetus",
+      "target": "Diogenes",
+      "n": 25
+    },
+    {
+      "source": "Plato",
+      "target": "Parmenides",
+      "n": 25
+    },
+    {
+      "source": "Kant",
+      "target": "Leibniz",
+      "n": 24
+    },
+    {
+      "source": "Hobbes",
+      "target": "Aristotle",
+      "n": 19
+    },
+    {
+      "source": "Kant",
+      "target": "Plato",
+      "n": 19
+    },
+    {
+      "source": "Hegel",
+      "target": "Hume",
+      "n": 17
+    },
+    {
+      "source": "Marcus Aurelius",
+      "target": "Socrates",
+      "n": 17
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Aristotle",
+      "n": 16
+    },
+    {
+      "source": "Hegel",
+      "target": "Locke",
+      "n": 15
+    },
+    {
+      "source": "Rousseau",
+      "target": "Locke",
+      "n": 15
+    },
+    {
+      "source": "Kant",
+      "target": "Newton",
+      "n": 13
+    },
+    {
+      "source": "Locke",
+      "target": "Hooker",
+      "n": 13
+    },
+    {
+      "source": "Hegel",
+      "target": "Rousseau",
+      "n": 12
+    },
+    {
+      "source": "Kant",
+      "target": "Locke",
+      "n": 12
+    },
+    {
+      "source": "Kant",
+      "target": "Spinoza",
+      "n": 12
+    },
+    {
+      "source": "Marx",
+      "target": "Kant",
+      "n": 12
+    },
+    {
+      "source": "Rousseau",
+      "target": "Grotius",
+      "n": 12
+    },
+    {
+      "source": "Augustine",
+      "target": "Ambrose",
+      "n": 11
+    },
+    {
+      "source": "Augustine",
+      "target": "Plotinus",
+      "n": 11
+    },
+    {
+      "source": "Marcus Aurelius",
+      "target": "Epictetus",
+      "n": 11
+    },
+    {
+      "source": "Plato",
+      "target": "Heraclitus",
+      "n": 11
+    },
+    {
+      "source": "Hegel",
+      "target": "Hobbes",
+      "n": 10
+    },
+    {
+      "source": "Kant",
+      "target": "Aristotle",
+      "n": 10
+    },
+    {
+      "source": "Pascal",
+      "target": "Montaigne",
+      "n": 10
+    },
+    {
+      "source": "Rousseau",
+      "target": "Hobbes",
+      "n": 10
+    },
+    {
+      "source": "Aristotle",
+      "target": "Hesiod",
+      "n": 9
+    },
+    {
+      "source": "Epictetus",
+      "target": "Zeno",
+      "n": 9
+    },
+    {
+      "source": "Pascal",
+      "target": "Augustine",
+      "n": 9
+    },
+    {
+      "source": "Rousseau",
+      "target": "Plato",
+      "n": 9
+    },
+    {
+      "source": "Epictetus",
+      "target": "Plato",
+      "n": 8
+    },
+    {
+      "source": "Kant",
+      "target": "Berkeley",
+      "n": 8
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Descartes",
+      "n": 8
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Epictetus",
+      "n": 8
+    },
+    {
+      "source": "Hobbes",
+      "target": "Cicero",
+      "n": 7
+    },
+    {
+      "source": "Hume",
+      "target": "Locke",
+      "n": 7
+    },
+    {
+      "source": "Marcus Aurelius",
+      "target": "Heraclitus",
+      "n": 7
+    },
+    {
+      "source": "Pascal",
+      "target": "Epictetus",
+      "n": 7
+    },
+    {
+      "source": "Rousseau",
+      "target": "Cicero",
+      "n": 7
+    },
+    {
+      "source": "Spinoza",
+      "target": "Descartes",
+      "n": 6
+    },
+    {
+      "source": "Hume",
+      "target": "Spinoza",
+      "n": 5
+    },
+    {
+      "source": "Kant",
+      "target": "Wolff",
+      "n": 5
+    },
+    {
+      "source": "Lucretius",
+      "target": "Democritus",
+      "n": 5
+    },
+    {
+      "source": "Marcus Aurelius",
+      "target": "Plato",
+      "n": 5
+    },
+    {
+      "source": "Rousseau",
+      "target": "Aristotle",
+      "n": 5
+    },
+    {
+      "source": "Aquinas",
+      "target": "Porphyry",
+      "n": 4
+    },
+    {
+      "source": "Augustine",
+      "target": "Aristotle",
+      "n": 4
+    },
+    {
+      "source": "Hegel",
+      "target": "Marcus Aurelius",
+      "n": 4
+    },
+    {
+      "source": "Hume",
+      "target": "Berkeley",
+      "n": 4
+    },
+    {
+      "source": "Hume",
+      "target": "Descartes",
+      "n": 4
+    },
+    {
+      "source": "Kant",
+      "target": "Hobbes",
+      "n": 4
+    },
+    {
+      "source": "Locke",
+      "target": "Filmer",
+      "n": 4
+    },
+    {
+      "source": "Lucretius",
+      "target": "Anaxagoras",
+      "n": 4
+    },
+    {
+      "source": "Marcus Aurelius",
+      "target": "Chrysippus",
+      "n": 4
+    },
+    {
+      "source": "Pascal",
+      "target": "Plato",
+      "n": 4
+    },
+    {
+      "source": "Rousseau",
+      "target": "Montesquieu",
+      "n": 4
+    },
+    {
+      "source": "Augustine",
+      "target": "Manichaeus",
+      "n": 3
+    },
+    {
+      "source": "Augustine",
+      "target": "Vergil",
+      "n": 3
+    },
+    {
+      "source": "Hobbes",
+      "target": "Aquinas",
+      "n": 3
+    },
+    {
+      "source": "Hobbes",
+      "target": "Plato",
+      "n": 3
+    },
+    {
+      "source": "Kant",
+      "target": "Descartes",
+      "n": 3
+    },
+    {
+      "source": "Kant",
+      "target": "Rousseau",
+      "n": 3
+    },
+    {
+      "source": "Marx",
+      "target": "Aristotle",
+      "n": 3
+    },
+    {
+      "source": "Marx",
+      "target": "Epicurus",
+      "n": 3
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Cicero",
+      "n": 3
+    },
+    {
+      "source": "Pascal",
+      "target": "Descartes",
+      "n": 3
+    },
+    {
+      "source": "Plato",
+      "target": "Pythagoras",
+      "n": 3
+    },
+    {
+      "source": "Rousseau",
+      "target": "Pufendorf",
+      "n": 3
+    },
+    {
+      "source": "Hegel",
+      "target": "Pascal",
+      "n": 2
+    },
+    {
+      "source": "Hume",
+      "target": "Cicero",
+      "n": 2
+    },
+    {
+      "source": "Locke",
+      "target": "Aristotle",
+      "n": 2
+    },
+    {
+      "source": "Lucretius",
+      "target": "Empedocles",
+      "n": 2
+    },
+    {
+      "source": "Lucretius",
+      "target": "Heraclitus",
+      "n": 2
+    },
+    {
+      "source": "Marcus Aurelius",
+      "target": "Pythagoras",
+      "n": 2
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Hobbes",
+      "n": 2
+    },
+    {
+      "source": "Nietzsche",
+      "target": "Marcus Aurelius",
+      "n": 2
+    },
+    {
+      "source": "Hegel",
+      "target": "Aquinas",
+      "n": 1
+    },
+    {
+      "source": "Hegel",
+      "target": "Augustine",
+      "n": 1
+    },
+    {
+      "source": "Hegel",
+      "target": "Epictetus",
+      "n": 1
+    },
+    {
+      "source": "Hume",
+      "target": "Newton",
+      "n": 1
+    },
+    {
+      "source": "Locke",
+      "target": "Descartes",
+      "n": 1
+    },
+    {
+      "source": "Locke",
+      "target": "Hobbes",
+      "n": 1
+    },
+    {
+      "source": "Lucretius",
+      "target": "Epicurus",
+      "n": 1
+    },
+    {
+      "source": "Pascal",
+      "target": "Aristotle",
+      "n": 1
+    },
+    {
+      "source": "Pascal",
+      "target": "Cicero",
+      "n": 1
+    },
+    {
+      "source": "Rousseau",
+      "target": "Barbeyrac",
+      "n": 1
+    }
+  ],
+  "reference_type_by_source": {
+    "Aquinas": {
+      "alludes": 7,
+      "cites": 2830,
+      "comments_on": 881,
+      "disputes": 19,
+      "paraphrases": 11,
+      "quotes": 181
+    },
+    "Aristotle": {
+      "cites": 568,
+      "disputes": 7,
+      "paraphrases": 3,
+      "quotes": 37
+    },
+    "Augustine": {
+      "alludes": 6,
+      "cites": 180,
+      "paraphrases": 2,
+      "quotes": 67
+    },
+    "Cicero": {
+      "alludes": 6,
+      "cites": 1839,
+      "paraphrases": 3,
+      "quotes": 15
+    },
+    "Epictetus": {
+      "alludes": 2,
+      "cites": 138,
+      "quotes": 1
+    },
+    "Hegel": {
+      "alludes": 75,
+      "cites": 995,
+      "comments_on": 14,
+      "corrects": 2,
+      "disputes": 3,
+      "paraphrases": 71,
+      "quotes": 86
+    },
+    "Hobbes": {
+      "alludes": 3,
+      "cites": 28,
+      "quotes": 1
+    },
+    "Hume": {
+      "alludes": 1,
+      "cites": 20,
+      "paraphrases": 1,
+      "quotes": 1
+    },
+    "Kant": {
+      "cites": 153,
+      "corrects": 1,
+      "quotes": 4
+    },
+    "Locke": {
+      "cites": 14,
+      "quotes": 7
+    },
+    "Lucretius": {
+      "alludes": 1,
+      "cites": 13
+    },
+    "Marcus Aurelius": {
+      "cites": 43,
+      "quotes": 3
+    },
+    "Marx": {
+      "alludes": 12,
+      "cites": 1833,
+      "comments_on": 19,
+      "disputes": 15,
+      "paraphrases": 23,
+      "quotes": 84
+    },
+    "Nietzsche": {
+      "alludes": 134,
+      "cites": 1728,
+      "comments_on": 26,
+      "disputes": 28,
+      "paraphrases": 15,
+      "quotes": 25
+    },
+    "Pascal": {
+      "cites": 34,
+      "quotes": 1
+    },
+    "Plato": {
+      "alludes": 3,
+      "cites": 387,
+      "paraphrases": 1,
+      "quotes": 95
+    },
+    "Rousseau": {
+      "cites": 60,
+      "disputes": 4,
+      "quotes": 2
+    },
+    "Spinoza": {
+      "alludes": 2,
+      "cites": 1,
+      "corrects": 1,
+      "disputes": 2
+    }
+  },
+  "source_method_by_source": {
+    "Aquinas": {
+      "manual": 9,
+      "rule+embed": 35,
+      "rule+embed+llm": 3701,
+      "rule_strong": 184
+    },
+    "Aristotle": {
+      "rule+embed+llm": 615
+    },
+    "Augustine": {
+      "manual": 5,
+      "rule+embed": 8,
+      "rule+embed+llm": 242
+    },
+    "Cicero": {
+      "rule+embed+llm": 1829,
+      "rule_strong": 17,
+      "rule_weak": 17
+    },
+    "Epictetus": {
+      "rule+embed+llm": 137,
+      "rule_strong": 1,
+      "rule_weak": 3
+    },
+    "Hegel": {
+      "manual": 4,
+      "rule+embed+llm": 1239,
+      "rule_strong": 2,
+      "rule_weak": 1
+    },
+    "Hobbes": {
+      "rule+embed+llm": 32
+    },
+    "Hume": {
+      "rule+embed+llm": 19,
+      "rule_strong": 1,
+      "rule_weak": 3
+    },
+    "Kant": {
+      "manual": 2,
+      "rule+embed+llm": 156
+    },
+    "Locke": {
+      "rule+embed+llm": 21
+    },
+    "Lucretius": {
+      "rule+embed+llm": 14
+    },
+    "Marcus Aurelius": {
+      "rule+embed+llm": 38,
+      "rule_strong": 7,
+      "rule_weak": 1
+    },
+    "Marx": {
+      "rule+embed+llm": 1919,
+      "rule_strong": 58,
+      "rule_weak": 9
+    },
+    "Nietzsche": {
+      "rule+embed+llm": 1902,
+      "rule_strong": 49,
+      "rule_weak": 5
+    },
+    "Pascal": {
+      "rule+embed+llm": 34,
+      "rule_strong": 1
+    },
+    "Plato": {
+      "rule+embed+llm": 486
+    },
+    "Rousseau": {
+      "rule+embed+llm": 66
+    },
+    "Spinoza": {
+      "manual": 4,
+      "rule+embed+llm": 2
+    }
+  },
+  "curator_status_by_source": {
+    "Aquinas": {
+      "auto": 4927,
+      "manual": 9,
+      "rejected": 3201
+    },
+    "Aristotle": {
+      "auto": 709,
+      "rejected": 89
+    },
+    "Augustine": {
+      "auto": 269,
+      "manual": 5,
+      "rejected": 1198
+    },
+    "Cicero": {
+      "auto": 1910,
+      "rejected": 373
+    },
+    "Epictetus": {
+      "auto": 143,
+      "rejected": 8
+    },
+    "Hegel": {
+      "auto": 1540,
+      "manual": 4,
+      "rejected": 1111
+    },
+    "Hobbes": {
+      "auto": 39,
+      "rejected": 35
+    },
+    "Hume": {
+      "auto": 28,
+      "rejected": 5
+    },
+    "Kant": {
+      "auto": 179,
+      "manual": 2,
+      "rejected": 76
+    },
+    "Locke": {
+      "auto": 30,
+      "rejected": 5
+    },
+    "Lucretius": {
+      "auto": 14,
+      "rejected": 3
+    },
+    "Marcus Aurelius": {
+      "auto": 53,
+      "rejected": 8
+    },
+    "Marx": {
+      "auto": 1989,
+      "rejected": 85
+    },
+    "Nietzsche": {
+      "auto": 1977,
+      "rejected": 711
+    },
+    "Pascal": {
+      "auto": 41,
+      "rejected": 1
+    },
+    "Plato": {
+      "auto": 504,
+      "rejected": 7
+    },
+    "Rousseau": {
+      "auto": 75,
+      "rejected": 13
+    },
+    "Spinoza": {
+      "auto": 2,
+      "manual": 4,
+      "rejected": 211
+    }
+  },
+  "hub_authority": [
+    {
+      "author": "Homer",
+      "outgoing": 0,
+      "incoming": 444,
+      "ordinal": 100
+    },
+    {
+      "author": "Heraclitus",
+      "outgoing": 0,
+      "incoming": 145,
+      "ordinal": 250
+    },
+    {
+      "author": "Parmenides",
+      "outgoing": 0,
+      "incoming": 56,
+      "ordinal": 260
+    },
+    {
+      "author": "Empedocles",
+      "outgoing": 0,
+      "incoming": 146,
+      "ordinal": 280
+    },
+    {
+      "author": "Anaxagoras",
+      "outgoing": 0,
+      "incoming": 113,
+      "ordinal": 290
+    },
+    {
+      "author": "Plato",
+      "outgoing": 486,
+      "incoming": 1022,
+      "ordinal": 400
+    },
+    {
+      "author": "Aristotle",
+      "outgoing": 615,
+      "incoming": 1593,
+      "ordinal": 410
+    },
+    {
+      "author": "Lucretius",
+      "outgoing": 14,
+      "incoming": 0,
+      "ordinal": 420
+    },
+    {
+      "author": "Cicero",
+      "outgoing": 1863,
+      "incoming": 162,
+      "ordinal": 430
+    },
+    {
+      "author": "Epictetus",
+      "outgoing": 141,
+      "incoming": 27,
+      "ordinal": 460
+    },
+    {
+      "author": "Marcus Aurelius",
+      "outgoing": 46,
+      "incoming": 6,
+      "ordinal": 470
+    },
+    {
+      "author": "Vulgate",
+      "outgoing": 0,
+      "incoming": 974,
+      "ordinal": 520
+    },
+    {
+      "author": "Augustine",
+      "outgoing": 255,
+      "incoming": 1466,
+      "ordinal": 600
+    },
+    {
+      "author": "Aquinas",
+      "outgoing": 3929,
+      "incoming": 4,
+      "ordinal": 700
+    },
+    {
+      "author": "Descartes",
+      "outgoing": 0,
+      "incoming": 79,
+      "ordinal": 800
+    },
+    {
+      "author": "Hobbes",
+      "outgoing": 32,
+      "incoming": 27,
+      "ordinal": 810
+    },
+    {
+      "author": "Pascal",
+      "outgoing": 35,
+      "incoming": 49,
+      "ordinal": 820
+    },
+    {
+      "author": "Spinoza",
+      "outgoing": 6,
+      "incoming": 187,
+      "ordinal": 830
+    },
+    {
+      "author": "Locke",
+      "outgoing": 21,
+      "incoming": 49,
+      "ordinal": 840
+    },
+    {
+      "author": "Hume",
+      "outgoing": 23,
+      "incoming": 62,
+      "ordinal": 850
+    },
+    {
+      "author": "Rousseau",
+      "outgoing": 66,
+      "incoming": 68,
+      "ordinal": 860
+    },
+    {
+      "author": "Kant",
+      "outgoing": 158,
+      "incoming": 680,
+      "ordinal": 900
+    },
+    {
+      "author": "Hegel",
+      "outgoing": 1246,
+      "incoming": 349,
+      "ordinal": 910
+    },
+    {
+      "author": "Marx",
+      "outgoing": 1986,
+      "incoming": 0,
+      "ordinal": 920
+    },
+    {
+      "author": "Nietzsche",
+      "outgoing": 1956,
+      "incoming": 0,
+      "ordinal": 930
+    }
+  ]
+}

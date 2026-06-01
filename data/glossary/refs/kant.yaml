@@ -1,0 +1,39 @@
+version: 1
+
+# Kant's references to Plato. Anchored at the Critique of Pure
+# Reason's transcendental-ideal section, which is where Kant turns
+# explicitly to read Plato as a precursor (and corrector) of his own
+# project. KrV is paginated by A/B edition page numbers in the
+# Cambridge English edition; we use those as the addressable section.
+
+references:
+
+  # KrV A370 (the fourth paralogism / transcendental ideal) →
+  # Plato (the Ideas as archetypes)
+  - source: { chunk_id: "cccc777691755fcd54f2" }
+    target:
+      author: Plato
+      work: Republic
+    type: cites
+    source_form: "Plato"
+    note: |
+      Kant's A-edition treatment of the transcendental ideal calls
+      Plato's Ideas "archetypes of things themselves," distinguishing
+      the regulative use he sanctions from the constitutive use he
+      rejects. The reference is to Plato's Republic Form-of-the-Good
+      arc, though Kant is loose about which dialogue he means.
+
+  # KrV B370 (the transcendental ideal, B-edition) →
+  # Plato (the Ideas, with the famous "noble" Plato remark)
+  - source: { chunk_id: "dbdc5aaaae04330c6f47" }
+    target:
+      author: Plato
+      work: Republic
+    type: corrects
+    source_form: "Plato"
+    note: |
+      The B-edition revision is more severe: Kant grants Plato the
+      "noble" achievement of recognizing pure reason's reach toward
+      the unconditioned but corrects the dialectical mistake of
+      treating regulative Ideas as constitutive objects. The locus
+      where Kant most explicitly stages his relation to Platonism.

@@ -1,0 +1,67 @@
+.composer-wrap {
+  position: sticky;
+  bottom: 0;
+  padding: 0 32px 28px;
+  background: linear-gradient(to bottom, transparent, var(--paper) 36%);
+  pointer-events: none;
+}
+.composer {
+  max-width: var(--col);
+  margin: 0 auto;
+  pointer-events: auto;
+  padding: 14px 16px 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  position: relative;
+  transition: border-color 160ms;
+}
+.composer:focus-within {
+  border-color: var(--ink);
+}
+
+.composer-input {
+  width: 100%;
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: none;
+  display: block;
+  min-height: 28px;
+  max-height: 180px;
+}
+.composer-input::placeholder {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dotted var(--rule-soft);
+}
+.composer-foot .left {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.kbd {
+  font-family: var(--sans);
+  font-size: 9.5px;
+  padding: 2px 5px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+}
+

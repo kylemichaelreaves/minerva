@@ -1,0 +1,258 @@
+  /* ================================================================
+     REFS — mobile (design 4a/4b)
+     Hide the desktop page header h1; the MobileTopBar carries the
+     title. Chip strip replaces dropdown row. Cards get an oxblood
+     left rule on the quote. The Select popover (used by each filter
+     field) is restyled as a full-screen sheet on mobile.
+     ================================================================ */
+  .refs-page {
+    width: 100%;
+    padding: 0;
+  }
+  /* Hide the desktop page header — MobileTopBar shows "Cross-references". */
+  .refs-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 0;
+  }
+  .refs-head h1 {
+    display: none;
+  }
+  .refs-summary {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+    flex: 1;
+  }
+  .refs-meta {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: none;
+    letter-spacing: 0.04em;
+  }
+  .refs-review-link {
+    font-size: 11px;
+    padding: 3px 9px;
+  }
+
+  /* Filter chip strip — horizontal, no wrap, scrollable. */
+  .refs-filters {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 16px;
+    gap: 8px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 0;
+    align-items: center;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .refs-filters::-webkit-scrollbar {
+    display: none;
+  }
+  .refs-filter {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+  }
+  /* Label sits inline with the value to read as a chip "<key> <value>". */
+  .refs-filter-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    margin: 0;
+  }
+  /* Style the underlying Select trigger as a chip. */
+  .refs-filter .minerva-select__trigger {
+    height: 30px;
+    min-height: 30px;
+    padding: 4px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    gap: 4px;
+  }
+  /* "Active" filter chip = ink-filled when a value is selected. */
+  .refs-filter:has(.minerva-select__clear) .minerva-select__trigger {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .refs-filter:has(.minerva-select__clear) .minerva-select__primary,
+  .refs-filter:has(.minerva-select__clear) .minerva-select__caret {
+    color: var(--paper);
+  }
+  /* Hide labels next to active chips on mobile to keep them compact. */
+  .refs-filter:has(.minerva-select__clear) .refs-filter-label {
+    color: var(--ink-mute);
+  }
+  /* The include-rejected pip becomes its own chip-shaped slot. */
+  .refs-check {
+    height: 30px;
+    border: 1px solid var(--rule);
+    padding: 0 10px;
+    align-self: center;
+    font-family: var(--sans);
+    font-size: 11px;
+    border-radius: 0;
+    color: var(--ink-mute);
+    gap: 6px;
+  }
+  .refs-check-label {
+    font-family: var(--sans);
+    font-size: 11px;
+  }
+
+  /* Count line — full-width band below the chip strip per design. */
+  .refs-summary::before {
+    content: "";
+  }
+
+  /* Refs list — card layout, no horizontal page padding. */
+  .refs-list {
+    padding: 0;
+    gap: 0;
+  }
+  /* Card anatomy per design 4a:
+     SOURCE-ROW (author · locator)
+     ITALIC QUOTE with oxblood left rule (the quoted phrase OR the
+        curator note when no phrase exists)
+     → TARGET-ROW (arrow inline · author · locator)
+     The JSX nests source/arrow/target inside .ref-row-head. To get
+     the arrow INLINE with the target on mobile, we keep .ref-row-head
+     as a flex container in source-order and re-anchor the arrow to
+     the start of the target row via a CSS sibling layout (instead of
+     reordering everything with `display: contents`). */
+  .ref-row {
+    padding: 14px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--rule-soft);
+    background: transparent;
+    border-radius: 0;
+  }
+  .ref-row-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px 0;
+  }
+  /* Source row stays first; target row drops below the quote. The
+     arrow becomes a leading glyph on the target row via flex. */
+  .ref-row-head .ref-row-source { grid-row: 1; }
+  .ref-row-head .ref-arrow {
+    display: none; /* hidden inside head — the target row shows its own
+                      leading arrow via ::before below. */
+  }
+  .ref-row-head .ref-row-target { grid-row: 2; }
+  /* Chip (Alludes / Disputes / Cites) is desktop-only metadata —
+     hide on mobile per design 4a. */
+  .ref-row-head .ref-row-chip { display: none; }
+
+  .ref-row-source,
+  .ref-row-target {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    gap: 6px;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  /* Inline arrow on the target row only — oxblood, no extra wrap. */
+  .ref-row-target::before {
+    content: "→";
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 12px;
+    text-transform: none;
+    margin-right: 2px;
+  }
+  .ref-row-author {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  /* Work name in source/target rows is redundant on mobile — the
+     locator already disambiguates ("conf. I.1.1" implies Confessiones).
+     Hidden to match design 4a's two-token rows. */
+  .ref-row-work {
+    display: none;
+  }
+  .ref-row-locator {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    color: var(--ink-mute);
+  }
+  /* Quote with oxblood left rule per design 4a. Falls back to the
+     curator note when no quoted_phrase is present (most rows in the
+     current dataset). The .ref-row-quote and .ref-row-note selectors
+     share the visual treatment. */
+  .ref-row-quote,
+  .ref-row-note {
+    border-left: 2px solid var(--accent);
+    padding-left: 10px;
+    margin: 10px 0;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+  /* Meta row (conf / method / status) hidden on mobile — design 4a
+     replaces it with a tap-to-expand hint, which we don't have yet.
+     Suppression keeps the card uncluttered. */
+  .ref-row-meta {
+    display: none;
+  }
+
+  /* Filter popover → full-screen sheet on mobile. The Select panel
+     becomes the design-4b sheet: cancel/title/done strip up top,
+     scrollable list below. */
+  .minerva-select__panel {
+    position: fixed !important;
+    inset: 44px 0 0 0 !important;
+    top: calc(44px + env(safe-area-inset-top, 0)) !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    min-width: 0 !important;
+    border-top: 1px solid var(--ink);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.3);
+    z-index: 80;
+  }
+  .minerva-select__listbox {
+    max-height: none !important;
+    padding: 8px 0 calc(env(safe-area-inset-bottom, 0) + 8px);
+  }
+  /* Drag-handle pseudo-element at the top of the sheet. */
+  .minerva-select__panel::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--ink-faint);
+    opacity: 0.6;
+    margin: 8px auto 6px;
+  }

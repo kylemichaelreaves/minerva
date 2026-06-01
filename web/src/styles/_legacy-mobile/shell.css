@@ -1,0 +1,320 @@
+  /* ---------- App shell ---------- */
+  .app {
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  /* Sidebar becomes a left-edge drawer overlay (off-screen by
+     default). The desktop `.sidebar` width is 260px; we keep that
+     but slide it via transform. Pointer-events off when closed so it
+     doesn't capture taps. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 360px;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    pointer-events: none;
+    box-shadow: 4px 0 20px -8px rgba(0, 0, 0, 0.2);
+    /* Honor iOS notch so the brand row clears the status bar. */
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  body[data-mobile-drawer="open"] .sidebar {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  /* The sidebar's collapsed-on-desktop state is irrelevant on mobile;
+     force the expanded layout so the drawer always renders content. */
+  .sidebar.collapsed {
+    width: 85%;
+    max-width: 360px;
+  }
+  /* Hide the sidebar's own collapse toggle on mobile — closing happens
+     via scrim tap or the in-drawer ✕ button. */
+  .sidebar-head .icon-btn {
+    display: none;
+  }
+  /* Mobile close button inside the drawer header. */
+  .sidebar-close-mobile {
+    display: inline-flex;
+    background: transparent;
+    border: 0;
+    color: var(--ink);
+    font-size: 17px;
+    font-family: var(--sans);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  /* Drawer brand header — bigger M, italic serif wordmark, breathing
+     room. The brand button keeps its identity (tap = home) but reads
+     as the drawer title in the mobile drawer pattern. */
+  .sidebar .sidebar-head {
+    padding: 14px 18px 18px;
+  }
+  .sidebar .brand-mark {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+  .sidebar .brand-mark .glyph {
+    color: var(--accent);
+    margin-right: 1px;
+  }
+
+  /* "New conversation" — full-width outlined button per design 2b/3e. */
+  .sidebar .new-btn {
+    margin: 0 18px 16px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    padding: 10px 12px;
+    font-family: var(--sans);
+    font-size: 13px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+  }
+
+  /* History items — slightly taller for touch; muted "when" timestamp
+     below the title. */
+  .sidebar .history-item {
+    min-height: 44px;
+    padding: 10px 18px;
+  }
+  .sidebar .history-label {
+    padding: 0 18px;
+    margin-bottom: 6px;
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 500;
+  }
+
+  /* Work tree (Reader mode) on mobile — design 3e shows one row per
+     author with the works-count on the right. The desktop tree
+     (author → expandable list of individual works) doesn't fit the
+     mobile drawer's narrower column and was clipping counts. Compress
+     to author-as-row by hiding the per-author works list. */
+  .sidebar .history-list {
+    display: none;
+  }
+  .sidebar .history-label-caret {
+    display: none;
+  }
+  .sidebar .history-label-toggle {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    padding: 10px 18px 11px 28px;
+    margin-bottom: 0;
+    min-height: 44px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14.5px;
+    color: var(--ink);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    background: transparent;
+    border: 0;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+  }
+  .sidebar .history-label-count {
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 10px;
+    color: var(--ink-faint);
+    margin-left: auto;
+    letter-spacing: 0.04em;
+  }
+  /* Highlight the author group whose work is currently open — design
+     3e shows the current row with an oxblood left rail and italic
+     emphasis. `:has()` reads the still-rendered (but display:none)
+     active descendant in the work list. */
+  .sidebar .history-label-toggle:has(+ .history-list .history-item.active),
+  .sidebar .history-label-toggle:has(+ .history-list .history-item-wrap.active) {
+    color: var(--accent);
+    position: relative;
+  }
+  .sidebar
+    .history-label-toggle:has(+ .history-list .history-item.active)::before,
+  .sidebar
+    .history-label-toggle:has(+ .history-list .history-item-wrap.active)::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--accent);
+  }
+
+  /* Drawer footer — design 2b/3e shows a user dot + ⚙ cog at the
+     bottom edge of the drawer. The cog is wired to the theme toggle
+     (the only setting we have today). */
+  .sidebar .sidebar-foot {
+    border-top: 1px solid var(--rule-soft);
+    padding: 12px 18px calc(env(safe-area-inset-bottom, 0) + 14px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: auto;
+  }
+  .sidebar .sidebar-foot-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar .sidebar-foot-dot {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1;
+  }
+  .sidebar .sidebar-foot-cog {
+    background: transparent;
+    border: 0;
+    color: var(--ink-faint);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 6px 8px;
+    line-height: 1;
+  }
+
+  /* Scrim behind the drawer when open. */
+  body[data-mobile-drawer="open"]::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(244, 239, 230, 0.4);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 55;
+  }
+  [data-theme="dark"] body[data-mobile-drawer="open"]::after {
+    background: rgba(20, 17, 14, 0.55);
+  }
+
+  /* Body scroll lock when drawer is open. */
+  body[data-mobile-drawer="open"] {
+    overflow: hidden;
+  }
+
+  /* Main always fills the screen on mobile (no sidebar gutter). */
+  .main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ---------- Mobile top-bar ---------- */
+  .mobile-topbar {
+    flex: 0 0 44px;
+    height: 44px;
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    /* Sit under iOS notch / status bar. */
+    padding-top: env(safe-area-inset-top, 0);
+    box-sizing: content-box;
+  }
+  .mobile-topbar-ham {
+    justify-self: start;
+    margin-left: 14px;
+    width: 28px;
+    height: 28px;
+    position: relative;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mobile-topbar-ham::before,
+  .mobile-topbar-ham::after,
+  .mobile-topbar-ham > span {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 1.4px;
+    background: var(--ink);
+  }
+  .mobile-topbar-ham::before {
+    top: 8px;
+  }
+  .mobile-topbar-ham > span {
+    top: 13px;
+    display: block;
+  }
+  .mobile-topbar-ham::after {
+    top: 18px;
+  }
+  .mobile-topbar-title {
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 8px;
+  }
+  .mobile-topbar-title em {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--ink-mute);
+  }
+  .mobile-topbar-action {
+    justify-self: end;
+    margin-right: 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: -0.005em;
+    background: transparent;
+    border: 0;
+    padding: 6px 4px;
+    min-height: 32px;
+    min-width: 32px;
+    cursor: pointer;
+  }
+
+  /* MobileTopBar shouldn't appear on landing (the landing has its
+     own header). App.tsx already gates this conditionally. */
+  .landing .mobile-topbar {
+    display: none;
+  }

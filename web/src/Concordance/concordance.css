@@ -1,0 +1,1266 @@
+/* Concordance — F1 (index) + F2 (lemma detail / KWIC).
+   Greyscale-first, mirrors .ref-row chrome from Refs/refs.css.
+   Palette inherits from styles.css :root tokens. */
+
+.conc-stage {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 22px 28px 64px;
+  font-family: var(--sans);
+}
+
+/* ── header ──────────────────────────────────────────────────── */
+
+.conc-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--rule);
+  gap: 24px;
+}
+.conc-h1 {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+.conc-h1 .lemma {
+  font-style: italic;
+}
+.conc-sub {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.conc-sub b {
+  color: var(--ink);
+}
+.conc-head-meta {
+  text-align: right;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+}
+
+/* scope pill */
+
+.scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--paper-soft);
+  font-family: var(--sans);
+  font-size: 11px;
+}
+.scope-pill .crumb {
+  color: var(--ink-mute);
+  padding: 2px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  /* F5 polish — segments fade between active/inactive when the user
+     tabs through scope levels (or the ⌘↑ shortcut fires). 180 ms is
+     fast enough to feel snappy on click but slow enough to read as
+     intentional. */
+  transition: background-color 180ms ease, color 180ms ease;
+}
+.scope-pill .crumb:hover {
+  color: var(--ink);
+}
+.scope-pill .crumb.cur {
+  background: var(--ink);
+  color: var(--paper);
+  cursor: default;
+}
+.scope-pill .arr {
+  color: var(--ink-faint);
+  margin: 0 2px;
+}
+.scope-pill .ct {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--rule);
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+/* ── header-bar filter row (F1 desktop direction A) ──────────── */
+/* Lives directly under the scope pill on the index page. Each `.grp`
+   is a label + control pair separated by a faint dashed divider; the
+   trailing `.fbar-search` is right-aligned via `.fbar-spacer`. */
+
+.fbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.fbar .grp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 14px;
+  border-right: 1px dashed var(--rule-soft);
+}
+.fbar .grp:last-of-type {
+  border-right: 0;
+}
+.fbar .lab {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.fbar-spacer {
+  flex: 1;
+}
+
+/* fbar dropdown — click trigger + a fly-out menu. */
+.fbar-drop {
+  position: relative;
+  display: inline-block;
+}
+.fbar-drop .trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--rule);
+  padding: 3px 10px;
+  border-radius: 4px;
+  color: var(--ink);
+  background: var(--paper);
+  cursor: pointer;
+  user-select: none;
+  letter-spacing: 0.02em;
+  font-size: 12px;
+}
+.fbar-drop.on .trigger {
+  border-color: var(--ink);
+  background: var(--paper-soft);
+}
+.fbar-drop .trigger:hover {
+  border-color: var(--ink-mute);
+}
+.fbar-drop .chev {
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+.fbar-drop .menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 12;
+  display: block;
+  min-width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 4px 0;
+  white-space: nowrap;
+}
+.fbar-drop .menu .opt {
+  display: block;
+  padding: 5px 12px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 12px;
+}
+.fbar-drop .menu .opt:hover {
+  background: var(--paper-soft);
+  color: var(--ink);
+}
+.fbar-drop .menu .opt.cur {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* fbar dual-knob range slider. Stacks two native range inputs on the
+   same track with pointer-events tuned so the upper knob doesn't
+   steal hits from the lower one. */
+.fbar-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-mute);
+}
+.fbar-range .ed {
+  min-width: 38px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.fbar-range .track {
+  position: relative;
+  width: 120px;
+  height: 12px;
+}
+.fbar-range .track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: -1.5px;
+  height: 3px;
+  background: var(--rule);
+  border-radius: 2px;
+}
+.fbar-range .track .fill {
+  position: absolute;
+  top: 50%;
+  margin-top: -1.5px;
+  height: 3px;
+  background: var(--ink);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.fbar-range .thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+}
+.fbar-range .thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.fbar-range .thumb::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.fbar-range .thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  border: 0;
+  height: 12px;
+}
+.fbar-range .thumb::-moz-range-track {
+  background: transparent;
+  border: 0;
+  height: 12px;
+}
+
+/* fbar search field. Light underline pattern that doesn't fight the
+   surrounding chrome. */
+.fbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  min-width: 240px;
+  background: var(--paper);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.fbar-search:focus-within {
+  border-color: var(--ink-mute);
+}
+.fbar-search .ico {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.fbar-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  padding: 1px 0;
+}
+.fbar-search input::placeholder {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* ── active-filter strip (sits above the leaderboard / KWIC) ──── */
+
+.afs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 14px;
+  padding: 7px 0;
+  border-top: 1px dashed var(--rule-soft);
+  border-bottom: 1px dashed var(--rule-soft);
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.afs .afs-lab {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.afs .afs-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+}
+.afs .afs-pill .k {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.afs .afs-pill .x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--rule-soft);
+  color: var(--ink-mute);
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: 1px;
+}
+.afs .afs-pill .x:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.afs .afs-ct {
+  font-family: var(--mono);
+  color: var(--ink-mute);
+  font-size: 11px;
+}
+.afs .afs-ct b {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.afs .afs-reset {
+  margin-left: auto;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+
+/* ── A-Z rail ────────────────────────────────────────────────── */
+
+.az-rail {
+  display: flex;
+  gap: 0;
+  flex-wrap: wrap;
+  margin: 12px 0 18px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--rule);
+  border-bottom: 1px dashed var(--rule);
+}
+.az-rail .l {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 3px 7px;
+  color: var(--ink-faint);
+  border-radius: 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.az-rail .l.has {
+  color: var(--ink);
+}
+.az-rail .l.cur {
+  background: var(--ink);
+  color: var(--paper);
+}
+/* az-rail-grid: full-width spread for the F1 redesign. Lets letters
+   breathe and keeps the rail readable on wide displays. */
+.az-rail.az-rail-grid {
+  display: grid;
+  grid-template-columns: repeat(26, 1fr);
+  gap: 2px;
+  padding: 8px 0;
+}
+.az-rail.az-rail-grid .l {
+  text-align: center;
+  padding: 3px 0;
+}
+.az-rail .az-all {
+  grid-column: 1 / -1;
+  text-align: right;
+  color: var(--accent);
+  padding-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* ── leaderboard ─────────────────────────────────────────────── */
+
+.lb-row {
+  display: grid;
+  grid-template-columns: 40px 240px 100px 84px 130px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 14px 11px 6px;
+  border-top: 1px solid var(--rule-soft);
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.lb-row:hover {
+  background: var(--paper-soft);
+}
+.lb-row .rk {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-align: right;
+}
+.lb-row .lem {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 19px;
+  color: var(--ink);
+}
+.lb-row .pos {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--ink-mute);
+}
+.lb-row .ct {
+  font-family: var(--mono);
+  font-size: 14.5px;
+  color: var(--ink);
+  text-align: right;
+}
+.lb-row .gloss {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-letter {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  padding: 22px 8px 6px;
+  border-top: 1px solid var(--rule);
+  margin-top: 6px;
+}
+.lb-letter:first-child {
+  border-top: 0;
+  margin-top: 0;
+}
+
+/* sparkline */
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  height: 18px;
+  gap: 2px;
+  width: 110px;
+}
+.spark .bar {
+  flex: 1;
+  background: var(--ink-faint);
+  border-radius: 1px;
+  min-height: 1px;
+}
+.lb-row:hover .spark .bar {
+  background: var(--accent);
+}
+
+/* ── lemma detail header + filters ───────────────────────────── */
+
+.kwic-stage {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 6px;
+}
+
+.filter-rail {
+  font-family: var(--sans);
+  font-size: 11px;
+  border-right: 1px solid var(--rule-soft);
+  padding-right: 22px;
+  position: sticky;
+  top: 12px;
+}
+.filter-rail .fr-group {
+  margin-bottom: 18px;
+}
+.filter-rail .fr-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: 8px;
+}
+.filter-rail .fr-label .clr {
+  font-size: 9.5px;
+  letter-spacing: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-transform: none;
+}
+.filter-rail .fr-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filter-rail .fr-opt {
+  padding: 3px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  user-select: none;
+}
+.filter-rail .fr-opt:hover {
+  color: var(--ink);
+  border-color: var(--ink-mute);
+}
+.filter-rail .fr-opt.on {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.filter-rail .fr-opt.muted {
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+.filter-rail .fr-check {
+  display: grid;
+  grid-template-columns: 14px 1fr 44px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  cursor: pointer;
+  color: var(--ink-mute);
+}
+.filter-rail .fr-check:hover {
+  color: var(--ink);
+}
+.filter-rail .fr-check .box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--rule);
+}
+.filter-rail .fr-check.on .box {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.filter-rail .fr-check.on {
+  color: var(--ink);
+}
+.filter-rail .fr-check .ct {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+/* ── KWIC grid ───────────────────────────────────────────────── */
+
+.kwic-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.kwic-toolbar .ct b {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+.kwic-toolbar .sort {
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.kwic-toolbar .sort.on {
+  color: var(--ink);
+}
+.kwic-toolbar .kbd {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+.kwic-toolbar .kbd kbd {
+  padding: 1px 4px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  margin: 0 1px;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.kwic-grid {
+  margin-top: 4px;
+  /* F5 polish — when the underlying data changes (filters, scope),
+     the grid fades while the new batch loads. Keeps the old rows
+     readable but tinted, so the user sees that a refetch is
+     happening without losing context. */
+  transition: opacity 220ms ease;
+}
+.kwic-pane.kwic-refetching .kwic-grid {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.kwic-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 110px 1fr 100px;
+  align-items: baseline;
+  gap: 14px;
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--serif);
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.kwic-row:hover, .kwic-row.cur {
+  background: var(--paper-soft);
+}
+.kwic-row.cur {
+  outline: 1px solid var(--accent-soft);
+  outline-offset: -1px;
+}
+.kwic-row .loc {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  text-align: right;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.kwic-row .loc b {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 1px;
+}
+.kwic-row .left {
+  text-align: right;
+  color: var(--ink-mute);
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kwic-row .match {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 600;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: 15px;
+}
+.kwic-row .right {
+  text-align: left;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kwic-row .meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+.kwic-row .meta .surf {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* ── empty + loading states ──────────────────────────────────── */
+
+.conc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 60px 24px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-mute);
+  max-width: 600px;
+}
+.conc-empty .icon {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--ink-faint);
+  margin-bottom: 14px;
+}
+.conc-empty .ttl {
+  font-family: var(--serif);
+  font-size: 19px;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.conc-empty .cmd {
+  margin-top: 14px;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  color: var(--ink);
+}
+.conc-empty .broaden {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.conc-empty .broaden a {
+  color: var(--accent);
+  text-decoration: none;
+  margin-right: 12px;
+  cursor: pointer;
+}
+
+.kwic-skeleton {
+  padding: 6px 0;
+}
+.kwic-skeleton .kwic-row {
+  cursor: default;
+}
+.kwic-skeleton .bar {
+  display: inline-block;
+  height: 12px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule-soft);
+  width: 100%;
+}
+.kwic-skeleton .bar.match {
+  width: 60%;
+  background: var(--rule-soft);
+  margin: 0 auto;
+}
+.kwic-skeleton .bar.tall {
+  height: 18px;
+}
+
+/* Generic skeleton bar — used inline in the KWIC loading scaffold.
+   Animates a slow pulse so the user can tell data is in flight without
+   the bar feeling like a real result. */
+.skel-bar {
+  display: inline-block;
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--paper-soft) 0%,
+    color-mix(in oklab, var(--ink) 8%, var(--paper-soft)) 50%,
+    var(--paper-soft) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 2px;
+  animation: skel-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skel-pulse {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Empty-state .broaden links: comma-separated suggestions list. */
+.conc-empty .broaden a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* ── top-nav slot ────────────────────────────────────────────── */
+/* No new chrome — uses existing top-nav. The "Concordance" link is
+   added to the network sub-nav and the landing-page mode picker. */
+
+/* ── lemma identity card (F2 unified-rail direction) ────────── */
+/* Carries the lemma, its POS, the language code, the occurrence count,
+   AND the "locked" gender for German nouns. Gender lives here — not in
+   the rail — because for a noun like Geist the masculine gender is a
+   property of the lemma's identity, not a filter the user can toggle. */
+
+.lemma-id {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 0;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.lemma-id .lem {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 32px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.lemma-id .meta {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.lemma-id .meta b {
+  color: var(--ink);
+  font-weight: 600;
+  font-family: var(--mono);
+  letter-spacing: 0;
+}
+.lemma-id .meta .locked {
+  display: inline-block;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  padding: 1px 6px 2px;
+  border-radius: 3px;
+  margin-left: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--sans);
+}
+.lemma-id .meta .locked .note {
+  color: var(--ink-faint);
+  margin-left: 4px;
+  font-size: 9.5px;
+}
+
+/* ── F2 unified-rail additions ───────────────────────────────── */
+
+/* Applied-filters card — distinct from the per-group chip rows below it.
+   Card = state (what's active right now). Chip rows = controls. The
+   border + dashed top rule keeps them visually separated. */
+.applied-filters {
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  font-family: var(--sans);
+  font-size: 11px;
+}
+.applied-filters .hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.applied-filters .hd .reset {
+  color: var(--accent);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.applied-filters .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.applied-filters .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 10.5px;
+}
+.applied-filters .pill .k {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.applied-filters .pill .v {
+  font-family: var(--serif);
+  font-style: italic;
+}
+.applied-filters .pill .x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--rule-soft);
+  color: var(--ink-mute);
+  font-size: 10px;
+  cursor: pointer;
+}
+.applied-filters .pill .x:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Search field inside a filter-rail group (Work / Surface). */
+.filter-rail .fr-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--rule);
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+  border-radius: 3px;
+  background: var(--paper);
+}
+.filter-rail .fr-search:focus-within {
+  border-color: var(--ink-mute);
+}
+.filter-rail .fr-search .ico {
+  color: var(--ink-faint);
+}
+.filter-rail .fr-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  padding: 1px 0;
+}
+.filter-rail .fr-search input::placeholder {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* "+ N more" expand toggle for capped lists (Work, Surface). */
+.filter-rail .fr-more {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 4px 0;
+  letter-spacing: 0.02em;
+}
+
+/* Prose lock state — replaces muted Gender chips when a lemma has a
+   single attested gender. Carries the same vertical slot in the rail
+   so the IA doesn't shift. */
+.filter-rail .fr-locked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--paper-soft);
+  border: 1px dashed var(--rule);
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+  border-radius: 3px;
+}
+.filter-rail .fr-locked b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* "Applied · X" annotation in the fr-label header (e.g. "Case · Nom"). */
+.filter-rail .fr-label .applied {
+  font-size: 9.5px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  margin-left: 4px;
+}
+
+/* Scope segmented control at the top of the F2 rail. */
+.filter-rail .fr-scope {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 2px;
+  font-family: var(--sans);
+  font-size: 11px;
+  background: var(--paper);
+}
+.filter-rail .fr-scope .seg {
+  padding: 3px 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.filter-rail .fr-scope .seg.on {
+  background: var(--ink);
+  color: var(--paper);
+  cursor: default;
+}
+
+/* ── mobile FAB & sheet contents ─────────────────────────────── */
+
+.conc-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  border: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  z-index: 20;
+  cursor: pointer;
+}
+.conc-fab .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* Sheet body — the bottom-sheet wraps `<FilterBar>` (which reflows to
+   a stacked layout under 768px) plus a foot row with Reset + count. */
+.conc-mob-sheet {
+  padding: 4px 2px 16px;
+}
+.conc-mob-sheet-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px 4px;
+  margin-top: 8px;
+  border-top: 1px solid var(--rule-soft);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.conc-mob-sheet-foot .reset {
+  color: var(--accent);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.conc-mob-sheet-foot .done {
+  padding: 8px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.conc-mob-sheet-foot .done b {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+/* ── mobile ──────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .conc-stage {
+    padding: 14px 14px 64px;
+  }
+  .conc-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .conc-head-meta {
+    text-align: left;
+  }
+  .lb-row {
+    grid-template-columns: 28px 1fr 60px;
+    gap: 10px;
+    padding: 11px 4px;
+  }
+  .lb-row .pos {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 2px;
+  }
+  .lb-row .spark, .lb-row .gloss {
+    display: none;
+  }
+  .lb-row .ct {
+    align-self: start;
+  }
+  .kwic-stage {
+    grid-template-columns: 1fr;
+  }
+  .filter-rail {
+    position: static;
+    border-right: 0;
+    padding: 0 0 12px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 12px;
+  }
+  .filter-rail .fr-group {
+    margin-bottom: 12px;
+  }
+  .kwic-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 14px 6px;
+  }
+  .kwic-row .loc {
+    text-align: left;
+  }
+  .kwic-row .left, .kwic-row .right {
+    white-space: normal;
+    text-align: left;
+    color: var(--ink);
+    font-size: 13px;
+  }
+  .kwic-row .left::after { content: ""; }
+  .kwic-row .match {
+    background: var(--accent-soft, rgba(123, 46, 42, 0.08));
+    color: var(--accent);
+    padding: 0 4px;
+    text-align: left;
+  }
+  .kwic-row .meta {
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 10px;
+  }
+  /* The header-bar filter row collapses to a stack inside the bottom
+     sheet — labels above controls, full-width search at the bottom. */
+  .fbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 4px 4px 8px;
+    border: 0;
+  }
+  .fbar .grp {
+    border-right: 0;
+    padding: 0;
+    border-bottom: 1px dashed var(--rule-soft);
+    padding-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .fbar .grp:last-of-type {
+    border-bottom: 0;
+  }
+  .fbar-search {
+    width: 100%;
+  }
+  /* The fbar dropdown menu in the sheet should never escape the
+     sheet's body — explicit positioning keeps it clipped. */
+  .fbar-drop .menu {
+    position: static;
+    box-shadow: none;
+    border-radius: 0;
+    margin-top: 4px;
+  }
+  /* AZ rail in mobile concordance: 9-wide grid so all 26 letters
+     fit on three rows without scrolling. */
+  .az-rail.az-rail-grid {
+    grid-template-columns: repeat(9, 1fr);
+    gap: 4px;
+  }
+  .az-rail.az-rail-grid .l {
+    padding: 6px 0;
+    font-size: 12px;
+  }
+  .conc-mob-sheet .afs {
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+  .lemma-id .lem {
+    font-size: 24px;
+  }
+  .lemma-id .meta {
+    font-size: 9.5px;
+  }
+  .applied-filters {
+    margin-bottom: 12px;
+    padding: 8px 10px;
+  }
+}

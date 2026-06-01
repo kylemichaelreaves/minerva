@@ -1,0 +1,57 @@
+version: 1
+
+# Spinoza's geometric debts to (and corrections of) Descartes.
+# Anchored at Ethica definitions and propositions where the
+# Cartesian inheritance is structural rather than merely cited.
+
+references:
+
+  # E I, Def. 3 (substance = that which is in itself and conceived
+  # through itself) → Descartes Principia I.51 (substantia definition)
+  - source: { chunk_id: "b0295ee17b4d8bc6a522" }
+    target:
+      author: Descartes
+      work: Principia philosophiae
+      locator: "Pars I, art. 51"
+    type: corrects
+    source_form: "Cartesius"
+    note: |
+      Spinoza's Def. 3 closes a loophole in Descartes Princ. I.51:
+      Descartes admits two kinds of substance (created + uncreated)
+      because finite substance can be "in itself" in a limited sense.
+      Spinoza tightens the definition so only the uncreated qualifies
+      — propaedeutic to E I, P14's monism.
+
+  # E I, P14 (already in the seed as Spinoza → Descartes Principia
+  # disputes). Listed here as a comment; dedup skips.
+
+  # E I, App. (against final causes) → Descartes Principia I (rejection
+  # of final-cause talk in physics, esp. Princ. I.28)
+  - source: { chunk_id: "11562872e51ad81750a6" }
+    target:
+      author: Descartes
+      work: Principia philosophiae
+      locator: "Pars I, art. 28"
+    type: cites
+    source_form: "Cartesius"
+    note: |
+      The Appendix to Pars I extends Descartes's rejection of final
+      causes in natural philosophy (Princ. I.28) into a wholesale
+      polemic against teleological anthropomorphism — the famous
+      "deum saltem ut conscientiosum architectum imaginari." Spinoza
+      cites Descartes approvingly on the physical side, then radicalises.
+
+  # E II, P13 (the mind is the idea of the body) → Descartes
+  # Meditationes (mind-body dualism)
+  - source: { chunk_id: "4bf6f14b1ee0da1be43a" }
+    target:
+      author: Descartes
+      work: Meditationes de prima philosophia
+    type: disputes
+    source_form: "Cartesius"
+    note: |
+      E II, P13 — "the object of the idea constituting the human mind
+      is the body" — directly inverts the Cartesian res cogitans / res
+      extensa duality. Spinoza turns the Cartesian dualism into a
+      single substance under two attributes; the mind-body interaction
+      problem dissolves because there is no separate mind.

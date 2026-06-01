@@ -1,0 +1,34 @@
+version: 1
+
+# Smoke-test seed for `poietes refs load-spec`. Two references — one
+# Augustine → Cicero (out-of-corpus target via the seeded
+# reference_targets row), one Spinoza → Descartes (in-corpus target).
+#
+# This file's name starts with `_` so it sorts at the bottom of the
+# directory listing and is visually distinct from canonical
+# per-author specs. Remove once Phase 1 hand-curation begins in
+# earnest.
+
+references:
+  - source:
+      chunk_id: "d0e8b483d00fdb3b3f06"   # Augustine, Conf. I.1.1 (cor inquietum)
+    target:
+      author: Cicero
+      work: Hortensius
+    type: alludes
+    note: |
+      Augustine's "fecisti nos ad te" reaches toward the call-to-philosophy
+      he found in Cicero's Hortensius (Conf. III.4.7 makes the citation
+      explicit; I.1.1 carries its rhetorical inheritance).
+
+  - source:
+      chunk_id: "e463354b47b3905dd35e"   # Spinoza, E I, P14
+    target:
+      author: Descartes
+      work: "Principia philosophiae"
+    type: disputes
+    source_form: "Cartesius"
+    note: |
+      Spinoza's E I, P14 ("preater Deum nulla dari neque concipi potest
+      substantia") explicitly extends-by-correcting Descartes's two-
+      substance ontology in Principia I.51-54.

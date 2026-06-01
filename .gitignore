@@ -1,0 +1,62 @@
+# ── Corpus data ────────────────────────────────────────────────────
+# Perseus / Wikisource / Gallica / Gutenberg dumps — fetched locally
+# by `perseus/download_*.py` scripts, large and reproducible. Pattern
+# covers all raw_<source>/ directories (raw_xml, raw_xml_aristotle,
+# raw_hegel_de, raw_text_aristotle_ica, raw_xml_aristotle_first1k …)
+# without needing one line per author.
+perseus/raw_*/
+
+# Derived data: chunks, indexes, embeddings, and the source PDFs for
+# Hegel/Kant (Cambridge/OUP editions still under copyright). Rebuilt
+# from source by `poietes ingest` after restoring the library tarball.
+# Use `data/*` (not `data/`) so `!data/glossary/` can un-ignore curator YAML.
+data/*
+!data/glossary/
+!data/glossary/**
+
+# ── Secrets ────────────────────────────────────────────────────────
+# .envrc holds API keys; .envrc.example is the committed template
+.envrc
+
+# ── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ── JavaScript / TypeScript ────────────────────────────────────────
+# Bare `node_modules/` matches at any depth — covers both
+# `web/node_modules/` (the SolidJS app) and a stray root-level
+# `node_modules/` that an `npx` invocation can drop in.
+node_modules/
+web/dist/
+web/.vite/
+
+# ── Editors & IDEs ─────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Tooling state ──────────────────────────────────────────────────
+# Claude Code project state, if any lands in-tree
+.claude/
+.screenshots/
+# Transient working screenshots (one-off captures during dev review).
+.screenshots-tmp/
+
+# ── OS noise ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ───────────────────────────────────────────────────────────
+*.log

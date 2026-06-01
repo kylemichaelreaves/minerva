@@ -1,0 +1,191 @@
+/* ReferenceCard popover — colocated with ReferenceCard.tsx.
+   Uses reader `--r-*` tokens defined on `.reader` in reader.css. */
+
+.refcard {
+  position: fixed;
+  width: 360px;
+  background: var(--r-paper);
+  color: var(--r-ink);
+  border: 1px solid var(--r-paper-deep);
+  border-radius: 4px;
+  padding: 16px 20px;
+  font-family: var(--r-serif);
+  z-index: 30;
+  box-sizing: border-box;
+}
+
+.refcard-arrow-stem,
+.refcard-arrow-fill {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  left: 28px;
+}
+.refcard-arrow-stem {
+  top: -7px;
+  background: var(--r-paper-deep);
+}
+.refcard-arrow-fill {
+  top: -6px;
+  background: var(--r-paper);
+}
+.refcard.flip-up .refcard-arrow-stem,
+.refcard.flip-up .refcard-arrow-fill {
+  top: auto;
+  left: 28px;
+}
+.refcard.flip-up .refcard-arrow-stem {
+  bottom: -7px;
+}
+.refcard.flip-up .refcard-arrow-fill {
+  bottom: -6px;
+}
+
+.refcard-head {
+  font-family: var(--r-serif);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.28;
+  color: var(--r-ink-soft);
+  padding-right: 92px;
+  letter-spacing: 0.002em;
+}
+.refcard-head em {
+  font-style: italic;
+  font-weight: 500;
+}
+
+.refcard-chip {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: var(--r-accent-soft);
+  color: var(--r-accent);
+  font-family: var(--r-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  padding: 1px 10px 2px;
+  border-radius: 999px;
+  text-transform: capitalize;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+
+.refcard-quote {
+  margin-top: 14px;
+  font-family: var(--r-serif);
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--r-ink-soft);
+  letter-spacing: 0.002em;
+}
+.refcard-quote.is-greek {
+  font-family: var(--r-greek);
+  font-style: normal;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.refcard-quote::before {
+  content: "« ";
+  color: var(--r-ink-mute);
+  margin-right: 1px;
+}
+.refcard-quote::after {
+  content: " »";
+  color: var(--r-ink-mute);
+  margin-left: 1px;
+}
+
+.refcard-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--r-ink-faint);
+  font-family: var(--r-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--r-ink-mute);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.refcard-preview.is-muted {
+  font-size: 12px;
+  color: var(--r-ink-faint);
+}
+
+.refcard-open {
+  margin-top: 14px;
+  font-family: var(--r-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--r-accent);
+  text-decoration: none;
+  letter-spacing: 0.002em;
+  display: inline-block;
+}
+.refcard-open:hover {
+  opacity: 0.85;
+}
+
+.refcard-ext-links {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--r-sans);
+  font-size: 12px;
+  color: var(--r-ink-mute);
+}
+.refcard-ext-links a {
+  color: var(--r-ink-mute);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.005em;
+}
+.refcard-ext-links a:hover {
+  color: var(--r-ink-soft);
+}
+.refcard-ext-ico {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+}
+.refcard-ext-ico svg {
+  width: 9px;
+  height: 9px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.4;
+  display: block;
+}
+.refcard-ext-sep {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--r-ink-faint);
+  flex: 0 0 2px;
+}
+
+.refcard.is-pending .refcard-unverified {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  font-family: var(--r-sans);
+  font-size: 11px;
+  color: var(--r-ink-mute);
+  letter-spacing: 0.015em;
+  background: transparent;
+}
+.refcard.is-pending .refcard-chip {
+  top: 34px;
+}
+.refcard.is-pending .refcard-head {
+  padding-top: 18px;
+}

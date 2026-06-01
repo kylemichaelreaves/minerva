@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# pre-commit hook — runs the fast subset of `make check` so we catch
+# the bugs the CI gate would otherwise find ten minutes later.
+#
+# Scope:
+#   * ruff lint  (~150 ms cold)
+#   * eslint    (~3 s cold)
+#   * tsc       (~5 s cold)
+#
+# Test suites are NOT run here — they live in CI. Adding them would
+# push commit latency past the threshold where developers reach for
+# `--no-verify`, which defeats the purpose.
+#
+# Install via: scripts/install-git-hooks.sh
+# Bypass via:  git commit --no-verify   (please don't, but the option
+# exists for genuine emergencies).
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "▸ pre-commit · ruff + eslint + tsc"
+
+if ! make -s lint typecheck; then
+  echo
+  echo "✗ pre-commit failed. Fix the issues above, or re-run with"
+  echo "  --no-verify to bypass (last resort)."
+  exit 1
+fi
+
+echo "✓ pre-commit clean"

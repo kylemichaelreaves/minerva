@@ -1,0 +1,331 @@
+/* Corpus-wide cross-references browser (Phase 5).
+   Uses the app's global tokens from styles.css (--paper / --ink /
+   --accent etc.). Light + dark cascade automatically from the parent
+   [data-theme] block. */
+
+.refs-page {
+  /* Pinned width (not max-width) so margin:auto never recomputes its
+     centering when the inner content changes. With max-width the page
+     would shrink to fit narrower content; even a 1px change in the
+     content's intrinsic width can shift the centered box by half a px.
+     Use min() so very narrow viewports still get a fluid layout. */
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 32px 28px 80px;
+  font-family: var(--serif);
+  color: var(--ink);
+  /* Box-sizing so the 28px horizontal padding doesn't grow the
+     element past its declared width on viewports < 920px. */
+  box-sizing: border-box;
+}
+
+.refs-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+.refs-head h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+}
+.refs-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.refs-meta {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.refs-review-link {
+  appearance: none;
+  background: none;
+  border: 1px solid var(--paper-deep);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.refs-review-link:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* ── filters bar ──────────────────────────────────────────────── */
+
+.refs-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 22px;
+  padding: 16px 0 20px;
+  border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: 24px;
+}
+.refs-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Fixed slot width — without this the filter cell sizes to its
+     Select's *content*, so selecting "Lectures on the History of
+     Philosophy" stretches the cell wider than the cleared placeholder
+     ("Any source"), and adjacent filters shift around the row each
+     time a value is set or cleared. Lock the slot. */
+  flex: 0 0 200px;
+}
+.refs-filter-label {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+/* The native <select> styles that used to live here are gone — the
+   Refs filter bars now use lib/Select.tsx (the themed combobox/listbox
+   component), which owns its own appearance via Select.css. The
+   .refs-filter wrapper + .refs-filter-label remain because they
+   handle the label-above-control layout. */
+/* The Select component already sets `width: 100%` on itself, so the
+   trigger fills the locked slot above. No explicit min/max needed. */
+/* ── Include-rejected checkbox ─────────────────────────────────
+   "Pip" variant: a filled disc-on-disc, echoing the Socratic dot
+   pip used elsewhere in the reader rail. Sized to share the row
+   height (38px) with the sibling Select dropdowns. */
+.refs-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 14px 0 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--serif);
+  font-size: 16px;
+  color: var(--ink-soft);
+  /* Sit at the bottom of the row so the disc aligns with the
+     dropdown trigger baseline (which has a label above it). */
+  align-self: end;
+  flex: 0 0 auto;
+  transition: border-color 140ms, background 140ms;
+}
+.refs-check:hover {
+  border-color: var(--rule);
+  background: var(--paper-soft);
+}
+.refs-check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.refs-check-box {
+  flex-shrink: 0;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-soft);
+  transition: background 140ms, border-color 140ms;
+}
+.refs-check-box::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: var(--paper);
+  transform: scale(0);
+  transition: transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.refs-check:hover .refs-check-box {
+  border-color: var(--ink-faint);
+}
+.refs-check input:focus-visible + .refs-check-box {
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 3.5px var(--accent-soft);
+}
+.refs-check input:checked + .refs-check-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.refs-check input:checked + .refs-check-box::after {
+  transform: scale(1);
+}
+.refs-check input:checked ~ .refs-check-label {
+  color: var(--ink);
+}
+.refs-check-label {
+  line-height: 1;
+  padding-bottom: 1px;
+  transition: color 140ms;
+}
+
+/* ── error / empty ────────────────────────────────────────────── */
+
+.refs-error {
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--ink-mute);
+  padding: 16px 0;
+}
+.refs-empty {
+  padding: 40px 0;
+  text-align: center;
+  font-family: var(--serif);
+  color: var(--ink-mute);
+}
+.refs-empty p {
+  font-size: 15px;
+  margin: 0 0 14px;
+}
+.refs-clear {
+  font-family: var(--sans);
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--accent);
+  padding: 5px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.refs-clear:hover {
+  border-color: var(--accent);
+}
+
+/* ── list of references ───────────────────────────────────────── */
+
+.refs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.refs-sentinel {
+  /* The IntersectionObserver sentinel for infinite scroll. Heights
+     of 1px or 0 confuse the observer when the list is short — give
+     it real layout space so it's always reachable. */
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 0 8px;
+}
+
+.ref-row {
+  padding: 14px 18px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 140ms;
+}
+.ref-row:hover {
+  border-color: var(--rule);
+}
+
+.ref-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ref-row-source,
+.ref-row-target {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--serif);
+}
+.ref-row-author {
+  font-size: 15px;
+  color: var(--ink);
+}
+.ref-row-work {
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.ref-row-locator {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+
+.ref-arrow {
+  color: var(--ink-mute);
+  font-size: 14px;
+  padding: 0 2px;
+}
+
+.ref-row-chip {
+  margin-left: auto;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 9px 2px;
+  border-radius: 999px;
+  text-transform: capitalize;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+
+.ref-row-quote {
+  margin-top: 10px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-soft);
+  letter-spacing: 0.002em;
+}
+.ref-row-note {
+  margin-top: 8px;
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink-mute);
+  line-height: 1.45;
+}
+
+.ref-row-meta {
+  margin-top: 10px;
+  display: flex;
+  gap: 14px;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-faint);
+  letter-spacing: 0.005em;
+}
+.ref-row-conf,
+.ref-row-method {
+  font-variant-numeric: tabular-nums;
+}
+.ref-row-status {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.ref-row-status.status-auto {
+  color: var(--ink-mute);
+}
+.ref-row-status.status-rejected {
+  color: var(--accent);
+}

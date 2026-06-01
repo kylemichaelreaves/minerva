@@ -1,0 +1,12 @@
+[
+  "work_id",
+  "corpus",
+  "author",
+  "work",
+  "display_title",
+  "lang",
+  "total",
+  "offset",
+  "limit",
+  "chunks"
+]

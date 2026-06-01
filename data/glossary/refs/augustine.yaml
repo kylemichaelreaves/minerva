@@ -1,0 +1,65 @@
+version: 1
+
+# Augustine's references — Plotinus (read via Porphyry in the Milan
+# years), Vergil (pervasive throughout Conf.), and Plato by name in
+# the De civ. Dei VIII "Platonist" books. Insert is idempotent.
+
+references:
+
+  # Conf. I.1.1 (already in the seed via _smoke.yaml as Augustine →
+  # Cicero Hortensius alludes). Listed here as a comment so the
+  # canonical Augustine seed is in one place; the dedup will skip it.
+
+  # Conf. VII.9.13 (the libri Platonicorum chapter) → Plotinus Enneads
+  - source: { chunk_id: "54eabdf429cc26916497" }
+    target:
+      author: Plotinus
+      work: Enneads
+    type: cites
+    note: |
+      The famous "libros quosdam Platonicorum" passage in the Milan
+      conversion narrative. The Latin Augustine reads is Plotinus
+      via Porphyry's epitomes / Marius Victorinus's translation;
+      VII.9 announces what VII.10-17 will work out — the eternal
+      Logos as the missing piece in pure Platonism.
+
+  # Conf. I.13.20 (the Aeneid in the schoolroom) → Vergil Aeneid II
+  - source: { chunk_id: "090ff8be89b51eccbd54" }
+    target:
+      author: Vergil
+      work: Aeneid
+    type: quotes
+    quoted_phrase: "Dido"
+    note: |
+      Augustine's confession that he wept for Dido as a boy while
+      remaining tearless over his own soul. The Aeneid II/IV
+      narrative of Dido's grief is the proximate target; the citation
+      is rhetorical (the moral-pedagogical bankruptcy of Roman
+      letters) rather than substantive.
+
+  # Civ. Dei VIII.4 (the philosophical search for God) → Plato Timaeus
+  - source: { chunk_id: "422e42c9a28e86914648" }
+    target:
+      author: Plato
+      work: Timaeus
+    type: cites
+    source_form: "Plato"
+    note: |
+      Augustine's account of Plato as the philosopher "who most
+      nearly approaches the truth of Christian doctrine" leans on
+      the Timaeus's creator-god (theos / opifex mundi) as the proto-
+      Christian shape. The Timaeus is the most-Latin-available
+      Platonic dialogue in Augustine's Milan and the natural anchor.
+
+  # Civ. Dei VIII.5 (the Platonist account of the divine) → Plato Republic
+  - source: { chunk_id: "0aefa64af0b30ce45d50" }
+    target:
+      author: Plato
+      work: Republic
+    type: cites
+    source_form: "Plato"
+    note: |
+      The argument that Platonist theology recognizes God as the form
+      of the Good is reworked through Republic VI (the Sun analogy)
+      into Augustine's Trinitarian metaphysics, with the Good-beyond-
+      being recast as the Father.

@@ -1,0 +1,164 @@
+  /* ================================================================
+     NETWORK — mobile (design 5a, 5b, 6)
+     Replace the 5-panel grid with: chip strip + hero card + Top-N
+     cards + drilldown links. Matrix + heatmap hidden (the design
+     calls them out as unviable at 358pt — they're replaced, not
+     shrunk).
+     ================================================================ */
+  .net {
+    padding: 0;
+  }
+  .net .net-body {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    grid-template-rows: none;
+    gap: 0;
+    padding: 0;
+  }
+  .net .net-panel {
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 16px;
+    border-radius: 0;
+    background: transparent;
+  }
+  .net .net-bottomright {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .net .net-head {
+    display: flex;
+    height: auto;
+    grid-template-columns: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .net .net-brand {
+    display: none;
+  }
+  /* Inline filter chip strip hidden — MobileTopBar opens a sheet. */
+  .net .net-head .net-filters {
+    display: none;
+  }
+  .net .net-filters {
+    flex-wrap: nowrap;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .net .net-filters::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hero — only the FIRST .big number (xrefs count) is huge per
+     design 5a; the trailing two (authors, works) stay inline-small.
+     Bump specificity past network.css so the override sticks when the
+     stylesheet load order leaves us second. */
+  .net .net-totals {
+    text-align: left;
+    padding: 22px 16px 18px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    line-height: 1.5;
+  }
+  .net .net-totals .big {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .net .net-totals .big:first-of-type {
+    font-family: var(--mono);
+    font-size: 44px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-weight: 400;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .net .net-totals .crumbs {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-top: 12px;
+  }
+
+  /* Panel headers as card titles per design 5a — serif italic title,
+     mono meta on the right. */
+  .net .net-panel-head {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 0 12px;
+    gap: 8px;
+    text-transform: none;
+  }
+  .net .net-panel-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .net .net-panel-q {
+    display: none; /* "Who, across 2,400 years…" — desktop-only copy */
+  }
+  .net .net-segment {
+    display: none;
+  }
+
+  /* Matrix and heatmap don't shrink usefully — hide on mobile,
+     replaced by the top-pairs strip and the leaderboard. Per the
+     decision-log: "matrix and heatmap are NOT shrunk — they're
+     replaced. The scripture heatmap is demoted behind 'More views →'
+     because it cannot work at 358pt of horizontal real estate." */
+  .net .net-panel[data-panel="matrix"],
+  .net .net-panel[data-panel="heatmap"] {
+    display: none;
+  }
+  /* Reorder so the leaderboard + verification card (the Top-N idiom
+     from design 5a) appears ABOVE the arc on mobile. */
+  .net .net-panel[data-panel="lists"] { order: 1; }
+  .net .net-panel[data-panel="arc"] { order: 2; }
+
+  /* Top-pairs strip + leaderboard rows are already vertical lists —
+     just polish their typography for mobile. */
+  .net-leader-rows,
+  .net-verif-rows {
+    gap: 0;
+  }
+  .net-leader-row,
+  .net-verif-row {
+    padding: 9px 0;
+    border-top: 1px solid var(--rule-soft);
+    min-height: 36px;
+  }
+  .net-leader-row:first-child,
+  .net-verif-row:first-child {
+    border-top: 0;
+  }
+
+  /* Footer links list — "More views →" affordance from design 5a. */
+  .net-footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px 16px 26px;
+    gap: 8px;
+    text-align: left;
+    border-top: 1px solid var(--rule-soft);
+    font-family: var(--sans);
+    font-size: 12px;
+  }

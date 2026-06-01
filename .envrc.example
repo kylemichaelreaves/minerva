@@ -1,0 +1,25 @@
+# Template for the project's per-directory environment. Copy to `.envrc`
+# (which is gitignored), fill in real values, and run `direnv allow`.
+#
+#   cp .envrc.example .envrc
+#   $EDITOR .envrc
+#   direnv allow
+
+# Anthropic Messages API. Used when `make run LLM=anthropic ...` or
+# `poietes ... --llm anthropic`. Get one from
+# https://console.anthropic.com/settings/keys
+export ANTHROPIC_API_KEY=sk-ant-api03-replace-me
+
+# OpenAI (optional — only needed for `--llm openai`).
+# export OPENAI_API_KEY=sk-...
+
+# Default LLM + model so `make run` doesn't need flags. Optional.
+# export LLM=anthropic
+# export LLM_MODEL=claude-sonnet-4-6
+
+# This repo lives at github.com/kylemichaelreaves/minerva — keep the gh CLI
+# on the personal account so `gh repo create`, `gh pr ...`, etc. don't try
+# to act under a work account.
+if command -v gh >/dev/null 2>&1; then
+  gh auth switch -h github.com -u kylemichaelreaves >/dev/null 2>&1 || true
+fi

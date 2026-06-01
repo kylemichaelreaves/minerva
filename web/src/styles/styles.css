@@ -1,0 +1,501 @@
+/* Minerva — a philosophical chatbot
+   Type: EB Garamond (body), Söhne-feel via Geist (UI)
+   Paper / ink / restrained accent
+*/
+
+:root {
+  /* Light — warm paper, deep ink, muted oxblood */
+  --paper: #f4efe6;
+  --paper-soft: #ebe5d9;
+  --paper-edge: #e2dbcb;
+  --rule: #c9c0ae;
+  --rule-soft: #dcd4c2;
+  --ink: #1a1714;
+  --ink-soft: #3b3530;
+  --ink-mute: #6b6357;
+  --ink-faint: #968d7e;
+  --accent: #7b2e2a;
+  --accent-soft: #c7a9a6;
+  --selection: rgba(123, 46, 42, 0.18);
+  --scroll-thumb: rgba(26, 23, 20, 0.22);
+  --scroll-thumb-hover: rgba(26, 23, 20, 0.36);
+
+  --serif: "EB Garamond", "Hoefler Text", Garamond, "Times New Roman", serif;
+  --sans: "Geist", "Söhne", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* RTL stack tokens — used by the Reader when a corpus chunk's lang
+     ∈ {heb, ara}. Cantillation (Hebrew) and tashkeel (Arabic) need
+     fonts that ship those marks; Noto Serif Hebrew and Noto Naskh
+     Arabic do. Fallbacks: Frank Ruhl for Hebrew (very legible at the
+     reader's 20–26px), Amiri for Arabic. */
+  --hebrew: "Noto Serif Hebrew", "Frank Ruhl Libre", "SBL Hebrew",
+            "Times New Roman", serif;
+  --arabic: "Noto Naskh Arabic", "Amiri", "Times New Roman", serif;
+
+  --col: 680px;
+
+  color-scheme: light;
+}
+
+/* On wide viewports give the chat thread + composer more horizontal
+   breathing room. 880 keeps line-length under the ~75ch readability
+   ceiling for the serif body. Below 1280 the original 680 is still
+   correct for the centered chat column. */
+@media (min-width: 1280px) {
+  :root {
+    --col: 880px;
+  }
+}
+@media (min-width: 1680px) {
+  :root {
+    --col: 1000px;
+  }
+}
+
+/* Dark — warm charcoal-brown, parchment text, terracotta accent.
+   Tonal shift, not a different product. Reference: iA Writer dark,
+   Kindle sepia-on-dark, lamplight in a Dutch interior. */
+[data-theme="dark"] {
+  --paper: #14110e;
+  --paper-soft: #100d0a; /* sidebar — slightly inset */
+  --paper-edge: #221c16; /* hover */
+  --rule: #322a22;
+  --rule-soft: #241e18;
+  --ink: #e2d8c4; /* parchment, not white */
+  --ink-soft: #c2b8a4;
+  --ink-mute: #8a8170;
+  --ink-faint: #5e574b;
+  --accent: #c97a65; /* warmer terracotta */
+  --accent-soft: #6e3f36;
+  --selection: rgba(201, 122, 101, 0.22);
+  --scroll-thumb: rgba(226, 216, 196, 0.22);
+  --scroll-thumb-hover: rgba(226, 216, 196, 0.36);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Global scrollbars — thin, parchment-tinted thumb on a transparent track.
+   Applies everywhere a scrollable surface exists; per-element overrides
+   downstream are no longer needed unless a surface wants a different
+   look. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+html {
+  /* Reserve space for the vertical scrollbar even when content
+     doesn't overflow. Otherwise the scrollbar appearing/disappearing
+     as the page height changes (e.g. filtering the /refs list down
+     to a few rows) shifts every centered element horizontally by
+     ~15px. `stable` is supported in all major browsers since 2022.
+     `overflow-y: scroll` is the older bulletproof fallback — it
+     unconditionally shows the viewport scrollbar (most modern OSes
+     render it as an overlay when idle, so the visual cost is zero). */
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+  /* Suppress horizontal overflow at the root. Absolutely-positioned
+     descendants (e.g. the Select panel's drop shadow extending past
+     its parent's right edge) shouldn't be able to trigger a horizontal
+     scrollbar or push the page width, which would otherwise force a
+     reflow on every panel open/close. */
+  overflow-x: clip;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern", "liga", "onum";
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  cursor: pointer;
+}
+::selection {
+  background: var(--selection);
+}
+
+/* Subtle paper grain in light mode; quiet warmth in dark */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.6) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.4) 1px, transparent 1px);
+  background-size:
+    3px 3px,
+    7px 7px;
+  background-position:
+    0 0,
+    1px 2px;
+  mix-blend-mode: multiply;
+}
+[data-theme="dark"] body::before {
+  opacity: 0.04;
+  background-image:
+    radial-gradient(rgba(255, 235, 200, 0.6) 1px, transparent 1px),
+    radial-gradient(rgba(255, 235, 200, 0.3) 1px, transparent 1px);
+  mix-blend-mode: screen;
+}
+.app {
+  position: relative;
+  z-index: 2;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SHELL
+   ════════════════════════════════════════════════════════════════ */
+
+.app {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SIDEBAR
+   ════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════
+   MAIN · TOPBAR
+   ════════════════════════════════════════════════════════════════ */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  min-height: 64px;
+  border-bottom: 1px solid transparent;
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 10;
+  transition: border-color 200ms;
+}
+.topbar.scrolled {
+  border-color: var(--rule-soft);
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.topbar-title {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--ink-soft);
+}
+.topbar-title em {
+  font-style: normal;
+  color: var(--ink-faint);
+  margin: 0 6px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LANDING — see Landing/landing.css for the layout-specific rules.
+   This section keeps a small set of globally-used utilities and the
+   .send-btn baseline used by composer.css (Composer view). The
+   landing variant of .send-btn is overridden in landing.css.
+   ════════════════════════════════════════════════════════════════ */
+
+.send-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 140ms,
+    color 140ms;
+}
+.send-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.send-btn.disabled {
+  border-color: var(--rule);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.send-btn svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 1.6;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   COMPOSER
+   ════════════════════════════════════════════════════════════════ */
+
+
+/* Shimmer sweep — kept low-contrast so it reads as parchment, not chrome. */
+.skeleton-meta::after,
+.skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--skel-shine, rgba(26, 23, 20, 0.06)) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
+[data-theme="dark"] {
+  --skel-base: rgba(226, 216, 196, 0.08);
+  --skel-shine: rgba(226, 216, 196, 0.1);
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-meta::after,
+  .skeleton-line::after {
+    animation: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .thread.has-margin {
+    max-width: var(--col);
+    margin: 0 auto;
+  }
+  .thread.has-margin .turn-inner {
+    max-width: 100%;
+  }
+  /* Narrow layout: drop notes back into normal flow as a stacked column
+     below the prose. */
+  .margin-notes {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: auto;
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .margin-note {
+    padding: 12px 0 0 18px;
+    border-top: 0;
+    font-size: 14.5px;
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+  }
+  .sidebar.collapsed {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .topbar {
+    padding: 14px 18px;
+  }
+  .scroll {
+    padding: 18px 24px 200px;
+  }
+  .composer-wrap {
+    padding: 0 18px 18px;
+  }
+  /* Touch: no hover, so always show the delete affordance, dimmed. */
+  .history-delete {
+    opacity: 0.55;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CONFIRM DIALOG
+   ════════════════════════════════════════════════════════════════ */
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 17, 14, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: scrimIn 160ms ease-out;
+}
+[data-theme="dark"] .dialog-scrim {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.dialog {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 28px 22px;
+  box-shadow:
+    0 24px 60px -20px rgba(0, 0, 0, 0.35),
+    0 4px 12px -4px rgba(0, 0, 0, 0.2);
+  animation: dialogIn 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dialog-title {
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-bottom: 10px;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.dialog-body {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin-bottom: 22px;
+}
+
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dialog-btn {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background 140ms,
+    color 140ms,
+    border-color 140ms;
+}
+.dialog-btn.ghost {
+  border-color: var(--rule);
+  color: var(--ink-mute);
+  background: transparent;
+}
+.dialog-btn.ghost:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.dialog-btn.danger {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.dialog-btn.danger:hover {
+  filter: brightness(0.92);
+}
+[data-theme="dark"] .dialog-btn.danger {
+  color: #14110e;
+}

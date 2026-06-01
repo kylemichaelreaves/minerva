@@ -1,0 +1,535 @@
+"""Pluggable LLM backends.
+
+Supports four modes so the agent works in any setup the user has:
+
+* ``none``      — no model call; the agent just renders retrieved passages.
+* ``openai``    — OpenAI Chat Completions over HTTPS (uses ``OPENAI_API_KEY``).
+* ``anthropic`` — Anthropic Messages API over HTTPS (uses ``ANTHROPIC_API_KEY``).
+* ``ollama``    — local Ollama daemon at ``http://localhost:11434``.
+
+All HTTP clients are implemented with stdlib ``urllib`` so no extra
+dependencies are required.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import socket
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Iterator
+from dataclasses import dataclass
+from http.client import HTTPResponse
+from typing import Any
+
+
+@dataclass
+class Message:
+    role: str
+    content: str
+
+    def to_dict(self) -> dict:
+        return {"role": self.role, "content": self.content}
+
+
+class LLMError(RuntimeError):
+    pass
+
+
+def _redact(detail: str, api_key: str | None) -> str:
+    """Strip a verbatim API key from an upstream error body.
+
+    Some providers echo the offending request (rate-limit replies that
+    quote headers, debug proxies, etc.). The body would otherwise flow
+    into our LLMError, then on into server-side logs. Redaction is
+    cheap defense-in-depth.
+    """
+
+    if not api_key:
+        return detail
+    return detail.replace(api_key, "***")
+
+
+def _iter_sse_data_lines(resp: HTTPResponse) -> Iterator[str]:
+    """Yield JSON payloads from ``data:`` lines in an SSE response body."""
+
+    for raw in resp:
+        line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].lstrip()
+        if payload == "[DONE]":
+            return
+        if payload:
+            yield payload
+
+
+def _iter_ndjson_lines(resp: HTTPResponse) -> Iterator[dict]:
+    """Yield parsed JSON objects from newline-delimited response bodies."""
+
+    buf = ""
+    for raw in resp:
+        buf += raw.decode("utf-8", errors="replace")
+        while "\n" in buf:
+            line, buf = buf.split("\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+            yield json.loads(line)
+    tail = buf.strip()
+    if tail:
+        yield json.loads(tail)
+
+
+class LLMBackend:
+    name: str = "base"
+
+    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
+        raise NotImplementedError
+
+    def stream_complete(
+        self, messages: list[Message], *, temperature: float = 0.2
+    ) -> Iterator[str]:
+        """Yield text fragments as they arrive from the provider."""
+        raise NotImplementedError
+
+
+class NullBackend(LLMBackend):
+    name = "none"
+
+    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
+        return ""
+
+    def stream_complete(
+        self, messages: list[Message], *, temperature: float = 0.2
+    ) -> Iterator[str]:
+        return iter(())
+
+
+class OpenAIBackend(LLMBackend):
+    name = "openai"
+
+    def __init__(
+        self,
+        *,
+        model: str = "gpt-4o-mini",
+        api_key: str | None = None,
+        base_url: str = "https://api.openai.com/v1",
+        timeout: float = 60.0,
+    ) -> None:
+        self.model = model
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not self.api_key:
+            raise LLMError("OpenAI backend requires OPENAI_API_KEY in the environment.")
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+
+    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": [m.to_dict() for m in messages],
+                "temperature": temperature,
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
+            raise LLMError(f"OpenAI HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise LLMError(f"OpenAI connection error: {exc}") from exc
+        try:
+            return payload["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError) as exc:
+            raise LLMError(f"Unexpected OpenAI response: {payload!r}") from exc
+
+    def stream_complete(
+        self, messages: list[Message], *, temperature: float = 0.2
+    ) -> Iterator[str]:
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": [m.to_dict() for m in messages],
+                "temperature": temperature,
+                "stream": True,
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=self.timeout)
+        except urllib.error.HTTPError as exc:
+            detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
+            raise LLMError(f"OpenAI HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise LLMError(f"OpenAI connection error: {exc}") from exc
+        try:
+            for data_line in _iter_sse_data_lines(resp):
+                chunk = json.loads(data_line)
+                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                text = delta.get("content")
+                if text:
+                    yield text
+        finally:
+            resp.close()
+
+
+class AnthropicBackend(LLMBackend):
+    name = "anthropic"
+
+    def __init__(
+        self,
+        *,
+        model: str = "claude-sonnet-4-6",
+        api_key: str | None = None,
+        base_url: str = "https://api.anthropic.com/v1",
+        max_tokens: int = 4096,
+        timeout: float = 60.0,
+        enable_prompt_cache: bool | None = None,
+    ) -> None:
+        self.model = model
+        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise LLMError("Anthropic backend requires ANTHROPIC_API_KEY in the environment.")
+        self.base_url = base_url.rstrip("/")
+        self.max_tokens = max_tokens
+        self.timeout = timeout
+        # Prompt caching defaults on. Opt out via POIETES_DISABLE_PROMPT_CACHE=1
+        # for debugging cost-attribution issues or A/B comparing.
+        if enable_prompt_cache is None:
+            self.enable_prompt_cache = (
+                os.environ.get("POIETES_DISABLE_PROMPT_CACHE", "") not in ("1", "true", "True")
+            )
+        else:
+            self.enable_prompt_cache = enable_prompt_cache
+        # Most recent usage block surfaced by complete(). Read by callers
+        # that want to log cache_read_input_tokens / cache_creation_input_tokens
+        # for observability. Non-streaming only; SSE responses aggregate
+        # usage in their message_delta events.
+        self.last_usage: dict[str, Any] | None = None
+
+    def _build_body(
+        self,
+        messages: list[Message],
+        *,
+        temperature: float,
+        stream: bool,
+    ) -> dict[str, Any]:
+        """Compose the Anthropic Messages API body. Centralises the
+        system-prompt lift + the prompt-caching cache_control markers
+        so non-streaming and streaming paths stay in lockstep."""
+
+        # Anthropic's Messages API takes the system prompt as a top-level
+        # field, not a message with role=system. Lift any system messages
+        # out and join them.
+        system_parts = [m.content for m in messages if m.role == "system"]
+        chat: list[dict[str, Any]] = [m.to_dict() for m in messages if m.role != "system"]
+        body_dict: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "temperature": temperature,
+            "messages": chat,
+        }
+        if stream:
+            body_dict["stream"] = True
+        if system_parts:
+            joined_system = "\n\n".join(system_parts)
+            if self.enable_prompt_cache:
+                # Mark the system block ephemeral. Only engages caching
+                # when the system itself is ≥1024 tokens (Sonnet/Opus
+                # minimum); below that the directive is silently ignored
+                # by the API.
+                body_dict["system"] = [
+                    {
+                        "type": "text",
+                        "text": joined_system,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            else:
+                body_dict["system"] = joined_system
+
+        # Multi-turn chat caching: mark the last *history* message
+        # (chat[-2] when chat[-1] is the new user turn) as a cache
+        # breakpoint. The prefix system+all-prior-turns gets cached, so
+        # the next turn in the same conversation reads it back. A short
+        # conversation may not cross the 1024-token floor; once it
+        # does, every subsequent turn pays the cheap read cost.
+        if self.enable_prompt_cache and len(chat) >= 2:
+            target = chat[-2]
+            content = target.get("content")
+            if isinstance(content, str):
+                target["content"] = [
+                    {
+                        "type": "text",
+                        "text": content,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+        return body_dict
+
+    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
+        body = json.dumps(self._build_body(messages, temperature=temperature, stream=False)).encode(
+            "utf-8"
+        )
+        req = urllib.request.Request(
+            f"{self.base_url}/messages",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        # Bounded exponential backoff for transient network failures.
+        # Long-running batched jobs (refs llm-verify) hit Anthropic for
+        # hundreds of calls and routinely catch a ConnectionResetError
+        # or 429/5xx mid-run; without retry the whole job dies and the
+        # caller has to manually re-launch. Five tries, doubling waits
+        # from 2s to 32s, then give up and surface as LLMError.
+        retryable_status = {408, 425, 429, 500, 502, 503, 504, 529}
+        last_exc: BaseException | None = None
+        for attempt in range(5):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                last_exc = None
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code in retryable_status and attempt + 1 < 5:
+                    wait = min(32.0, 2.0 * (2**attempt))
+                    last_exc = exc
+                    time.sleep(wait)
+                    continue
+                detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
+                raise LLMError(f"Anthropic HTTP {exc.code}: {detail}") from exc
+            except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
+                if attempt + 1 < 5:
+                    wait = min(32.0, 2.0 * (2**attempt))
+                    last_exc = exc
+                    time.sleep(wait)
+                    continue
+                raise LLMError(f"Anthropic connection reset after retries: {exc}") from exc
+            except urllib.error.URLError as exc:
+                # URLError wraps a variety of socket-layer issues; treat
+                # the ones that look transient (reset / refused / DNS
+                # blip) as retryable, the rest as fatal.
+                reason = getattr(exc, "reason", None)
+                transient = isinstance(
+                    reason,
+                    (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),
+                )
+                if transient and attempt + 1 < 5:
+                    wait = min(32.0, 2.0 * (2**attempt))
+                    last_exc = exc
+                    time.sleep(wait)
+                    continue
+                raise LLMError(f"Anthropic connection error: {exc}") from exc
+        else:
+            # Loop fell through without break — every attempt failed.
+            raise LLMError(f"Anthropic call failed after retries: {last_exc!r}")
+        try:
+            blocks = payload["content"]
+            text_parts = [b["text"] for b in blocks if b.get("type") == "text"]
+            joined = "".join(text_parts).strip()
+        except (KeyError, TypeError) as exc:
+            raise LLMError(f"Unexpected Anthropic response: {payload!r}") from exc
+        # Surface the usage block for cache-hit observability. Callers
+        # can read backend.last_usage to log cache_read_input_tokens /
+        # cache_creation_input_tokens after each non-streaming call.
+        self.last_usage = payload.get("usage") if isinstance(payload, dict) else None
+        if not joined:
+            raise LLMError(f"Anthropic returned no text content: {payload!r}")
+        return joined
+
+    def stream_complete(
+        self, messages: list[Message], *, temperature: float = 0.2
+    ) -> Iterator[str]:
+        body = json.dumps(self._build_body(messages, temperature=temperature, stream=True)).encode(
+            "utf-8"
+        )
+        req = urllib.request.Request(
+            f"{self.base_url}/messages",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        retryable_status = {408, 425, 429, 500, 502, 503, 504, 529}
+        last_exc: BaseException | None = None
+        resp: HTTPResponse | None = None
+        for attempt in range(5):
+            try:
+                resp = urllib.request.urlopen(req, timeout=self.timeout)
+                last_exc = None
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code in retryable_status and attempt + 1 < 5:
+                    wait = min(32.0, 2.0 * (2**attempt))
+                    last_exc = exc
+                    time.sleep(wait)
+                    continue
+                detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
+                raise LLMError(f"Anthropic HTTP {exc.code}: {detail}") from exc
+            except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
+                if attempt + 1 < 5:
+                    wait = min(32.0, 2.0 * (2**attempt))
+                    last_exc = exc
+                    time.sleep(wait)
+                    continue
+                raise LLMError(f"Anthropic connection reset after retries: {exc}") from exc
+            except urllib.error.URLError as exc:
+                reason = getattr(exc, "reason", None)
+                transient = isinstance(
+                    reason,
+                    (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),
+                )
+                if transient and attempt + 1 < 5:
+                    wait = min(32.0, 2.0 * (2**attempt))
+                    last_exc = exc
+                    time.sleep(wait)
+                    continue
+                raise LLMError(f"Anthropic connection error: {exc}") from exc
+        else:
+            raise LLMError(f"Anthropic call failed after retries: {last_exc!r}")
+        assert resp is not None
+        try:
+            for data_line in _iter_sse_data_lines(resp):
+                event = json.loads(data_line)
+                if event.get("type") == "content_block_delta":
+                    delta = event.get("delta", {})
+                    if delta.get("type") == "text_delta":
+                        text = delta.get("text")
+                        if text:
+                            yield text
+        finally:
+            resp.close()
+
+
+class OllamaBackend(LLMBackend):
+    name = "ollama"
+
+    def __init__(
+        self,
+        *,
+        model: str = "llama3.1",
+        host: str = "http://localhost:11434",
+        timeout: float = 120.0,
+    ) -> None:
+        self.model = model
+        self.host = host.rstrip("/")
+        self.timeout = timeout
+
+    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": [m.to_dict() for m in messages],
+                "stream": False,
+                "options": {"temperature": temperature},
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.host}/api/chat",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise LLMError(f"Ollama HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise LLMError(f"Ollama connection error (is `ollama serve` running?): {exc}") from exc
+        try:
+            return payload["message"]["content"].strip()
+        except KeyError as exc:
+            raise LLMError(f"Unexpected Ollama response: {payload!r}") from exc
+
+    def stream_complete(
+        self, messages: list[Message], *, temperature: float = 0.2
+    ) -> Iterator[str]:
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": [m.to_dict() for m in messages],
+                "stream": True,
+                "options": {"temperature": temperature},
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.host}/api/chat",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=self.timeout)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise LLMError(f"Ollama HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise LLMError(f"Ollama connection error (is `ollama serve` running?): {exc}") from exc
+        try:
+            for chunk in _iter_ndjson_lines(resp):
+                msg = chunk.get("message") or {}
+                text = msg.get("content")
+                if text:
+                    yield text
+                if chunk.get("done"):
+                    break
+        finally:
+            resp.close()
+
+
+def make_backend(
+    kind: str,
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+) -> LLMBackend:
+    kind = (kind or "none").lower()
+    if kind == "none":
+        return NullBackend()
+    if kind == "openai":
+        return OpenAIBackend(
+            model=model or "gpt-4o-mini",
+            base_url=base_url or "https://api.openai.com/v1",
+        )
+    if kind == "anthropic":
+        return AnthropicBackend(
+            model=model or "claude-sonnet-4-6",
+            base_url=base_url or "https://api.anthropic.com/v1",
+        )
+    if kind == "ollama":
+        return OllamaBackend(
+            model=model or "llama3.1",
+            host=base_url or "http://localhost:11434",
+        )
+    raise LLMError(f"Unknown LLM backend: {kind!r}")

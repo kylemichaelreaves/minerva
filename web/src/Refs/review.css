@@ -1,0 +1,256 @@
+/* Curator review surface — uses the app's global tokens
+   (--paper / --ink / --accent etc.) so it cascades through both themes. */
+
+.review-page {
+  max-width: 760px;
+}
+
+.review-sub {
+  margin: 4px 0 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.review-sub code {
+  font-family: var(--mono, ui-monospace, "SFMono-Regular", monospace);
+  font-size: 11px;
+  background: var(--paper-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.review-empty {
+  margin-top: 64px;
+  padding: 40px 24px;
+  text-align: center;
+  border: 1px dashed var(--paper-deep);
+  color: var(--ink-mute);
+  font-family: var(--serif);
+}
+
+/* ─── review card ───────────────────────────────────────────── */
+
+.review-card {
+  margin-top: 16px;
+  padding: 24px 28px;
+  background: var(--paper);
+  border: 1px solid var(--paper-deep);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.review-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.review-source-cite,
+.review-target-cite {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--serif);
+}
+
+.review-source-cite .ref-row-author {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.review-source-cite .ref-row-work {
+  font-style: italic;
+  color: var(--ink);
+}
+.review-source-cite .ref-row-locator {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+.review-target-block .ref-row-target {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-family: var(--serif);
+}
+
+.review-source-open {
+  appearance: none;
+  background: none;
+  border: 1px solid var(--paper-deep);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.review-source-open:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.review-source-open:hover:not(:disabled) {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 10%, transparent));
+}
+
+/* The source-text excerpt — full chunk body of the candidate's source.
+   Slight paper-deep box so it visually settles below the citation. */
+.review-source-text {
+  margin: 0;
+  padding: 14px 18px;
+  background: var(--paper-deep);
+  border-left: 3px solid var(--accent-soft, color-mix(in srgb, var(--accent) 25%, transparent));
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.review-hit {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--ink);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.review-target-block {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.review-arrow {
+  font-family: var(--sans);
+  color: var(--ink-mute);
+  font-size: 14px;
+}
+.review-oop {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  background: var(--paper-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.review-chip {
+  margin-left: auto;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.review-quote {
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--ink-soft);
+  font-size: 14px;
+  padding-left: 10px;
+  border-left: 2px solid var(--paper-deep);
+}
+
+.review-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.review-conf,
+.review-method,
+.review-form {
+  letter-spacing: 0.06em;
+}
+.review-form {
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+/* ─── note + actions ──────────────────────────────────────── */
+
+.review-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.review-note-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.review-note textarea {
+  width: 100%;
+  font-family: var(--serif);
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--paper-deep);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+.review-note textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.review-btn {
+  appearance: none;
+  border: 1px solid var(--paper-deep);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 7px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.review-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.review-btn-reject {
+  color: var(--ink-soft);
+}
+.review-btn-skip {
+  color: var(--ink-mute);
+}
+.review-btn-approve {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.review-btn-approve:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.review-btn-reject:hover:not(:disabled) {
+  background: var(--paper-deep);
+}
+.review-btn-skip:hover:not(:disabled) {
+  background: var(--paper-deep);
+}

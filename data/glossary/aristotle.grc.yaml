@@ -1,0 +1,232 @@
+# Aristotle · Ancient Greek term glossary.
+#
+# Loaded by `poietes terms import data/glossary/aristotle.grc.yaml`.
+# This file is the curator-authored source of truth for Aristotle's
+# Greek philosophical vocabulary as surfaced in the Reader's TermCard
+# popover.
+#
+# Greek lemmatizer support is not available on Python 3.14 yet (CLTK
+# and odyCy/grc community models can't compile against 3.14's
+# longobject API). Until that resolves, every Greek term carries an
+# explicit `search_forms:` list of inflected surface strings — the
+# importer uses those to find occurrences. When a Greek lemmatizer
+# becomes installable, drop `search_forms:` on a term to switch it
+# over to lemma-cache matching.
+version: 1
+language: grc
+author: Aristotle
+terms:
+  - lemma: ὁμώνυμον
+    source_form: ὁμώνυμα
+    transliteration: homonyma
+    short_gloss: homonyms; things sharing only a name
+    long_description: |
+      Aristotle's term for things that share a name but not the
+      definition (logos) the name picks out — "a man" and "a drawing
+      of a man" both called animal. Opens the Categories.
+    search_forms:
+      - ὉΜΩΝΥΜΑ
+      - ὁμώνυμα
+      - Ὁμώνυμα
+      - ὁμωνύμως
+      - ὁμώνυμον
+      - ὁμώνυμα δὲ
+    apply_to:
+      - work: Categories
+        edition_id: 58
+        translations:
+          - id: 58            # Edghill
+            rendering: things equivocally named
+            note: |
+              Edghill renders ὁμώνυμα as "things called by a common
+              name" or "equivocals"; we summarise as "things
+              equivocally named."
+
+  - lemma: συνώνυμον
+    source_form: συνώνυμα
+    transliteration: synonyma
+    short_gloss: synonyms; things sharing both name and account
+    long_description: |
+      Things called by the same name AND sharing the account of the
+      substance the name picks out — "a man" and "an ox" are both
+      called animal in the same sense.
+    search_forms:
+      - συνώνυμα
+      - Συνώνυμα
+      - συνωνύμως
+      - συνώνυμον
+    apply_to:
+      - work: Categories
+        edition_id: 58
+        translations:
+          - id: 58
+            rendering: things univocally named
+
+  - lemma: οὐσία
+    source_form: οὐσία
+    transliteration: ousia
+    short_gloss: substance; primary being
+    long_description: |
+      The first of the ten categories. Primary substance is the
+      individual ("this horse"); secondary substance is the species
+      or genus the individual belongs to. The starting point for
+      everything else Aristotle says about being.
+    search_forms:
+      - οὐσία
+      - οὐσίᾳ
+      - οὐσίαν
+      - οὐσίας
+      - οὐσίαι
+      - οὐσιῶν
+      - οὐσίαις
+    apply_to:
+      - work: Categories
+        edition_id: 58
+        translations:
+          - id: 58
+            rendering: substance
+
+  - lemma: λόγος
+    source_form: λόγος
+    transliteration: logos
+    short_gloss: account · definition · reason · speech
+    long_description: |
+      In the Categories, logos is the explanatory account of the
+      substance picked out by a name — what a definition delivers.
+      In the Ethics it carries a much wider field (reason, ratio,
+      argument, speech).
+    search_forms:
+      - λόγος
+      - λόγου
+      - λόγῳ
+      - λόγον
+      - λόγοι
+      - λόγων
+      - λόγοις
+      - λόγους
+    apply_to:
+      - work: Categories
+        edition_id: 58
+        translations:
+          - id: 58
+            rendering: account
+      - work: Nicomachean Ethics
+        edition_id: 53
+        translations:
+          - id: 53            # Rackham
+            rendering: principle
+            note: |
+              Rackham renders λόγος as "principle" through Book I;
+              "reason" or "rational principle" in psychological
+              contexts.
+
+  - lemma: ἀρετή
+    source_form: ἀρετή
+    transliteration: aretē
+    short_gloss: virtue; excellence
+    long_description: |
+      The central object of the Nicomachean Ethics. For Aristotle,
+      ἀρετή names the kind of excellence proper to a thing's
+      function — for a human, a stable disposition of the rational
+      soul that issues in good action.
+    search_forms:
+      - ἀρετή
+      - ἀρετήν
+      - ἀρετῆς
+      - ἀρετῇ
+      - ἀρεταί
+      - ἀρετῶν
+      - ἀρεταῖς
+      - ἀρετάς
+    apply_to:
+      - work: Nicomachean Ethics
+        edition_id: 53
+        translations:
+          - id: 53
+            rendering: virtue
+
+  - lemma: εὐδαιμονία
+    source_form: εὐδαιμονία
+    transliteration: eudaimonia
+    short_gloss: flourishing; happiness; living well
+    long_description: |
+      The chief good named in Book I of the Ethics — the human end
+      whose pursuit gives all other goods their point. Rendered
+      "happiness" by convention; Aristotle's sense is closer to
+      "flourishing" or "living well."
+    search_forms:
+      - εὐδαιμονία
+      - εὐδαιμονίαν
+      - εὐδαιμονίας
+      - εὐδαιμονίᾳ
+    apply_to:
+      - work: Nicomachean Ethics
+        edition_id: 53
+        translations:
+          - id: 53
+            rendering: happiness
+
+  - lemma: φρόνησις
+    source_form: φρόνησις
+    transliteration: phronēsis
+    short_gloss: practical wisdom; prudence
+    long_description: |
+      The intellectual virtue concerned with deliberation about
+      human goods — the disposition by which we reason well about
+      what is to be done. Book VI of the Ethics.
+    search_forms:
+      - φρόνησις
+      - φρονήσεως
+      - φρονήσει
+      - φρόνησιν
+    apply_to:
+      - work: Nicomachean Ethics
+        edition_id: 53
+        translations:
+          - id: 53
+            rendering: prudence
+
+  - lemma: ἕξις
+    source_form: ἕξις
+    transliteration: hexis
+    short_gloss: settled disposition; state of character
+    long_description: |
+      Aristotle's term for a stable disposition — the genus of which
+      virtue (ἀρετή) is a species. A ἕξις is acquired through
+      habituation and contrasts with mere passing feeling (πάθος).
+    search_forms:
+      - ἕξις
+      - ἕξιν
+      - ἕξεως
+      - ἕξει
+      - ἕξεις
+      - ἕξεων
+    apply_to:
+      - work: Nicomachean Ethics
+        edition_id: 53
+        translations:
+          - id: 53
+            rendering: disposition
+
+  - lemma: ψυχή
+    source_form: ψυχή
+    transliteration: psychē
+    short_gloss: soul; the principle of life and activity
+    long_description: |
+      For Aristotle the soul is not a separable substance but the
+      form of a living body — the first actuality of a natural body
+      with organs. In the Ethics it grounds the tripartite analysis
+      (vegetative, appetitive, rational).
+    search_forms:
+      - ψυχή
+      - ψυχήν
+      - ψυχῆς
+      - ψυχῇ
+      - ψυχαί
+      - ψυχῶν
+    apply_to:
+      - work: Nicomachean Ethics
+        edition_id: 53
+        translations:
+          - id: 53
+            rendering: soul

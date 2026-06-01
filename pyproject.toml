@@ -1,0 +1,138 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minerva"
+version = "0.1.0"
+description = "Retrieval-grounded reader and agent over a multilingual corpus of philosophy and primary sources (Greek, Latin, German, French, English, Hebrew, Arabic)."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+embed = ["sentence-transformers>=2.2"]
+hegel = ["pymupdf>=1.24", "ebooklib>=0.18", "beautifulsoup4>=4.12"]
+# Lemmatizer + glossary-importer dependencies. Optional because the
+# Reader / chat / translate paths don't need them; only curators do.
+# Install via `uv pip install -e '.[lemma]'`. spaCy's German model
+# `de_core_news_sm` ships as a separate wheel — pin it explicitly so
+# fresh installs don't have to remember `python -m spacy download`.
+lemma = [
+    # German: spaCy + `de_core_news_sm`. spaCy ≥3.8 needed for any
+    # Python ≥3.13 (older versions pull `blis<0.8` which fails to
+    # compile against 3.13's longobject API).
+    "spacy>=3.8",
+    "de_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl",
+    # French: spaCy + `fr_core_news_sm`. Powers the lat/fra Descartes
+    # corpus — the Discours, the Luynes Méditations, and the Picot
+    # Principes. Same wheel pattern as the German model.
+    "fr_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl",
+    # English: spaCy `en_core_web_sm` for optional `eng` lemmatize.
+    "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    # Ancient Greek + Latin: LatinCy spaCy wheels (primary). ~5× faster
+    # and higher lemma accuracy than Stanza on UD-PROIEL dev; see
+    # `src/minerva/lemmatize.py` for eval notes.
+    "grc_dep_web_sm @ https://huggingface.co/latincy/grc_dep_web_sm/resolve/main/grc_dep_web_sm-3.8.1-py3-none-any.whl",
+    "la_core_web_sm @ https://huggingface.co/latincy/la_core_web_sm/resolve/main/la_core_web_sm-3.9.0-py3-none-any.whl",
+    # Stanza: fallback for grc/lat when LatinCy wheels are missing;
+    # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
+    # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
+    "stanza>=1.10",
+    "pyyaml>=6.0",
+]
+all = [
+    "sentence-transformers>=2.2",
+    "pymupdf>=1.24",
+    "ebooklib>=0.18",
+    "beautifulsoup4>=4.12",
+]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "pyyaml>=6.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+# Coverage config — `pytest --cov` reads this when pytest-cov is
+# installed (in [dev]). Plain `pytest` still works without coverage
+# tooling. CI emits a terminal report + an XML file for any future
+# upload to Codecov-style dashboards; no failure threshold yet (a
+# baseline lives in the audit memory once one is set).
+[tool.coverage.run]
+source = ["src/minerva"]
+# Migrations are append-only; coverage churn there would mask real
+# regressions in the live code paths.
+omit = [
+    "src/minerva/migrations/*",
+    "src/minerva/cli/__init__.py",  # thin dispatch shim
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["src/minerva/migrations"]
+
+[tool.ruff.lint]
+# Strict baseline. Each family chosen for a specific class of bug:
+#   E/W   — pycodestyle whitespace & syntax shape
+#   F     — pyflakes (unused imports, undefined names, redefinitions)
+#   I     — isort (import ordering, single source of truth for sort key)
+#   UP    — pyupgrade (force modern syntax, e.g. `list[int]` not `List[int]`)
+#   B     — bugbear (catches mutable-default args, shadowed builtins, etc.)
+#   SIM   — refactor hints (collapse if/else, redundant `bool()`, etc.)
+#   C4    — comprehension idioms (avoid `list([...])`)
+#   RUF   — ruff's own opinionated checks
+#   PTH   — prefer pathlib over os.path
+#   PIE   — flake8-pie miscellany (unused try/except, dict literal merges)
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "C4", "RUF", "PTH", "PIE"]
+ignore = [
+    # Module-level "private" prefix `_foo` is a project convention here
+    # (signals internal-only intent); ruff's N802/N803 rules around naming
+    # would otherwise object to underscore-prefixed callables in CLI handlers.
+    # N002, etc. aren't selected above so this is just a forward note.
+    "E501",   # line length — let formatter handle, leave room for long URLs / SQL
+    "SIM108", # ternary substitution — readability often favors if/else here
+    "B008",   # default arg call (e.g. `field(default_factory=...)`) — false positives
+    # "Ambiguous unicode" rules: meant to flag homoglyph attacks, but this
+    # corpus is built around Greek (α, ε, ι…) and German diacritics —
+    # those characters are first-class data, not lookalike-Latin smuggled in.
+    "RUF001", # in strings
+    "RUF002", # in docstrings
+    "RUF003", # in comments
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can re-use names, shadow fixtures, and skip docstrings without penalty.
+"tests/**" = ["F841", "B017"]
+# Migrations are append-only by convention; ruff churn on old migrations
+# would force editing committed history.
+"src/minerva/migrations/**" = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[project.scripts]
+minerva = "minerva.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+minerva = ["eval_data/*.jsonl"]

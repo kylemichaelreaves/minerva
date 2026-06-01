@@ -1,0 +1,31 @@
+/* ════════════════════════════════════════════════════════════════
+   MOBILE — overrides applied at ≤768px. Sits alongside per-surface
+   stylesheets; nothing inside this file should leak above 768px
+   (every rule is wrapped in the media query).
+
+   Mobile model (from mobile-wireframes.html design):
+   - Sidebar is hidden by default and reveals as a left-edge drawer
+     overlay when `body[data-mobile-drawer="open"]`.
+   - A 44px MobileTopBar replaces the desktop sidebar's nav on
+     non-landing surfaces — hamburger left, title center, action right.
+   - Touch targets ≥ 44pt.
+   - Landing atlas moves to TOP; monogram-only hero; vertical mode list.
+   - Reader rail becomes a bottom sheet with grab handle.
+   - Refs filter selects open as full-screen sheets; filter row becomes
+     a horizontal chip strip.
+   - Network panels stack vertically; matrix + heatmap are hidden
+     (replaced, not shrunk).
+   ════════════════════════════════════════════════════════════════ */
+
+/* Default (desktop) — the mobile close button never appears. */
+.sidebar-close-mobile {
+  display: none;
+}
+
+.mobile-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  cursor: pointer;
+}
+

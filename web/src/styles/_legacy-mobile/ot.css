@@ -1,0 +1,27 @@
+  /* ================================================================
+     TRIPARTITE OT — mobile (design 3f)
+     The route doesn't exist in code yet, but if/when added these
+     selectors stack the three witnesses per verse. Hebrew row sets
+     direction: rtl while the corpus label stays LTR.
+     ================================================================ */
+  .ot-list .ot-verse {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ot-sub {
+    display: block;
+    padding: 6px 0;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .ot-sub:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .ot-sub.heb {
+    direction: rtl;
+    text-align: right;
+  }
+  .ot-sub.heb .corpus {
+    direction: ltr;
+    text-align: left;
+  }

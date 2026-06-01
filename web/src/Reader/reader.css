@@ -1,0 +1,1242 @@
+/* Minerva — Primary source reader.
+   Restrained, near-monochrome. Single accent for selection and saved markers.
+   Tokens scoped to `.reader` so they don't collide with the main app palette.
+   Dark variant cascades off the document-level `[data-theme="dark"]` already
+   set by App.tsx. */
+
+.reader {
+  /* Light — warm paper, deep ink, oxblood selection */
+  --r-paper: #f6f2ea;
+  --r-paper-deep: #efe9dd;
+  --r-rule: #dcd4c2;
+  --r-rule-soft: #e6dfce;
+  --r-ink: #1c1814;
+  --r-ink-soft: #4a4239;
+  --r-ink-mute: #7e7565;
+  --r-ink-faint: #a8a091;
+  --r-accent: #7b2e2a;
+  --r-accent-soft: rgba(123, 46, 42, 0.14);
+  --r-accent-mark: rgba(123, 46, 42, 0.55);
+  --r-shadow: rgba(28, 24, 20, 0.25);
+  --r-shadow-soft: rgba(28, 24, 20, 0.12);
+
+  --r-serif: "EB Garamond", "Brill", "GFS Didot", "Hoefler Text", Garamond, serif;
+  --r-greek: "GFS Didot", "EB Garamond", "Times New Roman", serif;
+  --r-sans: "Geist", "Söhne", "Inter", "Helvetica Neue", sans-serif;
+
+  background: var(--r-paper);
+  color: var(--r-ink);
+  font-family: var(--r-serif);
+  width: 100%;
+  /* Flex child of `.main`; fills the remaining viewport height while
+     leaving the sidebar visible alongside. */
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .reader {
+  --r-paper: #14110e;
+  --r-paper-deep: #100d0a;
+  --r-rule: #2e2820;
+  --r-rule-soft: #221c16;
+  --r-ink: #e2d8c4;
+  --r-ink-soft: #c2b8a4;
+  --r-ink-mute: #8a8170;
+  --r-ink-faint: #5e574b;
+  --r-accent: #c97a65;
+  --r-accent-soft: rgba(201, 122, 101, 0.16);
+  --r-accent-mark: rgba(201, 122, 101, 0.55);
+  --r-shadow: rgba(0, 0, 0, 0.55);
+  --r-shadow-soft: rgba(0, 0, 0, 0.4);
+}
+
+/* Topbar */
+.reader .chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  z-index: 5;
+}
+.reader .chrome-l,
+.reader .chrome-r {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.reader .work-title {
+  font-family: var(--r-serif);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--r-ink-mute);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.reader .work-title .author {
+  font-style: normal;
+  color: var(--r-ink-soft);
+}
+.reader .work-title .sep {
+  color: var(--r-ink-faint);
+}
+.reader .crumb {
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+}
+.reader .ico-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--r-ink-mute);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.reader .ico-btn:hover {
+  color: var(--r-ink);
+  background: var(--r-paper-deep);
+}
+.reader .ico-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.4;
+  fill: none;
+  stroke: currentColor;
+}
+
+/* Language toggle */
+.reader .lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--r-sans);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  border: 1px solid var(--r-rule);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--r-paper);
+}
+.reader .lang button {
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-transform: uppercase;
+  color: var(--r-ink-mute);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.reader .lang button.on {
+  background: var(--r-ink);
+  color: var(--r-paper);
+}
+.reader .lang button:disabled,
+.reader .lang button[aria-disabled="true"] {
+  color: var(--r-ink-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Reading column. `padding-right` shifts to make room for the rail
+   when it opens; transitioning the padding lets the column re-center
+   in the remaining width smoothly instead of snapping. Justify-content
+   stays `center` throughout so the column never jumps to flex-start
+   mid-animation. */
+.reader .stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  padding: 90px 0 64px;
+  overflow-y: auto;
+  transition: padding 240ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.reader.has-rail .stage {
+  padding-right: 380px;
+}
+.reader .column {
+  width: 640px;
+  max-width: 100%;
+  position: relative;
+}
+.reader .head {
+  margin-bottom: 36px;
+  text-align: left;
+}
+.reader .head .super {
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+  margin-bottom: 10px;
+}
+.reader .head h1 {
+  font-family: var(--r-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 28px;
+  margin: 0;
+  color: var(--r-ink);
+  letter-spacing: 0.005em;
+}
+.reader .head .byline {
+  font-family: var(--r-serif);
+  font-style: normal;
+  font-size: 14px;
+  color: var(--r-ink-mute);
+  margin-top: 4px;
+}
+/* Subtitle sits between h1 and byline — used by the Hebrew Bible
+   heading to surface the transliteration + English equivalent
+   ("Bereshit · Genesis") beneath the Hebrew-script h1. Italic
+   serif at the byline weight so the eye reads it as title
+   apparatus, not body text. */
+.reader .head .subtitle {
+  font-family: var(--r-serif);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--r-ink-mute);
+  margin-top: 4px;
+  letter-spacing: 0.01em;
+}
+
+/* Source lines */
+.reader .lines {
+  font-family: var(--r-greek);
+  font-size: 22px;
+  line-height: 1.85;
+  color: var(--r-ink);
+  letter-spacing: 0.005em;
+}
+.reader .lines.latin {
+  font-family: var(--r-serif);
+}
+.reader .line {
+  display: grid;
+  /* Three columns: left-gutter line number (36px) · text (1fr) ·
+     right-gutter cross-reference marker (24px). The right-gutter
+     column always exists so the layout never shifts between a row
+     with a marker and one without — see ReferenceMarker design notes. */
+  grid-template-columns: 36px 1fr 24px;
+  column-gap: 22px;
+  align-items: baseline;
+  border-radius: 2px;
+  padding: 2px 0;
+  transition: background-color 280ms ease-out;
+}
+/* Brief highlight when the reader is deep-linked from a citation. */
+.reader .line.focused {
+  background: var(--r-accent-soft);
+}
+.reader .line .num {
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--r-ink-faint);
+  text-align: right;
+  font-feature-settings: "tnum";
+  user-select: none;
+  cursor: default;
+}
+.reader .line .text {
+  position: relative;
+}
+
+/* ───────────────── RTL (Hebrew / Arabic) ─────────────────
+   When a chunk's lang ∈ {heb, ara}, Lines.tsx tags the .line with
+   .rtl plus a .lang-heb / .lang-ara modifier. The grid stays the
+   same three columns; the `direction: rtl` on the wrapper makes
+   column 1 land on the visual RIGHT (verse-number at the start of
+   the verse, as Hebrew Bibles set them). Numbers, line markers,
+   and the xref gutter remain LTR-isolated so digits and section
+   labels read left-to-right inside the RTL stream. The text font
+   swaps to a Hebrew/Arabic stack with extra line-height so
+   cantillation / tashkeel marks don't collide. */
+.reader .line.rtl {
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+.reader .line.rtl .text {
+  text-align: start;
+  text-wrap: pretty;
+  line-height: 2.05;
+}
+.reader .line.rtl.lang-heb .text {
+  font-family: var(--hebrew);
+  font-size: 26px;
+  font-feature-settings: "kern", "liga";
+}
+.reader .line.rtl.lang-ara .text {
+  font-family: var(--arabic);
+  font-size: 24px;
+  font-feature-settings: "kern", "liga", "calt";
+}
+.reader .line.rtl .num {
+  direction: ltr;
+  unicode-bidi: isolate;
+  /* Within the right-side gutter (column 1 in RTL flow), push the
+     numeral toward the inner edge — closer to the verse text — for
+     tight optical association with the verse start. */
+  text-align: left;
+  padding-top: 0.45em;
+}
+.reader .line.rtl .line-marker {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* BCV / surah:ayah / other locator helper — used wherever we drop
+   "Gen 1:1" or "Q 2:255" inline within an RTL-flowing passage.
+   Isolating direction keeps the digits readable in their native
+   left-to-right order. */
+.reader .bcv,
+.reader .surah-ayah {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-feature-settings: "tnum";
+}
+
+/* Hover-to-transliterate: each Greek word is wrapped in .gw inside a
+   HoverTip (see lib/HoverTip.tsx) that reveals its romanization. The
+   passage reads cleanly at rest; a dashed underline fades in on hover
+   to confirm the word is interactive while the popover opens. */
+.reader .gw {
+  border-bottom: 1px dashed transparent;
+  transition: border-color 140ms;
+  cursor: help;
+}
+.reader .gw:hover {
+  border-bottom-color: var(--r-ink-mute, currentColor);
+}
+
+/* Term marker — a curated lemma (λόγος, οὐσία, …) carries a thin
+   dotted underline in the accent color so the reader can spot the
+   handful of technical terms per page without the marking shouting.
+   Click opens the TermCard (see lib/TermCard.tsx). The dotted
+   underline is always visible (not hover-only) because the user
+   needs to *see* the affordance to know it exists. */
+.reader .term-mark {
+  border-bottom: 1px dotted var(--accent, currentColor);
+  padding-bottom: 1px;
+  cursor: pointer;
+  transition: background 140ms;
+}
+.reader .term-mark:hover {
+  background: var(--accent-soft, transparent);
+}
+
+/* Active-lemma highlight. When the user clicks a word, every other
+   site of its lemma in the visible window lights up so the eye can
+   scan for repetitions. Applied to both .gw (ordinary words) and
+   .term-mark (curated terms); the lemma-hl modifier wins. */
+.reader .lemma-hl {
+  background: var(--accent-soft, rgba(123, 46, 42, 0.12));
+  /* Soft underline pulled into the highlight so a marked term still
+     visually reads as marked when it's also a lemma site. */
+  border-radius: 2px;
+  padding: 0 1px;
+}
+/* Inside the rail's word-info sample list, the same .lemma-hl class
+   wraps the surface form within each snippet — same visual idiom. */
+.reader .wordinfo-snippet .lemma-hl {
+  background: var(--accent-soft, rgba(123, 46, 42, 0.18));
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Word tokens */
+.reader .tok {
+  position: relative;
+  display: inline;
+  transition: color 160ms;
+  cursor: text;
+}
+.reader .tok.dim {
+  color: var(--r-ink-faint);
+}
+.reader .tok.sel {
+  background: var(--r-accent-soft);
+  box-shadow: 0 0 0 1px var(--r-accent-soft);
+  border-radius: 1px;
+}
+.reader .tok.marker {
+  border-bottom: 1px solid var(--r-accent-mark);
+  padding-bottom: 1px;
+}
+
+/* Right rail surface (translation result). Visually a sibling of the
+   left chat sidebar and the chat marginalia: same paper-soft surface,
+   same rule color on the inside edge. Scrollbar styling is global —
+   see the `*::-webkit-scrollbar` rule in styles.css. */
+.reader .rail {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  background: var(--r-paper-deep);
+  border-left: 1px solid var(--r-rule);
+  padding: 48px 36px 32px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  /* Default = closed. The rail is always mounted (so the close
+     transition can play); these properties slide it off-screen and
+     suppress any pointer interactions while idle. */
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  /* `transform` carries the slide; the slightly shorter `opacity`
+     duration finishes the fade just before the slide lands so the
+     rail doesn't "double-resolve" visually. The custom easing
+     matches the .stage padding transition so the two pieces move in
+     lockstep. */
+  transition:
+    transform 240ms cubic-bezier(0.25, 0.8, 0.25, 1),
+    opacity 200ms ease-out;
+}
+.reader .rail.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Honour the system "Reduce Motion" preference — kill the slide,
+   leave a quick fade so the open/close still has a beat the user
+   can read. */
+@media (prefers-reduced-motion: reduce) {
+  .reader .rail,
+  .reader .stage {
+    transition: opacity 80ms linear;
+  }
+  .reader .rail {
+    transform: none;
+  }
+}
+.reader .rail .pin {
+  font-family: var(--r-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--r-ink-mute);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* Tab strip is mobile-only — hidden on desktop where the rail renders
+   all sections vertically. mobile.css un-hides .rail-tabs and gates
+   .rail-tabpanel visibility by aria-hidden. */
+.reader .rail .rail-tabs {
+  display: none;
+}
+
+/* Always-visible close affordance in the rail's top-right corner.
+   Pinned inside the rail's 48px top padding so it doesn't shift the
+   content layout. Paired with Esc-key dismiss. */
+.reader .rail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--r-ink-mute);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 140ms,
+    background 140ms;
+}
+.reader .rail-close:hover {
+  color: var(--r-ink);
+  background: var(--r-paper);
+}
+.reader .rail-close:focus-visible {
+  outline: 1px solid var(--r-accent);
+  outline-offset: 1px;
+}
+.reader .rail-close svg {
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;
+}
+.reader .rail .pin .ref {
+  color: var(--r-ink);
+  font-style: normal;
+  font-family: var(--r-serif);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+/* Word-info block — sits between the .pin selection summary and the
+   translate target-label. Shows the clicked word's lemma + edition-
+   wide occurrence count + up to a few sample sites. Visually quieter
+   than the translation block; treat it as context that orients the
+   reader rather than the primary payload. */
+.reader .wordinfo {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--r-rule, var(--r-ink-mute));
+}
+.reader .wordinfo-loading,
+.reader .wordinfo-error {
+  font-family: var(--r-sans);
+  font-size: 11px;
+  color: var(--r-ink-mute);
+  font-style: italic;
+}
+.reader .wordinfo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.reader .wordinfo-surface {
+  font-family: var(--r-serif);
+  font-size: 18px;
+  color: var(--r-ink);
+}
+.reader .wordinfo-lemma {
+  font-family: var(--r-serif);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--r-ink-mute);
+}
+.reader .wordinfo-arrow {
+  font-style: normal;
+  color: var(--r-ink-faint, var(--r-ink-mute));
+  margin-right: 2px;
+}
+/* Morph chip — "noun · masc. · sing." Sits between the lemma row
+   and the occurrence count; sans + smaller than the surface form
+   so it reads as supplementary rather than primary content. */
+.reader .wordinfo-morph {
+  font-family: var(--r-sans);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--r-ink-mute);
+  margin: -2px 0 6px;
+}
+.reader .wordinfo-count {
+  font-family: var(--r-sans);
+  font-size: 11px;
+  color: var(--r-ink-mute);
+  margin-bottom: 6px;
+}
+.reader .wordinfo-samples {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reader .wordinfo-samples li {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+.reader .wordinfo-loc {
+  font-family: var(--r-sans);
+  font-size: 10px;
+  color: var(--r-ink-mute);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.reader .wordinfo-snippet {
+  color: var(--r-ink);
+  line-height: 1.45;
+}
+/* "Show more" button that paginates samples via /api/words/lookup.
+   Reads as a subtle text link rather than a chunky button — the
+   word-info block is informational, not transactional. */
+.reader .wordinfo-more {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--r-rule, var(--r-ink-mute));
+  color: var(--r-accent);
+  font: inherit;
+  font-size: 11px;
+  font-family: var(--r-sans);
+  cursor: pointer;
+}
+.reader .wordinfo-more:hover {
+  opacity: 0.85;
+}
+.reader .wordinfo-more:disabled {
+  color: var(--r-ink-mute);
+  cursor: progress;
+}
+.reader .wordinfo-more-tail {
+  color: var(--r-ink-mute);
+}
+
+.reader .wordinfo-concordance {
+  /* CTA to open the corpus concordance for the current lemma.
+     Higher visual weight than `wordinfo-more` (which paginates
+     in-rail samples) — this is the F4 wireframe's "See all
+     occurrences" stub, now active. */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--r-paper-soft, transparent);
+  border: 1px solid var(--r-rule, var(--r-ink-mute));
+  border-radius: 3px;
+  color: var(--r-accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-family: var(--r-sans);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.reader .wordinfo-concordance:hover {
+  background: var(--r-ink);
+  color: var(--r-paper);
+  border-color: var(--r-ink);
+}
+.reader .wordinfo-concordance-arr {
+  margin-left: 10px;
+  font-size: 13px;
+}
+
+/* ── Reader-rail Concordance tab (F3) ───────────────────────── */
+
+.reader .rail-concord {
+  padding: 4px 0 16px;
+  font-family: var(--r-sans);
+  font-size: 11.5px;
+}
+.reader .rail-concord-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  margin: 0 0 14px;
+  background: var(--r-paper-soft, transparent);
+  border: 1px solid var(--r-rule, var(--r-ink-mute));
+  border-radius: 3px;
+  color: var(--r-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.reader .rail-concord-cta:hover:not(:disabled) {
+  background: var(--r-ink);
+  color: var(--r-paper);
+  border-color: var(--r-ink);
+}
+.reader .rail-concord-cta:disabled {
+  color: var(--r-ink-faint);
+  cursor: not-allowed;
+}
+.reader .rail-concord-arr {
+  font-size: 13px;
+  margin-left: 10px;
+}
+.reader .rail-concord-head {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--r-rule);
+  margin-bottom: 6px;
+}
+.reader .rail-concord-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.reader .rail-concord-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 50px;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--r-rule-soft, transparent);
+  cursor: pointer;
+}
+.reader .rail-concord-row:hover {
+  background: var(--r-paper-soft, transparent);
+}
+.reader .rail-concord-lem {
+  font-family: var(--r-serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--r-ink);
+}
+.reader .rail-concord-pos {
+  font-size: 10px;
+  color: var(--r-ink-mute);
+  text-transform: lowercase;
+}
+.reader .rail-concord-ct {
+  font-family: var(--r-mono);
+  font-size: 11px;
+  color: var(--r-ink);
+  text-align: right;
+}
+.reader .rail-concord-loading,
+.reader .rail-concord-empty {
+  font-size: 11px;
+  color: var(--r-ink-mute);
+  padding: 12px 4px;
+  font-family: var(--r-sans);
+}
+.reader .rail-concord-empty code {
+  font-family: var(--r-mono);
+  font-size: 10.5px;
+  background: var(--r-paper-soft, transparent);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.reader .target-label {
+  font-family: var(--r-sans);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--r-accent);
+  margin-bottom: 10px;
+}
+.reader .translation {
+  font-family: var(--r-serif);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--r-ink);
+}
+/* Idle prompt before a selection is made. Same surface as a real
+   translation but a softer voice so it doesn't read as a finished
+   result. */
+.reader .translation-awaiting {
+  color: var(--r-ink-mute);
+  font-style: italic;
+  font-size: 16px;
+}
+/* Literal translation, rendered beneath the literary one in the
+   same visual register — paired translations, not primary/secondary.
+   A small sans-serif label distinguishes them; the texts themselves
+   share font, size, and weight with `.translation`. */
+.reader .translation-literal {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dotted var(--r-rule);
+}
+.reader .translation-literal-label {
+  font-family: var(--r-sans);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+  margin-bottom: 6px;
+}
+.reader .translation-literal-text {
+  font-family: var(--r-serif);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--r-ink);
+}
+.reader .surface-foot {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px dotted var(--r-rule);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+}
+.reader .surface-foot button {
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: var(--r-ink-mute);
+  cursor: pointer;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.reader .surface-foot button:hover {
+  color: var(--r-ink);
+}
+
+/* In-flight indicator */
+.reader .progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--r-accent);
+}
+.reader .progress .dots span {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 3px;
+  background: var(--r-accent);
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: r-pulse 1.4s ease-in-out infinite;
+}
+.reader .progress .dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.reader .progress .dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes r-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* Error state inside the rail */
+.reader .err-icon {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--r-rule);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--r-ink-mute);
+  margin-bottom: 12px;
+}
+.reader .err-title {
+  font-family: var(--r-serif);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--r-ink);
+  margin-bottom: 4px;
+}
+.reader .err-body {
+  font-family: var(--r-serif);
+  font-size: 14px;
+  color: var(--r-ink-mute);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.reader .err-actions {
+  display: flex;
+  gap: 10px;
+}
+.reader .btn-link {
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--r-ink);
+  background: transparent;
+  border: 1px solid var(--r-ink);
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.reader .btn-link.ghost {
+  border-color: var(--r-rule);
+  color: var(--r-ink-mute);
+}
+
+/* Page footer */
+.reader .pagefoot {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+  pointer-events: none;
+}
+
+/* ReferenceCard styles: see ../lib/referencecard.css */
+
+/* ── XrefMarker (gutter glyph) ─────────────────────────────────────
+   Lives in the 24px right-gutter column of `.line`. A scholarly-
+   footnote-style indicator: ink-faint by default so it vanishes in
+   peripheral vision, accent on hover/focus/active. No idle animation
+   (per design spec: states snap, never fade). The 24px gutter column
+   in `.line` is always present so the page never shifts between a
+   row with a marker and one without.
+
+   Faithful port of project/reference-card/ReferenceMarker.html. */
+
+.reader .line .line-marker {
+  /* The gutter cell; the button (or absence thereof) lives inside. */
+  text-align: left;
+  font-family: var(--r-sans);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--r-ink-faint);
+}
+
+.reader .xref-pin {
+  /* Bare button — no chrome, no background, no border, no padding.
+     Aligns to the first text baseline via the line's
+     `align-items: baseline`. Hit target is the 12×12 glyph itself;
+     callers wanting a larger touch target should expand via padding
+     here rather than wrapping. */
+  display: inline-block;
+  font-family: var(--r-sans);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--r-ink-faint);
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+  /* Tighten the triangle's left bearing so it sits flush to the
+     gutter edge. */
+  margin-left: -1px;
+  border-radius: 2px;
+  /* No transition — states must snap per spec. */
+}
+.reader .xref-pin:hover {
+  color: var(--r-accent);
+}
+.reader .xref-pin:focus {
+  /* Suppress the default browser focus ring; the focus-visible rule
+     below paints the keyboard-only ring. */
+  outline: none;
+}
+.reader .xref-pin:focus-visible {
+  color: var(--r-accent);
+  outline: 1px solid var(--r-accent);
+  outline-offset: 2px;
+}
+/* Class-hook variants of :hover / :focus-visible — used by stories
+   (which can't easily simulate the real pseudo-classes) and by any
+   future curator/preview tool that needs to render a marker in a
+   specific state without the user actually hovering. Mirror the
+   pseudo-class rules above; same color, same outline. */
+.reader .xref-pin.is-hover {
+  color: var(--r-accent);
+}
+.reader .xref-pin.is-focus {
+  color: var(--r-accent);
+  outline: 1px solid var(--r-accent);
+  outline-offset: 2px;
+}
+.reader .xref-pin.is-active {
+  /* Persistent accent color while the ReferenceCard is anchored to
+     this row. Identical visual to hover; persistence comes from the
+     card itself, not from the marker. */
+  color: var(--r-accent);
+}
+
+.reader .xref-count {
+  font-family: var(--r-sans);
+  font-size: 9px;
+  /* Baseline-shifted up 4px per spec — the count reads as a
+     superscript without being a real <sup> element. */
+  vertical-align: 4px;
+  margin-left: 1px;
+  letter-spacing: 0.01em;
+  /* Inherits color and weight from .xref-pin so all four states
+     keep the count + glyph visually unified. */
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Selection-driven translation: floating toolbar + pinned highlight
+ * ════════════════════════════════════════════════════════════════════
+ * The drag-to-select gesture no longer fires /api/translate
+ * directly. Instead the reader shows a small dark toolbar anchored
+ * above the selection; the user clicks Translate (or hits T) to
+ * commit. Once committed, the native selection clears and an
+ * app-painted highlight survives until the rail is dismissed, at
+ * which point the highlight drops to a hairline underline marker
+ * that survives further reading and re-opens the cached translation
+ * on click.
+ */
+
+.selection-toolbar {
+  position: fixed;
+  z-index: 40;
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--r-ink);
+  color: var(--r-paper);
+  border-radius: 4px;
+  font-family: var(--r-sans);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55),
+              0 2px 6px -2px rgba(0, 0, 0, 0.30);
+  overflow: hidden;
+  /* Pure fade — respects prefers-reduced-motion via the @media
+     query at the bottom of this block. */
+  animation: stFade 120ms ease-out;
+}
+@keyframes stFade {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.selection-toolbar::before {
+  /* Caret pointing down at the selection (default-above placement).
+     Flipped via the `.below` class when there isn't enough headroom
+     and the toolbar drops beneath the selection instead. */
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 22px;
+  width: 10px; height: 10px;
+  background: var(--r-ink);
+  transform: rotate(45deg);
+  z-index: -1;
+}
+.selection-toolbar.below::before {
+  bottom: auto;
+  top: -5px;
+}
+
+/* Dark-mode override for the selection toolbar.
+   In light mode the toolbar uses `--r-ink` (dark) for bg + `--r-paper`
+   (light) for text — an intentional inversion to read as a floating
+   dark pill against the cream page. The same rules in dark mode
+   produce a LIGHT pill (because the tokens swap roles), which clashes
+   with every other floating popover (termcard, refcard, hovertip)
+   that all stay paper-on-ink. Use a hand-picked "slightly elevated"
+   shade so the pill still reads as a floating control. */
+[data-theme="dark"] .reader .selection-toolbar {
+  background: #2a241d;
+  color: var(--r-ink);
+  border: 1px solid var(--r-rule);
+}
+[data-theme="dark"] .reader .selection-toolbar::before {
+  background: #2a241d;
+}
+[data-theme="dark"] .reader .selection-toolbar .st-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+[data-theme="dark"] .reader .selection-toolbar .kbd {
+  border-color: rgba(226, 216, 196, 0.20);
+  color: rgba(226, 216, 196, 0.55);
+}
+[data-theme="dark"] .reader .selection-toolbar .st-sep {
+  background: rgba(226, 216, 196, 0.14);
+}
+[data-theme="dark"] .reader .selection-toolbar .st-count {
+  color: rgba(226, 216, 196, 0.55);
+}
+
+.selection-toolbar .st-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 10.5px;
+  font-family: inherit;
+}
+.selection-toolbar .st-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.selection-toolbar .st-btn:focus-visible {
+  outline: 1px solid var(--r-paper);
+  outline-offset: -2px;
+}
+.selection-toolbar .kbd {
+  display: inline-block;
+  font-family: var(--r-mono, "Geist Mono", ui-monospace, monospace);
+  font-size: 9px;
+  padding: 1px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.selection-toolbar .st-sep {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 6px 0;
+}
+.selection-toolbar .st-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 12px 9px 14px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  font-feature-settings: "tnum";
+}
+
+/* Pinned highlight — replaces the native browser selection once the
+   user commits to translate. Persists until the rail dismisses, at
+   which point `.saved` drops the fill and keeps a hairline
+   underline marker.
+   `box-shadow` extends the highlight one pixel outside the word
+   box so adjacent pinned words read as one continuous swatch
+   rather than a striped row. */
+.reader .pin-hl {
+  background: var(--r-accent-soft);
+  box-shadow: 0 0 0 1px var(--r-accent-soft);
+  border-radius: 1px;
+}
+.reader .pin-hl.saved {
+  background: transparent;
+  box-shadow: none;
+  /* Hairline underline at lower saturation — the visual signal
+     for "translation is cached for this span; click to re-open".
+     Cursor is pointer because click is the gesture. */
+  border-bottom: 1px solid var(--r-accent-mark);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selection-toolbar { animation: none; }
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * Rail additions for the selection-translate flow
+ * ────────────────────────────────────────────────────────────────
+ * Two blocks layered between the rail head and the existing
+ * `.translation` text:
+ *  - .rail-ribbon      cross-chunk-warning ribbon
+ *  - .rail-langrow     EN/FR/DE in-rail picker
+ * Plus a "cached" tag in `.target-label`.
+ */
+
+.reader .rail-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px dotted var(--r-rule);
+  border-radius: 3px;
+  font-family: var(--r-sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--r-ink-mute);
+}
+.reader .rail-ribbon .pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--r-accent);
+  flex-shrink: 0;
+}
+
+.reader .rail-langrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.reader .rail-langrow .label {
+  font-family: var(--r-sans);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+}
+.reader .rail-langrow .pill {
+  display: inline-flex;
+  border: 1px solid var(--r-rule-soft);
+  border-radius: 999px;
+  padding: 2px;
+}
+.reader .rail-langrow .pill button {
+  font-family: var(--r-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--r-ink-mute);
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.reader .rail-langrow .pill button:hover {
+  color: var(--r-ink);
+}
+.reader .rail-langrow .pill button.on {
+  background: var(--r-ink);
+  color: var(--r-paper);
+}
+/* Disabled when the chip's target matches the source text's language —
+   translating Nietzsche → German would be a no-op. Dimmed, no hover. */
+.reader .rail-langrow .pill button:disabled,
+.reader .rail-langrow .pill button[aria-disabled="true"] {
+  color: var(--r-ink-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.reader .rail-langrow .pill button:disabled:hover,
+.reader .rail-langrow .pill button[aria-disabled="true"]:hover {
+  color: var(--r-ink-faint);
+}
+
+/* Cache indicator that sits inline with the target-language label.
+   `.target-label` was originally a single-row text; bumping it to
+   flex preserves the position of the language name (left) and adds
+   a small accent tag on the right when the translation came from
+   the local cache. */
+.reader .target-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.reader .target-label .tag {
+  font-family: var(--r-sans);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--r-accent);
+}

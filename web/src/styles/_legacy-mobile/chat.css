@@ -1,0 +1,217 @@
+  /* ================================================================
+     CHAT — mobile thread + composer (design 2a/2b)
+     ================================================================ */
+  /* Hide the desktop topbar on chat (MobileTopBar replaces it). */
+  .main > .topbar {
+    display: none;
+  }
+  .scroll {
+    padding: 16px 18px 0;
+  }
+  /* Composer pinned to bottom with safe-area inset. Tight mobile
+     padding (design 2a shows the composer flush with the screen edges
+     with 16px gutters), and the kbd hint row is hidden — the design's
+     mobile composer is just a field + outline-arrow send. */
+  .composer-wrap {
+    padding: 0 0 env(safe-area-inset-bottom, 0);
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+  }
+  .composer {
+    border: 0;
+    padding: 10px 16px 12px;
+    border-radius: 0;
+    max-width: none;
+    background: transparent;
+  }
+  .composer:focus-within {
+    border-color: transparent;
+  }
+  .composer-input {
+    font-size: 15px;
+    font-family: var(--serif);
+    font-style: italic;
+  }
+  .composer-input::placeholder {
+    font-style: italic;
+    color: var(--ink-faint);
+  }
+  .composer-foot {
+    border-top: 0;
+    padding-top: 0;
+    margin-top: 6px;
+  }
+  /* Chat composer: kbd hint row hidden on mobile. Virtual keyboards
+     have no Enter shortcut affordance for a user to learn. */
+  .composer-foot .left {
+    display: none;
+  }
+  /* Landing composer: hint row stays, but its content swaps to a
+     quiet "tap a prompt · or type" line per design 1a (the kbd
+     children are gone — they're replaced by .landing-mobile-hint
+     in Landing.tsx). */
+  .landing-input-foot {
+    align-items: center;
+  }
+  .landing-mobile-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  /* Send button — outlined 38pt arrow per design 2a. The "Send" text
+     label that desktop renders next to the icon is hidden via
+     font-size: 0 (the SVG keeps its intrinsic dimensions). */
+  .composer .send-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 0;
+    border: 1px solid var(--ink);
+    color: var(--accent);
+    font-size: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: none;
+    letter-spacing: 0;
+    flex-shrink: 0;
+  }
+  .composer .send-btn svg {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+  }
+
+  /* Citation chips inline in chat — design 2a swaps the desktop's
+     [N] superscript marker for a chip that shows source author +
+     locator inline ("Aug. civ. Dei XIV.13"). The .cite-mark wrapper
+     drops its superscript baseline; the [N] child is hidden and the
+     chip child shown. Whole chip is the tap target. */
+  .cite-mark {
+    vertical-align: 1px;
+    font-size: 11px;
+    border: 1px solid var(--rule);
+    background: var(--paper-soft);
+    color: var(--ink);
+    padding: 2px 7px 3px;
+    border-radius: 0;
+    line-height: 1.1;
+    margin: 0 2px;
+    text-decoration: none;
+    min-height: 22px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .cite-mark:hover {
+    text-decoration: none;
+  }
+  .cite-mark-n {
+    display: none;
+  }
+  .cite-mark-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .cite-mark-src {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .cite-mark-loc {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    letter-spacing: 0;
+  }
+
+  /* User-turn bubble — right-aligned, paper-soft background per design. */
+  .turn.turn-user {
+    padding: 14px 0;
+  }
+  .turn-user .turn-body {
+    background: var(--paper-soft);
+    border: 1px solid var(--rule);
+    padding: 9px 12px;
+    max-width: 78%;
+    margin-left: auto;
+    margin-right: 0;
+    border-radius: 0;
+    font-size: 14px;
+    line-height: 1.4;
+    border-left: 0;
+  }
+  /* Π attribution above minerva turns — design 2a shows "Minerva" in
+     serif italic. The desktop turn-philosopher hits the same spot. */
+  .turn-minerva .turn-meta,
+  .turn-minerva .turn-philosopher {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+
+  /* Thread search sheet */
+  .thread-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: var(--serif);
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+  .thread-search-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 12px;
+  }
+  .thread-search-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .thread-search-hit {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 0;
+    border: 0;
+    border-bottom: 1px solid var(--rule-soft);
+    background: transparent;
+    cursor: pointer;
+  }
+  .thread-search-role {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 4px;
+  }
+  .thread-search-preview {
+    font-family: var(--serif);
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+  .thread-search-preview mark {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+  .thread-search-empty {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--ink-mute);
+    font-size: 14px;
+  }

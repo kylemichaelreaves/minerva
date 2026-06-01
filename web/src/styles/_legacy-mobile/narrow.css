@@ -1,0 +1,23 @@
+/* ════════════════════════════════════════════════════════════════
+   Narrow-phone tightening (≤390px) — design 1b/3b checks. iPhone SE
+   sized screens get smaller monogram, smaller body padding, tighter
+   line heights. Mobile-only — these rules also need the @media wrap.
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  .landing {
+    padding: 0 12px 12px;
+  }
+  .landing-monogram {
+    font-size: 44px;
+  }
+  .landing-pill {
+    font-size: 10.5px;
+    padding: 5px 8px;
+  }
+  .reader .stage {
+    padding: 10px 16px 24px;
+  }
+  .reader .lines {
+    font-size: 17.5px;
+  }
+}

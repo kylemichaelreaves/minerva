@@ -1,0 +1,409 @@
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--rule-soft);
+  background: var(--paper-soft);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  transition:
+    width 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 200ms;
+}
+
+.sidebar.collapsed {
+  width: 56px;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--rule-soft);
+  min-height: 64px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brand-mark {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  line-height: 1;
+}
+.brand-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  color: inherit;
+  font: inherit;
+}
+.brand-link:hover .glyph {
+  color: var(--accent-soft);
+}
+.brand-link:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.brand-mark .glyph {
+  font-style: normal;
+  color: var(--accent);
+  margin-right: 2px;
+}
+
+.brand-sub {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--ink-mute);
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.icon-btn:hover {
+  background: var(--paper-edge);
+  color: var(--ink);
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.4;
+}
+
+.sidebar.collapsed .sidebar-head {
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 0;
+  align-items: center;
+}
+.sidebar.collapsed .brand-text,
+.sidebar.collapsed .new-btn-label,
+.sidebar.collapsed .history-section,
+.sidebar.collapsed .mode-tabs,
+.sidebar.collapsed .sidebar-foot {
+  display: none;
+}
+
+/* Top-of-sidebar mode switcher: Chat / Read. Segmented control style
+   so the active mode reads as the "current view" rather than a button
+   you can press in isolation. */
+.mode-tabs {
+  display: inline-flex;
+  margin: 8px 14px 0;
+  padding: 2px;
+  background: var(--paper-edge);
+  border: 1px solid var(--rule-soft);
+  border-radius: 999px;
+  align-self: flex-start;
+  width: calc(100% - 28px);
+}
+.mode-tab {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 140ms,
+    color 140ms;
+}
+.mode-tab:hover {
+  color: var(--ink);
+}
+.mode-tab.on {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.new-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 14px 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  transition:
+    border-color 120ms,
+    color 120ms,
+    background 120ms;
+}
+.new-btn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.new-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.5;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .new-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  margin: 12px auto 0;
+}
+
+.history-section {
+  padding: 22px 20px 18px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.history-label {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 12px;
+  padding-left: 2px;
+}
+
+/* Reader author headers double as a collapse-toggle: they render as
+   a borderless button that looks like a label but rotates a caret on
+   click. Visually identical to `.history-label` at rest. */
+.history-label-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  padding: 0 0 0 2px;
+}
+.history-label-toggle:hover {
+  color: var(--ink);
+}
+.history-label-caret {
+  display: inline-flex;
+  align-items: center;
+  width: 10px;
+  transition: transform 120ms ease;
+  color: var(--ink-faint);
+  opacity: 0.7;
+}
+.history-label-caret svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.history-label-toggle[aria-expanded="true"] .history-label-caret {
+  transform: rotate(90deg);
+}
+.history-label-count {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--ink-faint);
+  opacity: 0.6;
+  letter-spacing: 0;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 22px;
+}
+
+.history-item-wrap {
+  position: relative;
+  display: block;
+}
+.history-item-wrap.active::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  background: var(--accent);
+}
+
+.history-item {
+  text-align: left;
+  /* Right padding leaves room for the trash button. */
+  padding: 7px 32px 7px 8px;
+  border-radius: 3px;
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  transition:
+    background 120ms,
+    color 120ms;
+  display: block;
+  width: 100%;
+}
+.history-item:hover {
+  background: var(--paper-edge);
+  color: var(--ink);
+}
+.history-item.active {
+  background: var(--paper-edge);
+  color: var(--ink);
+}
+.history-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.history-glyph {
+  color: var(--accent);
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: italic;
+  flex-shrink: 0;
+}
+.history-title {
+  flex: 1;
+}
+
+/* Language chip next to a work title in the Reader sidebar. */
+.work-lang-chip {
+  flex-shrink: 0;
+  align-self: center;
+  font-family: var(--sans);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border: 1px solid var(--rule-soft);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+.history-item:hover .work-lang-chip,
+.history-item.active .work-lang-chip {
+  color: var(--ink-mute);
+  border-color: var(--rule);
+}
+
+.history-delete {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  color: var(--ink-faint);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 120ms,
+    background 120ms,
+    color 120ms;
+}
+.history-delete svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.4;
+}
+.history-item-wrap:hover .history-delete,
+.history-item-wrap:focus-within .history-delete {
+  opacity: 1;
+}
+.history-delete:hover {
+  background: var(--paper);
+  color: var(--accent);
+}
+.history-delete:focus-visible {
+  opacity: 1;
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.history-item .meta {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 3px;
+}
+
+.sidebar-foot {
+  border-top: 1px solid var(--rule-soft);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.foot-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.foot-user .dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper-edge);
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+}
+

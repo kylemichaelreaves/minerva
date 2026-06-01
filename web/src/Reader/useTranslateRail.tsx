@@ -1,0 +1,89 @@
+// Translate-rail state machine. Owns the rail signal, the target
+// language, and the inflight controller that races stale translations.
+// Callers fire `runTranslate(source, ref)` from word clicks, selection
+// commits, or saved-marker clicks; the hook handles abortion when a
+// new request comes in.
+
+import { createEffect, createSignal, onCleanup } from "solid-js";
+import { translate } from "~/api/readerApi";
+import { errorMessage, isAbortError } from "~/utils/util";
+import type { TargetLang } from "~/utils/types";
+import type { RailState } from "~/Reader/types";
+
+export interface TranslateRailApi {
+  rail: () => RailState;
+  target: () => TargetLang;
+  /** Change target language. Re-runs any ready/error rail in the new
+   *  language; promotes idle to "awaiting" so the lang chips visibly
+   *  affect something before the user selects text. */
+  setTargetLang: (t: TargetLang) => void;
+  /** Fire-and-forget translation. Cancels any prior inflight. */
+  runTranslate: (source: string, ref: string) => void;
+  /** Re-run the source/ref of the current error state, if any. */
+  retry: () => void;
+  /** Abort and reset to idle. */
+  reset: () => void;
+}
+
+export function useTranslateRail(): TranslateRailApi {
+  const [rail, setRail] = createSignal<RailState>({ kind: "idle" });
+  const [target, setTarget] = createSignal<TargetLang>("eng");
+  let inflightController: AbortController | undefined;
+
+  async function runTranslateInternal(source: string, ref: string) {
+    inflightController?.abort();
+    const controller = new AbortController();
+    inflightController = controller;
+    setRail({ kind: "loading", source, ref });
+    try {
+      const response = await translate(source, target(), controller.signal);
+      if (inflightController === controller) {
+        setRail({ kind: "ready", source, ref, response });
+      }
+    } catch (err) {
+      if (isAbortError(err)) return;
+      const message = errorMessage(err);
+      if (inflightController === controller) {
+        setRail({ kind: "error", source, ref, message });
+      }
+    } finally {
+      if (inflightController === controller) {
+        inflightController = undefined;
+      }
+    }
+  }
+
+  function runTranslate(source: string, ref: string) {
+    void runTranslateInternal(source, ref);
+  }
+
+  function retry() {
+    const r = rail();
+    if (r.kind === "error") runTranslate(r.source, r.ref);
+  }
+
+  function setTargetLang(t: TargetLang) {
+    setTarget(t);
+    const r = rail();
+    if (r.kind === "ready" || r.kind === "error") {
+      // Server cache hits if the (source, lang) pair was seen before.
+      runTranslate(r.source, r.ref);
+      return;
+    }
+    if (r.kind === "idle" || r.kind === "awaiting") {
+      setRail({ kind: "awaiting" });
+    }
+  }
+
+  function reset() {
+    inflightController?.abort();
+    inflightController = undefined;
+    setRail({ kind: "idle" });
+  }
+
+  createEffect(() => {
+    onCleanup(() => inflightController?.abort());
+  });
+
+  return { rail, target, setTargetLang, runTranslate, retry, reset };
+}

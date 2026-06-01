@@ -1,0 +1,420 @@
+"""Lemma frequency index queries."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from typing import Any
+
+from ..errors import BadRequestError
+from ._scope import (
+    _DEFAULT_CONTENT_POS,
+    _DEFAULT_INDEX_LIMIT,
+    _MAX_INDEX_LIMIT,
+    _scope_clause,
+)
+
+
+def lemma_index(
+    conn: sqlite3.Connection, query: dict[str, str]
+) -> dict[str, Any]:
+    """Aggregate all lemmas in scope, return ranked leaderboard.
+
+    Query params:
+      lang       (required) ISO-639-3 code, e.g. ``deu``
+      scope      one of corpus | author | work  (default: corpus)
+      author     required when scope=author
+      work       required when scope=work
+      letter     one-character A–Z filter; rows whose first letter
+                 matches (case-insensitive, NFC-aware via SQLite's
+                 default collation)
+      q          case-insensitive substring filter on the lemma —
+                 drives the F1 "find lemma" search field. Trimmed; an
+                 empty/whitespace-only value is ignored.
+      pos_in     comma-separated POS whitelist; default content words
+                 only (NOUN/VERB/ADJ/PROPN/ADV). Pass ``all`` to
+                 disable the filter and surface function words too.
+      sort       freq | alpha | pos  (default: freq)
+      limit      default 200, max 1000
+      offset     default 0
+      min_count  drop lemmas with fewer than this many occurrences in
+                 scope (default 2 — strips spaCy noise + hapax that
+                 would otherwise dominate the long tail). Drives the
+                 lower edge of the F1 frequency-range slider.
+      max_count  drop lemmas with more than this many occurrences in
+                 scope (default: no upper bound). Drives the upper
+                 edge of the F1 frequency-range slider.
+
+    Response:
+      {
+        scope: "corpus" | "author" | "work",
+        scope_label: "All German" | "Hegel" | "PhdG",
+        total_lemmas: int,
+        total_occurrences: int,
+        sort: "freq" | "alpha" | "pos",
+        letter: "A" | None,
+        rows: [
+          {
+            rank: 1,
+            lemma: "Geist",
+            pos: "NOUN",
+            count: 1247,
+            distinct_works: 4,
+            per_work: [ { work: "PhdG", n: 312 }, ... ],   # top 8
+          },
+          ...
+        ],
+      }
+    """
+
+    lang = query.get("lang")
+    if not lang:
+        raise BadRequestError("'lang' query param is required")
+    scope = query.get("scope", "corpus")
+    author = query.get("author")
+    work = query.get("work")
+    letter = (query.get("letter") or "").strip()[:1]
+    sort = query.get("sort", "freq")
+    if sort not in ("freq", "alpha", "pos"):
+        raise BadRequestError("'sort' must be one of: freq, alpha, pos")
+
+    pos_in_raw = query.get("pos_in")
+    pos_in: tuple[str, ...] | None
+    if pos_in_raw is None:
+        pos_in = _DEFAULT_CONTENT_POS
+    elif pos_in_raw.strip().lower() == "all":
+        pos_in = None  # disable filter
+    else:
+        pos_in = tuple(p.strip().upper() for p in pos_in_raw.split(",") if p.strip())
+
+    # Case-variant merging — spaCy preserves typographic flourishes
+    # ("GOtt", "HErr", "HERRN") as distinct lemmas; the concordance
+    # leaderboard wants these collapsed under their canonical
+    # capitalization. Default ON; pass merge_case=0 to disable.
+    merge_case = query.get("merge_case", "1").strip().lower() not in (
+        "0", "false", "no", "off",
+    )
+
+    try:
+        limit = int(query.get("limit", str(_DEFAULT_INDEX_LIMIT)))
+        offset = int(query.get("offset", "0"))
+        min_count = int(query.get("min_count", "2"))
+        max_count_raw = query.get("max_count")
+        max_count: int | None = (
+            int(max_count_raw) if max_count_raw not in (None, "") else None
+        )
+    except ValueError as e:
+        raise BadRequestError(f"integer query param parse error: {e}") from None
+    limit = max(1, min(_MAX_INDEX_LIMIT, limit))
+    offset = max(0, offset)
+    min_count = max(1, min_count)
+    if max_count is not None and max_count < min_count:
+        # Caller passed an inverted range — return zero rows rather than
+        # silently swapping or erroring. The UI's slider can land here
+        # transiently while the user drags the upper knob below the lower.
+        max_count = min_count - 1
+
+    q = (query.get("q") or "").strip()
+
+    _scope_sql, _scope_params = _scope_clause(scope, author, work)
+
+    if letter:
+        # SQLite LIKE with NOCASE on the first character. We avoid a
+        # leading-letter index because the chunk_lemmas table is small
+        # enough that the GROUP BY scan dominates.
+        [letter.replace("\\", "\\\\") + "%"]
+
+    if pos_in is not None:
+        placeholders = ",".join("?" * len(pos_in))
+        list(pos_in)
+
+    if q:
+        # Case-insensitive substring match. LOWER on both sides plays
+        # nice with SQLite's collation-free LIKE; we escape the user's
+        # wildcard chars so a literal "%" in the search string doesn't
+        # blow open the filter.
+        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+
+    # Defensive lemma-validity guard. The canonical filter lives in
+    # ``minerva.lemmatize.is_valid_lemma`` and runs at ingest time so
+    # junk lemmas (PDF line-break artifacts like ``-begriff``,
+    # punctuation-only tokens like ``--`` / ``$``, numeric tokens like
+    # ``+20``) never enter the cache. This SQL guard is belt-and-
+    # braces — if a partial re-lemmatize ever introduces junk via a
+    # path that bypasses the Python filter, the concordance UI
+    # doesn't surface it. Cheap: substr(...,1,1) is constant-time and
+    # the IN/BETWEEN checks evaluate against literal byte ranges.
+
+    conn.row_factory = sqlite3.Row
+
+    # ── Materialized read path ────────────────────────────────────
+    # The ``lemma_counts`` table (migration 0019, populated by
+    # ``minerva.concordance.aggregate.build``) carries one row per
+    # (lang, scope_kind, scope_value, lemma, pos) with the count,
+    # distinct_works, and top-8 per-work breakdown pre-computed.
+    # This swaps a 16-36s GROUP BY scan over chunk_lemmas for a
+    # millisecond seek by index.
+    #
+    # Filters (letter / pos / q / freq range) apply against the
+    # materialized columns. case-merge happens in Python on the
+    # narrowed result so the per-work JSON values from merged
+    # variants combine correctly.
+    if scope == "corpus":
+        scope_kind, scope_value = "corpus", None
+    elif scope == "author":
+        scope_kind, scope_value = "author", author
+    else:
+        scope_kind, scope_value = "work", work
+
+    # Build the WHERE clause against lemma_counts. ``lemma`` and
+    # ``pos`` columns map 1:1 from chunk_lemmas → lemma_counts; the
+    # query-time guards (letter, pos_in, q, freq range, valid lemma)
+    # apply identically.
+    where_parts: list[str] = [
+        "lang = ?",
+        "scope_kind = ?",
+        # scope_value uses IS to match NULL for corpus rows.
+        "scope_value IS ?",
+    ]
+    where_params: list[Any] = [lang, scope_kind, scope_value]
+
+    if letter:
+        where_parts.append("lemma LIKE ? ESCAPE '\\'")
+        where_params.append(letter.replace("\\", "\\\\") + "%")
+    if pos_in is not None:
+        placeholders = ",".join("?" * len(pos_in))
+        where_parts.append(f"pos IN ({placeholders})")
+        where_params.extend(pos_in)
+    if q:
+        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
+        where_params.append(f"%{escaped}%")
+    if max_count is not None:
+        where_parts.append("count <= ?")
+        where_params.append(max_count)
+    where_parts.append("count >= ?")
+    where_params.append(min_count)
+    # Lemma-validity guard: matches the same first-char rule we apply
+    # at lemmatize time / KWIC. Defense-in-depth — if a partial
+    # rebuild ever leaves junk in lemma_counts, the read path skips it.
+    where_parts.append(
+        "substr(lemma, 1, 1) NOT IN ('-', '+', '''', '\"', '(', '[', '$', '*', '^', '.', ',')"
+    )
+    where_parts.append(
+        "substr(lemma, 1, 1) NOT BETWEEN '0' AND '9'"
+    )
+
+    order_clause = {
+        "freq": "count DESC, lemma COLLATE NOCASE ASC",
+        "alpha": "lemma COLLATE NOCASE ASC",
+        "pos": "pos COLLATE NOCASE ASC, count DESC",
+    }[sort]
+
+    # Pull headroom for case-merge — variants live in separate rows
+    # and a merged page might need 10× as many to fill ``limit``.
+    fetch_limit = max(limit * 10, 2000) if merge_case else limit
+    fetch_offset = 0 if merge_case else offset
+
+    sql_main = f"""
+        SELECT lemma, pos, count AS n, distinct_works, per_work_json
+        FROM lemma_counts
+        WHERE {' AND '.join(where_parts)}
+        ORDER BY {order_clause}
+        LIMIT ? OFFSET ?
+    """
+    raw_rows = conn.execute(
+        sql_main, [*where_params, fetch_limit, fetch_offset]
+    ).fetchall()
+
+    # ── Case-merge ────────────────────────────────────────────────
+    # Group orthographic variants (Gott / GOtt / GOTT) by casefolded
+    # lemma and POS. Counts sum, distinct_works merge through the
+    # per_work JSON (a work present in two variants counts once),
+    # per_work entries combine and re-truncate to top-8.
+    variants_by_display: dict[tuple[str, str], list[str]] = {}
+    if merge_case:
+        groups: dict[tuple[str, str], dict[str, Any]] = {}
+        for r in raw_rows:
+            lemma = r["lemma"] or ""
+            pos = r["pos"] or ""
+            key = (lemma.casefold(), pos)
+            g = groups.setdefault(key, {
+                "pos": pos,
+                "variants": [],
+                "n_total": 0,
+                "work_counts": {},
+            })
+            g["variants"].append((lemma, int(r["n"])))
+            g["n_total"] += int(r["n"])
+            per_work = json.loads(r["per_work_json"] or "[]")
+            for entry in per_work:
+                w = entry.get("work")
+                if w:
+                    g["work_counts"][w] = (
+                        g["work_counts"].get(w, 0) + int(entry.get("n", 0))
+                    )
+        merged: list[dict[str, Any]] = []
+        for g in groups.values():
+            g["variants"].sort(key=lambda v: -v[1])
+            display = _canonical_display(
+                lang, g["pos"], [v[0] for v in g["variants"]],
+            )
+            top_per_work = sorted(
+                g["work_counts"].items(), key=lambda kv: -kv[1]
+            )[:8]
+            merged.append({
+                "lemma": display,
+                "pos": g["pos"],
+                "n": g["n_total"],
+                "distinct_works": len(g["work_counts"]),
+                "per_work": [{"work": w, "n": n} for w, n in top_per_work],
+            })
+            variants_by_display[(display, g["pos"])] = [
+                v[0] for v in g["variants"]
+            ]
+        # Re-apply the freq range after merging — variants individually
+        # under max_count can exceed it when summed.
+        if max_count is not None:
+            merged = [m for m in merged if m["n"] <= max_count]
+        merged = [m for m in merged if m["n"] >= min_count]
+        if sort == "freq":
+            merged.sort(key=lambda x: (-x["n"], x["lemma"].casefold()))
+        elif sort == "alpha":
+            merged.sort(key=lambda x: x["lemma"].casefold())
+        else:
+            merged.sort(key=lambda x: (x["pos"].casefold(), -x["n"]))
+        rows = merged[offset:offset + limit]
+    else:
+        rows = [
+            {
+                "lemma": r["lemma"],
+                "pos": r["pos"] or "",
+                "n": int(r["n"]),
+                "distinct_works": int(r["distinct_works"]),
+                "per_work": json.loads(r["per_work_json"] or "[]"),
+            }
+            for r in raw_rows[:limit]
+        ]
+        for r in rows:
+            variants_by_display[(r["lemma"], r["pos"])] = [r["lemma"]]
+
+    # ── Totals ────────────────────────────────────────────────────
+    # Sum the same scope+filter slice for header counts. Frequency
+    # range is deliberately NOT applied here (the range shapes which
+    # lemmas show up; the header is meant to be a scope-wide
+    # reference). The lemma-search ``q`` IS applied so a search for
+    # "geist" doesn't show "1.9M occurrences" next to 4 rows.
+    totals_where_parts = [
+        "lang = ?",
+        "scope_kind = ?",
+        "scope_value IS ?",
+    ]
+    totals_where_params: list[Any] = [lang, scope_kind, scope_value]
+    if letter:
+        totals_where_parts.append("lemma LIKE ? ESCAPE '\\'")
+        totals_where_params.append(letter.replace("\\", "\\\\") + "%")
+    if pos_in is not None:
+        placeholders = ",".join("?" * len(pos_in))
+        totals_where_parts.append(f"pos IN ({placeholders})")
+        totals_where_params.extend(pos_in)
+    if q:
+        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        totals_where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
+        totals_where_params.append(f"%{escaped}%")
+    totals_where_parts.append(
+        "substr(lemma, 1, 1) NOT IN ('-', '+', '''', '\"', '(', '[', '$', '*', '^', '.', ',')"
+    )
+    totals_where_parts.append(
+        "substr(lemma, 1, 1) NOT BETWEEN '0' AND '9'"
+    )
+    # COUNT(DISTINCT lemma) — not COUNT(*) — because a single lemma
+    # can carry multiple POS tags (the lemmatizer occasionally splits
+    # the same word into NOUN + VERB rows). The header reads as
+    # "distinct lemmas", which is what users expect.
+    sql_totals = f"""
+        SELECT COUNT(DISTINCT lemma) AS total_lemmas,
+               COALESCE(SUM(count), 0) AS total_tokens
+        FROM lemma_counts
+        WHERE {' AND '.join(totals_where_parts)}
+    """
+    totals = conn.execute(sql_totals, totals_where_params).fetchone()
+
+    out_rows = []
+    for i, r in enumerate(rows):
+        key = (r["lemma"], r["pos"])
+        out_rows.append({
+            "rank": offset + i + 1,
+            "lemma": r["lemma"],
+            "pos": r["pos"] or "",
+            "count": int(r["n"]),
+            "distinct_works": int(r["distinct_works"]),
+            "per_work": r.get("per_work", []),
+            # Include variant list for transparency — the UI can show
+            # "(also GOtt, GOTT)" if curious. Not currently rendered.
+            "variants": variants_by_display.get(key, [r["lemma"]]),
+        })
+
+    scope_label = {
+        "corpus": _corpus_label(lang),
+        "author": author or "",
+        "work": work or "",
+    }[scope]
+
+    return {
+        "scope": scope,
+        "scope_label": scope_label,
+        "lang": lang,
+        "letter": letter or None,
+        "sort": sort,
+        "total_lemmas": int(totals["total_lemmas"]) if totals else 0,
+        "total_occurrences": int(totals["total_tokens"]) if totals else 0,
+        "limit": limit,
+        "offset": offset,
+        "rows": out_rows,
+    }
+
+
+def _canonical_display(
+    lang: str, pos: str, variants_by_freq: list[str],
+) -> str:
+    """Pick the display capitalization for a merged variant cluster.
+
+    For German NOUN/PROPN tokens we deliberately *override* the
+    most-frequent capitalization with the orthographically canonical
+    form (first letter uppercase, remainder lowercase). The Luther
+    Bibel uses ``HErr`` / ``GOtt`` / ``HERRN`` as typographic
+    flourishes for divine names; they dominate the surface-form
+    counts but they're not what a modern reader expects on a
+    lemma leaderboard.
+
+    For verbs/adjectives/adverbs in German (and for all other
+    languages today) the most-frequent variant wins — that keeps
+    Greek minuscule lemmas, Latin accidence, etc. unsurprised.
+    """
+
+    if not variants_by_freq:
+        return ""
+    if lang == "deu" and pos in ("NOUN", "PROPN"):
+        # German nouns are always Initial-Cap'd; Python's
+        # str.capitalize() does exactly that (first cp upper, rest
+        # lower) and handles Umlauts + ß correctly.
+        return variants_by_freq[0].capitalize()
+    # Default: most-frequent surface wins.
+    return variants_by_freq[0]
+
+
+def _corpus_label(lang: str) -> str:
+    """Human-readable corpus label for the header. Mirrors common
+    German philosophical convention (``DEU`` for the language code in
+    monospace UI, ``German`` in prose). We keep the prose form."""
+
+    return {
+        "deu": "All German",
+        "lat": "All Latin",
+        "grc": "All Greek",
+        "eng": "All English",
+        "fra": "All French",
+        "heb": "All Hebrew",
+        "ara": "All Arabic",
+    }.get(lang, f"All {lang.upper()}")
+
