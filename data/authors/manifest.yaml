@@ -1,0 +1,781 @@
+atlas_order:
+- Hebrew Bible
+- Homer
+- Theognis
+- Aesop
+- Thales
+- Anaximander
+- Heraclitus
+- Parmenides
+- Plato
+- Aristotle
+- Septuagint
+- Lucretius
+- Cicero
+- New Testament
+- Epictetus
+- Marcus Aurelius
+- Origen
+- Vulgate
+- Augustine
+- Quran
+- Aquinas
+- Luther Bibel 1545
+- Luther Bibel 1912
+- King James Bible
+- Sacy
+- Descartes
+- Hobbes
+- Pascal
+- Spinoza
+- Locke
+- Hume
+- Boulainvilliers
+- Rousseau
+- Kant
+- Hegel
+- Gobineau
+- Renan
+- Marx
+- Nietzsche
+corpora:
+- id: plato
+  original_lang: grc
+  citation_system: stephanus
+  dominant_code: P
+  keywords:
+  - plato
+  - platonic
+  comment: 'Keywords are whole-word tokens matched by ``agent.detect_corpus``.
+
+    Deliberately omitted: "bible", "scripture", "testament" (ambiguous
+
+    across biblical corpora), bare "hebrew" (ambiguous), "meditations"
+
+    only routes to Marcus Aurelius when unqualified.
+
+    BEGIN CORPORA'
+- id: aristotle
+  original_lang: grc
+  citation_system: bekker
+  dominant_code: A
+  keywords:
+  - aristotle
+  - aristotelian
+- id: hegel
+  original_lang: deu
+  citation_system: paragraph
+  dominant_code: H
+  keywords:
+  - hegel
+  - hegelian
+- id: kant
+  original_lang: deu
+  citation_system: paragraph
+  dominant_code: K
+  keywords:
+  - kant
+  - kantian
+- id: homer
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: O
+  keywords:
+  - homer
+  - homeric
+- id: aeschylus
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: a
+  keywords:
+  - aeschylus
+  - aeschylean
+- id: sophocles
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: s
+  keywords:
+  - sophocles
+  - sophoclean
+  comment: 'Lowercase initials for the tragedians — uppercase A/S/E are
+
+    already taken by Aristotle / Spinoza / Lucretius. The dominant
+
+    glyph still reads as the author''s initial; lowercase signals
+
+    "verse drama" without colliding with the prose canon.'
+- id: euripides
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: e
+  keywords:
+  - euripides
+  - euripidean
+- id: descartes
+  original_lang: lat
+  citation_system: paragraph
+  dominant_code: D
+  keywords:
+  - descartes
+  - cartesian
+- id: spinoza
+  original_lang: lat
+  citation_system: paragraph
+  dominant_code: S
+  keywords:
+  - spinoza
+  - spinozist
+  - spinozistic
+- id: hobbes
+  original_lang: lat
+  citation_system: paragraph
+  dominant_code: B
+  keywords:
+  - hobbes
+  - hobbesian
+- id: pascal
+  original_lang: fra
+  citation_system: paragraph
+  dominant_code: F
+  keywords:
+  - pascal
+  - pascalian
+- id: hume
+  original_lang: eng
+  citation_system: paragraph
+  dominant_code: I
+  keywords:
+  - hume
+  - humean
+- id: locke
+  original_lang: eng
+  citation_system: paragraph
+  dominant_code: L
+  keywords:
+  - locke
+  - lockean
+- id: rousseau
+  original_lang: fra
+  citation_system: paragraph
+  dominant_code: R
+  keywords:
+  - rousseau
+  - rousseauist
+- id: augustine
+  original_lang: lat
+  citation_system: augustine
+  dominant_code: U
+  keywords:
+  - augustine
+  - augustinian
+- id: aquinas
+  original_lang: lat
+  citation_system: aquinas
+  dominant_code: T
+  keywords:
+  - aquinas
+  - thomist
+  - thomistic
+- id: marx
+  original_lang: deu
+  citation_system: paragraph
+  dominant_code: M
+  keywords:
+  - marx
+  - marxist
+  - marxian
+- id: nietzsche
+  original_lang: deu
+  citation_system: paragraph
+  dominant_code: N
+  keywords:
+  - nietzsche
+  - nietzschean
+- id: cicero
+  original_lang: lat
+  citation_system: paragraph
+  dominant_code: I
+  keywords:
+  - cicero
+  - ciceronian
+- id: lucretius
+  original_lang: lat
+  citation_system: paragraph
+  dominant_code: E
+  keywords:
+  - lucretius
+  - lucretian
+- id: epictetus
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: X
+  keywords:
+  - epictetus
+- id: marcus_aurelius
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: Y
+  keywords:
+  - marcus
+  - aurelius
+  - meditations
+- id: septuagint
+  original_lang: grc
+  citation_system: bcv
+  dominant_code: G
+  keywords:
+  - septuagint
+  - lxx
+- id: new_testament
+  original_lang: grc
+  citation_system: bcv
+  dominant_code: W
+  keywords:
+  - gospel
+  - gospels
+  - evangelist
+  - pauline
+- id: vulgate
+  original_lang: lat
+  citation_system: bcv
+  dominant_code: V
+  keywords:
+  - vulgate
+- id: luther_1912
+  original_lang: deu
+  citation_system: bcv
+  dominant_code: b
+  keywords:
+  - lutherbibel
+  - lutherbible
+- id: luther_1545
+  original_lang: deu
+  citation_system: bcv
+  dominant_code: c
+  keywords:
+  - luther1545
+  - lutherletztehand
+  - fruhneuhochdeutsch
+- id: kjv
+  original_lang: eng
+  citation_system: bcv
+  dominant_code: g
+  keywords:
+  - kjv
+  - authorized
+  - authorised
+  - kingjames
+- id: sacy
+  original_lang: fra
+  citation_system: bcv
+  dominant_code: h
+  keywords:
+  - sacy
+  - portroyal
+  - lemaistre
+- id: presocratic
+  original_lang: grc
+  citation_system: diels_kranz
+  dominant_code: Z
+  keywords:
+  - presocratic
+  - presocratics
+  - vorsokratiker
+  - diels
+  - heraclitus
+  - heraclitean
+  - parmenides
+  - eleatic
+  - empedocles
+  - empedoclean
+  - anaxagoras
+  - anaximander
+  - anaximenes
+  - xenophanes
+  - zeno
+  - melissus
+  - thales
+  - pythagoras
+  - pythagorean
+- id: hebrew_mt
+  original_lang: heb
+  citation_system: bcv
+  dominant_code: J
+  keywords:
+  - tanakh
+  - torah
+  - masoretic
+- id: quran
+  original_lang: ara
+  citation_system: surah_ayah
+  dominant_code: Q
+  keywords:
+  - quran
+  - koran
+  - surah
+  - surahs
+  - quranic
+  - koranic
+- id: theognis
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: T
+  keywords:
+  - theognis
+  - theognidea
+  - theognidean
+  comment: 'Theognis of Megara — aristocratic elegist; subject of
+
+    Nietzsche''s 1867 dissertation. dominant_code "T" is unused.'
+- id: aesop
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: Æ
+  keywords:
+  - aesop
+  - aesopic
+  - aesopian
+  - babrius
+  - phaedrus
+  - fable
+  - fables
+  comment: 'Aesop — pre-philosophical fabulist; source of the "Hic Rhodus,
+
+    hic salta" / "Hier ist die Rose" Hegel/Marx reference. The
+
+    ingest covers Babrius (grc) and Phaedrus (lat) verse traditions;
+
+    original_lang="grc" reflects the Aesopic tradition''s origin
+
+    while Phaedrus chunks remain lang-tagged "lat" at the chunk
+
+    level. dominant_code "Æ" matches the typographic convention.'
+- id: origen
+  original_lang: grc
+  citation_system: paragraph
+  dominant_code: Ω
+  keywords:
+  - origen
+  - origenes
+  - origenist
+  - origenistic
+  - contra celsum
+  comment: 'Origen — *Contra Celsum* host-text for Celsus''s lost *Alēthēs
+
+    Logos*. Celsus himself stays as an out-of-corpus reference
+
+    target (no CorpusEntry; just a reference_targets row created
+
+    via the origen_celsus rule in refs/rules/origen.py).'
+- id: boulainvilliers
+  original_lang: fra
+  citation_system: paragraph
+  dominant_code: B
+  keywords:
+  - boulainvilliers
+  - boulainviller
+  - boulainvillier
+  - henri boulainvilliers
+  comment: 'source for Nietzsche''s Frankish-conquest / blond-beast material
+
+    (Genealogie I.5/I.11). Core ingest covers the *Histoire de
+
+    l''ancien gouvernement de la France*, *Essai sur la noblesse*,
+
+    *Lettres sur les anciens parlemens* (Fr + the rare 1739 English
+
+    Dryden translation). Boulainvilliers is in-corpus; Tacitus /
+
+    Caesar / Gregory-of-Tours (his historical sources) resolve
+
+    via out-of-corpus reference_targets rows for now.'
+- id: gobineau
+  original_lang: fra
+  citation_system: paragraph
+  dominant_code: G
+  keywords:
+  - gobineau
+  - comte de gobineau
+  - essai sur l'inégalité
+  comment: 'Arthur de Gobineau (1816-1882) — *Essai sur l''inégalité des
+
+    races humaines* (1853-55). The racial-determinism reformulation
+
+    of Boulainvilliers''s Frankish thesis that Nietzsche absorbs.'
+- id: renan
+  original_lang: fra
+  citation_system: paragraph
+  dominant_code: R
+  keywords:
+  - renan
+  - ernest renan
+  - vie de jésus
+  - l'antéchrist
+  - antéchrist
+  - histoire du peuple d'israël
+  comment: 'Ernest Renan (1823-1892) — *Vie de Jésus* (1863), *L''Antéchrist*
+
+    (1877), *Histoire du peuple d''Israël* (1887-93, 5 vols). Direct
+
+    target of Nietzsche''s *Der Antichrist*; the priestly-class
+
+    material in the Histoire is the source for GM I.7-8 slave-
+
+    morality genealogy.'
+authors:
+- display_name: Hebrew Bible
+  corpus_id: hebrew_mt
+  ordinal: 50
+  ordinal_comment: Vulgate) stay clustered at their own dates below.
+  year: -1000
+  tradition: scripture
+  row: 0
+  x_shift: 28
+  work_hint: Tanakh — Torah, Nevi'im, Ketuvim
+- display_name: Homer
+  corpus_id: homer
+  ordinal: 100
+  year: -800
+  tradition: classical
+  row: 0
+  x_shift: 0
+  work_hint: Iliad, Odyssey
+- display_name: Theognis
+  corpus_id: theognis
+  ordinal: 150
+  ordinal_comment: philosophers in the formal sense.
+  year: -540
+  tradition: classical
+  row: 1
+  x_shift: 0
+  work_hint: Theognidea
+- display_name: Aesop
+  corpus_id: aesop
+  ordinal: 170
+  year: -580
+  tradition: classical
+  row: 2
+  x_shift: 0
+  work_hint: Fables (Babrius, Phaedrus)
+- display_name: Thales
+  corpus_id: presocratic
+  ordinal: 200
+  year: -600
+  tradition: classical
+  row: 0
+  x_shift: 0
+  work_hint: fragments — De principiis
+- display_name: Anaximander
+  corpus_id: presocratic
+  ordinal: 210
+  year: -580
+  tradition: classical
+  row: 1
+  x_shift: 0
+  work_hint: On Nature (fragments)
+- display_name: Anaximenes
+  corpus_id: presocratic
+  ordinal: 220
+- display_name: Pythagoras
+  corpus_id: presocratic
+  ordinal: 230
+- display_name: Xenophanes
+  corpus_id: presocratic
+  ordinal: 240
+- display_name: Heraclitus
+  corpus_id: presocratic
+  ordinal: 250
+  year: -500
+  tradition: classical
+  row: 0
+  x_shift: 0
+  work_hint: On Nature (fragments)
+- display_name: Parmenides
+  corpus_id: presocratic
+  ordinal: 260
+  year: -490
+  tradition: classical
+  row: 1
+  x_shift: 0
+  work_hint: On Nature (the Way of Truth)
+- display_name: Zeno of Elea
+  corpus_id: presocratic
+  ordinal: 270
+- display_name: Empedocles
+  corpus_id: presocratic
+  ordinal: 280
+- display_name: Anaxagoras
+  corpus_id: presocratic
+  ordinal: 290
+- display_name: Melissus
+  corpus_id: presocratic
+  ordinal: 300
+- display_name: Diogenes of Apollonia
+  corpus_id: presocratic
+  ordinal: 310
+- display_name: Aeschylus
+  corpus_id: aeschylus
+  ordinal: 340
+  ordinal_comment: in scholarship is Sophocles → Euripides by reputation).
+- display_name: Sophocles
+  corpus_id: sophocles
+  ordinal: 350
+- display_name: Euripides
+  corpus_id: euripides
+  ordinal: 360
+- display_name: Plato
+  corpus_id: plato
+  ordinal: 400
+  year: -380
+  tradition: classical
+  row: 0
+  x_shift: 0
+  work_hint: Republic, Symposium, Phaedo
+- display_name: Aristotle
+  corpus_id: aristotle
+  ordinal: 410
+  year: -340
+  tradition: classical
+  row: 1
+  x_shift: 0
+  work_hint: Nicomachean Ethics, Metaphysics
+- display_name: Lucretius
+  corpus_id: lucretius
+  ordinal: 420
+  year: -55
+  tradition: classical
+  row: 0
+  x_shift: 0
+  work_hint: De Rerum Natura
+- display_name: Cicero
+  corpus_id: cicero
+  ordinal: 430
+  year: -50
+  tradition: classical
+  row: 1
+  x_shift: 0
+  work_hint: De Officiis, De Re Publica
+- display_name: Epictetus
+  corpus_id: epictetus
+  ordinal: 460
+  year: 90
+  tradition: classical
+  row: 1
+  x_shift: 0
+  work_hint: Discourses, Enchiridion
+- display_name: Marcus Aurelius
+  corpus_id: marcus_aurelius
+  ordinal: 470
+  year: 170
+  tradition: classical
+  row: 0
+  x_shift: 0
+  work_hint: Meditations
+- display_name: Septuagint
+  corpus_id: septuagint
+  ordinal: 500
+  ordinal_comment: succeed is at ordinal 50.
+  year: -250
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: Greek Old Testament
+- display_name: New Testament
+  corpus_id: new_testament
+  ordinal: 510
+  year: 50
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: Gospels, Pauline epistles
+- display_name: Vulgate
+  corpus_id: vulgate
+  ordinal: 520
+  year: 400
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: Latin Bible — Jerome
+- display_name: Origen
+  corpus_id: origen
+  ordinal: 580
+  ordinal_comment: quotations.
+  year: 230
+  tradition: medieval
+  row: 0
+  x_shift: 0
+  work_hint: Contra Celsum
+- display_name: Augustine
+  corpus_id: augustine
+  ordinal: 600
+  year: 430
+  tradition: medieval
+  row: 1
+  x_shift: 0
+  work_hint: De civitate Dei, Confessiones
+- display_name: Quran
+  corpus_id: quran
+  ordinal: 650
+  ordinal_comment: will land between Quran and Aquinas at ordinals 660–680.
+  year: 650
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: al-Qur'ān
+- display_name: Aquinas
+  corpus_id: aquinas
+  ordinal: 700
+  year: 1265
+  tradition: medieval
+  row: 0
+  x_shift: 0
+  work_hint: Summa Theologiae
+- display_name: Luther Bibel 1545
+  corpus_id: luther_1545
+  ordinal: 720
+  ordinal_comment: philosophers cite.
+  year: 1545
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: Lutherbibel — Letzte Hand
+- display_name: Luther Bibel 1912
+  corpus_id: luther_1912
+  ordinal: 730
+  year: 1912
+  tradition: scripture
+  row: 1
+  x_shift: 0
+  work_hint: Lutherbibel — revidiert
+- display_name: King James Bible
+  corpus_id: kjv
+  ordinal: 740
+  year: 1611
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: Authorized Version
+- display_name: Sacy
+  corpus_id: sacy
+  ordinal: 750
+  year: 1696
+  tradition: scripture
+  row: 0
+  x_shift: 0
+  work_hint: Bible de Port-Royal (Lemaistre de Sacy)
+- display_name: Descartes
+  corpus_id: descartes
+  ordinal: 800
+  year: 1640
+  tradition: earlymodern
+  row: 0
+  x_shift: 0
+  work_hint: Meditationes, Discours de la méthode
+- display_name: Hobbes
+  corpus_id: hobbes
+  ordinal: 810
+  year: 1651
+  tradition: earlymodern
+  row: 1
+  x_shift: 0
+  work_hint: Leviathan
+- display_name: Pascal
+  corpus_id: pascal
+  ordinal: 820
+  year: 1660
+  tradition: earlymodern
+  row: 2
+  x_shift: 0
+  work_hint: Pensées
+- display_name: Spinoza
+  corpus_id: spinoza
+  ordinal: 830
+  year: 1670
+  tradition: earlymodern
+  row: 3
+  x_shift: 0
+  work_hint: Ethica, Tractatus
+- display_name: Locke
+  corpus_id: locke
+  ordinal: 840
+  year: 1690
+  tradition: earlymodern
+  row: 4
+  x_shift: 0
+  work_hint: Essay Concerning Human Understanding
+- display_name: Boulainvilliers
+  corpus_id: boulainvilliers
+  ordinal: 845
+  ordinal_comment: Locke (1632-1704) and Hume (1711-1776) by birth year.
+  year: 1710
+  tradition: earlymodern
+  row: 5
+  x_shift: 0
+  work_hint: Histoire de l'ancien gouvernement de la France
+- display_name: Hume
+  corpus_id: hume
+  ordinal: 850
+  year: 1740
+  tradition: earlymodern
+  row: 0
+  x_shift: 0
+  work_hint: Treatise of Human Nature
+- display_name: Rousseau
+  corpus_id: rousseau
+  ordinal: 860
+  year: 1760
+  tradition: earlymodern
+  row: 1
+  x_shift: 0
+  work_hint: Du contrat social, Émile
+- display_name: Kant
+  corpus_id: kant
+  ordinal: 900
+  year: 1781
+  tradition: modern
+  row: 2
+  x_shift: 0
+  work_hint: Kritik der reinen Vernunft
+- display_name: Hegel
+  corpus_id: hegel
+  ordinal: 910
+  year: 1820
+  tradition: modern
+  row: 0
+  x_shift: 0
+  work_hint: Phänomenologie des Geistes
+- display_name: Gobineau
+  corpus_id: gobineau
+  ordinal: 915
+  ordinal_comment: by publication year of the Essai.
+  year: 1855
+  tradition: modern
+  row: 3
+  x_shift: 0
+  work_hint: Essai sur l'inégalité des races humaines
+- display_name: Renan
+  corpus_id: renan
+  ordinal: 920
+  ordinal_comment: the slave-morality genealogy in GM I.7-8.
+  year: 1863
+  tradition: modern
+  row: 4
+  x_shift: 0
+  work_hint: Vie de Jésus, L'Antéchrist, Histoire du peuple d'Israël
+- display_name: Marx
+  corpus_id: marx
+  ordinal: 925
+  ordinal_comment: the ≥5-unit gap policy after inserting Gobineau + Renan.
+  year: 1850
+  tradition: modern
+  row: 1
+  x_shift: 0
+  work_hint: Kapital, Manuskripte 1844
+- display_name: Nietzsche
+  corpus_id: nietzsche
+  ordinal: 935
+  year: 1880
+  tradition: modern
+  row: 2
+  x_shift: 0
+  work_hint: Also sprach Zarathustra, Genealogie

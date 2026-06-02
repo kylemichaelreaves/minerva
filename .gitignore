@@ -13,6 +13,11 @@ perseus/raw_*/
 data/*
 !data/glossary/
 !data/glossary/**
+# The author manifest is hand-maintained source-of-truth config (the
+# generator derives corpus_registry.py / author_ordering.py / atlasData.ts
+# from it, and the codegen-sync tests check against it) — keep it tracked.
+!data/authors/
+!data/authors/manifest.yaml
 
 # ── Secrets ────────────────────────────────────────────────────────
 # .envrc holds API keys; .envrc.example is the committed template
