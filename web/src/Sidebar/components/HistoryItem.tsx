@@ -14,6 +14,7 @@ export function SidebarHistoryItem(props: {
       active={props.active}
       glyph={PHIL_DOMINANT_GLYPH[props.h.dominant] ?? "Π"}
       title={props.h.title}
+      titleAttr={props.h.title}
       meta={props.h.meta}
       onPick={() => {
         props.onPick(props.h.id);

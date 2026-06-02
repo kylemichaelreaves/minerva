@@ -270,8 +270,11 @@
 
 .history-item {
   text-align: left;
-  /* Right padding leaves room for the trash button. */
-  padding: 7px 32px 7px 8px;
+  /* Small right padding only — the trash button is absolutely
+     positioned and hidden until hover, so the title can use most of
+     the row width. When the button fades in it gets a background
+     (below) to mask the few px of title it overlaps. */
+  padding: 7px 14px 7px 8px;
   border-radius: 3px;
   font-family: var(--serif);
   font-size: 15.5px;
@@ -305,6 +308,13 @@
 }
 .history-title {
   flex: 1;
+  /* Keep titles to a single line — truncate with an ellipsis rather
+     than wrapping. `min-width: 0` lets the flex item shrink below its
+     content width so `text-overflow` can engage. */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* Language chip next to a work title in the Reader sidebar. */
@@ -355,6 +365,9 @@
 .history-item-wrap:hover .history-delete,
 .history-item-wrap:focus-within .history-delete {
   opacity: 1;
+  /* Match the row's hover background so the button masks the truncated
+     title text it sits over instead of letting it show through. */
+  background: var(--paper-edge);
 }
 .history-delete:hover {
   background: var(--paper);
