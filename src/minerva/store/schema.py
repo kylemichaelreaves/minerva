@@ -36,6 +36,12 @@ CREATE TABLE IF NOT EXISTS chunks (
     source_file     TEXT NOT NULL,
     text            TEXT NOT NULL,
     ord             INTEGER NOT NULL,
+    -- Orthographically canonicalized copy of `text` (see
+    -- minerva.orthography.canonicalize) feeding the `chunks_fts_norm`
+    -- recall index. Computed in Python at insert time; the triggers
+    -- below only mirror it into the FTS shadow. Migration 0021 adds
+    -- this column + index to pre-existing databases.
+    text_norm       TEXT,
     CHECK ((edition_id IS NULL) <> (translation_id IS NULL))
 );
 
@@ -46,17 +52,33 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     tokenize='unicode61 remove_diacritics 2'
 );
 
+-- Normalized recall index over the canonicalized text. Same external-
+-- content + trigger pattern as chunks_fts; matched with a canonicalized
+-- query and fused with the exact index in retrieve._bm25_search.
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts_norm USING fts5(
+    text_norm,
+    content='chunks',
+    content_rowid='rowid',
+    tokenize='unicode61 remove_diacritics 2'
+);
+
 CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
     INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
+    INSERT INTO chunks_fts_norm(rowid, text_norm) VALUES (new.rowid, new.text_norm);
 END;
 
 CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
     INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+    INSERT INTO chunks_fts_norm(chunks_fts_norm, rowid, text_norm)
+        VALUES('delete', old.rowid, old.text_norm);
 END;
 
 CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
     INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
     INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
+    INSERT INTO chunks_fts_norm(chunks_fts_norm, rowid, text_norm)
+        VALUES('delete', old.rowid, old.text_norm);
+    INSERT INTO chunks_fts_norm(rowid, text_norm) VALUES (new.rowid, new.text_norm);
 END;
 
 CREATE TABLE IF NOT EXISTS embeddings (

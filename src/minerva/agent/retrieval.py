@@ -205,10 +205,17 @@ def retrieve_passages(
     retrieval_query: str | None = None,
     pinned: list[retrieve.Hit] | None = None,
     speaker: str | None = None,
+    fold_lang: str | None = None,
+    work_id: int | None = None,
 ) -> RetrievalResult:
     """Run BM25 + vector retrieval and decide whether the result is
     strong enough to send to the LLM. No network calls; safe to run
-    under the corpus lock."""
+    under the corpus lock.
+
+    ``fold_lang`` enables orthographic spelling-variant expansion in the
+    BM25 query for that language (e.g. ``deu`` folds the historical
+    ``Mißrathenen`` to the modernized ``Mißratenen`` the index stores).
+    """
 
     hits = retrieve.search(
         conn,
@@ -218,6 +225,8 @@ def retrieve_passages(
         corpus=corpus,
         speaker=speaker,
         embedder=embedder,
+        fold_lang=fold_lang,
+        work_id=work_id,
     )
 
     pinned = pinned or []

@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from .. import orthography
 from ..ingest import load_jsonl
 from .embeddings import invalidate_embedding_cache
 from .schema import _set_meta
@@ -266,8 +267,8 @@ def insert_chunks(
         INSERT_SQL = (
             "INSERT OR REPLACE INTO chunks "
             "(chunk_id, edition_id, translation_id, lang, section, book, page, "
-            " speaker, source_file, text, ord) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " speaker, source_file, text, ord, text_norm) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         for obj in load_jsonl(jsonl_path):
             # Incremental mode: skip rows whose corpus is out of scope.
@@ -304,6 +305,7 @@ def insert_chunks(
                     obj["source_file"],
                     obj["text"],
                     ord_counter[key],
+                    orthography.canonicalize(obj["text"], obj["lang"]),
                 )
             )
             if len(batch) >= _INSERT_BATCH:

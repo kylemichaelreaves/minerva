@@ -13,7 +13,7 @@ import sqlite3
 
 import numpy as np
 
-from . import embed, store
+from . import embed, orthography, store
 
 FTS_QUERY_SAFE = re.compile(r"[^\w\s]+", re.UNICODE)
 
@@ -52,6 +52,15 @@ def _corpus_filter(corpus: str | None) -> tuple[str, tuple]:
     return " AND cf.corpus = ?", (corpus,)
 
 
+def _work_filter(work_id: int | None) -> tuple[str, tuple]:
+    # Hard-scope to a single work (e.g. "in the Genealogy"). `work_id`
+    # is the works.id surfaced by the chunks_full view; like the corpus
+    # filter it rides the `cf` join.
+    if work_id is None:
+        return "", ()
+    return " AND cf.work_id = ?", (work_id,)
+
+
 def _speaker_filter(speaker: str | None) -> tuple[str, tuple]:
     """Case-insensitive speaker filter; matches what `tei.py` records in
     `chunks.speaker` regardless of how the user types it.
@@ -60,6 +69,63 @@ def _speaker_filter(speaker: str | None) -> tuple[str, tuple]:
     if not speaker or speaker == "any":
         return "", ()
     return " AND chunks.speaker = ? COLLATE NOCASE", (speaker,)
+
+
+def _fts_match(
+    conn: sqlite3.Connection,
+    fts_table: str,
+    match_q: str,
+    *,
+    top_k: int,
+    lang: str | None,
+    corpus: str | None,
+    speaker: str | None,
+    work_id: int | None,
+    min_chunk_chars: int,
+) -> dict[str, float]:
+    """One BM25 match against ``fts_table`` (``chunks_fts`` exact or
+    ``chunks_fts_norm`` normalized). Returns ``chunk_id -> score`` where
+    score is ``-bm25`` (higher is better). ``fts_table`` is an internal
+    constant, never user input."""
+
+    if not match_q:
+        return {}
+    lang_sql, lang_params = _lang_filter(lang)
+    corpus_sql, corpus_params = _corpus_filter(corpus)
+    work_sql, work_params = _work_filter(work_id)
+    speaker_sql, speaker_params = _speaker_filter(speaker)
+    # Floor on chunk length filters out scraper boilerplate, navigation
+    # breadcrumbs, single-letter signatures, and section banners that
+    # otherwise dominate retrieval on author-named queries.
+    min_chars_sql = ""
+    min_chars_params: tuple = ()
+    if min_chunk_chars > 0:
+        min_chars_sql = " AND length(chunks.text) >= ?"
+        min_chars_params = (min_chunk_chars,)
+    # Join through `chunks_full` only when we need an author/work field.
+    needs_full = bool(corpus_sql or work_sql)
+    full_join = " JOIN chunks_full cf ON cf.chunk_id = chunks.chunk_id" if needs_full else ""
+    sql = (
+        f"SELECT chunks.chunk_id AS chunk_id, bm25({fts_table}) AS rank "
+        f"FROM {fts_table} "
+        f"JOIN chunks ON chunks.rowid = {fts_table}.rowid" + full_join + " "
+        f"WHERE {fts_table} MATCH ?"
+        + lang_sql + corpus_sql + work_sql + speaker_sql + min_chars_sql + " "
+        "ORDER BY rank ASC LIMIT ?"
+    )
+    rows = conn.execute(
+        sql,
+        (
+            match_q,
+            *lang_params,
+            *corpus_params,
+            *work_params,
+            *speaker_params,
+            *min_chars_params,
+            top_k,
+        ),
+    ).fetchall()
+    return {row[0]: -float(row[1]) for row in rows}
 
 
 def _bm25_search(
@@ -71,38 +137,35 @@ def _bm25_search(
     corpus: str | None,
     speaker: str | None,
     min_chunk_chars: int = 0,
+    fold_lang: str | None = None,
+    work_id: int | None = None,
 ) -> dict[str, float]:
-    fts_q = _sanitize_fts_query(query)
-    if not fts_q:
-        return {}
-    lang_sql, lang_params = _lang_filter(lang)
-    corpus_sql, corpus_params = _corpus_filter(corpus)
-    speaker_sql, speaker_params = _speaker_filter(speaker)
-    # Floor on chunk length filters out scraper boilerplate, navigation
-    # breadcrumbs, single-letter signatures, and section banners that
-    # otherwise dominate vector retrieval on author-named queries.
-    min_chars_sql = ""
-    min_chars_params: tuple = ()
-    if min_chunk_chars > 0:
-        min_chars_sql = " AND length(chunks.text) >= ?"
-        min_chars_params = (min_chunk_chars,)
-    # Join through `chunks_full` only when we need the author/corpus
-    # field — saves the planner from a useless JOIN on the common
-    # "no corpus filter" path.
-    full_join = " JOIN chunks_full cf ON cf.chunk_id = chunks.chunk_id" if corpus_sql else ""
-    sql = (
-        "SELECT chunks.chunk_id AS chunk_id, bm25(chunks_fts) AS rank "
-        "FROM chunks_fts "
-        "JOIN chunks ON chunks.rowid = chunks_fts.rowid" + full_join + " "
-        "WHERE chunks_fts MATCH ?"
-        + lang_sql + corpus_sql + speaker_sql + min_chars_sql + " "
-        "ORDER BY rank ASC LIMIT ?"
-    )
-    rows = conn.execute(
-        sql,
-        (fts_q, *lang_params, *corpus_params, *speaker_params, *min_chars_params, top_k),
-    ).fetchall()
-    return {row[0]: -float(row[1]) for row in rows}
+    """BM25 over the exact index, fused with the normalized index when a
+    canonicalizer exists for ``fold_lang``.
+
+    The exact index preserves precision on the verbatim spelling; the
+    normalized index (matched with a canonicalized query) recovers
+    historical/modern spelling variants — e.g. a *Mißrathenen* query
+    finding the modernized *Mißratenen* the text stores, symmetrically.
+    Scores are merged by taking the better (higher) per chunk.
+    """
+
+    common = {
+        "top_k": top_k, "lang": lang, "corpus": corpus, "speaker": speaker,
+        "work_id": work_id, "min_chunk_chars": min_chunk_chars,
+    }
+    exact = _fts_match(conn, "chunks_fts", _sanitize_fts_query(query), **common)
+    if not orthography.has_canonicalizer(fold_lang):
+        return exact
+    norm_q = _sanitize_fts_query(orthography.canonicalize(query, fold_lang))
+    norm = _fts_match(conn, "chunks_fts_norm", norm_q, **common)
+    if not norm:
+        return exact
+    merged = dict(exact)
+    for cid, score in norm.items():
+        if score > merged.get(cid, float("-inf")):
+            merged[cid] = score
+    return merged
 
 
 def _vector_search(
@@ -114,6 +177,7 @@ def _vector_search(
     corpus: str | None,
     speaker: str | None,
     min_chunk_chars: int = 0,
+    work_id: int | None = None,
 ) -> dict[str, float]:
     ids, matrix = store.load_all_embeddings(conn)
     if not ids:
@@ -122,6 +186,7 @@ def _vector_search(
         lang not in {None, "any"}
         or corpus not in {None, "any"}
         or (bool(speaker) and speaker != "any")
+        or work_id is not None
         or min_chunk_chars > 0
     )
     if needs_filter:
@@ -131,23 +196,25 @@ def _vector_search(
         # here (chunks_full is small per-row) and dodges the cap
         # entirely. The Python-side filter still drops unmatched IDs.
         rows = conn.execute(
-            "SELECT chunk_id, lang, corpus, speaker, length(text) FROM chunks_full"
+            "SELECT chunk_id, lang, corpus, speaker, length(text), work_id FROM chunks_full"
         ).fetchall()
-        meta_by_id = {r[0]: (r[1], r[2], r[3], r[4]) for r in rows}
+        _MISS = ("", "", "", 0, None)
+        meta_by_id = {r[0]: (r[1], r[2], r[3], r[4], r[5]) for r in rows}
         speaker_lower = speaker.lower() if speaker else None
         keep = np.array(
             [
-                (lang in {None, "any"} or meta_by_id.get(cid, ("", "", "", 0))[0] == lang)
-                and (corpus in {None, "any"} or meta_by_id.get(cid, ("", "", "", 0))[1] == corpus)
+                (lang in {None, "any"} or meta_by_id.get(cid, _MISS)[0] == lang)
+                and (corpus in {None, "any"} or meta_by_id.get(cid, _MISS)[1] == corpus)
                 and (
                     not speaker_lower
                     or speaker_lower == "any"
-                    or (meta_by_id.get(cid, ("", "", "", 0))[2] or "").lower() == speaker_lower
+                    or (meta_by_id.get(cid, _MISS)[2] or "").lower() == speaker_lower
                 )
                 and (
                     min_chunk_chars <= 0
-                    or meta_by_id.get(cid, ("", "", "", 0))[3] >= min_chunk_chars
+                    or meta_by_id.get(cid, _MISS)[3] >= min_chunk_chars
                 )
+                and (work_id is None or meta_by_id.get(cid, _MISS)[4] == work_id)
                 for cid in ids
             ],
             dtype=bool,
@@ -184,6 +251,8 @@ def search(
     vector_weight: float = 0.5,
     expand_neighbors: int = 1,
     min_chunk_chars: int = 60,
+    fold_lang: str | None = None,
+    work_id: int | None = None,
 ) -> list[Hit]:
     """Hybrid search returning at most `top_k` hits, optionally with neighbors.
 
@@ -200,14 +269,14 @@ def search(
 
     bm25_raw = _bm25_search(
         conn, query, top_k=fetch_pool, lang=lang, corpus=corpus, speaker=speaker,
-        min_chunk_chars=min_chunk_chars,
+        min_chunk_chars=min_chunk_chars, fold_lang=fold_lang, work_id=work_id,
     )
     vec_raw: dict[str, float] = {}
     if embedder is not None and store.has_embeddings(conn):
         q_vec = embedder.encode([query])[0]
         vec_raw = _vector_search(
             conn, q_vec, top_k=fetch_pool, lang=lang, corpus=corpus, speaker=speaker,
-            min_chunk_chars=min_chunk_chars,
+            min_chunk_chars=min_chunk_chars, work_id=work_id,
         )
 
     bm25_n = _normalize_scores(bm25_raw)

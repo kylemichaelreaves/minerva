@@ -1,7 +1,7 @@
 """Grounded answer agent — package facade."""
 
 from .compose import answer, compose_answer, compose_answer_stream, render_answer
-from .detect import detect_corpus, strip_author_keywords
+from .detect import detect_corpus, detect_work, strip_author_keywords
 from .language import (
     _system_prompt,
     build_retrieval_query,
@@ -33,6 +33,7 @@ __all__ = [
     "compose_answer_stream",
     "concept_expand",
     "detect_corpus",
+    "detect_work",
     "infer_reply_language",
     "render_answer",
     "resolve_reply_lang",

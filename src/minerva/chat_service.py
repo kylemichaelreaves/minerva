@@ -171,6 +171,16 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
         if isinstance(raw_speaker, str) and raw_speaker.strip()
         else ctx.speaker
     )
+    # Explicit work scope (e.g. "in the Genealogy"): hard-restrict
+    # retrieval to one work. `work_id` is the works.id; bool excluded
+    # because `True`/`False` are ints in Python. Falls through to
+    # auto-detection (below) when absent.
+    raw_work_id = payload.get("work_id")
+    work_id: int | None = (
+        raw_work_id
+        if isinstance(raw_work_id, int) and not isinstance(raw_work_id, bool) and raw_work_id > 0
+        else None
+    )
 
     raw_cid = payload.get("conversation_id")
     incoming_cid: str | None = None
@@ -226,6 +236,11 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
     # name (letter signatures, colophons) instead of the substantive
     # content the question is actually about. See
     # ``agent.strip_author_keywords`` for the precise scrub.
+    # Orthographic spelling-variant folding for the BM25 query, keyed on
+    # the corpus's original language (e.g. `deu` bridges a historical
+    # `Mißrathenen` query to the modernized `Mißratenen` in the index).
+    # Computed here so it applies regardless of concept-expansion / backend.
+    fold_lang = original_language_for_corpus(resolved_corpus) if resolved_corpus else None
     if resolved_corpus:
         retrieval_query = agent.strip_author_keywords(retrieval_query, resolved_corpus)
         # Concept expansion. If the corpus's original language differs
@@ -280,6 +295,12 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
         pinned_hits = resolve_pinned(ctx.index_conn, pinned_ids)
         resolved_ids = {h.chunk_id for h in pinned_hits}
         missing_pinned = [cid_ for cid_ in pinned_ids if cid_ not in resolved_ids]
+        # Auto-detect a work named in the question (e.g. "in the
+        # Genealogie der Moral") when the client didn't pin one
+        # explicitly. Conservative — only fires when every significant
+        # title token is present, so it never silently narrows scope.
+        if work_id is None and resolved_corpus:
+            work_id = agent.detect_work(ctx.index_conn, retrieval_query, resolved_corpus)
         retrieval = agent.retrieve_passages(
             conn=ctx.index_conn,
             query=query,
@@ -290,6 +311,8 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
             embedder=ctx.embedder,
             retrieval_query=retrieval_query,
             pinned=pinned_hits,
+            fold_lang=fold_lang,
+            work_id=work_id,
         )
 
     return ChatPrepared(
