@@ -64,14 +64,19 @@ jobs:
           uv pip install -e '.[dev,hegel,embed]'
 
       - name: Lint (ruff)
-        run: uv run ruff check src tests
+        # --no-sync: run in the env the install step built. Without it,
+        # `uv run` re-syncs the full default dependency set, which pulls
+        # the LatinCy `la_core_web_sm` model wheel from HuggingFace — a
+        # dead URL (404) and unneeded here, since the suite mocks the
+        # lemmatizer (the `[lemma]` extra is intentionally not installed).
+        run: uv run --no-sync ruff check src tests
 
       - name: Tests (pytest with coverage)
         # `--cov` reads config from [tool.coverage.run] in
         # pyproject.toml. `xml:coverage.xml` emits the artifact in a
         # format any future Codecov-style action can pick up; the
         # terminal report goes to the action log for at-a-glance review.
-        run: uv run pytest tests/ -q --cov --cov-report=term --cov-report=xml
+        run: uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml
 
       - name: Upload coverage report
         if: always()
