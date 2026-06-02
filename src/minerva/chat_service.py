@@ -181,6 +181,22 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
         if isinstance(raw_work_id, int) and not isinstance(raw_work_id, bool) and raw_work_id > 0
         else None
     )
+    # When the client explicitly scopes to a work, derive its author +
+    # original language so corpus filtering, concept-expansion, and
+    # orthography folding key off the *scoped work* — even when the
+    # question never names the author (e.g. "his notes on failures"
+    # scoped to the Nachlaß). Brief locked read, released before any LLM
+    # call so the lock-ordering contract in `_handle_chat` is preserved.
+    scope_corpus: str | None = None
+    scope_lang: str | None = None
+    if work_id is not None:
+        with ctx.corpus_lock:
+            row = ctx.index_conn.execute(
+                "SELECT LOWER(author), original_language FROM works WHERE id = ?",
+                (work_id,),
+            ).fetchone()
+        if row is not None:
+            scope_corpus, scope_lang = row[0], row[1]
 
     raw_cid = payload.get("conversation_id")
     incoming_cid: str | None = None
@@ -223,7 +239,9 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
         if rewritten:
             retrieval_query = rewritten
 
-    resolved_corpus = ctx.corpus
+    # Precedence: a startup-pinned corpus, then the explicitly-scoped
+    # work's author, then auto-detection from the query text.
+    resolved_corpus = ctx.corpus or scope_corpus
     if resolved_corpus is None:
         detected = agent.detect_corpus(retrieval_query)
         if detected:
@@ -240,7 +258,9 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
     # the corpus's original language (e.g. `deu` bridges a historical
     # `Mißrathenen` query to the modernized `Mißratenen` in the index).
     # Computed here so it applies regardless of concept-expansion / backend.
-    fold_lang = original_language_for_corpus(resolved_corpus) if resolved_corpus else None
+    fold_lang = scope_lang or (
+        original_language_for_corpus(resolved_corpus) if resolved_corpus else None
+    )
     if resolved_corpus:
         retrieval_query = agent.strip_author_keywords(retrieval_query, resolved_corpus)
         # Concept expansion. If the corpus's original language differs

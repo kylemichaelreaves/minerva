@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import Landing from "~/Landing";
 import Composer from "~/Composer";
+import WorkScopeControl from "~/Composer/WorkScopeControl";
 import Thread from "~/Thread";
 import Topbar from "~/components/Topbar";
 import { ThreadSearchSheet } from "~/Thread/components/ThreadSearchSheet";
@@ -42,22 +43,12 @@ export function ChatRoute(props: RouteContextProps) {
             <Composer
               onSend={props.conversations.sendMessage}
               scopeChip={
-                <Show when={props.conversations.chatScope()}>
-                  {(scope) => (
-                    <div class="chat-scope">
-                      <span class="chat-scope__label">Asking within</span>
-                      <span class="chat-scope__work">{scope().title}</span>
-                      <button
-                        type="button"
-                        class="chat-scope__clear"
-                        aria-label={`Clear scope: ${scope().title}`}
-                        onClick={() => props.conversations.clearChatScope()}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                </Show>
+                <WorkScopeControl
+                  scope={props.conversations.chatScope}
+                  works={props.reader.works}
+                  ensureWorks={props.reader.ensureWorks}
+                  onSet={props.conversations.setChatScope}
+                />
               }
             />
             <ThreadSearchSheet

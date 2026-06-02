@@ -43,6 +43,10 @@ export interface ReaderApi {
   /** All available works from `/api/works`. Populated lazily the first
    *  time Reader mode is entered. */
   works: () => Work[];
+  /** Trigger the lazy single-flight `/api/works` load (no-op once
+   *  populated). Lets the chat scope picker fill the works list without
+   *  entering Reader mode. */
+  ensureWorks: () => Promise<void>;
   /** The full Work for the current reader location, or null. Resolves
    *  the route's work string + lang against the `works()` list — used to
    *  seed the chat scope chip when leaving the Reader. */
@@ -206,6 +210,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     switchMode,
     openAtChunk,
     works,
+    ensureWorks,
     openWork,
     setOpenTermId,
   };

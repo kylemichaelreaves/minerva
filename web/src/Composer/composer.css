@@ -65,13 +65,17 @@
   color: var(--ink-mute);
 }
 
-/* Work-scope chip — sits inside the sticky composer wrap, above the
-   input box, centered on the same column. Signals (and lets the user
-   clear) that chat retrieval is restricted to one work. */
-.chat-scope {
-  max-width: var(--col);
+/* Work-scope control — sits inside the sticky composer wrap, above the
+   input box, centered on the same column. Holds the scope chip (or the
+   "Scope to a work" affordance) and anchors the drop-up picker. */
+.chat-scope-control {
+  position: relative;
   margin: 0 auto 8px;
+  width: fit-content;
+  max-width: var(--col);
   pointer-events: auto;
+}
+.chat-scope {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -96,6 +100,42 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: var(--serif);
+  font-size: 13px;
+  cursor: pointer;
+}
+.chat-scope__work:hover {
+  color: var(--accent);
+}
+
+/* Unscoped affordance. */
+.chat-scope-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  border: 1px dashed var(--rule-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color 120ms,
+    border-color 120ms;
+}
+.chat-scope-add:hover {
+  color: var(--ink);
+  border-color: var(--rule);
+}
+.chat-scope-add__plus {
+  font-size: 13px;
+  line-height: 1;
 }
 .chat-scope__clear {
   display: inline-flex;
@@ -117,5 +157,84 @@
 .chat-scope__clear:hover {
   background: var(--paper);
   color: var(--accent);
+}
+
+/* Searchable drop-up picker, anchored above the control. */
+.chat-scope-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 380px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+  overflow: hidden;
+}
+.chat-scope-pop__filter {
+  margin: 8px;
+  padding: 7px 10px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper-edge);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+}
+.chat-scope-pop__filter:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+.chat-scope-pop__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px 6px;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+.chat-scope-pop__list {
+  max-height: 300px;
+  overflow-y: auto;
+  border-top: 1px solid var(--rule-soft);
+}
+.chat-scope-pop__row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.chat-scope-pop__row:hover {
+  background: var(--paper-edge);
+}
+.chat-scope-pop__author {
+  font-family: var(--sans);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.chat-scope-pop__title {
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--ink);
+}
+.chat-scope-pop__empty {
+  padding: 16px 12px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-align: center;
 }
 
