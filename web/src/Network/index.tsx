@@ -1,6 +1,6 @@
 // Citation-network dashboard orchestrator.
 
-import { Show, createMemo, createSignal, onMount } from "solid-js";
+import { Show, createEffect, createSignal, onMount } from "solid-js";
 import { fetchNetworkSummary } from "~/api/networkApi";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { MobileSheet } from "~/components/MobileSheet";
@@ -51,8 +51,12 @@ export default function Network(props: NetworkProps) {
     fetchNetworkSummary,
   );
 
+  // Capture the full (unfiltered) author list the first time it loads, so the
+  // filter dropdown keeps offering every author even after the query narrows.
+  // This is a side-effect (a signal write), not derived state — so it belongs
+  // in createEffect, not a createMemo invoked for its side-effect.
   const [allAuthors, setAllAuthors] = createSignal<string[]>([]);
-  const stash = createMemo(() => {
+  createEffect(() => {
     const d = data();
     if (
       d &&
@@ -63,17 +67,17 @@ export default function Network(props: NetworkProps) {
     ) {
       setAllAuthors(d.matrix.authors.map((a) => a.name));
     }
-    return null;
   });
-  stash();
 
-  function patch(p: Partial<{
-    minConfidence?: number;
-    includeRejected?: boolean;
-    sourceAuthors?: string[];
-    corpora?: string[];
-    sourceMethods?: string[];
-  }>) {
+  function patch(
+    p: Partial<{
+      minConfidence?: number;
+      includeRejected?: boolean;
+      sourceAuthors?: string[];
+      corpora?: string[];
+      sourceMethods?: string[];
+    }>,
+  ) {
     props.onNavigate({
       minConfidence: props.minConfidence,
       includeRejected: props.includeRejected,
@@ -85,9 +89,7 @@ export default function Network(props: NetworkProps) {
   }
 
   const authorOptions = () =>
-    allAuthors().length > 0
-      ? allAuthors()
-      : (data()?.matrix.authors.map((a) => a.name) ?? []);
+    allAuthors().length > 0 ? allAuthors() : (data()?.matrix.authors.map((a) => a.name) ?? []);
 
   return (
     <div class="net">
@@ -134,8 +136,8 @@ export default function Network(props: NetworkProps) {
       </Show>
       <footer class="net-footer">
         <span>
-          {data()?.totals.xrefs.toLocaleString() ?? "—"} xrefs · strategies:
-          rules + embed-verify + llm-verify
+          {data()?.totals.xrefs.toLocaleString() ?? "—"} xrefs · strategies: rules + embed-verify +
+          llm-verify
         </span>
         <span>minerva / citation network</span>
       </footer>

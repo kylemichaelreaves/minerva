@@ -26,7 +26,7 @@ class IngestSource:
 
     @property
     def kwarg_name(self) -> str:
-        return self.param_name or f"{self.id}_dir" if self.path_kind == "dir" else f"{self.id}_text"
+        return self.param_name or (f"{self.id}_dir" if self.path_kind == "dir" else f"{self.id}_text")
 
     @property
     def argparse_flag(self) -> str:

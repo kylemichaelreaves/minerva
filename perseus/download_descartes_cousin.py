@@ -49,9 +49,8 @@ import argparse
 import re
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import make_fetcher
 
-USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
 
 _URL = (
     "https://archive.org/download/bub_gal_ark_12148_bpt6k942606/"
@@ -59,21 +58,7 @@ _URL = (
 )
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
+_fetch = make_fetcher()
 
 def _apply_word_fixups(text: str) -> str:
     """Apply the curated `_OCR_FIXUPS` table token-by-token. Operates

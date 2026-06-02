@@ -24,9 +24,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import quote
 
-from _download import fetch_bytes_with_retry
+from _download import make_fetcher
 
-USER_AGENT = "minerva-corpus-fetch/1.0 (+local research)"
 
 # Greek source: el.wikisource page tree.
 _GRC_BASE_TITLE = "Τα εις εαυτόν"
@@ -36,21 +35,7 @@ _GRC_BOOKS = list(range(1, 13))  # 12 books
 _PG_ID = 2680
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
+_fetch = make_fetcher()
 
 class _ParaExtractor(HTMLParser):
     def __init__(self):

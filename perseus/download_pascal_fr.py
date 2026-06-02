@@ -30,12 +30,10 @@ from __future__ import annotations
 
 import argparse
 import time
-from html.parser import HTMLParser
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import ParagraphExtractor, make_fetcher
 
-USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
 
 # Brunschvicg sections + Mémorial, in the order they should appear
 # in the concatenated output. The path component after the host is
@@ -73,23 +71,9 @@ def _section_url(subpath: str) -> str:
     return f"https://fr.wikisource.org/api/rest_v1/page/html/{quote(title, safe='')}"
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+_fetch = make_fetcher()
 
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
-
-class _ParagraphExtractor(HTMLParser):
+def _extract_paragraphs(html: bytes) -> list[str]:
     """Extract `<p>`-bounded text from Wikisource REST HTML, dropping
     `<script>` / `<style>` / `<sup>` / `<table>` (TOC, nav widgets)
     AND any element whose `class` contains a Wikisource apparatus
@@ -99,60 +83,11 @@ class _ParagraphExtractor(HTMLParser):
     them in alongside Pascal's text and cause spurious cross-
     references."""
 
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
-        self._buf: list[str] = []
-        self.paragraphs: list[str] = []
-
-    def _should_skip(self, attrs: list[tuple[str, str | None]]) -> bool:
-        for name, value in attrs:
-            if name != "class" or value is None:
-                continue
-            tokens = value.split()
-            if any(tok in _SKIP_CLASS_TOKENS for tok in tokens):
-                return True
-        return False
-
-    def _flush(self) -> None:
-        text = " ".join("".join(self._buf).split()).strip()
-        if text:
-            self.paragraphs.append(text)
-        self._buf.clear()
-
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
-        if self._skip_depth:
-            # Track nested elements inside an already-skipped subtree
-            # so end-tag balancing works.
-            self._skip_depth += 1
-            return
-        if tag in _SKIP_TAGS or self._should_skip(attrs):
-            self._skip_depth = 1
-            return
-        if tag == "p":
-            self._flush()
-
-    def handle_endtag(self, tag: str) -> None:
-        if self._skip_depth:
-            self._skip_depth -= 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_data(self, data: str) -> None:
-        if self._skip_depth:
-            return
-        self._buf.append(data)
-
-    def close(self) -> None:  # type: ignore[override]
-        super().close()
-        self._flush()
-
-
-def _extract_paragraphs(html: bytes) -> list[str]:
-    p = _ParagraphExtractor()
+    p = ParagraphExtractor(
+        skip_tags=_SKIP_TAGS,
+        break_end_tags=_BREAK_END_TAGS,
+        skip_class_tokens=_SKIP_CLASS_TOKENS,
+    )
     p.feed(html.decode("utf-8"))
     p.close()
     return p.paragraphs

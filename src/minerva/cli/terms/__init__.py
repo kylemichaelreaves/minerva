@@ -48,13 +48,16 @@ from .locators import (
 def _cmd_aggregate_lemmas(args: argparse.Namespace) -> int:
     """Rebuild the lemma_counts materialized aggregate."""
 
-    import sqlite3
-
+    from ... import store
     from ...concordance import aggregate
 
-    conn = sqlite3.connect(args.db)
+    # Open through store.open_db so schema + migrations are applied:
+    # the `lemma_counts` table this command rebuilds is created by
+    # migration 0019, not the base schema. A raw connect would crash
+    # with "no such table" on any index that predates 0019 and was
+    # never re-opened via `minerva index`.
+    conn = store.open_db(args.db)
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA foreign_keys = ON")
     try:
         summary = aggregate.build(conn, verbose=True)
     finally:

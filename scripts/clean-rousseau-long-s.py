@@ -27,19 +27,16 @@ import sys
 import unicodedata
 from pathlib import Path
 
+# Allow `import minerva.*` when running this script directly from the
+# repo root (`uv run python scripts/clean-rousseau-long-s.py`).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from minerva.textnorm import LIGATURE_MAP
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TARGET = REPO_ROOT / "data" / "rousseau" / "raw_fra" / "premier_discours.txt"
 
-LIGATURES = {
-    "ſ": "s",
-    "ﬀ": "ff",
-    "ﬁ": "fi",
-    "ﬂ": "fl",
-    "ﬃ": "ffi",
-    "ﬄ": "ffl",
-    "ﬅ": "st",
-    "ﬆ": "st",
-}
+LIGATURES = LIGATURE_MAP
 
 
 def main() -> int:

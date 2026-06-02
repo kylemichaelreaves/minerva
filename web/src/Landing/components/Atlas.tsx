@@ -17,7 +17,7 @@ import {
   xOf,
   type AtlasAuthor,
   type Tradition,
-} from "~/Landing/atlasData";
+} from "~/data/atlasData";
 
 export function Atlas(props: {
   onPickAuthor: (name: string) => void;

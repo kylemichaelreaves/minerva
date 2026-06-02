@@ -4,86 +4,18 @@
 // single-valued) → Surface form chips with "+N more".
 
 import { For, Show, createMemo, createSignal } from "solid-js";
-import type {
-  BreakdownBucket,
-  ConcScope,
-  LemmaDetailResponse,
-} from "~/api/concordanceApi";
-import { CASES_ORDER, GENDERS_ORDER, NUMBERS_ORDER } from "~/Concordance/constants";
-
-export const CASE_LABEL: Record<string, string> = {
-  Nom: "Nom",
-  Acc: "Akk",
-  Gen: "Gen",
-  Dat: "Dat",
-  Voc: "Vok",
-};
-
-export const NUMBER_LABEL: Record<string, string> = { Sing: "Sg", Plur: "Pl" };
-
-export const POS_LABEL: Record<string, string> = {
-  NOUN: "noun",
-  VERB: "verb",
-  ADJ: "adj",
-  ADV: "adv",
-  PRON: "pron",
-  ADP: "prep",
-  CONJ: "conj",
-  DET: "det",
-  NUM: "num",
-  PART: "part",
-  INTJ: "intj",
-  PROPN: "name",
-};
-
-export const GENDER_LABEL: Record<string, string> = {
-  Masc: "masc",
-  Fem: "fem",
-  Neut: "neut",
-};
-
-const WORK_ABBR: Record<string, string> = {
-  "Phänomenologie des Geistes": "PhdG",
-  "Wissenschaft der Logik": "WL",
-  "Grundlinien der Philosophie des Rechts": "GPR",
-  "Enzyklopädie der philosophischen Wissenschaften im Grundrisse": "Enz",
-  "Kritik der reinen Vernunft": "KrV",
-  "Kritik der Urteilskraft": "KU",
-  "Kritik der praktischen Vernunft": "KpV",
-  "Die Metaphysik der Sitten": "MS",
-  "Die Religion innerhalb der Grenzen der bloßen Vernunft": "Religion",
-  "Prolegomena zu einer jeden künftigen Metaphysik": "Prol",
-  "Grundlegung zur Metaphysik der Sitten": "GMS",
-  "Also sprach Zarathustra": "Z",
-  "Der Antichrist": "AC",
-  "Zur Genealogie der Moral": "GM",
-  "Jenseits von Gut und Böse": "JGB",
-  "Die fröhliche Wissenschaft": "FW",
-  "Morgenröte": "M",
-  "Götzen-Dämmerung": "GD",
-  "Ecce Homo": "EH",
-  "Menschliches, Allzumenschliches": "MA",
-  "Aus dem Nachlaß der Achtzigerjahre": "NL",
-};
-
-export function abbrevWork(work: string): string {
-  if (!work) return "—";
-  if (WORK_ABBR[work]) return WORK_ABBR[work];
-  const parts = work.split(/\s+/).filter((w) => /^[A-ZÄÖÜ]/.test(w));
-  if (parts.length >= 2) return parts.map((p) => p[0]).join("");
-  return work.slice(0, 8);
-}
-
-export function sortBucketsByOrder(
-  buckets: BreakdownBucket[],
-  order: string[],
-): BreakdownBucket[] {
-  const known = order
-    .map((k) => buckets.find((b) => b.value === k))
-    .filter((b): b is BreakdownBucket => !!b);
-  const unknown = buckets.filter((b) => !order.includes(b.value));
-  return [...known, ...unknown];
-}
+import type { ConcScope, LemmaDetailResponse } from "~/api/concordanceApi";
+import {
+  abbrevWork,
+  CASE_LABEL,
+  CASES_ORDER,
+  GENDER_LABEL,
+  GENDERS_ORDER,
+  NUMBER_LABEL,
+  NUMBERS_ORDER,
+  sortBucketsByOrder,
+} from "~/Concordance/constants";
+import { FilterChipGroup } from "~/Concordance/components/FilterChipGroup";
 
 const WORK_CAP = 8;
 const SURFACE_CAP = 6;
@@ -97,18 +29,14 @@ export function FilterRail(props: {
   numberFilter?: string;
   surface?: string;
   currentWorkScope?: string;
-  onSetScope: (
-    patch: { scope: ConcScope; scopeAuthor?: string; scopeWork?: string },
-  ) => void;
+  onSetScope: (patch: { scope: ConcScope; scopeAuthor?: string; scopeWork?: string }) => void;
   onSetCase: (v: string | undefined) => void;
   onSetNumber: (v: string | undefined) => void;
   onSetSurface: (v: string | undefined) => void;
   onSetWork: (w: string) => void;
   onResetAll: () => void;
 }) {
-  const orderedCases = createMemo(() =>
-    sortBucketsByOrder(props.data.case_breakdown, CASES_ORDER),
-  );
+  const orderedCases = createMemo(() => sortBucketsByOrder(props.data.case_breakdown, CASES_ORDER));
   const orderedNumbers = createMemo(() =>
     sortBucketsByOrder(props.data.number_breakdown, NUMBERS_ORDER),
   );
@@ -145,25 +73,19 @@ export function FilterRail(props: {
     const q = workSearch().trim().toLowerCase();
     const filtered = q
       ? all.filter(
-          (b) =>
-            abbrevWork(b.value).toLowerCase().includes(q) ||
-            b.value.toLowerCase().includes(q),
+          (b) => abbrevWork(b.value).toLowerCase().includes(q) || b.value.toLowerCase().includes(q),
         )
       : all;
     return workExpanded() || q ? filtered : filtered.slice(0, WORK_CAP);
   });
-  const workOverflow = createMemo(
-    () => props.data.work_breakdown.length - WORK_CAP,
-  );
+  const workOverflow = createMemo(() => props.data.work_breakdown.length - WORK_CAP);
 
   const visibleSurfaces = createMemo(() =>
     surfaceExpanded()
       ? props.data.surface_breakdown
       : props.data.surface_breakdown.slice(0, SURFACE_CAP),
   );
-  const surfaceOverflow = createMemo(
-    () => props.data.surface_breakdown.length - SURFACE_CAP,
-  );
+  const surfaceOverflow = createMemo(() => props.data.surface_breakdown.length - SURFACE_CAP);
 
   /** Pills shown in the applied-filters card. Each carries its own
    *  remove behaviour so the card never needs to know the filter kind. */
@@ -274,7 +196,9 @@ export function FilterRail(props: {
       <Show when={appliedPills().length > 0}>
         <div class="applied-filters">
           <div class="hd">
-            <span>{appliedPills().length} filter{appliedPills().length === 1 ? "" : "s"} applied</span>
+            <span>
+              {appliedPills().length} filter{appliedPills().length === 1 ? "" : "s"} applied
+            </span>
             <span class="reset" onClick={() => props.onResetAll()}>
               ↺ reset
             </span>
@@ -307,9 +231,7 @@ export function FilterRail(props: {
             <span>
               Work
               <Show when={props.currentWorkScope}>
-                <span class="applied">
-                  · {abbrevWork(props.currentWorkScope!)}
-                </span>
+                <span class="applied">· {abbrevWork(props.currentWorkScope!)}</span>
               </Show>
             </span>
             <Show when={props.currentWorkScope}>
@@ -342,17 +264,8 @@ export function FilterRail(props: {
               </div>
             )}
           </For>
-          <Show
-            when={
-              !workExpanded() &&
-              !workSearch() &&
-              workOverflow() > 0
-            }
-          >
-            <span
-              class="fr-more"
-              onClick={() => setWorkExpanded(true)}
-            >
+          <Show when={!workExpanded() && !workSearch() && workOverflow() > 0}>
+            <span class="fr-more" onClick={() => setWorkExpanded(true)}>
               + {workOverflow()} more work{workOverflow() === 1 ? "" : "s"} ▾
             </span>
           </Show>
@@ -360,77 +273,35 @@ export function FilterRail(props: {
       </Show>
 
       <Show when={orderedCases().length > 0}>
-        <div class="fr-group">
-          <div class="fr-label">
-            <span>
-              Case
-              <Show when={props.caseFilter}>
-                <span class="applied">
-                  · {CASE_LABEL[props.caseFilter!] ?? props.caseFilter}
-                </span>
-              </Show>
-            </span>
-            <Show when={props.caseFilter}>
-              <span class="clr" onClick={() => props.onSetCase(undefined)}>
-                clear
-              </span>
-            </Show>
-          </div>
-          <div class="fr-opts">
-            <For each={orderedCases()}>
-              {(b) => (
-                <span
-                  class={"fr-opt" + (props.caseFilter === b.value ? " on" : "")}
-                  onClick={() =>
-                    props.onSetCase(
-                      props.caseFilter === b.value ? undefined : b.value,
-                    )
-                  }
-                  title={`${b.count.toLocaleString()} occurrence${b.count === 1 ? "" : "s"}`}
-                >
-                  {CASE_LABEL[b.value] ?? b.value}
-                </span>
-              )}
-            </For>
-          </div>
-        </div>
+        <FilterChipGroup
+          label="Case"
+          applied={
+            props.caseFilter ? (CASE_LABEL[props.caseFilter] ?? props.caseFilter) : undefined
+          }
+          onClear={() => props.onSetCase(undefined)}
+          buckets={orderedCases()}
+          selected={props.caseFilter}
+          labelFor={(v) => CASE_LABEL[v] ?? v}
+          titleFor={(b) => `${b.count.toLocaleString()} occurrence${b.count === 1 ? "" : "s"}`}
+          onToggle={props.onSetCase}
+        />
       </Show>
 
       <Show when={orderedNumbers().length > 0}>
-        <div class="fr-group">
-          <div class="fr-label">
-            <span>
-              Number
-              <Show when={props.numberFilter}>
-                <span class="applied">
-                  · {NUMBER_LABEL[props.numberFilter!] ?? props.numberFilter}
-                </span>
-              </Show>
-            </span>
-            <Show when={props.numberFilter}>
-              <span class="clr" onClick={() => props.onSetNumber(undefined)}>
-                clear
-              </span>
-            </Show>
-          </div>
-          <div class="fr-opts">
-            <For each={orderedNumbers()}>
-              {(b) => (
-                <span
-                  class={"fr-opt" + (props.numberFilter === b.value ? " on" : "")}
-                  onClick={() =>
-                    props.onSetNumber(
-                      props.numberFilter === b.value ? undefined : b.value,
-                    )
-                  }
-                  title={b.count.toLocaleString()}
-                >
-                  {NUMBER_LABEL[b.value] ?? b.value}
-                </span>
-              )}
-            </For>
-          </div>
-        </div>
+        <FilterChipGroup
+          label="Number"
+          applied={
+            props.numberFilter
+              ? (NUMBER_LABEL[props.numberFilter] ?? props.numberFilter)
+              : undefined
+          }
+          onClear={() => props.onSetNumber(undefined)}
+          buckets={orderedNumbers()}
+          selected={props.numberFilter}
+          labelFor={(v) => NUMBER_LABEL[v] ?? v}
+          titleFor={(b) => b.count.toLocaleString()}
+          onToggle={props.onSetNumber}
+        />
       </Show>
 
       <Show when={orderedGenders().length > 0}>
@@ -444,10 +315,7 @@ export function FilterRail(props: {
               <div class="fr-opts">
                 <For each={orderedGenders()}>
                   {(b) => (
-                    <span
-                      class="fr-opt muted"
-                      title={b.count.toLocaleString()}
-                    >
+                    <span class="fr-opt muted" title={b.count.toLocaleString()}>
                       {GENDER_LABEL[b.value] ?? b.value}
                     </span>
                   )}
@@ -460,8 +328,8 @@ export function FilterRail(props: {
                 so the IA doesn't shift between lemmas. */}
             <div class="fr-locked">
               <span>
-                <b>{GENDER_LABEL[lockedGender()!] ?? lockedGender()}</b>{" "}
-                only — single attested gender for this lemma.
+                <b>{GENDER_LABEL[lockedGender()!] ?? lockedGender()}</b> only — single attested
+                gender for this lemma.
               </span>
             </div>
           </Show>
@@ -469,46 +337,22 @@ export function FilterRail(props: {
       </Show>
 
       <Show when={props.data.surface_breakdown.length > 0}>
-        <div class="fr-group">
-          <div class="fr-label">
-            <span>
-              Surface form
-              <Show when={props.surface}>
-                <span class="applied">· {props.surface}</span>
-              </Show>
-            </span>
-            <Show when={props.surface}>
-              <span class="clr" onClick={() => props.onSetSurface(undefined)}>
-                clear
-              </span>
-            </Show>
-          </div>
-          <div class="fr-opts">
-            <For each={visibleSurfaces()}>
-              {(b) => (
-                <span
-                  class={"fr-opt" + (props.surface === b.value ? " on" : "")}
-                  onClick={() =>
-                    props.onSetSurface(
-                      props.surface === b.value ? undefined : b.value,
-                    )
-                  }
-                  title={b.count.toLocaleString()}
-                >
-                  {b.value}
-                </span>
-              )}
-            </For>
-          </div>
+        <FilterChipGroup
+          label="Surface form"
+          applied={props.surface}
+          onClear={() => props.onSetSurface(undefined)}
+          buckets={visibleSurfaces()}
+          selected={props.surface}
+          labelFor={(v) => v}
+          titleFor={(b) => b.count.toLocaleString()}
+          onToggle={props.onSetSurface}
+        >
           <Show when={!surfaceExpanded() && surfaceOverflow() > 0}>
-            <span
-              class="fr-more"
-              onClick={() => setSurfaceExpanded(true)}
-            >
+            <span class="fr-more" onClick={() => setSurfaceExpanded(true)}>
               + {surfaceOverflow()} more form{surfaceOverflow() === 1 ? "" : "s"} ▾
             </span>
           </Show>
-        </div>
+        </FilterChipGroup>
       </Show>
     </div>
   );

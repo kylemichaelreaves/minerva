@@ -1,14 +1,7 @@
 // F1 — Lemma frequency index. Orchestrator composes useConcordanceIndex;
 // presentational pieces live in ./components.
 
-import {
-  For,
-  Show,
-  createEffect,
-  createMemo,
-  createResource,
-  createSignal,
-} from "solid-js";
+import { For, Show, createEffect, createMemo, createResource, createSignal } from "solid-js";
 import {
   fetchLemmaIndex,
   type ConcScope,
@@ -16,6 +9,7 @@ import {
   type LemmaIndexRow,
 } from "~/api/concordanceApi";
 import { ActiveFilterStrip } from "~/Concordance/components/ActiveFilterStrip";
+import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
 import { FilterBar } from "~/Concordance/components/FilterBar";
 import { LbRow } from "~/Concordance/components/LbRow";
 import { LoadingSkeleton } from "~/Concordance/components/LoadingSkeleton";
@@ -110,8 +104,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       });
     }
     if (props.pos) {
-      const label =
-        props.pos === "all" ? "all" : props.pos.toLowerCase();
+      const label = props.pos === "all" ? "all" : props.pos.toLowerCase();
       chips.push({
         k: "POS",
         v: label,
@@ -124,8 +117,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       chips.push({
         k: "freq",
         v: `${lo}–${hi}`,
-        onRemove: () =>
-          props.onNavigate({ freqMin: undefined, freqMax: undefined }),
+        onRemove: () => props.onNavigate({ freqMin: undefined, freqMax: undefined }),
       });
     }
     if (props.q) {
@@ -152,13 +144,16 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       <div class="conc-head">
         <div class="conc-head-main">
           <h1 class="conc-h1">Concordance</h1>
-          <div class="conc-sub" style={{ display: "flex", gap: "12px", "align-items": "center", "flex-wrap": "wrap" }}>
+          <div
+            class="conc-sub"
+            style={{ display: "flex", gap: "12px", "align-items": "center", "flex-wrap": "wrap" }}
+          >
             <ScopePill
               steps={[
                 { label: "Work", scope: "work", cur: scope() === "work" },
                 { label: "Author", scope: "author", cur: scope() === "author" },
                 {
-                  label: scope() === "corpus" ? data()?.scope_label ?? "Corpus" : "Corpus",
+                  label: scope() === "corpus" ? (data()?.scope_label ?? "Corpus") : "Corpus",
                   scope: "corpus",
                   cur: scope() === "corpus",
                 },
@@ -169,7 +164,8 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               }
             />
             <span>
-              · <b>{data()?.total_lemmas.toLocaleString() ?? "—"}</b> lemmas · {lang().toUpperCase()}
+              · <b>{data()?.total_lemmas.toLocaleString() ?? "—"}</b> lemmas ·{" "}
+              {lang().toUpperCase()}
             </span>
           </div>
         </div>
@@ -187,9 +183,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           q={props.q}
           onSetSort={(v) => props.onNavigate({ sort: v })}
           onSetPos={(v) => props.onNavigate({ pos: v })}
-          onSetFreqRange={(lo, hi) =>
-            props.onNavigate({ freqMin: lo, freqMax: hi })
-          }
+          onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
           onSetQ={(v) => props.onNavigate({ q: v })}
         />
       </Show>
@@ -210,10 +204,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           }}
         </For>
         <Show when={letter()}>
-          <span
-            class="l az-all"
-            onClick={() => props.onNavigate({ letter: undefined })}
-          >
+          <span class="l az-all" onClick={() => props.onNavigate({ letter: undefined })}>
             all
           </span>
         </Show>
@@ -235,21 +226,13 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           re-renders the same controls. The badge counts only the
           non-letter chips because the A-Z strip lives outside the sheet. */}
       <Show when={isMobile()}>
-        <button
-          type="button"
-          class="conc-fab"
-          onClick={() => setSheetOpen(true)}
-        >
+        <button type="button" class="conc-fab" onClick={() => setSheetOpen(true)}>
           ≡ Filters
           <Show when={activeChips().length > 0}>
             <span class="badge">{activeChips().length}</span>
           </Show>
         </button>
-        <MobileSheet
-          open={sheetOpen()}
-          title="Filters"
-          onClose={() => setSheetOpen(false)}
-        >
+        <MobileSheet open={sheetOpen()} title="Filters" onClose={() => setSheetOpen(false)}>
           <div class="conc-mob-sheet">
             <FilterBar
               sort={sort()}
@@ -260,9 +243,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               q={props.q}
               onSetSort={(v) => props.onNavigate({ sort: v })}
               onSetPos={(v) => props.onNavigate({ pos: v })}
-              onSetFreqRange={(lo, hi) =>
-                props.onNavigate({ freqMin: lo, freqMax: hi })
-              }
+              onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
               onSetQ={(v) => props.onNavigate({ q: v })}
             />
             <div class="conc-mob-sheet-foot">
@@ -275,10 +256,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               >
                 ↺ Reset all
               </span>
-              <span
-                class="done"
-                onClick={() => setSheetOpen(false)}
-              >
+              <span class="done" onClick={() => setSheetOpen(false)}>
                 <b>{data()?.total_lemmas.toLocaleString() ?? "—"}</b> lemmas →
               </span>
             </div>
@@ -292,9 +270,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           <Show
             when={String(data.error).toLowerCase().includes("lemma cache")}
             fallback={
-              <div class="conc-empty">
-                <div class="icon">!</div>
-                <div class="ttl">Couldn't load the lemma index</div>
+              <ConcEmpty icon="!" title="Couldn't load the lemma index">
                 <div>{String(data.error)}</div>
                 <div style={{ "margin-top": "10px" }}>
                   <span
@@ -304,22 +280,25 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                     retry
                   </span>
                 </div>
-              </div>
+              </ConcEmpty>
             }
           >
-            <div class="conc-empty">
-              <div class="icon">!</div>
-              <div class="ttl">No lemma cache</div>
-              <div>
-                spaCy hasn't lemmatised the {lang().toUpperCase()} edition yet — the concordance needs a
-                populated lemma cache to operate.
-              </div>
-              <div class="cmd">$ minerva terms lemmatize --lang {lang()}</div>
-              <div class="broaden" style={{ "margin-top": "4px" }}>
-                Runs once per edition. Re-fetch when complete:{" "}
-                <a onClick={() => setRetryKey((k) => k + 1)}>retry</a>
-              </div>
-            </div>
+            <LemmaCacheEmpty
+              lang={lang()}
+              title="No lemma cache"
+              body={
+                <>
+                  spaCy hasn't lemmatised the {lang().toUpperCase()} edition yet — the concordance
+                  needs a populated lemma cache to operate.
+                </>
+              }
+              footer={
+                <>
+                  Runs once per edition. Re-fetch when complete:{" "}
+                  <a onClick={() => setRetryKey((k) => k + 1)}>retry</a>
+                </>
+              }
+            />
           </Show>
         }
       >
@@ -338,25 +317,26 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                   scope() === "corpus"
                 }
                 fallback={
-                  <div class="conc-empty">
-                    <div class="icon">∅</div>
-                    <div class="ttl">No lemmas in this scope</div>
+                  <ConcEmpty icon="∅" title="No lemmas in this scope">
                     <div>Try a different letter or change the scope.</div>
-                  </div>
+                  </ConcEmpty>
                 }
               >
-                <div class="conc-empty">
-                  <div class="icon">!</div>
-                  <div class="ttl">No lemma cache for {lang().toUpperCase()}</div>
-                  <div>
-                    spaCy hasn't lemmatised this language yet. Run the lemmatizer once per edition to populate
-                    the cache.
-                  </div>
-                  <div class="cmd">$ minerva terms lemmatize --lang {lang()}</div>
-                  <div class="broaden" style={{ "margin-top": "4px" }}>
-                    Re-fetch when complete: <a onClick={() => setRetryKey((k) => k + 1)}>retry</a>
-                  </div>
-                </div>
+                <LemmaCacheEmpty
+                  lang={lang()}
+                  title={`No lemma cache for ${lang().toUpperCase()}`}
+                  body={
+                    <>
+                      spaCy hasn't lemmatised this language yet. Run the lemmatizer once per edition
+                      to populate the cache.
+                    </>
+                  }
+                  footer={
+                    <>
+                      Re-fetch when complete: <a onClick={() => setRetryKey((k) => k + 1)}>retry</a>
+                    </>
+                  }
+                />
               </Show>
             }
           >
@@ -372,7 +352,12 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                         <LbRow
                           row={row}
                           onOpen={() =>
-                            props.onOpenLemma(row.lemma, scope(), props.scopeAuthor, props.scopeWork)
+                            props.onOpenLemma(
+                              row.lemma,
+                              scope(),
+                              props.scopeAuthor,
+                              props.scopeWork,
+                            )
                           }
                         />
                       )}

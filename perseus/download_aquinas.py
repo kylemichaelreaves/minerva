@@ -66,9 +66,8 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import NamedTuple
 
-from _download import fetch_bytes_with_retry
+from _download import make_fetcher, render_chunks as _render
 
-USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
 _BASE = "https://www.corpusthomisticum.org"
 
 
@@ -172,24 +171,9 @@ _SENT_AN_PAGES: tuple[str, ...] = (
 _INTER_REQUEST_DELAY = 1.0
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-
 # ----- fetch -----
 
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
+_fetch = make_fetcher()
 
 
 def _fetch_page(slug: str) -> str:
@@ -435,17 +419,6 @@ def _extract_sententia(
 
     flush()
     return chunks
-
-
-# ----- output formatter -----
-
-def _render(chunks: list[tuple[str, str]]) -> str:
-    pieces: list[str] = []
-    for marker, body in chunks:
-        pieces.append(marker)
-        pieces.append("")
-        pieces.append(body)
-    return "\n".join(pieces).strip() + "\n"
 
 
 def _write_work(

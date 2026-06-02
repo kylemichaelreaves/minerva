@@ -1,16 +1,14 @@
 import { describe, expect, it } from "vitest";
-import {
-  abbrevWork,
-  sortBucketsByOrder,
-} from "~/Concordance/components/FilterRail";
+import type { BreakdownBucket } from "~/api/concordanceApi";
+import { abbrevWork, sortBucketsByOrder } from "~/Concordance/constants";
 
-describe("FilterRail helpers", () => {
+describe("concordance constants helpers", () => {
   it("abbrevWork uses known map", () => {
     expect(abbrevWork("Kritik der reinen Vernunft")).toBe("KrV");
   });
 
   it("sortBucketsByOrder preserves order", () => {
-    const buckets = [
+    const buckets: BreakdownBucket[] = [
       { value: "Dat", count: 1 },
       { value: "Nom", count: 2 },
     ];

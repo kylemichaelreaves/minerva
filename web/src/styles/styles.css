@@ -28,11 +28,17 @@
      fonts that ship those marks; Noto Serif Hebrew and Noto Naskh
      Arabic do. Fallbacks: Frank Ruhl for Hebrew (very legible at the
      reader's 20–26px), Amiri for Arabic. */
-  --hebrew: "Noto Serif Hebrew", "Frank Ruhl Libre", "SBL Hebrew",
-            "Times New Roman", serif;
+  --hebrew: "Noto Serif Hebrew", "Frank Ruhl Libre", "SBL Hebrew", "Times New Roman", serif;
   --arabic: "Noto Naskh Arabic", "Amiri", "Times New Roman", serif;
 
   --col: 680px;
+
+  /* Structural tokens — shared with every feature stylesheet so the
+     pill-radius and uppercase-label rhythm have a single source of truth
+     instead of the literal values being copy-pasted across files. */
+  --radius-pill: 999px;
+  --radius-sm: 4px;
+  --tracking-label: 0.14em;
 
   color-scheme: light;
 }
@@ -264,10 +270,10 @@ body::before {
   gap: 8px;
   padding: 6px 14px;
   border: 1px solid var(--ink);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-family: var(--sans);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink);
   background: transparent;
@@ -294,7 +300,6 @@ body::before {
 /* ════════════════════════════════════════════════════════════════
    COMPOSER
    ════════════════════════════════════════════════════════════════ */
-
 
 /* Shimmer sweep — kept low-contrast so it reads as parchment, not chrome. */
 .skeleton-meta::after,
@@ -468,10 +473,10 @@ body::before {
 .dialog-btn {
   font-family: var(--sans);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   padding: 9px 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   cursor: pointer;
   transition:

@@ -42,7 +42,7 @@
 .refs-meta {
   font-family: var(--sans);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink-mute);
 }
@@ -87,7 +87,7 @@
 .refs-filter-label {
   font-family: var(--sans);
   font-size: 10.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink-mute);
 }
@@ -138,7 +138,7 @@
   width: 16px;
   height: 16px;
   border: 1px solid var(--rule);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--paper-soft);
   transition: background 140ms, border-color 140ms;
 }
@@ -146,7 +146,7 @@
   content: "";
   position: absolute;
   inset: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--paper);
   transform: scale(0);
   transition: transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -284,7 +284,7 @@
   font-size: 11px;
   font-weight: 500;
   padding: 1px 9px 2px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   text-transform: capitalize;
   letter-spacing: 0.005em;
   white-space: nowrap;
@@ -321,7 +321,7 @@
 }
 .ref-row-status {
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
 }
 .ref-row-status.status-auto {
   color: var(--ink-mute);

@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = REPO_ROOT / "data" / "authors" / "manifest.yaml"
 CORPUS_REGISTRY = REPO_ROOT / "src" / "minerva" / "corpus_registry.py"
 AUTHOR_ORDERING = REPO_ROOT / "src" / "minerva" / "author_ordering.py"
-ATLAS_DATA = REPO_ROOT / "web" / "src" / "Landing" / "atlasData.ts"
+ATLAS_DATA = REPO_ROOT / "web" / "src" / "data" / "atlasData.ts"
 
 BEGIN_CORPORA = "# BEGIN CORPORA"
 END_CORPORA = "# END CORPORA"

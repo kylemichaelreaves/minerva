@@ -153,7 +153,7 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .review-quote {

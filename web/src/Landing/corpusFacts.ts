@@ -9,7 +9,7 @@
 // per-author years already curated in `atlasData.ts`. Derive the span
 // from there so it updates whenever an earlier/later author is added.
 
-import { ATLAS_AUTHORS } from "~/Landing/atlasData";
+import { ATLAS_AUTHORS } from "~/data/atlasData";
 
 const YEARS = ATLAS_AUTHORS.map((a) => a.year);
 const MIN_YEAR = Math.min(...YEARS);

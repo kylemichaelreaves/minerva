@@ -41,26 +41,10 @@ import argparse
 import re
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
-
-USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
+from _download import make_fetcher
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
+_fetch = make_fetcher()
 
 def _strip_pg_boilerplate(raw: str) -> str:
     start = _PG_START.search(raw)

@@ -26,8 +26,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from html.parser import HTMLParser
 from threading import Lock
 
 USER_AGENT = (
@@ -215,10 +216,187 @@ def fetch_parallel(
     return results
 
 
+# HTTP request headers shared by the HTML/REST scrapers. Identical
+# across the Wikisource / Corpus Thomisticum / PG / githubusercontent
+# downloaders — they all want HTML back and announce English.
+HTML_HEADERS: dict[str, str] = {
+    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def make_fetcher(
+    *,
+    timeout: float = 60,
+    retries: int = 8,
+) -> Callable[..., bytes]:
+    """Return the ``_fetch(url, *, timeout=60, retries=8) -> bytes``
+    callable that the HTML scrapers all duplicated verbatim.
+
+    The returned callable fetches raw bytes with the canonical
+    :data:`USER_AGENT`, :data:`HTML_HEADERS`, and the gentle
+    5s→120s backoff the scrapers use against small academic sources.
+    """
+
+    def _fetch(url: str, *, timeout: float = timeout, retries: int = retries) -> bytes:
+        return fetch_bytes_with_retry(
+            url,
+            timeout=timeout,
+            retries=retries,
+            user_agent=USER_AGENT,
+            extra_headers=HTML_HEADERS,
+            backoff_initial=5.0,
+            backoff_max=120.0,
+        )
+
+    return _fetch
+
+
+class ParagraphExtractor(HTMLParser):
+    """``HTMLParser`` that emits whitespace-collapsed paragraph strings.
+
+    Text inside any tag in ``skip_tags`` (and its descendants) is
+    dropped; an end-tag in ``break_end_tags`` flushes the accumulated
+    buffer as one paragraph. When ``skip_class_tokens`` is given, any
+    element whose ``class`` attribute contains one of those tokens is
+    skipped along with its subtree — the class-aware variant the
+    Wikisource / mlwerke scrapers use to drop editorial apparatus.
+    """
+
+    def __init__(
+        self,
+        *,
+        skip_tags: Iterable[str] = (),
+        break_end_tags: Iterable[str] = (),
+        skip_class_tokens: Iterable[str] | None = None,
+    ) -> None:
+        super().__init__(convert_charrefs=True)
+        self._skip_tags = frozenset(skip_tags)
+        self._break_end_tags = frozenset(break_end_tags)
+        self._skip_class_tokens = (
+            frozenset(skip_class_tokens) if skip_class_tokens is not None else None
+        )
+        self._skip_depth = 0
+        self._buf: list[str] = []
+        self.paragraphs: list[str] = []
+
+    def _should_skip(self, attrs: list[tuple[str, str | None]]) -> bool:
+        if self._skip_class_tokens is None:
+            return False
+        for name, value in attrs:
+            if name != "class" or value is None:
+                continue
+            if any(tok in self._skip_class_tokens for tok in value.split()):
+                return True
+        return False
+
+    def _flush(self) -> None:
+        text = " ".join("".join(self._buf).split()).strip()
+        if text:
+            self.paragraphs.append(text)
+        self._buf.clear()
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        if self._skip_class_tokens is not None:
+            if self._skip_depth:
+                self._skip_depth += 1
+                return
+            if tag in self._skip_tags or self._should_skip(attrs):
+                self._skip_depth = 1
+                return
+            if tag == "p":
+                self._flush()
+            return
+        if tag in self._skip_tags:
+            self._skip_depth += 1
+            return
+        if tag in self._break_end_tags:
+            self._flush()
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._skip_class_tokens is not None:
+            if self._skip_depth:
+                self._skip_depth -= 1
+                return
+            if tag in self._break_end_tags:
+                self._flush()
+            return
+        if tag in self._skip_tags:
+            if self._skip_depth > 0:
+                self._skip_depth -= 1
+            return
+        if tag in self._break_end_tags:
+            self._flush()
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth:
+            return
+        self._buf.append(data)
+
+    def close(self) -> None:  # type: ignore[override]
+        super().close()
+        self._flush()
+
+
+def render_chunks(chunks: list[tuple[str, str]]) -> str:
+    """Emit ``(marker, body)`` chunks in the canonical raw-text shape::
+
+        [MARKER]
+        <body>
+
+        [MARKER]
+        <body>
+
+    Each marker sits on its own line (the corpus splitters anchor on
+    ``^[MARKER]$``), separated from the next chunk by a blank line.
+    """
+
+    pieces: list[str] = []
+    for marker, body in chunks:
+        pieces.append(marker)
+        pieces.append("")
+        pieces.append(body)
+    return "\n".join(pieces).strip() + "\n"
+
+
+_ROMAN_DIGIT = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+
+
+def roman_to_int(s: str) -> int | None:
+    """Subtractive-rule Roman numeral → int; ``None`` on non-Roman input.
+
+    Used in heading scans where the surrounding context is already
+    known to be numeric; never trusted blind.
+    """
+
+    if not s:
+        return None
+    s = s.upper()
+    if any(ch not in _ROMAN_DIGIT for ch in s):
+        return None
+    total = 0
+    prev = 0
+    for ch in reversed(s):
+        v = _ROMAN_DIGIT[ch]
+        if v < prev:
+            total -= v
+        else:
+            total += v
+        prev = v
+    return total
+
+
 __all__ = [
-    "USER_AGENT",
+    "HTML_HEADERS",
+    "ParagraphExtractor",
     "RateLimiter",
+    "USER_AGENT",
     "fetch_bytes_with_retry",
     "fetch_parallel",
     "fetch_with_retry",
+    "make_fetcher",
+    "render_chunks",
+    "roman_to_int",
 ]

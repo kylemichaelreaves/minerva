@@ -16,7 +16,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import make_fetcher
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -24,27 +24,9 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 DEFAULT_URL = (
     "https://raw.githubusercontent.com/gratis-bible/bible/master/en/kjv.xml"
 )
-USER_AGENT = (
-    "minerva-corpus-fetch/1.0 (+personal research; KJV public domain; "
-    "contact: local user)"
-)
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
+_fetch = make_fetcher()
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)

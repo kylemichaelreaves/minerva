@@ -10,13 +10,11 @@ import {
   createSignal,
   onCleanup,
 } from "solid-js";
-import {
-  fetchLemmaDetail,
-  type ConcScope,
-  type KwicRow,
-} from "~/api/concordanceApi";
+import { fetchLemmaDetail, type ConcScope, type KwicRow } from "~/api/concordanceApi";
+import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
 import { FilterRail } from "~/Concordance/components/FilterRail";
 import { KwicRowEl } from "~/Concordance/components/KwicRow";
+import { KwicSkeleton } from "~/Concordance/components/KwicSkeleton";
 import { LemmaIdentityCard } from "~/Concordance/components/LemmaIdentityCard";
 import { useMobile } from "~/hooks/useMobile";
 import { MobileSheet } from "~/components/MobileSheet";
@@ -92,11 +90,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
       <Show when={data()}>
         <div class="conc-head" style={{ "align-items": "flex-start" }}>
           <div style={{ flex: 1 }}>
-            <LemmaIdentityCard
-              lemma={props.lemma}
-              lang={lang()}
-              data={data()!}
-            />
+            <LemmaIdentityCard lemma={props.lemma} lang={lang()} data={data()!} />
             <div
               style={{
                 "font-family": "var(--sans)",
@@ -118,99 +112,43 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
 
       <Show when={!!data.error}>
         <Show
-          when={String(data.error as unknown).toLowerCase().includes("lemma cache")}
+          when={String(data.error as unknown)
+            .toLowerCase()
+            .includes("lemma cache")}
           fallback={
-            <div class="conc-empty">
-              <div class="icon">!</div>
-              <div class="ttl">Couldn't load occurrences</div>
+            <ConcEmpty icon="!" title="Couldn't load occurrences">
               <div>{String(data.error)}</div>
-            </div>
+            </ConcEmpty>
           }
         >
-          <div class="conc-empty">
-            <div class="icon">!</div>
-            <div class="ttl">No lemma cache</div>
-            <div>
-              spaCy hasn't lemmatised the {lang().toUpperCase()} edition yet — the concordance can't key
-              occurrences until the cache lands.
-            </div>
-            <div class="cmd">$ minerva terms lemmatize --lang {lang()}</div>
-            <div class="broaden" style={{ "margin-top": "4px" }}>
-              Runs once per edition · ~3 min for ~30k chunks.
-            </div>
-          </div>
+          <LemmaCacheEmpty
+            lang={lang()}
+            title="No lemma cache"
+            body={
+              <>
+                spaCy hasn't lemmatised the {lang().toUpperCase()} edition yet — the concordance
+                can't key occurrences until the cache lands.
+              </>
+            }
+            footer={<>Runs once per edition · ~3 min for ~30k chunks.</>}
+          />
         </Show>
       </Show>
 
       <Show when={data.loading && !data()}>
-        <div class="kwic-stage">
-          <div class="filter-rail">
-            <For each={[1, 2, 3, 4]}>
-              {() => (
-                <div class="fr-group">
-                  <div class="fr-label">
-                    <span class="skel-bar" style={{ width: "60px" }} />
-                  </div>
-                  <div class="fr-opts">
-                    <For each={[1, 2, 3]}>
-                      {() => (
-                        <span class="fr-opt">
-                          <span class="skel-bar" style={{ width: "32px" }} />
-                        </span>
-                      )}
-                    </For>
-                  </div>
-                </div>
-              )}
-            </For>
-          </div>
-          <div class="kwic-pane">
-            <div class="kwic-toolbar">
-              <span class="skel-bar" style={{ width: "140px", height: "12px" }} />
-              <span
-                class="skel-bar"
-                style={{ width: "120px", height: "12px", "margin-left": "auto" }}
-              />
-            </div>
-            <div class="kwic-grid">
-              <For each={[1, 2, 3, 4, 5, 6]}>
-                {() => (
-                  <div class="kwic-row" style={{ cursor: "default" }}>
-                    <span class="loc">
-                      <span class="skel-bar" style={{ width: "50px", height: "10px" }} />
-                      <br />
-                      <span class="skel-bar" style={{ width: "60px", height: "10px", "margin-top": "4px" }} />
-                    </span>
-                    <span class="left">
-                      <span class="skel-bar" style={{ width: "80%", height: "12px" }} />
-                    </span>
-                    <span class="match">
-                      <span class="skel-bar" style={{ width: "50px", height: "14px" }} />
-                    </span>
-                    <span class="right">
-                      <span class="skel-bar" style={{ width: "85%", height: "12px" }} />
-                    </span>
-                    <span class="meta">
-                      <span class="skel-bar" style={{ width: "60px", height: "10px" }} />
-                    </span>
-                  </div>
-                )}
-              </For>
-            </div>
-          </div>
-        </div>
+        <KwicSkeleton />
       </Show>
 
       <Show when={data() && !data.error}>
         <Show
           when={data()!.total > 0}
           fallback={
-            <div class="conc-empty">
-              <div class="icon">∅</div>
-              <div class="ttl">No occurrences with these filters</div>
+            <ConcEmpty icon="∅" title="No occurrences with these filters">
               <div>
                 <em>{props.lemma}</em>
-                {Object.entries(morph()).map(([k, v]) => ` · ${k}=${v}`).join("")}
+                {Object.entries(morph())
+                  .map(([k, v]) => ` · ${k}=${v}`)
+                  .join("")}
                 {props.surface ? ` · surface=${props.surface}` : ""} doesn't appear in{" "}
                 {data()!.scope_label || "this scope"}.
               </div>
@@ -246,7 +184,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                   <a onClick={() => props.onNavigate({ scope: "corpus" })}>Zoom to corpus</a>
                 </Show>
               </div>
-            </div>
+            </ConcEmpty>
           }
         >
           <div class="kwic-stage">
@@ -321,11 +259,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
       {/* Mobile FAB + sheet. Renders the same FilterRail inside the
           sheet body — content drives the design, not duplicated layout. */}
       <Show when={isMobile() && data() && !data.error && data()!.total > 0}>
-        <button
-          type="button"
-          class="conc-fab"
-          onClick={() => setSheetOpen(true)}
-        >
+        <button type="button" class="conc-fab" onClick={() => setSheetOpen(true)}>
           ≡ Filters
           <Show when={filterCount() > 0}>
             <span class="badge">{filterCount()}</span>
@@ -374,10 +308,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
               >
                 ↺ Reset all
               </span>
-              <span
-                class="done"
-                onClick={() => setSheetOpen(false)}
-              >
+              <span class="done" onClick={() => setSheetOpen(false)}>
                 <b>{data()!.total.toLocaleString()}</b> occurrences →
               </span>
             </div>

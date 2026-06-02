@@ -115,6 +115,12 @@ def _record_ingest_only(db_path: Path, only: frozenset[str] | None) -> None:
     try:
         import sqlite3
 
+        # Raw connect (not store.open_db) on purpose: this only writes a
+        # best-effort `meta` hint into a DB that `minerva index` owns.
+        # Running schema+migrations here would (a) be the wrong phase —
+        # ingest precedes index — and (b) create a schema-only DB if the
+        # path hasn't been indexed yet. The OperationalError below
+        # handles the not-yet-initialized case as a no-op.
         conn = sqlite3.connect(db_path)
         try:
             conn.execute(

@@ -114,7 +114,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ink-mute);
   cursor: pointer;
   transition: color var(--pset-trans), background-color var(--pset-trans);
@@ -194,7 +194,7 @@
 .minerva-select__listbox::-webkit-scrollbar-track { background: transparent; }
 .minerva-select__listbox::-webkit-scrollbar-thumb {
   background-color: var(--ink-faint);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 3px solid var(--paper);
 }
 

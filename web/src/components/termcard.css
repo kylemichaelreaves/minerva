@@ -74,7 +74,7 @@
 .termcard-sec-label {
   font-family: var(--sans);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink-faint, var(--ink-soft));
   margin-bottom: 6px;
@@ -110,7 +110,7 @@
 .termcard-single-label {
   font-family: var(--sans);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink-faint, var(--ink-soft));
 }
@@ -181,7 +181,7 @@
   border: 1px solid var(--rule);
   padding: 3px 9px;
   font-size: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ink);
 }
 

@@ -50,14 +50,11 @@ import sys
 import time
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import make_fetcher
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "data" / "spinoza" / "raw_la"
 
-USER_AGENT = (
-    "minerva-research/1.0 (local research; spinoza TTP fetch with delays)"
-)
 
 _BASE = "http://spinozaetnous.org/wiki"
 
@@ -78,21 +75,7 @@ _PAGES: tuple[tuple[int, str], ...] = (
 )
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
+_fetch = make_fetcher()
 
 def clean_wikitext(raw: str) -> str:
     """Strip refs, templates, wiki tags; keep prose + paragraph breaks."""

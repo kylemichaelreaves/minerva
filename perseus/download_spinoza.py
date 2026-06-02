@@ -44,12 +44,15 @@ from __future__ import annotations
 
 import argparse
 import re
-from html.parser import HTMLParser
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import (
+    ParagraphExtractor,
+    make_fetcher,
+    render_chunks as _render,
+    roman_to_int as _roman_to_int,
+)
 
-USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
 
 _REST = "https://la.wikisource.org/api/rest_v1/page/html"
 
@@ -67,97 +70,19 @@ _TIE_TITLE = (
 _TP_TITLE = "Tractatus_Politicus"
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+_fetch = make_fetcher()
 
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
-
-
-class _ParagraphExtractor(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
-        self._buf: list[str] = []
-        self.paragraphs: list[str] = []
-
-    def _flush(self) -> None:
-        text = " ".join("".join(self._buf).split()).strip()
-        if text:
-            self.paragraphs.append(text)
-        self._buf.clear()
-
-    def handle_starttag(self, tag: str, attrs):
-        if tag in _SKIP_TAGS:
-            self._skip_depth += 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP_TAGS:
-            if self._skip_depth > 0:
-                self._skip_depth -= 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_data(self, data: str) -> None:
-        if self._skip_depth:
-            return
-        self._buf.append(data)
-
-    def close(self) -> None:  # type: ignore[override]
-        super().close()
-        self._flush()
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_BREAK_END_TAGS = frozenset({"p", "li", "div"})
 
 
 def _extract_paragraphs(html: bytes) -> list[str]:
-    p = _ParagraphExtractor()
+    p = ParagraphExtractor(
+        skip_tags=_SKIP_TAGS, break_end_tags=_BREAK_END_TAGS
+    )
     p.feed(html.decode("utf-8"))
     p.close()
     return p.paragraphs
-
-
-# ----- numeric helpers -----
-
-_ROMAN_TO_INT = {
-    "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
-    "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10,
-}
-
-# Larger Roman → int via standard reduction. Covers up to ~LIX (59)
-# which is enough for the longest Ethica part (Pars IV has 73 props,
-# Pars V has 42; the longest "PROPOSITIO LXXIII" still parses).
-def _roman_to_int(s: str) -> int | None:
-    if not s:
-        return None
-    s = s.upper()
-    if s in _ROMAN_TO_INT:
-        return _ROMAN_TO_INT[s]
-    values = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
-    if any(ch not in values for ch in s):
-        return None
-    total = 0
-    prev = 0
-    for ch in reversed(s):
-        v = values[ch]
-        if v < prev:
-            total -= v
-        else:
-            total += v
-        prev = v
-    return total
 
 
 # ----- Ethica per-Pars walker -----
@@ -409,29 +334,6 @@ def _extract_tp(html: bytes) -> list[tuple[str, str]]:
 
     flush()
     return out
-
-
-# ----- Output formatter (shared) -----
-
-def _render(chunks: list[tuple[str, str]]) -> str:
-    """Emit chunks in the canonical marker shape:
-
-        [MARKER]
-        <body>
-
-        [MARKER]
-        <body>
-
-    Two blank lines between chunks. The body is one logical paragraph
-    (all internal whitespace already collapsed by the extractor).
-    """
-
-    pieces: list[str] = []
-    for marker, body in chunks:
-        pieces.append(marker)
-        pieces.append("")
-        pieces.append(body)
-    return "\n".join(pieces).strip() + "\n"
 
 
 # ----- per-work fetch entry points -----

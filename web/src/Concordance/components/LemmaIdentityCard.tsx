@@ -7,7 +7,7 @@
 
 import { Show } from "solid-js";
 import type { LemmaDetailResponse } from "~/api/concordanceApi";
-import { GENDER_LABEL, POS_LABEL } from "~/Concordance/components/FilterRail";
+import { GENDER_LABEL, POS_LABEL } from "~/Concordance/constants";
 
 export function LemmaIdentityCard(props: {
   lemma: string;

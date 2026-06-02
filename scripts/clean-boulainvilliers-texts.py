@@ -30,28 +30,16 @@ from __future__ import annotations
 
 import re
 import sys
-import unicodedata
 from pathlib import Path
+
+# Allow `import minerva.*` when running this script directly from the
+# repo root (`uv run python scripts/clean-boulainvilliers-texts.py`).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from minerva.textnorm import normalize_ligatures as _normalize_ligatures
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BOULAINVILLIERS_DIR = REPO_ROOT / "data" / "boulainvilliers"
-
-# Unicode ligature decompositions (U+FB00–FB06 + a few common ones
-# that aren't strictly ligatures but get OCR'd as composed glyphs).
-LIGATURES: dict[str, str] = {
-    "ﬀ": "ff",
-    "ﬁ": "fi",
-    "ﬂ": "fl",
-    "ﬃ": "ffi",
-    "ﬄ": "ffl",
-    "ﬅ": "st",
-    "ﬆ": "st",
-    # Long-s (medial s): U+017F. Not a ligature but in the same
-    # 18th-c-typography family — normalize here for one pass.
-    "ſ": "s",
-    # Sometimes OCR renders 'œ' or 'æ' as composed; preserve those
-    # (modern French still uses them) but normalize variant forms.
-}
 
 # Substring runs the OCR shipped as margin / page-edge noise.
 # Each pattern is anchored to where the noise actually fires —
@@ -100,15 +88,6 @@ def _join_hyphenation(text: str) -> str:
     text = re.sub(r"(\w)-\n([a-zàâéèêëîïôöùûüç])", r"\1\2", text)
     text = re.sub(r"(\w)- ([a-zàâéèêëîïôöùûüç])", r"\1\2", text)
     return text
-
-
-def _normalize_ligatures(text: str) -> str:
-    """Apply LIGATURES dict + NFC normalize for combining-mark
-    canonicalization (``e´`` → ``é`` when split)."""
-
-    for src, dst in LIGATURES.items():
-        text = text.replace(src, dst)
-    return unicodedata.normalize("NFC", text)
 
 
 _FRENCH_DICT = None

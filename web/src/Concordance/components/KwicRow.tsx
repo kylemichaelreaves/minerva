@@ -1,6 +1,6 @@
 import { Show, createMemo } from "solid-js";
 import type { KwicRow } from "~/api/concordanceApi";
-import { abbrevWork } from "~/Concordance/components/FilterRail";
+import { abbrevWork } from "~/Concordance/constants";
 
 export function KwicRowEl(props: {
   row: KwicRow;

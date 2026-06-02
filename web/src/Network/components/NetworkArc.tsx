@@ -16,7 +16,7 @@
 import { For, Show, createSignal } from "solid-js";
 import type { AuthorPair, NetworkSummary } from "~/api/networkApi";
 import { YEAR_TICKS, formatYear } from "~/utils/atlasGeometry";
-import { ATLAS_AUTHORS } from "~/Landing/atlasData";
+import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { NetworkDrilldownShell } from "~/Network/components/NetworkDrilldownShell";
 import { selectArcPairs } from "~/Network/components/ArcPanel";
 
@@ -74,22 +74,16 @@ function layoutLabels(authors: { name: string; year: number }[]) {
   });
 }
 
-function ArcSvg(props: {
-  summary: NetworkSummary;
-  onOpenAuthor: (name: string) => void;
-}) {
+function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) => void }) {
   // Tap-to-show tooltip pinned to the right side of the panel. On
   // mobile, a cursor-following tooltip is unusable (the finger
   // covers it), so we pin it to the right gutter and align its
   // vertical position with the tapped arc. Tap an arc to set;
   // tap the SVG background to dismiss.
-  const [hovered, setHovered] = createSignal<
-    { pair: AuthorPair; yViewBox: number } | null
-  >(null);
+  const [hovered, setHovered] = createSignal<{ pair: AuthorPair; yViewBox: number } | null>(null);
   let svgEl: SVGSVGElement | undefined;
 
-  const laidOut = () =>
-    layoutLabels(ATLAS_AUTHORS.map((a) => ({ name: a.name, year: a.year })));
+  const laidOut = () => layoutLabels(ATLAS_AUTHORS.map((a) => ({ name: a.name, year: a.year })));
 
   // Filter the API's top pairs to only those with both endpoints in
   // our year table. Union the volumetric ``all`` slice with the
@@ -98,16 +92,13 @@ function ArcSvg(props: {
   // Hegel→Heraclitus / Nietzsche→Heraclitus survive even when their
   // volume sits below the volumetric MAX_ARCS cutoff.
   const validNames = () =>
-    new Set(
-      ATLAS_AUTHORS.map((a) => a.name).filter((n) => yearOf(n) !== null),
-    );
+    new Set(ATLAS_AUTHORS.map((a) => a.name).filter((n) => yearOf(n) !== null));
 
   const arcs = () =>
-    selectArcPairs(
-      props.summary.top_pairs.all,
-      props.summary.top_pairs.per_author_top,
-      { validNames: validNames(), cap: MAX_ARCS },
-    );
+    selectArcPairs(props.summary.top_pairs.all, props.summary.top_pairs.per_author_top, {
+      validNames: validNames(),
+      cap: MAX_ARCS,
+    });
 
   return (
     <div class="net-arc-svg-wrap">
@@ -150,10 +141,7 @@ function ArcSvg(props: {
           {(a) => {
             const nudged = a.yLbl - a.yNat > 1.5;
             return (
-              <g
-                class="net-arc-author"
-                onClick={() => props.onOpenAuthor(a.name)}
-              >
+              <g class="net-arc-author" onClick={() => props.onOpenAuthor(a.name)}>
                 <line
                   x1={BASE_X - 5}
                   y1={a.yNat}
@@ -170,12 +158,7 @@ function ArcSvg(props: {
                     stroke-width="0.5"
                   />
                 </Show>
-                <text
-                  x={100}
-                  y={a.yLbl + 3.5}
-                  text-anchor="end"
-                  class="net-arc-name"
-                >
+                <text x={100} y={a.yLbl + 3.5} text-anchor="end" class="net-arc-name">
                   {a.name}
                 </text>
               </g>
@@ -191,9 +174,7 @@ function ArcSvg(props: {
             const ry = (yB - yA) / 2;
             const rx = Math.max(18, Math.min((yB - yA) * 0.48, 250));
             const backward = yearOf(p.src)! > yearOf(p.tgt)!;
-            const stroke = backward
-              ? "var(--accent)"
-              : "var(--ink-mute, #6b6357)";
+            const stroke = backward ? "var(--accent)" : "var(--ink-mute, #6b6357)";
             const sw = 0.6 + Math.log10(p.n + 1) * 0.5;
             const isHovered = () => hovered()?.pair === p;
             return (
@@ -272,8 +253,8 @@ export function NetworkArc(props: Props) {
       {(summary) => (
         <>
           <div class="net-arc-meta">
-            <span class="num">{summary.totals.xrefs.toLocaleString()}</span>{" "}
-            citations · oxblood = citations <em>backward</em> in time
+            <span class="num">{summary.totals.xrefs.toLocaleString()}</span> citations · oxblood =
+            citations <em>backward</em> in time
           </div>
           <ArcSvg summary={summary} onOpenAuthor={props.onOpenAuthor} />
         </>

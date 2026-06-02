@@ -70,7 +70,7 @@
 }
 .net-brand .sub {
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink-mute);
   font-weight: 500;
@@ -279,7 +279,7 @@
 }
 .net-panel-title {
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink);
   font-weight: 600;
@@ -453,7 +453,7 @@
 .net-matrix-strip .label {
   font-family: var(--sans);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--ink-mute);
   flex: 0 0 auto;

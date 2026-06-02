@@ -14,7 +14,9 @@
   --r-ink-soft: #4a4239;
   --r-ink-mute: #7e7565;
   --r-ink-faint: #a8a091;
-  --r-accent: #7b2e2a;
+  /* Identical to the global --accent in both themes — derive from it so a
+     rebrand touches one place. (-soft/-mark keep their bespoke alphas.) */
+  --r-accent: var(--accent);
   --r-accent-soft: rgba(123, 46, 42, 0.14);
   --r-accent-mark: rgba(123, 46, 42, 0.55);
   --r-shadow: rgba(28, 24, 20, 0.25);
@@ -45,7 +47,8 @@
   --r-ink-soft: #c2b8a4;
   --r-ink-mute: #8a8170;
   --r-ink-faint: #5e574b;
-  --r-accent: #c97a65;
+  /* --r-accent derives from --accent (set above), which is already
+     redefined for dark by styles.css — no override needed here. */
   --r-accent-soft: rgba(201, 122, 101, 0.16);
   --r-accent-mark: rgba(201, 122, 101, 0.55);
   --r-shadow: rgba(0, 0, 0, 0.55);
@@ -125,9 +128,9 @@
   gap: 0;
   font-family: var(--r-sans);
   font-size: 10.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   border: 1px solid var(--r-rule);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px;
   background: var(--r-paper);
 }
@@ -138,7 +141,7 @@
   text-transform: uppercase;
   color: var(--r-ink-mute);
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 .reader .lang button.on {
@@ -777,7 +780,7 @@
   justify-content: space-between;
   font-family: var(--r-sans);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--r-ink-faint);
 }
@@ -801,7 +804,7 @@
   gap: 8px;
   font-family: var(--r-sans);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--r-accent);
 }
@@ -871,7 +874,7 @@
   background: transparent;
   border: 1px solid var(--r-ink);
   padding: 7px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 .reader .btn-link.ghost {
@@ -1007,27 +1010,35 @@
   border-radius: 4px;
   font-family: var(--r-sans);
   font-size: 11px;
-  letter-spacing: 0.10em;
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55),
-              0 2px 6px -2px rgba(0, 0, 0, 0.30);
+  letter-spacing: 0.1em;
+  box-shadow:
+    0 12px 32px -12px rgba(0, 0, 0, 0.55),
+    0 2px 6px -2px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   /* Pure fade — respects prefers-reduced-motion via the @media
      query at the bottom of this block. */
   animation: stFade 120ms ease-out;
 }
 @keyframes stFade {
-  from { opacity: 0; transform: translateY(2px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .selection-toolbar::before {
   /* Caret pointing down at the selection (default-above placement).
      Flipped via the `.below` class when there isn't enough headroom
      and the toolbar drops beneath the selection instead. */
-  content: '';
+  content: "";
   position: absolute;
   bottom: -5px;
   left: 22px;
-  width: 10px; height: 10px;
+  width: 10px;
+  height: 10px;
   background: var(--r-ink);
   transform: rotate(45deg);
   z-index: -1;
@@ -1057,7 +1068,7 @@
   background: rgba(255, 255, 255, 0.06);
 }
 [data-theme="dark"] .reader .selection-toolbar .kbd {
-  border-color: rgba(226, 216, 196, 0.20);
+  border-color: rgba(226, 216, 196, 0.2);
   color: rgba(226, 216, 196, 0.55);
 }
 [data-theme="dark"] .reader .selection-toolbar .st-sep {
@@ -1077,7 +1088,7 @@
   border: 0;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   font-size: 10.5px;
   font-family: inherit;
 }
@@ -1108,7 +1119,7 @@
   align-items: center;
   padding: 9px 12px 9px 14px;
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.55);
   font-feature-settings: "tnum";
@@ -1137,7 +1148,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .selection-toolbar { animation: none; }
+  .selection-toolbar {
+    animation: none;
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -1187,17 +1200,17 @@
 .reader .rail-langrow .pill {
   display: inline-flex;
   border: 1px solid var(--r-rule-soft);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px;
 }
 .reader .rail-langrow .pill button {
   font-family: var(--r-sans);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--r-ink-mute);
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 0;
   background: transparent;
   cursor: pointer;

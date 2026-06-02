@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import type { AuthorPair, MatrixCell, NetworkAuthor } from "~/api/networkApi";
-import { ATLAS_AUTHORS } from "~/Landing/atlasData";
+import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { ArcPanelTopStrip } from "~/Network/components/ArcPanelTopStrip";
 
 export interface SelectArcPairsOpts {
@@ -43,7 +43,11 @@ const YEAR_BY_NAME: ReadonlyMap<string, number> = new Map(
   ATLAS_AUTHORS.map((a) => [a.name, a.year]),
 );
 
-function formatYear(year: number): string {
+// Era-style year label ("800 BC" / "1880 CE") for the arc baseline.
+// Distinct from atlasGeometry's `formatYear`, which renders signed ticks
+// ("−800" / "+1880") for the chronology strip — same domain, different
+// presentation, so keep the names distinct to avoid confusion.
+function formatYearEra(year: number): string {
   return year < 0 ? `${Math.abs(year)} BC` : `${year} CE`;
 }
 
@@ -74,9 +78,9 @@ export function ArcPanel(props: {
   // Cursor-following tooltip for arc hover. ``x`` / ``y`` are in
   // ``.net-arc-wrap``-relative pixels; we offset the rendered tooltip
   // 14 px below the cursor so it doesn't overlap the arc itself.
-  const [hovered, setHovered] = createSignal<
-    { pair: AuthorPair; x: number; y: number } | null
-  >(null);
+  const [hovered, setHovered] = createSignal<{ pair: AuthorPair; x: number; y: number } | null>(
+    null,
+  );
   let wrapEl: HTMLDivElement | undefined;
   let stageEl: HTMLDivElement | undefined;
 
@@ -175,20 +179,27 @@ export function ArcPanel(props: {
     // so the arcs spread out when zoomed. The strip stays at ``w``.
     const arcW = w * zoom();
     const innerW = arcW - padL - padR;
-    const xs = props.authors.map(
-      (_, i) => padL + (innerW * i) / Math.max(1, N - 1),
-    );
+    const xs = props.authors.map((_, i) => padL + (innerW * i) / Math.max(1, N - 1));
     const baseY = padT;
     const maxDip = arcH - baseY - 12;
     const arcMaxR = Math.max(
       1,
-      ...visiblePairs().map(
-        (p) => Math.abs(xs[idxOf().get(p.tgt)!] - xs[idxOf().get(p.src)!]) / 2,
-      ),
+      ...visiblePairs().map((p) => Math.abs(xs[idxOf().get(p.tgt)!] - xs[idxOf().get(p.src)!]) / 2),
     );
     return {
-      w, h, arcW, arcH, padL, padR, padT, stripH, stripY,
-      xs, baseY, maxDip, arcMaxR,
+      w,
+      h,
+      arcW,
+      arcH,
+      padL,
+      padR,
+      padT,
+      stripH,
+      stripY,
+      xs,
+      baseY,
+      maxDip,
+      arcMaxR,
     };
   });
 
@@ -196,7 +207,8 @@ export function ArcPanel(props: {
   // while the arc area scrolls horizontally.
   const stripLayout = createMemo(() => {
     const { w } = size();
-    const padL = 24, padR = 24;
+    const padL = 24,
+      padR = 24;
     return { w, padL, padR };
   });
 
@@ -222,9 +234,15 @@ export function ArcPanel(props: {
       stageEl.scrollLeft = ratio * nextW - viewW / 2;
     });
   }
-  function zoomIn() { setZoomCentered(zoom() * 1.5); }
-  function zoomOut() { setZoomCentered(zoom() / 1.5); }
-  function zoomReset() { setZoomCentered(1); }
+  function zoomIn() {
+    setZoomCentered(zoom() * 1.5);
+  }
+  function zoomOut() {
+    setZoomCentered(zoom() / 1.5);
+  }
+  function zoomReset() {
+    setZoomCentered(1);
+  }
 
   function onWheel(e: WheelEvent) {
     // Cmd/Ctrl + wheel = zoom. Plain wheel just scrolls horizontally
@@ -236,14 +254,10 @@ export function ArcPanel(props: {
     }
   }
 
-  const maxN = createMemo(() =>
-    Math.max(1, ...visiblePairs().map((p) => p.n)),
-  );
+  const maxN = createMemo(() => Math.max(1, ...visiblePairs().map((p) => p.n)));
 
   function arcStroke(p: AuthorPair) {
-    return p.intra_scrip
-      ? "var(--net-terra)"
-      : "var(--net-navy)";
+    return p.intra_scrip ? "var(--net-terra)" : "var(--net-navy)";
   }
   function strokeW(n: number) {
     // Base + log-scaled, with a mild zoom-dependent bump so thin
@@ -272,9 +286,7 @@ export function ArcPanel(props: {
       <div class="net-panel-head">
         <div>
           <div class="net-panel-title">Chronological arc diagram</div>
-          <div class="net-panel-q">
-            Which authors reach back furthest, and to whom?
-          </div>
+          <div class="net-panel-q">Which authors reach back furthest, and to whom?</div>
         </div>
         <div class="net-arc-zoom" role="group" aria-label="Zoom">
           <button
@@ -283,20 +295,21 @@ export function ArcPanel(props: {
             disabled={zoom() <= 1.001}
             aria-label="Zoom out"
             title="Zoom out (⌘− or ⌘-wheel)"
-          >−</button>
-          <span
-            class="net-arc-zoom-level"
-            onClick={zoomReset}
-            title="Reset zoom"
-            role="button"
-          >{zoom().toFixed(1)}×</span>
+          >
+            −
+          </button>
+          <span class="net-arc-zoom-level" onClick={zoomReset} title="Reset zoom" role="button">
+            {zoom().toFixed(1)}×
+          </span>
           <button
             class="net-arc-zoom-btn"
             onClick={zoomIn}
             disabled={zoom() >= 4.99}
             aria-label="Zoom in"
             title="Zoom in (⌘+ or ⌘-wheel)"
-          >+</button>
+          >
+            +
+          </button>
         </div>
         <button
           class={"net-toggle" + (hideIntra() ? " on" : "")}
@@ -316,123 +329,139 @@ export function ArcPanel(props: {
             onWheel={onWheel}
             style={{ height: `${layout().arcH}px` }}
           >
-          <svg
-            width={layout().arcW}
-            height={layout().arcH}
-            viewBox={`0 0 ${layout().arcW} ${layout().arcH}`}
-            style={{ display: "block" }}
-          >
-            <line
-              x1={layout().padL - 4}
-              x2={layout().arcW - layout().padR + 4}
-              y1={layout().baseY}
-              y2={layout().baseY}
-              stroke="var(--ink)"
-              stroke-width={0.6}
-            />
-            {/* tick marks + labels. At 1× zoom we show a hand-picked
+            <svg
+              width={layout().arcW}
+              height={layout().arcH}
+              viewBox={`0 0 ${layout().arcW} ${layout().arcH}`}
+              style={{ display: "block" }}
+            >
+              <line
+                x1={layout().padL - 4}
+                x2={layout().arcW - layout().padR + 4}
+                y1={layout().baseY}
+                y2={layout().baseY}
+                stroke="var(--ink)"
+                stroke-width={0.6}
+              />
+              {/* tick marks + labels. At 1× zoom we show a hand-picked
                 sparse set (so rotated names don't collide). At higher
                 zoom the wider stage earns more labels — at 2× ~half
                 the authors, at 3× all of them. Labels for un-named
                 authors collapse to dots until the zoom allows. */}
-            <For each={props.authors}>
-              {(a, i) => {
-                const SPARSE_LABELS = new Set([
-                  "Hebrew Bible", "Homer", "Plato", "Cicero", "Septuagint",
-                  "Vulgate", "Augustine", "Aquinas", "Descartes", "Kant",
-                  "Nietzsche",
-                ]);
-                const MID_LABELS = new Set([
-                  ...SPARSE_LABELS,
-                  "Heraclitus", "Parmenides", "Aristotle", "New Testament",
-                  "Epictetus", "Marcus Aurelius", "Quran",
-                  "Luther Bibel 1912", "King James Bible", "Sacy",
-                  "Hobbes", "Hume", "Hegel", "Marx",
-                ]);
-                // Reactive accessor — must call ``zoom()`` inside an
-                // accessor so the ``<Show>`` below re-evaluates when
-                // the zoom signal changes. A captured const would
-                // freeze at first render.
-                const showLabel = () =>
-                  zoom() >= 2.6 ? true
-                  : zoom() >= 1.5 ? MID_LABELS.has(a.name)
-                  : SPARSE_LABELS.has(a.name);
-                return (
-                  <>
-                    <line
-                      x1={layout().xs[i()]}
-                      x2={layout().xs[i()]}
-                      y1={layout().baseY - 3}
-                      y2={layout().baseY}
-                      stroke="var(--ink-mute)"
-                      stroke-width={0.6}
-                    />
-                    <Show when={showLabel()}>
-                      <text
-                        x={layout().xs[i()]}
-                        y={layout().baseY - 14}
-                        font-size="9.5"
-                        font-family="var(--sans)"
-                        fill={
-                          a.corpus === "scrip"
-                            ? "var(--net-terra)"
-                            : "var(--ink)"
-                        }
-                        text-anchor="middle"
-                      >
-                        {a.short}
-                      </text>
-                      <Show when={YEAR_BY_NAME.has(a.name)}>
+              <For each={props.authors}>
+                {(a, i) => {
+                  const SPARSE_LABELS = new Set([
+                    "Hebrew Bible",
+                    "Homer",
+                    "Plato",
+                    "Cicero",
+                    "Septuagint",
+                    "Vulgate",
+                    "Augustine",
+                    "Aquinas",
+                    "Descartes",
+                    "Kant",
+                    "Nietzsche",
+                  ]);
+                  const MID_LABELS = new Set([
+                    ...SPARSE_LABELS,
+                    "Heraclitus",
+                    "Parmenides",
+                    "Aristotle",
+                    "New Testament",
+                    "Epictetus",
+                    "Marcus Aurelius",
+                    "Quran",
+                    "Luther Bibel 1912",
+                    "King James Bible",
+                    "Sacy",
+                    "Hobbes",
+                    "Hume",
+                    "Hegel",
+                    "Marx",
+                  ]);
+                  // Reactive accessor — must call ``zoom()`` inside an
+                  // accessor so the ``<Show>`` below re-evaluates when
+                  // the zoom signal changes. A captured const would
+                  // freeze at first render.
+                  const showLabel = () =>
+                    zoom() >= 2.6
+                      ? true
+                      : zoom() >= 1.5
+                        ? MID_LABELS.has(a.name)
+                        : SPARSE_LABELS.has(a.name);
+                  return (
+                    <>
+                      <line
+                        x1={layout().xs[i()]}
+                        x2={layout().xs[i()]}
+                        y1={layout().baseY - 3}
+                        y2={layout().baseY}
+                        stroke="var(--ink-mute)"
+                        stroke-width={0.6}
+                      />
+                      <Show when={showLabel()}>
                         <text
                           x={layout().xs[i()]}
-                          y={layout().baseY - 5}
-                          font-size="8.5"
-                          font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-                          fill="var(--ink-faint)"
+                          y={layout().baseY - 14}
+                          font-size="9.5"
+                          font-family="var(--sans)"
+                          fill={a.corpus === "scrip" ? "var(--net-terra)" : "var(--ink)"}
                           text-anchor="middle"
                         >
-                          {formatYear(YEAR_BY_NAME.get(a.name)!)}
+                          {a.short}
                         </text>
+                        <Show when={YEAR_BY_NAME.has(a.name)}>
+                          <text
+                            x={layout().xs[i()]}
+                            y={layout().baseY - 5}
+                            font-size="8.5"
+                            font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+                            fill="var(--ink-faint)"
+                            text-anchor="middle"
+                          >
+                            {formatYearEra(YEAR_BY_NAME.get(a.name)!)}
+                          </text>
+                        </Show>
                       </Show>
-                    </Show>
-                    <Show when={!showLabel}>
-                      <circle
-                        cx={layout().xs[i()]}
-                        cy={layout().baseY}
-                        r={1.1}
-                        fill="var(--ink-mute)"
-                      />
-                    </Show>
-                  </>
-                );
-              }}
-            </For>
-            {/* arcs */}
-            <For each={visiblePairs()}>
-              {(p) => (
-                <path
-                  d={arcPath(p)}
-                  fill="none"
-                  stroke={arcStroke(p)}
-                  stroke-width={strokeW(p.n)}
-                  stroke-opacity={hovered()?.pair === p ? 0.85 : 0.55}
-                  stroke-linecap="round"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => props.onOpenPair(p.src, p.tgt)}
-                  onMouseMove={(e) => {
-                    if (!wrapEl) return;
-                    const rect = wrapEl.getBoundingClientRect();
-                    setHovered({
-                      pair: p,
-                      x: e.clientX - rect.left,
-                      y: e.clientY - rect.top,
-                    });
-                  }}
-                  onMouseLeave={() => setHovered(null)}
-                />
-              )}
-            </For>
-          </svg>
+                      <Show when={!showLabel()}>
+                        <circle
+                          cx={layout().xs[i()]}
+                          cy={layout().baseY}
+                          r={1.1}
+                          fill="var(--ink-mute)"
+                        />
+                      </Show>
+                    </>
+                  );
+                }}
+              </For>
+              {/* arcs */}
+              <For each={visiblePairs()}>
+                {(p) => (
+                  <path
+                    d={arcPath(p)}
+                    fill="none"
+                    stroke={arcStroke(p)}
+                    stroke-width={strokeW(p.n)}
+                    stroke-opacity={hovered()?.pair === p ? 0.85 : 0.55}
+                    stroke-linecap="round"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => props.onOpenPair(p.src, p.tgt)}
+                    onMouseMove={(e) => {
+                      if (!wrapEl) return;
+                      const rect = wrapEl.getBoundingClientRect();
+                      setHovered({
+                        pair: p,
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHovered(null)}
+                  />
+                )}
+              </For>
+            </svg>
           </div>
           <ArcPanelTopStrip
             width={stripLayout().w}

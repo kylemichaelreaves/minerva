@@ -28,13 +28,11 @@ from __future__ import annotations
 
 import argparse
 import time
-from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import quote
 
-from _download import fetch_bytes_with_retry
+from _download import ParagraphExtractor, make_fetcher
 
-USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
 
 # Per-work scrape spec. A work either has a single Wikisource title
 # (the `Texte_entier` view) OR a list of sub-page (heading, title)
@@ -109,79 +107,18 @@ def _url(title: str) -> str:
     )
 
 
-_HTML_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+_fetch = make_fetcher()
 
-def _fetch(url: str, *, timeout: float = 60, retries: int = 8) -> bytes:
-    return fetch_bytes_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        user_agent=USER_AGENT,
-        extra_headers=_HTML_HEADERS,
-        backoff_initial=5.0,
-        backoff_max=120.0,
-    )
-
-class _ParagraphExtractor(HTMLParser):
+def _extract_paragraphs(html: bytes) -> list[str]:
     """Class-aware HTML stripper. Mirror of the Pascal scraper's
     extractor. See `perseus/download_pascal_fr.py` for the rationale —
     editorial-apparatus classes mustn't leak into corpus text."""
 
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
-        self._buf: list[str] = []
-        self.paragraphs: list[str] = []
-
-    def _should_skip(self, attrs: list[tuple[str, str | None]]) -> bool:
-        for name, value in attrs:
-            if name != "class" or value is None:
-                continue
-            tokens = value.split()
-            if any(tok in _SKIP_CLASS_TOKENS for tok in tokens):
-                return True
-        return False
-
-    def _flush(self) -> None:
-        text = " ".join("".join(self._buf).split()).strip()
-        if text:
-            self.paragraphs.append(text)
-        self._buf.clear()
-
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
-        if self._skip_depth:
-            self._skip_depth += 1
-            return
-        if tag in _SKIP_TAGS or self._should_skip(attrs):
-            self._skip_depth = 1
-            return
-        if tag == "p":
-            self._flush()
-
-    def handle_endtag(self, tag: str) -> None:
-        if self._skip_depth:
-            self._skip_depth -= 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_data(self, data: str) -> None:
-        if self._skip_depth:
-            return
-        self._buf.append(data)
-
-    def close(self) -> None:  # type: ignore[override]
-        super().close()
-        self._flush()
-
-
-def _extract_paragraphs(html: bytes) -> list[str]:
-    p = _ParagraphExtractor()
+    p = ParagraphExtractor(
+        skip_tags=_SKIP_TAGS,
+        break_end_tags=_BREAK_END_TAGS,
+        skip_class_tokens=_SKIP_CLASS_TOKENS,
+    )
     p.feed(html.decode("utf-8"))
     p.close()
     return p.paragraphs
