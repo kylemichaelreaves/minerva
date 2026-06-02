@@ -17,6 +17,16 @@ from . import embed, orthography, store
 
 FTS_QUERY_SAFE = re.compile(r"[^\w\s]+", re.UNICODE)
 
+# Lexical-seat reservation (see `_reserved_term_ids` / `search`). A verbose
+# question buries a rare key term: BM25 rewards breadth, so passages matching
+# several common words (e.g. "Moral", "gut") outrank the one passage carrying
+# the term the question is actually about (e.g. "Mißratenen", ~3 chunks). To
+# keep that term's passages from being dropped, we find the rarest content
+# token in the query and guarantee its top matches a few seats in the result.
+_LEXICAL_RESERVE = 3  # max seats reserved for the rarest term's hits
+_RARE_DF_MAX = 400  # only reserve for a token appearing in <= this many chunks
+_MIN_TERM_LEN = 4  # ignore very short tokens when picking the rarest term
+
 
 @dataclasses.dataclass
 class Hit:
@@ -168,6 +178,56 @@ def _bm25_search(
     return merged
 
 
+def _reserved_term_ids(
+    conn: sqlite3.Connection,
+    query: str,
+    *,
+    lang: str | None,
+    corpus: str | None,
+    speaker: str | None,
+    work_id: int | None,
+    min_chunk_chars: int,
+    fold_lang: str | None,
+) -> list[str]:
+    """Chunk IDs to guarantee a seat for: the top matches of the *rarest*
+    content token in ``query``.
+
+    Counters BM25's breadth bias — a passage matching several common words
+    ("Moral", "gut", "böse") outranks the one passage carrying the rare term
+    the question is about ("Mißratenen", ~3 chunks), so the term's passages
+    fall out of the top-k. Rarity is measured corpus-wide on the normalized
+    index (canonicalized, so spelling variants are comparable); the reserved
+    hits honor the same lang/corpus/work filters as the main search. Returns
+    ``[]`` when no token is specific enough (df ≤ ``_RARE_DF_MAX``) — generic
+    or conceptual queries are left untouched.
+    """
+
+    tokens = {t for t in FTS_QUERY_SAFE.sub(" ", query).split() if len(t) >= _MIN_TERM_LEN}
+    rarest: tuple[int, str] | None = None  # (corpus-wide df, canonical token)
+    for t in tokens:
+        ct = orthography.canonicalize(t, fold_lang) if fold_lang else t
+        df = conn.execute(
+            "SELECT count(*) FROM chunks_fts_norm WHERE chunks_fts_norm MATCH ?",
+            (f'"{ct}"',),
+        ).fetchone()[0]
+        if df and (rarest is None or df < rarest[0]):
+            rarest = (df, ct)
+    if rarest is None or rarest[0] > _RARE_DF_MAX:
+        return []
+    hits = _fts_match(
+        conn,
+        "chunks_fts_norm",
+        f'"{rarest[1]}"',
+        top_k=_LEXICAL_RESERVE,
+        lang=lang,
+        corpus=corpus,
+        speaker=speaker,
+        work_id=work_id,
+        min_chunk_chars=min_chunk_chars,
+    )
+    return sorted(hits, key=lambda c: hits[c], reverse=True)[:_LEXICAL_RESERVE]
+
+
 def _vector_search(
     conn: sqlite3.Connection,
     query_vec: np.ndarray,
@@ -291,11 +351,22 @@ def search(
     else:
         fused = bm25_n
 
-    ranked = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:top_k]
-    if not ranked:
+    ordered = [cid for cid, _ in sorted(fused.items(), key=lambda x: x[1], reverse=True)]
+    if not ordered:
         return []
-
-    base_ids = [cid for cid, _ in ranked]
+    selected = ordered[:top_k]
+    # Guarantee the rarest query term's passages a seat, so a key term named
+    # in the question can't be displaced by thematically-similar (vector) or
+    # common-word (BM25-breadth) matches. No-op for generic/conceptual queries.
+    reserved = _reserved_term_ids(
+        conn, query, lang=lang, corpus=corpus, speaker=speaker,
+        work_id=work_id, min_chunk_chars=min_chunk_chars, fold_lang=fold_lang,
+    )
+    forced = [cid for cid in reserved if cid not in selected]
+    if forced:
+        keep = selected[: max(0, top_k - len(forced))]
+        selected = sorted({*keep, *forced}, key=lambda c: fused.get(c, 0.0), reverse=True)[:top_k]
+    base_ids = selected
     expanded_ids: list[str] = []
     seen: set[str] = set()
     for cid in base_ids:

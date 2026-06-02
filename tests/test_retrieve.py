@@ -3,9 +3,12 @@ filter SQL fragments, and end-to-end search against a small in-memory index."""
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 
-from minerva import retrieve
+from minerva import retrieve, store
 
 # ---------- _sanitize_fts_query ----------
 
@@ -79,6 +82,16 @@ def test_corpus_filter_for_specific_corpus():
 def test_corpus_filter_for_any_or_none_returns_no_clause():
     assert retrieve._corpus_filter(None) == ("", ())
     assert retrieve._corpus_filter("any") == ("", ())
+
+
+def test_work_filter_for_specific_work():
+    sql, params = retrieve._work_filter(792)
+    assert sql == " AND cf.work_id = ?"
+    assert params == (792,)
+
+
+def test_work_filter_for_none_returns_no_clause():
+    assert retrieve._work_filter(None) == ("", ())
 
 
 def test_speaker_filter_uses_collate_nocase():
@@ -226,3 +239,65 @@ def test_normalize_returns_python_floats_not_numpy_scalars():
     for v in out.values():
         assert isinstance(v, float)
         assert not isinstance(v, np.floating)
+
+
+# ---------- rare-term lexical reservation ----------
+
+
+def _seed_reservation_db(tmp_path: Path):
+    """Two chunks dense in common words (high BM25 breadth) and one carrying a
+    rare term once — the shape that buries a key term in a verbose query."""
+    def ch(cid: str, text: str) -> dict:
+        return {
+            "chunk_id": cid,
+            "corpus": "test",
+            "author": "Test",
+            "work": "Work",
+            "lang": "eng",
+            "source_file": "f.txt",
+            "section": cid,
+            "text": text,
+        }
+
+    chunks = [
+        ch("a", "good good good moral moral moral virtue virtue order order justice"),
+        ch("b", "good good moral moral virtue virtue order order justice justice good"),
+        ch("c", "A short passage concerning the misbegotten, and also the good."),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "idx.sqlite")
+    store.insert_chunks(conn, jsonl)
+    return conn
+
+
+def test_reservation_surfaces_rare_term_over_common_word_breadth(tmp_path: Path):
+    conn = _seed_reservation_db(tmp_path)
+    # 'misbegotten' (df 1) is the rarest token; a,b outscore c on the repeated
+    # common words, but reservation must keep c's passage a seat at top_k=2.
+    hits = retrieve.search(
+        conn, "good moral virtue misbegotten", top_k=2, lang="eng", min_chunk_chars=0
+    )
+    assert "c" in {h.chunk_id for h in hits}
+
+
+def test_reservation_is_noop_without_a_rare_term(tmp_path: Path):
+    conn = _seed_reservation_db(tmp_path)
+    # No rare outlier: the common-word passages win and c is not forced in.
+    hits = retrieve.search(conn, "good moral virtue", top_k=2, lang="eng", min_chunk_chars=0)
+    assert {h.chunk_id for h in hits} == {"a", "b"}
+
+
+def test_reserved_term_ids_picks_rarest_token(tmp_path: Path):
+    conn = _seed_reservation_db(tmp_path)
+    ids = retrieve._reserved_term_ids(
+        conn,
+        "good moral misbegotten",
+        lang="eng",
+        corpus=None,
+        speaker=None,
+        work_id=None,
+        min_chunk_chars=0,
+        fold_lang=None,
+    )
+    assert ids == ["c"]
