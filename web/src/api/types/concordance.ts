@@ -9,7 +9,7 @@ export interface LemmaIndexRow {
   pos: string;
   count: number;
   distinct_works: number;
-  per_work: Array<{ work: string; count: number }>;
+  per_work: { work: string; count: number }[];
 }
 
 export interface LemmaIndexResponse {

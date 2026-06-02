@@ -23,7 +23,9 @@ describe("concordance routing", () => {
       lang: "deu",
       letter: "A",
     };
-    const out = mergeRoutePatchAllowClear(base, { letter: undefined });
+    const out = mergeRoutePatchAllowClear(base, {
+      letter: undefined,
+    }) as Record<string, unknown>;
     expect("letter" in out && out.letter === undefined).toBe(true);
   });
 

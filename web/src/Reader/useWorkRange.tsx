@@ -36,20 +36,11 @@
 // AbortController is current and discard responses whose controller
 // has been replaced.
 
-import {
-  createEffect,
-  createSignal,
-  onCleanup,
-  type Accessor,
-} from "solid-js";
+import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { fetchOccurrenceMap, getWorkRange } from "~/api/readerApi";
 import { fetchReferencesMap } from "~/api/refsApi";
 import { errorMessage, isAbortError } from "~/utils/util";
-import type {
-  OccurrenceMap,
-  ReferencesMap,
-  WorkRange,
-} from "~/utils/types";
+import type { OccurrenceMap, ReferencesMap, WorkRange } from "~/utils/types";
 
 export interface UseWorkRangeProps {
   workId: string;
@@ -147,23 +138,19 @@ export function useWorkRange(
     );
   }
 
-  async function _fetchCompanionMaps(
+  function _fetchCompanionMaps(
     workIdNum: number,
     lang: string,
     from: number,
     limit: number,
     controller: AbortController,
-  ): Promise<void> {
+  ): void {
     // Both companions fire in parallel; failures are silent (term
     // markers + xref gutter are non-essential affordances). Same
     // controller as the page fetch so a work-switch aborts both.
     void (async () => {
       try {
-        const map = await fetchOccurrenceMap(
-          workIdNum,
-          { lang, from, limit },
-          controller.signal,
-        );
+        const map = await fetchOccurrenceMap(workIdNum, { lang, from, limit }, controller.signal);
         if (!controller.signal.aborted) _extendOccMap(map);
       } catch (err) {
         if (isAbortError(err)) return;
@@ -171,11 +158,7 @@ export function useWorkRange(
     })();
     void (async () => {
       try {
-        const map = await fetchReferencesMap(
-          workIdNum,
-          { lang, from, limit },
-          controller.signal,
-        );
+        const map = await fetchReferencesMap(workIdNum, { lang, from, limit }, controller.signal);
         if (!controller.signal.aborted) _extendRefsMap(map);
       } catch (err) {
         if (isAbortError(err)) return;
@@ -222,9 +205,7 @@ export function useWorkRange(
         queueMicrotask(() => {
           const stage = getStage();
           if (!stage) return;
-          const el = stage.querySelector(
-            `[data-chunk-id="${CSS.escape(props.focusChunkId!)}"]`,
-          );
+          const el = stage.querySelector(`[data-chunk-id="${CSS.escape(props.focusChunkId!)}"]`);
           if (el) {
             el.scrollIntoView({ block: "center", behavior: "smooth" });
             el.classList.add("focused");
@@ -265,9 +246,7 @@ export function useWorkRange(
     // controller is present (shouldn't happen post-loadWork since
     // we no longer clear it in the finally block, but defensive),
     // synthesise one and track it so a switch still cancels.
-    if (workController === undefined) {
-      workController = new AbortController();
-    }
+    workController ??= new AbortController();
     const controller = workController;
     setLoadingMore(true);
     try {
@@ -296,13 +275,7 @@ export function useWorkRange(
         chunks: [...cur.chunks, ...next.chunks],
       });
       // Extend companion maps for the newly-revealed window.
-      _fetchCompanionMaps(
-        cur.work_id,
-        cur.lang,
-        next.offset,
-        next.chunks.length,
-        controller,
-      );
+      _fetchCompanionMaps(cur.work_id, cur.lang, next.offset, next.chunks.length, controller);
     } catch (err) {
       if (isAbortError(err)) return;
       // Silent on pagination errors — the user can scroll to retry.

@@ -16,7 +16,11 @@ import { errorMessage } from "~/utils/util";
 import { ReviewCard } from "~/Refs/components/ReviewCard";
 import { RefsFiltersBar } from "~/Refs/components/RefsFiltersBar";
 import { RefsPageHeader } from "~/Refs/components/RefsPageHeader";
-import { REFS_PAGE_SIZE, mergeRefsNavigate, useRefsSourceAuthors } from "~/Refs/components/refsList";
+import {
+  REFS_PAGE_SIZE,
+  mergeRefsNavigate,
+  useRefsSourceAuthors,
+} from "~/Refs/components/refsList";
 import "~/Refs/refs.css";
 import "~/Refs/review.css";
 
@@ -95,7 +99,7 @@ export default function Review(props: ReviewProps) {
     setNoteDraft("");
     // If the URL had no id, or the id wasn't found, sync the URL to
     // the row we actually landed on so the link is shareable.
-    const landed = rows[idx >= 0 ? idx : 0];
+    const landed = rows.at(idx >= 0 ? idx : 0);
     if (landed && landed.id !== targetId) {
       props.onNavigateToReference(landed.id);
     } else if (!landed && targetId !== undefined) {
@@ -141,7 +145,7 @@ export default function Review(props: ReviewProps) {
     // Sync the URL to the new current row's id. `replaceState` keeps
     // the back button from accumulating a history entry per review
     // action — see RoutingApi.replace in routing.ts.
-    const nextRow = queue()[nextCursor];
+    const nextRow = queue().at(nextCursor);
     props.onNavigateToReference(nextRow?.id);
   };
 
@@ -196,7 +200,7 @@ export default function Review(props: ReviewProps) {
       // Don't hijack keys while the curator is typing the note. Match
       // form-element tags loosely so future widgets (selects, etc.)
       // also let their own keystrokes through.
-      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      const tag = (e.target as HTMLElement | null)?.tagName.toLowerCase();
       if (tag === "textarea" || tag === "input" || tag === "select") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "j") {
@@ -258,7 +262,7 @@ export default function Review(props: ReviewProps) {
     // passive: false so preventDefault() works.
     pageEl.addEventListener("wheel", onWheel, { passive: false });
     onCleanup(() => {
-      pageEl?.removeEventListener("wheel", onWheel);
+      pageEl.removeEventListener("wheel", onWheel);
     });
   });
 

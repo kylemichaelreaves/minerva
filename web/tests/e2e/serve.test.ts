@@ -59,6 +59,12 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
   let proc: ChildProcess;
   let baseUrl: string;
   let tmpDir: string;
+  // Whether the server booted against a populated index. CI doesn't ingest
+  // the (multi-GB, gitignored) corpus, so it serves an empty DB — the
+  // server-contract tests below still run, but the data-dependent ones
+  // (chunk stats, retrieval, works list) skip rather than fail. Set from
+  // /api/health in beforeAll.
+  let hasCorpus = false;
 
   beforeAll(async () => {
     const port = await freePort();
@@ -83,7 +89,17 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
       { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
     );
     proc.stderr?.on("data", (b: Buffer) => process.stderr.write(`[serve] ${b.toString()}`));
-    await waitForHealth(`${baseUrl}/api/health`);
+    const health = (await waitForHealth(`${baseUrl}/api/health`)) as {
+      chunks_total?: number;
+    };
+    hasCorpus = typeof health.chunks_total === "number" && health.chunks_total > 0;
+    if (!hasCorpus) {
+      console.warn(
+        "[e2e] server index is empty (chunks_total=0) — skipping data-dependent " +
+          "assertions. CI does not ingest the corpus; run `make reingest` locally " +
+          "to exercise these.",
+      );
+    }
   }, 30_000);
 
   afterAll(() => {
@@ -95,7 +111,8 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     }
   });
 
-  it("GET /api/health returns chunk stats", async () => {
+  it("GET /api/health returns chunk stats", async (ctx) => {
+    if (!hasCorpus) return ctx.skip();
     const r = await fetch(`${baseUrl}/api/health`);
     expect(r.ok).toBe(true);
     const json = (await r.json()) as Record<string, unknown>;
@@ -105,7 +122,8 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(Array.isArray(json.chunks_by_corpus_lang)).toBe(true);
   });
 
-  it("POST /api/chat returns the expected shape and finds Republic 509 for the divided line", async () => {
+  it("POST /api/chat returns the expected shape and finds Republic 509 for the divided line", async (ctx) => {
+    if (!hasCorpus) return ctx.skip();
     // The query names Plato so the server-side author detector
     // (`agent.detect_corpus`) scopes retrieval to the Plato corpus.
     // Without that scoping, the bare phrase "divided line" is too
@@ -267,7 +285,8 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
 
   // ---------- Reader: /api/works, /api/works/:id, /api/translate ----------
 
-  it("GET /api/works returns a list with the known corpora", async () => {
+  it("GET /api/works returns a list with the known corpora", async (ctx) => {
+    if (!hasCorpus) return ctx.skip();
     const r = await fetch(`${baseUrl}/api/works`);
     expect(r.ok).toBe(true);
     const json = (await r.json()) as { works: { work: string; lang: string }[] };
@@ -277,8 +296,11 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(json.works.some((w) => w.work === "Republic")).toBe(true);
   });
 
-  it("GET /api/works/:work returns ordered chunks", async () => {
-    const r = await fetch(`${baseUrl}/api/works/${encodeURIComponent("Republic")}?lang=eng&limit=5`);
+  it("GET /api/works/:work returns ordered chunks", async (ctx) => {
+    if (!hasCorpus) return ctx.skip();
+    const r = await fetch(
+      `${baseUrl}/api/works/${encodeURIComponent("Republic")}?lang=eng&limit=5`,
+    );
     expect(r.ok).toBe(true);
     const json = (await r.json()) as {
       work: string;

@@ -27,9 +27,15 @@ if (typeof window !== "undefined" && !window.matchMedia) {
 // jsdom lacks ResizeObserver; Network ArcPanel observes wrap size.
 if (typeof globalThis.ResizeObserver === "undefined") {
   globalThis.ResizeObserver = class ResizeObserver {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() {
+      /* no-op: jsdom ResizeObserver mock */
+    }
+    unobserve() {
+      /* no-op */
+    }
+    disconnect() {
+      /* no-op */
+    }
   };
 }
 
@@ -49,10 +55,7 @@ afterEach(() => {
 if (typeof process !== "undefined") {
   process.on("unhandledRejection", (reason) => {
     const msg = reason instanceof Error ? reason.message : String(reason);
-    if (
-      msg.startsWith("fetch returned no response for ") ||
-      /^\d{3}\b/.test(msg)
-    ) {
+    if (msg.startsWith("fetch returned no response for ") || /^\d{3}\b/.test(msg)) {
       // Expected: a test didn't mock a parallel-mount API call.
       // The component already shows the error state; consume here.
       return;

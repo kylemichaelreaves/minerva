@@ -1,7 +1,7 @@
 /** Wire types for term glossary endpoints. */
 
 export interface TermsListResponse {
-  terms: Array<{
+  terms: {
     id: number;
     source_form: string;
     source_language: string;
@@ -10,5 +10,5 @@ export interface TermsListResponse {
     short_gloss: string | null;
     long_description: string | null;
     occurrences: number;
-  }>;
+  }[];
 }

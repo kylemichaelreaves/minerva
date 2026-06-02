@@ -11,7 +11,7 @@ from pathlib import Path
 
 perseus_dir = Path(__file__).resolve().parents[1] / "perseus"
 sys.path.insert(0, str(perseus_dir))
-import download_aquinas as aq  # noqa: E402
+import download_aquinas as aq  # noqa: E402, I001
 
 
 _SAMPLE_ST_HTML = """
