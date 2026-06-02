@@ -1,3 +1,4 @@
+import { type JSX } from "solid-js";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/ComposeField";
 import "~/Composer/composer.css";
@@ -8,6 +9,8 @@ interface ComposerProps {
    * lock would serialize concurrent requests anyway, but the UX feedback
    * is what users need to see. */
   disabled?: boolean;
+  /** Optional work-scope chip rendered above the input. */
+  scopeChip?: JSX.Element;
 }
 
 export default function Composer(props: ComposerProps) {
@@ -27,6 +30,7 @@ export default function Composer(props: ComposerProps) {
       c={c}
       sendLabel="Send"
       disabled={props.disabled}
+      scopeChip={props.scopeChip}
       hint={
         <>
           <span>

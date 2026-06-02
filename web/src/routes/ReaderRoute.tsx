@@ -34,7 +34,16 @@ export function ReaderRoute(props: RouteContextProps) {
         focusChunkId={work()!.focusChunkId}
         openTermId={work()!.openTermId}
         onOpenTermIdChange={props.reader.setOpenTermId}
-        onClose={() => void props.reader.switchMode("chat")}
+        onClose={() => {
+          // Seed the chat scope with the work being read, so a question
+          // asked right after closing the Reader is scoped to it. Shown
+          // as a dismissible composer chip — never silent.
+          const w = props.reader.currentWork();
+          props.conversations.setChatScope(
+            w ? { workId: w.work_id, title: w.display_title } : null,
+          );
+          void props.reader.switchMode("chat");
+        }}
       />
     </Show>
   );

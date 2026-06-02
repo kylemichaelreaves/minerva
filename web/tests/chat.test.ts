@@ -123,6 +123,30 @@ describe("chatStream()", () => {
       }),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
+
+  const noopHandlers = {
+    onMeta: () => undefined,
+    onDelta: () => undefined,
+    onDone: () => undefined,
+    onError: () => undefined,
+  };
+  const doneSse = 'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
+
+  function sentBody(): Record<string, unknown> {
+    return JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+  }
+
+  it("sends work_id when the turn is work-scoped", async () => {
+    fetchMock.mockResolvedValueOnce(sseResponse([doneSse]));
+    await chatStream({ query: "q", workId: 792 }, noopHandlers);
+    expect(sentBody().work_id).toBe(792);
+  });
+
+  it("omits work_id when unscoped", async () => {
+    fetchMock.mockResolvedValueOnce(sseResponse([doneSse]));
+    await chatStream({ query: "q" }, noopHandlers);
+    expect(sentBody()).not.toHaveProperty("work_id");
+  });
 });
 
 describe("chat()", () => {

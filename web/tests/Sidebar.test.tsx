@@ -5,6 +5,7 @@ import type { HistoryItem, Work } from "~/utils/types";
 
 function makeWork(author: string, work: string, lang = "grc"): Work {
   return {
+    work_id: 1,
     corpus: author.toLowerCase(),
     author,
     work,

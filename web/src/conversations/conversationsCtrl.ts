@@ -26,9 +26,23 @@ import {
 import type { Route, RoutingApi } from "~/routing";
 import type { HistoryItem, Turn, UserTurn } from "~/utils/types";
 
+/** Active chat retrieval scope — a single work the next turns are
+ * restricted to. Seeded when leaving the Reader; shown as a dismissible
+ * chip in the composer. */
+export interface ChatScope {
+  workId: number;
+  title: string;
+}
+
 export interface ConversationsApi {
   messages: () => Turn[];
   history: () => HistoryItem[];
+  /** Current work scope, or null when unscoped. */
+  chatScope: () => ChatScope | null;
+  /** Set (or replace) the work scope — e.g. on Reader → Chat. */
+  setChatScope: (scope: ChatScope | null) => void;
+  /** Clear the work scope (the chip's × button). */
+  clearChatScope: () => void;
   thinking: () => boolean;
   pinnedChunkIds: () => string[];
   deleteTarget: () => HistoryItem | null;
@@ -52,6 +66,7 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
   const [thinking, setThinking] = createSignal(false);
   const [pinnedChunkIds, setPinnedChunkIds] = createSignal<string[]>([]);
   const [deleteTarget, setDeleteTarget] = createSignal<HistoryItem | null>(null);
+  const [chatScope, setChatScope] = createSignal<ChatScope | null>(null);
 
   let inflightController: AbortController | undefined;
 
@@ -149,6 +164,7 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
       pinnedChunkIds,
       setPinnedChunkIds,
       activeId,
+      workId: () => chatScope()?.workId,
       navigate: (cid: string) => routing.navigate({ kind: "conversation", id: cid }),
       onHydratedId: (cid: string) => {
         lastHydratedId = cid;
@@ -163,14 +179,21 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
   }
 
   function newConversation() {
+    // A fresh conversation starts unscoped.
+    setChatScope(null);
     routing.navigate({ kind: "landing" });
   }
 
   function pickHistory(id: string) {
+    // Scope is ephemeral session state, not persisted per conversation;
+    // switching threads drops it to avoid a stale chip on an unrelated chat.
+    setChatScope(null);
     routing.navigate({ kind: "conversation", id });
   }
 
   function startFromLanding(text: string) {
+    // Landing is the global entry point — unscoped.
+    setChatScope(null);
     const turn: UserTurn = { role: "user", text, time: nowTime() };
     setMessages([turn]);
     void askMinerva(text, sendDeps());
@@ -227,6 +250,9 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
   return {
     messages,
     history,
+    chatScope,
+    setChatScope,
+    clearChatScope: () => setChatScope(null),
     thinking,
     pinnedChunkIds,
     deleteTarget,

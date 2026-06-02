@@ -16,6 +16,7 @@ export interface AskMinervaDeps {
   pinnedChunkIds: () => string[];
   setPinnedChunkIds: (fn: (ids: string[]) => string[]) => void;
   activeId: () => string | null;
+  workId: () => number | undefined;
   navigate: (id: string) => void;
   onHydratedId: (id: string) => void;
   refreshHistory: () => void;
@@ -109,6 +110,7 @@ export async function askMinerva(text: string, deps: AskMinervaDeps): Promise<vo
         history: priorHistory,
         pinnedChunkIds: deps.pinnedChunkIds().length ? deps.pinnedChunkIds() : undefined,
         conversationId: deps.activeId() ?? undefined,
+        workId: deps.workId(),
         signal: controller.signal,
       },
       {

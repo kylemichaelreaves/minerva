@@ -43,6 +43,10 @@ export interface ReaderApi {
   /** All available works from `/api/works`. Populated lazily the first
    *  time Reader mode is entered. */
   works: () => Work[];
+  /** The full Work for the current reader location, or null. Resolves
+   *  the route's work string + lang against the `works()` list — used to
+   *  seed the chat scope chip when leaving the Reader. */
+  currentWork: () => Work | null;
   /** Navigate to a specific work in Reader mode. */
   openWork: (work: Work) => void;
   /** Open / close the term-card for the current reader URL. Writing
@@ -68,6 +72,16 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
   };
 
   const mode = (): AppMode => (readerWork() ? "reader" : "chat");
+
+  const currentWork = (): Work | null => {
+    const loc = readerWork();
+    if (!loc) return null;
+    return (
+      works().find(
+        (w) => w.work === loc.workId && (loc.sourceLang == null || w.lang === loc.sourceLang),
+      ) ?? null
+    );
+  };
 
   function openAtChunk(workId: string, sourceLang: string | undefined, chunkId: string) {
     abortChat();
@@ -185,5 +199,14 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     });
   }
 
-  return { readerWork, mode, switchMode, openAtChunk, works, openWork, setOpenTermId };
+  return {
+    readerWork,
+    mode,
+    currentWork,
+    switchMode,
+    openAtChunk,
+    works,
+    openWork,
+    setOpenTermId,
+  };
 }

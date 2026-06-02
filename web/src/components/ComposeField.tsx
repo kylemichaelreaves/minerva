@@ -14,6 +14,9 @@ export interface ComposeFieldProps {
   /** Optional accessory row rendered between the textarea and the
    *  hint/send footer — used on the landing for starter-prompt pills. */
   accessory?: JSX.Element;
+  /** Optional element rendered inside the sticky wrap, above the input
+   *  box — used by the chat composer for the work-scope chip. */
+  scopeChip?: JSX.Element;
 }
 
 export default function ComposeField(props: ComposeFieldProps) {
@@ -37,6 +40,7 @@ export default function ComposeField(props: ComposeFieldProps) {
 
   return (
     <div class={wrapClass}>
+      {props.scopeChip}
       <div class={innerClass}>
         <textarea
           ref={props.c.setRef}

@@ -50,6 +50,9 @@ export interface ChatArgs {
   pinnedChunkIds?: string[];
   /** Existing conversation to append to. Omit to create a new one. */
   conversationId?: string;
+  /** Hard-scope retrieval to one work (works.id). Set from the UI scope
+   * chip; the server otherwise auto-detects a work named in the query. */
+  workId?: number | null;
   /** Answer language; omit or `auto` to match the question. */
   replyLang?: ReplyLang;
   /**
@@ -71,6 +74,7 @@ export function buildChatBody(args: ChatArgs & { stream?: boolean }): Record<str
   if (args.rewrite) body.rewrite = true;
   if (args.pinnedChunkIds?.length) body.pinned_chunk_ids = args.pinnedChunkIds;
   if (args.conversationId) body.conversation_id = args.conversationId;
+  if (typeof args.workId === "number") body.work_id = args.workId;
   if (args.replyLang && args.replyLang !== "auto") body.reply_lang = args.replyLang;
   return body;
 }
@@ -83,6 +87,7 @@ export async function chat({
   pinnedChunkIds,
   conversationId,
   replyLang,
+  workId,
   signal,
 }: ChatArgs): Promise<MinervaTurn> {
   let r: Response;
@@ -90,7 +95,7 @@ export async function chat({
     r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildChatBody({ query, history, speaker, rewrite, pinnedChunkIds, conversationId, replyLang })),
+      body: JSON.stringify(buildChatBody({ query, history, speaker, rewrite, pinnedChunkIds, conversationId, replyLang, workId })),
       signal,
     });
   } catch (err) {

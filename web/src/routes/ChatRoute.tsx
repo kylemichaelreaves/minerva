@@ -39,7 +39,27 @@ export function ChatRoute(props: RouteContextProps) {
                 }}
               />
             </div>
-            <Composer onSend={props.conversations.sendMessage} />
+            <Composer
+              onSend={props.conversations.sendMessage}
+              scopeChip={
+                <Show when={props.conversations.chatScope()}>
+                  {(scope) => (
+                    <div class="chat-scope">
+                      <span class="chat-scope__label">Asking within</span>
+                      <span class="chat-scope__work">{scope().title}</span>
+                      <button
+                        type="button"
+                        class="chat-scope__clear"
+                        aria-label={`Clear scope: ${scope().title}`}
+                        onClick={() => props.conversations.clearChatScope()}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                </Show>
+              }
+            />
             <ThreadSearchSheet
               open={
                 shell.isMobile() &&

@@ -65,3 +65,57 @@
   color: var(--ink-mute);
 }
 
+/* Work-scope chip — sits inside the sticky composer wrap, above the
+   input box, centered on the same column. Signals (and lets the user
+   clear) that chat retrieval is restricted to one work. */
+.chat-scope {
+  max-width: var(--col);
+  margin: 0 auto 8px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 4px 6px 4px 12px;
+  background: var(--paper-edge);
+  border: 1px solid var(--rule-soft);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+}
+.chat-scope__label {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  color: var(--ink-faint);
+}
+.chat-scope__work {
+  color: var(--ink);
+  font-style: italic;
+  max-width: 42ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chat-scope__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.chat-scope__clear:hover {
+  background: var(--paper);
+  color: var(--accent);
+}
+

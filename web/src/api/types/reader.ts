@@ -1,6 +1,8 @@
 /** Wire types for reader, terms, and translate endpoints. */
 
 export interface Work {
+  /** Stable numeric works.id — used to scope chat retrieval to this work. */
+  work_id: number;
   corpus: string;
   author: string;
   work: string;

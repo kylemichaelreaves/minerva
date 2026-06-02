@@ -14,6 +14,7 @@ const HISTORY: HistoryItem[] = [
 
 const WORKS: Work[] = [
   {
+    work_id: 1,
     corpus: "greek",
     author: "Plato",
     work: "*politei/a",
@@ -22,6 +23,7 @@ const WORKS: Work[] = [
     chunks: 412,
   },
   {
+    work_id: 1,
     corpus: "greek",
     author: "Plato",
     work: "*politei/a",
@@ -30,6 +32,7 @@ const WORKS: Work[] = [
     chunks: 380,
   },
   {
+    work_id: 2,
     corpus: "greek",
     author: "Aristotle",
     work: "de anima",
@@ -38,6 +41,7 @@ const WORKS: Work[] = [
     chunks: 156,
   },
   {
+    work_id: 3,
     corpus: "german",
     author: "Hegel",
     work: "Phänomenologie des Geistes",
