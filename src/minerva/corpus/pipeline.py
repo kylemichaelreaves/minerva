@@ -23,6 +23,7 @@ from ..tei import Chunk
 from .split_aquinas import split_aquinas
 from .split_augustine import split_augustine
 from .split_descartes import split_descartes, split_descartes_articles
+from .split_ekgwb import split_ekgwb
 from .split_kant import split_by_kant_ab
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
@@ -58,6 +59,11 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         raw = path.read_text(encoding="utf-8", errors="replace")
         if "ZENO_PAGE:" in raw:
             yield from split_zeno_pages(raw, work, path)
+            return
+        if work.locator == "ekgwb":
+            # eKGWB Nachlass pages: the splitter needs the raw HTML
+            # structure (div1/head/txt_block), not extracted plain text.
+            yield from split_ekgwb(raw, work, path)
             return
         text = extract_html(path)
     elif suffix == ".txt":
