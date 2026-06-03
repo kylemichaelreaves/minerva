@@ -348,7 +348,11 @@ WORKS: tuple[CorpusWork, ...] = (
         code="nachlass_kgw_1884_25",
         title="Nachgelassene Fragmente (KGW)",
         translator="(Original)",
-        edition_year="1884",
+        # Constant across all notebooks: they're one edition (the single
+        # critical edition), and the schema allows one edition per
+        # (work, language). The specific year lives in the `book` label
+        # and the NF-<year> siglum, both derived from the page header.
+        edition_year="1869-1889",
         filenames=("nachlass_kgw_1884_25.html",),
         fmt="html",
         locator="ekgwb",
@@ -364,23 +368,24 @@ _base_find_work = make_find_work(WORKS)
 # Drop-and-go for additional eKGWB Nachlass notebooks: any file named
 # `nachlass_kgw_<year>_<group>.html` dropped into data/nietzsche/raw_deu/
 # is recognised without editing WORKS. The `ekgwb` splitter derives the
-# group label and per-fragment NF- sigla from the page header itself, so
-# only the year (for the siglum prefix) is taken from the filename.
-_NACHLASS_KGW_RE = re.compile(r"^nachlass_kgw_(\d{4})_\d+\.html$")
+# group label and per-fragment NF-<year> sigla from the page header
+# itself, so the filename's year/group are only a routing convention —
+# all notebooks resolve to the single shared work + edition (see the
+# edition_year note above).
+_NACHLASS_KGW_RE = re.compile(r"^nachlass_kgw_\d{4}_\d+\.html$")
 
 
 def find_work(filename: str) -> CorpusWork | None:
     w = _base_find_work(filename)
     if w is not None:
         return w
-    m = _NACHLASS_KGW_RE.match(filename)
-    if m is None:
+    if _NACHLASS_KGW_RE.match(filename) is None:
         return None
     return CorpusWork(
         code=filename[:-5],
         title="Nachgelassene Fragmente (KGW)",
         translator="(Original)",
-        edition_year=m.group(1),
+        edition_year="1869-1889",
         filenames=(filename,),
         fmt="html",
         locator="ekgwb",

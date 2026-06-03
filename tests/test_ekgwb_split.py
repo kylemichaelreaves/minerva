@@ -83,5 +83,6 @@ def test_find_work_recognises_dropped_notebook() -> None:
     assert w is not None
     assert w.locator == "ekgwb"
     assert w.title == "Nachgelassene Fragmente (KGW)"
-    assert w.edition_year == "1888"
+    # Constant across notebooks: one edition per (work, language).
+    assert w.edition_year == "1869-1889"
     assert find_work("not_a_match.html") is None
