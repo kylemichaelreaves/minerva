@@ -15,9 +15,11 @@
 # than O(filesize). The fallback path uses regular cp for Linux /
 # non-APFS hosts.
 #
-# Rotation policy: keeps the most recent 20 snapshots. Older ones are
-# pruned automatically so the snapshot directory doesn't grow without
-# bound. If you need a permanent baseline, copy the snapshot directory
+# Rotation policy: keeps the most recent $MINERVA_SNAPSHOT_KEEP
+# snapshots (default 5). Older ones are pruned automatically so the
+# snapshot directory doesn't grow without bound — at ~7G per snapshot
+# of the current DB, 5 is ~35G; the old default of 20 quietly grew to
+# 128G. If you need a permanent baseline, copy the snapshot directory
 # out of data/snapshots/ to data/snapshots-archive/ (or anywhere
 # outside the auto-rotation).
 
@@ -97,12 +99,16 @@ fi
     fi
 } > "$snapshot_dir/manifest.txt"
 
-# Rotation: keep the 20 most-recent snapshots, drop the rest. Sorting
+# Rotation: keep the N most-recent snapshots, drop the rest. Sorting
 # by directory name works because the timestamp prefix is ISO 8601 in
-# UTC, so lexical order == chronological order. The `tail -n +21`
-# trick prints everything from the 21st line onward — i.e. the
-# overflow that needs to go.
-keep=20
+# UTC, so lexical order == chronological order. Override the keep
+# count per-invocation with MINERVA_SNAPSHOT_KEEP (e.g. bump it before
+# a risky multi-step migration where you want more rollback points).
+keep="${MINERVA_SNAPSHOT_KEEP:-5}"
+if ! [[ "$keep" =~ ^[0-9]+$ ]] || (( keep < 1 )); then
+    echo "warning: MINERVA_SNAPSHOT_KEEP='$keep' is not a positive integer; using 5" >&2
+    keep=5
+fi
 mapfile -t all_snapshots < <(
     cd "$snapshot_root" && ls -1d -- *-* 2>/dev/null | sort
 )
