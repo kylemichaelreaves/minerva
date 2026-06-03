@@ -293,6 +293,7 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
         skip_strong=not args.include_strong,
         min_confidence=args.min_confidence,
         source_author=args.source_author,
+        source_work=getattr(args, "source_work", None),
         target_author=args.target_author,
         verbose=args.verbose,
         sleep_between_calls=args.sleep_between_calls,
