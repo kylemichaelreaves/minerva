@@ -1,6 +1,12 @@
 """Per-work configuration for Nietzsche ingest.
 
-25 German works from zeno.org, organized as:
+25 German zeno.org works (below) plus hand-curated eKGWB Nachlass
+notebooks: any `nachlass_kgw_<year>_<group>.html` saved from
+nietzschesource.org and dropped into the raw dir is recognised by
+`find_work` and parsed by the `ekgwb` splitter into one chunk per
+`NF-<year>,<group>[<n>]` fragment. Local-only; see the find_work note.
+
+The 25 zeno works are organized as:
 
 * **Mature published oeuvre (14 works)** — every philosophical book
   Nietzsche himself published, from *Die Geburt der Tragödie* (1872)
@@ -27,6 +33,8 @@ English translations are explicitly out of scope this round.
 """
 
 from __future__ import annotations
+
+import re
 
 from ..corpus_works import CorpusWork, make_find_work
 
@@ -326,6 +334,58 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="nietzsche",
         author="Nietzsche",
     ),
+
+    # ─── KGW Nachlass — hand-curated eKGWB notebooks ──────────────
+    # Individual Nachgelassene-Fragmente notebook groups saved by hand
+    # from nietzschesource.org (eKGWB) for personal research, parsed by
+    # `split_ekgwb` into one chunk per fragment keyed on its canonical
+    # `NF-<year>,<group>[<n>]` siglum. Local-only (data/ is gitignored),
+    # not redistributed. Add a notebook by dropping its saved .html into
+    # data/nietzsche/raw_deu/ and appending a CorpusWork here. All share
+    # the title "Nachgelassene Fragmente (KGW)" so they read as one work
+    # subdivided by siglum; `book` (from the splitter) names the group.
+    CorpusWork(
+        code="nachlass_kgw_1884_25",
+        title="Nachgelassene Fragmente (KGW)",
+        translator="(Original)",
+        edition_year="1884",
+        filenames=("nachlass_kgw_1884_25.html",),
+        fmt="html",
+        locator="ekgwb",
+        lang="deu",
+        corpus="nietzsche",
+        author="Nietzsche",
+        citation_system="paragraph",
+    ),
 )
 
-find_work = make_find_work(WORKS)
+_base_find_work = make_find_work(WORKS)
+
+# Drop-and-go for additional eKGWB Nachlass notebooks: any file named
+# `nachlass_kgw_<year>_<group>.html` dropped into data/nietzsche/raw_deu/
+# is recognised without editing WORKS. The `ekgwb` splitter derives the
+# group label and per-fragment NF- sigla from the page header itself, so
+# only the year (for the siglum prefix) is taken from the filename.
+_NACHLASS_KGW_RE = re.compile(r"^nachlass_kgw_(\d{4})_\d+\.html$")
+
+
+def find_work(filename: str) -> CorpusWork | None:
+    w = _base_find_work(filename)
+    if w is not None:
+        return w
+    m = _NACHLASS_KGW_RE.match(filename)
+    if m is None:
+        return None
+    return CorpusWork(
+        code=filename[:-5],
+        title="Nachgelassene Fragmente (KGW)",
+        translator="(Original)",
+        edition_year=m.group(1),
+        filenames=(filename,),
+        fmt="html",
+        locator="ekgwb",
+        lang="deu",
+        corpus="nietzsche",
+        author="Nietzsche",
+        citation_system="paragraph",
+    )
