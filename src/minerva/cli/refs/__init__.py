@@ -186,6 +186,14 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
         help="Restrict the build to one source author (e.g. 'Aquinas'). Faster targeted re-runs.",
     )
     pb.add_argument(
+        "--source-work",
+        help=(
+            "Restrict --strategy llm-verify to one source work title (e.g. "
+            "'Nachgelassene Fragmente (KGW)'). Pairs with --source-author for "
+            "cheap, targeted verification of a single newly-added work."
+        ),
+    )
+    pb.add_argument(
         "--limit",
         type=int,
         help="Cap the number of chunks scanned. Useful for smoke / debug runs.",

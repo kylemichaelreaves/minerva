@@ -291,6 +291,7 @@ def _eligible_rows_sql(
     skip_strong: bool = True,
     min_confidence: float | None = None,
     source_author: str | None = None,
+    source_work: str | None = None,
     target_author: str | None = None,
     resume_from_id: int | None = None,
 ) -> tuple[str, list[Any]]:
@@ -322,6 +323,9 @@ def _eligible_rows_sql(
     if source_author is not None:
         clauses.append("src_work.author = ?")
         params.append(source_author)
+    if source_work is not None:
+        clauses.append("src_work.title = ?")
+        params.append(source_work)
     if target_author is not None:
         clauses.append("rt.canonical_author = ?")
         params.append(target_author)
@@ -388,6 +392,7 @@ def verify_rows_with_llm(
     skip_strong: bool = True,
     min_confidence: float | None = None,
     source_author: str | None = None,
+    source_work: str | None = None,
     target_author: str | None = None,
     verbose: bool = False,
     sleep_between_calls: float = 0.0,
@@ -427,6 +432,7 @@ def verify_rows_with_llm(
         skip_strong=skip_strong,
         min_confidence=min_confidence,
         source_author=source_author,
+        source_work=source_work,
         target_author=target_author,
         resume_from_id=resume_from_id,
     )
