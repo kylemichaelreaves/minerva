@@ -127,12 +127,14 @@ jobs:
           retention-days: 14
 
   web-e2e:
-    name: web · e2e (main only)
+    name: web · e2e
     runs-on: ubuntu-latest
-    # PRs skip this — the unit suite covers the underlying paths and
-    # e2e adds ~30s for the server warm-up alone. Main pushes still
-    # run it as a regression net.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Runs on PRs and main pushes. The data-dependent assertions (chunk
+    # stats, retrieval, works list) skip automatically when the runner
+    # has no ingested corpus — see web/tests/e2e/serve.test.ts — so on
+    # PRs this still exercises the server-contract paths (conversation
+    # CRUD, abstain, 400s, CORS) as a regression net, for ~30s of
+    # server warm-up.
     defaults:
       run:
         working-directory: web
