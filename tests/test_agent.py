@@ -216,6 +216,24 @@ def test_answer_with_pinned_renders_a_pinned_block_before_passages(populated_db)
     assert "[P1]" in block
 
 
+def test_answer_with_pinned_numeric_uses_continuous_numbering(populated_db):
+    backend = StubBackend()
+    pin = make_hit(chunk_id="rep-510a", section="510a", text="visible vs intelligible")
+    agent.answer(
+        conn=populated_db,
+        query="divided line",
+        backend=backend,
+        top_k=3,
+        lang="eng",
+        pinned=[pin],
+        cite_style="numeric",
+    )
+    block = backend.last_user_block()
+    assert "[1]" in block
+    assert "[P1]" not in block
+    assert "[2]" in block
+
+
 def test_answer_dedupes_pinned_chunks_from_retrieval_results(populated_db):
     backend = StubBackend()
     # Pin a chunk that retrieval would also surface for "divided line".
@@ -245,6 +263,33 @@ def test_answer_abstains_when_retrieval_is_weak_and_no_pins(populated_db):
     assert "could not find enough evidence" in ans.response.lower()
     # Backend was never called on the abstain path.
     assert backend.captured == []
+
+
+def test_abstains_when_no_hit_has_any_lexical_match(populated_db, monkeypatch):
+    # Gibberish queries get no FTS match anywhere but still embed at
+    # 0.39-0.58 cosine against letter-sequence/genealogy chunks — inside
+    # the range real conceptual queries occupy, so the cosine floor can't
+    # catch them. An all-vector result set (every hit bm25=0) must abstain
+    # on the lexical signal alone, however high the cosines are.
+    vector_only = [
+        make_hit(chunk_id="rep-509d", bm25=0.0, cosine=0.58),
+        make_hit(chunk_id="rep-510a", section="510a", bm25=0.0, cosine=0.44),
+    ]
+    monkeypatch.setattr(agent.retrieval.retrieve, "search", lambda *a, **k: vector_only)
+    result = agent.retrieve_passages(conn=populated_db, query="zxqv asdf qwer")
+    assert result.abstain is True
+
+
+def test_no_abstain_when_some_hit_has_a_lexical_match(populated_db, monkeypatch):
+    # Same cosines, but one hit carries a BM25 score: the query shares
+    # vocabulary with the corpus, so the ordinary floors apply.
+    mixed = [
+        make_hit(chunk_id="rep-509d", bm25=12.0, cosine=0.58),
+        make_hit(chunk_id="rep-510a", section="510a", bm25=0.0, cosine=0.44),
+    ]
+    monkeypatch.setattr(agent.retrieval.retrieve, "search", lambda *a, **k: mixed)
+    result = agent.retrieve_passages(conn=populated_db, query="the divided line")
+    assert result.abstain is False
 
 
 def test_pinned_passages_rescue_abstention_on_weak_retrieval(populated_db):

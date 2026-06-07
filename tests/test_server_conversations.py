@@ -163,6 +163,28 @@ def test_handle_chat_rolls_back_appended_turn_on_llm_failure(
     assert all("cave allegory" not in r[1] for r in rows)
 
 
+def test_handle_chat_rolls_back_on_retrieval_failure(
+    populated_db, conversations_conn, monkeypatch
+):
+    from minerva import agent
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("retrieval failed")
+
+    monkeypatch.setattr(agent, "retrieve_passages", _boom)
+    deps = _make_deps(
+        populated_db,
+        StubBackend(reply="answer [1]."),
+        conversations_conn=conversations_conn,
+    )
+
+    with pytest.raises(RuntimeError, match="retrieval failed"):
+        server._handle_chat(deps, {"query": "What is the divided line?"})
+
+    assert conversations_conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0] == 0
+    assert conversations_conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0] == 0
+
+
 # ---------- /api/conversations endpoints ----------
 
 

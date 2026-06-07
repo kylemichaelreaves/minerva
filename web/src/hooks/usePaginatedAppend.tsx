@@ -23,9 +23,16 @@ export function usePaginatedAppend<T>(
   const [extraRows, setExtraRows] = createSignal<T[]>([]);
   const [appending, setAppending] = createSignal(false);
   const [appendError, setAppendError] = createSignal<string | null>(null);
+  let generation = 0;
+  let seeded = false;
 
   createEffect(() => {
     void firstPageData();
+    if (!seeded) {
+      seeded = true;
+      return;
+    }
+    generation += 1;
     setExtraRows([]);
     setAppendError(null);
   });
@@ -40,16 +47,21 @@ export function usePaginatedAppend<T>(
     fetchPage: (offset: number) => Promise<{ items: T[] }>,
   ): Promise<void> {
     if (appending()) return;
+    const gen = generation;
     setAppending(true);
     setAppendError(null);
     try {
       const offset = rows(firstPage).length;
       const res = await fetchPage(offset);
+      if (gen !== generation) return;
       setExtraRows((cur) => [...cur, ...res.items]);
     } catch (err) {
+      if (gen !== generation) return;
       setAppendError(errorMessage(err));
     } finally {
-      setAppending(false);
+      if (gen === generation) {
+        setAppending(false);
+      }
     }
   }
 

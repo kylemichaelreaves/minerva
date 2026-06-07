@@ -73,6 +73,7 @@ def _handle_chat_stream(
     ctx = deps.to_chat_context()
     prep = chat_service.prepare_chat_turn(ctx, payload)
     skip_deltas = prep.retrieval.abstain or deps.backend.name == "none"
+    completed = False
 
     meta: dict[str, Any] = {
         "citations": chat_service.citations_from_retrieval(prep.retrieval),
@@ -119,27 +120,24 @@ def _handle_chat_stream(
                 "dominant": body["dominant"],
             },
         )
+        completed = True
     except KeyboardInterrupt:
         raise
     except llm.LLMError:
         import logging
 
         logging.getLogger(__name__).exception("LLM error during chat stream")
-        chat_service.rollback_chat_turn(
-            ctx,
-            created_new_conversation=prep.created_new_conversation,
-            cid=prep.cid,
-            user_msg_id=prep.user_msg_id,
-        )
         yield ("error", {"error": "LLM backend error"})
     except Exception:
         import logging
 
         logging.getLogger(__name__).exception("chat stream failed")
-        chat_service.rollback_chat_turn(
-            ctx,
-            created_new_conversation=prep.created_new_conversation,
-            cid=prep.cid,
-            user_msg_id=prep.user_msg_id,
-        )
         yield ("error", {"error": "server error"})
+    finally:
+        if not completed:
+            chat_service.rollback_chat_turn(
+                ctx,
+                created_new_conversation=prep.created_new_conversation,
+                cid=prep.cid,
+                user_msg_id=prep.user_msg_id,
+            )

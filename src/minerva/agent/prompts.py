@@ -18,21 +18,25 @@ def _compose_messages(
     pinned = retrieval.pinned
     hits = retrieval.hits
     sections: list[str] = [f"<QUESTION>\n{query}\n</QUESTION>"]
+    numeric = cite_style == "numeric"
     if pinned:
         sections.append(
             "<PINNED>\n"
-            f"{_format_passages(pinned, label_prefix='P', max_chars_per_passage=_LLM_PASSAGE_CHARS)}\n"
+            f"{_format_passages(pinned, max_chars_per_passage=_LLM_PASSAGE_CHARS, label_prefix='' if numeric else 'P')}\n"
             "</PINNED>"
         )
+    hit_start = (len(pinned) + 1) if numeric else 1
     sections.append(
         "<PASSAGES>\n"
-        f"{_format_passages(hits, max_chars_per_passage=_LLM_PASSAGE_CHARS) if hits else '(no fresh retrieval matches)'}\n"
+        f"{_format_passages(hits, max_chars_per_passage=_LLM_PASSAGE_CHARS, start=hit_start) if hits else '(no fresh retrieval matches)'}\n"
         "</PASSAGES>"
     )
-    if cite_style == "numeric":
+    if numeric:
         sections.append(
             "Answer the question following all rules. Use the bracketed "
-            "index `[N]` shown before each passage as the citation marker."
+            "index `[N]` shown before each passage as the citation marker. "
+            "Pinned passages and retrieval hits share one continuous numbering "
+            "sequence across <PINNED> and <PASSAGES>."
         )
     else:
         sections.append(

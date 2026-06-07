@@ -432,25 +432,9 @@ def _read_ingest_only_meta(db_path: Path) -> set[str]:
         )
         return set()
     only_ids = {s.strip() for s in row[0].split(",") if s.strip()}
-    # Build IngestSource id → corpus slug mapping. Pull from the
-    # registry by inspecting each source's parse function: the
-    # ``_corpus_label`` factory closes over the label, and other
-    # factories (tei_dir / tei_p5_dir / drama_dir / module_parse_dir)
-    # embed it as the first argument or in their docstrings. We rely
-    # on the IngestSource ``id`` being the canonical corpus slug when
-    # it matches a single corpus, OR on a hand-maintained alias map
-    # for the dual-parser cases.
-    aliases = {
-        # Multi-source-per-corpus authors. IngestSource id → corpus slug.
-        "aesop_babrius": "aesop",
-        "origen_grc": "origen",
-        "origen_eng": "origen",
-        # cicero_en / cicero_la / descartes_la / descartes_fr / etc.
-        # ALREADY match their IngestSource id at the corpus slug level
-        # — the JSONL stamps `corpus="cicero_en"` etc., so no aliasing
-        # needed (they're separate corpora at the chunk_id level).
-    }
-    return {aliases.get(src_id, src_id) for src_id in only_ids}
+    from ..ingest.registry import corpus_slugs_for_ingest_ids
+
+    return corpus_slugs_for_ingest_ids(only_ids)
 
 
 def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
