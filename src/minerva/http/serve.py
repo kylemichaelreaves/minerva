@@ -136,14 +136,21 @@ class ChatHandler(BaseHTTPRequestHandler):
         for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
             self.send_header(k, v)
         self.end_headers()
+        it = iter(events)
         try:
-            for name, data in events:
+            while True:
+                try:
+                    name, data = next(it)
+                except StopIteration:
+                    break
                 payload = json.dumps(data, ensure_ascii=False)
                 chunk = f"event: {name}\ndata: {payload}\n\n".encode()
                 self.wfile.write(chunk)
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
-            return
+            pass
+        finally:
+            it.close()
 
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
@@ -164,7 +171,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = _read_json_body(self.headers, self.rfile)
-            if path == "/api/chat" and payload.get("stream"):
+            if path == "/api/chat" and payload.get("stream") is True:
                 self._send_sse(HTTPStatus.OK, _handle_chat_stream(self.deps, payload))
                 return
             body = _dispatch_json_mutation(handler, args, payload)

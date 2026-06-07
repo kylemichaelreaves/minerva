@@ -444,6 +444,37 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
 )
 
 
+# IngestSource ``id`` → chunk JSONL ``corpus`` when they differ. Most
+# sources stamp ``corpus=id``; dual-parser / alias ids need an explicit
+# map so ``index --incremental --from-ingest-only`` scopes DELETE/INSERT
+# to the same slug the parsers wrote.
+INGEST_ID_TO_CORPUS: dict[str, str] = {
+    "aesop_babrius": "aesop",
+    "aquinas_la": "aquinas",
+    "aristotle_first1k": "aristotle",
+    "aristotle_ica": "aristotle",
+    "augustine_la": "augustine",
+    "cicero_en": "cicero",
+    "cicero_la": "cicero",
+    "descartes_fr": "descartes",
+    "descartes_la": "descartes",
+    "hobbes_la": "hobbes",
+    "kant_en": "kant",
+    "lxx": "septuagint",
+    "marx_ocr": "marx",
+    "nt": "new_testament",
+    "origen_eng": "origen",
+    "origen_grc": "origen",
+    "spinoza_la": "spinoza",
+}
+
+
+def corpus_slugs_for_ingest_ids(source_ids: set[str]) -> set[str]:
+    """Map IngestSource ids to the ``corpus`` field written into JSONL."""
+
+    return {INGEST_ID_TO_CORPUS.get(src_id, src_id) for src_id in source_ids}
+
+
 def default_paths_by_param() -> dict[str, Path]:
     return {s.kwarg_name: s.default_path for s in INGEST_SOURCES}
 

@@ -26,3 +26,10 @@ def finish_inflight(cache_key: tuple[str, str]) -> None:
         ev = _INFLIGHT_TRANSLATIONS.pop(cache_key, None)
     if ev is not None:
         ev.set()
+
+
+def is_inflight(cache_key: tuple[str, str]) -> bool:
+    """Return whether a translation for ``cache_key`` is still in progress."""
+
+    with _INFLIGHT_LOCK:
+        return cache_key in _INFLIGHT_TRANSLATIONS

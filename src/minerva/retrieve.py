@@ -381,13 +381,23 @@ def search(
         meta_row = metas.get(cid)
         if meta_row is None:
             continue
+        meta = store.to_meta_dict(meta_row)
+        if expand_neighbors > 0:
+            parts: list[str] = []
+            for nid in store.neighbor_ids(conn, cid, window=expand_neighbors):
+                row = metas.get(nid)
+                if row is not None and row["text"]:
+                    parts.append(row["text"])
+            if parts:
+                meta = dict(meta)
+                meta["text"] = "\n\n".join(parts)
         out.append(
             Hit(
                 chunk_id=cid,
                 score=fused.get(cid, 0.0),
                 bm25=bm25_raw.get(cid, 0.0),
                 cosine=vec_raw.get(cid, 0.0),
-                meta=store.to_meta_dict(meta_row),
+                meta=meta,
             )
         )
     return out

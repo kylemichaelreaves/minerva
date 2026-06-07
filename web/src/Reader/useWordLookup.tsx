@@ -84,7 +84,9 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
             // resolving and this assignment, the next click already
             // cleared lemmaHighlights — overwriting it with a stale
             // result is the only failure mode. Cheap to ignore.
-            setLemmaHighlights(hls);
+            if (wordInfoController === controller && !controller.signal.aborted) {
+              setLemmaHighlights(hls);
+            }
           } catch (err) {
             if (isAbortError(err)) return;
             // Highlight is best-effort: a failure here just leaves
