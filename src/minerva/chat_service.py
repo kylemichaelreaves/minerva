@@ -229,123 +229,132 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
             content=query,
         )
 
-    should_rewrite = (
-        (ctx.force_rewrite or client_requested_rewrite)
-        and history
-        and ctx.backend.name != "none"
-    )
-    if should_rewrite:
-        rewritten = agent.rewrite_query(ctx.backend, history, query)
-        if rewritten:
-            retrieval_query = rewritten
+    try:
+        should_rewrite = (
+            (ctx.force_rewrite or client_requested_rewrite)
+            and history
+            and ctx.backend.name != "none"
+        )
+        if should_rewrite:
+            rewritten = agent.rewrite_query(ctx.backend, history, query)
+            if rewritten:
+                retrieval_query = rewritten
 
-    # Precedence: a startup-pinned corpus, then the explicitly-scoped
-    # work's author, then auto-detection from the query text.
-    resolved_corpus = ctx.corpus or scope_corpus
-    if resolved_corpus is None:
-        detected = agent.detect_corpus(retrieval_query)
-        if detected:
-            resolved_corpus = detected
-    # When a single-author corpus is resolved (either auto-detected
-    # or pinned at startup), strip the author-name tokens from the
-    # retrieval query — every chunk in the corpus is already from
-    # that author, and leaving the name in the embedding query
-    # makes vector retrieval surface third-person mentions of the
-    # name (letter signatures, colophons) instead of the substantive
-    # content the question is actually about. See
-    # ``agent.strip_author_keywords`` for the precise scrub.
-    # Orthographic spelling-variant folding for the BM25 query, keyed on
-    # the corpus's original language (e.g. `deu` bridges a historical
-    # `Mißrathenen` query to the modernized `Mißratenen` in the index).
-    # Computed here so it applies regardless of concept-expansion / backend.
-    fold_lang = scope_lang or (
-        original_language_for_corpus(resolved_corpus) if resolved_corpus else None
-    )
-    if resolved_corpus:
-        retrieval_query = agent.strip_author_keywords(retrieval_query, resolved_corpus)
-        # Concept expansion. If the corpus's original language differs
-        # from the query's (assumed English unless overridden), ask
-        # the LLM for 2-4 key target-language terms and append them
-        # to the retrieval query. The multilingual embedding model
-        # is too weak to bridge English "failures" → German
-        # *Mißratenen* on its own; surfacing the technical term
-        # directly fixes that. Skipped when --no-concept-expand or
-        # backend is `none` or the corpus is English-primary.
-        if ctx.enable_concept_expand and ctx.backend.name != "none":
-            target_lang = original_language_for_corpus(resolved_corpus)
-            if target_lang and target_lang != "eng":
-                # Cache lookup first — avoids the LLM call entirely
-                # for repeat questions about the same concept. The
-                # cache key normalizes case + whitespace so trivially-
-                # equivalent phrasings share an entry.
-                terms: list[str] = []
-                if ctx.concept_cache_conn is not None:
-                    with ctx.concept_cache_lock:
-                        cached = concept_cache.lookup(
-                            ctx.concept_cache_conn,
-                            query=retrieval_query,
-                            corpus=resolved_corpus,
-                            target_lang=target_lang,
-                        )
-                    if cached is not None:
-                        terms = cached
-                # Miss → call the LLM and store the result for next time.
-                if not terms:
-                    terms = agent.concept_expand(
-                        ctx.backend,
-                        retrieval_query,
-                        corpus=resolved_corpus,
-                        target_lang=target_lang,
-                    )
-                    if terms and ctx.concept_cache_conn is not None:
+        # Precedence: a startup-pinned corpus, then the explicitly-scoped
+        # work's author, then auto-detection from the query text.
+        resolved_corpus = ctx.corpus or scope_corpus
+        if resolved_corpus is None:
+            detected = agent.detect_corpus(retrieval_query)
+            if detected:
+                resolved_corpus = detected
+        # When a single-author corpus is resolved (either auto-detected
+        # or pinned at startup), strip the author-name tokens from the
+        # retrieval query — every chunk in the corpus is already from
+        # that author, and leaving the name in the embedding query
+        # makes vector retrieval surface third-person mentions of the
+        # name (letter signatures, colophons) instead of the substantive
+        # content the question is actually about. See
+        # ``agent.strip_author_keywords`` for the precise scrub.
+        # Orthographic spelling-variant folding for the BM25 query, keyed on
+        # the corpus's original language (e.g. `deu` bridges a historical
+        # `Mißrathenen` query to the modernized `Mißratenen` in the index).
+        # Computed here so it applies regardless of concept-expansion / backend.
+        fold_lang = scope_lang or (
+            original_language_for_corpus(resolved_corpus) if resolved_corpus else None
+        )
+        if resolved_corpus:
+            retrieval_query = agent.strip_author_keywords(retrieval_query, resolved_corpus)
+            # Concept expansion. If the corpus's original language differs
+            # from the query's (assumed English unless overridden), ask
+            # the LLM for 2-4 key target-language terms and append them
+            # to the retrieval query. The multilingual embedding model
+            # is too weak to bridge English "failures" → German
+            # *Mißratenen* on its own; surfacing the technical term
+            # directly fixes that. Skipped when --no-concept-expand or
+            # backend is `none` or the corpus is English-primary.
+            if ctx.enable_concept_expand and ctx.backend.name != "none":
+                target_lang = original_language_for_corpus(resolved_corpus)
+                if target_lang and target_lang != "eng":
+                    # Cache lookup first — avoids the LLM call entirely
+                    # for repeat questions about the same concept. The
+                    # cache key normalizes case + whitespace so trivially-
+                    # equivalent phrasings share an entry.
+                    terms: list[str] = []
+                    if ctx.concept_cache_conn is not None:
                         with ctx.concept_cache_lock:
-                            concept_cache.insert(
+                            cached = concept_cache.lookup(
                                 ctx.concept_cache_conn,
                                 query=retrieval_query,
                                 corpus=resolved_corpus,
                                 target_lang=target_lang,
-                                terms=terms,
-                                model=ctx.backend.name,
                             )
-                if terms:
-                    retrieval_query = f"{retrieval_query} {' '.join(terms)}"
+                        if cached is not None:
+                            terms = cached
+                    # Miss → call the LLM and store the result for next time.
+                    if not terms:
+                        terms = agent.concept_expand(
+                            ctx.backend,
+                            retrieval_query,
+                            corpus=resolved_corpus,
+                            target_lang=target_lang,
+                        )
+                        if terms and ctx.concept_cache_conn is not None:
+                            with ctx.concept_cache_lock:
+                                concept_cache.insert(
+                                    ctx.concept_cache_conn,
+                                    query=retrieval_query,
+                                    corpus=resolved_corpus,
+                                    target_lang=target_lang,
+                                    terms=terms,
+                                    model=ctx.backend.name,
+                                )
+                    if terms:
+                        retrieval_query = f"{retrieval_query} {' '.join(terms)}"
 
-    missing_pinned: list[str] = []
-    with ctx.corpus_lock:
-        pinned_hits = resolve_pinned(ctx.index_conn, pinned_ids)
-        resolved_ids = {h.chunk_id for h in pinned_hits}
-        missing_pinned = [cid_ for cid_ in pinned_ids if cid_ not in resolved_ids]
-        # Auto-detect a work named in the question (e.g. "in the
-        # Genealogie der Moral") when the client didn't pin one
-        # explicitly. Conservative — only fires when every significant
-        # title token is present, so it never silently narrows scope.
-        if work_id is None and resolved_corpus:
-            work_id = agent.detect_work(ctx.index_conn, retrieval_query, resolved_corpus)
-        retrieval = agent.retrieve_passages(
-            conn=ctx.index_conn,
+        missing_pinned: list[str] = []
+        with ctx.corpus_lock:
+            pinned_hits = resolve_pinned(ctx.index_conn, pinned_ids)
+            resolved_ids = {h.chunk_id for h in pinned_hits}
+            missing_pinned = [cid_ for cid_ in pinned_ids if cid_ not in resolved_ids]
+            # Auto-detect a work named in the question (e.g. "in the
+            # Genealogie der Moral") when the client didn't pin one
+            # explicitly. Conservative — only fires when every significant
+            # title token is present, so it never silently narrows scope.
+            if work_id is None and resolved_corpus:
+                work_id = agent.detect_work(ctx.index_conn, retrieval_query, resolved_corpus)
+            retrieval = agent.retrieve_passages(
+                conn=ctx.index_conn,
+                query=query,
+                top_k=ctx.top_k,
+                lang=ctx.lang,
+                corpus=resolved_corpus,
+                speaker=speaker,
+                embedder=ctx.embedder,
+                retrieval_query=retrieval_query,
+                pinned=pinned_hits,
+                fold_lang=fold_lang,
+                work_id=work_id,
+            )
+
+        return ChatPrepared(
             query=query,
-            top_k=ctx.top_k,
-            lang=ctx.lang,
-            corpus=resolved_corpus,
-            speaker=speaker,
-            embedder=ctx.embedder,
-            retrieval_query=retrieval_query,
-            pinned=pinned_hits,
-            fold_lang=fold_lang,
-            work_id=work_id,
+            history=history,
+            cid=cid,
+            user_msg_id=user_msg_id,
+            created_new_conversation=created_new_conversation,
+            new_title=new_title,
+            retrieval=retrieval,
+            missing_pinned=missing_pinned,
+            reply_lang=reply_lang,
         )
-
-    return ChatPrepared(
-        query=query,
-        history=history,
-        cid=cid,
-        user_msg_id=user_msg_id,
-        created_new_conversation=created_new_conversation,
-        new_title=new_title,
-        retrieval=retrieval,
-        missing_pinned=missing_pinned,
-        reply_lang=reply_lang,
-    )
+    except Exception:
+        rollback_chat_turn(
+            ctx,
+            created_new_conversation=created_new_conversation,
+            cid=cid,
+            user_msg_id=user_msg_id,
+        )
+        raise
 
 
 def rollback_chat_turn(

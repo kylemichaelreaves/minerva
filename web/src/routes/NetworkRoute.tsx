@@ -15,6 +15,10 @@ import {
 } from "~/routes/routeUtils";
 import type { RouteContextProps } from "~/routes/types";
 
+/**
+ * Read route() inside JSX prop expressions so filter params stay reactive
+ * across navigations — same pattern as ConcordanceRoute.
+ */
 export function NetworkRoute(props: RouteContextProps) {
   const route = () => props.routing.route();
   const arcRoute = (): RouteNetworkArc => {
@@ -35,69 +39,59 @@ export function NetworkRoute(props: RouteContextProps) {
   return (
     <Switch>
       <Match when={isNetworkArcRoute(route())}>
-        {(() => {
-          const r = arcRoute();
-          const filters = networkFiltersFromRoute(r);
-          return (
-            <NetworkArc
-              {...filters}
-              onBack={() => props.routing.navigate(networkRouteFromFilters("network", filters))}
-              onOpenAuthor={(name) => {
-                props.routing.navigate({ kind: "refs", sourceAuthor: name });
-              }}
-            />
-          );
-        })()}
+        <NetworkArc
+          {...networkFiltersFromRoute(arcRoute())}
+          onBack={() => {
+            const filters = networkFiltersFromRoute(arcRoute());
+            props.routing.navigate(networkRouteFromFilters("network", filters));
+          }}
+          onOpenAuthor={(name) => {
+            props.routing.navigate({ kind: "refs", sourceAuthor: name });
+          }}
+        />
       </Match>
       <Match when={isNetworkCoverageRoute(route())}>
-        {(() => {
-          const r = coverageRoute();
-          const filters = networkFiltersFromRoute(r);
-          return (
-            <NetworkCoverage
-              {...filters}
-              onBack={() => props.routing.navigate(networkRouteFromFilters("network", filters))}
-            />
-          );
-        })()}
+        <NetworkCoverage
+          {...networkFiltersFromRoute(coverageRoute())}
+          onBack={() => {
+            const filters = networkFiltersFromRoute(coverageRoute());
+            props.routing.navigate(networkRouteFromFilters("network", filters));
+          }}
+        />
       </Match>
       <Match when={isNetworkRoute(route())}>
-        {(() => {
-          const r = mainRoute();
-          const filters = networkFiltersFromRoute(r);
-          return (
-            <Network
-              minConfidence={r.minConfidence}
-              includeRejected={r.includeRejected}
-              sourceAuthors={r.sourceAuthors}
-              corpora={r.corpora}
-              sourceMethods={r.sourceMethods}
-              onNavigate={(patch) => {
-                props.routing.navigate({ kind: "network", ...patch });
-              }}
-              onOpenPair={(source, target) => {
-                props.routing.navigate({
-                  kind: "refs",
-                  sourceAuthor: source,
-                  targetAuthor: target,
-                });
-              }}
-              onOpenTargetWork={(author, work) => {
-                props.routing.navigate({
-                  kind: "refs",
-                  targetAuthor: author,
-                  targetWork: work,
-                });
-              }}
-              onOpenArc={() => {
-                props.routing.navigate(networkRouteFromFilters("network-arc", filters));
-              }}
-              onOpenCoverage={() => {
-                props.routing.navigate(networkRouteFromFilters("network-coverage", filters));
-              }}
-            />
-          );
-        })()}
+        <Network
+          minConfidence={mainRoute().minConfidence}
+          includeRejected={mainRoute().includeRejected}
+          sourceAuthors={mainRoute().sourceAuthors}
+          corpora={mainRoute().corpora}
+          sourceMethods={mainRoute().sourceMethods}
+          onNavigate={(patch) => {
+            props.routing.navigate({ kind: "network", ...patch });
+          }}
+          onOpenPair={(source, target) => {
+            props.routing.navigate({
+              kind: "refs",
+              sourceAuthor: source,
+              targetAuthor: target,
+            });
+          }}
+          onOpenTargetWork={(author, work) => {
+            props.routing.navigate({
+              kind: "refs",
+              targetAuthor: author,
+              targetWork: work,
+            });
+          }}
+          onOpenArc={() => {
+            const filters = networkFiltersFromRoute(mainRoute());
+            props.routing.navigate(networkRouteFromFilters("network-arc", filters));
+          }}
+          onOpenCoverage={() => {
+            const filters = networkFiltersFromRoute(mainRoute());
+            props.routing.navigate(networkRouteFromFilters("network-coverage", filters));
+          }}
+        />
       </Match>
     </Switch>
   );

@@ -152,9 +152,12 @@ class OpenAIBackend(LLMBackend):
         except urllib.error.URLError as exc:
             raise LLMError(f"OpenAI connection error: {exc}") from exc
         try:
-            return payload["choices"][0]["message"]["content"].strip()
-        except (KeyError, IndexError) as exc:
+            content = payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
             raise LLMError(f"Unexpected OpenAI response: {payload!r}") from exc
+        if not isinstance(content, str):
+            raise LLMError(f"Unexpected OpenAI response: {payload!r}")
+        return content.strip()
 
     def stream_complete(
         self, messages: list[Message], *, temperature: float = 0.2

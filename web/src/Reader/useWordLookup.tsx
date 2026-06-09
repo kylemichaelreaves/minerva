@@ -84,7 +84,13 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
             // resolving and this assignment, the next click already
             // cleared lemmaHighlights — overwriting it with a stale
             // result is the only failure mode. Cheap to ignore.
-            setLemmaHighlights(hls);
+            // The narrowing from the pre-await `!aborted` guard makes
+            // the linter think this re-check is always truthy; it
+            // can't see that the signal flips externally mid-await.
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            if (wordInfoController === controller && !controller.signal.aborted) {
+              setLemmaHighlights(hls);
+            }
           } catch (err) {
             if (isAbortError(err)) return;
             // Highlight is best-effort: a failure here just leaves
