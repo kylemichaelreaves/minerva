@@ -14,7 +14,7 @@ import { FilterBar } from "~/Concordance/components/FilterBar";
 import { LbRow } from "~/Concordance/components/LbRow";
 import { LoadingSkeleton } from "~/Concordance/components/LoadingSkeleton";
 import { ScopePill } from "~/Concordance/components/ScopePill";
-import { AZ } from "~/Concordance/constants";
+import { alphabetFor, foldInitial } from "~/Concordance/constants";
 import { useMobile } from "~/hooks/useMobile";
 import { MobileSheet } from "~/components/MobileSheet";
 import "~/Concordance/concordance.css";
@@ -175,12 +175,14 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           rendered inside the bottom sheet (see <MobileSheet> below). */}
       <Show when={!isMobile()}>
         <FilterBar
+          lang={lang()}
           sort={sort()}
           pos={props.pos}
           freqMin={props.freqMin}
           freqMax={props.freqMax}
           freqCeil={freqCeil()}
           q={props.q}
+          onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
           onSetSort={(v) => props.onNavigate({ sort: v })}
           onSetPos={(v) => props.onNavigate({ pos: v })}
           onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
@@ -189,7 +191,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       </Show>
 
       <div class="az-rail az-rail-grid">
-        <For each={AZ}>
+        <For each={alphabetFor(lang())}>
           {(L) => {
             const klass = () =>
               "l " + (L === letter() ? "cur" : lettersWithHits().has(L) ? "has" : "");
@@ -235,12 +237,14 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
         <MobileSheet open={sheetOpen()} title="Filters" onClose={() => setSheetOpen(false)}>
           <div class="conc-mob-sheet">
             <FilterBar
+              lang={lang()}
               sort={sort()}
               pos={props.pos}
               freqMin={props.freqMin}
               freqMax={props.freqMax}
               freqCeil={freqCeil()}
               q={props.q}
+              onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
               onSetSort={(v) => props.onNavigate({ sort: v })}
               onSetPos={(v) => props.onNavigate({ pos: v })}
               onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
@@ -423,9 +427,10 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
     const rows = data()?.rows ?? [];
     const s = new Set<string>();
     for (const r of rows) {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      const c = r.lemma[0]?.toUpperCase();
-      if (c && /[A-Z]/.test(c)) s.add(c);
+      // Fold to the base capital (ASCII A–Z or Greek Α–Ω) so the rail's
+      // "has hits" dots line up with the diacritic-folded backend filter.
+      const c = foldInitial(r.lemma);
+      if (c) s.add(c);
     }
     return s;
   });
@@ -437,7 +442,9 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
     }
     const map = new Map<string, LemmaIndexRow[]>();
     for (const r of rows) {
-      const c = (r.lemma[0] || "·").toUpperCase();
+      // Bucket alpha-sort section headers on the folded initial so
+      // ἀγαθός / ἄνθρωπος / Ἀθηνᾶ all sit under a single "Α" header.
+      const c = foldInitial(r.lemma) || "·";
       if (!map.has(c)) map.set(c, []);
       map.get(c)!.push(r);
     }

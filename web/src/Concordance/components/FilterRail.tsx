@@ -7,11 +7,11 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import type { ConcScope, LemmaDetailResponse } from "~/api/concordanceApi";
 import {
   abbrevWork,
-  CASE_LABEL,
+  caseLabelFor,
   CASES_ORDER,
   GENDER_LABEL,
   GENDERS_ORDER,
-  NUMBER_LABEL,
+  numberLabelFor,
   NUMBERS_ORDER,
   sortBucketsByOrder,
 } from "~/Concordance/constants";
@@ -36,6 +36,12 @@ export function FilterRail(props: {
   onSetWork: (w: string) => void;
   onResetAll: () => void;
 }) {
+  // Morphology abbreviations are language-specific: German uses Akk/Vok,
+  // Greek & Latin the classical Acc/Voc (+ a dual number). Drive both
+  // off the response's ``lang`` so the detail rail matches the data.
+  const caseLabel = createMemo(() => caseLabelFor(props.data.lang));
+  const numberLabel = createMemo(() => numberLabelFor(props.data.lang));
+
   const orderedCases = createMemo(() => sortBucketsByOrder(props.data.case_breakdown, CASES_ORDER));
   const orderedNumbers = createMemo(() =>
     sortBucketsByOrder(props.data.number_breakdown, NUMBERS_ORDER),
@@ -117,14 +123,14 @@ export function FilterRail(props: {
     if (props.caseFilter) {
       pills.push({
         k: "case",
-        v: CASE_LABEL[props.caseFilter] ?? props.caseFilter,
+        v: caseLabel()[props.caseFilter] ?? props.caseFilter,
         onRemove: () => props.onSetCase(undefined),
       });
     }
     if (props.numberFilter) {
       pills.push({
         k: "num",
-        v: NUMBER_LABEL[props.numberFilter] ?? props.numberFilter,
+        v: numberLabel()[props.numberFilter] ?? props.numberFilter,
         onRemove: () => props.onSetNumber(undefined),
       });
     }
@@ -276,12 +282,12 @@ export function FilterRail(props: {
         <FilterChipGroup
           label="Case"
           applied={
-            props.caseFilter ? (CASE_LABEL[props.caseFilter] ?? props.caseFilter) : undefined
+            props.caseFilter ? (caseLabel()[props.caseFilter] ?? props.caseFilter) : undefined
           }
           onClear={() => props.onSetCase(undefined)}
           buckets={orderedCases()}
           selected={props.caseFilter}
-          labelFor={(v) => CASE_LABEL[v] ?? v}
+          labelFor={(v) => caseLabel()[v] ?? v}
           titleFor={(b) => `${b.count.toLocaleString()} occurrence${b.count === 1 ? "" : "s"}`}
           onToggle={props.onSetCase}
         />
@@ -292,13 +298,13 @@ export function FilterRail(props: {
           label="Number"
           applied={
             props.numberFilter
-              ? (NUMBER_LABEL[props.numberFilter] ?? props.numberFilter)
+              ? (numberLabel()[props.numberFilter] ?? props.numberFilter)
               : undefined
           }
           onClear={() => props.onSetNumber(undefined)}
           buckets={orderedNumbers()}
           selected={props.numberFilter}
-          labelFor={(v) => NUMBER_LABEL[v] ?? v}
+          labelFor={(v) => numberLabel()[v] ?? v}
           titleFor={(b) => b.count.toLocaleString()}
           onToggle={props.onSetNumber}
         />

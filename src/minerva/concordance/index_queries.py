@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import unicodedata
 from typing import Any
 
 from ..errors import BadRequestError
@@ -25,9 +26,11 @@ def lemma_index(
       scope      one of corpus | author | work  (default: corpus)
       author     required when scope=author
       work       required when scope=work
-      letter     one-character A–Z filter; rows whose first letter
-                 matches (case-insensitive, NFC-aware via SQLite's
-                 default collation)
+      letter     one-character leading-letter filter. For Latin-script
+                 langs this is an ASCII A–Z, case-insensitive LIKE. For
+                 Greek (``grc``) the lemma's first character is folded
+                 (diacritics stripped, upper-cased) before comparison so
+                 ``Α`` matches ἀ/ἄ/Ἀ/α (see ``_fold_initial``).
       q          case-insensitive substring filter on the lemma —
                  drives the F1 "find lemma" search field. Trimmed; an
                  empty/whitespace-only value is ignored.
@@ -147,6 +150,18 @@ def lemma_index(
 
     conn.row_factory = sqlite3.Row
 
+    # Polytonic Greek lemmas begin with *precomposed* diacritic forms
+    # (ἀ / ἄ / Ἀ), so the ASCII ``LIKE 'Α%' NOCASE`` letter filter used
+    # for Latin-script langs would miss almost everything. For Greek we
+    # match on a diacritic-folded, case-folded leading letter instead
+    # (registered as a SQLite scalar fn below). Gated to ``grc`` so the
+    # German Ä/Ö/Ü/ß bucketing the LIKE path gives is left untouched.
+    fold_letter = lang == "grc"
+    if fold_letter:
+        conn.create_function(
+            "fold_initial", 1, _fold_initial, deterministic=True
+        )
+
     # ── Materialized read path ────────────────────────────────────
     # The ``lemma_counts`` table (migration 0019, populated by
     # ``minerva.concordance.aggregate.build``) carries one row per
@@ -179,8 +194,12 @@ def lemma_index(
     where_params: list[Any] = [lang, scope_kind, scope_value]
 
     if letter:
-        where_parts.append("lemma LIKE ? ESCAPE '\\'")
-        where_params.append(letter.replace("\\", "\\\\") + "%")
+        if fold_letter:
+            where_parts.append("fold_initial(lemma) = ?")
+            where_params.append(_fold_initial(letter))
+        else:
+            where_parts.append("lemma LIKE ? ESCAPE '\\'")
+            where_params.append(letter.replace("\\", "\\\\") + "%")
     if pos_in is not None:
         placeholders = ",".join("?" * len(pos_in))
         where_parts.append(f"pos IN ({placeholders})")
@@ -311,8 +330,12 @@ def lemma_index(
     ]
     totals_where_params: list[Any] = [lang, scope_kind, scope_value]
     if letter:
-        totals_where_parts.append("lemma LIKE ? ESCAPE '\\'")
-        totals_where_params.append(letter.replace("\\", "\\\\") + "%")
+        if fold_letter:
+            totals_where_parts.append("fold_initial(lemma) = ?")
+            totals_where_params.append(_fold_initial(letter))
+        else:
+            totals_where_parts.append("lemma LIKE ? ESCAPE '\\'")
+            totals_where_params.append(letter.replace("\\", "\\\\") + "%")
     if pos_in is not None:
         placeholders = ",".join("?" * len(pos_in))
         totals_where_parts.append(f"pos IN ({placeholders})")
@@ -401,6 +424,25 @@ def _canonical_display(
         return variants_by_freq[0].capitalize()
     # Default: most-frequent surface wins.
     return variants_by_freq[0]
+
+
+def _fold_initial(s: str | None) -> str:
+    """Fold a string's first character to its base capital letter.
+
+    NFD-decompose the leading code point, drop combining marks, then
+    upper-case. This maps polytonic Greek precomposed forms onto their
+    bare capital so the concordance letter rail buckets them together:
+    ``ἄ`` → ``Α``, ``ὁ`` → ``Ο``, ``Ἀθηνᾶ`` → ``Α``. Registered as a
+    SQLite scalar function for the Greek leading-letter filter.
+
+    Returns ``""`` for empty/None input.
+    """
+
+    if not s:
+        return ""
+    decomposed = unicodedata.normalize("NFD", s[0])
+    base = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return base.upper()
 
 
 def _corpus_label(lang: str) -> str:
