@@ -2,16 +2,43 @@ import type { BreakdownBucket } from "~/api/concordanceApi";
 
 export const AZ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+// The 24 Greek capitals, alpha → omega. Drives the F1 letter rail when
+// the concordance language is Ancient Greek (``grc``). Lemmas are folded
+// onto these bases (see ``foldInitial``) so a single Α button matches
+// ἀ/ἄ/Ἀ/α etc.
+export const GREEK_AZ = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ".split("");
+
+/** The letter rail for a concordance language. Greek gets Α–Ω; every
+ *  Latin-script language (deu/lat/eng/fra) gets A–Z. */
+export function alphabetFor(lang: string): string[] {
+  return lang === "grc" ? GREEK_AZ : AZ;
+}
+
+/** Fold a lemma's first character to its base capital letter — mirror of
+ *  the backend ``_fold_initial`` (index_queries.py). NFD-decompose the
+ *  leading code point, drop combining marks, upper-case. Maps polytonic
+ *  Greek precomposed forms onto their bare capital so the rail buckets
+ *  them with the plain letter: ``ἄνθρωπος`` → ``Α``, ``ὁ`` → ``Ο``. The
+ *  rail's hit-set and the alpha-sort section headers both bucket on this
+ *  so they agree with what the backend letter filter returns. */
+export function foldInitial(lemma: string): string {
+  const first = lemma[0];
+  if (!first) return "";
+  return first.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
+}
+
 export const CASES_ORDER = ["Nom", "Acc", "Gen", "Dat", "Voc"];
-export const NUMBERS_ORDER = ["Sing", "Plur"];
+export const NUMBERS_ORDER = ["Sing", "Plur", "Dual"];
 export const GENDERS_ORDER = ["Masc", "Fem", "Neut"];
 
-// Morphology display labels — short German-leaning abbreviations used by
-// the concordance filter rail, KWIC rows and the lemma identity card.
-// Kept here (not in a component file) so they have a single home and any
+// Morphology display labels used by the concordance filter rail, KWIC
+// rows and the lemma identity card. German leans on its own school
+// abbreviations (Akk/Vok); Greek & Latin philology uses the Latin
+// abbreviations (Acc/Voc) and carries a dual number German lacks. Kept
+// here (not in a component file) so they have a single home and any
 // consumer can import them without reaching into FilterRail.
 
-export const CASE_LABEL: Record<string, string> = {
+const CASE_LABEL_DEU: Record<string, string> = {
   Nom: "Nom",
   Acc: "Akk",
   Gen: "Gen",
@@ -19,7 +46,33 @@ export const CASE_LABEL: Record<string, string> = {
   Voc: "Vok",
 };
 
-export const NUMBER_LABEL: Record<string, string> = { Sing: "Sg", Plur: "Pl" };
+const CASE_LABEL_CLASSICAL: Record<string, string> = {
+  Nom: "Nom",
+  Acc: "Acc",
+  Gen: "Gen",
+  Dat: "Dat",
+  Voc: "Voc",
+};
+
+const NUMBER_LABEL_DEU: Record<string, string> = { Sing: "Sg", Plur: "Pl" };
+const NUMBER_LABEL_CLASSICAL: Record<string, string> = { Sing: "Sg", Plur: "Pl", Dual: "Du" };
+
+/** Default German label maps, kept for the (deu-only) call sites that
+ *  haven't been threaded a language. Prefer ``caseLabelFor`` /
+ *  ``numberLabelFor`` in language-aware contexts. */
+export const CASE_LABEL = CASE_LABEL_DEU;
+export const NUMBER_LABEL = NUMBER_LABEL_DEU;
+
+/** Case-abbreviation map for ``lang``. Greek/Latin get the classical
+ *  Latin abbreviations; everything else falls back to the German set. */
+export function caseLabelFor(lang: string): Record<string, string> {
+  return lang === "grc" || lang === "lat" ? CASE_LABEL_CLASSICAL : CASE_LABEL_DEU;
+}
+
+/** Number-abbreviation map for ``lang``. Greek/Latin include the dual. */
+export function numberLabelFor(lang: string): Record<string, string> {
+  return lang === "grc" || lang === "lat" ? NUMBER_LABEL_CLASSICAL : NUMBER_LABEL_DEU;
+}
 
 export const POS_LABEL: Record<string, string> = {
   NOUN: "noun",
