@@ -6,6 +6,54 @@ from conftest import StubBackend, make_hit
 
 from minerva import agent, llm
 
+# ---------- reply-language directive stripping ----------
+
+
+def test_strip_reply_directive_removes_trailing_answer_directive():
+    out = agent.strip_reply_directive(
+        "What is the difference between Vorstellung and Darstellung for Hegel? "
+        "Answer in English"
+    )
+    assert out == "What is the difference between Vorstellung and Darstellung for Hegel?"
+    assert "English" not in out
+
+
+def test_strip_reply_directive_removes_leading_directive():
+    assert agent.strip_reply_directive("In French, qu'est-ce que la volonté") == (
+        "qu'est-ce que la volonté"
+    )
+    assert agent.strip_reply_directive("Please respond in German: was ist Geist") == (
+        "was ist Geist"
+    )
+
+
+def test_strip_reply_directive_preserves_substantive_in_clauses():
+    # "explain" is not a directive verb, and a content word between the
+    # verb and "in" is not whitelisted filler — so the topic survives.
+    assert (
+        agent.strip_reply_directive("explain Hegel in English please")
+        == "explain Hegel in English please"
+    )
+    # A genuine reference to a language as subject matter is untouched.
+    assert (
+        agent.strip_reply_directive("passages about the English language")
+        == "passages about the English language"
+    )
+
+
+def test_strip_reply_directive_noop_when_absent():
+    q = "What is Geist for Hegel?"
+    assert agent.strip_reply_directive(q) == q
+
+
+def test_build_retrieval_query_strips_directive_and_keeps_history():
+    out = agent.build_retrieval_query(
+        "Answer in English what is Geist", ["earlier turn about Kant"]
+    )
+    assert "English" not in out
+    assert "Geist" in out and "Kant" in out
+
+
 # ---------- system prompt ----------
 
 
