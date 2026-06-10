@@ -294,7 +294,21 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
     )
     pb.add_argument(
         "--llm-base-url",
-        help="Override the backend's base URL (advanced; for local proxies / vendor mirrors).",
+        help=(
+            "Override the backend's base URL (advanced; for local proxies / "
+            "vendor mirrors). Non-default hosts require "
+            "--unsafe-llm-base-url-host since the credential goes to "
+            "whatever host is named here."
+        ),
+    )
+    pb.add_argument(
+        "--unsafe-llm-base-url-host",
+        action="store_true",
+        help=(
+            "Explicit opt-in to send the LLM credential to a non-default "
+            "host via --llm-base-url. Required for anything outside the "
+            "vendor's API host or localhost."
+        ),
     )
     pb.add_argument(
         "--max-llm-calls",
