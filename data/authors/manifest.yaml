@@ -194,10 +194,13 @@ corpora:
 - id: cicero
   original_lang: lat
   citation_system: paragraph
-  dominant_code: I
+  dominant_code: C
   keywords:
   - cicero
   - ciceronian
+  comment: '''C'' — Cicero''s natural initial. (Hume claimed ''I'' first; the
+
+    two collided on ''I'' until the dominant-code uniqueness check landed.)'
 - id: lucretius
   original_lang: lat
   citation_system: paragraph
@@ -319,14 +322,18 @@ corpora:
 - id: theognis
   original_lang: grc
   citation_system: paragraph
-  dominant_code: T
+  dominant_code: t
   keywords:
   - theognis
   - theognidea
   - theognidean
   comment: 'Theognis of Megara — aristocratic elegist; subject of
 
-    Nietzsche''s 1867 dissertation. dominant_code "T" is unused.'
+    Nietzsche''s 1867 dissertation. Lowercase ''t'' (rendered ''τ'' in the
+
+    UI) follows the tragedians'' lowercase-Greek-verse convention;
+
+    uppercase ''T'' belongs to Aquinas.'
 - id: aesop
   original_lang: grc
   citation_system: paragraph
@@ -370,7 +377,7 @@ corpora:
 - id: boulainvilliers
   original_lang: fra
   citation_system: paragraph
-  dominant_code: B
+  dominant_code: v
   keywords:
   - boulainvilliers
   - boulainviller
@@ -388,11 +395,15 @@ corpora:
 
     Caesar / Gregory-of-Tours (his historical sources) resolve
 
-    via out-of-corpus reference_targets rows for now.'
+    via out-of-corpus reference_targets rows for now. dominant_code
+
+    ''v'' (Boulain-Villiers) — ''B'' belongs to Hobbes, lowercase ''b''
+
+    to the Luther 1912 Bible.'
 - id: gobineau
   original_lang: fra
   citation_system: paragraph
-  dominant_code: G
+  dominant_code: o
   keywords:
   - gobineau
   - comte de gobineau
@@ -401,11 +412,15 @@ corpora:
 
     races humaines* (1853-55). The racial-determinism reformulation
 
-    of Boulainvilliers''s Frankish thesis that Nietzsche absorbs.'
+    of Boulainvilliers''s Frankish thesis that Nietzsche absorbs.
+
+    dominant_code ''o'' (gObineau) — ''G'' belongs to the Septuagint,
+
+    lowercase ''g'' to the KJV.'
 - id: renan
   original_lang: fra
   citation_system: paragraph
-  dominant_code: R
+  dominant_code: r
   keywords:
   - renan
   - ernest renan
@@ -421,7 +436,9 @@ corpora:
 
     material in the Histoire is the source for GM I.7-8 slave-
 
-    morality genealogy.'
+    morality genealogy. dominant_code lowercase ''r'' — uppercase
+
+    ''R'' belongs to Rousseau.'
 authors:
 - display_name: Hebrew Bible
   corpus_id: hebrew_mt
