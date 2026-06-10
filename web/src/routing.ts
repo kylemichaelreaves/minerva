@@ -6,7 +6,7 @@
 // working when served from a subpath (e.g. `minerva serve` behind a
 // reverse proxy).
 
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onCleanup, onMount } from "solid-js";
 
 export type Route =
   | { kind: "landing" }
@@ -126,13 +126,30 @@ export type Route =
       surface?: string;
     };
 
+/** Decode one percent-encoded path segment defensively. Malformed
+ *  encoding (e.g. a truncated `#/c/100%`) makes decodeURIComponent
+ *  throw URIError, which would blank-screen the whole app from the
+ *  router. Returns null on failure so callers can fall back to the
+ *  landing route — same defensive posture as the `term=` parse below. */
+const safeDecode = (s: string): string | null => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return null;
+  }
+};
+
 export function readRoute(): Route {
   const hash = window.location.hash;
   let m = /^#\/c\/([^/?]+)$/.exec(hash);
-  if (m) return { kind: "conversation", id: decodeURIComponent(m[1]) };
+  if (m) {
+    const id = safeDecode(m[1]);
+    return id === null ? { kind: "landing" } : { kind: "conversation", id };
+  }
   m = /^#\/r\/([^/?]+)(?:\?(.*))?$/.exec(hash);
   if (m) {
-    const workId = decodeURIComponent(m[1]);
+    const workId = safeDecode(m[1]);
+    if (workId === null) return { kind: "landing" };
     const qs = new URLSearchParams(m[2]);
     const termParam = qs.get("term");
     // Parse `term=<int>` defensively — a bad value (e.g. a stale
@@ -193,11 +210,13 @@ export function readRoute(): Route {
   }
   m = /^#\/concordance\/([^?]+)(?:\?(.*))?$/.exec(hash);
   if (m) {
+    const lemma = safeDecode(m[1]);
+    if (lemma === null) return { kind: "landing" };
     const qs = new URLSearchParams(m[2]);
     const scope = qs.get("scope");
     return {
       kind: "concordance-lemma",
-      lemma: decodeURIComponent(m[1]),
+      lemma,
       lang: qs.get("lang") ?? undefined,
       scope: scope === "corpus" || scope === "author" || scope === "work" ? scope : undefined,
       scopeAuthor: qs.get("author") ?? undefined,
@@ -339,36 +358,49 @@ export interface RoutingApi {
 }
 
 export function useRouting(): RoutingApi {
-  const [route, setRoute] = createSignal<Route>(readRoute());
+  const initial = readRoute();
+  const [route, setRoute] = createSignal<Route>(initial);
 
-  // Write hash whenever the route signal changes. `pushState` doesn't
-  // fire `hashchange`, so the popstate listener below is the only
-  // reader-side path — no feedback loop. The guard skips redundant
-  // writes (otherwise every signal change would push a new history
-  // entry, which back/forward would have to walk through).
-  createEffect(() => {
-    const target = routeHash(route());
-    if (window.location.hash !== target) {
+  // Canonicalize the URL on first load. A non-canonical hash (extra
+  // params, malformed encoding, Firefox's decoded `location.hash`)
+  // parses fine, but the address bar should show the serialized form.
+  // replaceState — never push — so the back button still leaves the
+  // app instead of bouncing through a synthetic entry.
+  const initialHash = routeHash(initial);
+  if (window.location.hash !== initialHash) {
+    window.history.replaceState(null, "", initialHash);
+  }
+
+  // History writes happen ONLY here (and in `replace` below) — never
+  // from an effect watching the signal. A write-from-effect turned
+  // every externally-triggered signal change (including popstate
+  // itself) into a fresh pushState, trapping the back button.
+  //
+  // The no-op guard compares parsed routes re-serialized through
+  // routeHash rather than raw hash strings: Firefox returns
+  // `location.hash` percent-DECODED, so a raw comparison would push a
+  // duplicate entry for any route with encoded characters.
+  const navigate = (r: Route): void => {
+    const target = routeHash(r);
+    if (routeHash(readRoute()) !== target) {
       window.history.pushState(null, "", target);
     }
-  });
+    setRoute(r);
+  };
 
-  // `replace` writes the new hash via replaceState BEFORE updating the
-  // signal, so the effect above sees `location.hash === target` and
-  // skips the push (it would otherwise add a history entry on top of
-  // our replace).
   const replace = (r: Route): void => {
     const target = routeHash(r);
-    if (window.location.hash !== target) {
+    if (routeHash(readRoute()) !== target) {
       window.history.replaceState(null, "", target);
     }
     setRoute(r);
   };
 
   // Re-derive route state from the URL whenever something outside our
-  // `navigate()` path changed it. Two events to cover both shapes:
-  //   * `popstate` — back/forward, and any pushState/replaceState we did
-  //     ourselves (history.* doesn't fire hashchange).
+  // `navigate()` path changed it. These handlers only READ the URL
+  // into the signal — no history writes — so back/forward walk the
+  // stack cleanly. Two events to cover both shapes:
+  //   * `popstate` — back/forward navigation.
   //   * `hashchange` — in-page anchor clicks (<a href="#/c/...">), the
   //     user manually editing the hash, browser extensions, and any
   //     other path that mutates `location.hash` without going through
@@ -385,5 +417,5 @@ export function useRouting(): RoutingApi {
     });
   });
 
-  return { route, navigate: setRoute, replace };
+  return { route, navigate, replace };
 }

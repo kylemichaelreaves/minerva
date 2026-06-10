@@ -13,7 +13,7 @@
 // /api/translate without reconstructing the selection from the DOM),
 // and the keyboard / outside-click effect that gates dismissal.
 
-import { createEffect, createSignal, type Accessor } from "solid-js";
+import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
 import {
   loadHighlights,
@@ -255,6 +255,14 @@ export function useSelectionToolbar(
     const t = selToolbar();
     if (!t) return;
     const onKey = (e: KeyboardEvent) => {
+      // Don't hijack keys while the user is typing in a form field or
+      // an editable region — let those widgets keep their keystrokes.
+      // (instanceof, not a cast: e.target can be the Document itself,
+      // which has no tagName.)
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      const tag = el?.tagName.toLowerCase();
+      if (tag === "textarea" || tag === "input" || tag === "select") return;
+      if (el?.isContentEditable) return;
       if (e.key === "Escape") {
         setSelToolbar(null);
         return;
@@ -270,9 +278,14 @@ export function useSelectionToolbar(
       }
     };
     document.addEventListener("keydown", onKey);
-    return () => {
+    // Solid ignores values returned from createEffect — a returned
+    // cleanup function would never run, leaking one document-level
+    // listener (with a stale toolbar closure) per toolbar open.
+    // onCleanup registered inside the effect runs before each re-run
+    // and on dispose, which is the behavior we want.
+    onCleanup(() => {
       document.removeEventListener("keydown", onKey);
-    };
+    });
   });
 
   useClickOutside(
