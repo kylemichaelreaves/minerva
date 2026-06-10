@@ -1,5 +1,6 @@
 import { Show, createMemo } from "solid-js";
 import type { LemmaIndexRow } from "~/api/concordanceApi";
+import { Romanizable } from "~/Concordance/components/Romanizable";
 import { Sparkline } from "~/Concordance/components/Sparkline";
 
 export function LbRow(props: { row: LemmaIndexRow; onOpen: () => void }) {
@@ -7,7 +8,9 @@ export function LbRow(props: { row: LemmaIndexRow; onOpen: () => void }) {
   return (
     <div class="lb-row" onClick={props.onOpen} role="link">
       <span class="rk">{props.row.rank}</span>
-      <span class="lem">{props.row.lemma}</span>
+      <span class="lem">
+        <Romanizable text={props.row.lemma} />
+      </span>
       <span class="pos">{props.row.pos.toLowerCase()}</span>
       <span class="ct">{props.row.count.toLocaleString()}</span>
       <Show when={props.row.per_work.length > 0} fallback={<span class="spark" />}>

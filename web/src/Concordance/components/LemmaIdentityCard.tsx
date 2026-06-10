@@ -7,6 +7,7 @@
 
 import { Show } from "solid-js";
 import type { LemmaDetailResponse } from "~/api/concordanceApi";
+import { Romanizable } from "~/Concordance/components/Romanizable";
 import { GENDER_LABEL, POS_LABEL } from "~/Concordance/constants";
 
 export function LemmaIdentityCard(props: {
@@ -35,7 +36,9 @@ export function LemmaIdentityCard(props: {
   };
   return (
     <div class="lemma-id">
-      <span class="lem">{props.lemma}</span>
+      <span class="lem">
+        <Romanizable text={props.lemma} />
+      </span>
       <span class="meta">
         <Show when={pos()}>
           {posLabel().toUpperCase()}
