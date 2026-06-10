@@ -8,8 +8,8 @@ export interface RouteContextProps {
   conversations: ReturnType<typeof useConversations>;
   reader: ReturnType<typeof useReader>;
   themeApi: ReturnType<typeof useTheme>;
-  scrolled: boolean;
-  sidebarCollapsed: boolean;
+  scrolled: () => boolean;
+  sidebarCollapsed: () => boolean;
   setSidebarCollapsed: (v: boolean | ((c: boolean) => boolean)) => void;
   conversationTitle: () => string | null;
   openSourceInReader: (workTitle: string, chunkId: string) => void;

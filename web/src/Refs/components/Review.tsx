@@ -54,9 +54,13 @@ export default function Review(props: ReviewProps) {
 
   const [meta, setMeta] = createSignal<{
     total_pending: number;
-    offset: number;
-  }>({ total_pending: 0, offset: 0 });
+  }>({ total_pending: 0 });
   const [cursor, setCursor] = createSignal(0);
+  // Approve/reject decisions remove rows from the SERVER-side pending
+  // queue, so the next unseen row sits at server offset
+  // `localCount - decidedCount`, not `localCount`. Skips don't count —
+  // skipped rows stay pending and keep their queue position.
+  const [decidedCount, setDecidedCount] = createSignal(0);
   const [noteDraft, setNoteDraft] = createSignal<string>("");
   const [acting, setActing] = createSignal(false);
 
@@ -87,7 +91,8 @@ export default function Review(props: ReviewProps) {
   createEffect(() => {
     const res = data();
     if (res === null) return;
-    setMeta({ total_pending: res.total_pending, offset: 0 });
+    setMeta({ total_pending: res.total_pending });
+    setDecidedCount(0);
     // Resolve the URL's referenceId (if any) to a cursor position
     // within the freshly-loaded queue. Falls back to cursor 0 when
     // the id isn't in the queue (already approved, behind the
@@ -124,18 +129,23 @@ export default function Review(props: ReviewProps) {
     setCursor(nextCursor);
     const localCount = queue().length;
     const m = meta();
-    if (nextCursor >= localCount && m.offset + localCount < m.total_pending) {
+    const decided = decidedCount();
+    // `localCount - decided` is how many of our locally-loaded rows
+    // are still pending server-side; there are more to fetch only if
+    // the server's pending total exceeds that.
+    if (nextCursor >= localCount && localCount - decided < m.total_pending) {
       await pagination.loadMore(firstPage(), async (offset) => {
+        // `offset` from loadMore is the local row count; subtract the
+        // decided rows (no longer in the server queue) so we fetch the
+        // first page of rows we haven't seen rather than skipping past
+        // `decided` of them.
         const res = await fetchReviewQueue({
           limit: PAGE_SIZE,
-          offset,
+          offset: offset - decided,
           sourceAuthor: props.sourceAuthor,
           referenceType: props.referenceType,
         });
-        setMeta({
-          total_pending: res.total_pending,
-          offset: m.offset,
-        });
+        setMeta({ total_pending: res.total_pending });
         return { items: res.references };
       });
       if (pagination.appendError()) {
@@ -160,9 +170,9 @@ export default function Review(props: ReviewProps) {
         curator_note: note ? note : null,
       });
       setMeta({
-        ...meta(),
         total_pending: Math.max(0, meta().total_pending - 1),
       });
+      setDecidedCount((c) => c + 1);
       await advanceAfterWrite();
     } catch (err) {
       setActionError(errorMessage(err));

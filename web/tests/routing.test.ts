@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { readRoute, routeHash, type Route } from "~/routing";
+import { describe, it, expect, vi } from "vitest";
+import { createRoot } from "solid-js";
+import { readRoute, routeHash, useRouting, type Route } from "~/routing";
 
 function withHash<T>(hash: string, fn: () => T): T {
   // jsdom carries `window.location.hash` between tests when set with a
@@ -108,6 +109,22 @@ describe("readRoute", () => {
       referenceType: undefined,
     });
   });
+
+  it("falls back to landing on a malformed conversation id", () => {
+    // A truncated percent-escape makes decodeURIComponent throw
+    // URIError; the router must swallow it instead of blank-screening.
+    expect(withHash("#/c/100%", readRoute)).toEqual({ kind: "landing" });
+  });
+
+  it("falls back to landing on a malformed reader workId", () => {
+    expect(withHash("#/r/100%", readRoute)).toEqual({ kind: "landing" });
+  });
+
+  it("falls back to landing on a malformed concordance lemma", () => {
+    expect(withHash("#/concordance/100%", readRoute)).toEqual({
+      kind: "landing",
+    });
+  });
 });
 
 describe("routeHash", () => {
@@ -201,4 +218,135 @@ describe("round-trip", () => {
       expect(parsed).toMatchObject(route);
     });
   }
+});
+
+describe("useRouting history discipline", () => {
+  it("canonicalizes a malformed hash on load via replaceState, never push", () => {
+    withHash("#/c/100%", () => {
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      const replaceSpy = vi.spyOn(window.history, "replaceState");
+      try {
+        createRoot((dispose) => {
+          const routing = useRouting();
+          expect(routing.route()).toEqual({ kind: "landing" });
+          // The address bar is rewritten to the canonical form without
+          // adding a history entry — back still leaves the app.
+          expect(window.location.hash).toBe("#/");
+          expect(replaceSpy).toHaveBeenCalledTimes(1);
+          expect(pushSpy).not.toHaveBeenCalled();
+          dispose();
+        });
+      } finally {
+        pushSpy.mockRestore();
+        replaceSpy.mockRestore();
+      }
+    });
+  });
+
+  it("canonicalizes a non-canonical but parseable hash on load", () => {
+    // `id=abc` is dropped by the defensive integer parse; the URL
+    // should be rewritten to the serialized form of what we parsed.
+    withHash("#/refs/review?id=abc", () => {
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      try {
+        createRoot((dispose) => {
+          const routing = useRouting();
+          expect(routing.route()).toMatchObject({ kind: "refs-review" });
+          expect(window.location.hash).toBe("#/refs/review");
+          expect(pushSpy).not.toHaveBeenCalled();
+          dispose();
+        });
+      } finally {
+        pushSpy.mockRestore();
+      }
+    });
+  });
+
+  it("leaves a canonical hash alone on load", () => {
+    withHash("#/refs", () => {
+      const replaceSpy = vi.spyOn(window.history, "replaceState");
+      try {
+        createRoot((dispose) => {
+          useRouting();
+          expect(replaceSpy).not.toHaveBeenCalled();
+          dispose();
+        });
+      } finally {
+        replaceSpy.mockRestore();
+      }
+    });
+  });
+
+  it("navigate pushes exactly one entry and skips redundant pushes", () => {
+    withHash("#/", () => {
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      try {
+        createRoot((dispose) => {
+          const routing = useRouting();
+          routing.navigate({ kind: "refs" });
+          expect(window.location.hash).toBe("#/refs");
+          expect(pushSpy).toHaveBeenCalledTimes(1);
+          // Navigating to the same route again must not stack another
+          // history entry (the old effect-driven writer was guarded the
+          // same way; keep the invariant).
+          routing.navigate({ kind: "refs" });
+          expect(pushSpy).toHaveBeenCalledTimes(1);
+          dispose();
+        });
+      } finally {
+        pushSpy.mockRestore();
+      }
+    });
+  });
+
+  it("replace rewrites the entry without pushing", () => {
+    withHash("#/refs/review", () => {
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      const replaceSpy = vi.spyOn(window.history, "replaceState");
+      try {
+        createRoot((dispose) => {
+          const routing = useRouting();
+          replaceSpy.mockClear();
+          routing.replace({ kind: "refs-review", referenceId: 7 });
+          expect(window.location.hash).toBe("#/refs/review?id=7");
+          expect(replaceSpy).toHaveBeenCalledTimes(1);
+          expect(pushSpy).not.toHaveBeenCalled();
+          dispose();
+        });
+      } finally {
+        pushSpy.mockRestore();
+        replaceSpy.mockRestore();
+      }
+    });
+  });
+
+  it("popstate reads the route into the signal without writing history", async () => {
+    await withHash("#/refs", async () => {
+      await createRoot(async (dispose) => {
+        const routing = useRouting();
+        // onMount's popstate listener registers on the next effect
+        // flush — wait a tick before dispatching.
+        await Promise.resolve();
+        // Simulate the browser restoring a different entry (back).
+        window.history.replaceState(null, "", "#/network");
+        const pushSpy = vi.spyOn(window.history, "pushState");
+        const replaceSpy = vi.spyOn(window.history, "replaceState");
+        try {
+          window.dispatchEvent(new PopStateEvent("popstate"));
+          expect(routing.route()).toMatchObject({ kind: "network" });
+          // No write-back: a pushState here is exactly the back-button
+          // trap this regression test pins.
+          expect(pushSpy).not.toHaveBeenCalled();
+          expect(replaceSpy).not.toHaveBeenCalled();
+        } finally {
+          pushSpy.mockRestore();
+          replaceSpy.mockRestore();
+        }
+        dispose();
+        // withHash's finally already ran (the async body resumes after
+        // it); restore the hash ourselves so nothing leaks.
+        window.history.replaceState(null, "", "#/");
+      });
+    });
+  });
 });

@@ -180,6 +180,117 @@ describe("useSelectionToolbar persistence", () => {
     });
   });
 
+  it("cleans up the document keydown listener when the toolbar closes", async () => {
+    // Regression: the cleanup used to be RETURNED from createEffect,
+    // which Solid ignores — every toolbar open leaked one permanent
+    // document keydown listener with a stale toolbar closure.
+    await createRoot(async (dispose) => {
+      const onTranslate = vi.fn();
+      const api = useSelectionToolbar({
+        getStage: () => undefined,
+        workId: () => "Republic",
+        onTranslateRequest: onTranslate,
+        onLookupRequest: vi.fn(),
+      });
+      // Fake a non-collapsed selection so onMouseUp opens the toolbar.
+      const textNode = document.createTextNode("divided line");
+      document.body.appendChild(textNode);
+      const fakeRange = {
+        startContainer: textNode,
+        endContainer: textNode,
+        getBoundingClientRect: () => new DOMRect(0, 0, 1, 1),
+      } as unknown as Range;
+      const fakeSel = {
+        isCollapsed: false,
+        rangeCount: 1,
+        toString: () => "divided line",
+        getRangeAt: () => fakeRange,
+        removeAllRanges: () => undefined,
+      } as unknown as Selection;
+      const selSpy = vi
+        .spyOn(window, "getSelection")
+        .mockReturnValue(fakeSel);
+
+      api.onMouseUp({ target: null } as unknown as MouseEvent);
+      await flush();
+      expect(api.selToolbar()).not.toBeNull();
+
+      // Escape closes the toolbar via the document listener…
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      expect(api.selToolbar()).toBeNull();
+      await flush();
+
+      // …and the listener must be GONE: a later "t" keypress must not
+      // commit a translate from the stale closure.
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "t", bubbles: true }),
+      );
+      expect(onTranslate).not.toHaveBeenCalled();
+
+      // Re-open and confirm T still works through a fresh listener.
+      api.onMouseUp({ target: null } as unknown as MouseEvent);
+      await flush();
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "t", bubbles: true }),
+      );
+      expect(onTranslate).toHaveBeenCalledTimes(1);
+
+      selSpy.mockRestore();
+      textNode.remove();
+      dispose();
+    });
+  });
+
+  it("ignores toolbar shortcuts while typing in a form field", async () => {
+    await createRoot(async (dispose) => {
+      const onTranslate = vi.fn();
+      const api = useSelectionToolbar({
+        getStage: () => undefined,
+        workId: () => "Republic",
+        onTranslateRequest: onTranslate,
+        onLookupRequest: vi.fn(),
+      });
+      const textNode = document.createTextNode("divided line");
+      document.body.appendChild(textNode);
+      const fakeRange = {
+        startContainer: textNode,
+        endContainer: textNode,
+        getBoundingClientRect: () => new DOMRect(0, 0, 1, 1),
+      } as unknown as Range;
+      const fakeSel = {
+        isCollapsed: false,
+        rangeCount: 1,
+        toString: () => "divided line",
+        getRangeAt: () => fakeRange,
+        removeAllRanges: () => undefined,
+      } as unknown as Selection;
+      const selSpy = vi
+        .spyOn(window, "getSelection")
+        .mockReturnValue(fakeSel);
+
+      api.onMouseUp({ target: null } as unknown as MouseEvent);
+      await flush();
+      expect(api.selToolbar()).not.toBeNull();
+
+      // A "t" typed inside an <input> must neither commit a translate
+      // nor steal the keystroke.
+      const input = document.createElement("input");
+      document.body.appendChild(input);
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "t", bubbles: true }),
+      );
+      expect(onTranslate).not.toHaveBeenCalled();
+      expect(api.selToolbar()).not.toBeNull();
+
+      input.remove();
+      selSpy.mockRestore();
+      textNode.remove();
+      dispose();
+    });
+  });
+
   it("commit + dismiss + commit accumulates across multiple selections", () => {
     createRoot((dispose) => {
       const api = useSelectionToolbar({

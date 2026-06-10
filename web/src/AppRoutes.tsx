@@ -57,8 +57,12 @@ export function AppRoutes(props: AppRoutesProps) {
     conversations: props.conversations,
     reader: props.reader,
     themeApi: props.themeApi,
-    scrolled: props.scrolled,
-    sidebarCollapsed: props.sidebarCollapsed,
+    // Accessor functions, not plain booleans — reading `props.scrolled`
+    // here would freeze the value at mount (ctx is built once), so
+    // consumers call these to stay reactive. Same pattern as
+    // `conversationTitle` below.
+    scrolled: () => props.scrolled,
+    sidebarCollapsed: () => props.sidebarCollapsed,
     setSidebarCollapsed: props.setSidebarCollapsed,
     conversationTitle: props.conversationTitle,
     openSourceInReader: props.openSourceInReader,

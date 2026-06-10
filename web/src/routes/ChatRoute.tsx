@@ -15,8 +15,8 @@ export function ChatRoute(props: RouteContextProps) {
     <>
       <Show when={!props.conversations.showLanding()}>
         <Topbar
-          scrolled={props.scrolled}
-          sidebarCollapsed={props.sidebarCollapsed}
+          scrolled={props.scrolled()}
+          sidebarCollapsed={props.sidebarCollapsed()}
           onToggleSidebar={() => props.setSidebarCollapsed(false)}
           theme={props.themeApi.theme()}
           onToggleTheme={props.themeApi.toggleTheme}
