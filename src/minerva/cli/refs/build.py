@@ -85,9 +85,7 @@ def cmd_refs_build(args: argparse.Namespace) -> int:
         # record_scan_state for them so the next run skips them at
         # the iterator level instead of re-issuing this check.
         if chunk.author not in rules_seen_for:
-            rules_seen_for[chunk.author] = bool(
-                refs_rules._rules_for_author(chunk.author)
-            )
+            rules_seen_for[chunk.author] = bool(refs_rules._rules_for_author(chunk.author))
         scan_state_batch.append(chunk)
         if not rules_seen_for[chunk.author]:
             continue
@@ -257,6 +255,18 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
     conventions). The user can override with the explicit flags."""
 
     from ... import llm as llm_mod
+    from .._shared import validate_base_url
+
+    # Same credential-leak guard as ask/chat/serve: --llm-base-url sends
+    # the API key to whatever host is named, so refuse non-trusted hosts
+    # unless --unsafe-llm-base-url-host is given. Runs before any DB work.
+    validate_base_url(
+        argparse.Namespace(
+            llm=args.llm_backend,
+            llm_base_url=args.llm_base_url,
+            unsafe_llm_base_url_host=args.unsafe_llm_base_url_host,
+        )
+    )
 
     conn = _open(args)
     conn.execute("PRAGMA foreign_keys = ON")
@@ -272,8 +282,7 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
         return 2
     if isinstance(backend, llm_mod.NullBackend):
         print(
-            "llm-verify requires a real backend; pass "
-            "--llm-backend anthropic|openai|ollama",
+            "llm-verify requires a real backend; pass --llm-backend anthropic|openai|ollama",
             file=sys.stderr,
         )
         return 2

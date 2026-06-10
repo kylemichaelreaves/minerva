@@ -22,12 +22,26 @@ def test_chat_corpus_accepts_every_ingested_slug(parser):
     8-author tuple was the bug behind the multilingual-chat-retrieval
     fix — nietzsche/marx/cicero/hebrew_mt were silently rejected."""
     for corpus in (
-        "plato", "aristotle", "hegel", "kant",
-        "nietzsche", "marx", "cicero", "lucretius",
-        "hobbes", "hume", "locke", "rousseau", "pascal",
-        "epictetus", "marcus_aurelius",
-        "septuagint", "new_testament", "vulgate",
-        "hebrew_mt", "presocratic",
+        "plato",
+        "aristotle",
+        "hegel",
+        "kant",
+        "nietzsche",
+        "marx",
+        "cicero",
+        "lucretius",
+        "hobbes",
+        "hume",
+        "locke",
+        "rousseau",
+        "pascal",
+        "epictetus",
+        "marcus_aurelius",
+        "septuagint",
+        "new_testament",
+        "vulgate",
+        "hebrew_mt",
+        "presocratic",
         "any",
     ):
         args = parser.parse_args(["chat", "--corpus", corpus])
@@ -158,3 +172,39 @@ def test_serve_allow_origin_collects_multiple(parser):
 def test_serve_allow_origin_defaults_to_empty(parser):
     args = parser.parse_args(["serve"])
     assert args.allow_origin == []
+
+
+def test_refs_llm_verify_refuses_unknown_base_url_host(tmp_path):
+    """Regression: `refs build --strategy llm-verify --llm-base-url` used
+    to call llm.make_backend directly, bypassing the credential-leak
+    guard every other LLM-using command routes through."""
+    from minerva.cli.refs.build import _build_llm_verify
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "refs",
+            "build",
+            "--strategy",
+            "llm-verify",
+            "--db",
+            str(tmp_path / "never-created.db"),
+            "--llm-backend",
+            "anthropic",
+            "--llm-base-url",
+            "https://attacker.example/v1",
+        ]
+    )
+    with pytest.raises(SystemExit) as info:
+        _build_llm_verify(args)
+    assert info.value.code == 2
+    # Guard fired before any DB was touched.
+    assert not (tmp_path / "never-created.db").exists()
+
+
+def test_refs_build_accepts_unsafe_base_url_flag():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["refs", "build", "--strategy", "llm-verify", "--unsafe-llm-base-url-host"]
+    )
+    assert args.unsafe_llm_base_url_host is True
