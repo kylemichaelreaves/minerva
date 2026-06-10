@@ -40,8 +40,7 @@ from ._shared import DEFAULT_CHUNKS, DEFAULT_DB, Timer, fmt_elapsed, record_timi
 
 def cmd_ingest(args: argparse.Namespace) -> int:
     overrides = {
-        source.kwarg_name: getattr(args, source.kwarg_name, None)
-        for source in INGEST_SOURCES
+        source.kwarg_name: getattr(args, source.kwarg_name, None) for source in INGEST_SOURCES
     }
 
     only: frozenset[str] | None = None
@@ -56,13 +55,28 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
+        # merge_jsonl replaces a touched corpus WHOLESALE, so --only must
+        # name every source feeding each touched corpus — re-parsing
+        # kant_en alone silently drops the German chunks the `kant`
+        # source contributes (this deleted 5,307 deu chunks on
+        # 2026-06-10 before the guard existed).
+        missing = _partial_corpus_selection(requested)
+        if missing and not getattr(args, "allow_partial_corpus", False):
+            for corpus, siblings in sorted(missing.items()):
+                print(
+                    f"ingest: --only covers corpus {corpus!r} only partially — "
+                    f"sibling source(s) {sorted(siblings)!r} are not selected, "
+                    f"and their chunks would be dropped by the corpus-level "
+                    f"replace. Add them to --only, or pass "
+                    f"--allow-partial-corpus to override.",
+                    file=sys.stderr,
+                )
+            return 2
         only = requested
 
     with Timer() as overall:
         if args.jobs > 1:
-            total, touched, counts, mode = _parallel_ingest_path(
-                args, only, overrides
-            )
+            total, touched, counts, mode = _parallel_ingest_path(args, only, overrides)
         else:
             chunks = iter_corpus_chunks(
                 only=only,
@@ -96,6 +110,26 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     # don't need an incremental rescope) or when the DB is missing.
     _record_ingest_only(args.db, only)
     return 0
+
+
+def _partial_corpus_selection(requested: frozenset[str]) -> dict[str, set[str]]:
+    """Map corpus → unselected sibling source ids, for every corpus the
+    ``--only`` selection touches only partially. Empty dict = safe."""
+
+    from ..ingest.registry import INGEST_ID_TO_CORPUS
+
+    by_corpus: dict[str, set[str]] = {}
+    for source in INGEST_SOURCES:
+        corpus = INGEST_ID_TO_CORPUS.get(source.id, source.id)
+        by_corpus.setdefault(corpus, set()).add(source.id)
+
+    missing: dict[str, set[str]] = {}
+    for src_id in requested:
+        corpus = INGEST_ID_TO_CORPUS.get(src_id, src_id)
+        siblings = by_corpus[corpus] - requested
+        if siblings:
+            missing[corpus] = siblings
+    return missing
 
 
 def _record_ingest_only(db_path: Path, only: frozenset[str] | None) -> None:
@@ -179,9 +213,7 @@ def _parallel_ingest_path(
         # JSONL by chunk_id. Replays the streaming behavior of
         # ``merge_jsonl`` but pulls chunks from shard files rather than
         # a live parser iterator.
-        merged_total, touched, merged_counts = _overlay_shards(
-            shard_paths, args.output
-        )
+        merged_total, touched, merged_counts = _overlay_shards(shard_paths, args.output)
         return merged_total, touched, merged_counts, "merged"
 
 
@@ -262,6 +294,18 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
             "replace drops the stale ones). Every other corpus is "
             "preserved bit-for-bit. Default is to parse every source "
             "and overwrite the output."
+        ),
+    )
+    pi.add_argument(
+        "--allow-partial-corpus",
+        action="store_true",
+        help=(
+            "Permit an --only selection that names only SOME of the "
+            "sources feeding a corpus. merge_jsonl replaces a touched "
+            "corpus wholesale, so the unnamed siblings' chunks are "
+            "DROPPED — usually a mistake (this once deleted all German "
+            "Kant chunks via --only kant_en). Without this flag such a "
+            "selection is rejected."
         ),
     )
     pi.add_argument(

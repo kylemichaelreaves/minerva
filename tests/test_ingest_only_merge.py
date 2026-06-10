@@ -109,3 +109,52 @@ def test_merge_jsonl_writes_fresh_when_no_existing(tmp_path: Path):
     assert touched == 1
     assert counts == {"plato/eng": 1}
     assert out.exists()
+
+
+# ---------- --only partial-corpus guard ----------
+
+
+def test_partial_corpus_selection_flags_missing_siblings():
+    """Regression: `ingest --only kant_en` silently wiped the 5,307
+    German Kant chunks (2026-06-10) — merge_jsonl replaces the corpus
+    wholesale, so --only must name every source feeding a touched
+    corpus. The guard maps each partially-covered corpus to its
+    unselected sibling sources."""
+
+    from minerva.cli.ingest_cmd import _partial_corpus_selection
+
+    missing = _partial_corpus_selection(frozenset({"kant_en"}))
+    assert "kant" in missing
+    assert "kant" in missing["kant"]
+
+    # Naming the full sibling set is safe.
+    assert _partial_corpus_selection(frozenset({"kant", "kant_en"})) == {}
+
+    # Single-source corpora are always safe.
+    assert _partial_corpus_selection(frozenset({"plato"})) == {}
+
+    # Multi-source corpora are all covered by the guard.
+    missing = _partial_corpus_selection(frozenset({"aristotle_ica"}))
+    assert set(missing) == {"aristotle"}
+    assert "aristotle" in missing["aristotle"]
+    assert "aristotle_first1k" in missing["aristotle"]
+
+
+def test_cmd_ingest_rejects_partial_corpus_selection(tmp_path: Path, capsys):
+    import argparse
+
+    from minerva.cli.ingest_cmd import cmd_ingest
+
+    args = argparse.Namespace(
+        only="kant_en",
+        allow_partial_corpus=False,
+        output=tmp_path / "chunks.jsonl",
+        db=tmp_path / "index.sqlite",
+        jobs=1,
+        timing=False,
+    )
+    rc = cmd_ingest(args)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "only partially" in err
+    assert "kant" in err
