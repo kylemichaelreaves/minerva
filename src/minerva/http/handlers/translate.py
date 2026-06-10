@@ -7,7 +7,7 @@ from typing import Any
 
 from ... import llm, translations
 from ...errors import BadRequestError, PayloadTooLargeError
-from ...translate.coalesce import begin_inflight, finish_inflight, is_inflight
+from ...translate.coalesce import begin_inflight, current_inflight, finish_inflight
 from ...translate.parse import looks_like_refusal, parse_dual_translation
 from ...translate.prompts import LANG_NAME, MAX_TRANSLATE_CHARS, TRANSLATE_SYSTEM
 from ..server_core import ServerDeps
@@ -29,12 +29,19 @@ def _cached_response(cached: dict[str, Any]) -> dict[str, Any]:
 def _lookup_cached(deps: ServerDeps, source: str, target: str) -> dict[str, Any] | None:
     with deps.trans_lock:
         return translations.lookup(
-            deps.translations_conn, source_text=source, target_lang=target,
+            deps.translations_conn,
+            source_text=source,
+            target_lang=target,
         )
 
 
 def _wait_for_leader(deps: ServerDeps, source: str, target: str, waiter) -> dict[str, Any] | None:
-    """Follow an in-flight translation. Never duplicate the LLM call."""
+    """Follow an in-flight translation. Never duplicate the LLM call.
+
+    Returns the cached response once the leader lands it, or None when
+    no leader remains and no cache row appeared (leader failed or
+    refused) — the caller decides whether to take over.
+    """
 
     deadline = time.monotonic() + _FOLLOWER_WAIT_TOTAL_S
     while time.monotonic() < deadline:
@@ -45,8 +52,13 @@ def _wait_for_leader(deps: ServerDeps, source: str, target: str, waiter) -> dict
         cached = _lookup_cached(deps, source, target)
         if cached is not None:
             return _cached_response(cached)
-        if not is_inflight((source, target)):
+        live = current_inflight((source, target))
+        if live is None:
             return None
+        # A leader is still registered — possibly a NEW one. Wait on the
+        # live Event; re-waiting on a replaced, already-set Event would
+        # turn this loop into a hot spin of DB lookups.
+        waiter = live
     raise llm.LLMError("translation wait timed out")
 
 
@@ -77,23 +89,21 @@ def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, An
         }
 
     cache_key = (source, target)
-    waiter = begin_inflight(cache_key)
-    if waiter is not None:
-        hit = _wait_for_leader(deps, source, target, waiter)
+    for _attempt in range(2):
+        is_leader, ev = begin_inflight(cache_key)
+        if is_leader:
+            break
+        hit = _wait_for_leader(deps, source, target, ev)
         if hit is not None:
             return hit
         cached = _lookup_cached(deps, source, target)
         if cached is not None:
             return _cached_response(cached)
-        # Leader finished without a cache row; become the new leader.
-        waiter = begin_inflight(cache_key)
-        if waiter is not None:
-            hit = _wait_for_leader(deps, source, target, waiter)
-            if hit is not None:
-                return hit
-            cached = _lookup_cached(deps, source, target)
-            if cached is not None:
-                return _cached_response(cached)
+        # The leader finished without landing a cache row (LLM error or
+        # refusal). Loop and try to become the leader ourselves; only a
+        # request whose begin_inflight said is_leader may call the LLM.
+    else:
+        raise llm.LLMError("translation repeatedly failed upstream")
 
     target_name = LANG_NAME.get(target, target)
     messages = [
@@ -104,15 +114,11 @@ def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, An
         raw = deps.backend.complete(messages, temperature=0.0).strip()
         literal_text, literary_text = parse_dual_translation(raw)
         if looks_like_refusal(literary_text) or looks_like_refusal(literal_text):
-            with deps.trans_lock:
-                translations.insert(
-                    deps.translations_conn,
-                    source_text=source,
-                    target_lang=target,
-                    translated_text="",
-                    literal_text="",
-                    model=deps.backend.name,
-                )
+            # Deliberately NOT cached: refusals are usually transient
+            # (model mood, truncated source), and translations.lookup
+            # treats an empty-string row as a valid hit — caching one
+            # poisoned the key forever (every later request returned
+            # ``cached: true`` with an empty translation).
             return {
                 "translated_text": "",
                 "literal_text": "",
@@ -135,7 +141,7 @@ def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, An
             "cached": False,
         }
     finally:
-        finish_inflight(cache_key)
+        finish_inflight(cache_key, ev)
 
 
 # Re-export for tests importing `minerva.server._TRANSLATE_SYSTEM`, etc.

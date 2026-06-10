@@ -138,3 +138,49 @@ def test_supported_langs_set():
     assert "eng" in translations.SUPPORTED_LANGS
     assert "fra" in translations.SUPPORTED_LANGS
     assert "deu" in translations.SUPPORTED_LANGS
+
+
+# ---------- in-flight coalescing ownership ----------
+
+
+def test_finish_inflight_only_releases_own_entry():
+    """Regression: finish_inflight used to pop whatever Event was
+    registered — a request that lost the leadership race could release
+    the REAL leader's followers early and let a third request start a
+    duplicate LLM call."""
+
+    from minerva.translate.coalesce import (
+        begin_inflight,
+        current_inflight,
+        finish_inflight,
+    )
+
+    key = ("source text", "eng")
+    is_leader, ev1 = begin_inflight(key)
+    assert is_leader
+
+    # The leader finishes; a new leader registers a NEW event.
+    finish_inflight(key, ev1)
+    is_leader2, ev2 = begin_inflight(key)
+    assert is_leader2
+    assert ev2 is not ev1
+
+    # A stale finish with the OLD event must not pop the new leader.
+    finish_inflight(key, ev1)
+    assert current_inflight(key) is ev2
+
+    finish_inflight(key, ev2)
+    assert current_inflight(key) is None
+
+
+def test_begin_inflight_returns_leaders_event_to_followers():
+    from minerva.translate.coalesce import begin_inflight, finish_inflight
+
+    key = ("other text", "deu")
+    is_leader, leader_ev = begin_inflight(key)
+    assert is_leader
+    is_follower_leader, follower_ev = begin_inflight(key)
+    assert not is_follower_leader
+    assert follower_ev is leader_ev
+    finish_inflight(key, leader_ev)
+    assert leader_ev.is_set()
