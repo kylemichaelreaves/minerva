@@ -241,15 +241,27 @@ def _rules_for_author(author: str) -> tuple[Rule, ...]:
 
     module_name = author.lower().replace(" ", "_")
     yaml_path = spec_path_for_author(author)
+    try:
+        mod = __import__(f"minerva.refs.rules.{module_name}", fromlist=["RULES"])
+    except ImportError:
+        mod = None
+    if yaml_path.is_file() and mod is not None:
+        # A YAML spec used to silently win over the .py module — a
+        # 4-rule proof-of-concept hegel.yaml shadowed the 31-rule
+        # hegel.py for every rescan. The YAML loader also can't express
+        # everything the modules can (strong rules, per-rule langs,
+        # source_method), so coexistence is always a mistake.
+        raise RuntimeError(
+            f"refs rules for {author!r} are defined twice: "
+            f"specs/{yaml_path.name} and rules/{module_name}.py — "
+            "delete one of them"
+        )
     if yaml_path.is_file():
         rules = load_author_rules_from_yaml(yaml_path, prefix=module_name)
+    elif mod is not None:
+        rules = tuple(getattr(mod, "RULES", ()))
     else:
-        try:
-            mod = __import__(f"minerva.refs.rules.{module_name}", fromlist=["RULES"])
-        except ImportError:
-            rules = ()
-        else:
-            rules = tuple(getattr(mod, "RULES", ()))
+        rules = ()
 
     _AUTHOR_RULES_CACHE[author] = rules
     return rules
@@ -418,15 +430,15 @@ def iter_chunks_for_rules(
     # behave as if `rescan_all` were True. We don't want to hard-fail
     # a `refs build` against an old snapshot the user is testing
     # against.
-    has_scan_state = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='refs_scan_state'"
-    ).fetchone() is not None
+    has_scan_state = (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='refs_scan_state'"
+        ).fetchone()
+        is not None
+    )
     use_skip = (not rescan_all) and has_scan_state
 
-    sql = (
-        "SELECT chunk_id, author, work, lang, section, text "
-        "FROM chunks_full "
-    )
+    sql = "SELECT chunk_id, author, work, lang, section, text FROM chunks_full "
     params: list[Any] = []
     if source_author is not None:
         sql += "WHERE author = ? "
@@ -441,9 +453,7 @@ def iter_chunks_for_rules(
         # a dict lookup, not a per-row SELECT. Even for the full
         # ~344K-chunk corpus the table is two TEXT columns; ~30 MB
         # max, comfortably small.
-        stored = dict(
-            conn.execute("SELECT chunk_id, text_hash FROM refs_scan_state")
-        )
+        stored = dict(conn.execute("SELECT chunk_id, text_hash FROM refs_scan_state"))
     else:
         stored = {}
 
@@ -451,9 +461,7 @@ def iter_chunks_for_rules(
 
     for row in conn.execute(sql, params):
         if use_skip:
-            cur_hash = hashlib.sha1(
-                row["text"].encode("utf-8"), usedforsecurity=False
-            ).hexdigest()
+            cur_hash = hashlib.sha1(row["text"].encode("utf-8"), usedforsecurity=False).hexdigest()
             if stored.get(row["chunk_id"]) == cur_hash:
                 continue
         yield ChunkInfo(
@@ -482,9 +490,12 @@ def record_scan_state(
     branch on schema state.
     """
 
-    has_table = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='refs_scan_state'"
-    ).fetchone() is not None
+    has_table = (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='refs_scan_state'"
+        ).fetchone()
+        is not None
+    )
     if not has_table:
         return 0
 
@@ -507,4 +518,3 @@ def record_scan_state(
         rows,
     )
     return len(rows)
-
