@@ -1,8 +1,0 @@
-# Hegel author-mention forms (proof-of-concept YAML spec).
-# Loaded by loader.py when migrating rules from Python tuples.
-author: Hegel
-mentions:
-  - target_author: Plato
-    forms: [Plato, Platon, Platons, Platonic]
-  - target_author: Aristotle
-    forms: [Aristotle, Aristoteles, Aristotelian]
