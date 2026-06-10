@@ -32,9 +32,10 @@ def _format_passages(
     *,
     max_chars_per_passage: int = 1200,
     label_prefix: str = "",
+    start: int = 1,
 ) -> str:
     blocks: list[str] = []
-    for i, h in enumerate(hits, 1):
+    for i, h in enumerate(hits, start):
         loc = retrieve.format_locator(h.meta)
         text = h.meta["text"]
         if len(text) > max_chars_per_passage:
@@ -237,7 +238,15 @@ def retrieve_passages(
     # `Hit.score` is min-max normalized so the top hit is always 1.0; threshold
     # on the raw signals instead. A strong vector match can rescue a weak BM25
     # (synonyms, cross-language), so abstain only when both are below floor.
-    if not hits:
+    #
+    # Exception: when NO hit carries any BM25 score, the query shares zero
+    # vocabulary with the corpus — any real question matches at least its
+    # stopwords across 300k+ chunks, so an empty lexical lane means garbage
+    # ("zxqv asdf qwer"). Cosine can't catch this case: gibberish embeds at
+    # 0.39-0.58 against letter-sequence/genealogy chunks, squarely inside
+    # the range legitimate conceptual queries occupy, so no floor separates
+    # them and we abstain on the lexical signal alone.
+    if not hits or not any(h.bm25 > 0 for h in hits):
         retrieval_weak = True
     else:
         top = hits[0]

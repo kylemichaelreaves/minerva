@@ -10,6 +10,18 @@ import { isConcSort, type ConcSort } from "~/api/concordanceApi";
  *  whitelist is content words (NOUN/VERB/ADJ/PROPN); the dropdown lets
  *  the user narrow further or override the default to surface function
  *  words via the ``all`` value (passed to the backend as ``pos_in=all``). */
+/** Concordance languages the leaderboard can render. The corpus also
+ *  carries Hebrew and Arabic, but those need an RTL + non-segmental
+ *  letter rail we don't build yet, so they're deliberately omitted from
+ *  the switcher (the backend would happily serve them via ?lang=heb). */
+export const LANG_OPTIONS: { value: string; label: string }[] = [
+  { value: "deu", label: "German" },
+  { value: "grc", label: "Greek" },
+  { value: "lat", label: "Latin" },
+  { value: "eng", label: "English" },
+  { value: "fra", label: "French" },
+];
+
 export const POS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "default" },
   { value: "NOUN", label: "noun" },
@@ -24,6 +36,9 @@ export const POS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export interface FilterBarProps {
+  /** Active concordance language (ISO-639-3). Drives the Language
+   *  dropdown's current value. */
+  lang: string;
   sort: ConcSort;
   pos?: string;
   freqMin?: number;
@@ -32,6 +47,7 @@ export interface FilterBarProps {
    *  slider's upper bound so the knob's position is meaningful. */
   freqCeil: number;
   q?: string;
+  onSetLang: (v: string) => void;
   onSetSort: (v: ConcSort) => void;
   onSetPos: (v: string | undefined) => void;
   onSetFreqRange: (min: number | undefined, max: number | undefined) => void;
@@ -175,8 +191,21 @@ export function FilterBar(props: FilterBarProps) {
     if (!props.pos) return "default";
     return POS_OPTIONS.find((o) => o.value === props.pos)?.label ?? props.pos;
   });
+  const langLabel = createMemo(
+    () => LANG_OPTIONS.find((o) => o.value === props.lang)?.label ?? props.lang.toUpperCase(),
+  );
   return (
     <div class="fbar">
+      <div class="grp">
+        <span class="lab">Language</span>
+        <Dropdown
+          label={langLabel()}
+          current={props.lang}
+          options={LANG_OPTIONS}
+          onPick={(v) => props.onSetLang(v)}
+        />
+      </div>
+
       <div class="grp">
         <span class="lab">Sort</span>
         <Dropdown

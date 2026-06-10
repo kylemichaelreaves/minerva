@@ -143,6 +143,114 @@ def concordance_db(tmp_path: Path) -> sqlite3.Connection:
     return conn
 
 
+@pytest.fixture
+def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
+    """SQLite store with one Greek chunk + polytonic lemma cache.
+
+    The seeded lemmas all share the *base* leading letter alpha but
+    carry different precomposed diacritics / case so the diacritic-fold
+    letter filter has something to prove:
+
+      * ἄνθρωπος — smooth + acute (ἄ)
+      * ἀγαθός   — smooth breathing (ἀ)
+      * Ἀθηνᾶ    — capital + smooth (Ἀ)
+      * λόγος    — control, leading λ → must NOT match letter=Α
+    """
+
+    chunks = [
+        make_chunk(
+            chunk_id="rep-1",
+            corpus="plato",
+            author="Plato",
+            work="Respublica",
+            lang="grc",
+            section="327a",
+            text="ἄνθρωπος ἄνθρωπος ἀγαθός ἀγαθός Ἀθηνᾶ Ἀθηνᾶ λόγος λόγος",
+        ),
+    ]
+    import json
+
+    jsonl = tmp_path / "grc_chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "grc_conc.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    seed = [
+        ("rep-1", 0, "ἄνθρωπος", "ἄνθρωπος", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("rep-1", 1, "ἄνθρωποι", "ἄνθρωπος", "NOUN", "Case=Nom|Number=Plur|Gender=Masc"),
+        ("rep-1", 2, "ἀγαθός",   "ἀγαθός",   "ADJ",  "Case=Nom|Number=Sing|Gender=Masc"),
+        ("rep-1", 3, "ἀγαθοῖν",  "ἀγαθός",   "ADJ",  "Case=Dat|Number=Dual|Gender=Masc"),
+        ("rep-1", 4, "Ἀθηνᾶ",    "Ἀθηνᾶ",    "PROPN", "Case=Nom|Number=Sing|Gender=Fem"),
+        ("rep-1", 5, "Ἀθηνᾶν",   "Ἀθηνᾶ",    "PROPN", "Case=Acc|Number=Sing|Gender=Fem"),
+        ("rep-1", 6, "λόγος",    "λόγος",    "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("rep-1", 7, "λόγον",    "λόγος",    "NOUN", "Case=Acc|Number=Sing|Gender=Masc"),
+    ]
+    for chunk_id, idx, surface, lemma, pos, feats in seed:
+        _insert_lemma(
+            conn,
+            chunk_id=chunk_id,
+            token_index=idx,
+            surface=surface,
+            lemma=lemma,
+            pos=pos,
+            feats=feats,
+        )
+    conn.commit()
+    from minerva.concordance import aggregate
+    aggregate.build(conn)
+    return conn
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Greek diacritic-folded letter filter
+# ──────────────────────────────────────────────────────────────────
+
+
+def test_greek_letter_folds_diacritics(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """``letter=Α`` for Greek matches lemmas whose first character folds
+    to alpha regardless of breathing/accent/case (ἄ, ἀ, Ἀ) and excludes
+    the λ-initial control. The Latin ``LIKE 'Α%'`` path would miss the
+    precomposed forms entirely."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db, {"lang": "grc", "letter": "Α", "min_count": "1"},
+    )
+    lemmas = {r["lemma"] for r in out["rows"]}
+    assert lemmas == {"ἄνθρωπος", "ἀγαθός", "Ἀθηνᾶ"}
+    assert "λόγος" not in lemmas
+    assert out["total_lemmas"] == 3
+
+
+def test_greek_letter_lowercase_request_folds_too(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """A lowercase ``letter=α`` request folds the same way as ``Α`` — the
+    rail emits capitals but a stale/bookmarked lowercase value must not
+    silently zero the leaderboard."""
+
+    lo = concordance_queries.lemma_index(
+        greek_concordance_db, {"lang": "grc", "letter": "α", "min_count": "1"},
+    )
+    hi = concordance_queries.lemma_index(
+        greek_concordance_db, {"lang": "grc", "letter": "Α", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in lo["rows"]} == {r["lemma"] for r in hi["rows"]}
+
+
+def test_greek_letter_lambda_only(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """``letter=Λ`` isolates the λ-initial lemma and excludes the
+    alpha cluster — the fold doesn't over-match."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db, {"lang": "grc", "letter": "Λ", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"λόγος"}
+
+
 # ──────────────────────────────────────────────────────────────────
 #  q (lemma substring search)
 # ──────────────────────────────────────────────────────────────────

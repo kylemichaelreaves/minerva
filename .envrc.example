@@ -17,9 +17,19 @@ export ANTHROPIC_API_KEY=sk-ant-api03-replace-me
 # export LLM=anthropic
 # export LLM_MODEL=claude-sonnet-4-6
 
-# This repo lives at github.com/kylemichaelreaves/minerva — keep the gh CLI
-# on the personal account so `gh repo create`, `gh pr ...`, etc. don't try
-# to act under a work account.
+# This repo lives at github.com/kylemichaelreaves/minerva — pin the gh CLI
+# to the personal account *for this directory only*. GH_TOKEN takes
+# precedence over gh's global active account, and direnv unsets it on
+# leaving the repo, so this never bleeds into work repos (unlike a
+# `gh auth switch`, which mutates global state and never switches back).
+# The token is read from gh's keyring at load time, so re-auths are
+# picked up automatically.
 if command -v gh >/dev/null 2>&1; then
-  gh auth switch -h github.com -u kylemichaelreaves >/dev/null 2>&1 || true
+  GH_TOKEN="$(gh auth token -h github.com -u kylemichaelreaves 2>/dev/null)" || true
+  if [ -n "${GH_TOKEN:-}" ]; then
+    export GH_TOKEN
+  else
+    unset GH_TOKEN
+    echo "warning: no gh keyring token for kylemichaelreaves; run: gh auth login" >&2
+  fi
 fi

@@ -296,7 +296,7 @@ export function useWorkRange(
     // effect re-runs when either changes. They look like dead code
     // to ESLint; the void-comma form keeps it quiet without altering
     // semantics.
-    void (props.workId, props.focusChunkId);
+    void (props.workId, props.focusChunkId, props.sourceLang);
     void loadWork();
   });
 

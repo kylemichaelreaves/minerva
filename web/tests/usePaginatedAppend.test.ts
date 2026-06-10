@@ -46,4 +46,32 @@ describe("usePaginatedAppend", () => {
       dispose();
     });
   });
+
+  it("ignores stale in-flight appends after filter reset", async () => {
+    await createRoot(async (dispose) => {
+      const [data, setData] = createSignal<{ items: number[] } | null>({
+        items: [1],
+      });
+      const api = usePaginatedAppend(() => data());
+
+      const first = () => data()?.items ?? [];
+      let resolvePage: ((value: { items: number[] }) => void) | undefined;
+      const fetchPage = vi.fn(
+        () =>
+          new Promise<{ items: number[] }>((resolve) => {
+            resolvePage = resolve;
+          }),
+      );
+      void api.loadMore(first(), fetchPage);
+      await flush();
+
+      setData({ items: [10] });
+      await flush();
+      resolvePage?.({ items: [99] });
+      await flush();
+
+      expect(api.rows(first())).toEqual([10]);
+      dispose();
+    });
+  });
 });
