@@ -34,10 +34,15 @@ export const PHIL_DOMINANT_GLYPH: Record<string, string> = {
   a: "α",
   s: "σ",
   e: "ε",
+  t: "τ",
   b: "b",
   c: "c",
   g: "g",
   h: "h",
+  C: "C",
+  v: "v",
+  o: "o",
+  r: "r",
 };
 
 export function dominantGlyph(code: string | null | undefined): string {

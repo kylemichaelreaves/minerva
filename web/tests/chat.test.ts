@@ -328,8 +328,24 @@ describe("chat()", () => {
     }
   });
 
-  it("falls back to P for unknown / malformed `dominant` values", async () => {
-    for (const bad of ["X", "plato", "", 42, null, undefined, { code: "P" }]) {
+  it("accepts any single-character `dominant` code verbatim", async () => {
+    // Codes come from the server's corpus_registry; an allowlist here
+    // silently re-mapped newer corpora (tragedians, Æsop, Origen…) to P.
+    for (const code of ["X", "t", "v", "Æ", "Ω"]) {
+      fetchMock.mockResolvedValueOnce(
+        okResponse({
+          paragraphs: ["ok"],
+          citations: [],
+          dominant: code,
+        }),
+      );
+      const turn = await chat({ query: "q" });
+      expect(turn.dominant).toBe(code);
+    }
+  });
+
+  it("falls back to P for malformed `dominant` values", async () => {
+    for (const bad of ["plato", "", 42, null, undefined, { code: "P" }]) {
       fetchMock.mockResolvedValueOnce(
         okResponse({
           paragraphs: ["ok"],

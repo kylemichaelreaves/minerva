@@ -227,11 +227,13 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'nietzschean',
     ),
     ),
+    # 'C' — Cicero's natural initial. (Hume claimed 'I' first; the
+    # two collided on 'I' until the dominant-code uniqueness check landed.)
     CorpusEntry(
         'cicero',
         'lat',
         'paragraph',
-        'I',
+        'C',
         (
         'cicero',
         'ciceronian',
@@ -395,12 +397,14 @@ CORPORA: tuple[CorpusEntry, ...] = (
     ),
     ),
     # Theognis of Megara — aristocratic elegist; subject of
-    # Nietzsche's 1867 dissertation. dominant_code "T" is unused.
+    # Nietzsche's 1867 dissertation. Lowercase 't' (rendered 'τ' in the
+    # UI) follows the tragedians' lowercase-Greek-verse convention;
+    # uppercase 'T' belongs to Aquinas.
     CorpusEntry(
         'theognis',
         'grc',
         'paragraph',
-        'T',
+        't',
         (
         'theognis',
         'theognidea',
@@ -451,12 +455,14 @@ CORPORA: tuple[CorpusEntry, ...] = (
     # *Lettres sur les anciens parlemens* (Fr + the rare 1739 English
     # Dryden translation). Boulainvilliers is in-corpus; Tacitus /
     # Caesar / Gregory-of-Tours (his historical sources) resolve
-    # via out-of-corpus reference_targets rows for now.
+    # via out-of-corpus reference_targets rows for now. dominant_code
+    # 'v' (Boulain-Villiers) — 'B' belongs to Hobbes, lowercase 'b'
+    # to the Luther 1912 Bible.
     CorpusEntry(
         'boulainvilliers',
         'fra',
         'paragraph',
-        'B',
+        'v',
         (
         'boulainvilliers',
         'boulainviller',
@@ -467,11 +473,13 @@ CORPORA: tuple[CorpusEntry, ...] = (
     # Arthur de Gobineau (1816-1882) — *Essai sur l'inégalité des
     # races humaines* (1853-55). The racial-determinism reformulation
     # of Boulainvilliers's Frankish thesis that Nietzsche absorbs.
+    # dominant_code 'o' (gObineau) — 'G' belongs to the Septuagint,
+    # lowercase 'g' to the KJV.
     CorpusEntry(
         'gobineau',
         'fra',
         'paragraph',
-        'G',
+        'o',
         (
         'gobineau',
         'comte de gobineau',
@@ -482,12 +490,13 @@ CORPORA: tuple[CorpusEntry, ...] = (
     # (1877), *Histoire du peuple d'Israël* (1887-93, 5 vols). Direct
     # target of Nietzsche's *Der Antichrist*; the priestly-class
     # material in the Histoire is the source for GM I.7-8 slave-
-    # morality genealogy.
+    # morality genealogy. dominant_code lowercase 'r' — uppercase
+    # 'R' belongs to Rousseau.
     CorpusEntry(
         'renan',
         'fra',
         'paragraph',
-        'R',
+        'r',
         (
         'renan',
         'ernest renan',
@@ -540,13 +549,33 @@ CORPUS_TO_DOMINANT: dict[str, str] = {e.id: e.dominant_code for e in CORPORA}
 
 
 def validate_keywords() -> None:
-    """Raise if two corpora claim the same keyword."""
+    """Raise if two corpora claim the same keyword.
+
+    Must iterate ``CORPORA`` — ``AUTHOR_KEYWORDS`` has already collapsed
+    duplicates by dict overwrite, so checking it can never find one.
+    """
 
     seen: dict[str, str] = {}
-    for kw, corpus in AUTHOR_KEYWORDS.items():
-        if kw in seen and seen[kw] != corpus:
-            raise ValueError(f"keyword {kw!r} maps to both {seen[kw]!r} and {corpus!r}")
-        seen[kw] = corpus
+    for e in CORPORA:
+        for kw in e.keywords:
+            if kw in seen and seen[kw] != e.id:
+                raise ValueError(f"keyword {kw!r} maps to both {seen[kw]!r} and {e.id!r}")
+            seen[kw] = e.id
+
+
+def validate_dominant_codes() -> None:
+    """Raise if two corpora share a dominant glyph — the glyph renders
+    in the citation gutter, so a collision makes it ambiguous."""
+
+    seen: dict[str, str] = {}
+    for e in CORPORA:
+        if e.dominant_code in seen:
+            raise ValueError(
+                f"dominant_code {e.dominant_code!r} used by both "
+                f"{seen[e.dominant_code]!r} and {e.id!r}"
+            )
+        seen[e.dominant_code] = e.id
 
 
 validate_keywords()
+validate_dominant_codes()

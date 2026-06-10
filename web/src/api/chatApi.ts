@@ -22,10 +22,12 @@ import { renumberCitations } from "~/utils/renumber";
 import { errorMessage, isAbortError } from "~/utils/util";
 import { apiDelete, apiGet } from "~/api/client";
 
-const KNOWN_DOMINANT = new Set(["P", "A", "H", "K", "O", "D", "S", "B", "N", "M", "Q", "J", "I", "E", "C", "L", "R", "U", "T", "G", "F", "W", "V", "Z", "Y", "c"]);
-
+// Dominant codes come from the server's corpus_registry; any single
+// character is a valid code (dominantGlyph falls back to rendering the
+// code itself for ones without a bespoke glyph). A hand-synced
+// allowlist here silently re-mapped newer corpora to Plato.
 function asDominant(raw: unknown): Dominant {
-  if (typeof raw === "string" && raw.length === 1 && KNOWN_DOMINANT.has(raw)) {
+  if (typeof raw === "string" && raw.length === 1) {
     return raw;
   }
   return "P";
