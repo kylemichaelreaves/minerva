@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from ... import agent, chat_service
+from ...chat_context import ChatContext
 from ..server_core import ServerDeps
 from ._locks import map_domain_errors
 
@@ -63,15 +64,33 @@ def _persist_assistant_turn(
         )
 
 
+@map_domain_errors
 def _handle_chat_stream(
     deps: ServerDeps, payload: dict[str, Any]
 ) -> Iterator[tuple[str, dict[str, Any]]]:
-    """Yield SSE ``(event_name, data)`` pairs for a streaming chat turn."""
+    """Prepare the turn eagerly, then return the SSE event generator.
 
-    from ... import llm
+    Preparation (validation, conversation persistence, retrieval) must
+    run BEFORE the caller writes the SSE response headers: it raises
+    domain errors (missing query, bad conversation_id, too many pinned
+    ids), and if those surfaced lazily on the generator's first
+    ``next()`` the server would have already committed to a 200 SSE
+    response — the error JSON would then be written as a second status
+    line into the open stream.
+    """
 
     ctx = deps.to_chat_context()
     prep = chat_service.prepare_chat_turn(ctx, payload)
+    return _stream_prepared_turn(deps, ctx, prep)
+
+
+def _stream_prepared_turn(
+    deps: ServerDeps, ctx: ChatContext, prep: chat_service.ChatPrepared
+) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Yield SSE ``(event_name, data)`` pairs for a prepared chat turn."""
+
+    from ... import llm
+
     skip_deltas = prep.retrieval.abstain or deps.backend.name == "none"
     completed = False
 

@@ -78,3 +78,32 @@ def test_handle_chat_stream_persists_same_as_blocking(populated_db, conversation
     assert len(rows) == 4
     assert rows[-1][0] == "assistant"
     assert "Same reply" in rows[-1][1] or "reply" in rows[-1][1]
+
+
+def test_handle_chat_stream_validation_errors_raise_before_first_event(
+    populated_db, conversations_conn
+):
+    """Regression: prepare_chat_turn used to run lazily inside the
+    generator, so validation errors surfaced only on the first next() —
+    AFTER the server had already written the 200 SSE headers, and the
+    error JSON became a second status line inside the open stream. The
+    call itself must raise, before any event is produced."""
+
+    import pytest
+
+    from minerva.http.serve import _HTTPError
+
+    backend = StubBackend(reply="unused")
+    deps = _make_deps(populated_db, backend, conversations_conn=conversations_conn)
+
+    # Missing query → BadRequest at call time, not at iteration time.
+    with pytest.raises(_HTTPError) as info:
+        server._handle_chat_stream(deps, {"stream": True})
+    assert info.value.status == 400
+
+    # Well-formed but unknown conversation id → NotFound at call time.
+    with pytest.raises(_HTTPError) as info:
+        server._handle_chat_stream(
+            deps, {"stream": True, "query": "hi", "conversation_id": "missing-cid"}
+        )
+    assert info.value.status == 404
