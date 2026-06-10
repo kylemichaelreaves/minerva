@@ -1,6 +1,7 @@
 import { Show, createMemo } from "solid-js";
 import type { KwicRow } from "~/api/concordanceApi";
 import { abbrevWork } from "~/Concordance/constants";
+import { Romanizable } from "~/Concordance/components/Romanizable";
 
 export function KwicRowEl(props: {
   row: KwicRow;
@@ -31,10 +32,14 @@ export function KwicRowEl(props: {
         </Show>
       </span>
       <span class="left">{props.row.kwic_left}</span>
-      <span class="match">{props.row.kwic_match}</span>
+      <span class="match">
+        <Romanizable text={props.row.kwic_match} />
+      </span>
       <span class="right">{props.row.kwic_right}</span>
       <span class="meta">
-        <span class="surf">{props.row.surface}</span>
+        <span class="surf">
+          <Romanizable text={props.row.surface} />
+        </span>
         <span>{props.row.morph_str}</span>
       </span>
     </div>
