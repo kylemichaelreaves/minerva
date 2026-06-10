@@ -10,6 +10,7 @@ zeno.org HTML dumps).
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -52,6 +53,12 @@ _HEADING_RE = re.compile(
 )
 
 
+def _has_letter(text: str) -> bool:
+    """At least one Unicode letter anywhere in the text."""
+
+    return any(unicodedata.category(ch).startswith("L") for ch in text)
+
+
 def _emit(
     work: CorpusWork,
     path: Path,
@@ -61,6 +68,15 @@ def _emit(
 ) -> Chunk | None:
     text = _norm_text(text)
     if not text:
+        return None
+    if not _has_letter(text):
+        # Letter-free paragraphs are never prose: standalone aphorism-
+        # number lines from the zeno.org dumps ("1", "2."), bare section
+        # markers ("§ 9"), typographic separators ("----"), and OCR
+        # glyph soup ("■", "•") from the Gallica scans. The caller
+        # assigns ¶ indices BEFORE this filter runs, so dropping a
+        # paragraph here never renumbers — and never re-ids — the
+        # surviving chunks around it.
         return None
     if _looks_like_bibliography(text):
         return None

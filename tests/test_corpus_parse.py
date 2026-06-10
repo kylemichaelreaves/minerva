@@ -806,3 +806,42 @@ def test_registry_corpus_label_passes_find_works_to_parse_dir(monkeypatch, tmp_p
     list(parse(tmp_path))
     assert captured["find_work"] is kant_works.find_work
     assert captured["find_works"] is kant_works.find_works
+
+
+# ---------- letter-free chunk filter ----------
+
+
+def test_emit_drops_letter_free_paragraphs(tmp_path: Path):
+    """Aphorism-number lines, bare section markers, separators, and OCR
+    glyph soup must not become chunks (they were ~6,500 strong before
+    the 2026-06-10 cleanup round)."""
+    work = _make_work("chapter")
+    for junk in ("1", "2.", "§ 9", "----", "■", "• •", "[129]", "+20"):
+        assert corpus_parse._emit(work, tmp_path / "x.pdf", "¶1", junk) is None, junk
+
+
+def test_emit_keeps_short_but_real_text(tmp_path: Path):
+    work = _make_work("chapter")
+    for real in ("Ha!", "Eis", "ὁ", "von", "Über"):
+        chunk = corpus_parse._emit(work, tmp_path / "x.pdf", "¶1", real)
+        assert chunk is not None, real
+
+
+def test_dropping_junk_paragraph_does_not_renumber_survivors(tmp_path: Path):
+    """¶ indices are assigned before the filter, so removing a junk
+    paragraph must not change the section labels — and therefore the
+    content-hashed chunk_ids — of the surviving paragraphs."""
+    work = _make_work("chapter")
+    body_a = "A real paragraph of invented prose that is long enough to keep."
+    body_b = "Another real paragraph of invented prose that also survives."
+
+    chunks = list(
+        corpus_parse._split_chapter_block(
+            work, tmp_path / "x.pdf", "Vorrede", f"1\n\n{body_a}\n\n2\n\n{body_b}"
+        )
+    )
+    # The junk lines still consume ¶1 and ¶3 — survivors keep the same
+    # ¶ index (and so the same content-hashed chunk_id) they had before
+    # the filter existed.
+    assert [c.section for c in chunks] == ["Vorrede, ¶2", "Vorrede, ¶4"]
+    assert [c.text for c in chunks] == [body_a, body_b]
