@@ -37,6 +37,7 @@ venv/
 .mypy_cache/
 .coverage
 htmlcov/
+coverage.xml
 
 # ── JavaScript / TypeScript ────────────────────────────────────────
 # Bare `node_modules/` matches at any depth — covers both
