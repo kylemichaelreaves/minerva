@@ -4,7 +4,8 @@
 // same groups stacked.
 
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import { isConcSort, type ConcSort } from "~/api/concordanceApi";
+import { isConcSort, type ConcScope, type ConcSort } from "~/api/concordanceApi";
+import { Select, type SelectOption } from "~/components/Select";
 
 /** UD POS tags that show up on the leaderboard. The backend default
  *  whitelist is content words (NOUN/VERB/ADJ/PROPN); the dropdown lets
@@ -47,6 +48,17 @@ export interface FilterBarProps {
    *  slider's upper bound so the knob's position is meaningful. */
   freqCeil: number;
   q?: string;
+  /** Scope narrowing. The Author picker appears for author/work scope;
+   *  the Work picker appears for work scope (with the Author picker
+   *  acting as an optional filter on the work list). Options come from
+   *  the page (built from /api/works for the active language). */
+  scope: ConcScope;
+  scopeAuthor?: string;
+  scopeWork?: string;
+  authorOptions: SelectOption[];
+  workOptions: SelectOption[];
+  onPickAuthor: (author: string | undefined) => void;
+  onPickWork: (work: string | undefined) => void;
   onSetLang: (v: string) => void;
   onSetSort: (v: ConcSort) => void;
   onSetPos: (v: string | undefined) => void;
@@ -205,6 +217,31 @@ export function FilterBar(props: FilterBarProps) {
           onPick={(v) => props.onSetLang(v)}
         />
       </div>
+
+      <Show when={props.scope !== "corpus"}>
+        <div class="grp">
+          <span class="lab">Author</span>
+          <Select
+            options={props.authorOptions}
+            value={props.scopeAuthor}
+            onChange={(v) => props.onPickAuthor(v || undefined)}
+            placeholder={props.scope === "work" ? "any author" : "choose an author…"}
+            ariaLabel="Narrow concordance to an author"
+          />
+        </div>
+      </Show>
+      <Show when={props.scope === "work"}>
+        <div class="grp">
+          <span class="lab">Work</span>
+          <Select
+            options={props.workOptions}
+            value={props.scopeWork}
+            onChange={(v) => props.onPickWork(v || undefined)}
+            placeholder="choose a work…"
+            ariaLabel="Narrow concordance to a single work"
+          />
+        </div>
+      </Show>
 
       <div class="grp">
         <span class="lab">Sort</span>

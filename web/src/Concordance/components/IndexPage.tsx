@@ -8,9 +8,11 @@ import {
   type ConcSort,
   type LemmaIndexRow,
 } from "~/api/concordanceApi";
+import { listWorks } from "~/api/readerApi";
 import { ActiveFilterStrip } from "~/Concordance/components/ActiveFilterStrip";
 import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
 import { FilterBar } from "~/Concordance/components/FilterBar";
+import type { SelectOption } from "~/components/Select";
 import { LbRow } from "~/Concordance/components/LbRow";
 import { LoadingSkeleton } from "~/Concordance/components/LoadingSkeleton";
 import { ScopePill } from "~/Concordance/components/ScopePill";
@@ -72,6 +74,53 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
   const isMobile = useMobile();
   const [sheetOpen, setSheetOpen] = createSignal(false);
 
+  /** Author/Work scope needs a value before the index can fetch —
+   *  scope=author with no author (or scope=work with no work) is a
+   *  backend 400. The pickers below fill these in. */
+  const scopeIncomplete = createMemo(
+    () =>
+      (scope() === "author" && !props.scopeAuthor) || (scope() === "work" && !props.scopeWork),
+  );
+
+  /** Works manifest for the scope pickers. One fetch; the reader's
+   *  /api/works list carries (author, work, lang) in chronological
+   *  author order, which is exactly the order we want the menus in. */
+  const [worksList] = createResource(() => listWorks());
+  const langWorks = createMemo(() => (worksList() ?? []).filter((w) => w.lang === lang()));
+  const authorOptions = createMemo<SelectOption[]>(() => {
+    const seen = new Set<string>();
+    const out: SelectOption[] = [];
+    for (const w of langWorks()) {
+      if (!seen.has(w.author)) {
+        seen.add(w.author);
+        out.push({ value: w.author, label: w.author });
+      }
+    }
+    return out;
+  });
+  const workOptions = createMemo<SelectOption[]>(() => {
+    const seen = new Set<string>();
+    const out: SelectOption[] = [];
+    for (const w of langWorks()) {
+      if (props.scopeAuthor && w.author !== props.scopeAuthor) continue;
+      if (seen.has(w.work)) continue;
+      seen.add(w.work);
+      out.push({ value: w.work, label: w.work, sublabel: w.author });
+    }
+    return out;
+  });
+
+  const pickAuthor = (author: string | undefined) =>
+    props.onNavigate(
+      scope() === "work"
+        ? // In work scope the author picker only narrows the work menu;
+          // the data scope stays work-level.
+          { scopeAuthor: author, scopeWork: undefined }
+        : { scope: "author", scopeAuthor: author, scopeWork: undefined },
+    );
+  const pickWork = (work: string | undefined) =>
+    props.onNavigate({ scope: "work", scopeWork: work });
+
   /** Slider ceiling — the highest count we've seen so far for this
    *  scope. Monotonic: never shrinks during a filter session, so the
    *  slider scale doesn't jump when the user drags freq_max down and
@@ -96,6 +145,20 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
    *  the chip represents. */
   const activeChips = createMemo(() => {
     const chips: { k: string; v: string; onRemove: () => void }[] = [];
+    if (props.scopeAuthor) {
+      chips.push({
+        k: "author",
+        v: props.scopeAuthor,
+        onRemove: () => pickAuthor(undefined),
+      });
+    }
+    if (scope() === "work" && props.scopeWork) {
+      chips.push({
+        k: "work",
+        v: props.scopeWork,
+        onRemove: () => props.onNavigate({ scopeWork: undefined }),
+      });
+    }
     if (props.letter) {
       chips.push({
         k: "letter",
@@ -158,7 +221,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                   cur: scope() === "corpus",
                 },
               ]}
-              count={data()?.total_occurrences}
+              count={scopeIncomplete() ? undefined : data()?.total_occurrences}
               onPick={(s) =>
                 props.onNavigate({ scope: s, scopeAuthor: undefined, scopeWork: undefined })
               }
@@ -182,6 +245,13 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           freqMax={props.freqMax}
           freqCeil={freqCeil()}
           q={props.q}
+          scope={scope()}
+          scopeAuthor={props.scopeAuthor}
+          scopeWork={props.scopeWork}
+          authorOptions={authorOptions()}
+          workOptions={workOptions()}
+          onPickAuthor={pickAuthor}
+          onPickWork={pickWork}
           onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
           onSetSort={(v) => props.onNavigate({ sort: v })}
           onSetPos={(v) => props.onNavigate({ pos: v })}
@@ -244,6 +314,13 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               freqMax={props.freqMax}
               freqCeil={freqCeil()}
               q={props.q}
+              scope={scope()}
+              scopeAuthor={props.scopeAuthor}
+              scopeWork={props.scopeWork}
+              authorOptions={authorOptions()}
+              workOptions={workOptions()}
+              onPickAuthor={pickAuthor}
+              onPickWork={pickWork}
               onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
               onSetSort={(v) => props.onNavigate({ sort: v })}
               onSetPos={(v) => props.onNavigate({ pos: v })}
@@ -268,6 +345,21 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
         </MobileSheet>
       </Show>
 
+      <Show
+        when={!scopeIncomplete()}
+        fallback={
+          <ConcEmpty
+            icon="◎"
+            title={scope() === "work" ? "Choose a work" : "Choose an author"}
+          >
+            <div>
+              Pick {scope() === "work" ? "a work" : "an author"} in the filter bar above to
+              narrow the {lang().toUpperCase()} concordance
+              {scope() === "work" ? " to a single work" : ""}.
+            </div>
+          </ConcEmpty>
+        }
+      >
       <Show
         when={!data.error}
         fallback={
@@ -373,6 +465,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           </Show>
         </Show>
       </Show>
+      </Show>
     </div>
   );
 }
@@ -394,19 +487,27 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
   const [retryKey, setRetryKey] = createSignal(0);
 
   const [data] = createResource(
-    () => ({
-      lang: args.lang(),
-      scope: args.scope(),
-      author: args.scopeAuthor(),
-      work: args.scopeWork(),
-      letter: args.letter(),
-      sort: args.sort(),
-      pos: args.pos(),
-      freqMin: args.freqMin(),
-      freqMax: args.freqMax(),
-      q: args.q(),
-      _retry: retryKey(),
-    }),
+    () => {
+      // Don't fetch an incomplete scope — scope=author without an
+      // author (or scope=work without a work) is a backend 400. The
+      // page renders a picker prompt instead; a falsy source skips
+      // the fetcher entirely.
+      if (args.scope() === "author" && !args.scopeAuthor()) return false as const;
+      if (args.scope() === "work" && !args.scopeWork()) return false as const;
+      return {
+        lang: args.lang(),
+        scope: args.scope(),
+        author: args.scopeAuthor(),
+        work: args.scopeWork(),
+        letter: args.letter(),
+        sort: args.sort(),
+        pos: args.pos(),
+        freqMin: args.freqMin(),
+        freqMax: args.freqMax(),
+        q: args.q(),
+        _retry: retryKey(),
+      };
+    },
     async (p) =>
       fetchLemmaIndex({
         lang: p.lang,
