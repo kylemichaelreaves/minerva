@@ -115,11 +115,12 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 def _maybe_snapshot_pre_index(db_path: Path) -> None:
     """Copy ``db_path`` to ``<db_path>.bak.pre-index`` when the DB
-    carries cross_references OR chunk_lemmas rows.
+    carries cross_references, chunk_lemmas, OR embeddings rows.
 
-    Two pieces of expensive state need to survive a ``--reset``:
-    LLM-verified cross_references (hours to regenerate) and
-    chunk_lemmas (~10 min via LatinCy across grc+lat). The snapshot is
+    Three pieces of expensive state need to survive a ``--reset``:
+    LLM-verified cross_references (hours to regenerate), chunk_lemmas
+    (~10 min via LatinCy across grc+lat), and embeddings (~20 min to
+    re-encode the full corpus). The snapshot is
     overwritten on each subsequent re-index — one snapshot, not a tower
     of them. No-op for fresh DBs (where neither table exists yet) and
     for fully-empty DBs.
@@ -134,9 +135,10 @@ def _maybe_snapshot_pre_index(db_path: Path) -> None:
     try:
         xref_count = _count_or_zero(probe, "cross_references")
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
+        emb_count = _count_or_zero(probe, "embeddings")
     finally:
         probe.close()
-    if xref_count == 0 and lemma_count == 0:
+    if xref_count == 0 and lemma_count == 0 and emb_count == 0:
         return
     backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
     shutil.copy2(db_path, backup)
@@ -145,6 +147,8 @@ def _maybe_snapshot_pre_index(db_path: Path) -> None:
         bits.append(f"{xref_count} cross_references")
     if lemma_count:
         bits.append(f"{lemma_count:,} chunk_lemmas")
+    if emb_count:
+        bits.append(f"{emb_count:,} embeddings")
     print(
         f"Snapshotted {' + '.join(bits)} to {backup} before re-index.",
         file=sys.stderr,
@@ -199,12 +203,15 @@ def _maybe_restore_preserved_state_from_snapshot(
     backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
     if not backup.exists():
         return
-    # If the live DB already carries xref rows, the regular rebind path
-    # (and the existing lemmas) will handle things; skip to avoid
-    # double-inserting.
-    existing = conn.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0]
-    if existing:
-        return
+    # The restore is only correct against a freshly-reset (empty) DB.
+    # If the live DB already carries rows in ANY preserved table,
+    # ``--reset`` wasn't used and the regular rebind path handles
+    # things — restoring here would PK-collide on the bulk INSERTs.
+    # (Checking only cross_references once let a lemmas-but-no-xrefs
+    # DB fall through into a restore against live data.)
+    for table in ("cross_references", "chunk_lemmas", "embeddings"):
+        if _count_or_zero(conn, table):
+            return
     # Probe the snapshot for what it has.
     probe = sqlite3.connect(backup)
     try:
@@ -248,7 +255,7 @@ def _maybe_restore_preserved_state_from_snapshot(
     fk_prev = conn.execute("PRAGMA foreign_keys").fetchone()[0]
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
-        conn.execute(f"ATTACH DATABASE '{backup}' AS snap")
+        conn.execute("ATTACH DATABASE ? AS snap", (str(backup),))
         try:
             xref_restored = 0
             target_restored = 0
