@@ -14,7 +14,7 @@ works module.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 
 from ..corpus_extract import IngestDepsMissing, extract_epub, extract_html, extract_pdf
@@ -101,9 +101,10 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
 
 def parse_dir(
     directory: Path,
-    find_work: object,
+    find_work: Callable[[str], CorpusWork | None],
     *,
     label: str,
+    find_works: Callable[[str], list[CorpusWork]] | None = None,
 ) -> Iterable[Chunk]:
     """Walk a directory; dispatch each known file to its splitter.
 
@@ -112,30 +113,17 @@ def parse_dir(
 
     Multi-work files: when ``find_work`` returns a CorpusWork whose ``pages``
     field is set, the file may be claimed by multiple Works at
-    different page ranges. We support this by calling ``find_works``
-    (plural) on the module if available — that callable returns the
-    full list of Works claiming the file. Each one runs through
-    ``parse_file`` with its own ``pages`` slice. This is how the
-    Cambridge "Practical Philosophy" Gregor PDF unpacks into 12
-    separate CorpusWork rows.
+    different page ranges. Pass the module's ``find_works`` (plural)
+    callable explicitly — it returns the full list of Works claiming a
+    file, and each one runs through ``parse_file`` with its own
+    ``pages`` slice. This is how the Cambridge "Practical Philosophy"
+    Gregor PDF unpacks into 12 separate CorpusWork rows.
+
+    ``find_works`` must be passed explicitly: ``find_work`` callables
+    built by ``make_find_work`` are closures whose ``__module__`` is
+    ``minerva.corpus_works``, so reflective sibling lookup can never
+    find the author module's plural variant.
     """
-
-    # Discover the plural variant on whichever works module supplied
-    # `find_work`. If unavailable, fall back to single-CorpusWork-per-file
-    # behaviour identical to the pre-multi-work version.
-    find_works = getattr(find_work, "__self__", None) and getattr(
-        find_work.__self__, "find_works", None
-    )
-    if find_works is None:
-        # `find_work` is a module-level function; look up its sibling
-        # in the same module if present.
-        mod = getattr(find_work, "__module__", None)
-        if mod is not None:
-            import sys as _sys
-
-            mod_obj = _sys.modules.get(mod)
-            if mod_obj is not None and hasattr(mod_obj, "find_works"):
-                find_works = mod_obj.find_works
 
     for path in sorted(directory.iterdir()):
         if not path.is_file():

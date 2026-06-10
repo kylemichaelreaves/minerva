@@ -745,3 +745,64 @@ def test_parse_dir_skips_unknown_files(tmp_path: Path, capsys):
     assert chunks == []
     captured = capsys.readouterr()
     assert "skipping unknown file" in captured.out
+
+
+def _multiwork_fixtures() -> tuple[corpus_works.CorpusWork, corpus_works.CorpusWork]:
+    def mk(code: str, title: str) -> corpus_works.CorpusWork:
+        return corpus_works.CorpusWork(
+            code=code,
+            title=title,
+            translator="Tester",
+            edition_year="2026",
+            filenames=("omnibus.txt",),
+            fmt="txt",
+            locator="chapter",
+            corpus="kant",
+            author="Kant",
+        )
+
+    return mk("first", "First Treatise"), mk("second", "Second Treatise")
+
+
+def test_parse_dir_dispatches_all_works_claiming_a_file(tmp_path: Path):
+    """Regression: multi-work files must produce chunks for EVERY claiming
+    work. The old reflective `find_works` discovery keyed off
+    `find_work.__module__`, which is `minerva.corpus_works` for every
+    `make_find_work` closure — so it never fired and 11 of the 12 Gregor
+    omnibus Kant works were silently skipped."""
+    first, second = _multiwork_fixtures()
+    works = (first, second)
+    (tmp_path / "omnibus.txt").write_text(
+        "A reasonably substantial paragraph of invented prose, long enough "
+        "that the paragraph splitter keeps it as a real body chunk rather "
+        "than discarding it as front-matter noise or a stray heading line.\n",
+        encoding="utf-8",
+    )
+    find_work = corpus_works.make_find_work(works)
+
+    def find_works(filename: str) -> list[corpus_works.CorpusWork]:
+        return [w for w in works if filename in w.filenames]
+
+    chunks = list(corpus_parse.parse_dir(tmp_path, find_work, label="kant", find_works=find_works))
+    titles = {c.work for c in chunks}
+    assert titles == {"First Treatise", "Second Treatise"}
+
+
+def test_registry_corpus_label_passes_find_works_to_parse_dir(monkeypatch, tmp_path: Path):
+    """The ingest registry must hand the author module's `find_works` to
+    `corpus.parse_dir` explicitly — reflective discovery cannot work."""
+    from minerva.authors import kant_works
+    from minerva.ingest import registry as ingest_registry
+
+    captured: dict[str, object] = {}
+
+    def fake_parse_dir(directory, find_work, *, label, find_works=None):
+        captured["find_work"] = find_work
+        captured["find_works"] = find_works
+        return iter(())
+
+    monkeypatch.setattr(corpus_parse, "parse_dir", fake_parse_dir)
+    parse = ingest_registry._corpus_label("kant", "kant_works")
+    list(parse(tmp_path))
+    assert captured["find_work"] is kant_works.find_work
+    assert captured["find_works"] is kant_works.find_works

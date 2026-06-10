@@ -26,7 +26,9 @@ class IngestSource:
 
     @property
     def kwarg_name(self) -> str:
-        return self.param_name or (f"{self.id}_dir" if self.path_kind == "dir" else f"{self.id}_text")
+        return self.param_name or (
+            f"{self.id}_dir" if self.path_kind == "dir" else f"{self.id}_text"
+        )
 
     @property
     def argparse_flag(self) -> str:
@@ -68,7 +70,12 @@ def _corpus_label(label: str, works_module: str) -> ParseFn:
         from .. import corpus as corpus_parse
 
         works = importlib.import_module(f"minerva.authors.{works_module}")
-        yield from corpus_parse.parse_dir(path, works.find_work, label=label)
+        yield from corpus_parse.parse_dir(
+            path,
+            works.find_work,
+            label=label,
+            find_works=getattr(works, "find_works", None),
+        )
 
     return parse
 
