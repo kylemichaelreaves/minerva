@@ -135,3 +135,80 @@ def test_chunk_lemmas_orphan_sweep_on_text_change(tmp_path: Path):
     )
     bad = conn.execute("PRAGMA foreign_key_check(chunk_lemmas)").fetchall()
     assert bad == [], f"orphan sweep left FK violations: {bad}"
+
+
+def test_nonreset_index_with_lemmas_but_no_xrefs_does_not_restore(tmp_path: Path):
+    """Regression: the restore guard only checked cross_references, so a
+    live DB with chunk_lemmas (or embeddings) but zero xrefs fell
+    through into a snapshot-restore against populated tables — PK
+    collisions / 'database snap is locked' on the second non-reset run."""
+
+    db = tmp_path / "lemmas-no-xrefs.sqlite"
+    jsonl = tmp_path / "seed.jsonl"
+    jsonl.write_text(
+        "\n".join(
+            json.dumps(c)
+            for c in [
+                make_chunk(chunk_id="a", text="alpha beta gamma"),
+                make_chunk(chunk_id="b", text="delta epsilon zeta"),
+            ]
+        )
+    )
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    conn.executemany(
+        "INSERT INTO chunk_lemmas "
+        "(chunk_id, token_index, surface_form, surface_start, surface_end, lemma) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            ("a", 0, "alpha", 0, 5, "alpha"),
+            ("b", 0, "delta", 0, 5, "delta"),
+        ],
+    )
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0] == 0
+    conn.close()
+
+    # First non-reset run snapshots (lemmas > 0); second one used to
+    # crash inside the restore. Both must succeed and not duplicate rows.
+    _run_index(db, jsonl, reset=False)
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    assert conn.execute("SELECT COUNT(*) FROM chunk_lemmas").fetchone()[0] == 2
+    bad = conn.execute("PRAGMA foreign_key_check(chunk_lemmas)").fetchall()
+    assert bad == [], f"FK violations after non-reset reindex: {bad}"
+
+
+def test_embeddings_only_db_gets_snapshot_and_survives_reset(tmp_path: Path):
+    """Regression: the snapshot trigger ignored embeddings, so an
+    embeddings-only DB (no xrefs, no lemmas) lost ~20 min of encoding
+    on every ``index --reset`` despite the restore path explicitly
+    handling embeddings."""
+
+    db = tmp_path / "emb-only.sqlite"
+    jsonl = tmp_path / "seed.jsonl"
+    jsonl.write_text(
+        "\n".join(
+            json.dumps(c)
+            for c in [
+                make_chunk(chunk_id="a", text="alpha beta gamma"),
+            ]
+        )
+    )
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    conn.execute(
+        "INSERT INTO embeddings (chunk_id, model, dim, vector) VALUES (?, ?, ?, ?)",
+        ("a", "test-model", 4, b"\x00" * 16),
+    )
+    conn.commit()
+    conn.close()
+
+    _run_index(db, jsonl, reset=True)
+
+    conn = store.open_db(db)
+    n = conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
+    assert n == 1, f"expected the embedding to survive --reset, got {n}"
