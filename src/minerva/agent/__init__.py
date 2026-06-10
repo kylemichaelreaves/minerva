@@ -7,6 +7,7 @@ from .language import (
     build_retrieval_query,
     infer_reply_language,
     resolve_reply_lang,
+    strip_reply_directive,
 )
 from .prompts import _compose_messages
 from .prompts_constants import LANG_DISPLAY_NAMES, SYSTEM_PROMPT
@@ -40,4 +41,5 @@ __all__ = [
     "retrieve_passages",
     "rewrite_query",
     "strip_author_keywords",
+    "strip_reply_directive",
 ]
