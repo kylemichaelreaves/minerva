@@ -53,9 +53,7 @@ RETRIEVAL_LANG_CHOICES: tuple[str, ...] = (
 )
 
 # Answer-language choices for chat/ask (retrieval ``any`` excluded).
-REPLY_LANG_CHOICES: tuple[str, ...] = tuple(
-    c for c in RETRIEVAL_LANG_CHOICES if c != "any"
-)
+REPLY_LANG_CHOICES: tuple[str, ...] = tuple(c for c in RETRIEVAL_LANG_CHOICES if c != "any")
 
 # Retrieval corpus choices — the keys of ``_ORIGINAL_LANG_BY_CORPUS``
 # (= every ingested corpus) plus the meta ``any``. Hard-coding an
@@ -230,9 +228,7 @@ def add_llm_args(p: argparse.ArgumentParser) -> None:
     )
 
 
-def maybe_embedder(
-    args: argparse.Namespace, conn: sqlite3.Connection
-) -> embed.Embedder | None:
+def maybe_embedder(args: argparse.Namespace, conn: sqlite3.Connection) -> embed.Embedder | None:
     if not args.use_vectors:
         return None
     from .. import store
@@ -258,7 +254,7 @@ class Timer:
 
         with Timer() as t:
             do_work()
-        print(t.elapsed)   # float seconds, monotonic
+        print(t.elapsed)  # float seconds, monotonic
 
     Or the context-manager form via :func:`timed`::
 
@@ -349,9 +345,7 @@ def record_timing(
         conn.close()
 
 
-def auto_embedder(
-    args: argparse.Namespace, conn: sqlite3.Connection
-) -> embed.Embedder | None:
+def auto_embedder(args: argparse.Namespace, conn: sqlite3.Connection) -> embed.Embedder | None:
     """Load the embedder whenever embeddings are present in the DB.
 
     Used by ``minerva serve`` instead of ``maybe_embedder`` so the

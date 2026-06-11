@@ -304,6 +304,12 @@ def _maybe_restore_preserved_state_from_snapshot(
                 emb_restored = conn.execute(
                     "SELECT COUNT(*) FROM embeddings"
                 ).fetchone()[0]
+                # The restore bypasses upsert_embeddings, so bump the
+                # generation counter by hand — a live server's embedding
+                # cache must not serve the pre-restore matrix.
+                from ..store.embeddings import bump_embedding_generation
+
+                bump_embedding_generation(conn)
             # Commit before DETACH — SQLite refuses to detach a
             # database with open writes pending on the connection.
             conn.commit()

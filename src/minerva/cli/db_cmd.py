@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from .. import store
 from ._shared import add_common_db_arg
@@ -24,7 +25,11 @@ from ._shared import add_common_db_arg
 def cmd_db(args: argparse.Namespace) -> int:
     if args.action == "inspect":
         return _cmd_db_inspect(args)
-    raise SystemExit(f"unknown db action: {args.action!r}")
+    # Unreachable today (argparse's required subparser only admits
+    # "inspect") but kept as a guard for future actions; return an
+    # exit code like every other cmd_* instead of raising SystemExit.
+    print(f"unknown db action: {args.action!r}", file=sys.stderr)
+    return 2
 
 
 def _cmd_db_inspect(args: argparse.Namespace) -> int:

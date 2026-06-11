@@ -130,18 +130,49 @@ def betacode_to_unicode(text: str) -> str:
     return "".join(out)
 
 
-_BETACODE_MARKERS = frozenset("*()/\\=|+")
+def _contains_precomposed_greek(text: str) -> bool:
+    """True when ``text`` already carries Unicode Greek codepoints —
+    Greek and Coptic (U+0370–03FF) or Greek Extended (U+1F00–1FFF,
+    the precomposed polytonic block)."""
+
+    return any(0x0370 <= ord(ch) <= 0x03FF or 0x1F00 <= ord(ch) <= 0x1FFF for ch in text)
 
 
 def looks_like_betacode(text: str) -> bool:
-    """A title is beta-code-encoded iff it carries any of the marker
-    characters Perseus uses for diacritics and capitalisation. Some Plato
-    `gr` rows in the Perseus bundles ship with already-Latin titles
-    ("Letter 7", "Republic"); without this guard the converter would
-    happily re-read them as Greek letters and produce gibberish like
-    "ρεπυβλιξ"."""
+    """Heuristic: is this string beta-code-encoded Greek?
 
-    return any(ch in _BETACODE_MARKERS for ch in text)
+    Two guards, both needed:
+
+    * Already-Unicode polytonic Greek is NOT beta-code, full stop —
+      even when it contains ASCII punctuation that doubles as a
+      beta-code marker (parentheses, slashes, ``+``). The old
+      any-marker check converted every ASCII letter in such chunks
+      (a parenthetical "cf." became Greek gibberish) at display time
+      AND at ingest.
+    * A marker character alone is not evidence either ("Letter 7",
+      "Republic" — some Perseus `gr` rows ship already-Latin titles).
+      Require an actual beta-code letter+marker sequence: a letter
+      from the beta-code base table immediately followed by a
+      diacritic marker (``a)``, ``h=``, ``w|``), or a ``*`` capital
+      marker introducing a base letter (``*a``, ``*(i``).
+    """
+
+    if _contains_precomposed_greek(text):
+        return False
+    n = len(text)
+    for i, ch in enumerate(text):
+        if ch == "*":
+            # Capital marker: '*' + optional diacritics + base letter.
+            j = i + 1
+            while j < n and text[j] in _DIACRITIC_CHARS:
+                j += 1
+            if j < n and text[j].lower() in _GREEK_BASE:
+                return True
+        elif ch in _DIACRITIC_CHARS:
+            # Diacritics follow the letter they modify in beta-code.
+            if i > 0 and text[i - 1].lower() in _GREEK_BASE:
+                return True
+    return False
 
 
 def display_text(text: str, lang: str) -> str:

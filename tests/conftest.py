@@ -183,24 +183,46 @@ def make_hit(
     )
 
 
-def _conv_conn() -> sqlite3.Connection:
-    """Throwaway conversations DB for handler tests that don't care about
-    cross-test persistence — each call returns a fresh in-temp-dir SQLite."""
+# Paths of every throwaway DB handed out by `_conv_conn` / `_trans_conn`,
+# unlinked in one sweep at session end (see `_cleanup_throwaway_dbs`).
+# `make_deps` is a plain helper, not a fixture, so there's no per-test
+# teardown to hook without changing its API — and before this list the
+# suite leaked hundreds of orphaned temp files per run.
+_THROWAWAY_DB_PATHS: list[Path] = []
 
+
+def _throwaway_db_path() -> Path:
     # NamedTemporaryFile must survive its close() so sqlite can open the
     # path; ruff's SIM115 (use a context manager) would delete the file
     # before we hand it to sqlite3.
     tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)  # noqa: SIM115
     tmp.close()
-    return conversations.open_db(Path(tmp.name))
+    path = Path(tmp.name)
+    _THROWAWAY_DB_PATHS.append(path)
+    return path
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _cleanup_throwaway_dbs():
+    yield
+    for path in _THROWAWAY_DB_PATHS:
+        # Sweep sqlite's sidecar files too, in case a connection was
+        # left open in WAL mode when the session ended.
+        for suffix in ("", "-wal", "-shm", "-journal"):
+            Path(f"{path}{suffix}").unlink(missing_ok=True)
+
+
+def _conv_conn() -> sqlite3.Connection:
+    """Throwaway conversations DB for handler tests that don't care about
+    cross-test persistence — each call returns a fresh in-temp-dir SQLite."""
+
+    return conversations.open_db(_throwaway_db_path())
 
 
 def _trans_conn() -> sqlite3.Connection:
     """Throwaway translations DB; same pattern as `_conv_conn`."""
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)  # noqa: SIM115
-    tmp.close()
-    return translations.open_db(Path(tmp.name))
+    return translations.open_db(_throwaway_db_path())
 
 
 @pytest.fixture

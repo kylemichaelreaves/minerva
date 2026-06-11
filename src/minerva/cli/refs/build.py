@@ -16,7 +16,12 @@ Strategy dispatch:
   :data:`refs.embed_verify.DEFAULT_ALLUSION_PAIRS` (override with
   ``--pair <Source> <Target>``).
 
-* ``--strategy llm-verify`` (Phase 4) — not yet wired.
+* ``--strategy llm-verify`` (Phase 4) — batches pre-existing auto rows
+  through an LLM judge (:func:`refs.llm_verify.verify_rows_with_llm`);
+  promotes / rejects per verdict under a ``--max-llm-calls`` budget,
+  with ``--resume`` picking up from the persisted checkpoint.
+  ``--llm-base-url`` overrides go through the same
+  ``validate_base_url`` credential-leak guard as ask/chat/serve.
 
 Dedup: every insert goes through :func:`refs.rules.insert_candidate`,
 which blocks re-creation of an existing logical row (same source +

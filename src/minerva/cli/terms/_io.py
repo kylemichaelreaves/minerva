@@ -3,8 +3,9 @@
 `_open` opens the curator DB; `_read_text_input` resolves long-form
 text from one of three inputs (inline string, file path, stdin);
 `_print_table` / `_emit` handle the curator-facing output shape.
-`_add_common_db_arg` is the boilerplate `--db` flag every subcommand
-takes.
+`_add_common_db_arg` is a thin shim over the canonical
+`cli/_shared.py:add_common_db_arg` kept for the existing
+`terms/__init__.py` call sites.
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ from ... import store
 
 def _open(args: argparse.Namespace) -> sqlite3.Connection:
     conn = store.open_db(args.db)
-    conn.row_factory = sqlite3.Row
     return conn
 
 
@@ -74,13 +74,11 @@ def _emit(rows: Sequence[Sequence[Any]], headers: Sequence[str], as_json: bool) 
 
 
 def _add_common_db_arg(p: argparse.ArgumentParser) -> None:
-    # Local import to avoid a top-level cycle: the parent `cli` package
-    # imports from this subpackage as part of `register_subparsers`.
-    from .. import DEFAULT_DB, REPO_ROOT
+    """Shim over the canonical helper in ``cli/_shared.py`` — the two
+    used to be duplicate implementations. Local import to avoid a
+    top-level cycle: the parent `cli` package imports from this
+    subpackage as part of `register_subparsers`."""
 
-    p.add_argument(
-        "--db",
-        type=Path,
-        default=DEFAULT_DB,
-        help=f"SQLite index path (default: {DEFAULT_DB.relative_to(REPO_ROOT)}).",
-    )
+    from .._shared import add_common_db_arg
+
+    add_common_db_arg(p)
