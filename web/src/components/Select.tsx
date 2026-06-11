@@ -80,7 +80,6 @@ export function Select(props: SelectProps): JSX.Element {
 
   let triggerRef: HTMLButtonElement | undefined;
   let listboxRef: HTMLUListElement | undefined;
-  let panelRef: HTMLDivElement | undefined;
   let rootRef: HTMLDivElement | undefined;
 
   const selectedIdx = createMemo(() =>
@@ -98,7 +97,7 @@ export function Select(props: SelectProps): JSX.Element {
     let i = from;
     for (let k = 0; k < n; k++) {
       i = (i + dir + n) % n;
-      if (!props.options[i].disabled) return i;
+      if (!props.options[i]?.disabled) return i;
     }
     return -1;
   };
@@ -111,7 +110,7 @@ export function Select(props: SelectProps): JSX.Element {
     setOpen(true);
     const sel = selectedIdx();
     setActiveIdx(
-      sel >= 0 && !props.options[sel].disabled ? sel : firstEnabled(),
+      sel >= 0 && !props.options[sel]?.disabled ? sel : firstEnabled(),
     );
   };
 
@@ -125,7 +124,7 @@ export function Select(props: SelectProps): JSX.Element {
 
   const commit = (i: number): void => {
     const o = props.options[i];
-    if (o.disabled) return;
+    if (o === undefined || o.disabled) return;
     props.onChange(o.value);
     closePanel();
   };
@@ -172,7 +171,7 @@ export function Select(props: SelectProps): JSX.Element {
     // advance to the NEXT match — lets users cycle through matches
     // by tapping the same key.
     const isRepeat = typeBuf.length > 1 && /^(.)\1+$/.test(typeBuf);
-    const needle = isRepeat ? typeBuf[0] : typeBuf;
+    const needle = isRepeat ? typeBuf.charAt(0) : typeBuf;
     const n = props.options.length;
     const startBase = activeIdx() < 0 ? 0 : activeIdx();
     const start = isRepeat ? startBase + 1 : startBase;
@@ -180,7 +179,7 @@ export function Select(props: SelectProps): JSX.Element {
     for (let k = 0; k < n; k++) {
       const idx = (start + k) % n;
       const o = props.options[idx];
-      if (o.disabled) continue;
+      if (o === undefined || o.disabled) continue;
       if (o.label.toLowerCase().startsWith(needle)) {
         setActiveIdx(idx);
         return;
@@ -400,7 +399,7 @@ export function Select(props: SelectProps): JSX.Element {
       </button>
 
       <Show when={isOpen()}>
-        <div class="minerva-select__panel" ref={panelRef}>
+        <div class="minerva-select__panel">
           <ul
             ref={listboxRef}
             id={listboxId}

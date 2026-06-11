@@ -28,10 +28,10 @@ export function LemmaIdentityCard(props: {
    *  want to lose the locked card just because of three noisy tokens. */
   const lockedGender = () => {
     const buckets = props.data.gender_breakdown;
-    if (buckets.length === 0) return null;
-    if (buckets.length === 1) return buckets[0].value;
-    const total = buckets.reduce((s, b) => s + b.count, 0);
     const top = buckets[0];
+    if (top === undefined) return null;
+    if (buckets.length === 1) return top.value;
+    const total = buckets.reduce((s, b) => s + b.count, 0);
     return top.count / total > 0.95 ? top.value : null;
   };
   return (

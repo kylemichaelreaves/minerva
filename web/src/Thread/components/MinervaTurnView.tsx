@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { fetchChunkContext } from "~/api/readerApi";
 import { apiError } from "~/utils/apiError";
 import { dominantGlyph, dominantName } from "~/utils/dominantPhil";
@@ -97,7 +97,9 @@ export function MinervaTurnView(props: {
   const philName = () => dominantName(props.msg.dominant);
   const philGlyph = () => dominantGlyph(props.msg.dominant);
   const abstained = () => Boolean(props.msg.abstained);
-  const citationsByN = () => new Map(props.msg.citations.map((c) => [c.n, c]));
+  // Memo — the For row below calls this once per paragraph; without
+  // the memo each call rebuilt the Map from scratch.
+  const citationsByN = createMemo(() => new Map(props.msg.citations.map((c) => [c.n, c])));
 
   const { expanded, anyExpanded, toggleExpand, openInReader } = useCitationExpand(
     props.onOpenReader,
@@ -151,7 +153,7 @@ export function MinervaTurnView(props: {
           </div>
         </Show>
 
-        <Show when={!abstained() && props.marginNotes && props.msg.citations}>
+        <Show when={!abstained() && props.marginNotes && props.msg.citations.length > 0}>
           <div class="margin-notes">
             <For each={props.msg.citations}>
               {(c) => (
@@ -170,7 +172,7 @@ export function MinervaTurnView(props: {
           </div>
         </Show>
 
-        <Show when={!abstained() && !props.marginNotes && props.msg.citations}>
+        <Show when={!abstained() && !props.marginNotes && props.msg.citations.length > 0}>
           <For each={props.msg.citations}>
             {(c) => (
               <div class={classnames("pull-quote", c.pinned && "is-pinned")}>

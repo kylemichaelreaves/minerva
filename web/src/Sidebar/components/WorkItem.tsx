@@ -12,7 +12,7 @@ export function SidebarWorkItem(props: {
   return (
     <SidebarNavRow
       active={props.active}
-      glyph={PHIL_DOMINANT_GLYPH[w().author[0].toUpperCase()] ?? "Π"}
+      glyph={PHIL_DOMINANT_GLYPH[w().author.charAt(0).toUpperCase()] ?? "Π"}
       title={label()}
       titleAttr={`${label()} · ${w().lang.toUpperCase()}`}
       trailing={<span class="work-lang-chip">{w().lang}</span>}

@@ -4,7 +4,7 @@
 // commits, or saved-marker clicks; the hook handles abortion when a
 // new request comes in.
 
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createSignal, onCleanup } from "solid-js";
 import { translate } from "~/api/readerApi";
 import { errorMessage, isAbortError } from "~/utils/util";
 import type { TargetLang } from "~/utils/types";
@@ -81,9 +81,11 @@ export function useTranslateRail(): TranslateRailApi {
     setRail({ kind: "idle" });
   }
 
-  createEffect(() => {
-    onCleanup(() => inflightController?.abort());
-  });
+  // Abort any inflight request when the owning component disposes.
+  // Plain onCleanup — the old createEffect wrapper had no tracked
+  // reads, so it was just a roundabout way of registering the same
+  // disposal-time cleanup.
+  onCleanup(() => inflightController?.abort());
 
   return { rail, target, setTargetLang, runTranslate, retry, reset };
 }

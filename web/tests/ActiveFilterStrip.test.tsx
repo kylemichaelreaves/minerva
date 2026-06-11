@@ -41,10 +41,10 @@ describe("<ActiveFilterStrip />", () => {
     ));
     const closers = document.querySelectorAll(".afs .afs-pill .x");
     expect(closers).toHaveLength(2);
-    fireEvent.click(closers[0]);
+    fireEvent.click(closers[0]!);
     expect(removeA).toHaveBeenCalledTimes(1);
     expect(removeB).not.toHaveBeenCalled();
-    fireEvent.click(closers[1]);
+    fireEvent.click(closers[1]!);
     expect(removeB).toHaveBeenCalledTimes(1);
   });
 

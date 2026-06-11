@@ -179,7 +179,7 @@ describe("<Sidebar /> — works list ordering", () => {
     // middle child's text content to read the author name.
     const headers = Array.from(
       utils.container.querySelectorAll(".history-label-toggle"),
-    ).map((el) => el.children[1].textContent.trim());
+    ).map((el) => el.children[1]!.textContent.trim());
     expect(headers).toEqual([
       "Homer",
       "Heraclitus",
@@ -213,7 +213,7 @@ describe("<Sidebar /> — works list ordering", () => {
     // middle child's text content to read the author name.
     const headers = Array.from(
       utils.container.querySelectorAll(".history-label-toggle"),
-    ).map((el) => el.children[1].textContent.trim());
+    ).map((el) => el.children[1]!.textContent.trim());
     expect(headers).toEqual(["Plato", "Aristotle"]);
   });
 });

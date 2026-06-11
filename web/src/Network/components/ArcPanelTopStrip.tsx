@@ -39,20 +39,24 @@ export function ArcPanelTopStrip(props: {
       </text>
       <For each={props.pairs}>
         {(p, i) => {
-          const yRow = 22 + i() * 12;
-          const col = p.intra_scrip ? "var(--net-terra)" : "var(--net-navy)";
-          const rowsX = props.padL;
-          const rowsW = props.width - props.padL - props.padR;
-          const barColX = rowsX + rowsW * 0.55;
+          // Accessors, not captured consts — `i()` and the props reads
+          // must stay reactive inside the row body or the rows freeze
+          // at their first-render geometry when the strip resizes or
+          // the pair list reorders.
+          const yRow = () => 22 + i() * 12;
+          const col = () => (p.intra_scrip ? "var(--net-terra)" : "var(--net-navy)");
+          const rowsX = () => props.padL;
+          const rowsW = () => props.width - props.padL - props.padR;
+          const barColX = () => rowsX() + rowsW() * 0.55;
           const countGutter = 56;
-          const barMaxW = rowsW - rowsW * 0.55 - countGutter;
-          const bw =
-            (Math.log10(p.n + 1) / Math.log10((props.pairs[0]?.n ?? p.n) + 1)) * barMaxW;
+          const barMaxW = () => rowsW() - rowsW() * 0.55 - countGutter;
+          const bw = () =>
+            (Math.log10(p.n + 1) / Math.log10((props.pairs[0]?.n ?? p.n) + 1)) * barMaxW();
           return (
             <>
               <text
-                x={rowsX}
-                y={yRow}
+                x={rowsX()}
+                y={yRow()}
                 font-size="9"
                 fill="var(--ink-faint)"
                 font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -60,8 +64,8 @@ export function ArcPanelTopStrip(props: {
                 {String(i() + 1).padStart(2, "0")}
               </text>
               <text
-                x={rowsX + 18}
-                y={yRow}
+                x={rowsX() + 18}
+                y={yRow()}
                 font-size="10.5"
                 fill="var(--ink)"
                 font-family="var(--sans)"
@@ -71,18 +75,18 @@ export function ArcPanelTopStrip(props: {
                 {p.src} → {p.tgt}
               </text>
               <rect
-                x={barColX}
-                y={yRow - 7}
-                width={bw}
+                x={barColX()}
+                y={yRow() - 7}
+                width={bw()}
                 height={7}
-                fill={col}
+                fill={col()}
                 fill-opacity={0.7}
               />
               <text
                 x={props.width - props.padR}
-                y={yRow}
+                y={yRow()}
                 font-size="10"
-                fill={col}
+                fill={col()}
                 font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
                 text-anchor="end"
                 font-weight="500"

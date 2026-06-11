@@ -64,7 +64,7 @@ describe("<Select />", () => {
     fireEvent.click(trigger());
     const opts = container.querySelectorAll(".minerva-select__option");
     expect(opts.length).toBe(3);
-    fireEvent.pointerDown(opts[1]); // Beta
+    fireEvent.pointerDown(opts[1]!); // Beta
     expect(onChange).toHaveBeenCalledWith("b");
     // Panel closes after commit.
     expect(listbox()).toBeNull();

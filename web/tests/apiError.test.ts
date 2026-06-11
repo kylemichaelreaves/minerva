@@ -21,7 +21,7 @@ describe("apiError + useToasts", () => {
     apiError("Couldn't load works.");
     const stack = useToasts()();
     expect(stack.length).toBe(1);
-    expect(stack[0].message).toBe("Couldn't load works.");
+    expect(stack[0]!.message).toBe("Couldn't load works.");
   });
 
   it("assigns monotonically increasing ids", () => {
@@ -45,7 +45,7 @@ describe("apiError + useToasts", () => {
     dismissToast(id1);
     const stack = useToasts()();
     expect(stack.length).toBe(1);
-    expect(stack[0].message).toBe("second");
+    expect(stack[0]!.message).toBe("second");
   });
 
   it("stacks multiple toasts in insertion order", () => {

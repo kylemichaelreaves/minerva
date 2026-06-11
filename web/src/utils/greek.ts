@@ -75,11 +75,12 @@ export function romanize(word: string): string {
   let out = "";
   for (let i = 0; i < stripped.length; i++) {
     const raw = stripped[i];
+    if (raw === undefined) continue;
     const ch = raw.toLowerCase();
     // γ-nasal rule: γ before γ/κ/ξ/χ surfaces as 'n' (Liddell-Scott
     // convention, e.g. ἄγγελος → angelos, not aggelos).
     if (ch === "γ" && i + 1 < stripped.length) {
-      const next = stripped[i + 1].toLowerCase();
+      const next = stripped[i + 1]?.toLowerCase();
       if (next === "γ" || next === "κ" || next === "ξ" || next === "χ") {
         out += "n";
         continue;
@@ -96,7 +97,7 @@ export function romanize(word: string): string {
     // (already accent-free) is enough — diacritics never sit between
     // the two vowels of a diphthong in NFC, and we're past NFD strip.
     if (ch === "υ" && i > 0) {
-      const prev = stripped[i - 1].toLowerCase();
+      const prev = stripped[i - 1]?.toLowerCase();
       if (prev === "α" || prev === "ε" || prev === "η" || prev === "ο" || prev === "ω") {
         out += "u";
         continue;
@@ -114,11 +115,9 @@ export function romanize(word: string): string {
   }
   // Preserve initial capitalization from the source word so proper
   // nouns (Ἀριστοτέλης → Aristoteles) keep their cap.
-  if (stripped.length > 0) {
-    const first = stripped[0];
-    if (first !== first.toLowerCase()) {
-      out = out.charAt(0).toUpperCase() + out.slice(1);
-    }
+  const first = stripped.at(0);
+  if (first !== undefined && first !== first.toLowerCase()) {
+    out = out.charAt(0).toUpperCase() + out.slice(1);
   }
   return out;
 }

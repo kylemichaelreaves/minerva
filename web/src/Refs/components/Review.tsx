@@ -1,6 +1,6 @@
 // Curator review surface for `curator_status='auto'` cross-references.
 
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import {
   fetchReferencesSources,
   fetchReviewQueue,
@@ -11,6 +11,7 @@ import { LoadingDots } from "~/components/LoadingDots";
 import { FilterSheet } from "~/components/FilterSheet";
 import { useMobileShell } from "~/components/MobileShellContext";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
+import { useListKeyboardNav } from "~/hooks/useListKeyboardNav";
 import { usePaginatedAppend } from "~/hooks/usePaginatedAppend";
 import { errorMessage } from "~/utils/util";
 import { ReviewCard } from "~/Refs/components/ReviewCard";
@@ -91,32 +92,39 @@ export default function Review(props: ReviewProps) {
   createEffect(() => {
     const res = data();
     if (res === null) return;
-    setMeta({ total_pending: res.total_pending });
-    setDecidedCount(0);
-    // Resolve the URL's referenceId (if any) to a cursor position
-    // within the freshly-loaded queue. Falls back to cursor 0 when
-    // the id isn't in the queue (already approved, behind the
-    // current filter, etc.) — common enough on a stale bookmark.
-    const targetId = props.referenceId;
-    const rows = res.references;
-    const idx = targetId === undefined ? 0 : rows.findIndex((r) => r.id === targetId);
-    setCursor(idx >= 0 ? idx : 0);
-    setNoteDraft("");
-    // If the URL had no id, or the id wasn't found, sync the URL to
-    // the row we actually landed on so the link is shareable.
-    const landed = rows.at(idx >= 0 ? idx : 0);
-    if (landed && landed.id !== targetId) {
-      props.onNavigateToReference(landed.id);
-    } else if (!landed && targetId !== undefined) {
-      // Empty queue with a stale id in the URL — clear it.
-      props.onNavigateToReference(undefined);
-    }
+    // Everything below is keyed ONLY on a fresh queue fetch. In
+    // particular `props.referenceId` must be read untracked: this
+    // effect WRITES the URL id (onNavigateToReference), so tracking
+    // the prop made the effect re-trigger itself and fight the
+    // cursor-advance path for ownership of the cursor.
+    untrack(() => {
+      setMeta({ total_pending: res.total_pending });
+      setDecidedCount(0);
+      // Resolve the URL's referenceId (if any) to a cursor position
+      // within the freshly-loaded queue. Falls back to cursor 0 when
+      // the id isn't in the queue (already approved, behind the
+      // current filter, etc.) — common enough on a stale bookmark.
+      const targetId = props.referenceId;
+      const rows = res.references;
+      const idx = targetId === undefined ? 0 : rows.findIndex((r) => r.id === targetId);
+      setCursor(idx >= 0 ? idx : 0);
+      setNoteDraft("");
+      // If the URL had no id, or the id wasn't found, sync the URL to
+      // the row we actually landed on so the link is shareable.
+      const landed = rows.at(idx >= 0 ? idx : 0);
+      if (landed && landed.id !== targetId) {
+        props.onNavigateToReference(landed.id);
+      } else if (!landed && targetId !== undefined) {
+        // Empty queue with a stale id in the URL — clear it.
+        props.onNavigateToReference(undefined);
+      }
+    });
   });
 
   const currentRow = createMemo<ReviewQueueRow | null>(() => {
     const q = queue();
     const c = cursor();
-    return c < q.length ? q[c] : null;
+    return q[c] ?? null;
   });
 
   createEffect(() => {
@@ -205,24 +213,15 @@ export default function Review(props: ReviewProps) {
     void advanceAfterWrite();
   };
 
-  onMount(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      // Don't hijack keys while the curator is typing the note. Match
-      // form-element tags loosely so future widgets (selects, etc.)
-      // also let their own keystrokes through.
-      const tag = (e.target as HTMLElement | null)?.tagName.toLowerCase();
-      if (tag === "textarea" || tag === "input" || tag === "select") return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "j") {
-        e.preventDefault();
-        goNext();
-      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "k") {
-        e.preventDefault();
-        goPrev();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+  // Shared list-nav hook — owns the form-element guard (input,
+  // textarea, select, contenteditable) and the listener lifecycle.
+  // Muted while the mobile filter sheet is open so its controls keep
+  // their keys.
+  useListKeyboardNav({
+    enabled: () => !shell.filtersSheetOpen(),
+    horizontal: true,
+    onNext: goNext,
+    onPrev: goPrev,
   });
 
   // Wheel handler — attached at the .review-page root via ref below.

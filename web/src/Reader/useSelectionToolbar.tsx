@@ -195,8 +195,8 @@ export function useSelectionToolbar(
     setSelToolbar(null);
     const sel = window.getSelection();
     sel?.removeAllRanges();
-    if (t.pinned.length === 0) return;
     const p = t.pinned[0];
+    if (p === undefined) return;
     const line =
       props
         .getStage()

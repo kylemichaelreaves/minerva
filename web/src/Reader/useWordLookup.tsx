@@ -113,16 +113,18 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
     if (current.kind !== "ready") return;
     if (current.info.next_samples_offset === null) return;
     if (current.loadingMore) return;
+    // We re-use the same chunk_id+offset the initial click resolved
+    // against (the lemma is what we actually filter on; the
+    // chunk+offset just anchors the lemma lookup, and any sample's
+    // coords work for that).
+    const sample = current.info.samples[0];
+    if (sample === undefined) return;
     setWordInfo({ ...current, loadingMore: true });
     try {
       // No abort controller here — the user explicitly asked for
       // more; cancelling on a subsequent click is already handled by
       // the parent `wordInfoController` whose abort propagates out
-      // of fetchWordLookup. We re-use the same chunk_id+offset the
-      // initial click resolved against (the lemma is what we
-      // actually filter on; the chunk+offset just anchors the lemma
-      // lookup, and any sample's coords work for that).
-      const sample = current.info.samples[0];
+      // of fetchWordLookup.
       const next = await fetchWordLookup(
         sample.chunk_id,
         sample.surface_start,

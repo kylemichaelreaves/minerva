@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import {
-  chat,
+  buildChatBody,
   chatStream,
   deleteConversation,
   getConversation,
@@ -14,10 +14,6 @@ import {
 } from "~/api/readerApi";
 
 let fetchMock: MockedFunction<typeof fetch>;
-
-function okResponse(body: unknown): Response {
-  return { ok: true, json: () => Promise.resolve(body) } as unknown as Response;
-}
 
 function errorResponse(status: number, statusText: string, body?: unknown): Response {
   return {
@@ -38,13 +34,23 @@ describe("parseSseBuffer()", () => {
     const { events, rest } = parseSseBuffer(raw);
     expect(rest).toBe("");
     expect(events.map((e) => e.name)).toEqual(["meta", "delta", "done"]);
-    expect((JSON.parse(events[1].data) as { text: string }).text).toBe("Hi");
+    expect((JSON.parse(events[1]!.data) as { text: string }).text).toBe("Hi");
   });
 
   it("keeps an incomplete trailing block in rest", () => {
     const { events, rest } = parseSseBuffer('event: meta\ndata: {"a":1}');
     expect(events).toHaveLength(0);
     expect(rest).toContain("event: meta");
+  });
+
+  it("parses CRLF-delimited blocks (proxy-normalized streams)", () => {
+    const raw =
+      'event: meta\r\ndata: {"citations":[]}\r\n\r\n' +
+      'event: delta\r\ndata: {"text":"Hi"}\r\n\r\n';
+    const { events, rest } = parseSseBuffer(raw);
+    expect(rest).toBe("");
+    expect(events.map((e) => e.name)).toEqual(["meta", "delta"]);
+    expect((JSON.parse(events[1]!.data) as { text: string }).text).toBe("Hi");
   });
 });
 
@@ -90,7 +96,7 @@ describe("chatStream()", () => {
     expect(delta).toHaveBeenCalledTimes(2);
     expect(done).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
-    const doneTurn = done.mock.calls[0][0] as {
+    const doneTurn = done.mock.calls[0]![0] as {
       paragraphs: string[];
       role: string;
     };
@@ -133,7 +139,7 @@ describe("chatStream()", () => {
   const doneSse = 'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
 
   function sentBody(): Record<string, unknown> {
-    return JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+    return JSON.parse(fetchMock.mock.calls[0]![1]!.body as string) as Record<string, unknown>;
   }
 
   it("sends work_id when the turn is work-scoped", async () => {
@@ -147,9 +153,177 @@ describe("chatStream()", () => {
     await chatStream({ query: "q" }, noopHandlers);
     expect(sentBody()).not.toHaveProperty("work_id");
   });
+
+  function doneTurnOf(done: ReturnType<typeof vi.fn>): {
+    dominant: string;
+    abstained?: boolean;
+    paragraphs: string[];
+    citations: { n: number; src: string }[];
+  } {
+    return done.mock.calls[0]![0] as never;
+  }
+
+  it("accepts any single-character dominant verbatim; falls back to P on garbage", async () => {
+    for (const [code, expected] of [
+      ["X", "X"],
+      ["Ω", "Ω"],
+      ["plato", "P"],
+      ["", "P"],
+    ] as const) {
+      fetchMock.mockResolvedValueOnce(
+        sseResponse([
+          `event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":${JSON.stringify(code)}}\n\n`,
+        ]),
+      );
+      const done = vi.fn();
+      await chatStream({ query: "q" }, { ...noopHandlers, onDone: done });
+      expect(doneTurnOf(done).dominant).toBe(expected);
+      fetchMock.mockReset();
+    }
+  });
+
+  it("propagates abstained from meta onto the finished turn", async () => {
+    const sse =
+      'event: meta\ndata: {"citations":[],"abstained":true,"backend":"none","conversation_id":"c1"}\n\n' +
+      'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
+    fetchMock.mockResolvedValueOnce(sseResponse([sse]));
+    const done = vi.fn();
+    await chatStream({ query: "q" }, { ...noopHandlers, onDone: done });
+    expect(doneTurnOf(done).abstained).toBe(true);
+  });
+
+  it("renumbers citations into order of first appearance in the prose", async () => {
+    const meta = {
+      citations: [
+        { n: 1, src: "s1", text: "t1" },
+        { n: 2, src: "s2", text: "t2" },
+        { n: 3, src: "s3", text: "t3" },
+      ],
+      abstained: false,
+      backend: "stub",
+      conversation_id: "c1",
+    };
+    const sse =
+      `event: meta\ndata: ${JSON.stringify(meta)}\n\n` +
+      'event: done\ndata: {"response":"x","paragraphs":["Open with [3] then [1] and [2]."],"dominant":"P"}\n\n';
+    fetchMock.mockResolvedValueOnce(sseResponse([sse]));
+    const done = vi.fn();
+    await chatStream({ query: "q" }, { ...noopHandlers, onDone: done });
+    const turn = doneTurnOf(done);
+    expect(turn.paragraphs).toEqual(["Open with [1] then [2] and [3]."]);
+    expect(turn.citations.map((c) => c.n)).toEqual([1, 2, 3]);
+    expect(turn.citations.map((c) => c.src)).toEqual(["s3", "s1", "s2"]);
+  });
+
+  it("normalizes a malformed meta payload instead of poisoning the stream", async () => {
+    const sse =
+      'event: meta\ndata: {"citations":"oops","abstained":null}\n\n' +
+      'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
+    fetchMock.mockResolvedValueOnce(sseResponse([sse]));
+    const onMeta = vi.fn();
+    const done = vi.fn();
+    const error = vi.fn();
+    await chatStream(
+      { query: "q" },
+      { ...noopHandlers, onMeta, onDone: done, onError: error },
+    );
+    expect(error).not.toHaveBeenCalled();
+    expect(onMeta.mock.calls[0]![0]).toMatchObject({ citations: [], abstained: false });
+    expect(doneTurnOf(done).citations).toEqual([]);
+  });
+
+  it("routes a malformed done event (non-array paragraphs) to onError", async () => {
+    const sse = 'event: done\ndata: {"response":"x","paragraphs":"x","dominant":"P"}\n\n';
+    fetchMock.mockResolvedValueOnce(sseResponse([sse]));
+    const done = vi.fn();
+    const error = vi.fn();
+    await chatStream({ query: "q" }, { ...noopHandlers, onDone: done, onError: error });
+    expect(done).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith("Server sent a malformed done event.");
+  });
+
+  it("tolerates a done event with missing paragraphs (defaults to [])", async () => {
+    const sse = 'event: done\ndata: {"response":"x","dominant":"P"}\n\n';
+    fetchMock.mockResolvedValueOnce(sseResponse([sse]));
+    const done = vi.fn();
+    const error = vi.fn();
+    await chatStream({ query: "q" }, { ...noopHandlers, onDone: done, onError: error });
+    expect(error).not.toHaveBeenCalled();
+    expect(doneTurnOf(done).paragraphs).toEqual([]);
+  });
+
+  it("reports network failures without the dev-only ':8000' copy", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const error = vi.fn();
+    await chatStream({ query: "q" }, { ...noopHandlers, onError: error });
+    expect(error).toHaveBeenCalledTimes(1);
+    const msg = error.mock.calls[0]![0] as string;
+    expect(msg).toMatch(/Network error: Failed to fetch/);
+    expect(msg).not.toMatch(/:8000/);
+  });
 });
 
-describe("chat()", () => {
+// `buildChatBody` is the request-shape contract shared by every chat
+// call. (The non-streaming `chat()` wrapper these assertions used to
+// run through was deleted as dead production code — the body-shape
+// rules live on here.)
+describe("buildChatBody()", () => {
+  it("keeps query + history and defaults history to []", () => {
+    expect(
+      buildChatBody({ query: "what is justice?", history: [{ role: "user", content: "hi" }] }),
+    ).toEqual({
+      query: "what is justice?",
+      history: [{ role: "user", content: "hi" }],
+    });
+    expect(buildChatBody({ query: "q" })).toEqual({ query: "q", history: [] });
+  });
+
+  it("includes `stream: true` only when requested", () => {
+    expect(buildChatBody({ query: "q", stream: true }).stream).toBe(true);
+    expect("stream" in buildChatBody({ query: "q" })).toBe(false);
+  });
+
+  it("includes `speaker` when provided and omits it otherwise", () => {
+    expect(buildChatBody({ query: "q", speaker: "Socrates" }).speaker).toBe("Socrates");
+    expect("speaker" in buildChatBody({ query: "q" })).toBe(false);
+    expect("speaker" in buildChatBody({ query: "q", speaker: null })).toBe(false);
+  });
+
+  it("includes `rewrite: true` when requested", () => {
+    expect(buildChatBody({ query: "q", rewrite: true }).rewrite).toBe(true);
+    expect("rewrite" in buildChatBody({ query: "q" })).toBe(false);
+  });
+
+  it("includes `pinned_chunk_ids` only when non-empty", () => {
+    expect(
+      buildChatBody({ query: "q", pinnedChunkIds: ["abc", "def"] }).pinned_chunk_ids,
+    ).toEqual(["abc", "def"]);
+    expect("pinned_chunk_ids" in buildChatBody({ query: "q", pinnedChunkIds: [] })).toBe(
+      false,
+    );
+  });
+
+  it("forwards conversationId as `conversation_id` and omits when absent", () => {
+    expect(buildChatBody({ query: "q", conversationId: "abc12345" }).conversation_id).toBe(
+      "abc12345",
+    );
+    expect("conversation_id" in buildChatBody({ query: "q" })).toBe(false);
+  });
+
+  it("includes `work_id` only for numeric workId", () => {
+    expect(buildChatBody({ query: "q", workId: 792 }).work_id).toBe(792);
+    expect("work_id" in buildChatBody({ query: "q", workId: null })).toBe(false);
+    expect("work_id" in buildChatBody({ query: "q" })).toBe(false);
+  });
+
+  it("includes `reply_lang` unless it is 'auto' or absent", () => {
+    expect(buildChatBody({ query: "q", replyLang: "deu" }).reply_lang).toBe("deu");
+    expect("reply_lang" in buildChatBody({ query: "q", replyLang: "auto" })).toBe(false);
+    expect("reply_lang" in buildChatBody({ query: "q" })).toBe(false);
+  });
+});
+
+describe("chat request plumbing (via chatStream)", () => {
   beforeEach(() => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -159,18 +333,33 @@ describe("chat()", () => {
     vi.restoreAllMocks();
   });
 
-  it("POSTs JSON to /api/chat with the right body shape", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        response: "r",
-        paragraphs: ["p"],
-        citations: [],
-        dominant: "P",
-        abstained: false,
-        backend: "none",
-      }),
+  function sseResponse(chunks: string[]): Response {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const c of chunks) {
+          controller.enqueue(encoder.encode(c));
+        }
+        controller.close();
+      },
+    });
+    return { ok: true, body: stream } as unknown as Response;
+  }
+
+  const doneSse = 'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
+  const noopHandlers = {
+    onMeta: () => undefined,
+    onDelta: () => undefined,
+    onDone: () => undefined,
+    onError: () => undefined,
+  };
+
+  it("POSTs JSON to /api/chat with content-type and the built body", async () => {
+    fetchMock.mockResolvedValueOnce(sseResponse([doneSse]));
+    await chatStream(
+      { query: "what is justice?", history: [{ role: "user", content: "hi" }] },
+      noopHandlers,
     );
-    await chat({ query: "what is justice?", history: [{ role: "user", content: "hi" }] });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/chat");
@@ -179,261 +368,26 @@ describe("chat()", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       query: "what is justice?",
       history: [{ role: "user", content: "hi" }],
+      stream: true,
     });
   });
 
-  it("maps a successful response to a minerva turn", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        response: "Republic 509d [1].",
-        paragraphs: ["Republic 509d [1].", "Then the divided line."],
-        citations: [{ n: 1, src: "Plato, Republic 509d", text: "Conceive then...", score: 0.9 }],
-        dominant: "P",
-        abstained: false,
-        backend: "anthropic",
-      }),
-    );
-    const turn = await chat({ query: "q" });
-    expect(turn.role).toBe("minerva");
-    expect(turn.dominant).toBe("P");
-    expect(turn.paragraphs).toEqual(["Republic 509d [1].", "Then the divided line."]);
-    expect(turn.citations).toHaveLength(1);
-    expect(turn.citations[0].src).toBe("Plato, Republic 509d");
-    expect(typeof turn.time).toBe("string");
-  });
-
-  it("defaults to dominant=P when the server omits the field", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [] }));
-    const turn = await chat({ query: "q" });
-    expect(turn.dominant).toBe("P");
-    expect(turn.paragraphs).toEqual([]);
-    expect(turn.citations).toEqual([]);
-  });
-
-  it("defaults history to [] when the caller omits it", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({ paragraphs: ["ok"], citations: [], dominant: "A" }),
-    );
-    await chat({ query: "q" });
-    const init = fetchMock.mock.calls[0][1]!;
-    expect(JSON.parse(init.body as string)).toEqual({ query: "q", history: [] });
-  });
-
-  it("returns an error turn (does NOT throw) on a network failure", async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    const turn = await chat({ query: "q" });
-    expect(turn.role).toBe("minerva");
-    expect(turn.citations).toEqual([]);
-    expect(turn.paragraphs[0]).toMatch(/couldn't reach the corpus/i);
-    expect(turn.paragraphs[0]).toMatch(/Network error: Failed to fetch/);
-  });
-
-  it("uses the server-provided error message on a non-OK response", async () => {
-    fetchMock.mockResolvedValueOnce(
-      errorResponse(502, "Bad Gateway", {
-        error: "LLM error: Anthropic HTTP 401: invalid key",
-      }),
-    );
-    const turn = await chat({ query: "q" });
-    expect(turn.paragraphs[0]).toMatch(/LLM error: Anthropic HTTP 401/);
-  });
-
-  it("falls back to status text when the error body is not JSON", async () => {
-    fetchMock.mockResolvedValueOnce(errorResponse(500, "Internal Server Error"));
-    const turn = await chat({ query: "q" });
-    expect(turn.paragraphs[0]).toMatch(/500 Internal Server Error/);
-  });
-
-  it("includes a `speaker` field in the request body when one is provided", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [], dominant: "P" }));
-    await chat({ query: "q", speaker: "Socrates" });
-    const init = fetchMock.mock.calls[0][1]!;
-    expect(JSON.parse(init.body as string)).toMatchObject({ query: "q", speaker: "Socrates" });
-  });
-
-  it("omits `speaker` from the body when not provided", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [], dominant: "P" }));
-    await chat({ query: "q" });
-    const init = fetchMock.mock.calls[0][1]!;
-    const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect("speaker" in body).toBe(false);
-  });
-
-  it("propagates the abstained flag from the server", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        response: "I could not find enough evidence...",
-        paragraphs: ["I could not find enough evidence..."],
-        citations: [],
-        dominant: "P",
-        abstained: true,
-        backend: "none",
-      }),
-    );
-    const turn = await chat({ query: "zxqv asdfgh" });
-    expect(turn.abstained).toBe(true);
-  });
-
-  it("defaults abstained to false when the server omits it", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({ paragraphs: ["ok"], citations: [], dominant: "P" }),
-    );
-    const turn = await chat({ query: "q" });
-    expect(turn.abstained).toBe(false);
-  });
-
-  it("returns an error turn when the server sends invalid JSON", async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
-    } as unknown as Response);
-    const turn = await chat({ query: "q" });
-    expect(turn.role).toBe("minerva");
-    expect(turn.paragraphs[0]).toMatch(/Server returned invalid JSON/);
-    expect(turn.paragraphs[0]).toMatch(/Unexpected token/);
-  });
-
-  it("includes `rewrite: true` when requested", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [], dominant: "P" }));
-    await chat({ query: "q", rewrite: true });
-    const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
-    expect(body.rewrite).toBe(true);
-  });
-
-  it("includes `pinned_chunk_ids` when set", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [], dominant: "P" }));
-    await chat({ query: "q", pinnedChunkIds: ["abc", "def"] });
-    const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
-    expect(body.pinned_chunk_ids).toEqual(["abc", "def"]);
-  });
-
-  it("omits `pinned_chunk_ids` when the array is empty", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [], dominant: "P" }));
-    await chat({ query: "q", pinnedChunkIds: [] });
-    const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
-    expect("pinned_chunk_ids" in body).toBe(false);
-  });
-
-  it("accepts the four valid `dominant` codes (P/A/H/K) verbatim", async () => {
-    for (const code of ["P", "A", "H", "K"]) {
-      fetchMock.mockResolvedValueOnce(
-        okResponse({
-          paragraphs: ["ok"],
-          citations: [],
-          dominant: code,
-        }),
-      );
-      const turn = await chat({ query: "q" });
-      expect(turn.dominant).toBe(code);
-    }
-  });
-
-  it("accepts any single-character `dominant` code verbatim", async () => {
-    // Codes come from the server's corpus_registry; an allowlist here
-    // silently re-mapped newer corpora (tragedians, Æsop, Origen…) to P.
-    for (const code of ["X", "t", "v", "Æ", "Ω"]) {
-      fetchMock.mockResolvedValueOnce(
-        okResponse({
-          paragraphs: ["ok"],
-          citations: [],
-          dominant: code,
-        }),
-      );
-      const turn = await chat({ query: "q" });
-      expect(turn.dominant).toBe(code);
-    }
-  });
-
-  it("falls back to P for malformed `dominant` values", async () => {
-    for (const bad of ["plato", "", 42, null, undefined, { code: "P" }]) {
-      fetchMock.mockResolvedValueOnce(
-        okResponse({
-          paragraphs: ["ok"],
-          citations: [],
-          dominant: bad,
-        }),
-      );
-      const turn = await chat({ query: "q" });
-      expect(turn.dominant).toBe("P");
-    }
-  });
-
   it("forwards an AbortSignal to fetch", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ paragraphs: [], citations: [], dominant: "P" }));
+    fetchMock.mockResolvedValueOnce(sseResponse([doneSse]));
     const ac = new AbortController();
-    await chat({ query: "q", signal: ac.signal });
-    const init = fetchMock.mock.calls[0][1]!;
+    await chatStream({ query: "q", signal: ac.signal }, noopHandlers);
+    const init = fetchMock.mock.calls[0]![1]!;
     expect(init.signal).toBe(ac.signal);
   });
 
-  it("rethrows AbortError instead of returning an errorTurn", async () => {
-    // Simulate an aborted fetch.
-    fetchMock.mockRejectedValueOnce(Object.assign(new DOMException("aborted", "AbortError")));
-    await expect(chat({ query: "q" })).rejects.toMatchObject({ name: "AbortError" });
-  });
-
-  it("still returns an errorTurn for non-abort network errors", async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    const turn = await chat({ query: "q" });
-    expect(turn.paragraphs[0]).toMatch(/Network error/);
-  });
-
-  it("forwards conversationId as `conversation_id` in the request body", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        paragraphs: ["ok"],
-        citations: [],
-        dominant: "P",
-      }),
-    );
-    await chat({ query: "q", conversationId: "abc12345" });
-    const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
-    expect(body.conversation_id).toBe("abc12345");
-  });
-
-  it("omits conversation_id when not provided", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        paragraphs: ["ok"],
-        citations: [],
-        dominant: "P",
-      }),
-    );
-    await chat({ query: "q" });
-    const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
-    expect("conversation_id" in body).toBe(false);
-  });
-
-  it("renumbers citations into order of first appearance in the prose", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        paragraphs: ["Open with [3] then [1] and [2]."],
-        citations: [
-          { n: 1, src: "s1", text: "t1" },
-          { n: 2, src: "s2", text: "t2" },
-          { n: 3, src: "s3", text: "t3" },
-        ],
-        dominant: "P",
-      }),
-    );
-    const turn = await chat({ query: "q" });
-    expect(turn.paragraphs).toEqual(["Open with [1] then [2] and [3]."]);
-    // Citations are reordered to match: [3]→[1], [1]→[2], [2]→[3].
-    expect(turn.citations.map((c) => c.n)).toEqual([1, 2, 3]);
-    expect(turn.citations.map((c) => c.src)).toEqual(["s3", "s1", "s2"]);
-  });
-
   it("returns the server-minted conversation_id and title on the turn", async () => {
-    fetchMock.mockResolvedValueOnce(
-      okResponse({
-        paragraphs: ["ok"],
-        citations: [],
-        dominant: "P",
-        conversation_id: "srv-id-1",
-        title: "On the divided line",
-      }),
-    );
-    const turn = await chat({ query: "What is the divided line?" });
+    const sse =
+      'event: meta\ndata: {"citations":[],"abstained":false,"backend":"stub","conversation_id":"srv-id-1","title":"On the divided line"}\n\n' +
+      doneSse;
+    fetchMock.mockResolvedValueOnce(sseResponse([sse]));
+    const done = vi.fn();
+    await chatStream({ query: "What is the divided line?" }, { ...noopHandlers, onDone: done });
+    const turn = done.mock.calls[0]![0] as { conversation_id?: string; title?: string };
     expect(turn.conversation_id).toBe("srv-id-1");
     expect(turn.title).toBe("On the divided line");
   });
@@ -467,7 +421,7 @@ describe("listConversations()", () => {
     const out = await listConversations();
     expect(fetchMock).toHaveBeenCalledWith("/api/conversations", { signal: undefined });
     expect(out).toHaveLength(2);
-    expect(out[0].id).toBe("a");
+    expect(out[0]!.id).toBe("a");
   });
 
   it("returns an empty array when the server omits the field", async () => {
@@ -600,7 +554,7 @@ describe("listWorks()", () => {
     const out = await listWorks();
     expect(fetchMock).toHaveBeenCalledWith("/api/works", { signal: undefined });
     expect(out).toHaveLength(1);
-    expect(out[0].work).toBe("Republic");
+    expect(out[0]!.work).toBe("Republic");
   });
 
   it("returns [] when the server omits works", async () => {
@@ -752,7 +706,7 @@ describe("translate()", () => {
     );
     const ac = new AbortController();
     await translate("x", "eng", ac.signal);
-    const init = fetchMock.mock.calls[0][1]!;
+    const init = fetchMock.mock.calls[0]![1]!;
     expect(init.signal).toBe(ac.signal);
   });
 });

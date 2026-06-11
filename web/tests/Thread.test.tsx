@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen } from "@solidjs/testing-library";
 import Thread from "~/Thread";
-import type { MinervaTurn, UserTurn } from "~/utils/types";
+import type { MinervaTurn, Turn, UserTurn } from "~/utils/types";
 
 const POIETES_TURN: MinervaTurn = {
   role: "minerva",
@@ -41,8 +42,8 @@ describe("<Thread />", () => {
     expect(cites).toHaveLength(2);
     // The [N] marker is in its own .cite-mark-n child (sibling of the
     // mobile-only .cite-mark-chip with source+locator inline).
-    expect(cites[0].querySelector(".cite-mark-n")?.textContent).toBe("[1]");
-    expect(cites[1].querySelector(".cite-mark-n")?.textContent).toBe("[2]");
+    expect(cites[0]!.querySelector(".cite-mark-n")?.textContent).toBe("[1]");
+    expect(cites[1]!.querySelector(".cite-mark-n")?.textContent).toBe("[2]");
   });
 
   it("shows margin notes when marginNotes=true and pull-quotes when false", () => {
@@ -76,6 +77,46 @@ describe("<Thread />", () => {
     expect(container.querySelector(".stream-cursor")).not.toBeNull();
     expect(container.querySelector("sup.cite-mark")).toBeNull();
     expect(container.querySelectorAll(".margin-note")).toHaveLength(1);
+  });
+
+  it("keeps the same minerva turn DOM node across streaming deltas and finalize", () => {
+    const base: MinervaTurn = {
+      role: "minerva",
+      time: "12:00",
+      dominant: "P",
+      paragraphs: [],
+      citations: [],
+      streaming: true,
+      streamText: "The cave ",
+    };
+    const [msgs, setMsgs] = createSignal<Turn[]>([base]);
+    const { container } = render(() => (
+      <Thread messages={msgs()} thinking={false} marginNotes={true} />
+    ));
+    const node = container.querySelector(".turn-minerva");
+    expect(node).not.toBeNull();
+
+    // SSE delta: same row, more streamText — must NOT recreate the view.
+    setMsgs([{ ...base, streamText: "The cave is an image " }]);
+    expect(container.querySelector(".turn-minerva")).toBe(node);
+    expect(container.querySelector(".turn-body-streaming")?.textContent).toContain(
+      "is an image",
+    );
+
+    // Finalize: streaming flips off, paragraphs arrive — still the same node,
+    // so useCitationExpand state inside the view survives the transition.
+    setMsgs([
+      {
+        ...base,
+        streaming: false,
+        streamText: undefined,
+        paragraphs: ["The cave is an image of education."],
+      },
+    ]);
+    expect(container.querySelector(".turn-minerva")).toBe(node);
+    expect(container.querySelector(".turn-body")?.textContent).toContain(
+      "image of education",
+    );
   });
 
   it("shows the thinking indicator only when thinking=true", () => {

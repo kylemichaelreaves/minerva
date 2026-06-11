@@ -216,7 +216,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(r.ok).toBe(true);
     const json = (await r.json()) as { conversations: { id: string; title: string }[] };
     expect(json.conversations.length).toBeGreaterThan(0);
-    expect(json.conversations[0].id).toBeDefined();
+    expect(json.conversations[0]!.id).toBeDefined();
   });
 
   it("GET /api/conversations/:id returns the message history", async () => {
@@ -231,8 +231,8 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     const json = (await r.json()) as { id: string; messages: { role: string }[] };
     expect(json.id).toBe(conversation_id);
     expect(json.messages.length).toBe(2);
-    expect(json.messages[0].role).toBe("user");
-    expect(json.messages[1].role).toBe("assistant");
+    expect(json.messages[0]!.role).toBe("user");
+    expect(json.messages[1]!.role).toBe("assistant");
   });
 
   it("DELETE /api/conversations/:id removes it (subsequent GET 404s)", async () => {

@@ -97,7 +97,7 @@ describe("highlightStorage", () => {
     localStorage.setItem("minerva:highlights:Republic", JSON.stringify(mixed));
     const loaded = loadHighlights("Republic");
     expect(loaded.length).toBe(2);
-    expect(loaded[0].chunkId).toBe("rep-509d");
-    expect(loaded[1].chunkId).toBe("rep-510a");
+    expect(loaded[0]!.chunkId).toBe("rep-509d");
+    expect(loaded[1]!.chunkId).toBe("rep-510a");
   });
 });

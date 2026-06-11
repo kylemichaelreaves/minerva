@@ -69,6 +69,8 @@ export function ConcordanceTabPanel(props: Props) {
           </div>
         </Show>
 
+        {/* `rows?.` is defensive against a malformed server payload —
+            the response type claims it's always present. */}
         {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
         <Show when={data() && !data.error && (data()?.rows?.length ?? 0) > 0}>
           <ul class="rail-concord-list">

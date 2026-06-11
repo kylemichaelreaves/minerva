@@ -68,12 +68,14 @@ export function WordRun(props: {
   // Per-lang transliteration dispatch. `null` means no hover-
   // romanization for this chunk's source language (e.g., German
   // Hegel, English Hume — already in Latin script, no help needed).
-  const transliterate = (() => {
+  // Accessor, not an IIFE-computed const: `props.lang` must stay a
+  // reactive read so the dispatch follows an edition swap.
+  const transliterate = () => {
     if (props.lang === "grc") return romanizeGreek;
     if (props.lang === "heb") return romanizeHebrew;
     if (props.lang === "ara") return romanizeArabic;
     return null;
-  })();
+  };
   const isHighlighted = (offset: number, length: number) => {
     for (const h of props.highlights) {
       if (h.start <= offset && offset + length <= h.end) return true;
@@ -144,8 +146,9 @@ export function WordRun(props: {
         const hoverTip = () => {
           const cached = props.wordTranslation?.(props.chunkId, t.offset);
           if (cached) return cached;
-          if (transliterate) {
-            const r = transliterate(t.s);
+          const tr = transliterate();
+          if (tr) {
+            const r = tr(t.s);
             // Suppress empty / unchanged romanizations (e.g., a
             // single-letter Arabic alef with no consonants left)
             // so the tooltip doesn't flash an empty bubble.

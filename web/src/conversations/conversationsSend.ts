@@ -67,7 +67,6 @@ export async function askMinerva(text: string, deps: AskMinervaDeps): Promise<vo
   function applyStreamDelta(delta: string) {
     deps.setMessages((m) => {
       const last = m[m.length - 1];
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (last?.role !== "minerva" || !last.streaming) return m;
       return [
         ...m.slice(0, -1),
@@ -79,7 +78,6 @@ export async function askMinerva(text: string, deps: AskMinervaDeps): Promise<vo
   function finalizeStreamTurn(reply: MinervaTurn) {
     deps.setMessages((m) => {
       const last = m[m.length - 1];
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (last?.role === "minerva" && last.streaming) {
         return [...m.slice(0, -1), { ...reply, streaming: false }];
       }
@@ -95,7 +93,6 @@ export async function askMinerva(text: string, deps: AskMinervaDeps): Promise<vo
   function dropPartialStreamTurn() {
     deps.setMessages((m) => {
       const last = m[m.length - 1];
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (last?.role === "minerva" && last.streaming) return m.slice(0, -1);
       return m;
     });

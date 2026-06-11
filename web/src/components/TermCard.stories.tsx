@@ -147,8 +147,9 @@ const originalFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   const m = /^\/api\/terms\/(\d+)$/.exec(url);
-  if (m) {
-    const term = TERMS_BY_ID[m[1]];
+  const id = m?.[1];
+  if (id !== undefined) {
+    const term = TERMS_BY_ID[id];
     if (term) {
       return new Response(JSON.stringify(term), {
         status: 200,

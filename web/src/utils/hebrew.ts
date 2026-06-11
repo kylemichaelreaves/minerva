@@ -105,12 +105,15 @@ export function romanize(word: string): string {
 
   while (i < nfd.length) {
     const ch = nfd[i];
+    if (ch === undefined) break;
 
     // Gather the combining-marks cluster after this base char.
     let j = i + 1;
     const marks = new Set<string>();
-    while (j < nfd.length && COMBINING_RE.test(nfd[j])) {
-      marks.add(nfd[j]);
+    for (;;) {
+      const m = nfd[j];
+      if (m === undefined || !COMBINING_RE.test(m)) break;
+      marks.add(m);
       j += 1;
     }
 
@@ -141,7 +144,7 @@ export function romanize(word: string): string {
     } else if (ch === "פ") {
       out += hasDagesh ? "p" : "f";
     } else if (ch in HEBREW_BASE) {
-      out += HEBREW_BASE[ch];
+      out += HEBREW_BASE[ch] ?? "";
     } else {
       // Punctuation, ASCII, unknown — pass through.
       out += ch;
@@ -151,9 +154,8 @@ export function romanize(word: string): string {
 
     // Step 2 — vowels from the niqqud cluster.
     for (const m of marks) {
-      if (m in NIQQUD) {
-        out += NIQQUD[m];
-      }
+      const v = NIQQUD[m];
+      if (v !== undefined) out += v;
     }
 
     // Step 3 — ḥiriq + yod ligature: when this consonant carries
@@ -162,8 +164,10 @@ export function romanize(word: string): string {
     if (marks.has(HIRIQ) && nfd[j] === YOD) {
       let k = j + 1;
       const yodMarks = new Set<string>();
-      while (k < nfd.length && COMBINING_RE.test(nfd[k])) {
-        yodMarks.add(nfd[k]);
+      for (;;) {
+        const m = nfd[k];
+        if (m === undefined || !COMBINING_RE.test(m)) break;
+        yodMarks.add(m);
         k += 1;
       }
       const yodHasVowel = Array.from(yodMarks).some((m) => m in NIQQUD);

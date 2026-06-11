@@ -1,4 +1,4 @@
-import { apiGet } from "~/api/client";
+import { apiGet, qs } from "~/api/client";
 
 export type CorpusBucket = "scrip" | "class" | "med" | "em" | "mod" | "ext";
 
@@ -85,15 +85,16 @@ export async function fetchNetworkSummary(
   args: NetworkSummaryArgs,
   signal?: AbortSignal,
 ): Promise<NetworkSummary> {
-  const params = new URLSearchParams();
-  if (args.minConfidence !== undefined)
-    params.set("min_confidence", String(args.minConfidence));
-  if (args.includeRejected) params.set("include_rejected", "1");
-  if (args.sourceAuthors?.length)
-    params.set("source_author", args.sourceAuthors.join(","));
-  if (args.corpora?.length) params.set("corpus", args.corpora.join(","));
-  if (args.sourceMethods?.length)
-    params.set("source_method", args.sourceMethods.join(","));
-  const qs = params.toString();
-  return apiGet<NetworkSummary>(`/api/network/summary${qs ? `?${qs}` : ""}`, signal);
+  // The CSV joins are the backend's multi-select wire format; an empty
+  // array joins to "" which qs() drops, matching the old length guards.
+  return apiGet<NetworkSummary>(
+    `/api/network/summary${qs({
+      min_confidence: args.minConfidence,
+      include_rejected: args.includeRejected,
+      source_author: args.sourceAuthors?.join(","),
+      corpus: args.corpora?.join(","),
+      source_method: args.sourceMethods?.join(","),
+    })}`,
+    signal,
+  );
 }

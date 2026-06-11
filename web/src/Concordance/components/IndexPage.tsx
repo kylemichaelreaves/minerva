@@ -202,6 +202,33 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       q: undefined,
     });
 
+  /** FilterBar closure — same pattern as Refs/index.tsx's filtersBar.
+   *  Invoked once inline on desktop and once inside the mobile sheet,
+   *  so the ~18 props are wired in exactly one place. */
+  const filterBar = () => (
+    <FilterBar
+      lang={lang()}
+      sort={sort()}
+      pos={props.pos}
+      freqMin={props.freqMin}
+      freqMax={props.freqMax}
+      freqCeil={freqCeil()}
+      q={props.q}
+      scope={scope()}
+      scopeAuthor={props.scopeAuthor}
+      scopeWork={props.scopeWork}
+      authorOptions={authorOptions()}
+      workOptions={workOptions()}
+      onPickAuthor={pickAuthor}
+      onPickWork={pickWork}
+      onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
+      onSetSort={(v) => props.onNavigate({ sort: v })}
+      onSetPos={(v) => props.onNavigate({ pos: v })}
+      onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
+      onSetQ={(v) => props.onNavigate({ q: v })}
+    />
+  );
+
   return (
     <div class="conc-stage conc-index">
       <div class="conc-head">
@@ -236,29 +263,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
 
       {/* Desktop: header-bar filter row inline. Mobile: same controls
           rendered inside the bottom sheet (see <MobileSheet> below). */}
-      <Show when={!isMobile()}>
-        <FilterBar
-          lang={lang()}
-          sort={sort()}
-          pos={props.pos}
-          freqMin={props.freqMin}
-          freqMax={props.freqMax}
-          freqCeil={freqCeil()}
-          q={props.q}
-          scope={scope()}
-          scopeAuthor={props.scopeAuthor}
-          scopeWork={props.scopeWork}
-          authorOptions={authorOptions()}
-          workOptions={workOptions()}
-          onPickAuthor={pickAuthor}
-          onPickWork={pickWork}
-          onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
-          onSetSort={(v) => props.onNavigate({ sort: v })}
-          onSetPos={(v) => props.onNavigate({ pos: v })}
-          onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
-          onSetQ={(v) => props.onNavigate({ q: v })}
-        />
-      </Show>
+      <Show when={!isMobile()}>{filterBar()}</Show>
 
       <div class="az-rail az-rail-grid">
         <For each={alphabetFor(lang())}>
@@ -306,27 +311,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
         </button>
         <MobileSheet open={sheetOpen()} title="Filters" onClose={() => setSheetOpen(false)}>
           <div class="conc-mob-sheet">
-            <FilterBar
-              lang={lang()}
-              sort={sort()}
-              pos={props.pos}
-              freqMin={props.freqMin}
-              freqMax={props.freqMax}
-              freqCeil={freqCeil()}
-              q={props.q}
-              scope={scope()}
-              scopeAuthor={props.scopeAuthor}
-              scopeWork={props.scopeWork}
-              authorOptions={authorOptions()}
-              workOptions={workOptions()}
-              onPickAuthor={pickAuthor}
-              onPickWork={pickWork}
-              onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
-              onSetSort={(v) => props.onNavigate({ sort: v })}
-              onSetPos={(v) => props.onNavigate({ pos: v })}
-              onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}
-              onSetQ={(v) => props.onNavigate({ q: v })}
-            />
+            {filterBar()}
             <div class="conc-mob-sheet-foot">
               <span
                 class="reset"

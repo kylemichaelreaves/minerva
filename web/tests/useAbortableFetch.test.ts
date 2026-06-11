@@ -78,8 +78,8 @@ describe("useAbortableFetch", () => {
       setId(2);
       await flush();
       // The first controller should now be aborted.
-      expect(signals[0].aborted).toBe(true);
-      expect(signals[1].aborted).toBe(false);
+      expect(signals[0]!.aborted).toBe(true);
+      expect(signals[1]!.aborted).toBe(false);
       // Now resolve the second (current) fetch — that's the one whose
       // data should land.
       d2.resolve({ echo: 2 });

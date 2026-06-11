@@ -167,7 +167,7 @@ describe("<ReferenceCard />", () => {
       expect.arrayContaining(["Logeion", "Perseus", "archive.org"]),
     );
     // Logeion URL embeds the encoded author.
-    expect(links[0].getAttribute("href")).toContain("Cicero");
+    expect(links[0]!.getAttribute("href")).toContain("Cicero");
   });
 
   it("custom externalLinks override the defaults", () => {
@@ -183,8 +183,8 @@ describe("<ReferenceCard />", () => {
     ));
     const links = container.querySelectorAll(".refcard-ext-links a");
     expect(links.length).toBe(1);
-    expect(links[0].textContent.trim()).toBe("Custom Source");
-    expect(links[0].getAttribute("href")).toBe("https://example.org");
+    expect(links[0]!.textContent.trim()).toBe("Custom Source");
+    expect(links[0]!.getAttribute("href")).toBe("https://example.org");
   });
 
   it("pending state (curator_status='auto') shows unverified pill + is-pending class", () => {

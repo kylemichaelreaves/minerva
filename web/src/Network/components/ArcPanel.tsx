@@ -1,6 +1,7 @@
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import type { AuthorPair, MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
+import { useElementSize } from "~/hooks/useElementSize";
 import { ArcPanelTopStrip } from "~/Network/components/ArcPanelTopStrip";
 
 export interface SelectArcPairsOpts {
@@ -51,6 +52,42 @@ function formatYearEra(year: number): string {
   return year < 0 ? `${Math.abs(year)} BC` : `${year} CE`;
 }
 
+// Tick-label visibility tiers for the arc baseline. At 1× zoom only a
+// hand-picked sparse set renders (so rotated names don't collide); at
+// mid zoom the wider stage earns more labels; at ≥2.6× all show.
+// Module-scope constants — these used to be rebuilt inside the
+// <For> row body, allocating two Sets per author per render.
+const SPARSE_LABELS = new Set([
+  "Hebrew Bible",
+  "Homer",
+  "Plato",
+  "Cicero",
+  "Septuagint",
+  "Vulgate",
+  "Augustine",
+  "Aquinas",
+  "Descartes",
+  "Kant",
+  "Nietzsche",
+]);
+const MID_LABELS = new Set([
+  ...SPARSE_LABELS,
+  "Heraclitus",
+  "Parmenides",
+  "Aristotle",
+  "New Testament",
+  "Epictetus",
+  "Marcus Aurelius",
+  "Quran",
+  "Luther Bibel 1912",
+  "King James Bible",
+  "Sacy",
+  "Hobbes",
+  "Hume",
+  "Hegel",
+  "Marx",
+]);
+
 export function ArcPanel(props: {
   authors: NetworkAuthor[];
   /** Full matrix sparse cells: every author-pair the index has,
@@ -67,7 +104,6 @@ export function ArcPanel(props: {
   topPairsPerAuthor: AuthorPair[];
   onOpenPair: (source: string, target: string) => void;
 }) {
-  const [size, setSize] = createSignal({ w: 700, h: 460 });
   const [hideIntra, setHideIntra] = createSignal(true);
   // Horizontal zoom multiplier (1× = fit, 5× = compressed periods
   // pulled apart). Pan offset is managed by the scroll container —
@@ -84,19 +120,7 @@ export function ArcPanel(props: {
   let wrapEl: HTMLDivElement | undefined;
   let stageEl: HTMLDivElement | undefined;
 
-  onMount(() => {
-    if (!wrapEl) return;
-    const ro = new ResizeObserver(() => {
-      // wrapEl can be undefined at observer-fire time if the component
-      // unmounted between observe() and the next layout — TS can't see
-      // that path because the outer guard narrowed in scope.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (!wrapEl) return;
-      setSize({ w: wrapEl.clientWidth, h: wrapEl.clientHeight });
-    });
-    ro.observe(wrapEl);
-    setSize({ w: wrapEl.clientWidth, h: wrapEl.clientHeight });
-  });
+  const size = useElementSize(() => wrapEl, { w: 700, h: 460 });
 
   const idxOf = createMemo(() => {
     const m = new Map<string, number>();
@@ -184,7 +208,9 @@ export function ArcPanel(props: {
     const maxDip = arcH - baseY - 12;
     const arcMaxR = Math.max(
       1,
-      ...visiblePairs().map((p) => Math.abs(xs[idxOf().get(p.tgt)!] - xs[idxOf().get(p.src)!]) / 2),
+      ...visiblePairs().map(
+        (p) => Math.abs((xs[idxOf().get(p.tgt)!] ?? 0) - (xs[idxOf().get(p.src)!] ?? 0)) / 2,
+      ),
     );
     return {
       w,
@@ -229,6 +255,8 @@ export function ArcPanel(props: {
     queueMicrotask(() => {
       // stageEl can be undefined at microtask-fire time if the
       // component unmounted between the setZoom and the next tick.
+      // TS narrows the captured ref across the closure and the rule
+      // thinks the check is dead; the unmount race is real.
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (!stageEl) return;
       stageEl.scrollLeft = ratio * nextW - viewW / 2;
@@ -273,8 +301,8 @@ export function ArcPanel(props: {
     return Math.sqrt(r / layout().arcMaxR) * layout().maxDip * 0.96;
   }
   function arcPath(p: AuthorPair) {
-    const x1 = layout().xs[idxOf().get(p.src)!];
-    const x2 = layout().xs[idxOf().get(p.tgt)!];
+    const x1 = layout().xs[idxOf().get(p.src)!] ?? 0;
+    const x2 = layout().xs[idxOf().get(p.tgt)!] ?? 0;
     const ctrlY = layout().baseY + dipFor(Math.abs(x2 - x1) / 2);
     return `M ${x1} ${layout().baseY} Q ${(x1 + x2) / 2} ${ctrlY} ${x2} ${layout().baseY}`;
   }
@@ -350,36 +378,6 @@ export function ArcPanel(props: {
                 authors collapse to dots until the zoom allows. */}
               <For each={props.authors}>
                 {(a, i) => {
-                  const SPARSE_LABELS = new Set([
-                    "Hebrew Bible",
-                    "Homer",
-                    "Plato",
-                    "Cicero",
-                    "Septuagint",
-                    "Vulgate",
-                    "Augustine",
-                    "Aquinas",
-                    "Descartes",
-                    "Kant",
-                    "Nietzsche",
-                  ]);
-                  const MID_LABELS = new Set([
-                    ...SPARSE_LABELS,
-                    "Heraclitus",
-                    "Parmenides",
-                    "Aristotle",
-                    "New Testament",
-                    "Epictetus",
-                    "Marcus Aurelius",
-                    "Quran",
-                    "Luther Bibel 1912",
-                    "King James Bible",
-                    "Sacy",
-                    "Hobbes",
-                    "Hume",
-                    "Hegel",
-                    "Marx",
-                  ]);
                   // Reactive accessor — must call ``zoom()`` inside an
                   // accessor so the ``<Show>`` below re-evaluates when
                   // the zoom signal changes. A captured const would
@@ -511,7 +509,3 @@ export function ArcPanel(props: {
     </section>
   );
 }
-
-/* ============================================================
-   Scripture heatmap
-   ============================================================ */

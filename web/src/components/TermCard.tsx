@@ -104,6 +104,7 @@ export default function TermCard(props: TermCardProps) {
             <Show when={greekRenderings().length === 1}>
               {(_unused) => {
                 const r = greekRenderings()[0];
+                if (r === undefined) return null;
                 return (
                   <div class="termcard-sec termcard-single-rendering">
                     <span class="termcard-single-label">{r.translator_name}</span>

@@ -46,6 +46,8 @@ export function VerificationPanel(props: { rows: VerificationRow[] }) {
                           // a method missing from the verification mix isn't
                           // a key at all — TS thinks the access is always
                           // defined, runtime returns undefined.
+                          // (Record<Method, number> has literal keys, so
+                          // noUncheckedIndexedAccess doesn't apply here.)
                           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
                           const v = (row.parts[k] ?? 0) / total;
                           return (

@@ -157,6 +157,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
       }
       const greek = all.find((w) => w.lang === "grc");
       const pick = greek ?? all[0];
+      if (pick === undefined) return;
       routing.navigate({ kind: "reader", workId: pick.work, sourceLang: pick.lang });
     } catch (err) {
       console.warn("failed to fetch works for reader", err);

@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo } from "solid-js";
+import { Match, Switch, createEffect, createMemo } from "solid-js";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
 import { NetworkRoute } from "~/routes/NetworkRoute";
@@ -33,9 +33,6 @@ export function AppRoutes(props: AppRoutesProps) {
   const streamTail = createMemo(() => {
     const msgs = props.conversations.messages();
     const last = msgs[msgs.length - 1];
-    // Array index access can return undefined at runtime when msgs is
-    // empty — TS doesn't model this without noUncheckedIndexedAccess.
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (last?.role === "minerva" && last.streaming) return last.streamText ?? "";
     return "";
   });
@@ -75,23 +72,19 @@ export function AppRoutes(props: AppRoutesProps) {
   };
 
   return (
-    <Show when={props.onConcordance()} fallback={
-      <Show when={props.onNetwork()} fallback={
-        <Show when={props.onRefs()} fallback={
-          <Show
-            when={props.reader.mode() === "reader" && props.reader.readerWork()}
-            fallback={<ChatRoute {...ctx} />}
-          >
-            <ReaderRoute {...ctx} />
-          </Show>
-        }>
-          <RefsRoute {...ctx} />
-        </Show>
-      }>
+    <Switch fallback={<ChatRoute {...ctx} />}>
+      <Match when={props.onConcordance()}>
+        <ConcordanceRoute {...ctx} />
+      </Match>
+      <Match when={props.onNetwork()}>
         <NetworkRoute {...ctx} />
-      </Show>
-    }>
-      <ConcordanceRoute {...ctx} />
-    </Show>
+      </Match>
+      <Match when={props.onRefs()}>
+        <RefsRoute {...ctx} />
+      </Match>
+      <Match when={props.reader.mode() === "reader" && props.reader.readerWork()}>
+        <ReaderRoute {...ctx} />
+      </Match>
+    </Switch>
   );
 }
