@@ -310,7 +310,6 @@ def outgoing_for_chunk(
     one round trip. Filters on confidence threshold + curator status
     (default: everything except 'rejected')."""
 
-    conn.row_factory = sqlite3.Row
     placeholders = ",".join("?" * len(statuses))
     return list(
         conn.execute(
@@ -338,7 +337,6 @@ def incoming_for_chunk(
     """References whose target is ``target_chunk_id``. Mirrors
     :func:`outgoing_for_chunk` for the symmetric direction."""
 
-    conn.row_factory = sqlite3.Row
     placeholders = ",".join("?" * len(statuses))
     return list(
         conn.execute(
@@ -369,7 +367,6 @@ def list_references(
     ``editions``/``translations`` + ``works`` to surface the source
     author/work alongside the target."""
 
-    conn.row_factory = sqlite3.Row
     clauses: list[str] = []
     args: list[Any] = []
     if source_author is not None:

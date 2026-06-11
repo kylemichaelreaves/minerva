@@ -100,7 +100,6 @@ def lookup(
     key = normalize_query(query)
     if not key:
         return None
-    conn.row_factory = sqlite3.Row
     row = conn.execute(
         "SELECT id, terms_json FROM concept_expansions "
         "WHERE query_norm=? AND corpus=? AND target_lang=? AND cache_ver=?",
@@ -173,7 +172,6 @@ def stats_top(
     """Inspect the highest-traffic concept entries. Lightweight admin
     helper; not used in hot paths."""
 
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT query_norm, corpus, target_lang, terms_json, hit_count "
         "FROM concept_expansions WHERE cache_ver=? "

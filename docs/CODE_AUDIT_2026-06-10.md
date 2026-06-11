@@ -4,6 +4,20 @@ Branch: `chore/code-quality-audit`. Scope: all of `src/minerva/` (227 Python fil
 
 Severity: **high** = real bug / data loss / security; **medium** = likely bug or significant maintainability cost; **low** = readability/hygiene.
 
+> **Status (2026-06-11):** all high-severity findings were fixed in round 1
+> (PR #9); the medium/low findings were fixed in round 2
+> (`fix/audit-round-2`), with one deliberate deferral:
+>
+> * **Neighbor/window scoping standardization** (medium, "Inconsistent
+>   neighbor/window scoping") — `fetch_chunk_context` scopes by
+>   `(work, lang)` while `neighbor_ids` scopes by edition/translation id;
+>   `reader.work_range` resolves works by title; `insert_chunks` keys
+>   `ord` on `(work, lang)` without author. Standardizing on
+>   `work_id` + edition scoping changes data semantics for same-language
+>   multi-edition works and deserves its own focused change (likely with
+>   a migration), not a slot in a batch round. Revisit before adding a
+>   second same-language edition of any work.
+
 ---
 
 ## High-severity bugs

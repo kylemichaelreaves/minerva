@@ -75,7 +75,6 @@ def _fetch_one_row(
     re-runs, so a curator can leave the walker and pick up where they
     left off."""
 
-    conn.row_factory = sqlite3.Row
     clauses = [
         "xr.id > ?",
         "xr.curator_status = 'auto'",

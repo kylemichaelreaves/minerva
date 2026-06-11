@@ -63,7 +63,6 @@ def references_list(
 
     count_sql = f"SELECT COUNT(*) {base_from}{where}"
 
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(sql, page_params).fetchall()
     total = conn.execute(count_sql, params).fetchone()[0]
 

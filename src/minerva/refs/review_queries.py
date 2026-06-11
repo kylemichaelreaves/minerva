@@ -84,7 +84,6 @@ def review_queue(
     )
     params.extend([limit, offset])
 
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(sql, params).fetchall()
     # Cheap total-pending count so the UI can show "27 of 4,050 left"
     # without paging every row. Recomputed every request; the auto
