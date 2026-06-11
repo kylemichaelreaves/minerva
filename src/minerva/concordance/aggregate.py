@@ -34,8 +34,10 @@ def build(conn: sqlite3.Connection, *, verbose: bool = False) -> dict[str, int]:
     """Rebuild ``lemma_counts`` from ``chunk_lemmas`` + ``chunks_full``.
 
     Returns a summary dict with row counts per scope_kind for the
-    caller's logging. The rebuild is transactional — if anything
-    raises mid-build, the prior contents survive.
+    caller's logging. The rebuild is transactional — the DELETE and
+    every INSERT ride one transaction committed at the very end, so a
+    crash mid-build rolls back to the prior contents instead of
+    leaving a half-built table served as truth.
 
     Performance: a full corpus rebuild touches every chunk_lemmas
     row once. On the current corpus (~8M lemma rows) the SELECT
@@ -52,16 +54,24 @@ def build(conn: sqlite3.Connection, *, verbose: bool = False) -> dict[str, int]:
     # Wipe and rebuild — incremental updates would require tracking
     # which chunks changed since the last build, which the ingest
     # pipeline doesn't expose. The full rebuild is fast enough that
-    # avoiding that complexity is worth it.
-    conn.execute("DELETE FROM lemma_counts")
+    # avoiding that complexity is worth it. The DELETE opens the
+    # transaction (legacy isolation mode); the single commit/rollback
+    # below makes the swap all-or-nothing — a ~4.5M-row transaction is
+    # comfortably within SQLite's range.
+    try:
+        conn.execute("DELETE FROM lemma_counts")
 
-    # Single streaming pass over chunk_lemmas × chunks_full, filling
-    # the corpus / author / work buckets simultaneously. Previously
-    # ran three separate scans of the same 14M-row join (one per
-    # scope_kind) — single pass is ~3× faster and uses comparable
-    # memory since the three bucket dicts are independent. See
-    # lemmatize-perf-plan memory.
-    corpus_n, author_n, work_n = _build_all(conn, verbose=verbose)
+        # Single streaming pass over chunk_lemmas × chunks_full, filling
+        # the corpus / author / work buckets simultaneously. Previously
+        # ran three separate scans of the same 14M-row join (one per
+        # scope_kind) — single pass is ~3× faster and uses comparable
+        # memory since the three bucket dicts are independent. See
+        # lemmatize-perf-plan memory.
+        corpus_n, author_n, work_n = _build_all(conn, verbose=verbose)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
 
     total = corpus_n + author_n + work_n
     elapsed = time.time() - t0
@@ -81,9 +91,7 @@ def build(conn: sqlite3.Connection, *, verbose: bool = False) -> dict[str, int]:
     }
 
 
-def _build_all(
-    conn: sqlite3.Connection, *, verbose: bool
-) -> tuple[int, int, int]:
+def _build_all(conn: sqlite3.Connection, *, verbose: bool) -> tuple[int, int, int]:
     """Single streaming pass over chunk_lemmas × chunks_full, filling
     corpus / author / work buckets simultaneously.
 
@@ -142,9 +150,7 @@ def _build_all(
             [{"work": w, "n": n} for w, n in top if w],
             ensure_ascii=False,
         )
-        corpus_rows.append(
-            (lang, "corpus", None, lemma, pos, total, distinct_works, per_work_json)
-        )
+        corpus_rows.append((lang, "corpus", None, lemma, pos, total, distinct_works, per_work_json))
     _bulk_insert(conn, corpus_rows)
     corpus_n = len(corpus_rows)
     del corpus_rows, corpus_buckets
@@ -192,10 +198,11 @@ def _bulk_insert(
     conn: sqlite3.Connection,
     rows: list[tuple[str, str, str | None, str, str, int, int, str]],
 ) -> None:
-    """Insert in fixed-size batches. ``executemany`` of 8M rows in one
-    shot would hold a single huge transaction; batching keeps the WAL
-    bounded and lets a Ctrl-C abort midway recover most of the work
-    when the migration is re-run."""
+    """Insert in fixed-size batches to keep the prepared-statement bind
+    buffer bounded. Deliberately does NOT commit — all three scope
+    inserts plus the initial DELETE ride the single transaction owned
+    by ``build``, so an abort mid-rebuild rolls back to the previous
+    complete table instead of leaving a partial aggregate behind."""
 
     if not rows:
         return
@@ -205,6 +212,5 @@ def _bulk_insert(
             "(lang, scope_kind, scope_value, lemma, pos, "
             " count, distinct_works, per_work_json) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            rows[i:i + _INSERT_BATCH],
+            rows[i : i + _INSERT_BATCH],
         )
-    conn.commit()

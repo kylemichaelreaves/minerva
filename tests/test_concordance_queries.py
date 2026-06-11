@@ -108,21 +108,21 @@ def concordance_db(tmp_path: Path) -> sqlite3.Connection:
 
     seed = [
         # phdg-1: Geist×3, haben×1, geistig×1
-        ("phdg-1", 0, "Geist",   "Geist",   "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
-        ("phdg-1", 1, "Geist",   "Geist",   "NOUN", "Case=Acc|Number=Sing|Gender=Masc"),
-        ("phdg-1", 2, "Geist",   "Geist",   "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
-        ("phdg-1", 3, "haben",   "haben",   "VERB", ""),
-        ("phdg-1", 4, "geistig", "geistig", "ADJ",  ""),
+        ("phdg-1", 0, "Geist", "Geist", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("phdg-1", 1, "Geist", "Geist", "NOUN", "Case=Acc|Number=Sing|Gender=Masc"),
+        ("phdg-1", 2, "Geist", "Geist", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("phdg-1", 3, "haben", "haben", "VERB", ""),
+        ("phdg-1", 4, "geistig", "geistig", "ADJ", ""),
         # phdg-2: Geist×1, geistig×1, haben×3
-        ("phdg-2", 0, "Geist",   "Geist",   "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
-        ("phdg-2", 1, "geistig", "geistig", "ADJ",  ""),
-        ("phdg-2", 2, "haben",   "haben",   "VERB", ""),
-        ("phdg-2", 3, "haben",   "haben",   "VERB", ""),
-        ("phdg-2", 4, "haben",   "haben",   "VERB", ""),
+        ("phdg-2", 0, "Geist", "Geist", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("phdg-2", 1, "geistig", "geistig", "ADJ", ""),
+        ("phdg-2", 2, "haben", "haben", "VERB", ""),
+        ("phdg-2", 3, "haben", "haben", "VERB", ""),
+        ("phdg-2", 4, "haben", "haben", "VERB", ""),
         # phdg-3: haben×2, fragen×1
-        ("phdg-3", 0, "haben",   "haben",   "VERB", ""),
-        ("phdg-3", 1, "haben",   "haben",   "VERB", ""),
-        ("phdg-3", 2, "fragen",  "fragen",  "VERB", ""),
+        ("phdg-3", 0, "haben", "haben", "VERB", ""),
+        ("phdg-3", 1, "haben", "haben", "VERB", ""),
+        ("phdg-3", 2, "fragen", "fragen", "VERB", ""),
     ]
     for chunk_id, idx, surface, lemma, pos, feats in seed:
         _insert_lemma(
@@ -139,6 +139,7 @@ def concordance_db(tmp_path: Path) -> sqlite3.Connection:
     # materialized aggregate, populated post-lemmatize in production).
     # Build it here so the tests exercise the real read path.
     from minerva.concordance import aggregate
+
     aggregate.build(conn)
     return conn
 
@@ -178,12 +179,12 @@ def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
     seed = [
         ("rep-1", 0, "ἄνθρωπος", "ἄνθρωπος", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
         ("rep-1", 1, "ἄνθρωποι", "ἄνθρωπος", "NOUN", "Case=Nom|Number=Plur|Gender=Masc"),
-        ("rep-1", 2, "ἀγαθός",   "ἀγαθός",   "ADJ",  "Case=Nom|Number=Sing|Gender=Masc"),
-        ("rep-1", 3, "ἀγαθοῖν",  "ἀγαθός",   "ADJ",  "Case=Dat|Number=Dual|Gender=Masc"),
-        ("rep-1", 4, "Ἀθηνᾶ",    "Ἀθηνᾶ",    "PROPN", "Case=Nom|Number=Sing|Gender=Fem"),
-        ("rep-1", 5, "Ἀθηνᾶν",   "Ἀθηνᾶ",    "PROPN", "Case=Acc|Number=Sing|Gender=Fem"),
-        ("rep-1", 6, "λόγος",    "λόγος",    "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
-        ("rep-1", 7, "λόγον",    "λόγος",    "NOUN", "Case=Acc|Number=Sing|Gender=Masc"),
+        ("rep-1", 2, "ἀγαθός", "ἀγαθός", "ADJ", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("rep-1", 3, "ἀγαθοῖν", "ἀγαθός", "ADJ", "Case=Dat|Number=Dual|Gender=Masc"),
+        ("rep-1", 4, "Ἀθηνᾶ", "Ἀθηνᾶ", "PROPN", "Case=Nom|Number=Sing|Gender=Fem"),
+        ("rep-1", 5, "Ἀθηνᾶν", "Ἀθηνᾶ", "PROPN", "Case=Acc|Number=Sing|Gender=Fem"),
+        ("rep-1", 6, "λόγος", "λόγος", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
+        ("rep-1", 7, "λόγον", "λόγος", "NOUN", "Case=Acc|Number=Sing|Gender=Masc"),
     ]
     for chunk_id, idx, surface, lemma, pos, feats in seed:
         _insert_lemma(
@@ -197,6 +198,7 @@ def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
         )
     conn.commit()
     from minerva.concordance import aggregate
+
     aggregate.build(conn)
     return conn
 
@@ -215,7 +217,8 @@ def test_greek_letter_folds_diacritics(
     precomposed forms entirely."""
 
     out = concordance_queries.lemma_index(
-        greek_concordance_db, {"lang": "grc", "letter": "Α", "min_count": "1"},
+        greek_concordance_db,
+        {"lang": "grc", "letter": "Α", "min_count": "1"},
     )
     lemmas = {r["lemma"] for r in out["rows"]}
     assert lemmas == {"ἄνθρωπος", "ἀγαθός", "Ἀθηνᾶ"}
@@ -231,10 +234,12 @@ def test_greek_letter_lowercase_request_folds_too(
     silently zero the leaderboard."""
 
     lo = concordance_queries.lemma_index(
-        greek_concordance_db, {"lang": "grc", "letter": "α", "min_count": "1"},
+        greek_concordance_db,
+        {"lang": "grc", "letter": "α", "min_count": "1"},
     )
     hi = concordance_queries.lemma_index(
-        greek_concordance_db, {"lang": "grc", "letter": "Α", "min_count": "1"},
+        greek_concordance_db,
+        {"lang": "grc", "letter": "Α", "min_count": "1"},
     )
     assert {r["lemma"] for r in lo["rows"]} == {r["lemma"] for r in hi["rows"]}
 
@@ -246,7 +251,8 @@ def test_greek_letter_lambda_only(
     alpha cluster — the fold doesn't over-match."""
 
     out = concordance_queries.lemma_index(
-        greek_concordance_db, {"lang": "grc", "letter": "Λ", "min_count": "1"},
+        greek_concordance_db,
+        {"lang": "grc", "letter": "Λ", "min_count": "1"},
     )
     assert {r["lemma"] for r in out["rows"]} == {"λόγος"}
 
@@ -261,7 +267,8 @@ def test_q_substring_match(concordance_db: sqlite3.Connection) -> None:
     substring). Surfaces in the rows; total_lemmas reflects the narrowed set."""
 
     out = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "geist"},
+        concordance_db,
+        {"lang": "deu", "q": "geist"},
     )
     lemmas = {r["lemma"] for r in out["rows"]}
     assert lemmas == {"Geist", "geistig"}
@@ -272,10 +279,12 @@ def test_q_case_insensitive(concordance_db: sqlite3.Connection) -> None:
     """A capitalised query string narrows the same way as lowercase."""
 
     lo = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "geist"},
+        concordance_db,
+        {"lang": "deu", "q": "geist"},
     )
     hi = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "GEIST"},
+        concordance_db,
+        {"lang": "deu", "q": "GEIST"},
     )
     assert {r["lemma"] for r in lo["rows"]} == {r["lemma"] for r in hi["rows"]}
 
@@ -285,14 +294,16 @@ def test_q_wildcards_are_escaped(concordance_db: sqlite3.Connection) -> None:
     wildcard — otherwise ``q=%`` would match every lemma."""
 
     out = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "%"},
+        concordance_db,
+        {"lang": "deu", "q": "%"},
     )
     assert out["rows"] == []
     assert out["total_lemmas"] == 0
 
     # Same for underscore — there's no underscore in any seeded lemma.
     out_underscore = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "_"},
+        concordance_db,
+        {"lang": "deu", "q": "_"},
     )
     assert out_underscore["rows"] == []
 
@@ -303,10 +314,12 @@ def test_q_empty_string_is_ignored(concordance_db: sqlite3.Connection) -> None:
     explicitly removed the param."""
 
     no_q = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu"},
+        concordance_db,
+        {"lang": "deu"},
     )
     blank = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "   "},
+        concordance_db,
+        {"lang": "deu", "q": "   "},
     )
     assert no_q["total_lemmas"] == blank["total_lemmas"]
 
@@ -321,7 +334,8 @@ def test_max_count_caps_freq(concordance_db: sqlite3.Connection) -> None:
     and geistig (count=2)."""
 
     out = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "max_count": "4"},
+        concordance_db,
+        {"lang": "deu", "max_count": "4"},
     )
     lemmas = {r["lemma"] for r in out["rows"]}
     assert "haben" not in lemmas
@@ -333,7 +347,8 @@ def test_max_count_with_min_count(concordance_db: sqlite3.Connection) -> None:
     out, geistig (2) out, fragen (1) out."""
 
     out = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "min_count": "3", "max_count": "5"},
+        concordance_db,
+        {"lang": "deu", "min_count": "3", "max_count": "5"},
     )
     lemmas = {r["lemma"] for r in out["rows"]}
     assert lemmas == {"Geist"}
@@ -346,7 +361,8 @@ def test_inverted_range_returns_no_rows(concordance_db: sqlite3.Connection) -> N
     here would just look like a network failure."""
 
     out = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "min_count": "10", "max_count": "5"},
+        concordance_db,
+        {"lang": "deu", "min_count": "10", "max_count": "5"},
     )
     assert out["rows"] == []
 
@@ -361,7 +377,8 @@ def test_q_and_max_count_compose(concordance_db: sqlite3.Connection) -> None:
     geistig}, then ``max_count=3`` drops Geist (count=4) leaving geistig."""
 
     out = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "geist", "max_count": "3"},
+        concordance_db,
+        {"lang": "deu", "q": "geist", "max_count": "3"},
     )
     assert [r["lemma"] for r in out["rows"]] == ["geistig"]
 
@@ -377,10 +394,12 @@ def test_totals_narrow_with_q(concordance_db: sqlite3.Connection) -> None:
     redesign explicitly avoids."""
 
     no_q = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu"},
+        concordance_db,
+        {"lang": "deu"},
     )
     with_q = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "q": "geist"},
+        concordance_db,
+        {"lang": "deu", "q": "geist"},
     )
     assert with_q["total_lemmas"] < no_q["total_lemmas"]
     assert with_q["total_lemmas"] == 2
@@ -392,9 +411,52 @@ def test_totals_ignore_freq_range(concordance_db: sqlite3.Connection) -> None:
     drags the freq slider — only the result rows change."""
 
     a = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu"},
+        concordance_db,
+        {"lang": "deu"},
     )
     b = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "max_count": "3"},
+        concordance_db,
+        {"lang": "deu", "max_count": "3"},
     )
     assert a["total_occurrences"] == b["total_occurrences"]
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Aggregate rebuild transactionality
+# ──────────────────────────────────────────────────────────────────
+
+
+def test_aggregate_rebuild_is_all_or_nothing(
+    concordance_db: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: `_bulk_insert` used to commit per scope, so a crash
+    mid-rebuild left a half-built lemma_counts served as truth. The
+    whole rebuild must now roll back to the prior contents."""
+
+    from minerva.concordance import aggregate
+
+    conn = concordance_db
+    before = conn.execute(
+        "SELECT lang, scope_kind, scope_value, lemma, pos, count "
+        "FROM lemma_counts ORDER BY 1,2,3,4,5"
+    ).fetchall()
+    assert before  # fixture built the aggregate
+
+    real_bulk_insert = aggregate._bulk_insert
+    calls = {"n": 0}
+
+    def flaky(conn_: sqlite3.Connection, rows: list) -> None:
+        calls["n"] += 1
+        if calls["n"] == 2:  # die after the corpus scope, before author
+            raise RuntimeError("simulated crash mid-rebuild")
+        real_bulk_insert(conn_, rows)
+
+    monkeypatch.setattr(aggregate, "_bulk_insert", flaky)
+    with pytest.raises(RuntimeError, match="mid-rebuild"):
+        aggregate.build(conn)
+
+    after = conn.execute(
+        "SELECT lang, scope_kind, scope_value, lemma, pos, count "
+        "FROM lemma_counts ORDER BY 1,2,3,4,5"
+    ).fetchall()
+    assert [tuple(r) for r in after] == [tuple(r) for r in before]

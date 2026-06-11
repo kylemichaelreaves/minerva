@@ -41,9 +41,7 @@ SUPPORTED_LANGS = frozenset({"eng", "fra", "deu"})
 def open_db(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
     from .sqlite_util import open_sqlite
 
-    conn = open_sqlite(
-        path, SCHEMA, foreign_keys=False, check_same_thread=check_same_thread
-    )
+    conn = open_sqlite(path, SCHEMA, foreign_keys=False, check_same_thread=check_same_thread)
     # Idempotent migration: the original schema didn't carry
     # `literal_text`, so existing caches need the column backfilled.
     # NULL means "no literal version cached" — `lookup` treats it as a
@@ -67,7 +65,6 @@ def lookup(
     looked up next.)
     """
 
-    conn.row_factory = sqlite3.Row
     row = conn.execute(
         "SELECT translated_text, literal_text, model, created_at "
         "FROM translations WHERE source_text=? AND target_lang=?",
@@ -95,10 +92,11 @@ def insert(
     model: str,
     now: float | None = None,
 ) -> bool:
-    """Insert (or overwrite) a translation. Returns ``True`` if a new
-    row was added, ``False`` if (source_text, target_lang) already
-    existed. ``INSERT OR REPLACE`` is used so a pre-migration row with
-    NULL ``literal_text`` is upgraded on the next translation pass.
+    """Insert (or overwrite) a translation. ``INSERT OR REPLACE`` is
+    used so a pre-migration row with NULL ``literal_text`` is upgraded
+    on the next translation pass — which also means it always reports
+    rowcount 1, so the return value is ``True`` whether the row was
+    new or replaced an existing (source_text, target_lang) entry.
     """
 
     ts = time.time() if now is None else now

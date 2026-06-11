@@ -189,7 +189,9 @@ class OpenAIBackend(LLMBackend):
         try:
             for data_line in _iter_sse_data_lines(resp):
                 chunk = json.loads(data_line)
-                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                # `or [{}]` guards chunks with an empty choices list
+                # (some proxies emit usage-only frames that way).
+                delta = (chunk.get("choices") or [{}])[0].get("delta", {})
                 text = delta.get("content")
                 if text:
                     yield text
@@ -220,8 +222,10 @@ class AnthropicBackend(LLMBackend):
         # Prompt caching defaults on. Opt out via POIETES_DISABLE_PROMPT_CACHE=1
         # for debugging cost-attribution issues or A/B comparing.
         if enable_prompt_cache is None:
-            self.enable_prompt_cache = (
-                os.environ.get("POIETES_DISABLE_PROMPT_CACHE", "") not in ("1", "true", "True")
+            self.enable_prompt_cache = os.environ.get("POIETES_DISABLE_PROMPT_CACHE", "") not in (
+                "1",
+                "true",
+                "True",
             )
         else:
             self.enable_prompt_cache = enable_prompt_cache
@@ -291,34 +295,22 @@ class AnthropicBackend(LLMBackend):
                 ]
         return body_dict
 
-    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
-        body = json.dumps(self._build_body(messages, temperature=temperature, stream=False)).encode(
-            "utf-8"
-        )
-        req = urllib.request.Request(
-            f"{self.base_url}/messages",
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-            },
-            method="POST",
-        )
-        # Bounded exponential backoff for transient network failures.
-        # Long-running batched jobs (refs llm-verify) hit Anthropic for
-        # hundreds of calls and routinely catch a ConnectionResetError
-        # or 429/5xx mid-run; without retry the whole job dies and the
-        # caller has to manually re-launch. Five tries, doubling waits
-        # from 2s to 32s, then give up and surface as LLMError.
+    def _urlopen_with_retry(self, req: urllib.request.Request) -> HTTPResponse:
+        """Open ``req`` with bounded exponential backoff for transient
+        failures, returning the (still-open) response.
+
+        Long-running batched jobs (refs llm-verify) hit Anthropic for
+        hundreds of calls and routinely catch a ConnectionResetError
+        or 429/5xx mid-run; without retry the whole job dies and the
+        caller has to manually re-launch. Five tries, doubling waits
+        from 2s to 32s, then give up and surface as LLMError. Shared
+        by ``complete`` and ``stream_complete``."""
+
         retryable_status = {408, 425, 429, 500, 502, 503, 504, 529}
         last_exc: BaseException | None = None
         for attempt in range(5):
             try:
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                    payload = json.loads(resp.read().decode("utf-8"))
-                last_exc = None
-                break
+                return urllib.request.urlopen(req, timeout=self.timeout)
             except urllib.error.HTTPError as exc:
                 if exc.code in retryable_status and attempt + 1 < 5:
                     wait = min(32.0, 2.0 * (2**attempt))
@@ -349,9 +341,28 @@ class AnthropicBackend(LLMBackend):
                     time.sleep(wait)
                     continue
                 raise LLMError(f"Anthropic connection error: {exc}") from exc
-        else:
-            # Loop fell through without break — every attempt failed.
-            raise LLMError(f"Anthropic call failed after retries: {last_exc!r}")
+        # Loop exhausted without returning — every attempt failed.
+        raise LLMError(f"Anthropic call failed after retries: {last_exc!r}")
+
+    def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
+        # Reset up front so a failed call can't surface the previous
+        # call's usage block to observability readers.
+        self.last_usage = None
+        body = json.dumps(self._build_body(messages, temperature=temperature, stream=False)).encode(
+            "utf-8"
+        )
+        req = urllib.request.Request(
+            f"{self.base_url}/messages",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        with self._urlopen_with_retry(req) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
         try:
             blocks = payload["content"]
             text_parts = [b["text"] for b in blocks if b.get("type") == "text"]
@@ -369,6 +380,9 @@ class AnthropicBackend(LLMBackend):
     def stream_complete(
         self, messages: list[Message], *, temperature: float = 0.2
     ) -> Iterator[str]:
+        # Streaming never populates last_usage; clear it so readers
+        # don't attribute the previous non-streaming call's usage here.
+        self.last_usage = None
         body = json.dumps(self._build_body(messages, temperature=temperature, stream=True)).encode(
             "utf-8"
         )
@@ -382,44 +396,7 @@ class AnthropicBackend(LLMBackend):
             },
             method="POST",
         )
-        retryable_status = {408, 425, 429, 500, 502, 503, 504, 529}
-        last_exc: BaseException | None = None
-        resp: HTTPResponse | None = None
-        for attempt in range(5):
-            try:
-                resp = urllib.request.urlopen(req, timeout=self.timeout)
-                last_exc = None
-                break
-            except urllib.error.HTTPError as exc:
-                if exc.code in retryable_status and attempt + 1 < 5:
-                    wait = min(32.0, 2.0 * (2**attempt))
-                    last_exc = exc
-                    time.sleep(wait)
-                    continue
-                detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
-                raise LLMError(f"Anthropic HTTP {exc.code}: {detail}") from exc
-            except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
-                if attempt + 1 < 5:
-                    wait = min(32.0, 2.0 * (2**attempt))
-                    last_exc = exc
-                    time.sleep(wait)
-                    continue
-                raise LLMError(f"Anthropic connection reset after retries: {exc}") from exc
-            except urllib.error.URLError as exc:
-                reason = getattr(exc, "reason", None)
-                transient = isinstance(
-                    reason,
-                    (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),
-                )
-                if transient and attempt + 1 < 5:
-                    wait = min(32.0, 2.0 * (2**attempt))
-                    last_exc = exc
-                    time.sleep(wait)
-                    continue
-                raise LLMError(f"Anthropic connection error: {exc}") from exc
-        else:
-            raise LLMError(f"Anthropic call failed after retries: {last_exc!r}")
-        assert resp is not None
+        resp = self._urlopen_with_retry(req)
         try:
             for data_line in _iter_sse_data_lines(resp):
                 event = json.loads(data_line)
