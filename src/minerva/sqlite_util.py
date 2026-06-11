@@ -19,10 +19,17 @@ def open_sqlite(
 
     ``post_open`` receives the connection after ``executescript`` — used
     by the corpus store to run migrations.
+
+    Connections come back with ``row_factory = sqlite3.Row``. Rows
+    still support index access and unpacking, so tuple-style callers
+    keep working; setting it once here replaced ~34 scattered
+    per-function mutations whose only failure mode was a caller that
+    relied on the side effect never being undone.
     """
 
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+    conn.row_factory = sqlite3.Row
     if foreign_keys:
         conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(schema)

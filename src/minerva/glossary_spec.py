@@ -279,7 +279,6 @@ def validate_against_db(spec: GlossarySpec, conn: sqlite3.Connection) -> list[st
     test) decides whether to abort or proceed."""
 
     errors: list[str] = []
-    conn.row_factory = sqlite3.Row
     for term in spec.terms:
         for apply in term.apply_to:
             ed = conn.execute(

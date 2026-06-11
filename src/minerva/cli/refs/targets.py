@@ -8,7 +8,6 @@ existing works table plus a hand-listed out-of-corpus catalogue).
 from __future__ import annotations
 
 import argparse
-import sqlite3
 
 from ..terms._io import _emit, _open
 
@@ -16,7 +15,6 @@ from ..terms._io import _emit, _open
 def cmd_refs_targets(args: argparse.Namespace) -> int:
     conn = _open(args)
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
 
     clauses: list[str] = []
     params: list[object] = []

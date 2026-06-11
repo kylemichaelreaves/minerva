@@ -140,7 +140,6 @@ def lemma_detail(
         extra_sql += " AND cl.feats LIKE ?"
         extra_params.append(f"%{k}={v}%")
 
-    conn.row_factory = sqlite3.Row
 
     # Total + breakdowns. Two extra aggregate queries; both hit the
     # same index path so they're cheap.

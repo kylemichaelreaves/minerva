@@ -52,7 +52,6 @@ def update_reference(
     when ``reference_id`` is unknown.
     """
 
-    conn.row_factory = sqlite3.Row
     before = conn.execute(
         "SELECT id FROM cross_references WHERE id = ?", (reference_id,)
     ).fetchone()

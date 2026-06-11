@@ -50,7 +50,6 @@ def terms_list(conn: sqlite3.Connection,
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY t.source_language, t.source_form"
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(sql, params).fetchall()
     out_terms = []
     for r in rows:
@@ -66,7 +65,6 @@ def term_by_id(conn: sqlite3.Connection, term_id: int) -> dict[str, Any]:
     `translator` name and target `language` so the UI can group by
     translator without an extra round trip."""
 
-    conn.row_factory = sqlite3.Row
     term = conn.execute("SELECT * FROM terms WHERE id = ?",
                         (term_id,)).fetchone()
     if term is None:
@@ -118,7 +116,6 @@ def terms_by_chunk(conn: sqlite3.Connection, chunk_id: str) -> dict[str, Any]:
     order; the client may further index by start offset for cursor →
     occurrence resolution."""
 
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT o.id, o.term_id, o.source_start, o.source_end, "
         "       o.context_snippet, o.tradition, "
@@ -252,7 +249,6 @@ def work_occurrences(
         except ValueError:
             raise BadRequestError("edition_id must be an integer") from None
 
-    conn.row_factory = sqlite3.Row
     term = conn.execute(
         "SELECT source_language FROM terms WHERE id = ?", (term_id,)
     ).fetchone()
@@ -405,7 +401,6 @@ def translation_renderings(
     summary count of per-occurrence overrides — overrides themselves
     are joined per-occurrence in /api/works/.../term_occurrences."""
 
-    conn.row_factory = sqlite3.Row
     tr = conn.execute(
         "SELECT t.id, t.translator_name, t.year, t.language, "
         "       t.work_id, w.author, w.title AS work_title "

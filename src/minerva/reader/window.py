@@ -88,7 +88,6 @@ def fetch_chunk_ids_in_window(
 ) -> list[str]:
     """Return chunk_ids for one (work_id, lang) window, ordered by ``ord``."""
 
-    conn.row_factory = sqlite3.Row
     chunk_rows = conn.execute(
         "SELECT chunk_id FROM chunks_full "
         "WHERE work_id = ? AND lang = ? "

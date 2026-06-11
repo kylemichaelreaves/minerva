@@ -116,7 +116,6 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
     around = query.get("around")
     limit = parse_limit_only(query)
 
-    conn.row_factory = sqlite3.Row
     if around:
         focus_row = conn.execute(
             "SELECT work, lang, ord FROM chunks_full WHERE chunk_id=?",
@@ -256,7 +255,6 @@ def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     if samples_offset < 0:
         raise BadRequestError( "'samples_offset' must be >= 0")
 
-    conn.row_factory = sqlite3.Row
     # Resolve the click into a (chunk, edition) + the lemma at
     # that offset. The chunk_lemmas row is keyed by chunk_id +
     # token_index, but we know offsets; a direct WHERE on

@@ -415,7 +415,6 @@ def verify_rows_with_llm(
     only re-does at most one batch's worth of rows.
     """
 
-    conn.row_factory = sqlite3.Row
 
     resume_from_id: int | None = None
     if resume:

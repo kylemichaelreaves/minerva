@@ -24,7 +24,6 @@ def chunk_references(
     statuses, min_conf = parse_filters(query)
     status_sql, status_params = status_clause(statuses, min_conf)
 
-    conn.row_factory = sqlite3.Row
     outgoing_rows = conn.execute(
         f"SELECT xr.*, "
         f"       rt.canonical_author, rt.canonical_work, "

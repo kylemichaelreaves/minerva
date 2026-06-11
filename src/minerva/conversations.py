@@ -193,7 +193,6 @@ def append_message(
 
 
 def list_conversations(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT id, title, dominant, created_at, updated_at "
         "FROM conversations ORDER BY updated_at DESC"
@@ -204,7 +203,6 @@ def list_conversations(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def get_conversation(conn: sqlite3.Connection, cid: str) -> dict[str, Any] | None:
     """Fetch one conversation + all its messages, or None if unknown."""
 
-    conn.row_factory = sqlite3.Row
     row = conn.execute(
         "SELECT id, title, dominant, created_at, updated_at FROM conversations WHERE id=?",
         (cid,),
