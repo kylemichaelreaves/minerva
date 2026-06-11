@@ -10,13 +10,18 @@ _DEFAULT_INDEX_LIMIT = 200
 _MAX_INDEX_LIMIT = 1000
 _DEFAULT_KWIC_LIMIT = 50
 _MAX_KWIC_LIMIT = 200
-_KWIC_CONTEXT_RADIUS = 60   # characters on each side of the match
+_KWIC_CONTEXT_RADIUS = 60  # characters on each side of the match
 
 # Default POS set for the leaderboard. Strips function words
 # (DET/ADP/CCONJ/SCONJ/PRON/AUX/PART/PUNCT/SYM/SPACE) so the top
 # entries are content words a philology reader actually wants —
 # Geist, Wesen, Begriff (DEU); essence, substance (ENG); etc.
 # User can override with ?pos_in=NOUN,VERB,ADJ,DET,...
+#
+# NOTE: index_queries.lemma_index's docstring claims the default also
+# includes ADV — it does not, and adding ADV here would reshuffle the
+# UI leaderboard. The docstring over there is the drifted side; this
+# tuple is the source of truth.
 _DEFAULT_CONTENT_POS = ("NOUN", "VERB", "ADJ", "PROPN")
 
 # Closing punctuation that should hug the preceding word (no leading space).
@@ -30,9 +35,7 @@ _ATTACHED_LEAD = "([{«"
 # ──────────────────────────────────────────────────────────────────
 
 
-def _scope_clause(
-    scope: str, author: str | None, work: str | None
-) -> tuple[str, list[Any]]:
+def _scope_clause(scope: str, author: str | None, work: str | None) -> tuple[str, list[Any]]:
     """Translate (scope, author, work) into a SQL fragment + params
     that filters the JOIN to ``chunks_full``.
 
@@ -54,4 +57,3 @@ def _scope_clause(
     if scope == "author":
         return " AND cf.author = ?", [author]
     return " AND cf.work = ?", [work]
-

@@ -54,6 +54,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
+from minerva.sources._roman import roman_to_int
 from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _SECTION_HDR = re.compile(r"^SECTION\s+(\d+)\s*$", re.MULTILINE)
@@ -61,20 +62,6 @@ _BOOK_HDR = re.compile(r"^BOOK\s+([IVXLC]+)\s*$", re.MULTILINE)
 _PART_HDR = re.compile(r"^Part\s+(\d+)\s*$", re.MULTILINE)
 _TRANSLATOR = re.compile(r"^Translated by\s+(.+?)\s*$", re.MULTILINE)
 _TITLE = re.compile(r"^Translated by\s+", re.MULTILINE)  # marker for header-end
-
-
-def _roman_to_int(roman: str) -> int:
-    """Tiny Roman → Arabic for ICA's BOOK I / II / III / ... headers."""
-    table = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
-    total, prev = 0, 0
-    for ch in reversed(roman):
-        v = table.get(ch, 0)
-        if v < prev:
-            total -= v
-        else:
-            total += v
-            prev = v
-    return total
 
 
 def _split_header(raw: str) -> tuple[str | None, str]:
@@ -153,7 +140,12 @@ def _split_by_part(body: str) -> Iterator[tuple[str, str, str]]:
             current_section = sect_arabic
             continue
         if book_roman is not None:
-            current_section = str(_roman_to_int(book_roman))
+            n = roman_to_int(book_roman)
+            if n is not None:
+                current_section = str(n)
+            # A BOOK header whose numeral fails to parse is noise —
+            # keep the current section rather than mislabeling
+            # everything after it.
             continue
         if part_num is not None:
             if current_section is None:
