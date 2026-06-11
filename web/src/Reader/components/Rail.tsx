@@ -8,7 +8,7 @@
 // `.rail-tabs` CSS, which is `display: none` outside the mobile
 // media query.
 
-import { Show, createMemo, createSignal } from "solid-js";
+import { Show, createEffect, createSignal } from "solid-js";
 import { classnames } from "~/utils/util";
 import { LoadingDots } from "~/components/LoadingDots";
 import type { TargetLang } from "~/utils/types";
@@ -72,10 +72,17 @@ export function RailContent(props: {
   const [tab, setTab] = createSignal<Tab>("translation");
   // Auto-flip to the Lemma tab when a word lookup arrives — matches
   // the design 3c → 3d flow (long-press → bottom sheet on the lemma).
-  const activeTab = createMemo<Tab>(() => {
-    // Honor explicit user picks; only auto-flip from the default.
-    return tab();
+  // We flip on the *transition* into an active lookup (idle/error →
+  // loading/ready): tapping a word is itself an explicit gesture, so
+  // it wins over a previous manual tab pick, while later manual picks
+  // are honored until the next lookup arrives.
+  let prevLookupActive = hasLemma();
+  createEffect(() => {
+    const active = hasLemma();
+    if (active && !prevLookupActive) setTab("lemma");
+    prevLookupActive = active;
   });
+  const activeTab = (): Tab => tab();
 
   return (
     <Show when={props.state.kind !== "idle"}>

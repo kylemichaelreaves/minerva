@@ -79,7 +79,7 @@ describe("<TermCard />", () => {
     // Fetched the right endpoint. `input` is always a string in our
     // client (the fetch helper builds the URL inline) so narrow
     // explicitly rather than coercing through String().
-    const input = fetchMock.mock.calls[0][0];
+    const input = fetchMock.mock.calls[0]![0];
     const url =
       typeof input === "string"
         ? input

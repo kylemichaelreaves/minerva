@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "~/api/client";
+import { apiGet, apiPost, qs } from "~/api/client";
 import type {
   ChunkContextResponse,
   LemmaHighlights,
@@ -28,14 +28,13 @@ export async function getWorkRange(
   args: WorkRangeArgs = {},
   signal?: AbortSignal,
 ): Promise<WorkRange> {
-  const params = new URLSearchParams();
-  if (args.lang) params.set("lang", args.lang);
-  if (args.from !== undefined) params.set("from", String(args.from));
-  if (args.limit !== undefined) params.set("limit", String(args.limit));
-  if (args.around) params.set("around", args.around);
-  const qs = params.toString();
   return apiGet<WorkRange>(
-    `/api/works/${encodeURIComponent(work)}${qs ? `?${qs}` : ""}`,
+    `/api/works/${encodeURIComponent(work)}${qs({
+      lang: args.lang,
+      from: args.from,
+      limit: args.limit,
+      around: args.around,
+    })}`,
     signal,
   );
 }
@@ -45,11 +44,10 @@ export async function fetchChunkContext(
   radius = 1,
   signal?: AbortSignal,
 ): Promise<ChunkContextResponse> {
-  const params = new URLSearchParams();
-  if (radius !== 1) params.set("radius", String(radius));
-  const qs = params.toString();
   return apiGet<ChunkContextResponse>(
-    `/api/chunks/${encodeURIComponent(chunkId)}/context${qs ? `?${qs}` : ""}`,
+    `/api/chunks/${encodeURIComponent(chunkId)}/context${qs({
+      radius: radius !== 1 ? radius : undefined,
+    })}`,
     signal,
   );
 }
@@ -71,13 +69,12 @@ export async function fetchOccurrenceMap(
   args: { lang?: string; from?: number; limit?: number } = {},
   signal?: AbortSignal,
 ): Promise<OccurrenceMap> {
-  const params = new URLSearchParams();
-  if (args.lang) params.set("lang", args.lang);
-  if (args.from !== undefined) params.set("from", String(args.from));
-  if (args.limit !== undefined) params.set("limit", String(args.limit));
-  const qs = params.toString();
   return apiGet<OccurrenceMap>(
-    `/api/works/${workId}/occurrence_map${qs ? `?${qs}` : ""}`,
+    `/api/works/${workId}/occurrence_map${qs({
+      lang: args.lang,
+      from: args.from,
+      limit: args.limit,
+    })}`,
     signal,
   );
 }
@@ -87,12 +84,13 @@ export async function fetchLemmaHighlights(
   args: { lang?: string; from?: number; limit?: number; lemma: string },
   signal?: AbortSignal,
 ): Promise<LemmaHighlights> {
-  const params = new URLSearchParams({ lemma: args.lemma });
-  if (args.lang) params.set("lang", args.lang);
-  if (args.from !== undefined) params.set("from", String(args.from));
-  if (args.limit !== undefined) params.set("limit", String(args.limit));
   return apiGet<LemmaHighlights>(
-    `/api/works/${workId}/lemma_highlights?${params.toString()}`,
+    `/api/works/${workId}/lemma_highlights${qs({
+      lemma: args.lemma,
+      lang: args.lang,
+      from: args.from,
+      limit: args.limit,
+    })}`,
     signal,
   );
 }
@@ -115,15 +113,13 @@ export async function fetchWordLookup(
   args: WordLookupArgs = {},
   signal?: AbortSignal,
 ): Promise<WordLookup> {
-  const params = new URLSearchParams({
-    chunk_id: chunkId,
-    offset: String(offset),
-  });
-  if (args.samplesLimit !== undefined) {
-    params.set("samples_limit", String(args.samplesLimit));
-  }
-  if (args.samplesOffset !== undefined) {
-    params.set("samples_offset", String(args.samplesOffset));
-  }
-  return apiGet<WordLookup>(`/api/words/lookup?${params.toString()}`, signal);
+  return apiGet<WordLookup>(
+    `/api/words/lookup${qs({
+      chunk_id: chunkId,
+      offset,
+      samples_limit: args.samplesLimit,
+      samples_offset: args.samplesOffset,
+    })}`,
+    signal,
+  );
 }

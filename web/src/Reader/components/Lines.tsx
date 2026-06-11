@@ -65,17 +65,20 @@ export function Lines(props: {
    *  word at (chunkId, offset) in the current target language. */
   wordTranslation?: (chunkId: string, offset: number) => string | undefined;
 }) {
-  const isGreek = props.lang === "grc";
-  const isHebrew = props.lang === "heb";
-  const isArabic = props.lang === "ara";
-  const isRtl = isHebrew || isArabic;
+  // Accessors, not consts — `props.lang` must stay a reactive read so
+  // the script-family classes update if the Reader swaps editions
+  // (e.g. grc → eng) without remounting Lines.
+  const isGreek = () => props.lang === "grc";
+  const isHebrew = () => props.lang === "heb";
+  const isArabic = () => props.lang === "ara";
+  const isRtl = () => isHebrew() || isArabic();
   // The pre-existing `.latin` class triggered the serif body font.
   // Now that we have three families (Greek default, Latin serif, RTL
   // Hebrew/Arabic), the LTR fallback is "everything that isn't Greek
   // and isn't RTL" — the same set that used to be flagged isLatin.
-  const isLatin = !isGreek && !isRtl;
+  const isLatin = () => !isGreek() && !isRtl();
   return (
-    <div class={classnames("lines", isLatin && "latin", isRtl && "rtl")}>
+    <div class={classnames("lines", isLatin() && "latin", isRtl() && "rtl")}>
       <For each={props.chunks}>
         {(chunk) => {
           const xref = (): XrefSummary | undefined =>
@@ -84,14 +87,14 @@ export function Lines(props: {
             <div
               class={classnames(
                 "line",
-                isRtl && "rtl",
-                isHebrew && "lang-heb",
-                isArabic && "lang-ara",
+                isRtl() && "rtl",
+                isHebrew() && "lang-heb",
+                isArabic() && "lang-ara",
               )}
               data-chunk-id={chunk.chunk_id}
             >
               <span class="num">{chunk.section ?? chunk.ord + 1}</span>
-              <span class="text" dir={isRtl ? "rtl" : undefined}>
+              <span class="text" dir={isRtl() ? "rtl" : undefined}>
                 <WordRun
                   text={chunk.text}
                   lang={props.lang}

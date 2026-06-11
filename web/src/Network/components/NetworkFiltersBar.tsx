@@ -72,7 +72,7 @@ export function NetworkFiltersBar(props: {
 
   function summarize(values: string[] | undefined, total: number, all: string): string {
     if (!values || values.length === 0) return all;
-    if (values.length === 1) return values[0];
+    if (values.length === 1) return values[0] ?? all;
     if (values.length === total) return all;
     return `${values.length} of ${total}`;
   }

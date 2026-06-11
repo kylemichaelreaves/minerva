@@ -1,25 +1,14 @@
-import { For, createMemo, createSignal, onMount, type JSX } from "solid-js";
+import { For, createMemo, type JSX } from "solid-js";
 import type { HeatmapCell, HeatmapSection } from "~/api/networkApi";
+import { useElementSize } from "~/hooks/useElementSize";
 
 export function HeatmapPanel(props: {
   authors: string[];
   sections: HeatmapSection[];
   cells: HeatmapCell[];
 }) {
-  const [size, setSize] = createSignal({ w: 700, h: 280 });
   let wrapEl: HTMLDivElement | undefined;
-
-  onMount(() => {
-    if (!wrapEl) return;
-    const ro = new ResizeObserver(() => {
-      // wrapEl can become undefined async; outer narrowing isn't visible here.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (!wrapEl) return;
-      setSize({ w: wrapEl.clientWidth, h: wrapEl.clientHeight });
-    });
-    ro.observe(wrapEl);
-    setSize({ w: wrapEl.clientWidth, h: wrapEl.clientHeight });
-  });
+  const size = useElementSize(() => wrapEl, { w: 700, h: 280 });
 
   const layout = createMemo(() => {
     const { w, h } = size();

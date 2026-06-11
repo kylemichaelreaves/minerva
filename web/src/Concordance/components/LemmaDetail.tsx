@@ -8,9 +8,9 @@ import {
   createMemo,
   createResource,
   createSignal,
-  onCleanup,
 } from "solid-js";
 import { fetchLemmaDetail, type ConcScope, type KwicRow } from "~/api/concordanceApi";
+import { useListKeyboardNav } from "~/hooks/useListKeyboardNav";
 import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
 import { FilterRail } from "~/Concordance/components/FilterRail";
 import { KwicRowEl } from "~/Concordance/components/KwicRow";
@@ -54,13 +54,55 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
     surface: () => props.surface,
     caseFilter: () => props.caseFilter,
     numberFilter: () => props.numberFilter,
-    onNavigate: props.onNavigate,
-    onBackToIndex: props.onBackToIndex,
-    onOpenChunk: props.onOpenChunk,
   });
 
   const isMobile = useMobile();
   const [sheetOpen, setSheetOpen] = createSignal(false);
+
+  // Queue navigation — shared hook owns the form-element guard and the
+  // listener lifecycle. `enabled` mutes everything (including Escape)
+  // while the mobile filter sheet is open so Escape closes the sheet
+  // instead of bouncing back to the index.
+  useListKeyboardNav({
+    enabled: () => !sheetOpen(),
+    // ⌘/Ctrl + Arrow chords zoom the scope; handled before the hook's
+    // modifier bail-out.
+    onKey: (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return false;
+      if (e.key === "ArrowUp" && scope() !== "corpus") {
+        e.preventDefault();
+        props.onNavigate({
+          scope: "corpus",
+          scopeAuthor: undefined,
+          scopeWork: undefined,
+        });
+        return true;
+      }
+      if (e.key === "ArrowDown" && scope() !== "work") {
+        const topWork = data()?.work_breakdown[0]?.value;
+        if (topWork) {
+          e.preventDefault();
+          props.onNavigate({ scope: "work", scopeWork: topWork, scopeAuthor: undefined });
+          return true;
+        }
+      }
+      return false;
+    },
+    onNext: () => {
+      const rows = data()?.rows ?? [];
+      setCursor((c) => Math.min(rows.length - 1, c + 1));
+      scrollRowIntoView();
+    },
+    onPrev: () => {
+      setCursor((c) => Math.max(0, c - 1));
+      scrollRowIntoView();
+    },
+    onSelect: () => {
+      const r = (data()?.rows ?? []).at(cursor());
+      if (r) props.onOpenChunk(r.work, r.chunk_id);
+    },
+    onEscape: () => props.onBackToIndex(),
+  });
 
   /** Reset every URL-bound filter at once, used by the applied-
    *  filters card and the mobile sheet's Reset button. Scope is the
@@ -84,6 +126,44 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
     if (props.surface) n += 1;
     return n;
   });
+
+  /** FilterRail closure — same pattern as Refs/index.tsx's filtersBar.
+   *  Invoked once in the desktop rail slot and once inside the mobile
+   *  sheet, so the 12 props are wired in exactly one place. Only
+   *  called from inside `<Show when={data()}>` guards (hence the
+   *  non-null assertions). */
+  const filterRail = () => (
+    <FilterRail
+      data={data()!}
+      scope={scope()}
+      scopeAuthor={props.scopeAuthor}
+      scopeWork={props.scopeWork}
+      caseFilter={props.caseFilter}
+      numberFilter={props.numberFilter}
+      surface={props.surface}
+      onSetScope={(patch) => props.onNavigate(patch)}
+      onSetCase={(v) => props.onNavigate({ caseFilter: v })}
+      onSetNumber={(v) => props.onNavigate({ numberFilter: v })}
+      onSetSurface={(v) => props.onNavigate({ surface: v })}
+      onSetWork={(w) =>
+        // Empty string clears the work-scope back up to author
+        // (preserving the previous Author binding when there is one)
+        // or to corpus otherwise.
+        w
+          ? props.onNavigate({
+              scope: "work",
+              scopeWork: w,
+              scopeAuthor: undefined,
+            })
+          : props.onNavigate({
+              scope: props.scopeAuthor ? "author" : "corpus",
+              scopeWork: undefined,
+            })
+      }
+      onResetAll={resetAllFilters}
+      currentWorkScope={props.scopeWork}
+    />
+  );
 
   return (
     <div class="conc-stage conc-detail">
@@ -188,38 +268,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
           }
         >
           <div class="kwic-stage">
-            <Show when={!isMobile()}>
-              <FilterRail
-                data={data()!}
-                scope={scope()}
-                scopeAuthor={props.scopeAuthor}
-                scopeWork={props.scopeWork}
-                caseFilter={props.caseFilter}
-                numberFilter={props.numberFilter}
-                surface={props.surface}
-                onSetScope={(patch) => props.onNavigate(patch)}
-                onSetCase={(v) => props.onNavigate({ caseFilter: v })}
-                onSetNumber={(v) => props.onNavigate({ numberFilter: v })}
-                onSetSurface={(v) => props.onNavigate({ surface: v })}
-                onSetWork={(w) =>
-                  // Empty string clears the work-scope back up to author
-                  // (preserving the previous Author binding when there
-                  // is one) or to corpus otherwise.
-                  w
-                    ? props.onNavigate({
-                        scope: "work",
-                        scopeWork: w,
-                        scopeAuthor: undefined,
-                      })
-                    : props.onNavigate({
-                        scope: props.scopeAuthor ? "author" : "corpus",
-                        scopeWork: undefined,
-                      })
-                }
-                onResetAll={resetAllFilters}
-                currentWorkScope={props.scopeWork}
-              />
-            </Show>
+            <Show when={!isMobile()}>{filterRail()}</Show>
             <div class="kwic-pane" classList={{ "kwic-refetching": data.loading }}>
               <div class="kwic-toolbar">
                 <span class="ct">
@@ -271,33 +320,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
           onClose={() => setSheetOpen(false)}
         >
           <div class="conc-mob-sheet">
-            <FilterRail
-              data={data()!}
-              scope={scope()}
-              scopeAuthor={props.scopeAuthor}
-              scopeWork={props.scopeWork}
-              caseFilter={props.caseFilter}
-              numberFilter={props.numberFilter}
-              surface={props.surface}
-              onSetScope={(patch) => props.onNavigate(patch)}
-              onSetCase={(v) => props.onNavigate({ caseFilter: v })}
-              onSetNumber={(v) => props.onNavigate({ numberFilter: v })}
-              onSetSurface={(v) => props.onNavigate({ surface: v })}
-              onSetWork={(w) =>
-                w
-                  ? props.onNavigate({
-                      scope: "work",
-                      scopeWork: w,
-                      scopeAuthor: undefined,
-                    })
-                  : props.onNavigate({
-                      scope: props.scopeAuthor ? "author" : "corpus",
-                      scopeWork: undefined,
-                    })
-              }
-              onResetAll={resetAllFilters}
-              currentWorkScope={props.scopeWork}
-            />
+            {filterRail()}
             <div class="conc-mob-sheet-foot">
               <span
                 class="reset"
@@ -328,16 +351,6 @@ interface UseLemmaDetailArgs {
   surface: () => string | undefined;
   caseFilter: () => string | undefined;
   numberFilter: () => string | undefined;
-  onNavigate: (patch: {
-    scope?: ConcScope;
-    scopeAuthor?: string;
-    scopeWork?: string;
-    caseFilter?: string;
-    numberFilter?: string;
-    surface?: string;
-  }) => void;
-  onBackToIndex: () => void;
-  onOpenChunk: (work: string, chunkId: string) => void;
 }
 
 export function useLemmaDetail(args: UseLemmaDetailArgs) {
@@ -380,53 +393,14 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
     setCursor(0);
   });
 
-  function scrollRowIntoView() {
-    queueMicrotask(() => {
-      document.querySelector<HTMLElement>(".kwic-row.cur")?.scrollIntoView({ block: "nearest" });
-    });
-  }
-
-  function onKey(e: KeyboardEvent) {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    const rows = data()?.rows ?? [];
-    if (e.key === "ArrowUp" && (e.metaKey || e.ctrlKey) && args.scope() !== "corpus") {
-      e.preventDefault();
-      args.onNavigate({
-        scope: "corpus",
-        scopeAuthor: undefined,
-        scopeWork: undefined,
-      });
-    } else if (e.key === "ArrowDown" && (e.metaKey || e.ctrlKey) && args.scope() !== "work") {
-      const topWork = data()?.work_breakdown[0]?.value;
-      if (topWork) {
-        e.preventDefault();
-        args.onNavigate({ scope: "work", scopeWork: topWork, scopeAuthor: undefined });
-      }
-    } else if (e.key === "j" || e.key === "ArrowDown") {
-      e.preventDefault();
-      setCursor((c) => Math.min(rows.length - 1, c + 1));
-      scrollRowIntoView();
-    } else if (e.key === "k" || e.key === "ArrowUp") {
-      e.preventDefault();
-      setCursor((c) => Math.max(0, c - 1));
-      scrollRowIntoView();
-    } else if (e.key === "Enter") {
-      const r = rows[cursor()];
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (r) {
-        e.preventDefault();
-        args.onOpenChunk(r.work, r.chunk_id);
-      }
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      args.onBackToIndex();
-    }
-  }
-
-  window.addEventListener("keydown", onKey);
-  onCleanup(() => window.removeEventListener("keydown", onKey));
-
   return { data, cursor, setCursor, morph };
+}
+
+/** Keep the KWIC cursor row visible as j/k navigation moves it. */
+function scrollRowIntoView() {
+  queueMicrotask(() => {
+    document.querySelector<HTMLElement>(".kwic-row.cur")?.scrollIntoView({ block: "nearest" });
+  });
 }
 
 export type { KwicRow };

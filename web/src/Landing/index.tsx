@@ -12,11 +12,40 @@ import ComposeField from "~/components/ComposeField";
 import { ThemeToggle } from "~/components/ThemeToggle";
 import { useMobileShellOptional } from "~/components/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
-import { STARTER_PROMPTS } from "~/data";
 import { Atlas } from "~/Landing/components/Atlas";
 import "~/Landing/landing.css";
+import type { StarterPrompt } from "~/utils/types";
 
 export type { LandingStats } from "~/api/landingApi";
+
+// Starter prompts. Ethics + Ontology carried over from the prior
+// product line (the canonical "what is virtue?" and "essence vs.
+// existence" framings); Method + Reception adopted from the design 1a
+// wireframe to broaden the doorway into modern epistemology and
+// reception history. Each topic pairs with a serif-italic paraphrase
+// rendered alongside the topic label inside the pill.
+export const STARTER_PROMPTS: StarterPrompt[] = [
+  {
+    topic: "Ethics",
+    paraphrase: "virtue & the soul",
+    text: "Is virtue a kind of knowledge, or a habit of the soul?",
+  },
+  {
+    topic: "Ontology",
+    paraphrase: "essence & existence",
+    text: "What is the difference between essence and existence?",
+  },
+  {
+    topic: "Method",
+    paraphrase: "clear & distinct",
+    text: "What does it mean for an idea to be clear and distinct?",
+  },
+  {
+    topic: "Reception",
+    paraphrase: "Marx reads Hegel",
+    text: "How does Marx's dialectic invert Hegel's idealism?",
+  },
+];
 
 interface LandingProps {
   onSubmit: (text: string) => void;
@@ -126,15 +155,6 @@ export default function Landing(props: LandingProps) {
               <span class="landing-epigraph-line">Hier ist die Rose, hier tanze.</span>
             </div>
           </Show>
-          <Show when={false}>
-            <div class="landing-word">Minerva</div>
-            <div class="landing-tagline">
-              A research assistant trained on the canonical works of Western philosophy,
-              <br />
-              <em>from Homer to Nietzsche.</em>
-            </div>
-          </Show>
-
           <ComposeField
             variant="landing"
             c={c}

@@ -9,8 +9,18 @@
 // `App()`).
 
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
-import { ACCENTS } from "~/data";
-import type { AccentKey, Theme } from "~/utils/types";
+import type { AccentDef, AccentKey, Theme } from "~/utils/types";
+
+// Accent palettes. The bronze/lapis alternatives that once lived
+// alongside Oxblood were never wired up; only Oxblood survives (it's
+// the constant App.tsx passes to `useTheme`).
+export const ACCENTS: Record<AccentKey, AccentDef> = {
+  oxblood: {
+    label: "Oxblood",
+    light: { accent: "#7B2E2A", soft: "#C7A9A6", selection: "rgba(123,46,42,0.18)" },
+    dark: { accent: "#C97A65", soft: "#6E3F36", selection: "rgba(201,122,101,0.22)" },
+  },
+};
 
 const STORAGE_KEY = "minerva:theme";
 

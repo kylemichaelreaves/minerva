@@ -139,16 +139,29 @@ const safeDecode = (s: string): string | null => {
   }
 };
 
+/** Multi-select params (network filter chips) serialize as CSV.
+ *  Each component is percent-encoded before joining so a comma INSIDE
+ *  a value (corpus labels, author names) round-trips instead of
+ *  splitting the value in two on the next parse. */
+const encodeCsv = (vals: string[]): string => vals.map(encodeURIComponent).join(",");
+const decodeCsv = (raw: string | null): string[] | undefined =>
+  raw === null
+    ? undefined
+    : raw
+        .split(",")
+        .filter(Boolean)
+        .map((s) => safeDecode(s) ?? s);
+
 export function readRoute(): Route {
   const hash = window.location.hash;
   let m = /^#\/c\/([^/?]+)$/.exec(hash);
   if (m) {
-    const id = safeDecode(m[1]);
+    const id = safeDecode(m[1] ?? "");
     return id === null ? { kind: "landing" } : { kind: "conversation", id };
   }
   m = /^#\/r\/([^/?]+)(?:\?(.*))?$/.exec(hash);
   if (m) {
-    const workId = safeDecode(m[1]);
+    const workId = safeDecode(m[1] ?? "");
     if (workId === null) return { kind: "landing" };
     const qs = new URLSearchParams(m[2]);
     const termParam = qs.get("term");
@@ -170,12 +183,11 @@ export function readRoute(): Route {
     const rawConf = qs.get("min_confidence");
     const minConfidence =
       rawConf !== null && /^[0-9.]+$/.test(rawConf) ? Number(rawConf) : undefined;
-    const csv = (k: string) => qs.get(k)?.split(",").filter(Boolean) ?? undefined;
     const shared = {
       minConfidence,
-      sourceAuthors: csv("source"),
-      corpora: csv("corpus"),
-      sourceMethods: csv("method"),
+      sourceAuthors: decodeCsv(qs.get("source")),
+      corpora: decodeCsv(qs.get("corpus")),
+      sourceMethods: decodeCsv(qs.get("method")),
     };
     return m[1] === "arc"
       ? { kind: "network-arc", ...shared }
@@ -187,14 +199,13 @@ export function readRoute(): Route {
     const rawConf = qs.get("min_confidence");
     const minConfidence =
       rawConf !== null && /^[0-9.]+$/.test(rawConf) ? Number(rawConf) : undefined;
-    const csv = (k: string) => qs.get(k)?.split(",").filter(Boolean) ?? undefined;
     return {
       kind: "network",
       minConfidence,
       includeRejected: qs.get("include_rejected") === "1",
-      sourceAuthors: csv("source"),
-      corpora: csv("corpus"),
-      sourceMethods: csv("method"),
+      sourceAuthors: decodeCsv(qs.get("source")),
+      corpora: decodeCsv(qs.get("corpus")),
+      sourceMethods: decodeCsv(qs.get("method")),
     };
   }
   m = /^#\/refs\/review(?:\?(.*))?$/.exec(hash);
@@ -210,7 +221,7 @@ export function readRoute(): Route {
   }
   m = /^#\/concordance\/([^?]+)(?:\?(.*))?$/.exec(hash);
   if (m) {
-    const lemma = safeDecode(m[1]);
+    const lemma = safeDecode(m[1] ?? "");
     if (lemma === null) return { kind: "landing" };
     const qs = new URLSearchParams(m[2]);
     const scope = qs.get("scope");
@@ -298,9 +309,9 @@ export function routeHash(route: Route): string {
     if (route.minConfidence !== undefined)
       params.set("min_confidence", String(route.minConfidence));
     if (route.includeRejected) params.set("include_rejected", "1");
-    if (route.sourceAuthors?.length) params.set("source", route.sourceAuthors.join(","));
-    if (route.corpora?.length) params.set("corpus", route.corpora.join(","));
-    if (route.sourceMethods?.length) params.set("method", route.sourceMethods.join(","));
+    if (route.sourceAuthors?.length) params.set("source", encodeCsv(route.sourceAuthors));
+    if (route.corpora?.length) params.set("corpus", encodeCsv(route.corpora));
+    if (route.sourceMethods?.length) params.set("method", encodeCsv(route.sourceMethods));
     const qs = params.toString();
     return qs ? `#/network?${qs}` : "#/network";
   }
@@ -337,9 +348,9 @@ export function routeHash(route: Route): string {
     const params = new URLSearchParams();
     if (route.minConfidence !== undefined)
       params.set("min_confidence", String(route.minConfidence));
-    if (route.sourceAuthors?.length) params.set("source", route.sourceAuthors.join(","));
-    if (route.corpora?.length) params.set("corpus", route.corpora.join(","));
-    if (route.sourceMethods?.length) params.set("method", route.sourceMethods.join(","));
+    if (route.sourceAuthors?.length) params.set("source", encodeCsv(route.sourceAuthors));
+    if (route.corpora?.length) params.set("corpus", encodeCsv(route.corpora));
+    if (route.sourceMethods?.length) params.set("method", encodeCsv(route.sourceMethods));
     const qs = params.toString();
     return qs ? `#/network/${sub}?${qs}` : `#/network/${sub}`;
   }

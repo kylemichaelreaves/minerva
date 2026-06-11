@@ -77,17 +77,17 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
-    expect(container.querySelectorAll(".line .num")[0].textContent).toBe("509d");
-    expect(container.querySelectorAll(".line .num")[1].textContent).toBe("510a");
+    expect(container.querySelectorAll(".line .num")[0]!.textContent).toBe("509d");
+    expect(container.querySelectorAll(".line .num")[1]!.textContent).toBe("510a");
     // Greek chunks are tokenized into per-word .gw spans inside
     // HoverTips. Reading the line's textContent would pick up the
     // hidden tooltip bodies too, so assert against the visible word
     // spans directly. Each .gw also carries a sibling tooltip whose
     // .hovertip-text holds the romanization.
     const lines = container.querySelectorAll(".line");
-    const words = lines[0].querySelectorAll(".gw");
+    const words = lines[0]!.querySelectorAll(".gw");
     expect(Array.from(words, (w) => w.textContent)).toEqual(["τοῦ", "πατρός"]);
-    const tips = lines[0].querySelectorAll(".hovertip-text");
+    const tips = lines[0]!.querySelectorAll(".hovertip-text");
     expect(Array.from(tips, (t) => t.textContent)).toEqual(["tou", "patros"]);
     // 'Plato' appears in both the chrome and the head — check via byline.
     expect(container.querySelector(".byline")?.textContent).toContain("Plato");
@@ -100,10 +100,10 @@ describe("<Reader />", () => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
     const buttons = container.querySelectorAll(".lang button");
-    expect(buttons[0].classList.contains("on")).toBe(true);
-    fireEvent.click(buttons[1]); // FR
-    expect(buttons[1].classList.contains("on")).toBe(true);
-    expect(buttons[0].classList.contains("on")).toBe(false);
+    expect(buttons[0]!.classList.contains("on")).toBe(true);
+    fireEvent.click(buttons[1]!); // FR
+    expect(buttons[1]!.classList.contains("on")).toBe(true);
+    expect(buttons[0]!.classList.contains("on")).toBe(false);
   });
 
   it("does not render the right rail until a translation is requested", async () => {
@@ -200,7 +200,7 @@ describe("<Reader />", () => {
     });
     const marks = container.querySelectorAll(".term-mark");
     expect(Array.from(marks, (m) => m.textContent)).toEqual(["ὁμώνυμα"]);
-    expect(marks[0].getAttribute("data-term-id")).toBe("7");
+    expect(marks[0]!.getAttribute("data-term-id")).toBe("7");
     // The second word stays as an ordinary .gw with its romanization.
     const greekWords = container.querySelectorAll(".gw");
     expect(Array.from(greekWords, (w) => w.textContent)).toEqual(["λόγος"]);
@@ -359,7 +359,7 @@ describe("<Reader />", () => {
     });
     // Click the second word (Geist).
     const words = container.querySelectorAll(".gw");
-    fireEvent.click(words[1]);
+    fireEvent.click(words[1]!);
     // Wait for translate fetch + rail render.
     await waitFor(() => {
       if (translateBody === null) throw new Error("not yet");
@@ -440,7 +440,7 @@ describe("<Reader />", () => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
     const geist = container.querySelectorAll(".gw")[1];
-    fireEvent.click(geist);
+    fireEvent.click(geist!);
     // First page: 10 samples + a Show-more button.
     await waitFor(() => {
       expect(container.querySelectorAll(".wordinfo-samples li").length).toBe(10);
@@ -516,7 +516,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[0]);
+    fireEvent.click(container.querySelectorAll(".gw")[0]!);
     // Rail opens and in-text highlights paint.
     await waitFor(() => {
       expect(container.querySelector(".rail.open")).not.toBeNull();
@@ -576,7 +576,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[1]);
+    fireEvent.click(container.querySelectorAll(".gw")[1]!);
     await waitFor(() => {
       expect(container.querySelector(".rail.open")).not.toBeNull();
     });
@@ -645,7 +645,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[0]);
+    fireEvent.click(container.querySelectorAll(".gw")[0]!);
     // In-text: both λόγος sites get .lemma-hl after the fetch lands.
     await waitFor(() => {
       expect(container.querySelectorAll(".gw.lemma-hl").length).toBe(2);
@@ -700,7 +700,7 @@ describe("<Reader />", () => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
     // Click "Geist" (second word).
-    fireEvent.click(container.querySelectorAll(".gw")[1]);
+    fireEvent.click(container.querySelectorAll(".gw")[1]!);
     await waitFor(() => {
       expect(container.querySelector(".wordinfo-morph")).not.toBeNull();
     });
@@ -751,7 +751,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[1]);
+    fireEvent.click(container.querySelectorAll(".gw")[1]!);
     await waitFor(() => {
       expect(container.querySelector(".wordinfo-count")).not.toBeNull();
     });
@@ -847,7 +847,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[1]);
+    fireEvent.click(container.querySelectorAll(".gw")[1]!);
     await waitFor(() => {
       expect(container.querySelector(".rail .translation")?.textContent).toContain(
         "spirit",
@@ -857,7 +857,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelector(".rail.open")).toBeNull();
     });
-    const geist = container.querySelectorAll(".gw")[1];
+    const geist = container.querySelectorAll(".gw")[1]!;
     fireEvent.mouseEnter(geist);
     await waitFor(() => {
       const tip = geist.closest(".hovertip-wrap")?.querySelector(".hovertip-text");

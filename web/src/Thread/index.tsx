@@ -33,17 +33,26 @@ export default function Thread(props: ThreadProps) {
       <Index each={props.messages}>
         {(msg, index) => (
           <div data-turn-id={turnId(msg(), index)}>
-            {msg().role === "user" ? (
+            {/* <Show> (not a plain ternary) — the ternary re-evaluated as a
+                whole whenever msg() changed, tearing down and recreating
+                MinervaTurnView on every SSE delta and wiping its
+                useCitationExpand state on finalize. Show keys on the
+                condition's truthiness; while the role stays the same only
+                the lazy prop getters re-run. */}
+            <Show
+              when={msg().role === "user"}
+              fallback={
+                <MinervaTurnView
+                  msg={msg() as MinervaTurn}
+                  marginNotes={props.marginNotes}
+                  pinnedChunkIds={props.pinnedChunkIds}
+                  onTogglePin={props.onTogglePin}
+                  onOpenReader={props.onOpenReader}
+                />
+              }
+            >
               <UserTurnView msg={msg() as UserTurn} />
-            ) : (
-              <MinervaTurnView
-                msg={msg() as MinervaTurn}
-                marginNotes={props.marginNotes}
-                pinnedChunkIds={props.pinnedChunkIds}
-                onTogglePin={props.onTogglePin}
-                onOpenReader={props.onOpenReader}
-              />
-            )}
+            </Show>
           </div>
         )}
       </Index>

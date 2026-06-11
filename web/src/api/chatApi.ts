@@ -1,6 +1,8 @@
-// Chat + conversations API. Sends `{query, history}` to POST /api/chat
-// and maps the JSON response into the shape Thread/Turn components
-// expect; conversation CRUD lives here too.
+// Chat + conversations API. Streams `{query, history, stream: true}`
+// to POST /api/chat over SSE and maps the events into the shape
+// Thread/Turn components expect; conversation CRUD lives here too.
+// (A non-streaming `chat()` used to live here as well — it was dead
+// production code that had drifted from the streaming path.)
 //
 // In dev, Vite proxies /api → http://localhost:8000 (see vite.config.ts).
 // In prod, the same Python process serves both /api and the static
@@ -8,7 +10,6 @@
 
 import type {
   ChatHistoryMessage,
-  ChatResponse,
   ChatStreamDone,
   ChatStreamMeta,
   Conversation,
@@ -81,72 +82,21 @@ export function buildChatBody(args: ChatArgs & { stream?: boolean }): Record<str
   return body;
 }
 
-export async function chat({
-  query,
-  history = [],
-  speaker,
-  rewrite,
-  pinnedChunkIds,
-  conversationId,
-  replyLang,
-  workId,
-  signal,
-}: ChatArgs): Promise<MinervaTurn> {
-  let r: Response;
-  try {
-    r = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildChatBody({ query, history, speaker, rewrite, pinnedChunkIds, conversationId, replyLang, workId })),
-      signal,
-    });
-  } catch (err) {
-    // Propagate abort up so the caller (App.tsx) can drop the result
-    // rather than rendering a stale "(I couldn't reach the corpus.)"
-    // message for a request the user explicitly cancelled.
-    if (isAbortError(err)) throw err;
-    const msg = errorMessage(err);
-    return errorTurn(`Network error: ${msg}. Is the server running on :8000?`);
-  }
-  if (!r.ok) {
-    return errorTurn(await readErrorDetail(r));
-  }
-  let json: Partial<ChatResponse>;
-  try {
-    json = (await r.json()) as Partial<ChatResponse>;
-  } catch (err) {
-    const msg = errorMessage(err);
-    return errorTurn(`Server returned invalid JSON: ${msg}`);
-  }
-  const renumbered = renumberCitations({
-    paragraphs: json.paragraphs ?? [],
-    citations: json.citations ?? [],
-  });
-  return {
-    role: "minerva",
-    time: nowTime(),
-    dominant: asDominant(json.dominant),
-    paragraphs: renumbered.paragraphs,
-    citations: renumbered.citations,
-    abstained: json.abstained ?? false,
-    conversation_id: json.conversation_id,
-    title: json.title,
-    missing_pinned_ids: json.missing_pinned_ids,
-  };
-}
-
-/** Parse accumulated SSE bytes into discrete events. Returns unconsumed tail. */
+/** Parse accumulated SSE bytes into discrete events. Returns unconsumed tail.
+ *  Splits on blank lines with optional carriage returns — proxies that
+ *  normalize the stream to CRLF would otherwise never produce a block
+ *  boundary and the buffer would grow forever. */
 export function parseSseBuffer(
   buffer: string,
 ): { events: { name: string; data: string }[]; rest: string } {
   const events: { name: string; data: string }[] = [];
-  const blocks = buffer.split("\n\n");
+  const blocks = buffer.split(/\r?\n\r?\n/);
   const rest = blocks.pop() ?? "";
   for (const block of blocks) {
     if (!block.trim()) continue;
     let name = "message";
     const dataLines: string[] = [];
-    for (const line of block.split("\n")) {
+    for (const line of block.split(/\r?\n/)) {
       if (line.startsWith("event:")) {
         name = line.slice(6).trim();
       } else if (line.startsWith("data:")) {
@@ -174,9 +124,13 @@ export async function chatStream(
       signal: args.signal,
     });
   } catch (err) {
+    // Propagate abort up so the caller can drop the result rather than
+    // rendering a stale error message for a request the user cancelled.
     if (isAbortError(err)) throw err;
     const msg = errorMessage(err);
-    handlers.onError(`Network error: ${msg}. Is the server running on :8000?`);
+    // Same-origin in prod, Vite proxy in dev — either way the request
+    // didn't reach the Minerva server, so keep the copy generic.
+    handlers.onError(`Network error: ${msg}. The Minerva server may be unreachable.`);
     return;
   }
   if (!r.ok) {
@@ -207,15 +161,36 @@ export async function chatStream(
           return;
         }
         if (ev.name === "meta") {
-          meta = payload as unknown as ChatStreamMeta;
+          // Defensive normalization — mirror the guards the JSON
+          // hydrate path applies. A malformed meta payload shouldn't
+          // poison every downstream `meta?.…` read.
+          const rawMeta = payload as Partial<ChatStreamMeta>;
+          meta = {
+            citations: Array.isArray(rawMeta.citations) ? rawMeta.citations : [],
+            abstained: rawMeta.abstained ?? false,
+            backend: typeof rawMeta.backend === "string" ? rawMeta.backend : "",
+            conversation_id:
+              typeof rawMeta.conversation_id === "string" ? rawMeta.conversation_id : "",
+            title: rawMeta.title,
+            missing_pinned_ids: Array.isArray(rawMeta.missing_pinned_ids)
+              ? rawMeta.missing_pinned_ids
+              : undefined,
+          };
           handlers.onMeta(meta);
         } else if (ev.name === "delta") {
           const text = payload.text;
           if (typeof text === "string" && text) handlers.onDelta(text);
         } else if (ev.name === "done") {
-          const doneEv = payload as unknown as ChatStreamDone;
+          const doneEv = payload as Partial<ChatStreamDone>;
+          // A done event whose paragraphs is present but not an array
+          // is malformed — surface it as a stream error instead of
+          // letting renumberCitations throw mid-handler.
+          if (doneEv.paragraphs !== undefined && !Array.isArray(doneEv.paragraphs)) {
+            handlers.onError("Server sent a malformed done event.");
+            return;
+          }
           const renumbered = renumberCitations({
-            paragraphs: doneEv.paragraphs,
+            paragraphs: doneEv.paragraphs ?? [],
             citations: meta?.citations ?? [],
           });
           handlers.onDone({

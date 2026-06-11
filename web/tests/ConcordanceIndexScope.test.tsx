@@ -114,7 +114,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = fetchLemmaIndex.mock.calls[0][0] as Record<string, unknown>;
+    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
     expect(args.scope).toBe("work");
     expect(args.work).toBe("Kritik der reinen Vernunft");
     expect(await screen.findByText("Begriff")).toBeInTheDocument();

@@ -3,7 +3,7 @@
 //   /api/concordance/index?lang=deu&scope=corpus&letter=A&sort=freq
 //   /api/concordance/lemma?lemma=Geist&lang=deu&scope=work&work=…
 
-import { apiGet } from "~/api/client";
+import { apiGet, qs } from "~/api/client";
 
 export type ConcScope = "corpus" | "author" | "work";
 export type ConcSort = "freq" | "alpha" | "pos";
@@ -120,22 +120,12 @@ export interface LemmaDetailArgs {
   offset?: number;
 }
 
-function _qs(params: Record<string, string | number | undefined>): string {
-  const u = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === "") continue;
-    u.set(k, String(v));
-  }
-  const s = u.toString();
-  return s ? `?${s}` : "";
-}
-
 export async function fetchLemmaIndex(
   args: LemmaIndexArgs,
   signal?: AbortSignal,
 ): Promise<LemmaIndexResponse> {
   return apiGet<LemmaIndexResponse>(
-    `/api/concordance/index${_qs({
+    `/api/concordance/index${qs({
       lang: args.lang,
       scope: args.scope,
       author: args.author,
@@ -163,7 +153,7 @@ export async function fetchLemmaDetail(
         .join(",")
     : undefined;
   return apiGet<LemmaDetailResponse>(
-    `/api/concordance/lemma${_qs({
+    `/api/concordance/lemma${qs({
       lemma: args.lemma,
       lang: args.lang,
       scope: args.scope,

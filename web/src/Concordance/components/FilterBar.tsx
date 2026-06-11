@@ -3,9 +3,15 @@
 // scope pill on the index page. The mobile filter sheet renders the
 // same groups stacked.
 
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { isConcSort, type ConcScope, type ConcSort } from "~/api/concordanceApi";
 import { Select, type SelectOption } from "~/components/Select";
+
+/** Debounce window for the lemma search box. Each commit patches the
+ *  URL and refetches the lemma index, so per-keystroke commits were a
+ *  refetch storm; 250 ms is short enough to feel live. Enter/blur
+ *  flush immediately. */
+export const SEARCH_DEBOUNCE_MS = 250;
 
 /** UD POS tags that show up on the leaderboard. The backend default
  *  whitelist is content words (NOUN/VERB/ADJ/PROPN); the dropdown lets
@@ -127,10 +133,35 @@ export function FreqRange(props: {
   onChange: (min: number | undefined, max: number | undefined) => void;
 }) {
   const ceil = () => Math.max(1, props.ceil);
-  const lo = () => props.min ?? 1;
-  const hi = () => props.max ?? ceil();
+  // Live drag state. Each `onChange` commit patches the URL and
+  // refetches the lemma index, so committing per `input` event made a
+  // drag fire one refetch per pixel. Instead, `input` only updates the
+  // local drag value (fill bar + edge labels track the knob live) and
+  // the commit happens on `change` — which range inputs fire on
+  // release. null = not dragging, follow the URL-bound props.
+  const [loDrag, setLoDrag] = createSignal<number | null>(null);
+  const [hiDrag, setHiDrag] = createSignal<number | null>(null);
+  const lo = () => loDrag() ?? props.min ?? 1;
+  const hi = () => hiDrag() ?? props.max ?? ceil();
   const loPct = () => Math.min(99, Math.max(0, ((lo() - 1) / (ceil() - 1)) * 100));
   const hiPct = () => Math.min(100, Math.max(1, ((hi() - 1) / (ceil() - 1)) * 100));
+
+  // Don't let the knobs cross — clamp to the opposite bound so the
+  // slider can't invert (the backend tolerates it, but the UX is
+  // confusing).
+  const clampLo = (v: number) => Math.min(v, hi());
+  const clampHi = (v: number) => Math.max(v, lo());
+
+  const commitLo = (raw: number) => {
+    const v = clampLo(raw);
+    props.onChange(v <= 1 ? undefined : v, props.max);
+    setLoDrag(null);
+  };
+  const commitHi = (raw: number) => {
+    const v = clampHi(raw);
+    props.onChange(props.min, v >= ceil() ? undefined : v);
+    setHiDrag(null);
+  };
 
   let loEl: HTMLInputElement | undefined;
   let hiEl: HTMLInputElement | undefined;
@@ -158,29 +189,16 @@ export function FreqRange(props: {
           class="thumb"
           type="range"
           min={1}
-          onInput={(e) => {
-            const v = Number(e.currentTarget.value);
-            const nextMin = v <= 1 ? undefined : v;
-            // Don't push past the upper knob — clamp to hi() so the
-            // slider can't invert (the backend tolerates it, but the
-            // UX is confusing).
-            const clamped =
-              nextMin !== undefined && nextMin > hi() ? hi() : nextMin;
-            props.onChange(clamped, props.max);
-          }}
+          onInput={(e) => setLoDrag(clampLo(Number(e.currentTarget.value)))}
+          onChange={(e) => commitLo(Number(e.currentTarget.value))}
         />
         <input
           ref={hiEl}
           class="thumb"
           type="range"
           min={1}
-          onInput={(e) => {
-            const v = Number(e.currentTarget.value);
-            const nextMax = v >= ceil() ? undefined : v;
-            const clamped =
-              nextMax !== undefined && nextMax < lo() ? lo() : nextMax;
-            props.onChange(props.min, clamped);
-          }}
+          onInput={(e) => setHiDrag(clampHi(Number(e.currentTarget.value)))}
+          onChange={(e) => commitHi(Number(e.currentTarget.value))}
         />
       </span>
       <span class="ed">{hi().toLocaleString()}</span>
@@ -189,6 +207,33 @@ export function FreqRange(props: {
 }
 
 export function FilterBar(props: FilterBarProps) {
+  // Local live value for the search box. Committing (URL patch +
+  // lemma-index refetch) is debounced; the input itself stays
+  // responsive per keystroke. Enter/blur flush immediately.
+  const [qLocal, setQLocal] = createSignal("");
+  // Seeds the initial value on mount and re-syncs on external changes
+  // (chip removal, back/forward, the other FilterBar instance
+  // committing).
+  createEffect(() => setQLocal(props.q ?? ""));
+  let qTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancelQTimer = () => {
+    if (qTimer !== undefined) {
+      clearTimeout(qTimer);
+      qTimer = undefined;
+    }
+  };
+  onCleanup(cancelQTimer);
+  const commitQ = () => {
+    cancelQTimer();
+    const next = qLocal().trim() || undefined;
+    if (next !== props.q) props.onSetQ(next);
+  };
+  const onQInput = (value: string) => {
+    setQLocal(value);
+    cancelQTimer();
+    qTimer = setTimeout(commitQ, SEARCH_DEBOUNCE_MS);
+  };
+
   const sortLabel = createMemo(() => {
     switch (props.sort) {
       case "alpha":
@@ -286,11 +331,12 @@ export function FilterBar(props: FilterBarProps) {
         <input
           type="text"
           placeholder="Find lemma — type any word…"
-          value={props.q ?? ""}
-          onInput={(e) => {
-            const v = e.currentTarget.value.trim();
-            props.onSetQ(v || undefined);
+          value={qLocal()}
+          onInput={(e) => onQInput(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitQ();
           }}
+          onBlur={commitQ}
         />
       </span>
     </div>

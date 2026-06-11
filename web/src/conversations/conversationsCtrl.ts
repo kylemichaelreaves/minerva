@@ -16,6 +16,7 @@ import {
   listConversations,
   nowTime,
 } from "~/api/chatApi";
+import { isApiErrorWithStatus } from "~/api/client";
 import { apiError } from "~/utils/apiError";
 import { isAbortError } from "~/utils/util";
 import { askMinerva } from "~/conversations/conversationsSend";
@@ -145,9 +146,21 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
     } catch (err) {
       if (isAbortError(err)) return;
       console.warn(`failed to hydrate conversation ${id}`, err);
-      apiError("That conversation is no longer available.");
-      if (activeId() === id) routing.navigate({ kind: "landing" });
-      void refreshHistory();
+      if (isApiErrorWithStatus(err, 404)) {
+        // The conversation genuinely doesn't exist anymore (deleted on
+        // another tab, stale bookmark) — leave it.
+        apiError("That conversation is no longer available.");
+        if (activeId() === id) routing.navigate({ kind: "landing" });
+        void refreshHistory();
+      } else {
+        // Transient failure (500, network blip): keep the user's
+        // place and let them retry — navigating away here destroyed
+        // perfectly good conversations on flaky connections. Clearing
+        // lastHydratedId lets re-picking the thread re-attempt the
+        // hydrate.
+        apiError("Couldn't load that conversation. Check the connection and try again.");
+        if (lastHydratedId === id) lastHydratedId = null;
+      }
     } finally {
       if (hydrateController === controller) {
         hydrateController = undefined;

@@ -15,8 +15,8 @@ import type { Citation, CitationFragment } from "~/utils/types";
 export function splitCitations(text: unknown): CitationFragment[] {
   if (typeof text !== "string" || !text) return [];
   return text.split(/(\[\d+\])/g).map<CitationFragment>((part) => {
-    const m = /^\[(\d+)\]$/.exec(part);
-    return m ? { kind: "cite", n: parseInt(m[1], 10) } : part;
+    const digits = /^\[(\d+)\]$/.exec(part)?.[1];
+    return digits !== undefined ? { kind: "cite", n: parseInt(digits, 10) } : part;
   });
 }
 

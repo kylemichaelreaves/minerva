@@ -112,11 +112,11 @@ const Stage: Component<StageProps> = (props) => (
 // visibly similar to the production reader. Used in all four state
 // rows — the marker placement on the middle line is what changes.
 
-const LINES_LATIN: { num: string; text: string }[] = [
+const LINES_LATIN = [
   { num: "§43.2", text: "Quemadmodum enim non est verum esse omnium quae sunt, ita" },
   { num: "§43.3", text: "non est unum quod omnia sunt; sed est aliquid quod magis est et" },
   { num: "§43.4", text: "magis unum quam cetera. Hoc autem est ipsum esse subsistens." },
-];
+] as const;
 
 // Density sample — Augustine, Confessiones X.6.4–13. Real Latin from
 // the corpus's _smoke.yaml seed — same passage the design's density

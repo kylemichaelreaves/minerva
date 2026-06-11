@@ -1,4 +1,4 @@
-import { apiGet, apiPatch } from "~/api/client";
+import { apiGet, apiPatch, qs } from "~/api/client";
 import type {
   Reference,
   ReferencesListResponse,
@@ -24,13 +24,12 @@ export async function fetchReferencesMap(
   args: { lang?: string; from?: number; limit?: number } = {},
   signal?: AbortSignal,
 ): Promise<ReferencesMap> {
-  const params = new URLSearchParams();
-  if (args.lang) params.set("lang", args.lang);
-  if (args.from !== undefined) params.set("from", String(args.from));
-  if (args.limit !== undefined) params.set("limit", String(args.limit));
-  const qs = params.toString();
   return apiGet<ReferencesMap>(
-    `/api/works/${workId}/references_map${qs ? `?${qs}` : ""}`,
+    `/api/works/${workId}/references_map${qs({
+      lang: args.lang,
+      from: args.from,
+      limit: args.limit,
+    })}`,
     signal,
   );
 }
@@ -48,19 +47,17 @@ export async function fetchReferencesList(
   } = {},
   signal?: AbortSignal,
 ): Promise<ReferencesListResponse> {
-  const params = new URLSearchParams();
-  if (args.sourceAuthor) params.set("source_author", args.sourceAuthor);
-  if (args.targetAuthor) params.set("target_author", args.targetAuthor);
-  if (args.targetWork) params.set("target_work", args.targetWork);
-  if (args.referenceType) params.set("reference_type", args.referenceType);
-  if (args.limit !== undefined) params.set("limit", String(args.limit));
-  if (args.offset !== undefined) params.set("offset", String(args.offset));
-  if (args.minConfidence !== undefined)
-    params.set("min_confidence", String(args.minConfidence));
-  if (args.includeRejected) params.set("include_rejected", "1");
-  const qs = params.toString();
   return apiGet<ReferencesListResponse>(
-    `/api/references${qs ? `?${qs}` : ""}`,
+    `/api/references${qs({
+      source_author: args.sourceAuthor,
+      target_author: args.targetAuthor,
+      target_work: args.targetWork,
+      reference_type: args.referenceType,
+      limit: args.limit,
+      offset: args.offset,
+      min_confidence: args.minConfidence,
+      include_rejected: args.includeRejected,
+    })}`,
     signal,
   );
 }
@@ -69,13 +66,11 @@ export async function fetchReferencesSources(
   args: { minConfidence?: number; includeRejected?: boolean } = {},
   signal?: AbortSignal,
 ): Promise<RefsSourcesResponse> {
-  const params = new URLSearchParams();
-  if (args.minConfidence !== undefined)
-    params.set("min_confidence", String(args.minConfidence));
-  if (args.includeRejected) params.set("include_rejected", "1");
-  const qs = params.toString();
   return apiGet<RefsSourcesResponse>(
-    `/api/references/sources${qs ? `?${qs}` : ""}`,
+    `/api/references/sources${qs({
+      min_confidence: args.minConfidence,
+      include_rejected: args.includeRejected,
+    })}`,
     signal,
   );
 }
@@ -91,18 +86,15 @@ export async function fetchReviewQueue(
   } = {},
   signal?: AbortSignal,
 ): Promise<ReviewQueueResponse> {
-  const params = new URLSearchParams();
-  if (args.limit !== undefined) params.set("limit", String(args.limit));
-  if (args.offset !== undefined) params.set("offset", String(args.offset));
-  if (args.sourceAuthor) params.set("source_author", args.sourceAuthor);
-  if (args.referenceType) params.set("reference_type", args.referenceType);
-  if (args.minConfidence !== undefined)
-    params.set("min_confidence", String(args.minConfidence));
-  if (args.maxConfidence !== undefined)
-    params.set("max_confidence", String(args.maxConfidence));
-  const qs = params.toString();
   return apiGet<ReviewQueueResponse>(
-    `/api/references/review_queue${qs ? `?${qs}` : ""}`,
+    `/api/references/review_queue${qs({
+      limit: args.limit,
+      offset: args.offset,
+      source_author: args.sourceAuthor,
+      reference_type: args.referenceType,
+      min_confidence: args.minConfidence,
+      max_confidence: args.maxConfidence,
+    })}`,
     signal,
   );
 }

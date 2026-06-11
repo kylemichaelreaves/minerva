@@ -144,7 +144,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
-    const url = fetchMock.mock.calls[0][0] as string;
+    const url = fetchMock.mock.calls[0]![0] as string;
     expect(url).toContain("source_author=Aquinas");
     expect(url).toContain("target_author=Aristotle");
     expect(url).toContain("reference_type=quotes");

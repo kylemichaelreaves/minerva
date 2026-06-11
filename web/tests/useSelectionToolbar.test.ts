@@ -59,12 +59,12 @@ describe("useSelectionToolbar persistence", () => {
       api.commitTranslate(toolbar);
       // After commit but before dismiss: highlight is active
       // (saved=false), nothing written yet.
-      expect(api.pinnedHighlights()[0].saved).toBe(false);
+      expect(api.pinnedHighlights()[0]!.saved).toBe(false);
       expect(localStorage.getItem("minerva:highlights:Republic")).toBeNull();
 
       // Dismiss → markAllPinnedSaved fires → localStorage written.
       api.markAllPinnedSaved();
-      expect(api.pinnedHighlights()[0].saved).toBe(true);
+      expect(api.pinnedHighlights()[0]!.saved).toBe(true);
       const raw = localStorage.getItem("minerva:highlights:Republic");
       expect(raw).not.toBeNull();
       const parsed = JSON.parse(raw ?? "") as unknown[];
@@ -147,11 +147,11 @@ describe("useSelectionToolbar persistence", () => {
         onLookupRequest: vi.fn(),
       });
       await flush();
-      expect(api.pinnedHighlights()[0].chunkId).toBe("rep-509d");
+      expect(api.pinnedHighlights()[0]!.chunkId).toBe("rep-509d");
       // Switch work — the effect re-runs and loads Phaedo's set.
       setWorkId("Phaedo");
       await flush();
-      expect(api.pinnedHighlights()[0].chunkId).toBe("phaedo-72e");
+      expect(api.pinnedHighlights()[0]!.chunkId).toBe("phaedo-72e");
       dispose();
     });
   });

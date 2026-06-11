@@ -1,27 +1,16 @@
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/Landing/corpusFacts";
+import { useElementSize } from "~/hooks/useElementSize";
 
 export function MatrixPanel(props: {
   authors: NetworkAuthor[];
   cells: MatrixCell[];
   onOpenPair: (source: string, target: string) => void;
 }) {
-  const [size, setSize] = createSignal({ w: 720, h: 460 });
   let wrapEl: HTMLDivElement | undefined;
+  const size = useElementSize(() => wrapEl, { w: 720, h: 460 });
   const [hover, setHover] = createSignal<MatrixCell | null>(null);
-
-  onMount(() => {
-    if (!wrapEl) return;
-    const ro = new ResizeObserver(() => {
-      // wrapEl can become undefined async; outer narrowing isn't visible here.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (!wrapEl) return;
-      setSize({ w: wrapEl.clientWidth, h: wrapEl.clientHeight });
-    });
-    ro.observe(wrapEl);
-    setSize({ w: wrapEl.clientWidth, h: wrapEl.clientHeight });
-  });
 
   const layout = createMemo(() => {
     const { w, h } = size();
@@ -37,6 +26,8 @@ export function MatrixPanel(props: {
   });
 
   const maxN = createMemo(() => Math.max(1, ...props.cells.map((c) => c.n)));
+
+  const authorName = (i: number): string => props.authors[i]?.name ?? "";
 
   function rampColor(n: number) {
     if (!n) return "transparent";
@@ -114,11 +105,11 @@ export function MatrixPanel(props: {
                     onMouseEnter={() => setHover(c)}
                     onMouseLeave={() => setHover(null)}
                     onClick={() =>
-                      props.onOpenPair(props.authors[c.r].name, props.authors[c.c].name)
+                      props.onOpenPair(authorName(c.r), authorName(c.c))
                     }
                   >
                     <title>
-                      {props.authors[c.r].name} → {props.authors[c.c].name}: {c.n.toLocaleString()}
+                      {authorName(c.r)} → {authorName(c.c)}: {c.n.toLocaleString()}
                     </title>
                   </rect>
                 )}
@@ -209,8 +200,8 @@ function MatrixTooltip(props: {
   return (
     <div class="net-tooltip" style={{ left: `${left()}px`, top: `${top()}px` }}>
       <div class="pair">
-        {props.authors[props.cell.r].name} <span class="arr">→</span>{" "}
-        {props.authors[props.cell.c].name}
+        {props.authors[props.cell.r]?.name} <span class="arr">→</span>{" "}
+        {props.authors[props.cell.c]?.name}
       </div>
       <div class="count">{props.cell.n.toLocaleString()} xrefs</div>
       <div class="hint">click to filter /refs ↘</div>

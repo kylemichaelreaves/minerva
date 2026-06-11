@@ -61,10 +61,10 @@ export function FilterRail(props: {
    *  accounts for >95% of the total as the locked value. */
   const lockedGender = createMemo(() => {
     const gs = orderedGenders();
-    if (gs.length === 0) return null;
-    if (gs.length === 1) return gs[0].value;
-    const total = gs.reduce((s, b) => s + b.count, 0);
     const top = gs[0];
+    if (top === undefined) return null;
+    if (gs.length === 1) return top.value;
+    const total = gs.reduce((s, b) => s + b.count, 0);
     return top.count / total > 0.95 ? top.value : null;
   });
 

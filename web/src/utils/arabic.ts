@@ -102,12 +102,15 @@ export function romanize(word: string): string {
 
   while (i < nfd.length) {
     const ch = nfd[i];
+    if (ch === undefined) break;
 
     // Gather the combining-marks cluster after this base char.
     let j = i + 1;
     const marks: string[] = [];
-    while (j < nfd.length && COMBINING_RE.test(nfd[j])) {
-      marks.push(nfd[j]);
+    for (;;) {
+      const m = nfd[j];
+      if (m === undefined || !COMBINING_RE.test(m)) break;
+      marks.push(m);
       j += 1;
     }
     const markSet = new Set(marks);
@@ -133,8 +136,8 @@ export function romanize(word: string): string {
     }
 
     // Base consonant lookup.
-    if (ch in ARABIC_BASE) {
-      const base = ARABIC_BASE[ch];
+    const base = ARABIC_BASE[ch];
+    if (base !== undefined) {
       // Step 1 — emit consonant (doubled if shadda is anywhere in
       // the cluster, regardless of its position relative to vowels).
       if (markSet.has(SHADDA) && base) {
@@ -148,8 +151,8 @@ export function romanize(word: string): string {
       let lastVowelEmit: "" | "a" | "i" | "u" = "";
       for (const m of marks) {
         if (m === SHADDA) continue;
-        if (m in TASHKEEL) {
-          const v = TASHKEEL[m];
+        const v = TASHKEEL[m];
+        if (v !== undefined) {
           out += v;
           // Remember the SHORT-VOWEL CLASS of the last vowel
           // emitted. Tanwin ("an"/"in"/"un") counts for its base
@@ -174,8 +177,9 @@ export function romanize(word: string): string {
 
     // Standalone tashkeel without an attached consonant (rare
     // edge case from leftover text-cleanup). Emit its vowel value.
-    if (ch in TASHKEEL) {
-      out += TASHKEEL[ch];
+    const standalone = TASHKEEL[ch];
+    if (standalone !== undefined) {
+      out += standalone;
       i += 1;
       continue;
     }

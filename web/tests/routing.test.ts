@@ -68,6 +68,33 @@ describe("readRoute", () => {
     }
   });
 
+  it("round-trips network multi-select values containing commas", () => {
+    // Multi-select chips serialize as CSV; a comma INSIDE a value must
+    // be component-encoded so it doesn't split into two values.
+    const route: Route = {
+      kind: "network",
+      minConfidence: undefined,
+      includeRejected: false,
+      sourceAuthors: ["Marcus Aurelius", "Pliny, the Elder"],
+      corpora: undefined,
+      sourceMethods: undefined,
+    };
+    const hash = routeHash(route);
+    expect(withHash(hash, readRoute)).toEqual(route);
+  });
+
+  it("round-trips network-arc multi-select filters", () => {
+    const route: Route = {
+      kind: "network-arc",
+      minConfidence: 0.5,
+      sourceAuthors: ["Hegel", "Marx"],
+      corpora: ["scrip"],
+      sourceMethods: undefined,
+    };
+    const hash = routeHash(route);
+    expect(withHash(hash, readRoute)).toEqual(route);
+  });
+
   it("parses refs route with all filters", () => {
     expect(
       withHash(
