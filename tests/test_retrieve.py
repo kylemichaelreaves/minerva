@@ -247,6 +247,7 @@ def test_normalize_returns_python_floats_not_numpy_scalars():
 def _seed_reservation_db(tmp_path: Path):
     """Two chunks dense in common words (high BM25 breadth) and one carrying a
     rare term once — the shape that buries a key term in a verbose query."""
+
     def ch(cid: str, text: str) -> dict:
         return {
             "chunk_id": cid,
@@ -301,3 +302,75 @@ def test_reserved_term_ids_picks_rarest_token(tmp_path: Path):
         fold_lang=None,
     )
     assert ids == ["c"]
+
+
+# ---------- filtered vector search: memoized metadata (no per-request scan) ----------
+
+
+def _seed_embedded_db(tmp_path: Path):
+    conn = _seed_reservation_db(tmp_path)
+    store.upsert_embeddings(
+        conn,
+        model="t",
+        dim=3,
+        items=[
+            ("a", np.array([1.0, 0.0, 0.0], dtype=np.float32)),
+            ("b", np.array([0.0, 1.0, 0.0], dtype=np.float32)),
+            ("c", np.array([0.0, 0.0, 1.0], dtype=np.float32)),
+        ],
+    )
+    store.invalidate_embedding_cache()
+    return conn
+
+
+def test_filtered_vector_search_does_not_rescan_chunks_full(tmp_path: Path):
+    """Regression: every filtered vector search used to SELECT all of
+    chunks_full into a dict per request (under corpus_lock). The filter
+    columns are now memoized alongside the embedding matrix — after the
+    first call, no statement may touch chunks_full."""
+
+    conn = _seed_embedded_db(tmp_path)
+    qv = np.array([1.0, 0.2, 0.1], dtype=np.float32)
+    retrieve._vector_search(
+        conn, qv, top_k=3, lang="eng", corpus=None, speaker=None, min_chunk_chars=1
+    )  # warm
+    stmts: list[str] = []
+    conn.set_trace_callback(stmts.append)
+    hits = retrieve._vector_search(
+        conn, qv, top_k=3, lang="eng", corpus=None, speaker=None, min_chunk_chars=1
+    )
+    conn.set_trace_callback(None)
+    assert hits
+    assert not any("chunks_full" in s for s in stmts)
+
+
+def test_filtered_vector_search_filters_still_apply(tmp_path: Path):
+    conn = _seed_embedded_db(tmp_path)
+    qv = np.array([1.0, 0.2, 0.1], dtype=np.float32)
+    # Non-matching lang excludes everything.
+    assert retrieve._vector_search(conn, qv, top_k=3, lang="deu", corpus=None, speaker=None) == {}
+    # Matching lang + corpus returns the full set.
+    hits = retrieve._vector_search(conn, qv, top_k=3, lang="eng", corpus="test", speaker=None)
+    assert set(hits) == {"a", "b", "c"}
+    # min_chunk_chars excludes nothing here (all chunks are > 10 chars).
+    hits = retrieve._vector_search(
+        conn, qv, top_k=3, lang="eng", corpus=None, speaker=None, min_chunk_chars=10
+    )
+    assert set(hits) == {"a", "b", "c"}
+
+
+def test_filtered_vector_search_sees_reingested_metadata(tmp_path: Path):
+    """The memoized filter columns must be invalidated together with
+    the matrix cache when chunks are rewritten."""
+
+    conn = _seed_embedded_db(tmp_path)
+    qv = np.array([1.0, 0.2, 0.1], dtype=np.float32)
+    hits = retrieve._vector_search(conn, qv, top_k=3, lang="eng", corpus=None, speaker=None)
+    assert set(hits) == {"a", "b", "c"}  # warm cache
+    # Rewrite a chunk's lang (what a re-ingest can do) and invalidate,
+    # as insert_chunks does. The rebuilt filter columns must see it.
+    conn.execute("UPDATE chunks SET lang='deu' WHERE chunk_id='a'")
+    conn.commit()
+    store.invalidate_embedding_cache(conn)
+    hits = retrieve._vector_search(conn, qv, top_k=3, lang="eng", corpus=None, speaker=None)
+    assert set(hits) == {"b", "c"}

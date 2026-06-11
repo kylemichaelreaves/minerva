@@ -174,9 +174,7 @@ def insert_chunks(
     """
 
     if mode not in ("full", "incremental"):
-        raise ValueError(
-            f"insert_chunks mode must be 'full' or 'incremental'; got {mode!r}"
-        )
+        raise ValueError(f"insert_chunks mode must be 'full' or 'incremental'; got {mode!r}")
     if mode == "incremental" and corpora is None:
         raise ValueError(
             "insert_chunks mode='incremental' requires a `corpora` frozenset; "
@@ -187,10 +185,12 @@ def insert_chunks(
 
     # Pre-flight: how many xref rows are we trying to preserve? Used
     # both for the rebind logging and for the integrity check after.
-    xref_table_exists = conn.execute(
-        "SELECT name FROM sqlite_master "
-        "WHERE type='table' AND name='cross_references'"
-    ).fetchone() is not None
+    xref_table_exists = (
+        conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='cross_references'"
+        ).fetchone()
+        is not None
+    )
     xref_count_before = (
         conn.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0]
         if xref_table_exists
@@ -230,8 +230,7 @@ def insert_chunks(
             # narrowed xref rebind + orphan-sweep stages below.
             placeholders = ",".join("?" for _ in scope)
             scoped_rows = conn.execute(
-                f"SELECT chunk_id FROM chunks_full "
-                f"WHERE corpus IN ({placeholders})",
+                f"SELECT chunk_id FROM chunks_full WHERE corpus IN ({placeholders})",
                 tuple(scope),
             ).fetchall()
             deleted_chunk_ids = {row[0] for row in scoped_rows}
@@ -335,9 +334,7 @@ def insert_chunks(
         # read-only — safe to run inside the open transaction without
         # disturbing the pending writes.
         if xref_table_exists:
-            bad = conn.execute(
-                "PRAGMA foreign_key_check(cross_references)"
-            ).fetchall()
+            bad = conn.execute("PRAGMA foreign_key_check(cross_references)").fetchall()
             if bad:
                 raise RuntimeError(
                     f"insert_chunks left {len(bad)} FK violations in "
@@ -409,8 +406,7 @@ def _rebind_cross_references(conn: sqlite3.Connection, count_before: int) -> Non
     # are genuinely stale (the source passage changed enough that its
     # content-derived chunk_id moved); deleting them is correct.
     cur = conn.execute(
-        "DELETE FROM cross_references "
-        "WHERE source_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
+        "DELETE FROM cross_references WHERE source_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
     )
     orphans_source = cur.rowcount
 
@@ -443,9 +439,7 @@ def chunk_count(conn: sqlite3.Connection, *, lang: str | None = None) -> int:
 
     if lang is None:
         return conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-    return conn.execute(
-        "SELECT COUNT(*) FROM chunks_full WHERE lang=?", (lang,)
-    ).fetchone()[0]
+    return conn.execute("SELECT COUNT(*) FROM chunks_full WHERE lang=?", (lang,)).fetchone()[0]
 
 
 def iter_chunks(conn: sqlite3.Connection, *, lang: str | None = None) -> Iterator[sqlite3.Row]:
@@ -453,7 +447,6 @@ def iter_chunks(conn: sqlite3.Connection, *, lang: str | None = None) -> Iterato
     view. Callers (notably ``embed.py``) read ``row['work']`` etc., so
     keep returning that vocabulary."""
 
-    conn.row_factory = sqlite3.Row
     if lang is None:
         cursor = conn.execute("SELECT * FROM chunks_full ORDER BY chunk_id")
     else:
@@ -469,7 +462,6 @@ def fetch_chunks(conn: sqlite3.Connection, chunk_ids: Iterable[str]) -> dict[str
     from ``chunks_full`` so callers still see ``row['work']`` /
     ``row['author']`` / ``row['translator']`` etc."""
 
-    conn.row_factory = sqlite3.Row
     ids = list(chunk_ids)
     if not ids:
         return {}
@@ -487,7 +479,6 @@ def neighbor_ids(conn: sqlite3.Connection, chunk_id: str, *, window: int = 1) ->
     neighborhood iteration naturally stays within the same printed
     source — translations don't bleed into the parallel Greek."""
 
-    conn.row_factory = sqlite3.Row
     row = conn.execute(
         "SELECT edition_id, translation_id, ord FROM chunks WHERE chunk_id = ?",
         (chunk_id,),
@@ -523,7 +514,6 @@ def fetch_chunk_context(
     when ``radius == 0``. Focus is ``None`` when ``chunk_id`` is unknown.
     """
 
-    conn.row_factory = sqlite3.Row
     focus = conn.execute(
         "SELECT corpus, author, work, lang, chunk_id, section, book, page, "
         "speaker, text, ord FROM chunks_full WHERE chunk_id=?",

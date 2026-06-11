@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 import sqlite3
 import threading
 from collections.abc import Iterable, Iterator
 
 import numpy as np
 
-from .schema import _set_meta
+from .schema import _set_meta, get_meta
 
 
 def vector_to_blob(vec: np.ndarray) -> bytes:
@@ -49,6 +50,7 @@ def upsert_embeddings(
     )
     _set_meta(conn, "embeddings.model", model)
     _set_meta(conn, "embeddings.dim", str(dim))
+    bump_embedding_generation(conn)
     if commit:
         conn.commit()
     if invalidate_cache:
@@ -82,7 +84,6 @@ def iter_chunks_without_embeddings(
     bottleneck remediation plan as Phase 1a.
     """
 
-    conn.row_factory = sqlite3.Row
     if lang is None:
         cursor = conn.execute(
             "SELECT cf.* FROM chunks_full cf "
@@ -137,17 +138,70 @@ def count_chunks_without_embeddings(
     return int(row[0])
 
 
+# Monotonic generation counter for the embeddings table, stored in
+# `meta`. Every code path that writes embeddings bumps it (the store
+# insert helper above; `cmd_embed` writes through that helper). The
+# cache below keys freshness on (generation, row count) — the row
+# count alone misses a same-count re-embed (new vectors, same ids),
+# and `id(conn)` alone can be reused by a different connection after
+# close. DBs predating the key read as generation 0 (still validated
+# on row count, as before).
+_GENERATION_KEY = "embeddings.generation"
+
+
+def embedding_generation(conn: sqlite3.Connection) -> int:
+    raw = get_meta(conn, _GENERATION_KEY)
+    try:
+        return int(raw) if raw is not None else 0
+    except ValueError:
+        return 0
+
+
+def bump_embedding_generation(conn: sqlite3.Connection) -> None:
+    """Increment the embeddings generation counter. Call after any
+    write to the embeddings table (insert, replace, delete)."""
+
+    _set_meta(conn, _GENERATION_KEY, str(embedding_generation(conn) + 1))
+
+
+@dataclasses.dataclass
+class EmbeddingChunkMeta:
+    """Per-chunk filter columns aligned 1:1 with the cached embedding
+    ids/matrix. Fixed-width numpy arrays so vector-search filters run
+    as vectorized comparisons instead of a per-request Python loop.
+    Chunks missing from `chunks_full` (orphan embeddings) get sentinel
+    values that fail every filter — same semantics as the old
+    per-request dict lookup with a MISS default."""
+
+    langs: np.ndarray  # unicode
+    corpora: np.ndarray  # unicode
+    speakers_lower: np.ndarray  # unicode, lowercased, "" for NULL
+    text_lens: np.ndarray  # int64, 0 for missing
+    work_ids: np.ndarray  # int64, -1 for NULL/missing
+
+
+@dataclasses.dataclass
+class _CacheEntry:
+    generation: int
+    row_count: int
+    ids: list[str]
+    matrix: np.ndarray
+    # Lazily built on the first *filtered* vector search; unfiltered
+    # searches never pay for the chunks_full scan.
+    meta: EmbeddingChunkMeta | None = None
+
+
 # Embedding matrix cache. The corpus is ~35k chunks today; reading
 # every embedding row + stacking into a float32 matrix on each hybrid
 # search dominated retrieval latency at scale. We memoize keyed on the
-# connection's `id()` and the embeddings row count: a re-ingest changes
-# the count (and the chunks themselves), invalidating naturally.
+# connection's `id()`, with freshness validated against the generation
+# counter + row count above.
 #
 # Module-level dict, not per-connection, because the connection identity
 # survives across server requests (one connection per worker process).
 # Cleared by `upsert_embeddings` so a fresh embed run on a live server
 # is reflected immediately.
-_EMBEDDING_CACHE: dict[int, tuple[int, list[str], np.ndarray]] = {}
+_EMBEDDING_CACHE: dict[int, _CacheEntry] = {}
 # Serialize cache misses so two concurrent first-requests don't both
 # stack-load the full embeddings table (audit-flagged: a heavy load
 # under the corpus lock could chew CPU + memory at startup). Hits stay
@@ -156,32 +210,71 @@ _EMBEDDING_CACHE: dict[int, tuple[int, list[str], np.ndarray]] = {}
 _EMBEDDING_CACHE_LOCK = threading.Lock()
 
 
-def load_all_embeddings(
-    conn: sqlite3.Connection,
-) -> tuple[list[str], np.ndarray]:
+def _fresh_entry(conn: sqlite3.Connection) -> _CacheEntry:
     row_count = conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
+    generation = embedding_generation(conn)
     cached = _EMBEDDING_CACHE.get(id(conn))
-    if cached is not None and cached[0] == row_count:
-        return cached[1], cached[2]
+    if cached is not None and cached.row_count == row_count and cached.generation == generation:
+        return cached
     # Slow path. Acquire the lock and re-check — another thread may
     # have populated the cache while we were waiting (the classic
     # double-checked-locking pattern, but safe in CPython because dict
     # mutation is atomic).
     with _EMBEDDING_CACHE_LOCK:
         cached = _EMBEDDING_CACHE.get(id(conn))
-        if cached is not None and cached[0] == row_count:
-            return cached[1], cached[2]
-        rows = conn.execute(
-            "SELECT chunk_id, vector FROM embeddings ORDER BY chunk_id"
-        ).fetchall()
+        if cached is not None and cached.row_count == row_count and cached.generation == generation:
+            return cached
+        rows = conn.execute("SELECT chunk_id, vector FROM embeddings ORDER BY chunk_id").fetchall()
         if not rows:
-            empty = ([], np.zeros((0, 0), dtype=np.float32))
-            _EMBEDDING_CACHE[id(conn)] = (0, *empty)
-            return empty
-        ids = [r[0] for r in rows]
-        vectors = np.stack([blob_to_vector(r[1]) for r in rows])
-        _EMBEDDING_CACHE[id(conn)] = (row_count, ids, vectors)
-        return ids, vectors
+            entry = _CacheEntry(generation, 0, [], np.zeros((0, 0), dtype=np.float32))
+        else:
+            ids = [r[0] for r in rows]
+            vectors = np.stack([blob_to_vector(r[1]) for r in rows])
+            entry = _CacheEntry(generation, row_count, ids, vectors)
+        _EMBEDDING_CACHE[id(conn)] = entry
+        return entry
+
+
+def load_all_embeddings(
+    conn: sqlite3.Connection,
+) -> tuple[list[str], np.ndarray]:
+    entry = _fresh_entry(conn)
+    return entry.ids, entry.matrix
+
+
+def load_embeddings_with_meta(
+    conn: sqlite3.Connection,
+) -> tuple[list[str], np.ndarray, EmbeddingChunkMeta]:
+    """`load_all_embeddings` plus the aligned per-chunk filter columns.
+
+    The meta arrays are memoized alongside the matrix with the same
+    invalidation, so filtered vector searches don't re-scan
+    `chunks_full` (~hundreds of k rows through view joins) on every
+    request — audit-flagged as the dominant per-request cost under
+    `corpus_lock`."""
+
+    entry = _fresh_entry(conn)
+    if entry.meta is not None:
+        return entry.ids, entry.matrix, entry.meta
+    with _EMBEDDING_CACHE_LOCK:
+        if entry.meta is not None:
+            return entry.ids, entry.matrix, entry.meta
+        by_id = {
+            r[0]: (r[1], r[2], r[3], r[4], r[5])
+            for r in conn.execute(
+                "SELECT chunk_id, lang, corpus, speaker, length(text), work_id FROM chunks_full"
+            )
+        }
+        miss = ("", "", "", 0, None)
+        cols = [by_id.get(cid, miss) for cid in entry.ids]
+        entry.meta = EmbeddingChunkMeta(
+            langs=np.array([c[0] or "" for c in cols], dtype=np.str_),
+            corpora=np.array([c[1] or "" for c in cols], dtype=np.str_),
+            speakers_lower=np.array([(c[2] or "").lower() for c in cols], dtype=np.str_),
+            text_lens=np.array([c[3] or 0 for c in cols], dtype=np.int64),
+            work_ids=np.array([c[4] if c[4] is not None else -1 for c in cols], dtype=np.int64),
+        )
+        return entry.ids, entry.matrix, entry.meta
 
 
 def invalidate_embedding_cache(conn: sqlite3.Connection | None = None) -> None:
@@ -195,4 +288,3 @@ def invalidate_embedding_cache(conn: sqlite3.Connection | None = None) -> None:
             _EMBEDDING_CACHE.clear()
         else:
             _EMBEDDING_CACHE.pop(id(conn), None)
-

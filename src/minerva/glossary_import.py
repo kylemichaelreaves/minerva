@@ -20,6 +20,7 @@ an importer on the same spec is a no-op.
 from __future__ import annotations
 
 import contextlib
+import itertools
 import re
 import sqlite3
 import unicodedata
@@ -69,7 +70,6 @@ def apply_spec(
 
     use_lemmas = is_supported(spec.language)
 
-    conn.row_factory = sqlite3.Row
     if not dry_run:
         conn.execute("BEGIN")
     try:
@@ -206,6 +206,11 @@ def apply_spec(
 # Insert helpers (absorbed from scripts/seed_terms.py)
 # ──────────────────────────────────────────────────────────────────
 
+# Dry-run sentinel ids for terms that don't exist yet: a decrementing
+# counter starting at -1, so every sentinel is strictly negative and
+# never collides with a real (positive) PK.
+_DRY_RUN_IDS = itertools.count(-1, -1)
+
 
 def _ensure_term(
     conn: sqlite3.Connection,
@@ -216,7 +221,9 @@ def _ensure_term(
 ) -> int:
     """Upsert into ``terms`` by ``(source_form, source_language)``. On
     dry-run, returns the existing id when present and a negative
-    sentinel when not (the sentinel can't collide with a real PK)."""
+    sentinel when not (always < 0, so it can't collide with a real
+    AUTOINCREMENT PK — the previous hash-based sentinel could land on
+    0 and varied under hash randomization)."""
 
     row = conn.execute(
         "SELECT id FROM terms WHERE source_form = ? AND source_language = ?",
@@ -237,8 +244,9 @@ def _ensure_term(
             )
         return int(row[0])
     if dry_run:
-        # Stable per-source_form synthetic id for the dry-run report.
-        return -abs(hash(term.source_form)) | 1
+        # Synthetic id for the dry-run report; unique per call is fine
+        # because each spec term hits this at most once per run.
+        return next(_DRY_RUN_IDS)
     cur = conn.execute(
         "INSERT INTO terms (source_form, source_language, transliteration, "
         "lemma, short_gloss, long_description) VALUES (?, ?, ?, ?, ?, ?)",
@@ -396,11 +404,7 @@ def _section_payload(citation_system: str, section: str) -> dict[str, Any] | Non
     """
 
     bekker_first = citation_system == "bekker"
-    candidates = (
-        ("bekker", "paragraph_local")
-        if bekker_first
-        else ("paragraph_local", "bekker")
-    )
+    candidates = ("bekker", "paragraph_local") if bekker_first else ("paragraph_local", "bekker")
     for kind in candidates:
         if kind == "bekker":
             try:
@@ -471,28 +475,38 @@ def _chunks_in_apply(conn: sqlite3.Connection, apply: WorkApply) -> list[str]:
     we don't re-query for every term."""
 
     rows = conn.execute(
-        "SELECT chunk_id FROM chunks_full "
-        "WHERE work = ? AND edition_id = ? ORDER BY ord",
+        "SELECT chunk_id FROM chunks_full WHERE work = ? AND edition_id = ? ORDER BY ord",
         (apply.work_title, apply.edition_id),
     ).fetchall()
     return [r["chunk_id"] for r in rows]
 
 
-def _chunk_rows(
-    conn: sqlite3.Connection, chunk_ids: list[str]
-) -> list[tuple[str, str, str]]:
-    """Fetch (chunk_id, section, text) rows for the given ids. SQLite's
-    parameterised IN-list caps at ~999, but our work-window queries
-    stay well below that."""
+# Stay under SQLite's historical 999-bound-variable cap (the limit on
+# builds predating 3.32; modern builds allow ~32k but the old cap is
+# the portable floor). Psalms alone spans ~2,500 chunks, so the
+# IN-list must be batched.
+_IN_LIST_BATCH = 900
+
+
+def _chunk_rows(conn: sqlite3.Connection, chunk_ids: list[str]) -> list[tuple[str, str, str]]:
+    """Fetch (chunk_id, section, text) rows for the given ids, in
+    ``ord`` order. Batches the IN-list so works larger than SQLite's
+    bound-variable cap (e.g. Psalms ≈ 2,500 chunks) don't blow up."""
 
     if not chunk_ids:
         return []
-    placeholders = ",".join("?" * len(chunk_ids))
-    rows = conn.execute(
-        f"SELECT chunk_id, section, text FROM chunks_full "
-        f"WHERE chunk_id IN ({placeholders}) ORDER BY ord",
-        chunk_ids,
-    ).fetchall()
+    rows: list[sqlite3.Row] = []
+    for i in range(0, len(chunk_ids), _IN_LIST_BATCH):
+        batch = chunk_ids[i : i + _IN_LIST_BATCH]
+        placeholders = ",".join("?" * len(batch))
+        rows.extend(
+            conn.execute(
+                f"SELECT chunk_id, section, text, ord FROM chunks_full "
+                f"WHERE chunk_id IN ({placeholders})",
+                batch,
+            ).fetchall()
+        )
+    rows.sort(key=lambda r: r["ord"])
     return [(r["chunk_id"], r["section"], r["text"]) for r in rows]
 
 

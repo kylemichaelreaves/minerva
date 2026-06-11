@@ -14,6 +14,7 @@ import sqlite3
 import numpy as np
 
 from . import embed, orthography, store
+from .store.embeddings import load_embeddings_with_meta
 
 FTS_QUERY_SAFE = re.compile(r"[^\w\s]+", re.UNICODE)
 
@@ -120,7 +121,12 @@ def _fts_match(
         f"FROM {fts_table} "
         f"JOIN chunks ON chunks.rowid = {fts_table}.rowid" + full_join + " "
         f"WHERE {fts_table} MATCH ?"
-        + lang_sql + corpus_sql + work_sql + speaker_sql + min_chars_sql + " "
+        + lang_sql
+        + corpus_sql
+        + work_sql
+        + speaker_sql
+        + min_chars_sql
+        + " "
         "ORDER BY rank ASC LIMIT ?"
     )
     rows = conn.execute(
@@ -161,8 +167,12 @@ def _bm25_search(
     """
 
     common = {
-        "top_k": top_k, "lang": lang, "corpus": corpus, "speaker": speaker,
-        "work_id": work_id, "min_chunk_chars": min_chunk_chars,
+        "top_k": top_k,
+        "lang": lang,
+        "corpus": corpus,
+        "speaker": speaker,
+        "work_id": work_id,
+        "min_chunk_chars": min_chunk_chars,
     }
     exact = _fts_match(conn, "chunks_fts", _sanitize_fts_query(query), **common)
     if not orthography.has_canonicalizer(fold_lang):
@@ -203,12 +213,20 @@ def _reserved_term_ids(
     """
 
     tokens = {t for t in FTS_QUERY_SAFE.sub(" ", query).split() if len(t) >= _MIN_TERM_LEN}
+    canonical = {orthography.canonicalize(t, fold_lang) if fold_lang else t for t in tokens}
     rarest: tuple[int, str] | None = None  # (corpus-wide df, canonical token)
-    for t in tokens:
-        ct = orthography.canonicalize(t, fold_lang) if fold_lang else t
+    for ct in canonical:
+        # Cap the count scan at _RARE_DF_MAX + 1: a token past the
+        # reservation ceiling can never win, so there's no point
+        # walking the rest of a common word's posting list (this used
+        # to do a full corpus-wide count per token, serially, under
+        # the corpus lock). Exact df is preserved for every token that
+        # is still in contention (df <= _RARE_DF_MAX).
         df = conn.execute(
-            "SELECT count(*) FROM chunks_fts_norm WHERE chunks_fts_norm MATCH ?",
-            (f'"{ct}"',),
+            "SELECT count(*) FROM ("
+            "  SELECT 1 FROM chunks_fts_norm WHERE chunks_fts_norm MATCH ? LIMIT ?"
+            ")",
+            (f'"{ct}"', _RARE_DF_MAX + 1),
         ).fetchone()[0]
         if df and (rarest is None or df < rarest[0]):
             rarest = (df, ct)
@@ -239,9 +257,6 @@ def _vector_search(
     min_chunk_chars: int = 0,
     work_id: int | None = None,
 ) -> dict[str, float]:
-    ids, matrix = store.load_all_embeddings(conn)
-    if not ids:
-        return {}
     needs_filter = (
         lang not in {None, "any"}
         or corpus not in {None, "any"}
@@ -249,36 +264,30 @@ def _vector_search(
         or work_id is not None
         or min_chunk_chars > 0
     )
-    if needs_filter:
-        # Earlier this query bound one placeholder per chunk_id; with
-        # 215k embeddings in the index SQLite hits its parameter cap
-        # (~32k since 3.32, 999 before). A full table scan is cheap
-        # here (chunks_full is small per-row) and dodges the cap
-        # entirely. The Python-side filter still drops unmatched IDs.
-        rows = conn.execute(
-            "SELECT chunk_id, lang, corpus, speaker, length(text), work_id FROM chunks_full"
-        ).fetchall()
-        _MISS = ("", "", "", 0, None)
-        meta_by_id = {r[0]: (r[1], r[2], r[3], r[4], r[5]) for r in rows}
-        speaker_lower = speaker.lower() if speaker else None
-        keep = np.array(
-            [
-                (lang in {None, "any"} or meta_by_id.get(cid, _MISS)[0] == lang)
-                and (corpus in {None, "any"} or meta_by_id.get(cid, _MISS)[1] == corpus)
-                and (
-                    not speaker_lower
-                    or speaker_lower == "any"
-                    or (meta_by_id.get(cid, _MISS)[2] or "").lower() == speaker_lower
-                )
-                and (
-                    min_chunk_chars <= 0
-                    or meta_by_id.get(cid, _MISS)[3] >= min_chunk_chars
-                )
-                and (work_id is None or meta_by_id.get(cid, _MISS)[4] == work_id)
-                for cid in ids
-            ],
-            dtype=bool,
-        )
+    if not needs_filter:
+        ids, matrix = store.load_all_embeddings(conn)
+        if not ids:
+            return {}
+    else:
+        # Filter columns come memoized alongside the embedding matrix
+        # (same invalidation) — previously this scanned chunks_full
+        # (~375k rows through view joins) into a dict on EVERY filtered
+        # search, under the corpus lock. The vectorized masks below
+        # replace the old per-chunk Python loop.
+        ids, matrix, meta = load_embeddings_with_meta(conn)
+        if not ids:
+            return {}
+        keep = np.ones(len(ids), dtype=bool)
+        if lang not in {None, "any"}:
+            keep &= meta.langs == lang
+        if corpus not in {None, "any"}:
+            keep &= meta.corpora == corpus
+        if speaker and speaker != "any":
+            keep &= meta.speakers_lower == speaker.lower()
+        if min_chunk_chars > 0:
+            keep &= meta.text_lens >= min_chunk_chars
+        if work_id is not None:
+            keep &= meta.work_ids == work_id
         if not keep.any():
             return {}
         ids = [c for c, k in zip(ids, keep, strict=True) if k]
@@ -328,15 +337,28 @@ def search(
     """
 
     bm25_raw = _bm25_search(
-        conn, query, top_k=fetch_pool, lang=lang, corpus=corpus, speaker=speaker,
-        min_chunk_chars=min_chunk_chars, fold_lang=fold_lang, work_id=work_id,
+        conn,
+        query,
+        top_k=fetch_pool,
+        lang=lang,
+        corpus=corpus,
+        speaker=speaker,
+        min_chunk_chars=min_chunk_chars,
+        fold_lang=fold_lang,
+        work_id=work_id,
     )
     vec_raw: dict[str, float] = {}
     if embedder is not None and store.has_embeddings(conn):
         q_vec = embedder.encode([query])[0]
         vec_raw = _vector_search(
-            conn, q_vec, top_k=fetch_pool, lang=lang, corpus=corpus, speaker=speaker,
-            min_chunk_chars=min_chunk_chars, work_id=work_id,
+            conn,
+            q_vec,
+            top_k=fetch_pool,
+            lang=lang,
+            corpus=corpus,
+            speaker=speaker,
+            min_chunk_chars=min_chunk_chars,
+            work_id=work_id,
         )
 
     bm25_n = _normalize_scores(bm25_raw)
@@ -359,18 +381,27 @@ def search(
     # in the question can't be displaced by thematically-similar (vector) or
     # common-word (BM25-breadth) matches. No-op for generic/conceptual queries.
     reserved = _reserved_term_ids(
-        conn, query, lang=lang, corpus=corpus, speaker=speaker,
-        work_id=work_id, min_chunk_chars=min_chunk_chars, fold_lang=fold_lang,
+        conn,
+        query,
+        lang=lang,
+        corpus=corpus,
+        speaker=speaker,
+        work_id=work_id,
+        min_chunk_chars=min_chunk_chars,
+        fold_lang=fold_lang,
     )
     forced = [cid for cid in reserved if cid not in selected]
     if forced:
         keep = selected[: max(0, top_k - len(forced))]
         selected = sorted({*keep, *forced}, key=lambda c: fused.get(c, 0.0), reverse=True)[:top_k]
     base_ids = selected
+    # One neighbor query per hit, reused for the text assembly below
+    # (this used to hit `neighbor_ids` a second time per hit).
+    neighbors = {cid: store.neighbor_ids(conn, cid, window=expand_neighbors) for cid in base_ids}
     expanded_ids: list[str] = []
     seen: set[str] = set()
     for cid in base_ids:
-        for nid in store.neighbor_ids(conn, cid, window=expand_neighbors):
+        for nid in neighbors[cid]:
             if nid not in seen:
                 seen.add(nid)
                 expanded_ids.append(nid)
@@ -384,7 +415,7 @@ def search(
         meta = store.to_meta_dict(meta_row)
         if expand_neighbors > 0:
             parts: list[str] = []
-            for nid in store.neighbor_ids(conn, cid, window=expand_neighbors):
+            for nid in neighbors[cid]:
                 row = metas.get(nid)
                 if row is not None and row["text"]:
                     parts.append(row["text"])
@@ -401,21 +432,6 @@ def search(
             )
         )
     return out
-
-
-def expanded_passage(hit: Hit, conn: sqlite3.Connection, *, window: int = 1) -> str:
-    """Concatenate `window` neighbors on each side of `hit` for richer context."""
-
-    nbrs = store.neighbor_ids(conn, hit.chunk_id, window=window)
-    rows = store.fetch_chunks(conn, nbrs)
-    parts: list[str] = []
-    for nid in nbrs:
-        row = rows.get(nid)
-        if row is None:
-            continue
-        loc = format_locator(store.to_meta_dict(row))
-        parts.append(f"[{loc}] {row['text']}")
-    return "\n\n".join(parts)
 
 
 def format_locator(meta: dict) -> str:

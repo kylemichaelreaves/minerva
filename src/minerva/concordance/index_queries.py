@@ -16,9 +16,7 @@ from ._scope import (
 )
 
 
-def lemma_index(
-    conn: sqlite3.Connection, query: dict[str, str]
-) -> dict[str, Any]:
+def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, Any]:
     """Aggregate all lemmas in scope, return ranked leaderboard.
 
     Query params:
@@ -35,7 +33,7 @@ def lemma_index(
                  drives the F1 "find lemma" search field. Trimmed; an
                  empty/whitespace-only value is ignored.
       pos_in     comma-separated POS whitelist; default content words
-                 only (NOUN/VERB/ADJ/PROPN/ADV). Pass ``all`` to
+                 only (NOUN/VERB/ADJ/PROPN). Pass ``all`` to
                  disable the filter and surface function words too.
       sort       freq | alpha | pos  (default: freq)
       limit      default 200, max 1000
@@ -95,7 +93,10 @@ def lemma_index(
     # leaderboard wants these collapsed under their canonical
     # capitalization. Default ON; pass merge_case=0 to disable.
     merge_case = query.get("merge_case", "1").strip().lower() not in (
-        "0", "false", "no", "off",
+        "0",
+        "false",
+        "no",
+        "off",
     )
 
     try:
@@ -103,9 +104,7 @@ def lemma_index(
         offset = int(query.get("offset", "0"))
         min_count = int(query.get("min_count", "2"))
         max_count_raw = query.get("max_count")
-        max_count: int | None = (
-            int(max_count_raw) if max_count_raw not in (None, "") else None
-        )
+        max_count: int | None = int(max_count_raw) if max_count_raw not in (None, "") else None
     except ValueError as e:
         raise BadRequestError(f"integer query param parse error: {e}") from None
     limit = max(1, min(_MAX_INDEX_LIMIT, limit))
@@ -119,36 +118,8 @@ def lemma_index(
 
     q = (query.get("q") or "").strip()
 
-    _scope_sql, _scope_params = _scope_clause(scope, author, work)
+    _scope_clause(scope, author, work)  # validates scope/author/work pairing
 
-    if letter:
-        # SQLite LIKE with NOCASE on the first character. We avoid a
-        # leading-letter index because the chunk_lemmas table is small
-        # enough that the GROUP BY scan dominates.
-        [letter.replace("\\", "\\\\") + "%"]
-
-    if pos_in is not None:
-        placeholders = ",".join("?" * len(pos_in))
-        list(pos_in)
-
-    if q:
-        # Case-insensitive substring match. LOWER on both sides plays
-        # nice with SQLite's collation-free LIKE; we escape the user's
-        # wildcard chars so a literal "%" in the search string doesn't
-        # blow open the filter.
-        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-
-    # Defensive lemma-validity guard. The canonical filter lives in
-    # ``minerva.lemmatize.is_valid_lemma`` and runs at ingest time so
-    # junk lemmas (PDF line-break artifacts like ``-begriff``,
-    # punctuation-only tokens like ``--`` / ``$``, numeric tokens like
-    # ``+20``) never enter the cache. This SQL guard is belt-and-
-    # braces — if a partial re-lemmatize ever introduces junk via a
-    # path that bypasses the Python filter, the concordance UI
-    # doesn't surface it. Cheap: substr(...,1,1) is constant-time and
-    # the IN/BETWEEN checks evaluate against literal byte ranges.
-
-    conn.row_factory = sqlite3.Row
 
     # Polytonic Greek lemmas begin with *precomposed* diacritic forms
     # (ἀ / ἄ / Ἀ), so the ASCII ``LIKE 'Α%' NOCASE`` letter filter used
@@ -158,9 +129,7 @@ def lemma_index(
     # German Ä/Ö/Ü/ß bucketing the LIKE path gives is left untouched.
     fold_letter = lang == "grc"
     if fold_letter:
-        conn.create_function(
-            "fold_initial", 1, _fold_initial, deterministic=True
-        )
+        conn.create_function("fold_initial", 1, _fold_initial, deterministic=True)
 
     # ── Materialized read path ────────────────────────────────────
     # The ``lemma_counts`` table (migration 0019, populated by
@@ -181,47 +150,22 @@ def lemma_index(
     else:
         scope_kind, scope_value = "work", work
 
-    # Build the WHERE clause against lemma_counts. ``lemma`` and
-    # ``pos`` columns map 1:1 from chunk_lemmas → lemma_counts; the
-    # query-time guards (letter, pos_in, q, freq range, valid lemma)
-    # apply identically.
-    where_parts: list[str] = [
-        "lang = ?",
-        "scope_kind = ?",
-        # scope_value uses IS to match NULL for corpus rows.
-        "scope_value IS ?",
-    ]
-    where_params: list[Any] = [lang, scope_kind, scope_value]
-
-    if letter:
-        if fold_letter:
-            where_parts.append("fold_initial(lemma) = ?")
-            where_params.append(_fold_initial(letter))
-        else:
-            where_parts.append("lemma LIKE ? ESCAPE '\\'")
-            where_params.append(letter.replace("\\", "\\\\") + "%")
-    if pos_in is not None:
-        placeholders = ",".join("?" * len(pos_in))
-        where_parts.append(f"pos IN ({placeholders})")
-        where_params.extend(pos_in)
-    if q:
-        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-        where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
-        where_params.append(f"%{escaped}%")
+    # Shared WHERE clause against lemma_counts (also used by the
+    # totals query below). The main query alone adds the freq range.
+    where_parts, where_params = _counts_where(
+        lang,
+        scope_kind,
+        scope_value,
+        letter=letter,
+        fold_letter=fold_letter,
+        pos_in=pos_in,
+        q=q,
+    )
     if max_count is not None:
         where_parts.append("count <= ?")
         where_params.append(max_count)
     where_parts.append("count >= ?")
     where_params.append(min_count)
-    # Lemma-validity guard: matches the same first-char rule we apply
-    # at lemmatize time / KWIC. Defense-in-depth — if a partial
-    # rebuild ever leaves junk in lemma_counts, the read path skips it.
-    where_parts.append(
-        "substr(lemma, 1, 1) NOT IN ('-', '+', '''', '\"', '(', '[', '$', '*', '^', '.', ',')"
-    )
-    where_parts.append(
-        "substr(lemma, 1, 1) NOT BETWEEN '0' AND '9'"
-    )
 
     order_clause = {
         "freq": "count DESC, lemma COLLATE NOCASE ASC",
@@ -237,13 +181,11 @@ def lemma_index(
     sql_main = f"""
         SELECT lemma, pos, count AS n, distinct_works, per_work_json
         FROM lemma_counts
-        WHERE {' AND '.join(where_parts)}
+        WHERE {" AND ".join(where_parts)}
         ORDER BY {order_clause}
         LIMIT ? OFFSET ?
     """
-    raw_rows = conn.execute(
-        sql_main, [*where_params, fetch_limit, fetch_offset]
-    ).fetchall()
+    raw_rows = conn.execute(sql_main, [*where_params, fetch_limit, fetch_offset]).fetchall()
 
     # ── Case-merge ────────────────────────────────────────────────
     # Group orthographic variants (Gott / GOtt / GOTT) by casefolded
@@ -257,40 +199,41 @@ def lemma_index(
             lemma = r["lemma"] or ""
             pos = r["pos"] or ""
             key = (lemma.casefold(), pos)
-            g = groups.setdefault(key, {
-                "pos": pos,
-                "variants": [],
-                "n_total": 0,
-                "work_counts": {},
-            })
+            g = groups.setdefault(
+                key,
+                {
+                    "pos": pos,
+                    "variants": [],
+                    "n_total": 0,
+                    "work_counts": {},
+                },
+            )
             g["variants"].append((lemma, int(r["n"])))
             g["n_total"] += int(r["n"])
             per_work = json.loads(r["per_work_json"] or "[]")
             for entry in per_work:
                 w = entry.get("work")
                 if w:
-                    g["work_counts"][w] = (
-                        g["work_counts"].get(w, 0) + int(entry.get("n", 0))
-                    )
+                    g["work_counts"][w] = g["work_counts"].get(w, 0) + int(entry.get("n", 0))
         merged: list[dict[str, Any]] = []
         for g in groups.values():
             g["variants"].sort(key=lambda v: -v[1])
             display = _canonical_display(
-                lang, g["pos"], [v[0] for v in g["variants"]],
+                lang,
+                g["pos"],
+                [v[0] for v in g["variants"]],
             )
-            top_per_work = sorted(
-                g["work_counts"].items(), key=lambda kv: -kv[1]
-            )[:8]
-            merged.append({
-                "lemma": display,
-                "pos": g["pos"],
-                "n": g["n_total"],
-                "distinct_works": len(g["work_counts"]),
-                "per_work": [{"work": w, "n": n} for w, n in top_per_work],
-            })
-            variants_by_display[(display, g["pos"])] = [
-                v[0] for v in g["variants"]
-            ]
+            top_per_work = sorted(g["work_counts"].items(), key=lambda kv: -kv[1])[:8]
+            merged.append(
+                {
+                    "lemma": display,
+                    "pos": g["pos"],
+                    "n": g["n_total"],
+                    "distinct_works": len(g["work_counts"]),
+                    "per_work": [{"work": w, "n": n} for w, n in top_per_work],
+                }
+            )
+            variants_by_display[(display, g["pos"])] = [v[0] for v in g["variants"]]
         # Re-apply the freq range after merging — variants individually
         # under max_count can exceed it when summed.
         if max_count is not None:
@@ -302,7 +245,7 @@ def lemma_index(
             merged.sort(key=lambda x: x["lemma"].casefold())
         else:
             merged.sort(key=lambda x: (x["pos"].casefold(), -x["n"]))
-        rows = merged[offset:offset + limit]
+        rows = merged[offset : offset + limit]
     else:
         rows = [
             {
@@ -323,32 +266,14 @@ def lemma_index(
     # lemmas show up; the header is meant to be a scope-wide
     # reference). The lemma-search ``q`` IS applied so a search for
     # "geist" doesn't show "1.9M occurrences" next to 4 rows.
-    totals_where_parts = [
-        "lang = ?",
-        "scope_kind = ?",
-        "scope_value IS ?",
-    ]
-    totals_where_params: list[Any] = [lang, scope_kind, scope_value]
-    if letter:
-        if fold_letter:
-            totals_where_parts.append("fold_initial(lemma) = ?")
-            totals_where_params.append(_fold_initial(letter))
-        else:
-            totals_where_parts.append("lemma LIKE ? ESCAPE '\\'")
-            totals_where_params.append(letter.replace("\\", "\\\\") + "%")
-    if pos_in is not None:
-        placeholders = ",".join("?" * len(pos_in))
-        totals_where_parts.append(f"pos IN ({placeholders})")
-        totals_where_params.extend(pos_in)
-    if q:
-        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-        totals_where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
-        totals_where_params.append(f"%{escaped}%")
-    totals_where_parts.append(
-        "substr(lemma, 1, 1) NOT IN ('-', '+', '''', '\"', '(', '[', '$', '*', '^', '.', ',')"
-    )
-    totals_where_parts.append(
-        "substr(lemma, 1, 1) NOT BETWEEN '0' AND '9'"
+    totals_where_parts, totals_where_params = _counts_where(
+        lang,
+        scope_kind,
+        scope_value,
+        letter=letter,
+        fold_letter=fold_letter,
+        pos_in=pos_in,
+        q=q,
     )
     # COUNT(DISTINCT lemma) — not COUNT(*) — because a single lemma
     # can carry multiple POS tags (the lemmatizer occasionally splits
@@ -358,24 +283,26 @@ def lemma_index(
         SELECT COUNT(DISTINCT lemma) AS total_lemmas,
                COALESCE(SUM(count), 0) AS total_tokens
         FROM lemma_counts
-        WHERE {' AND '.join(totals_where_parts)}
+        WHERE {" AND ".join(totals_where_parts)}
     """
     totals = conn.execute(sql_totals, totals_where_params).fetchone()
 
     out_rows = []
     for i, r in enumerate(rows):
         key = (r["lemma"], r["pos"])
-        out_rows.append({
-            "rank": offset + i + 1,
-            "lemma": r["lemma"],
-            "pos": r["pos"] or "",
-            "count": int(r["n"]),
-            "distinct_works": int(r["distinct_works"]),
-            "per_work": r.get("per_work", []),
-            # Include variant list for transparency — the UI can show
-            # "(also GOtt, GOTT)" if curious. Not currently rendered.
-            "variants": variants_by_display.get(key, [r["lemma"]]),
-        })
+        out_rows.append(
+            {
+                "rank": offset + i + 1,
+                "lemma": r["lemma"],
+                "pos": r["pos"] or "",
+                "count": int(r["n"]),
+                "distinct_works": int(r["distinct_works"]),
+                "per_work": r.get("per_work", []),
+                # Include variant list for transparency — the UI can show
+                # "(also GOtt, GOTT)" if curious. Not currently rendered.
+                "variants": variants_by_display.get(key, [r["lemma"]]),
+            }
+        )
 
     scope_label = {
         "corpus": _corpus_label(lang),
@@ -397,8 +324,64 @@ def lemma_index(
     }
 
 
+def _counts_where(
+    lang: str,
+    scope_kind: str,
+    scope_value: str | None,
+    *,
+    letter: str,
+    fold_letter: bool,
+    pos_in: tuple[str, ...] | None,
+    q: str,
+) -> tuple[list[str], list[Any]]:
+    """WHERE fragments + params against ``lemma_counts``, shared by the
+    main leaderboard query and the header-totals query so the two can't
+    drift. ``lemma`` and ``pos`` columns map 1:1 from chunk_lemmas →
+    lemma_counts; the query-time guards (letter, pos_in, q, valid
+    lemma) apply identically. The freq range is appended by the main
+    query only — the header is meant as a scope-wide reference."""
+
+    where_parts: list[str] = [
+        "lang = ?",
+        "scope_kind = ?",
+        # scope_value uses IS to match NULL for corpus rows.
+        "scope_value IS ?",
+    ]
+    where_params: list[Any] = [lang, scope_kind, scope_value]
+
+    if letter:
+        if fold_letter:
+            where_parts.append("fold_initial(lemma) = ?")
+            where_params.append(_fold_initial(letter))
+        else:
+            where_parts.append("lemma LIKE ? ESCAPE '\\'")
+            where_params.append(letter.replace("\\", "\\\\") + "%")
+    if pos_in is not None:
+        placeholders = ",".join("?" * len(pos_in))
+        where_parts.append(f"pos IN ({placeholders})")
+        where_params.extend(pos_in)
+    if q:
+        # Case-insensitive substring match. LOWER on both sides plays
+        # nice with SQLite's collation-free LIKE; we escape the user's
+        # wildcard chars so a literal "%" in the search string doesn't
+        # blow open the filter.
+        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
+        where_params.append(f"%{escaped}%")
+    # Lemma-validity guard: matches the same first-char rule we apply
+    # at lemmatize time / KWIC. Defense-in-depth — if a partial
+    # rebuild ever leaves junk in lemma_counts, the read path skips it.
+    where_parts.append(
+        "substr(lemma, 1, 1) NOT IN ('-', '+', '''', '\"', '(', '[', '$', '*', '^', '.', ',')"
+    )
+    where_parts.append("substr(lemma, 1, 1) NOT BETWEEN '0' AND '9'")
+    return where_parts, where_params
+
+
 def _canonical_display(
-    lang: str, pos: str, variants_by_freq: list[str],
+    lang: str,
+    pos: str,
+    variants_by_freq: list[str],
 ) -> str:
     """Pick the display capitalization for a merged variant cluster.
 
@@ -459,4 +442,3 @@ def _corpus_label(lang: str) -> str:
         "heb": "All Hebrew",
         "ara": "All Arabic",
     }.get(lang, f"All {lang.upper()}")
-
