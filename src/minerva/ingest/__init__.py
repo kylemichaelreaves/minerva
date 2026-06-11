@@ -11,55 +11,15 @@ from ..paths import REPO_ROOT
 from .registry import (
     INGEST_SOURCES,
     build_iter_corpus_kwargs,
-    default_paths_by_param,
     iter_registered_chunks,
 )
 
 DEFAULT_OUTPUT = REPO_ROOT / "data" / "chunks.jsonl"
 
-# Explicit DEFAULT_* names matching legacy ingest.py (param → constant name).
-_DEFAULT_EXPORTS = {
-    "plato_dir": "DEFAULT_PLATO_DIR",
-    "aristotle_dir": "DEFAULT_ARISTOTLE_DIR",
-    "aristotle_first1k_dir": "DEFAULT_ARISTOTLE_FIRST1K_DIR",
-    "aristotle_ica_dir": "DEFAULT_ARISTOTLE_ICA_DIR",
-    "homer_dir": "DEFAULT_HOMER_DIR",
-    "lxx_dir": "DEFAULT_LXX_DIR",
-    "nt_dir": "DEFAULT_NT_DIR",
-    "vulgate_dir": "DEFAULT_VULGATE_DIR",
-    "luther_1912_dir": "DEFAULT_LUTHER_1912_DIR",
-    "luther_1545_dir": "DEFAULT_LUTHER_1545_DIR",
-    "kjv_dir": "DEFAULT_KJV_DIR",
-    "sacy_dir": "DEFAULT_SACY_DIR",
-    "hebrew_mt_dir": "DEFAULT_HEBREW_MT_DIR",
-    "quran_dir": "DEFAULT_QURAN_DIR",
-    "hegel_dir": "DEFAULT_HEGEL_DIR",
-    "kant_dir": "DEFAULT_KANT_DIR",
-    "kant_en_dir": "DEFAULT_KANT_EN_DIR",
-    "descartes_la_dir": "DEFAULT_DESCARTES_LA_DIR",
-    "descartes_fr_dir": "DEFAULT_DESCARTES_FR_DIR",
-    "spinoza_la_dir": "DEFAULT_SPINOZA_LA_DIR",
-    "augustine_la_dir": "DEFAULT_AUGUSTINE_LA_DIR",
-    "aquinas_la_dir": "DEFAULT_AQUINAS_LA_DIR",
-    "hobbes_dir": "DEFAULT_HOBBES_DIR",
-    "hobbes_la_dir": "DEFAULT_HOBBES_LA_DIR",
-    "pascal_dir": "DEFAULT_PASCAL_DIR",
-    "hume_dir": "DEFAULT_HUME_DIR",
-    "locke_dir": "DEFAULT_LOCKE_DIR",
-    "rousseau_dir": "DEFAULT_ROUSSEAU_DIR",
-    "marx_dir": "DEFAULT_MARX_DIR",
-    "marx_ocr_dir": "DEFAULT_MARX_OCR_DIR",
-    "nietzsche_dir": "DEFAULT_NIETZSCHE_DIR",
-    "cicero_la_dir": "DEFAULT_CICERO_LA_DIR",
-    "cicero_en_dir": "DEFAULT_CICERO_EN_DIR",
-    "lucretius_dir": "DEFAULT_LUCRETIUS_DIR",
-    "epictetus_dir": "DEFAULT_EPICTETUS_DIR",
-    "marcus_aurelius_dir": "DEFAULT_MARCUS_AURELIUS_DIR",
-    "presocratic_text": "DEFAULT_PRESOCRATIC_TEXT",
-}
-_paths = default_paths_by_param()
-for _param, _const in _DEFAULT_EXPORTS.items():
-    globals()[_const] = _paths[_param]
+# The legacy ``DEFAULT_<SOURCE>_DIR`` constants (injected via a
+# hand-maintained globals() map that had already drifted from the
+# registry) are gone — use ``registry.default_paths_by_param()`` or
+# ``IngestSource.default_path`` instead.
 
 
 def iter_corpus_chunks(
@@ -77,9 +37,7 @@ def iter_corpus_chunks(
     """
 
     kwargs = build_iter_corpus_kwargs(**paths)
-    yield from iter_registered_chunks(
-        kwargs, only=only, per_source_timing=per_source_timing
-    )
+    yield from iter_registered_chunks(kwargs, only=only, per_source_timing=per_source_timing)
 
 
 def write_jsonl(chunks: Iterable[tei.Chunk], output_path: Path) -> tuple[int, dict[str, int]]:

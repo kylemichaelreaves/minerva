@@ -16,18 +16,20 @@ LLM_MODEL ?=
 PORT ?= 8000
 # Retrieval language. `any` (default) searches every language in the
 # index — required for non-English-primary authors (Nietzsche/Marx in
-# deu, Cicero/Spinoza in lat, Hebrew Bible in heb, …) to be visible
-# in chat. Override for English-only experiments: `make run LANG=eng`.
-# `:=` (not `?=`) because the shell's `LANG=en_US.UTF-8` locale env var
-# would otherwise shadow the default and get passed straight to argparse.
-# CLI overrides (`make run LANG=eng`) still win — they're in MAKEFLAGS.
-LANG := any
+# deu, Cicero/Spinoza in lat, Hebrew Bible in heb, …) to be visible in
+# chat. Override for English-only experiments: `make run MINERVA_LANG=eng`.
+# Named MINERVA_LANG (not LANG) on purpose: make exports variables into
+# every recipe's environment, and `LANG=any` is an invalid locale that
+# would leak into every subprocess (python, node, sqlite3, …).
+MINERVA_LANG ?= any
 LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
 
 .PHONY: help test test-unit test-e2e test-watch test-py test-all typecheck \
+        coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
-        generate-authors check-authors check-author-imports \
-        build dev run run-host start ingest reindex reingest embed embed-eng stats
+        generate-authors check-authors check-api-types check-author-imports \
+        build dev run run-host start ingest reindex reingest \
+        ingest-only reingest-only embed embed-eng stats
 
 help:
 	@echo "Targets:"
@@ -139,7 +141,7 @@ check: lint typecheck test-py test-unit check-authors check-api-types check-auth
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.
 run:
-	@$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(LANG) --port $(PORT) & \
+	@$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(MINERVA_LANG) --port $(PORT) & \
 	SERVER_PID=$$!; \
 	trap "kill $$SERVER_PID 2>/dev/null; wait $$SERVER_PID 2>/dev/null" EXIT INT TERM; \
 	$(NPM) run dev || true
@@ -153,14 +155,14 @@ run:
 # Phone testing tip: macOS Firewall may prompt on first run. Click
 # "Allow" so Node can accept inbound connections from your phone.
 run-host:
-	@$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(LANG) --port $(PORT) & \
+	@$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(MINERVA_LANG) --port $(PORT) & \
 	SERVER_PID=$$!; \
 	trap "kill $$SERVER_PID 2>/dev/null; wait $$SERVER_PID 2>/dev/null" EXIT INT TERM; \
 	$(NPM) run dev -- --host || true
 
 # Production: one process, one port. Builds the SPA, then serves API + bundle.
 start: build
-	$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(LANG) --port $(PORT) --static $(WEB)/dist
+	$(POIETES) serve --llm $(LLM) $(LLM_MODEL_FLAG) --lang $(MINERVA_LANG) --port $(PORT) --static $(WEB)/dist
 
 # ---------- Corpus ingest / index ----------
 # Re-run after editing parsers (minerva/corpus/, hegel_works.py, etc.).
@@ -171,10 +173,26 @@ start: build
 ingest:
 	$(POIETES) ingest
 
+# Destructive targets snapshot the DB + chunks.jsonl first (repo
+# convention: scripts/snapshot-db.sh <reason> before any DB-mutating
+# operation). The script refuses to run when data/index.sqlite doesn't
+# exist, so a fresh checkout skips the snapshot instead of failing.
+define snapshot_db
+	@if [ -f data/index.sqlite ]; then scripts/snapshot-db.sh $(1); \
+	else echo "(no data/index.sqlite yet — skipping snapshot)"; fi
+endef
+
 reindex:
+	$(call snapshot_db,pre-reindex)
 	$(POIETES) index --reset
 
-reingest: ingest reindex
+# Snapshot once, up front — before `ingest` overwrites chunks.jsonl
+# (the snapshot captures both the DB and the JSONL), so the steps are
+# inlined here rather than reusing the ingest/reindex prerequisites.
+reingest:
+	$(call snapshot_db,pre-reingest)
+	$(POIETES) ingest
+	$(POIETES) index --reset
 	@echo ""
 	@echo "Re-ingest complete. Run 'make embed' to refresh vector embeddings"
 	@echo "(only needed if you use --use-vectors retrieval)."
@@ -193,7 +211,12 @@ ingest-only:
 	@if [ -z "$(ONLY)" ]; then echo "Usage: make ingest-only ONLY=<source_id[,...]>"; exit 1; fi
 	$(POIETES) ingest --only "$(ONLY)"
 
-reingest-only: ingest-only
+# Like `reingest`, snapshot before the JSONL merge — not just before
+# the index step — so the pre-run chunks.jsonl is captured too.
+reingest-only:
+	@if [ -z "$(ONLY)" ]; then echo "Usage: make reingest-only ONLY=<source_id[,...]>"; exit 1; fi
+	$(call snapshot_db,pre-reingest-only)
+	$(POIETES) ingest --only "$(ONLY)"
 	$(POIETES) index --incremental --from-ingest-only
 	@echo ""
 	@echo "Incremental re-ingest complete. Other corpora preserved."

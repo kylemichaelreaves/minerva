@@ -61,6 +61,8 @@ def _worker_parse_source(
     re-run with ``--only <bad_source>`` after fixing the bug.
     """
 
+    from ..corpus import pipeline as corpus_pipeline
+
     sources_by_id = {s.id: s for s in INGEST_SOURCES}
     if source_id not in sources_by_id:
         return {
@@ -85,6 +87,11 @@ def _worker_parse_source(
     n = 0
     counts: dict[str, int] = {}
     error_msg: str | None = None
+    # Per-file failures inside ``corpus.pipeline.parse_dir`` are caught
+    # there (one bad file shouldn't kill the source) and recorded in
+    # module state; reset before the parse and ship the list back so
+    # the orchestrator can surface them and exit non-zero.
+    corpus_pipeline.reset_parse_failures()
     try:
         with Path(shard_path_str).open("w", encoding="utf-8") as fh:
             for chunk in source.parse(path):  # type: ignore[arg-type]
@@ -107,6 +114,7 @@ def _worker_parse_source(
         "counts": counts,
         "shard": shard_path_str,
         "error": error_msg,
+        "parse_failures": corpus_pipeline.parse_failures(),
     }
 
 
@@ -117,7 +125,7 @@ def parallel_ingest(
     *,
     jobs: int,
     per_source_timing: bool = False,
-) -> tuple[list[Path], int, dict[str, int]]:
+) -> tuple[list[Path], int, dict[str, int], dict[str, list[str]]]:
     """Parse ``source_ids`` in parallel across ``jobs`` worker processes.
 
     Returns:
@@ -130,6 +138,12 @@ def parallel_ingest(
     * ``total``: total chunks written across all shards.
     * ``counts``: ``{corpus}/{lang} → count`` summary, same shape as
       :func:`~minerva.ingest.write_jsonl`.
+    * ``failures``: ``source_id → error message(s)`` for every source
+      that failed outright (excluded from the shard list — a full
+      ingest would otherwise silently overwrite chunks.jsonl without
+      that corpus) or that recorded per-file parse failures inside
+      ``corpus.pipeline.parse_dir``. The caller (``cmd_ingest``) must
+      surface these and exit non-zero.
 
     Failed sources are reported on stderr and excluded from the shard
     list. ``per_source_timing=True`` mirrors the sequential ingest's
@@ -145,8 +159,7 @@ def parallel_ingest(
     unknown = [sid for sid in source_ids if sid not in sources_by_id]
     if unknown:
         raise ValueError(
-            f"parallel_ingest: unknown source ids {unknown!r}; "
-            f"known ids: {sorted(sources_by_id)!r}"
+            f"parallel_ingest: unknown source ids {unknown!r}; known ids: {sorted(sources_by_id)!r}"
         )
 
     futures: dict[Any, str] = {}
@@ -191,8 +204,7 @@ def parallel_ingest(
                 continue
             if per_source_timing and not res.get("skipped"):
                 print(
-                    f"timing: ingest:{sid}  {res['elapsed']:.2f}s "
-                    f"({res['count']} chunks)",
+                    f"timing: ingest:{sid}  {res['elapsed']:.2f}s ({res['count']} chunks)",
                     file=sys.stderr,
                 )
 
@@ -202,9 +214,17 @@ def parallel_ingest(
     shard_paths: list[Path] = []
     total = 0
     counts: dict[str, int] = {}
+    failures: dict[str, list[str]] = {}
     for source in INGEST_SOURCES:
         res = results.get(source.id)
-        if res is None or res.get("skipped") or res.get("error"):
+        if res is None:
+            continue
+        msgs = list(res.get("parse_failures") or [])
+        if res.get("error"):
+            msgs.append(str(res["error"]))
+        if msgs:
+            failures[source.id] = msgs
+        if res.get("skipped") or res.get("error"):
             continue
         shard = Path(res["shard"])
         if not shard.exists():
@@ -214,7 +234,7 @@ def parallel_ingest(
         for k, v in res.get("counts", {}).items():
             counts[k] = counts.get(k, 0) + v
 
-    return shard_paths, total, counts
+    return shard_paths, total, counts, failures
 
 
 def concat_shards(shard_paths: list[Path], output_path: Path) -> int:

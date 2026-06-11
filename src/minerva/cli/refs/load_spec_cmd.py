@@ -64,22 +64,29 @@ def cmd_refs_load_spec(args: argparse.Namespace) -> int:
         for ref_idx, ref in enumerate(spec.references):
             total_parsed += 1
             try:
-                inserted = _insert_one_reference(conn, ref, dry_run=args.dry_run)
+                inserted, row_id = _insert_one_reference(conn, ref, dry_run=args.dry_run)
             except _LoadError as exc:
                 print(f"  references[{ref_idx}] error: {exc}", file=sys.stderr)
                 total_errors += 1
                 continue
 
-            if inserted is None:
+            if not inserted:
                 total_skipped += 1
                 continue
             total_inserted += 1
+            label = "would insert" if row_id is None else f"→ id={row_id}"
             print(
-                f"  references[{ref_idx}] → id={inserted} "
+                f"  references[{ref_idx}] {label} "
                 f"({ref.target.author} / {ref.target.work}, type={ref.type})"
             )
 
-    if not args.dry_run and total_inserted > 0:
+    if args.dry_run:
+        # `ensure_target` may have created reference_targets rows while
+        # resolving targets above; a dry-run must not persist them.
+        # Roll back explicitly instead of relying on the connection
+        # closing without a commit.
+        conn.rollback()
+    elif total_inserted > 0:
         conn.commit()
 
     mode = "dry-run" if args.dry_run else "committed"
@@ -100,9 +107,11 @@ def _insert_one_reference(
     ref: refs_spec.ReferenceSpec,
     *,
     dry_run: bool,
-) -> int | None:
-    """Resolve + insert one ReferenceSpec. Returns the new row id, or
-    None when dry-run or when an equivalent row already exists.
+) -> tuple[bool, int | None]:
+    """Resolve + insert one ReferenceSpec. Returns ``(inserted, row_id)``:
+    ``(True, id)`` for a real insert, ``(True, None)`` for a dry-run
+    would-insert (so the summary's inserted count stays accurate), and
+    ``(False, None)`` when an equivalent row already exists (dedup skip).
 
     Idempotency: a content match on
     ``(source_chunk_id, target_id, reference_type, source_form_snapshot,
@@ -117,9 +126,7 @@ def _insert_one_reference(
     # Source resolution.
     source_chunk_id = _resolve_source_chunk_id(conn, ref.source)
     if source_chunk_id is None:
-        raise _LoadError(
-            f"could not resolve source: {ref.source!r}"
-        )
+        raise _LoadError(f"could not resolve source: {ref.source!r}")
 
     # Target resolution. ``ensure_target`` is a no-op (returns the
     # existing row) when the (author, work) pair is already present.
@@ -146,12 +153,16 @@ def _insert_one_reference(
         ),
     ).fetchone()
     if existing is not None:
-        return None
+        return False, None
 
     if dry_run:
-        return None
+        # Would insert. The ensure_target write above is rolled back by
+        # the caller at the end of the run; keeping it visible on this
+        # (uncommitted) connection lets later references in the same
+        # file dedup against it correctly.
+        return True, None
 
-    return refs_schema.insert_cross_reference(
+    return True, refs_schema.insert_cross_reference(
         conn,
         source_chunk_id=source_chunk_id,
         target_id=target.id,
@@ -191,9 +202,7 @@ def _resolve_source_chunk_id(conn, source: refs_spec.SourceRef) -> str | None:
     # Use the chunks_full view which joins through works + editions +
     # translations and exposes the (work, lang, section) triple.
     row = conn.execute(
-        "SELECT chunk_id FROM chunks_full "
-        "WHERE work = ? AND lang = ? AND section = ? "
-        "LIMIT 1",
+        "SELECT chunk_id FROM chunks_full WHERE work = ? AND lang = ? AND section = ? LIMIT 1",
         (source.work, source.lang, source.section),
     ).fetchone()
     if row is None:

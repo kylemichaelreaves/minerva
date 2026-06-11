@@ -20,6 +20,7 @@ import sys
 
 from .. import embed, store
 from ._shared import (
+    RETRIEVAL_LANG_CHOICES,
     Timer,
     add_common_db_arg,
     fmt_elapsed,
@@ -56,12 +57,8 @@ def cmd_embed(args: argparse.Namespace) -> int:
         row_source = store.iter_chunks(conn, lang=lang_filter)
         mode_label = "all chunks"
     else:
-        total = store.count_chunks_without_embeddings(
-            conn, model=args.model, lang=lang_filter
-        )
-        row_source = store.iter_chunks_without_embeddings(
-            conn, model=args.model, lang=lang_filter
-        )
+        total = store.count_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
+        row_source = store.iter_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
         mode_label = "missing chunks"
 
     if total == 0:
@@ -78,9 +75,7 @@ def cmd_embed(args: argparse.Namespace) -> int:
         record_timing(args.db, "embed", t_overall.elapsed)
         return 0
 
-    print(
-        f"Embedding {total} {mode_label} with {args.model} (dim={embedder.dim})..."
-    )
+    print(f"Embedding {total} {mode_label} with {args.model} (dim={embedder.dim})...")
     batch = args.batch_size
     written = 0
     pending: list[dict] = []
@@ -143,9 +138,16 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
     )
     pe.add_argument(
         "--lang",
-        choices=("eng", "grc", "any"),
-        default="eng",
-        help="Restrict embedding to this language (default: eng).",
+        choices=RETRIEVAL_LANG_CHOICES,
+        default="any",
+        help=(
+            "Restrict embedding to one ISO 639-3 language code, or `any` "
+            "(default) to embed every language. The choices are driven by "
+            "RETRIEVAL_LANG_CHOICES so new corpus languages light up "
+            "automatically — the old hardcoded (eng, grc) list silently "
+            "made deu/lat/fra/heb/ara unembeddable, and the old `eng` "
+            "default repeated the documented silent-English-only bug class."
+        ),
     )
     pe.add_argument(
         "--batch-size",

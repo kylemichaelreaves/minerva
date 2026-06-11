@@ -14,6 +14,7 @@ works module.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 
@@ -28,6 +29,30 @@ from .split_kant import split_by_kant_ab
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
 from .split_zeno import split_zeno_pages
+
+# Per-run parse-failure log. ``parse_dir`` is a generator consumed
+# lazily through closures in ``ingest/registry.py``, so it can't
+# return a status without breaking its iterator contract — instead
+# every caught per-file failure is recorded here. ``cmd_ingest``
+# calls :func:`reset_parse_failures` before a run and
+# :func:`parse_failures` after the output is written, so a partial
+# parse still produces JSONL for what succeeded but the run exits
+# non-zero. The parallel ingest workers do the same inside their
+# subprocess and ship the list back in the worker result dict.
+_PARSE_FAILURES: list[str] = []
+
+
+def reset_parse_failures() -> None:
+    """Clear the per-run failure log (call before starting a parse run)."""
+
+    _PARSE_FAILURES.clear()
+
+
+def parse_failures() -> list[str]:
+    """Return the failures recorded since the last reset."""
+
+    return list(_PARSE_FAILURES)
+
 
 _SPLITTERS = {
     "section": split_by_section,
@@ -144,4 +169,6 @@ def parse_dir(
             except IngestDepsMissing:
                 raise
             except Exception as exc:  # one bad file shouldn't kill the whole ingest
-                print(f"{label}: failed to parse {path.name!r} as {work.code!r}: {exc}")
+                msg = f"{label}: failed to parse {path.name!r} as {work.code!r}: {exc}"
+                _PARSE_FAILURES.append(msg)
+                print(msg, file=sys.stderr)

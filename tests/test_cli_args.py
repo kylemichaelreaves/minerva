@@ -84,6 +84,20 @@ def test_ask_lang_accepts_deu(parser):
     assert args.lang == "deu"
 
 
+def test_embed_lang_accepts_every_indexed_code(parser):
+    """``embed --lang`` is driven by RETRIEVAL_LANG_CHOICES — the old
+    hardcoded (eng, grc, any) tuple silently made deu/lat/fra/heb/ara
+    chunks unembeddable from the CLI."""
+    for lang in ("any", "eng", "grc", "deu", "lat", "fra", "heb", "ara"):
+        args = parser.parse_args(["embed", "--lang", lang])
+        assert args.lang == lang, f"{lang} not accepted"
+
+
+def test_embed_lang_default_is_any(parser):
+    args = parser.parse_args(["embed"])
+    assert args.lang == "any"
+
+
 def test_chat_reply_lang_default_is_auto(parser):
     args = parser.parse_args(["chat"])
     assert args.reply_lang == "auto"

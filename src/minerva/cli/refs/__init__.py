@@ -7,10 +7,11 @@ Phase 1 commands:
 * ``load-spec`` — load YAML curator specs from ``data/glossary/refs/``.
 * ``targets`` — list / search the ``reference_targets`` table.
 
-Phase 2 commands:
+Phase 2-4 commands:
 
-* ``build`` — run rule-based detection (``--strategy rules``); future
-  strategies ``embed-verify`` and ``llm-verify`` land in Phases 3-4.
+* ``build`` — run auto-detection: ``--strategy rules`` (Phase 2),
+  ``--strategy embed-verify`` (Phase 3 cosine verification + allusion
+  sweep), or ``--strategy llm-verify`` (Phase 4 LLM verification).
 * ``review`` — terminal curator walker over `curator_status='auto'`
   rows; approve / reject / skip per row.
 
@@ -35,7 +36,7 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
 
     # Local import keeps the parent-cli import path light and avoids
     # cycles (`cli/refs/` is imported by `cli/__init__.py`).
-    from ..terms._io import _add_common_db_arg
+    from .._shared import add_common_db_arg as _add_common_db_arg
 
     p_refs = parent_subparsers.add_parser(
         "refs", help="Curator commands for the cross-reference layer."
@@ -169,17 +170,21 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
     pt.add_argument("--json", action="store_true")
     pt.set_defaults(func=cmd_refs_targets)
 
-    # ── build (Phase 2: rule-based detection) ──
+    # ── build (Phases 2-4: auto-detection strategies) ──
     pb = subs.add_parser(
         "build",
-        help="Run rule-based cross-reference detection (Phase 2; embed/llm strategies arrive in Phases 3-4).",
+        help="Run cross-reference auto-detection (rules, embed-verify, or llm-verify).",
     )
     _add_common_db_arg(pb)
     pb.add_argument(
         "--strategy",
         choices=("rules", "embed-verify", "llm-verify"),
         default="rules",
-        help="Detection stage to run. Only 'rules' is implemented in Phase 2.",
+        help=(
+            "Detection stage to run: 'rules' (default) inserts rule-based "
+            "candidates; 'embed-verify' cosine-checks quoted rows + sweeps "
+            "for allusions; 'llm-verify' LLM-verifies auto rows."
+        ),
     )
     pb.add_argument(
         "--source-author",

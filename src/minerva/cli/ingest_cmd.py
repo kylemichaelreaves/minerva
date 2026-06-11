@@ -26,6 +26,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from ..corpus.pipeline import parse_failures, reset_parse_failures
 from ..ingest import (
     _merge_dicts_to_jsonl,
     iter_corpus_chunks,
@@ -76,8 +77,9 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
     with Timer() as overall:
         if args.jobs > 1:
-            total, touched, counts, mode = _parallel_ingest_path(args, only, overrides)
+            total, touched, counts, mode, failures = _parallel_ingest_path(args, only, overrides)
         else:
+            reset_parse_failures()
             chunks = iter_corpus_chunks(
                 only=only,
                 per_source_timing=args.timing,
@@ -93,6 +95,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 # Partial ingest — overlay onto existing JSONL.
                 total, touched, counts = merge_jsonl(chunks, args.output)
                 mode = "merged"
+            failures = parse_failures()
 
     print(f"{mode.capitalize()} {touched} chunks into {args.output} (total: {total})")
     for k, v in sorted(counts.items()):
@@ -109,6 +112,21 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     # up as the scope. No-op when --only wasn't passed (full ingests
     # don't need an incremental rescope) or when the DB is missing.
     _record_ingest_only(args.db, only)
+
+    # Failures must be LOUD. The output above still contains everything
+    # that parsed cleanly (partial output beats all-or-nothing for an
+    # offline corpus build), but a non-zero exit + stderr summary stops
+    # a `make reingest` pipeline from silently indexing a JSONL that is
+    # missing files or whole corpora.
+    if failures:
+        print(
+            f"\ningest: {len(failures)} failure(s) — the output contains only "
+            f"what parsed successfully:",
+            file=sys.stderr,
+        )
+        for msg in failures:
+            print(f"  {msg}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -173,14 +191,15 @@ def _parallel_ingest_path(
     args: argparse.Namespace,
     only: frozenset[str] | None,
     overrides: dict[str, Path | None],
-) -> tuple[int, int, dict[str, int], str]:
+) -> tuple[int, int, dict[str, int], str, list[str]]:
     """Run the ``--jobs N`` parallel path.
 
-    Returns ``(total, touched, counts, mode)`` in the same shape as
-    the sequential branch so :func:`cmd_ingest` can use the same
-    summary print. The shard dir is a tempdir cleaned up
-    automatically; chunks land in ``args.output`` either by direct
-    concat (full ingest) or by ``merge_jsonl`` overlay (``--only``).
+    Returns ``(total, touched, counts, mode, failures)`` in the same
+    shape as the sequential branch so :func:`cmd_ingest` can use the
+    same summary print and failure-exit logic. The shard dir is a
+    tempdir cleaned up automatically; chunks land in ``args.output``
+    either by direct concat (full ingest) or by ``merge_jsonl``
+    overlay (``--only``).
     """
 
     # Decide which sources participate.
@@ -189,7 +208,7 @@ def _parallel_ingest_path(
     else:
         source_ids = [s.id for s in INGEST_SOURCES if s.id in only]
     if not source_ids:
-        return 0, 0, {}, "wrote"
+        return 0, 0, {}, "wrote", []
 
     # Resolve the paths the workers will see. We can't pickle a
     # closure-wrapped IngestSource, but the workers re-resolve by id;
@@ -198,23 +217,28 @@ def _parallel_ingest_path(
 
     with tempfile.TemporaryDirectory(prefix="minerva-ingest-shards-") as tmp:
         shard_dir = Path(tmp)
-        shard_paths, _total, counts = parallel_ingest(
+        shard_paths, _total, counts, failures_by_source = parallel_ingest(
             source_ids,
             paths_by_kwarg,
             shard_dir,
             jobs=args.jobs,
             per_source_timing=args.timing,
         )
+        failures = [
+            f"ingest:{sid}: {msg}"
+            for sid, msgs in sorted(failures_by_source.items())
+            for msg in msgs
+        ]
         if only is None:
             # Full ingest: stream shards directly into the final JSONL.
             written = concat_shards(shard_paths, args.output)
-            return written, written, counts, "wrote"
+            return written, written, counts, "wrote", failures
         # Partial ingest: load shards and overlay onto the existing
         # JSONL by chunk_id. Replays the streaming behavior of
         # ``merge_jsonl`` but pulls chunks from shard files rather than
         # a live parser iterator.
         merged_total, touched, merged_counts = _overlay_shards(shard_paths, args.output)
-        return merged_total, touched, merged_counts, "merged"
+        return merged_total, touched, merged_counts, "merged", failures
 
 
 def _overlay_shards(

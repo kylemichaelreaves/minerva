@@ -1,0 +1,218 @@
+"""Loud-failure plumbing for ingest (2026-06-10 audit).
+
+Per-file parse failures used to be a bare print-and-continue in
+``corpus.pipeline.parse_dir``, and a parallel-ingest source that
+failed outright was silently excluded from the shard merge — a full
+ingest would overwrite ``chunks.jsonl`` WITHOUT that corpus and exit
+0. These tests pin the new contract: partial output still gets
+written, but failures are recorded, surfaced on stderr, and
+``cmd_ingest`` exits non-zero.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from minerva import tei
+from minerva.corpus import pipeline
+from minerva.corpus_works import CorpusWork
+
+
+def _chunk(chunk_id: str = "ok-1", text: str = "some text") -> tei.Chunk:
+    return tei.Chunk(
+        chunk_id=chunk_id,
+        corpus="plato",
+        author="Plato",
+        work="Republic",
+        lang="eng",
+        section="509d",
+        book=None,
+        page=None,
+        speaker=None,
+        text=text,
+        source_file="x.txt",
+        translator=None,
+        edition_year=None,
+    )
+
+
+def _work(*, filenames: tuple[str, ...], locator: str) -> CorpusWork:
+    return CorpusWork(
+        code="bad",
+        title="Broken Work",
+        translator="Nobody",
+        edition_year="1900",
+        filenames=filenames,
+        fmt="txt",
+        locator=locator,
+    )
+
+
+# ---------- pipeline.parse_dir failure recording ----------
+
+
+def test_parse_dir_records_per_file_failures(tmp_path: Path, capsys):
+    """A file whose parse blows up is skipped (the generator keeps
+    yielding for other files) but the failure lands in the per-run
+    log and on stderr."""
+
+    (tmp_path / "broken.txt").write_text("any content", encoding="utf-8")
+    # A locator that isn't in _SPLITTERS raises KeyError inside
+    # parse_file — the catch-all in parse_dir must record it.
+    work = _work(filenames=("broken.txt",), locator="no-such-locator")
+
+    pipeline.reset_parse_failures()
+    chunks = list(
+        pipeline.parse_dir(
+            tmp_path,
+            lambda name: work if name == "broken.txt" else None,
+            label="testcorpus",
+        )
+    )
+    assert chunks == []
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "broken.txt" in failures[0]
+    assert "testcorpus" in failures[0]
+    assert "broken.txt" in capsys.readouterr().err
+
+
+def test_reset_parse_failures_clears_the_log(tmp_path: Path):
+    (tmp_path / "broken.txt").write_text("any content", encoding="utf-8")
+    work = _work(filenames=("broken.txt",), locator="no-such-locator")
+
+    pipeline.reset_parse_failures()
+    list(pipeline.parse_dir(tmp_path, lambda _: work, label="t"))
+    assert pipeline.parse_failures()
+
+    pipeline.reset_parse_failures()
+    assert pipeline.parse_failures() == []
+
+
+# ---------- worker result shape ----------
+
+
+def test_worker_parse_source_ships_pipeline_failures(tmp_path: Path, monkeypatch):
+    """The parallel worker resets the pipeline failure log before its
+    parse and returns whatever accumulated, so the orchestrator can
+    aggregate per-file failures across subprocesses."""
+
+    from minerva.ingest import parallel
+    from minerva.ingest.registry import IngestSource
+
+    def fake_parse(path: Path):
+        pipeline._PARSE_FAILURES.append("t: failed to parse 'f.pdf' as 'w': boom")
+        yield _chunk()
+
+    src = IngestSource("fake", tmp_path, fake_parse)
+    monkeypatch.setattr(parallel, "INGEST_SOURCES", (src,))
+
+    shard = tmp_path / "shard.jsonl"
+    res = parallel._worker_parse_source("fake", str(tmp_path), str(shard))
+    assert res["error"] is None
+    assert res["count"] == 1
+    assert res["parse_failures"] == ["t: failed to parse 'f.pdf' as 'w': boom"]
+    # The shard still contains the chunk that parsed fine.
+    assert json.loads(shard.read_text().strip())["chunk_id"] == "ok-1"
+
+
+def test_worker_parse_source_reports_source_level_error(tmp_path: Path, monkeypatch):
+    from minerva.ingest import parallel
+    from minerva.ingest.registry import IngestSource
+
+    def exploding_parse(path: Path):
+        raise RuntimeError("parser died")
+        yield  # pragma: no cover - makes this a generator
+
+    src = IngestSource("fake", tmp_path, exploding_parse)
+    monkeypatch.setattr(parallel, "INGEST_SOURCES", (src,))
+
+    res = parallel._worker_parse_source("fake", str(tmp_path), str(tmp_path / "s.jsonl"))
+    assert res["error"] == "RuntimeError: parser died"
+    assert res["parse_failures"] == []
+
+
+# ---------- cmd_ingest exit code ----------
+
+
+def _ingest_args(tmp_path: Path, **overrides) -> argparse.Namespace:
+    base: dict = {
+        "only": None,
+        "allow_partial_corpus": False,
+        "output": tmp_path / "chunks.jsonl",
+        "db": tmp_path / "index.sqlite",
+        "jobs": 1,
+        "timing": False,
+    }
+    base.update(overrides)
+    return argparse.Namespace(**base)
+
+
+def test_cmd_ingest_writes_partial_output_and_exits_nonzero(tmp_path: Path, monkeypatch, capsys):
+    """Sequential path: parse failures don't abort the write — the
+    JSONL contains everything that succeeded — but the run exits 1
+    with a stderr summary instead of pretending all is well."""
+
+    from minerva.cli import ingest_cmd
+
+    def fake_iter(*, only=None, per_source_timing=False, **paths):
+        yield _chunk("good-1")
+        pipeline._PARSE_FAILURES.append("hegel: failed to parse 'phg.pdf' as 'phg': boom")
+        yield _chunk("good-2")
+
+    monkeypatch.setattr(ingest_cmd, "iter_corpus_chunks", fake_iter)
+
+    args = _ingest_args(tmp_path)
+    rc = ingest_cmd.cmd_ingest(args)
+    assert rc == 1
+
+    written = [json.loads(line) for line in args.output.read_text().splitlines()]
+    assert [c["chunk_id"] for c in written] == ["good-1", "good-2"]
+
+    err = capsys.readouterr().err
+    assert "1 failure(s)" in err
+    assert "phg.pdf" in err
+
+
+def test_cmd_ingest_clean_run_exits_zero(tmp_path: Path, monkeypatch, capsys):
+    from minerva.cli import ingest_cmd
+
+    def fake_iter(*, only=None, per_source_timing=False, **paths):
+        yield _chunk("good-1")
+
+    monkeypatch.setattr(ingest_cmd, "iter_corpus_chunks", fake_iter)
+    # A stale failure from a previous run in the same process must not
+    # leak into this run's verdict — cmd_ingest resets the log.
+    pipeline._PARSE_FAILURES.append("stale: failure from another run")
+
+    rc = ingest_cmd.cmd_ingest(_ingest_args(tmp_path))
+    assert rc == 0
+    assert "failure" not in capsys.readouterr().err
+
+
+def test_cmd_ingest_parallel_reports_failed_sources(tmp_path: Path, monkeypatch, capsys):
+    """Parallel path: a source-level failure (excluded from the shard
+    merge) must surface in the summary and flip the exit code."""
+
+    from minerva.cli import ingest_cmd
+
+    def fake_parallel_ingest(source_ids, paths_by_kwarg, shard_dir, *, jobs, per_source_timing):
+        shard = shard_dir / "chunks.plato.jsonl"
+        shard.write_text(json.dumps(_chunk("good-1").to_json_dict()) + "\n", encoding="utf-8")
+        failures = {"hegel": ["ValueError: bad PDF"]}
+        return [shard], 1, {"plato/eng": 1}, failures
+
+    monkeypatch.setattr(ingest_cmd, "parallel_ingest", fake_parallel_ingest)
+
+    args = _ingest_args(tmp_path, jobs=2)
+    rc = ingest_cmd.cmd_ingest(args)
+    assert rc == 1
+
+    written = [json.loads(line) for line in args.output.read_text().splitlines()]
+    assert [c["chunk_id"] for c in written] == ["good-1"]
+
+    err = capsys.readouterr().err
+    assert "ingest:hegel" in err
+    assert "bad PDF" in err
