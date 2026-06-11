@@ -13,7 +13,9 @@ export function KwicRowEl(props: {
     const sec = props.row.section || "";
     const m = /^(.*?)(?:,\s*¶(\d+))?$/.exec(sec);
     if (m) {
-      return { path: m[1] || sec, para: m[2] ? `¶${m[2]}` : "" };
+      // `??` alone would let an empty group-1 match through; the
+      // intended fallback is "whole section" for BOTH undefined and "".
+      return { path: (m[1] ?? "") || sec, para: m[2] ? `¶${m[2]}` : "" };
     }
     return { path: sec, para: "" };
   });
