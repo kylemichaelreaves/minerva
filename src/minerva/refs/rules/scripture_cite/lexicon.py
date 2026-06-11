@@ -43,9 +43,9 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     ("ad", "Rom"): "Romans",
     ("ad", "Romanos"): "Romans",
     (None, "Romanos"): "Romans",
-    (None, "Cor"): "1 Corinthians",        # ambiguous; default 1 Cor
-    ("ad", "Cor"): "1 Corinthians",        # ambiguous
-    (None, "Corinth"): "1 Corinthians",    # ambiguous
+    (None, "Cor"): "1 Corinthians",  # ambiguous; default 1 Cor
+    ("ad", "Cor"): "1 Corinthians",  # ambiguous
+    (None, "Corinth"): "1 Corinthians",  # ambiguous
     ("I", "Cor"): "1 Corinthians",
     ("I", "Corinth"): "1 Corinthians",
     ("II", "Cor"): "2 Corinthians",
@@ -67,13 +67,13 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     ("ad", "Coloss"): "Colossians",
     (None, "Col"): "Colossians",
     ("ad", "Col"): "Colossians",
-    (None, "Thess"): "1 Thessalonians",    # ambiguous; default 1
-    ("ad", "Thess"): "1 Thessalonians",    # ambiguous
+    (None, "Thess"): "1 Thessalonians",  # ambiguous; default 1
+    ("ad", "Thess"): "1 Thessalonians",  # ambiguous
     ("I", "Thess"): "1 Thessalonians",
     ("II", "Thess"): "2 Thessalonians",
-    (None, "Tim"): "1 Timothy",            # ambiguous; default 1
-    (None, "Timoth"): "1 Timothy",         # ambiguous
-    ("ad", "Tim"): "1 Timothy",            # ambiguous
+    (None, "Tim"): "1 Timothy",  # ambiguous; default 1
+    (None, "Timoth"): "1 Timothy",  # ambiguous
+    ("ad", "Tim"): "1 Timothy",  # ambiguous
     ("I", "Tim"): "1 Timothy",
     ("I", "Timoth"): "1 Timothy",
     ("II", "Tim"): "2 Timothy",
@@ -89,9 +89,9 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Iac"): "James",
     (None, "Iacob"): "James",
     (None, "Jac"): "James",
-    (None, "Petr"): "1 Peter",             # ambiguous; default 1
-    (None, "Pet"): "1 Peter",              # ambiguous
-    (None, "Ptr"): "1 Peter",              # ambiguous
+    (None, "Petr"): "1 Peter",  # ambiguous; default 1
+    (None, "Pet"): "1 Peter",  # ambiguous
+    (None, "Ptr"): "1 Peter",  # ambiguous
     ("I", "Petr"): "1 Peter",
     ("I", "Ptr"): "1 Peter",
     ("II", "Petr"): "2 Peter",
@@ -104,7 +104,7 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     ("II", "Io"): "2 John",
     ("III", "Ioan"): "3 John",
     ("III", "Io"): "3 John",
-    (None, "Iud"): "Jude",                 # ambiguous with Iudic/Iudit; lexicon order matters
+    (None, "Iud"): "Jude",  # ambiguous with Iudic/Iudit; lexicon order matters
     (None, "Iudae"): "Jude",
     # ── Revelation ────────────────────────────────────────────────
     (None, "Apoc"): "Revelation",
@@ -124,13 +124,13 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Iudic"): "Judges",
     (None, "Iudc"): "Judges",
     (None, "Ruth"): "Ruth",
-    (None, "Reg"): "1 Samuel",             # ambiguous; I-IV Reg = 1Sam,2Sam,1Kgs,2Kgs
+    (None, "Reg"): "1 Samuel",  # ambiguous; I-IV Reg = 1Sam,2Sam,1Kgs,2Kgs
     ("I", "Reg"): "1 Samuel",
     ("II", "Reg"): "2 Samuel",
     ("III", "Reg"): "1 Kings",
     ("IV", "Reg"): "2 Kings",
-    (None, "Paral"): "1 Chronicles",       # ambiguous; default 1
-    (None, "Paralip"): "1 Chronicles",     # ambiguous
+    (None, "Paral"): "1 Chronicles",  # ambiguous; default 1
+    (None, "Paralip"): "1 Chronicles",  # ambiguous
     ("I", "Paral"): "1 Chronicles",
     ("I", "Paralip"): "1 Chronicles",
     ("II", "Paral"): "2 Chronicles",
@@ -143,8 +143,8 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Iudt"): "Judith",
     (None, "Esth"): "Esther",
     (None, "Esther"): "Esther",
-    (None, "Macc"): "1 Maccabees",         # ambiguous; default 1
-    (None, "Mach"): "1 Maccabees",         # ambiguous
+    (None, "Macc"): "1 Maccabees",  # ambiguous; default 1
+    (None, "Mach"): "1 Maccabees",  # ambiguous
     ("I", "Macc"): "1 Maccabees",
     ("I", "Mach"): "1 Maccabees",
     ("II", "Macc"): "2 Maccabees",
@@ -156,10 +156,10 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Ps"): "Psalms",
     (None, "Prov"): "Proverbs",
     (None, "Proverb"): "Proverbs",
-    (None, "Eccle"): "Ecclesiastes",       # NOT to be confused with Eccli below
+    (None, "Eccle"): "Ecclesiastes",  # NOT to be confused with Eccli below
     (None, "Cant"): "Song of Songs",
     (None, "Sap"): "Wisdom",
-    (None, "Eccli"): "Sirach",             # Ecclesiasticus / Sirach
+    (None, "Eccli"): "Sirach",  # Ecclesiasticus / Sirach
     (None, "Ecclus"): "Sirach",
     (None, "Sir"): "Sirach",
     # ── Major prophets ────────────────────────────────────────────
@@ -169,26 +169,26 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Ier"): "Jeremiah",
     (None, "Jer"): "Jeremiah",
     (None, "Lam"): "Lamentations",
-    (None, "Thren"): "Lamentations",       # Threni (Vulgate alternate)
+    (None, "Thren"): "Lamentations",  # Threni (Vulgate alternate)
     (None, "Bar"): "Baruch",
     (None, "Ezech"): "Ezekiel",
     (None, "Ez"): "Ezekiel",
     (None, "Dan"): "Daniel",
     # ── Minor prophets ────────────────────────────────────────────
-    (None, "Os"): "Hosea",                 # Osee in Vulgate
+    (None, "Os"): "Hosea",  # Osee in Vulgate
     (None, "Osee"): "Hosea",
     (None, "Ioel"): "Joel",
     (None, "Joel"): "Joel",
     (None, "Am"): "Amos",
-    (None, "Abd"): "Obadiah",              # Abdias
-    (None, "Ion"): "Jonah",                # Ionas
+    (None, "Abd"): "Obadiah",  # Abdias
+    (None, "Ion"): "Jonah",  # Ionas
     (None, "Iona"): "Jonah",
-    (None, "Mich"): "Micah",               # Michaeas
+    (None, "Mich"): "Micah",  # Michaeas
     (None, "Nah"): "Nahum",
     (None, "Hab"): "Habakkuk",
     (None, "Habac"): "Habakkuk",
-    (None, "Soph"): "Zephaniah",           # Sophonias
-    (None, "Agg"): "Haggai",               # Aggaeus
+    (None, "Soph"): "Zephaniah",  # Sophonias
+    (None, "Agg"): "Haggai",  # Aggaeus
     (None, "Zach"): "Zechariah",
     (None, "Mal"): "Malachi",
     (None, "Malach"): "Malachi",
@@ -206,8 +206,8 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Numerorum"): "Numbers",
     (None, "Deuteronomii"): "Deuteronomy",
     (None, "Iudicum"): "Judges",
-    (None, "Regum"): "1 Kings",                    # ambiguous (I-IV Reg)
-    (None, "Paralipomenon"): "1 Chronicles",       # ambiguous
+    (None, "Regum"): "1 Kings",  # ambiguous (I-IV Reg)
+    (None, "Paralipomenon"): "1 Chronicles",  # ambiguous
     (None, "Psalmi"): "Psalms",
     (None, "Psalmus"): "Psalms",
     (None, "Psalmorum"): "Psalms",
@@ -219,7 +219,7 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Sapientiae"): "Wisdom",
     (None, "Ecclesiastici"): "Sirach",
     (None, "Isaiae"): "Isaiah",
-    (None, "Hisaiae"): "Isaiah",                   # OCR / alt-spelling variant
+    (None, "Hisaiae"): "Isaiah",  # OCR / alt-spelling variant
     (None, "Ieremiae"): "Jeremiah",
     (None, "Lamentationes"): "Lamentations",
     (None, "Ezechielis"): "Ezekiel",
@@ -237,7 +237,7 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Zachariae"): "Zechariah",
     (None, "Malachiae"): "Malachi",
     (None, "Tobiae"): "Tobit",
-    (None, "Machabaeorum"): "1 Maccabees",         # ambiguous (I/II Macc)
+    (None, "Machabaeorum"): "1 Maccabees",  # ambiguous (I/II Macc)
     # Gospels
     (None, "Matthaei"): "Matthew",
     (None, "Matthaeus"): "Matthew",
@@ -245,20 +245,20 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Marcus"): "Mark",
     (None, "Lucae"): "Luke",
     (None, "Lucas"): "Luke",
-    (None, "Iohannis"): "John",                    # ambiguous (Gospel vs epistles)
+    (None, "Iohannis"): "John",  # ambiguous (Gospel vs epistles)
     (None, "Iohannes"): "John",
-    (None, "Ioannis"): "John",                     # ambiguous
+    (None, "Ioannis"): "John",  # ambiguous
     # Acts
     (None, "Actuum"): "Acts",
     # Pauline epistles (spelled-out Latin accusative/genitive of "ad <X>")
     (None, "Romanorum"): "Romans",
-    (None, "Corinthiorum"): "1 Corinthians",       # ambiguous
+    (None, "Corinthiorum"): "1 Corinthians",  # ambiguous
     (None, "Galatas"): "Galatians",
     (None, "Ephesios"): "Ephesians",
     (None, "Philippenses"): "Philippians",
     (None, "Colossenses"): "Colossians",
     (None, "Thessalonicenses"): "1 Thessalonians",  # ambiguous
-    (None, "Timotheum"): "1 Timothy",              # ambiguous
+    (None, "Timotheum"): "1 Timothy",  # ambiguous
     (None, "Titum"): "Titus",
     (None, "Philemonem"): "Philemon",
     ("ad", "Corinthios"): "1 Corinthians",
@@ -277,7 +277,7 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     (None, "Hebraeorum"): "Hebrews",
     # Catholic epistles
     (None, "Iacobi"): "James",
-    (None, "Petri"): "1 Peter",                    # ambiguous (1/2 Peter)
+    (None, "Petri"): "1 Peter",  # ambiguous (1/2 Peter)
     ("I", "Petri"): "1 Peter",
     ("II", "Petri"): "2 Peter",
     ("I", "Iohannis"): "1 John",
@@ -296,7 +296,7 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     # Ordinal-prefixed historical spelled-out variants
     ("I", "Regum"): "1 Kings",
     ("II", "Regum"): "2 Kings",
-    ("III", "Regum"): "1 Kings",                   # Vulgate III-IV Reg = modern 1-2 Kgs
+    ("III", "Regum"): "1 Kings",  # Vulgate III-IV Reg = modern 1-2 Kgs
     ("IV", "Regum"): "2 Kings",
     ("I", "Paralipomenon"): "1 Chronicles",
     ("II", "Paralipomenon"): "2 Chronicles",
@@ -312,6 +312,7 @@ _LEXICON: dict[tuple[str | None, str], str] = {
 # locations.BCV_BOOK_ABBR (imported lazily below to dodge circular).
 def _sbl_abbr_for(book: str) -> str | None:
     from .... import locations  # local import: avoid module-load cycle
+
     return locations.BCV_BOOK_ABBR.get(book)
 
 
@@ -330,7 +331,7 @@ def _sbl_abbr_for(book: str) -> str | None:
 # accidental in-word substrings ("Apostolicam." → not a cite).
 
 _CITE_RE = re.compile(
-    r"(?:\b(?P<prefix>I{1,3}V?|ad)\s+)?"      # optional ordinal/prep
+    r"(?:\b(?P<prefix>I{1,3}V?|ad)\s+)?"  # optional ordinal/prep
     # Book abbreviation. Length 1..15 to accommodate spelled-out Latin
     # genitive forms ("Lamentationes" 13, "Thessalonicenses" 16 —
     # the 16-char form is just past the cap and would need explicit
@@ -339,9 +340,9 @@ _CITE_RE = re.compile(
     # capitulo 5" without "Isaiae.") still match — most Aquinas
     # spelled-out cites omit the period.
     r"\b(?P<abbr>[A-Z][a-zëæoœ]{1,15})\.?"
-    r"\s+"                                     # whitespace
-    r"(?P<chap>\d{1,3})"                       # chapter number
-    r"(?:[-:]\s*(?P<verse>\d{1,3}))?"          # optional verse
+    r"\s+"  # whitespace
+    r"(?P<chap>\d{1,3})"  # chapter number
+    r"(?:[-:]\s*(?P<verse>\d{1,3}))?"  # optional verse
 )
 
 
@@ -350,15 +351,34 @@ _CITE_RE = re.compile(
 # emit at LOW confidence (`_CONF_AMBIGUOUS`) because the right
 # resolution depends on context the rule can't see.
 _AMBIGUOUS_BARE: frozenset[str] = frozenset(
-    {"Cor", "Corinth", "Petr", "Pet", "Ptr", "Tim", "Timoth",
-     "Thess", "Reg", "Paral", "Paralip", "Macc", "Mach",
-     # Spelled-out Latin forms that share lemma across numbered
-     # books — bare cites at low confidence.
-     "Petri", "Iohannis", "Ioannis", "Corinthiorum",
-     "Thessalonicenses", "Timotheum", "Regum",
-     "Paralipomenon", "Machabaeorum"}
+    {
+        "Cor",
+        "Corinth",
+        "Petr",
+        "Pet",
+        "Ptr",
+        "Tim",
+        "Timoth",
+        "Thess",
+        "Reg",
+        "Paral",
+        "Paralip",
+        "Macc",
+        "Mach",
+        # Spelled-out Latin forms that share lemma across numbered
+        # books — bare cites at low confidence.
+        "Petri",
+        "Iohannis",
+        "Ioannis",
+        "Corinthiorum",
+        "Thessalonicenses",
+        "Timotheum",
+        "Regum",
+        "Paralipomenon",
+        "Machabaeorum",
+    }
 )
 
-_CONF_FULL = 0.90        # book + chapter + verse, unambiguous
-_CONF_AMBIGUOUS = 0.65   # ambiguous bare abbrev (Cor without I/II)
+_CONF_FULL = 0.90  # book + chapter + verse, unambiguous
+_CONF_AMBIGUOUS = 0.65  # ambiguous bare abbrev (Cor without I/II)
 _CONF_CHAPTER_ONLY = 0.75  # book + chapter, no verse — chunk-level only

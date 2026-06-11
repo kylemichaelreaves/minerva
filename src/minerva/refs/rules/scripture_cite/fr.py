@@ -3,105 +3,186 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from .. import Candidate, ChunkInfo
+from ._base import BaseScriptureCiteRule
 from .de import ScriptureCiteRuleDe
 from .en import ScriptureCiteRuleEn
-from .lexicon import _CONF_AMBIGUOUS, _CONF_FULL, _sbl_abbr_for
 
 _LEXICON_FR: dict[tuple[str | None, str], str] = {
     # Pentateuch — French abbrevs
-    (None, "Gn"): "Genesis", (None, "Gen"): "Genesis",
+    (None, "Gn"): "Genesis",
+    (None, "Gen"): "Genesis",
     (None, "Ex"): "Exodus",
-    (None, "Lv"): "Leviticus", (None, "Lév"): "Leviticus",
-    (None, "Nb"): "Numbers", (None, "Nomb"): "Numbers",
-    (None, "Dt"): "Deuteronomy", (None, "Deut"): "Deuteronomy",
+    (None, "Lv"): "Leviticus",
+    (None, "Lév"): "Leviticus",
+    (None, "Nb"): "Numbers",
+    (None, "Nomb"): "Numbers",
+    (None, "Dt"): "Deuteronomy",
+    (None, "Deut"): "Deuteronomy",
     # Historical
     (None, "Jos"): "Joshua",
-    (None, "Jg"): "Judges", (None, "Juges"): "Judges",
-    (None, "Rt"): "Ruth", (None, "Ruth"): "Ruth",
-    ("1", "S"): "1 Samuel", ("I", "Sam"): "1 Samuel",
-    ("2", "S"): "2 Samuel", ("II", "Sam"): "2 Samuel",
-    ("1", "R"): "1 Kings", ("I", "Rois"): "1 Kings",
-    ("2", "R"): "2 Kings", ("II", "Rois"): "2 Kings",
-    ("1", "Ch"): "1 Chronicles", ("I", "Chr"): "1 Chronicles",
-    ("2", "Ch"): "2 Chronicles", ("II", "Chr"): "2 Chronicles",
+    (None, "Jg"): "Judges",
+    (None, "Juges"): "Judges",
+    (None, "Rt"): "Ruth",
+    (None, "Ruth"): "Ruth",
+    ("1", "S"): "1 Samuel",
+    ("I", "Sam"): "1 Samuel",
+    ("2", "S"): "2 Samuel",
+    ("II", "Sam"): "2 Samuel",
+    ("1", "R"): "1 Kings",
+    ("I", "Rois"): "1 Kings",
+    ("2", "R"): "2 Kings",
+    ("II", "Rois"): "2 Kings",
+    ("1", "Ch"): "1 Chronicles",
+    ("I", "Chr"): "1 Chronicles",
+    ("2", "Ch"): "2 Chronicles",
+    ("II", "Chr"): "2 Chronicles",
     (None, "Esd"): "Ezra",
-    (None, "Néh"): "Nehemiah", (None, "Neh"): "Nehemiah",
+    (None, "Néh"): "Nehemiah",
+    (None, "Neh"): "Nehemiah",
     (None, "Est"): "Esther",
     # Wisdom
-    (None, "Jb"): "Job", (None, "Job"): "Job",
+    (None, "Jb"): "Job",
+    (None, "Job"): "Job",
     (None, "Ps"): "Psalms",
-    (None, "Pr"): "Proverbs", (None, "Prov"): "Proverbs",
-    (None, "Ec"): "Ecclesiastes", (None, "Eccl"): "Ecclesiastes",
-    (None, "Ct"): "Song of Songs", (None, "Cant"): "Song of Songs",
+    (None, "Pr"): "Proverbs",
+    (None, "Prov"): "Proverbs",
+    (None, "Ec"): "Ecclesiastes",
+    (None, "Eccl"): "Ecclesiastes",
+    (None, "Ct"): "Song of Songs",
+    (None, "Cant"): "Song of Songs",
     # Major prophets
-    (None, "Is"): "Isaiah", (None, "Isaïe"): "Isaiah",
-    (None, "Jr"): "Jeremiah", (None, "Jér"): "Jeremiah",
-    (None, "Lm"): "Lamentations", (None, "Lam"): "Lamentations",
-    (None, "Ez"): "Ezekiel", (None, "Éz"): "Ezekiel",
-    (None, "Dn"): "Daniel", (None, "Dan"): "Daniel",
+    (None, "Is"): "Isaiah",
+    (None, "Isaïe"): "Isaiah",
+    (None, "Jr"): "Jeremiah",
+    (None, "Jér"): "Jeremiah",
+    (None, "Lm"): "Lamentations",
+    (None, "Lam"): "Lamentations",
+    (None, "Ez"): "Ezekiel",
+    (None, "Éz"): "Ezekiel",
+    (None, "Dn"): "Daniel",
+    (None, "Dan"): "Daniel",
     # Minor prophets
-    (None, "Os"): "Hosea", (None, "Osée"): "Hosea",
-    (None, "Jl"): "Joel", (None, "Joël"): "Joel",
+    (None, "Os"): "Hosea",
+    (None, "Osée"): "Hosea",
+    (None, "Jl"): "Joel",
+    (None, "Joël"): "Joel",
     (None, "Am"): "Amos",
-    (None, "Ab"): "Obadiah", (None, "Abd"): "Obadiah",
+    (None, "Ab"): "Obadiah",
+    (None, "Abd"): "Obadiah",
     (None, "Jon"): "Jonah",
-    (None, "Mi"): "Micah", (None, "Mich"): "Micah",
+    (None, "Mi"): "Micah",
+    (None, "Mich"): "Micah",
     (None, "Na"): "Nahum",
-    (None, "Ha"): "Habakkuk", (None, "Hab"): "Habakkuk",
-    (None, "So"): "Zephaniah", (None, "Soph"): "Zephaniah",
-    (None, "Ag"): "Haggai", (None, "Agg"): "Haggai",
-    (None, "Za"): "Zechariah", (None, "Zach"): "Zechariah",
-    (None, "Ml"): "Malachi", (None, "Mal"): "Malachi",
+    (None, "Ha"): "Habakkuk",
+    (None, "Hab"): "Habakkuk",
+    (None, "So"): "Zephaniah",
+    (None, "Soph"): "Zephaniah",
+    (None, "Ag"): "Haggai",
+    (None, "Agg"): "Haggai",
+    (None, "Za"): "Zechariah",
+    (None, "Zach"): "Zechariah",
+    (None, "Ml"): "Malachi",
+    (None, "Mal"): "Malachi",
     # Apocrypha (Sacy is a Catholic Bible — deuterocanon included)
-    (None, "Tb"): "Tobit", (None, "Tob"): "Tobit",
+    (None, "Tb"): "Tobit",
+    (None, "Tob"): "Tobit",
     (None, "Jdt"): "Judith",
-    (None, "Sg"): "Wisdom", (None, "Sap"): "Wisdom",
-    (None, "Si"): "Sirach", (None, "Sir"): "Sirach", (None, "Eccli"): "Sirach",
-    (None, "Ba"): "Baruch", (None, "Bar"): "Baruch",
-    ("1", "M"): "1 Maccabees", ("I", "Macc"): "1 Maccabees",
-    ("2", "M"): "2 Maccabees", ("II", "Macc"): "2 Maccabees",
+    (None, "Sg"): "Wisdom",
+    (None, "Sap"): "Wisdom",
+    (None, "Si"): "Sirach",
+    (None, "Sir"): "Sirach",
+    (None, "Eccli"): "Sirach",
+    (None, "Ba"): "Baruch",
+    (None, "Bar"): "Baruch",
+    ("1", "M"): "1 Maccabees",
+    ("I", "Macc"): "1 Maccabees",
+    ("2", "M"): "2 Maccabees",
+    ("II", "Macc"): "2 Maccabees",
     # Gospels + Acts
-    (None, "Mt"): "Matthew", (None, "Matth"): "Matthew",
-    (None, "Mc"): "Mark", (None, "Marc"): "Mark",
-    (None, "Lc"): "Luke", (None, "Luc"): "Luke",
-    (None, "Jn"): "John", (None, "Jean"): "John",
-    (None, "Ac"): "Acts", (None, "Act"): "Acts",
+    (None, "Mt"): "Matthew",
+    (None, "Matth"): "Matthew",
+    (None, "Mc"): "Mark",
+    (None, "Marc"): "Mark",
+    (None, "Lc"): "Luke",
+    (None, "Luc"): "Luke",
+    (None, "Jn"): "John",
+    (None, "Jean"): "John",
+    (None, "Ac"): "Acts",
+    (None, "Act"): "Acts",
     # Pauline epistles
-    (None, "Rm"): "Romans", (None, "Rom"): "Romans",
-    ("1", "Co"): "1 Corinthians", ("I", "Cor"): "1 Corinthians",
-    ("2", "Co"): "2 Corinthians", ("II", "Cor"): "2 Corinthians",
+    (None, "Rm"): "Romans",
+    (None, "Rom"): "Romans",
+    ("1", "Co"): "1 Corinthians",
+    ("I", "Cor"): "1 Corinthians",
+    ("2", "Co"): "2 Corinthians",
+    ("II", "Cor"): "2 Corinthians",
     (None, "Co"): "1 Corinthians",  # ambiguous-bare
-    (None, "Ga"): "Galatians", (None, "Gal"): "Galatians",
-    (None, "Ep"): "Ephesians", (None, "Eph"): "Ephesians",
-    (None, "Ph"): "Philippians", (None, "Phil"): "Philippians",
+    (None, "Ga"): "Galatians",
+    (None, "Gal"): "Galatians",
+    (None, "Ep"): "Ephesians",
+    (None, "Eph"): "Ephesians",
+    (None, "Ph"): "Philippians",
+    (None, "Phil"): "Philippians",
     (None, "Col"): "Colossians",
-    ("1", "Th"): "1 Thessalonians", ("I", "Thess"): "1 Thessalonians",
-    ("2", "Th"): "2 Thessalonians", ("II", "Thess"): "2 Thessalonians",
-    ("1", "Tm"): "1 Timothy", ("I", "Tim"): "1 Timothy",
-    ("2", "Tm"): "2 Timothy", ("II", "Tim"): "2 Timothy",
-    (None, "Tt"): "Titus", (None, "Tit"): "Titus",
-    (None, "Phm"): "Philemon", (None, "Philém"): "Philemon",
-    (None, "He"): "Hebrews", (None, "Héb"): "Hebrews",
+    ("1", "Th"): "1 Thessalonians",
+    ("I", "Thess"): "1 Thessalonians",
+    ("2", "Th"): "2 Thessalonians",
+    ("II", "Thess"): "2 Thessalonians",
+    ("1", "Tm"): "1 Timothy",
+    ("I", "Tim"): "1 Timothy",
+    ("2", "Tm"): "2 Timothy",
+    ("II", "Tim"): "2 Timothy",
+    (None, "Tt"): "Titus",
+    (None, "Tit"): "Titus",
+    (None, "Phm"): "Philemon",
+    (None, "Philém"): "Philemon",
+    (None, "He"): "Hebrews",
+    (None, "Héb"): "Hebrews",
     # Catholic epistles
-    (None, "Jc"): "James", (None, "Jacq"): "James", (None, "Jac"): "James",
-    ("1", "P"): "1 Peter", ("I", "Pierre"): "1 Peter",
-    ("2", "P"): "2 Peter", ("II", "Pierre"): "2 Peter",
-    ("1", "Jn"): "1 John", ("I", "Jean"): "1 John",
-    ("2", "Jn"): "2 John", ("II", "Jean"): "2 John",
-    ("3", "Jn"): "3 John", ("III", "Jean"): "3 John",
-    (None, "Jude"): "Jude", (None, "Jud"): "Jude",
+    (None, "Jc"): "James",
+    (None, "Jacq"): "James",
+    (None, "Jac"): "James",
+    ("1", "P"): "1 Peter",
+    ("I", "Pierre"): "1 Peter",
+    ("2", "P"): "2 Peter",
+    ("II", "Pierre"): "2 Peter",
+    ("1", "Jn"): "1 John",
+    ("I", "Jean"): "1 John",
+    ("2", "Jn"): "2 John",
+    ("II", "Jean"): "2 John",
+    ("3", "Jn"): "3 John",
+    ("III", "Jean"): "3 John",
+    (None, "Jude"): "Jude",
+    (None, "Jud"): "Jude",
     # Revelation
-    (None, "Ap"): "Revelation", (None, "Apoc"): "Revelation",
+    (None, "Ap"): "Revelation",
+    (None, "Apoc"): "Revelation",
 }
 
 
 _AMBIGUOUS_BARE_FR: frozenset[str] = frozenset(
-    {"Co", "Cor", "Th", "Thess", "Tm", "Tim", "P", "Pierre", "S",
-     "Sam", "R", "Rois", "Ch", "Chr", "M", "Macc", "Jude", "Jud"}
+    {
+        "Co",
+        "Cor",
+        "Th",
+        "Thess",
+        "Tm",
+        "Tim",
+        "P",
+        "Pierre",
+        "S",
+        "Sam",
+        "R",
+        "Rois",
+        "Ch",
+        "Chr",
+        "M",
+        "Macc",
+        "Jude",
+        "Jud",
+    }
 )
 
 
@@ -112,14 +193,14 @@ _CITE_RE_FR = re.compile(
     r"\b(?P<abbr>[A-ZÉÈÀ][A-Za-zéèàç]{1,8})\.?"
     r"\s+"
     r"(?P<chap>\d{1,3})"
-    r"\s*[,:]\s*"                                    # comma OR colon
+    r"\s*[,:]\s*"  # comma OR colon
     r"(?P<verse>\d{1,3})"
     r"(?:\s*[-–]\s*\d{1,3})?"
 )
 
 
 @dataclass(frozen=True)
-class ScriptureCiteRuleFr:
+class ScriptureCiteRuleFr(BaseScriptureCiteRule):
     """French scripture-citation rule (Sacy target).
 
     Used by Pascal/Rousseau rule modules. Tolerates both comma- and
@@ -129,45 +210,10 @@ class ScriptureCiteRuleFr:
     name: str = "scripture_cite_sacy_fr"
     target_author: str = "Sacy"
     langs: tuple[str, ...] = ("fra",)
-    _key: str = field(init=False, default="")
 
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "_key", f"scripture_cite_fr/{self.name}")
-
-    def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
-        if self.langs and chunk.lang not in self.langs:
-            return
-        if chunk.author == self.target_author:
-            return
-        for m in _CITE_RE_FR.finditer(chunk.text):
-            prefix = m.group("prefix")
-            abbr = m.group("abbr")
-            book = _LEXICON_FR.get((prefix, abbr))
-            if book is None:
-                continue
-            sbl = _sbl_abbr_for(book)
-            if sbl is None:
-                continue
-
-            chap = int(m.group("chap"))
-            verse = int(m.group("verse"))
-            target_locator = f"{sbl} {chap}:{verse}"
-            conf = _CONF_FULL
-            if prefix is None and abbr in _AMBIGUOUS_BARE_FR:
-                conf = _CONF_AMBIGUOUS
-
-            yield Candidate(
-                source_chunk_id=chunk.chunk_id,
-                source_span_start=m.start(),
-                source_span_end=m.end(),
-                source_form_snapshot=m.group(0),
-                target_author=self.target_author,
-                target_work=book,
-                target_locator=target_locator,
-                reference_type="cites",
-                confidence=conf,
-                source_method="rule_strong" if conf >= 0.85 else "rule_weak",
-            )
+    lexicon = _LEXICON_FR
+    cite_re = _CITE_RE_FR
+    ambiguous_bare = _AMBIGUOUS_BARE_FR
 
 
 def default_scripture_rules(prefix: str) -> tuple[ScriptureCiteRuleDe, ScriptureCiteRuleEn]:

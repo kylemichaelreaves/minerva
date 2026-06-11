@@ -46,8 +46,9 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
+from functools import cache
 from typing import Any, Protocol
 
 from .. import schema as refs_schema
@@ -131,13 +132,25 @@ class ChunkInfo:
 # Compile pattern with case-sensitivity off by default for Latin and
 # German (where capitalization on proper nouns is meaningful but not
 # reliable across editions). Each rule can override.
-def _compile_forms(forms: Sequence[str], *, ignore_case: bool) -> re.Pattern[str]:
-    # Word-boundary on both sides so "Philosophus" doesn't match
-    # "Philosophusculus". The boundary metachar is unicode-aware in
-    # Python's re module — works for Greek too.
-    body = "|".join(re.escape(f) for f in forms)
+#
+# The cache keys on the full (forms, ignore_case) input, so two rules
+# that happen to share a name but differ in forms can never silently
+# share whichever pattern compiled first.
+@cache
+def _compile_forms(forms: tuple[str, ...], *, ignore_case: bool) -> re.Pattern[str]:
+    # Longest alternative first — re alternation is first-match-wins,
+    # so without the sort a shorter form ("Locke") would shadow a
+    # longer one ("Locke's") and the span snapshot would under-cover.
+    #
+    # Leading word-boundary plus trailing `(?!\w)` so "Philosophus"
+    # doesn't match inside "Philosophusculus". A trailing `\b` would
+    # be wrong here: it makes apostrophe-final forms ("Sokrates'")
+    # unmatchable before a space (no word/non-word transition after
+    # the apostrophe), while `(?!\w)` accepts them. The boundary
+    # metachars are unicode-aware in Python's re — works for Greek too.
+    body = "|".join(re.escape(f) for f in sorted(forms, key=len, reverse=True))
     flags = re.IGNORECASE if ignore_case else 0
-    return re.compile(rf"\b(?:{body})\b", flags)
+    return re.compile(rf"\b(?:{body})(?!\w)", flags)
 
 
 @dataclass(frozen=True)
@@ -162,21 +175,12 @@ class AuthorMentionRule:
     langs: tuple[str, ...] = ()  # empty = all languages
     ignore_case: bool = False
     note: str | None = None
-    # Internal cache — re.Pattern isn't hashable so it can't live on
-    # the frozen dataclass; we compile lazily in `_pattern()` and
-    # cache via a module-level dict keyed on rule name.
-    _key: str = field(init=False, default="")
-
-    def __post_init__(self) -> None:
-        # Frozen — assign via object.__setattr__.
-        object.__setattr__(self, "_key", f"author/{self.name}")
 
     def _pattern(self) -> re.Pattern[str]:
-        cached = _PATTERN_CACHE.get(self._key)
-        if cached is None:
-            cached = _compile_forms(self.forms, ignore_case=self.ignore_case)
-            _PATTERN_CACHE[self._key] = cached
-        return cached
+        # re.Pattern isn't hashable so it can't live on the frozen
+        # dataclass; `_compile_forms` is cached on the inputs,
+        # making this a dict lookup after the first scan.
+        return _compile_forms(self.forms, ignore_case=self.ignore_case)
 
     def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
         if self.langs and chunk.lang not in self.langs:
@@ -215,11 +219,6 @@ class StrongMentionRule(AuthorMentionRule):
 
     confidence: float = 0.92
     source_method: str = "rule_strong"
-
-
-# Pattern cache shared across the package — keyed on rule name (the
-# `_key` set in __post_init__ above). Compiled lazily on first scan.
-_PATTERN_CACHE: dict[str, re.Pattern[str]] = {}
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -425,7 +424,6 @@ def iter_chunks_for_rules(
     materialize the whole corpus in memory.
     """
 
-    conn.row_factory = sqlite3.Row
     # When the scan_state table is absent (DB predates migration 0020),
     # behave as if `rescan_all` were True. We don't want to hard-fail
     # a `refs build` against an old snapshot the user is testing

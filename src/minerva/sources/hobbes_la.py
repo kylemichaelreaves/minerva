@@ -42,6 +42,7 @@ import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 
+from minerva.sources._roman import roman_to_int
 from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # ──────────────────────────────────────────────────────────────────
@@ -88,24 +89,15 @@ _RUNNING_HEAD_CHAP_RE = re.compile(
 # Bare page number line (1-3 digits, possibly with garbage punct).
 _PAGE_NUM_RE = re.compile(r"^\s*[\divxlcdmIVXLCDM]{1,4}[.,;]?\s*$")
 
-_ROMAN_VALUES = {
-    "I": 1,
-    "V": 5,
-    "X": 10,
-    "L": 50,
-    "C": 100,
-    "D": 500,
-    "M": 1000,
-}
-
 
 def _roman_to_int(roman: str) -> int | None:
     """Convert a Roman numeral string to int. Returns None when the
     input is plainly not Roman (e.g., already arabic, or OCR garbage).
-    Lenient: tolerates lowercase, internal whitespace from column-
-    linearized OCR (``X X V I I L`` for "XXVIII"), and common
-    glyph substitutions but refuses to invent a value for empty
-    or unknown input."""
+    An OCR-repair pre-pass over the shared strict converter
+    (:func:`minerva.sources._roman.roman_to_int`): tolerates
+    lowercase, internal whitespace from column-linearized OCR
+    (``X X V I I L`` for "XXVIII"), and common glyph substitutions
+    but refuses to invent a value for empty or unknown input."""
 
     if not roman:
         return None
@@ -137,18 +129,7 @@ def _roman_to_int(roman: str) -> int | None:
             return int(upper)
         except ValueError:
             return None
-    if not all(c in _ROMAN_VALUES for c in upper):
-        return None
-    total = 0
-    prev = 0
-    for c in reversed(upper):
-        v = _ROMAN_VALUES[c]
-        if v < prev:
-            total -= v
-        else:
-            total += v
-            prev = v
-    return total or None
+    return roman_to_int(upper)
 
 
 def _classify(line: str) -> tuple[str, object]:

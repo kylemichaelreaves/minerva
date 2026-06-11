@@ -4,21 +4,16 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import cache
 
-from .. import _PATTERN_CACHE, Candidate, ChunkInfo
-from .lexicon import (
-    _AMBIGUOUS_BARE,
-    _CITE_RE,
-    _CONF_AMBIGUOUS,
-    _CONF_CHAPTER_ONLY,
-    _CONF_FULL,
-    _LEXICON,
-    _sbl_abbr_for,
-)
+from .. import Candidate, ChunkInfo
+from ._base import BaseScriptureCiteRule
+from .lexicon import _AMBIGUOUS_BARE, _CITE_RE, _LEXICON
 
 
-class ScriptureCiteRule:
+@dataclass(frozen=True)
+class ScriptureCiteRule(BaseScriptureCiteRule):
     """Fires on Latin Vulgate cite-string syntax in chunk text.
 
     Each match becomes one :class:`Candidate` with
@@ -29,68 +24,12 @@ class ScriptureCiteRule:
     """
 
     name: str = "scripture_cite_vulgate"
-    target_corpus: str = "Vulgate"
+    target_author: str = "Vulgate"
     langs: tuple[str, ...] = ("lat",)
-    # No suffix mods today; field is reserved for future
-    # source-author overrides without breaking subclasses.
-    _key: str = field(init=False, default="")
 
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "_key", f"scripture_cite/{self.name}")
-
-    def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
-        if self.langs and chunk.lang not in self.langs:
-            return
-        # Don't fire on Vulgate chunks themselves — Genesis quoting
-        # Genesis isn't a useful cross-reference.
-        if chunk.author == self.target_corpus:
-            return
-
-        for m in _CITE_RE.finditer(chunk.text):
-            prefix = m.group("prefix")
-            abbr = m.group("abbr")
-            book = _LEXICON.get((prefix, abbr))
-            if book is None:
-                continue
-            sbl = _sbl_abbr_for(book)
-            if sbl is None:
-                # Lexicon out of sync with the BCV table. Logged
-                # silently rather than raised — the rules pass
-                # processes thousands of chunks and one missing
-                # entry shouldn't kill the batch.
-                continue
-
-            chap = int(m.group("chap"))
-            verse_raw = m.group("verse")
-            verse: int | None = int(verse_raw) if verse_raw else None
-
-            if verse is not None:
-                target_locator = f"{sbl} {chap}:{verse}"
-                conf = _CONF_FULL
-            else:
-                # Chapter-level locator: no chunks.section will match
-                # exactly (Vulgate sections are per-verse), so the
-                # chunk binder will leave target_chunk_id NULL. The
-                # row still useful for "Aquinas cites Matthew 5 (no
-                # specific verse)" curation.
-                target_locator = f"{sbl} {chap}"
-                conf = _CONF_CHAPTER_ONLY
-
-            if prefix is None and abbr in _AMBIGUOUS_BARE:
-                conf = _CONF_AMBIGUOUS
-
-            yield Candidate(
-                source_chunk_id=chunk.chunk_id,
-                source_span_start=m.start(),
-                source_span_end=m.end(),
-                source_form_snapshot=m.group(0),
-                target_author=self.target_corpus,
-                target_work=book,
-                target_locator=target_locator,
-                reference_type="cites",
-                confidence=conf,
-                source_method="rule_strong" if conf >= 0.85 else "rule_weak",
-            )
+    lexicon = _LEXICON
+    cite_re = _CITE_RE
+    ambiguous_bare = _AMBIGUOUS_BARE
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -114,6 +53,22 @@ class ScriptureCiteRule:
 _FORMULAIC_QUOTE_END_RE = r"[.;?!]"  # Latin sentences end at . ; ? or !
 _FORMULAIC_MIN_QUOTE_CHARS = 15  # below this is noise (false intros)
 _FORMULAIC_MAX_QUOTE_CHARS = 250  # above this likely overran the verse
+
+
+@cache
+def _formulaic_pattern(introducer_patterns: tuple[str, ...]) -> re.Pattern[str]:
+    alt = "|".join(f"(?:{p})" for p in introducer_patterns)
+    body = (
+        rf"\b(?:{alt})"
+        # Optional Latin verbs that bridge intro and quote
+        # ("dicit", "dicitur", "ait", "inquit", "legitur",
+        # "namque", "enim", "de X").
+        rf"(?:\s+(?:dicit(?:ur)?|ait|inquit|legitur|namque|enim|de\s+\w+))?"
+        rf"\s*:\s+"
+        rf"(?P<quote>[A-Za-zæëœÆËŒ][^.:;!?]{{{_FORMULAIC_MIN_QUOTE_CHARS - 1},{_FORMULAIC_MAX_QUOTE_CHARS}}}?)"
+        rf"\s*{_FORMULAIC_QUOTE_END_RE}"
+    )
+    return re.compile(body, re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -144,29 +99,11 @@ class FormulaicQuoteRule:
     reference_type: str = "quotes"
     source_method: str = "rule_weak"
     langs: tuple[str, ...] = ("lat",)
-    _key: str = field(init=False, default="")
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "_key", f"formulaic_quote/{self.name}")
 
     def _pattern(self) -> re.Pattern[str]:
-        cached = _PATTERN_CACHE.get(self._key)
-        if cached is not None:
-            return cached
-        alt = "|".join(f"(?:{p})" for p in self.introducer_patterns)
-        body = (
-            rf"\b(?:{alt})"
-            # Optional Latin verbs that bridge intro and quote
-            # ("dicit", "dicitur", "ait", "inquit", "legitur",
-            # "namque", "enim", "de X").
-            rf"(?:\s+(?:dicit(?:ur)?|ait|inquit|legitur|namque|enim|de\s+\w+))?"
-            rf"\s*:\s+"
-            rf"(?P<quote>[A-Za-zæëœÆËŒ][^.:;!?]{{{_FORMULAIC_MIN_QUOTE_CHARS - 1},{_FORMULAIC_MAX_QUOTE_CHARS}}}?)"
-            rf"\s*{_FORMULAIC_QUOTE_END_RE}"
-        )
-        compiled = re.compile(body, re.IGNORECASE)
-        _PATTERN_CACHE[self._key] = compiled
-        return compiled
+        # Cached on the introducer tuple itself (`@cache` above) —
+        # two rules sharing a name can never collide on a pattern.
+        return _formulaic_pattern(self.introducer_patterns)
 
     def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
         if self.langs and chunk.lang not in self.langs:

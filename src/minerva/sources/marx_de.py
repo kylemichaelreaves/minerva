@@ -48,6 +48,7 @@ import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 
+from minerva.sources._roman import roman_to_int
 from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 # ──────────────────────────────────────────────────────────────────
@@ -169,23 +170,6 @@ _DEFAULT_MAX_CHAPTER = 60
 # ──────────────────────────────────────────────────────────────────
 
 
-def _roman_to_int(roman: str) -> int | None:
-    upper = roman.upper()
-    values = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
-    if not all(c in values for c in upper):
-        return None
-    total = 0
-    prev = 0
-    for c in reversed(upper):
-        v = values[c]
-        if v < prev:
-            total -= v
-        else:
-            total += v
-            prev = v
-    return total or None
-
-
 def _heading_to_int(match_text: str) -> int | None:
     """Parse the matched chapter-heading group (e.g., "Erstes Kapitel",
     "Kapitel III", "Kap. 7") into the chapter integer it represents.
@@ -203,7 +187,7 @@ def _heading_to_int(match_text: str) -> int | None:
     token = m.group(1)
     if token.isdigit():
         return int(token)
-    return _roman_to_int(token)
+    return roman_to_int(token)
 
 
 def _find_chapter_candidates(lines: list[str]) -> list[tuple[int, int]]:
