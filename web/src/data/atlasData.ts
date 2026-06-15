@@ -173,6 +173,14 @@ export const ATLAS_AUTHORS: AtlasAuthor[] = [
     xShift: 0,
     work: "Kritik der reinen Vernunft",
   },
+  {
+    name: "Schiller",
+    year: 1795,
+    tradition: "modern",
+    row: 1,
+    xShift: 0,
+    work: "Über die ästhetische Erziehung des Menschen",
+  },
   { name: "Hegel", year: 1820, tradition: "modern", row: 0, xShift: 0, work: "Phänomenologie des Geistes" },
   {
     name: "Gobineau",

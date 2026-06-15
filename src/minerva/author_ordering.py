@@ -88,6 +88,7 @@ AUTHOR_ORDINAL: dict[str, int] = {
     'Hume': 850,
     'Rousseau': 860,
     'Kant': 900,
+    'Schiller': 905,
     'Hegel': 910,
     # by publication year of the Essai.
     'Gobineau': 915,

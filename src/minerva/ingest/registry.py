@@ -310,6 +310,12 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
         help="Directory of Nietzsche zeno.org HTML files (see authors/nietzsche_works.py).",
     ),
     IngestSource(
+        "schiller",
+        _P / "data" / "schiller" / "raw_deu",
+        _corpus_label("schiller", "schiller_works"),
+        help="Directory of Schiller theoretical-works zeno.org HTML (see authors/schiller_works.py).",
+    ),
+    IngestSource(
         "cicero_la",
         _P / "data" / "cicero" / "raw_la",
         _corpus_label("cicero-la", "cicero_works"),
