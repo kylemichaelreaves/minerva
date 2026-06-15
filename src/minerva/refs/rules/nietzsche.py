@@ -596,4 +596,18 @@ RULES = (
             "all relevant."
         ),
     ),
+
+    AuthorMentionRule(
+        name="nietzsche_schiller",
+        target_author="Schiller",
+        target_work="",
+        forms=("Schiller", "Schillers", "Schillersche", "Schillerschen", "schillersch"),
+        confidence=0.7,
+        langs=("deu",),
+        note=(
+            "Nietzsche engages Schiller's naive/sentimental distinction "
+            "and aesthetic justification across the Birth of Tragedy and "
+            "the Untimely Meditations; also GD."
+        ),
+    ),
 )

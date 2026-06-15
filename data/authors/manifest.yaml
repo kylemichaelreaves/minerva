@@ -33,6 +33,7 @@ atlas_order:
 - Boulainvilliers
 - Rousseau
 - Kant
+- Schiller
 - Hegel
 - Gobineau
 - Renan
@@ -76,6 +77,18 @@ corpora:
   keywords:
   - kant
   - kantian
+- id: schiller
+  original_lang: deu
+  citation_system: paragraph
+  dominant_code: l
+  keywords:
+  - schiller
+  - schillerian
+  comment: 'Friedrich Schiller (1759-1805) — aesthetic-philosophy essays (Über die
+
+    ästhetische Erziehung des Menschen, 1795, + companions). dominant_code lowercase
+
+    ''l'' (Schi-l-ler) — uppercase L is Locke, S/s are Spinoza/Sophocles.'
 - id: homer
   original_lang: grc
   citation_system: paragraph
@@ -753,6 +766,14 @@ authors:
   row: 2
   x_shift: 0
   work_hint: Kritik der reinen Vernunft
+- display_name: Schiller
+  corpus_id: schiller
+  ordinal: 905
+  year: 1795
+  tradition: modern
+  row: 1
+  x_shift: 0
+  work_hint: Über die ästhetische Erziehung des Menschen
 - display_name: Hegel
   corpus_id: hegel
   ordinal: 910

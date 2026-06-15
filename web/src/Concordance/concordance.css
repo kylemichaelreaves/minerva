@@ -972,6 +972,52 @@
   color: var(--accent);
 }
 
+/* Selected-work chips next to the F1 desktop "add a work" Select.
+   Mirrors the applied-filters pill look so the two filter UIs read as
+   one family. */
+.fbar-work-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.fbar-work-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 10.5px;
+  max-width: 220px;
+}
+.fbar-work-chip .v {
+  font-family: var(--serif);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fbar-work-chip .x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--rule-soft);
+  color: var(--ink-mute);
+  font-size: 10px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.fbar-work-chip .x:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* Search field inside a filter-rail group (Work / Surface). */
 .filter-rail .fr-search {
   display: flex;

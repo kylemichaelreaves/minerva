@@ -460,3 +460,175 @@ def test_aggregate_rebuild_is_all_or_nothing(
         "FROM lemma_counts ORDER BY 1,2,3,4,5"
     ).fetchall()
     assert [tuple(r) for r in after] == [tuple(r) for r in before]
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Multi-work scope (scope=work with several works)
+# ──────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def two_work_db(tmp_path: Path) -> sqlite3.Connection:
+    """Two German works sharing a lemma, each with a unique lemma, so
+    multi-work selection can be checked for both summation and union."""
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="w1-1",
+            corpus="schiller",
+            author="Schiller",
+            work="Über das Erhabene",
+            lang="deu",
+            section="¶1",
+            text="Schönheit Schönheit Anmut",
+        ),
+        make_chunk(
+            chunk_id="w2-1",
+            corpus="schiller",
+            author="Schiller",
+            work="Vom Erhabenen",
+            lang="deu",
+            section="¶1",
+            text="Schönheit Würde",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "mw.sqlite")
+    store.insert_chunks(conn, jsonl)
+    seed = [
+        ("w1-1", 0, "Schönheit", "NOUN"),
+        ("w1-1", 1, "Schönheit", "NOUN"),
+        ("w1-1", 2, "Anmut", "NOUN"),  # unique to work 1
+        ("w2-1", 0, "Schönheit", "NOUN"),
+        ("w2-1", 1, "Würde", "NOUN"),  # unique to work 2
+    ]
+    for chunk_id, idx, lemma, pos in seed:
+        _insert_lemma(conn, chunk_id=chunk_id, token_index=idx, surface=lemma, lemma=lemma, pos=pos)
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def _count_of(res: dict, lemma: str) -> int:
+    return next((r["count"] for r in res["rows"] if r["lemma"] == lemma), 0)
+
+
+def test_multi_work_sums_shared_and_unions_unique(two_work_db: sqlite3.Connection) -> None:
+    res = concordance_queries.lemma_index(
+        two_work_db,
+        # min_count=1 so the singletons (Anmut/Würde) show.
+        {
+            "lang": "deu",
+            "scope": "work",
+            "work": "Über das Erhabene\tVom Erhabenen",
+            "min_count": "1",
+        },
+    )
+    assert res["scope_label"] == "2 works"
+    # Schönheit: 2 in work1 + 1 in work2 = 3 (summed across works).
+    assert _count_of(res, "Schönheit") == 3
+    # Both works' unique lemmas appear in the union.
+    assert _count_of(res, "Anmut") == 1
+    assert _count_of(res, "Würde") == 1
+    # Header occurrences = all tokens across both works.
+    assert res["total_occurrences"] == 5
+
+
+def test_multi_work_equals_single_when_one_work(two_work_db: sqlite3.Connection) -> None:
+    one = concordance_queries.lemma_index(
+        two_work_db, {"lang": "deu", "scope": "work", "work": "Über das Erhabene", "min_count": "1"}
+    )
+    assert one["scope_label"] == "Über das Erhabene"
+    assert _count_of(one, "Schönheit") == 2
+    assert _count_of(one, "Würde") == 0  # not in work 1
+
+
+def test_multi_work_kwic_spans_selected_works(two_work_db: sqlite3.Connection) -> None:
+    res = concordance_queries.lemma_detail(
+        two_work_db,
+        {
+            "lemma": "Schönheit",
+            "lang": "deu",
+            "scope": "work",
+            "work": "Über das Erhabene\tVom Erhabenen",
+        },
+    )
+    assert res["total"] == 3  # 2 + 1 across both works
+    works = {r["work"] for r in res["rows"]}
+    assert works == {"Über das Erhabene", "Vom Erhabenen"}
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Multi-author scope (scope=author with several authors)
+# ──────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def two_author_db(tmp_path: Path) -> sqlite3.Connection:
+    """Two authors sharing a lemma, each with a unique lemma."""
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="h-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie",
+            lang="deu",
+            section="¶1",
+            text="Geist Geist Dialektik",
+        ),
+        make_chunk(
+            chunk_id="k-1",
+            corpus="kant",
+            author="Kant",
+            work="Kritik",
+            lang="deu",
+            section="¶1",
+            text="Geist Vernunft",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "ma.sqlite")
+    store.insert_chunks(conn, jsonl)
+    for chunk_id, idx, lemma in [
+        ("h-1", 0, "Geist"),
+        ("h-1", 1, "Geist"),
+        ("h-1", 2, "Dialektik"),
+        ("k-1", 0, "Geist"),
+        ("k-1", 1, "Vernunft"),
+    ]:
+        _insert_lemma(
+            conn, chunk_id=chunk_id, token_index=idx, surface=lemma, lemma=lemma, pos="NOUN"
+        )
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def test_multi_author_sums_shared_and_unions_unique(two_author_db: sqlite3.Connection) -> None:
+    res = concordance_queries.lemma_index(
+        two_author_db,
+        {"lang": "deu", "scope": "author", "author": "Hegel\tKant", "min_count": "1"},
+    )
+    assert res["scope_label"] == "2 authors"
+    assert _count_of(res, "Geist") == 3  # 2 (Hegel) + 1 (Kant)
+    assert _count_of(res, "Dialektik") == 1  # Hegel only
+    assert _count_of(res, "Vernunft") == 1  # Kant only
+    assert res["total_occurrences"] == 5
+
+
+def test_multi_author_kwic_spans_selected_authors(two_author_db: sqlite3.Connection) -> None:
+    res = concordance_queries.lemma_detail(
+        two_author_db,
+        {"lemma": "Geist", "lang": "deu", "scope": "author", "author": "Hegel\tKant"},
+    )
+    assert res["total"] == 3
+    assert {r["author"] for r in res["rows"]} == {"Hegel", "Kant"}

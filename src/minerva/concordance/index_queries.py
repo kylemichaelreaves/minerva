@@ -13,6 +13,8 @@ from ._scope import (
     _DEFAULT_INDEX_LIMIT,
     _MAX_INDEX_LIMIT,
     _scope_clause,
+    parse_authors,
+    parse_works,
 )
 
 
@@ -72,8 +74,8 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     if not lang:
         raise BadRequestError("'lang' query param is required")
     scope = query.get("scope", "corpus")
-    author = query.get("author")
-    work = query.get("work")
+    authors = parse_authors(query)
+    works = parse_works(query)
     letter = (query.get("letter") or "").strip()[:1]
     sort = query.get("sort", "freq")
     if sort not in ("freq", "alpha", "pos"):
@@ -118,7 +120,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
 
     q = (query.get("q") or "").strip()
 
-    _scope_clause(scope, author, work)  # validates scope/author/work pairing
+    _scope_clause(scope, authors, works)  # validates scope/author/work pairing
 
 
     # Polytonic Greek lemmas begin with *precomposed* diacritic forms
@@ -144,18 +146,26 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # narrowed result so the per-work JSON values from merged
     # variants combine correctly.
     if scope == "corpus":
-        scope_kind, scope_value = "corpus", None
+        scope_kind, scope_values = "corpus", []
     elif scope == "author":
-        scope_kind, scope_value = "author", author
+        scope_kind, scope_values = "author", authors
     else:
-        scope_kind, scope_value = "work", work
+        scope_kind, scope_values = "work", works
+
+    # Multiple authors/works → multiple lemma_counts rows per (lemma,
+    # pos), one per scope value; they must be summed in Python (the
+    # materialized rows are per-scope-value). The case-merge block
+    # already sums + merges per_work, so we route the multi-value case
+    # through it even when case-merge is off.
+    multi_work = len(scope_values) > 1
+    aggregate = merge_case or multi_work
 
     # Shared WHERE clause against lemma_counts (also used by the
     # totals query below). The main query alone adds the freq range.
     where_parts, where_params = _counts_where(
         lang,
         scope_kind,
-        scope_value,
+        scope_values,
         letter=letter,
         fold_letter=fold_letter,
         pos_in=pos_in,
@@ -173,10 +183,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         "pos": "pos COLLATE NOCASE ASC, count DESC",
     }[sort]
 
-    # Pull headroom for case-merge — variants live in separate rows
-    # and a merged page might need 10× as many to fill ``limit``.
-    fetch_limit = max(limit * 10, 2000) if merge_case else limit
-    fetch_offset = 0 if merge_case else offset
+    # Pull headroom when aggregating in Python — case variants and/or
+    # multiple works live in separate rows, so a merged page can need
+    # many more raw rows than ``limit``; pagination then happens after
+    # the merge.
+    fetch_limit = max(limit * 10, 2000) if aggregate else limit
+    fetch_offset = 0 if aggregate else offset
 
     sql_main = f"""
         SELECT lemma, pos, count AS n, distinct_works, per_work_json
@@ -193,12 +205,16 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # per_work JSON (a work present in two variants counts once),
     # per_work entries combine and re-truncate to top-8.
     variants_by_display: dict[tuple[str, str], list[str]] = {}
-    if merge_case:
+    if aggregate:
+        # When case-merge is on, group orthographic variants by casefold;
+        # when it's off (multi-work only), group on the exact lemma so we
+        # sum the same lemma across the selected works without folding
+        # case variants together.
         groups: dict[tuple[str, str], dict[str, Any]] = {}
         for r in raw_rows:
             lemma = r["lemma"] or ""
             pos = r["pos"] or ""
-            key = (lemma.casefold(), pos)
+            key = (lemma.casefold() if merge_case else lemma, pos)
             g = groups.setdefault(
                 key,
                 {
@@ -269,7 +285,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     totals_where_parts, totals_where_params = _counts_where(
         lang,
         scope_kind,
-        scope_value,
+        scope_values,
         letter=letter,
         fold_letter=fold_letter,
         pos_in=pos_in,
@@ -304,11 +320,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
             }
         )
 
-    scope_label = {
-        "corpus": _corpus_label(lang),
-        "author": author or "",
-        "work": work or "",
-    }[scope]
+    if scope == "work":
+        scope_label = works[0] if len(works) == 1 else f"{len(works)} works"
+    elif scope == "author":
+        scope_label = authors[0] if len(authors) == 1 else f"{len(authors)} authors"
+    else:
+        scope_label = _corpus_label(lang)
 
     return {
         "scope": scope,
@@ -327,7 +344,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
 def _counts_where(
     lang: str,
     scope_kind: str,
-    scope_value: str | None,
+    scope_values: list[str],
     *,
     letter: str,
     fold_letter: bool,
@@ -339,15 +356,24 @@ def _counts_where(
     drift. ``lemma`` and ``pos`` columns map 1:1 from chunk_lemmas →
     lemma_counts; the query-time guards (letter, pos_in, q, valid
     lemma) apply identically. The freq range is appended by the main
-    query only — the header is meant as a scope-wide reference."""
+    query only — the header is meant as a scope-wide reference.
 
-    where_parts: list[str] = [
-        "lang = ?",
-        "scope_kind = ?",
-        # scope_value uses IS to match NULL for corpus rows.
-        "scope_value IS ?",
-    ]
-    where_params: list[Any] = [lang, scope_kind, scope_value]
+    ``scope_values``: empty for corpus (``scope_value IS NULL``), one
+    entry for author, one-or-more for work (``scope_value IN (...)`` —
+    the per-work rows are summed downstream)."""
+
+    where_parts: list[str] = ["lang = ?", "scope_kind = ?"]
+    where_params: list[Any] = [lang, scope_kind]
+    if not scope_values:
+        # corpus rows carry a NULL scope_value.
+        where_parts.append("scope_value IS NULL")
+    elif len(scope_values) == 1:
+        where_parts.append("scope_value IS ?")
+        where_params.append(scope_values[0])
+    else:
+        placeholders = ",".join("?" * len(scope_values))
+        where_parts.append(f"scope_value IN ({placeholders})")
+        where_params.extend(scope_values)
 
     if letter:
         if fold_letter:

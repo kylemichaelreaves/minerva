@@ -88,8 +88,13 @@ export interface LemmaDetailResponse {
 export interface LemmaIndexArgs {
   lang: string;
   scope?: ConcScope;
-  author?: string;
-  work?: string;
+  /** Selected author names for scope=author (or the work-picker
+   *  narrowing filter). Multiple authors are sent to the backend joined
+   *  by a literal TAB in the `author` query param. */
+  authors?: string[];
+  /** Selected work titles for scope=work. Multiple works are sent to
+   *  the backend joined by a literal TAB in the `work` query param. */
+  works?: string[];
   letter?: string;
   sort?: ConcSort;
   limit?: number;
@@ -111,8 +116,12 @@ export interface LemmaDetailArgs {
   lemma: string;
   lang: string;
   scope?: ConcScope;
-  author?: string;
-  work?: string;
+  /** Selected author names for scope=author. Multiple authors are sent
+   *  to the backend joined by a literal TAB in the `author` query param. */
+  authors?: string[];
+  /** Selected work titles for scope=work. Multiple works are sent to
+   *  the backend joined by a literal TAB in the `work` query param. */
+  works?: string[];
   pos?: string;
   morph?: Record<string, string>;
   surface?: string;
@@ -128,8 +137,12 @@ export async function fetchLemmaIndex(
     `/api/concordance/index${qs({
       lang: args.lang,
       scope: args.scope,
-      author: args.author,
-      work: args.work,
+      // Multiple authors → single `author` param, TAB-joined; qs()
+      // URL-encodes the value so the tab travels safely. Omit when empty.
+      author: args.authors?.length ? args.authors.join("\t") : undefined,
+      // Multiple works → single `work` param, TAB-joined; qs() URL-encodes
+      // the value so the tab travels safely. Omit when empty.
+      work: args.works?.length ? args.works.join("\t") : undefined,
       letter: args.letter,
       sort: args.sort,
       limit: args.limit,
@@ -157,8 +170,8 @@ export async function fetchLemmaDetail(
       lemma: args.lemma,
       lang: args.lang,
       scope: args.scope,
-      author: args.author,
-      work: args.work,
+      author: args.authors?.length ? args.authors.join("\t") : undefined,
+      work: args.works?.length ? args.works.join("\t") : undefined,
       pos: args.pos,
       morph,
       surface: args.surface,

@@ -14,6 +14,8 @@ from ._scope import (
     _KWIC_CONTEXT_RADIUS,
     _MAX_KWIC_LIMIT,
     _scope_clause,
+    parse_authors,
+    parse_works,
 )
 from .index_queries import _corpus_label
 
@@ -77,8 +79,8 @@ def lemma_detail(
     if not lang:
         raise BadRequestError("'lang' query param is required")
     scope = query.get("scope", "corpus")
-    author = query.get("author")
-    work = query.get("work")
+    authors = parse_authors(query)
+    works = parse_works(query)
     pos = query.get("pos")
     morph_str = query.get("morph") or ""
     surface = query.get("surface")
@@ -111,7 +113,9 @@ def lemma_detail(
         k, _, v = part.partition("=")
         morph_filters[k.strip()] = v.strip()
 
-    scope_sql, scope_params = _scope_clause(scope, author, work)
+    scope_sql, scope_params = _scope_clause(scope, authors, works)
+    work_label = works[0] if len(works) == 1 else f"{len(works)} works"
+    author_label = authors[0] if len(authors) == 1 else f"{len(authors)} authors"
 
     # Lemma-match SQL fragment. When merge_case is on, fold to lower
     # so ``Herr`` matches ``HErr`` / ``HERR`` / ``HERRN`` etc. We
@@ -165,8 +169,8 @@ def lemma_detail(
             "lang": lang,
             "scope": scope,
             "scope_label": {"corpus": _corpus_label(lang),
-                            "author": author or "",
-                            "work": work or ""}[scope],
+                            "author": author_label,
+                            "work": work_label}[scope],
             "filters": {
                 "pos": pos, "morph": morph_filters, "surface": surface,
             },
@@ -233,8 +237,8 @@ def lemma_detail(
         "lang": lang,
         "scope": scope,
         "scope_label": {"corpus": _corpus_label(lang),
-                        "author": author or "",
-                        "work": work or ""}[scope],
+                        "author": author_label,
+                        "work": work_label}[scope],
         "filters": {
             "pos": pos, "morph": morph_filters, "surface": surface,
         },
