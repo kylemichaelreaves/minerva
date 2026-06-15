@@ -24,15 +24,15 @@ export interface LemmaDetailProps {
   lemma: string;
   lang?: string;
   scope?: ConcScope;
-  scopeAuthor?: string;
-  scopeWork?: string;
+  scopeAuthors?: string[];
+  scopeWorks?: string[];
   caseFilter?: string;
   numberFilter?: string;
   surface?: string;
   onNavigate: (patch: {
     scope?: ConcScope;
-    scopeAuthor?: string;
-    scopeWork?: string;
+    scopeAuthors?: string[];
+    scopeWorks?: string[];
     caseFilter?: string;
     numberFilter?: string;
     surface?: string;
@@ -49,8 +49,8 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
     lemma: () => props.lemma,
     lang,
     scope,
-    scopeAuthor: () => props.scopeAuthor,
-    scopeWork: () => props.scopeWork,
+    scopeAuthors: () => props.scopeAuthors,
+    scopeWorks: () => props.scopeWorks,
     surface: () => props.surface,
     caseFilter: () => props.caseFilter,
     numberFilter: () => props.numberFilter,
@@ -73,8 +73,8 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         e.preventDefault();
         props.onNavigate({
           scope: "corpus",
-          scopeAuthor: undefined,
-          scopeWork: undefined,
+          scopeAuthors: undefined,
+          scopeWorks: undefined,
         });
         return true;
       }
@@ -82,7 +82,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         const topWork = data()?.work_breakdown[0]?.value;
         if (topWork) {
           e.preventDefault();
-          props.onNavigate({ scope: "work", scopeWork: topWork, scopeAuthor: undefined });
+          props.onNavigate({ scope: "work", scopeWorks: [topWork], scopeAuthors: undefined });
           return true;
         }
       }
@@ -136,8 +136,8 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
     <FilterRail
       data={data()!}
       scope={scope()}
-      scopeAuthor={props.scopeAuthor}
-      scopeWork={props.scopeWork}
+      scopeAuthors={props.scopeAuthors}
+      scopeWorks={props.scopeWorks}
       caseFilter={props.caseFilter}
       numberFilter={props.numberFilter}
       surface={props.surface}
@@ -145,23 +145,31 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
       onSetCase={(v) => props.onNavigate({ caseFilter: v })}
       onSetNumber={(v) => props.onNavigate({ numberFilter: v })}
       onSetSurface={(v) => props.onNavigate({ surface: v })}
-      onSetWork={(w) =>
-        // Empty string clears the work-scope back up to author
-        // (preserving the previous Author binding when there is one)
-        // or to corpus otherwise.
-        w
-          ? props.onNavigate({
-              scope: "work",
-              scopeWork: w,
-              scopeAuthor: undefined,
-            })
-          : props.onNavigate({
-              scope: props.scopeAuthor ? "author" : "corpus",
-              scopeWork: undefined,
-            })
+      onToggleWork={(w) => {
+        // Toggle one work in the scope=work selection. Adding the first
+        // work enters work-scope (and drops the author binding, since
+        // work-scope is more specific); removing the last work falls
+        // back up to author scope (preserving the Author binding when
+        // there is one) or to corpus otherwise.
+        const cur = props.scopeWorks ?? [];
+        const next = cur.includes(w) ? cur.filter((x) => x !== w) : [...cur, w];
+        if (next.length > 0) {
+          props.onNavigate({ scope: "work", scopeWorks: next, scopeAuthors: undefined });
+        } else {
+          props.onNavigate({
+            scope: props.scopeAuthors?.length ? "author" : "corpus",
+            scopeWorks: undefined,
+          });
+        }
+      }}
+      onClearWorks={() =>
+        // Clear ALL works → back up to author (when bound) or corpus.
+        props.onNavigate({
+          scope: props.scopeAuthors?.length ? "author" : "corpus",
+          scopeWorks: undefined,
+        })
       }
       onResetAll={resetAllFilters}
-      currentWorkScope={props.scopeWork}
     />
   );
 
@@ -346,8 +354,8 @@ interface UseLemmaDetailArgs {
   lemma: () => string;
   lang: () => string;
   scope: () => ConcScope;
-  scopeAuthor: () => string | undefined;
-  scopeWork: () => string | undefined;
+  scopeAuthors: () => string[] | undefined;
+  scopeWorks: () => string[] | undefined;
   surface: () => string | undefined;
   caseFilter: () => string | undefined;
   numberFilter: () => string | undefined;
@@ -368,8 +376,8 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
       lemma: args.lemma(),
       lang: args.lang(),
       scope: args.scope(),
-      author: args.scopeAuthor(),
-      work: args.scopeWork(),
+      authors: args.scopeAuthors(),
+      works: args.scopeWorks(),
       surface: args.surface(),
       morph: morph(),
     }),
@@ -378,8 +386,8 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
         lemma: p.lemma,
         lang: p.lang,
         scope: p.scope,
-        author: p.author,
-        work: p.work,
+        authors: p.authors,
+        works: p.works,
         surface: p.surface,
         morph: Object.keys(p.morph).length > 0 ? p.morph : undefined,
         limit: 100,

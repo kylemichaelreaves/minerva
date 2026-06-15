@@ -47,8 +47,8 @@ export function ConcordanceRoute(props: RouteContextProps) {
         <ConcordanceIndexPage
           lang={conc().lang}
           scope={conc().scope}
-          scopeAuthor={conc().scopeAuthor}
-          scopeWork={conc().scopeWork}
+          scopeAuthors={conc().scopeAuthors}
+          scopeWorks={conc().scopeWorks}
           letter={conc().letter}
           sort={conc().sort}
           pos={conc().pos}
@@ -68,8 +68,8 @@ export function ConcordanceRoute(props: RouteContextProps) {
                   kind: "concordance" as const,
                   lang: cur.lang,
                   scope: cur.scope,
-                  scopeAuthor: cur.scopeAuthor,
-                  scopeWork: cur.scopeWork,
+                  scopeAuthors: cur.scopeAuthors,
+                  scopeWorks: cur.scopeWorks,
                   letter: cur.letter,
                   sort: cur.sort,
                   pos: cur.pos,
@@ -81,15 +81,15 @@ export function ConcordanceRoute(props: RouteContextProps) {
               ),
             );
           }}
-          onOpenLemma={(lemmaName, scope, scopeAuthor, scopeWork) => {
+          onOpenLemma={(lemmaName, scope, scopeAuthors, scopeWorks) => {
             const cur = conc();
             props.routing.navigate({
               kind: "concordance-lemma",
               lemma: lemmaName,
               lang: cur.lang,
               scope: scope ?? cur.scope,
-              scopeAuthor: scopeAuthor ?? cur.scopeAuthor,
-              scopeWork: scopeWork ?? cur.scopeWork,
+              scopeAuthors: scopeAuthors ?? cur.scopeAuthors,
+              scopeWorks: scopeWorks ?? cur.scopeWorks,
             });
           }}
         />
@@ -100,8 +100,8 @@ export function ConcordanceRoute(props: RouteContextProps) {
           lemma={lemma().lemma}
           lang={lemma().lang}
           scope={lemma().scope}
-          scopeAuthor={lemma().scopeAuthor}
-          scopeWork={lemma().scopeWork}
+          scopeAuthors={lemma().scopeAuthors}
+          scopeWorks={lemma().scopeWorks}
           caseFilter={lemma().caseFilter}
           numberFilter={lemma().numberFilter}
           surface={lemma().surface}
@@ -114,8 +114,8 @@ export function ConcordanceRoute(props: RouteContextProps) {
                   lemma: cur.lemma,
                   lang: cur.lang,
                   scope: cur.scope,
-                  scopeAuthor: cur.scopeAuthor,
-                  scopeWork: cur.scopeWork,
+                  scopeAuthors: cur.scopeAuthors,
+                  scopeWorks: cur.scopeWorks,
                   caseFilter: cur.caseFilter,
                   numberFilter: cur.numberFilter,
                   surface: cur.surface,
@@ -130,8 +130,8 @@ export function ConcordanceRoute(props: RouteContextProps) {
               kind: "concordance",
               lang: cur.lang,
               scope: cur.scope,
-              scopeAuthor: cur.scopeAuthor,
-              scopeWork: cur.scopeWork,
+              scopeAuthors: cur.scopeAuthors,
+              scopeWorks: cur.scopeWorks,
             });
           }}
           onOpenChunk={props.openSourceInReader}

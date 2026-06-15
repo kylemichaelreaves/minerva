@@ -59,11 +59,15 @@ export interface FilterBarProps {
    *  acting as an optional filter on the work list). Options come from
    *  the page (built from /api/works for the active language). */
   scope: ConcScope;
-  scopeAuthor?: string;
-  scopeWork?: string;
+  scopeAuthors?: string[];
+  scopeWorks?: string[];
   authorOptions: SelectOption[];
   workOptions: SelectOption[];
+  /** Toggle an author in the selection — appends if absent, removes if
+   *  already selected. The add-Select calls this on pick. */
   onPickAuthor: (author: string | undefined) => void;
+  /** Toggle a work in the scope=work selection — appends if absent,
+   *  removes if already selected. The add-Select calls this on pick. */
   onPickWork: (work: string | undefined) => void;
   onSetLang: (v: string) => void;
   onSetSort: (v: ConcSort) => void;
@@ -234,6 +238,20 @@ export function FilterBar(props: FilterBarProps) {
     qTimer = setTimeout(commitQ, SEARCH_DEBOUNCE_MS);
   };
 
+  // Add-Select options exclude works already in scope so a work can't
+  // be picked twice. Selection set is keyed off scopeWorks.
+  const addWorkOptions = createMemo<SelectOption[]>(() => {
+    const chosen = new Set(props.scopeWorks ?? []);
+    return props.workOptions.filter((o) => !chosen.has(o.value));
+  });
+
+  // Same for authors — exclude already-selected authors so each can be
+  // picked once. Selection set is keyed off scopeAuthors.
+  const addAuthorOptions = createMemo<SelectOption[]>(() => {
+    const chosen = new Set(props.scopeAuthors ?? []);
+    return props.authorOptions.filter((o) => !chosen.has(o.value));
+  });
+
   const sortLabel = createMemo(() => {
     switch (props.sort) {
       case "alpha":
@@ -266,25 +284,75 @@ export function FilterBar(props: FilterBarProps) {
       <Show when={props.scope !== "corpus"}>
         <div class="grp">
           <span class="lab">Author</span>
+          {/* Add-an-author picker: like the Work picker, the Select only
+              ADDS — never bound to a value (always shows the
+              placeholder), and picking an author appends it to
+              scopeAuthors via onPickAuthor. Already-selected authors are
+              excluded from the options. The chosen authors render as
+              removable chips beside it. */}
           <Select
-            options={props.authorOptions}
-            value={props.scopeAuthor}
-            onChange={(v) => props.onPickAuthor(v || undefined)}
-            placeholder={props.scope === "work" ? "any author" : "choose an author…"}
-            ariaLabel="Narrow concordance to an author"
+            options={addAuthorOptions()}
+            value={undefined}
+            onChange={(v) => {
+              if (v) props.onPickAuthor(v);
+            }}
+            placeholder={props.scope === "work" ? "any author" : "add an author…"}
+            clearable={false}
+            ariaLabel="Add an author to the concordance scope"
           />
+          <Show when={(props.scopeAuthors?.length ?? 0) > 0}>
+            <span class="fbar-work-chips">
+              <For each={props.scopeAuthors}>
+                {(a) => (
+                  <span class="fbar-work-chip">
+                    <span class="v" title={a}>
+                      {a}
+                    </span>
+                    <span class="x" onClick={() => props.onPickAuthor(a)}>
+                      ×
+                    </span>
+                  </span>
+                )}
+              </For>
+            </span>
+          </Show>
         </div>
       </Show>
       <Show when={props.scope === "work"}>
         <div class="grp">
           <span class="lab">Work</span>
+          {/* Add-a-work picker: the Select only ADDS — it's never bound
+              to a value (always shows the placeholder), and picking a
+              work appends it to scopeWorks via onPickWork. Already-
+              selected works are excluded from the options so they can't
+              be re-picked. The chosen works render as removable chips
+              beside it. */}
           <Select
-            options={props.workOptions}
-            value={props.scopeWork}
-            onChange={(v) => props.onPickWork(v || undefined)}
-            placeholder="choose a work…"
-            ariaLabel="Narrow concordance to a single work"
+            options={addWorkOptions()}
+            value={undefined}
+            onChange={(v) => {
+              if (v) props.onPickWork(v);
+            }}
+            placeholder="add a work…"
+            clearable={false}
+            ariaLabel="Add a work to the concordance scope"
           />
+          <Show when={(props.scopeWorks?.length ?? 0) > 0}>
+            <span class="fbar-work-chips">
+              <For each={props.scopeWorks}>
+                {(w) => (
+                  <span class="fbar-work-chip">
+                    <span class="v" title={w}>
+                      {w}
+                    </span>
+                    <span class="x" onClick={() => props.onPickWork(w)}>
+                      ×
+                    </span>
+                  </span>
+                )}
+              </For>
+            </span>
+          </Show>
         </div>
       </Show>
 

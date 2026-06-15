@@ -108,7 +108,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       <ConcordanceIndexPage
         lang="deu"
         scope="work"
-        scopeWork="Kritik der reinen Vernunft"
+        scopeWorks={["Kritik der reinen Vernunft"]}
         onNavigate={vi.fn()}
         onOpenLemma={vi.fn()}
       />
@@ -116,20 +116,120 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
     const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
     expect(args.scope).toBe("work");
-    expect(args.work).toBe("Kritik der reinen Vernunft");
+    expect(args.works).toEqual(["Kritik der reinen Vernunft"]);
     expect(await screen.findByText("Begriff")).toBeInTheDocument();
   });
 
-  it("shows an active-filter chip for the selected work", async () => {
+  it("fetches with both works selected, tab-joined into the work param", async () => {
     render(() => (
       <ConcordanceIndexPage
         lang="deu"
         scope="work"
-        scopeWork="Kritik der reinen Vernunft"
+        scopeWorks={["Kritik der reinen Vernunft", "Phänomenologie des Geistes"]}
         onNavigate={vi.fn()}
         onOpenLemma={vi.fn()}
       />
     ));
-    expect(await screen.findByText("Kritik der reinen Vernunft")).toBeInTheDocument();
+    await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
+    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    expect(args.scope).toBe("work");
+    expect(args.works).toEqual([
+      "Kritik der reinen Vernunft",
+      "Phänomenologie des Geistes",
+    ]);
+  });
+
+  it("shows an active-filter chip per selected work", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="work"
+        scopeWorks={["Kritik der reinen Vernunft", "Phänomenologie des Geistes"]}
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    // Each title surfaces in two places — the active-filter strip chip
+    // and the desktop FilterBar's selected-work chip — so both titles
+    // are present at least once.
+    expect((await screen.findAllByText("Kritik der reinen Vernunft")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Phänomenologie des Geistes")).length).toBeGreaterThan(0);
+  });
+
+  it("renders the picker prompt and skips the fetch when scope=work has an empty works array", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="work"
+        scopeWorks={[]}
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    expect(await screen.findByText("Choose a work")).toBeInTheDocument();
+    expect(fetchLemmaIndex).not.toHaveBeenCalled();
+  });
+
+  it("fetches with the author param once an author is selected", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="author"
+        scopeAuthors={["Kant"]}
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
+    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    expect(args.scope).toBe("author");
+    expect(args.authors).toEqual(["Kant"]);
+  });
+
+  it("fetches with both authors selected (sent tab-joined into the author param)", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="author"
+        scopeAuthors={["Kant", "Hegel"]}
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
+    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    expect(args.scope).toBe("author");
+    expect(args.authors).toEqual(["Kant", "Hegel"]);
+  });
+
+  it("shows an active-filter chip per selected author", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="author"
+        scopeAuthors={["Kant", "Hegel"]}
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    // Each author surfaces in two places — the active-filter strip chip
+    // and the desktop FilterBar's selected-author chip — so both names
+    // are present at least once.
+    expect((await screen.findAllByText("Kant")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Hegel")).length).toBeGreaterThan(0);
+  });
+
+  it("renders the picker prompt and skips the fetch when scope=author has an empty authors array", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="author"
+        scopeAuthors={[]}
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    expect(await screen.findByText("Choose an author")).toBeInTheDocument();
+    expect(fetchLemmaIndex).not.toHaveBeenCalled();
   });
 });
