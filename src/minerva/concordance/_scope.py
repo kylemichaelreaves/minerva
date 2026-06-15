@@ -35,25 +35,58 @@ _ATTACHED_LEAD = "([{«"
 # ──────────────────────────────────────────────────────────────────
 
 
-def _scope_clause(scope: str, author: str | None, work: str | None) -> tuple[str, list[Any]]:
-    """Translate (scope, author, work) into a SQL fragment + params
+# The ``author`` and ``work`` query params are tab-joined when multiple
+# values are selected: a work title can contain a comma (Kant's "On the
+# Common Saying: …, but…"), so comma-splitting would corrupt it, whereas
+# no title/author name contains a tab and the tab round-trips cleanly
+# through URLSearchParams / parse_qs.
+_MULTI_SEP = "\t"
+
+
+def _parse_multi(query: dict[str, str], key: str) -> list[str]:
+    raw = query.get(key) or ""
+    return [v for v in (s.strip() for s in raw.split(_MULTI_SEP)) if v]
+
+
+def parse_works(query: dict[str, str]) -> list[str]:
+    """Parse the (possibly multi-valued) ``work`` query param. A bare
+    single title (no separator) returns a one-element list, so existing
+    single-work callers/URLs keep working unchanged."""
+
+    return _parse_multi(query, "work")
+
+
+def parse_authors(query: dict[str, str]) -> list[str]:
+    """Parse the (possibly multi-valued) ``author`` query param. A bare
+    single name returns a one-element list (back-compatible)."""
+
+    return _parse_multi(query, "author")
+
+
+def _scope_clause(
+    scope: str, authors: list[str], works: list[str]
+) -> tuple[str, list[Any]]:
+    """Translate (scope, authors, works) into a SQL fragment + params
     that filters the JOIN to ``chunks_full``.
 
     Always emits language as ``cf.lang = ?`` — that param is appended
-    by the caller. The scope check follows.
+    by the caller. The scope check follows. ``authors``/``works`` may
+    each name one or more values (``scope=author`` → ``cf.author IN
+    (...)``; ``scope=work`` → ``cf.work IN (...)``).
     """
 
     if scope not in ("corpus", "author", "work"):
         raise BadRequestError(
             "'scope' must be one of: corpus, author, work",
         )
-    if scope == "author" and not author:
-        raise BadRequestError("'scope=author' requires an 'author' query param")
-    if scope == "work" and not work:
-        raise BadRequestError("'scope=work' requires a 'work' query param")
+    if scope == "author" and not authors:
+        raise BadRequestError("'scope=author' requires at least one 'author' query param")
+    if scope == "work" and not works:
+        raise BadRequestError("'scope=work' requires at least one 'work' query param")
 
     if scope == "corpus":
         return "", []
-    if scope == "author":
-        return " AND cf.author = ?", [author]
-    return " AND cf.work = ?", [work]
+    values = authors if scope == "author" else works
+    col = "cf.author" if scope == "author" else "cf.work"
+    placeholders = ",".join("?" * len(values))
+    return f" AND {col} IN ({placeholders})", list(values)
