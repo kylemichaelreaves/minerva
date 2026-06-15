@@ -474,4 +474,18 @@ RULES = (
             "treats Iliad as the paradigmatic epic."
         ),
     ),
+
+    AuthorMentionRule(
+        name="hegel_schiller",
+        target_author="Schiller",
+        target_work="",
+        forms=("Schiller", "Schillers", "Schillersche", "Schillerschen", "schillersch"),
+        confidence=0.75,
+        langs=("deu", "eng"),
+        note=(
+            "Hegel closes the Phenomenology paraphrasing Schiller "
+            "('die Wunden des Geistes heilen…') and quotes Schiller "
+            "repeatedly in the Aesthetics lectures on the aesthetic."
+        ),
+    ),
 )

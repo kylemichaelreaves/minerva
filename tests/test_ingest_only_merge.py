@@ -131,13 +131,19 @@ def test_partial_corpus_selection_flags_missing_siblings():
     assert _partial_corpus_selection(frozenset({"kant", "kant_en"})) == {}
 
     # Single-source corpora are always safe.
-    assert _partial_corpus_selection(frozenset({"plato"})) == {}
+    assert _partial_corpus_selection(frozenset({"nietzsche"})) == {}
 
     # Multi-source corpora are all covered by the guard.
     missing = _partial_corpus_selection(frozenset({"aristotle_ica"}))
     assert set(missing) == {"aristotle"}
     assert "aristotle" in missing["aristotle"]
     assert "aristotle_first1k" in missing["aristotle"]
+
+    # plato gained a German-translation sibling (plato_de → corpus plato),
+    # so ingesting only the Perseus source would now wipe the German.
+    missing = _partial_corpus_selection(frozenset({"plato"}))
+    assert "plato_de" in missing["plato"]
+    assert _partial_corpus_selection(frozenset({"plato", "plato_de"})) == {}
 
 
 def test_cmd_ingest_rejects_partial_corpus_selection(tmp_path: Path, capsys):

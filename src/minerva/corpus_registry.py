@@ -70,6 +70,19 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'kantian',
     ),
     ),
+    # Friedrich Schiller (1759-1805) — aesthetic-philosophy essays (Über die
+    # ästhetische Erziehung des Menschen, 1795, + companions). dominant_code lowercase
+    # 'l' (Schi-l-ler) — uppercase L is Locke, S/s are Spinoza/Sophocles.
+    CorpusEntry(
+        'schiller',
+        'deu',
+        'paragraph',
+        'l',
+        (
+        'schiller',
+        'schillerian',
+    ),
+    ),
     CorpusEntry(
         'homer',
         'grc',

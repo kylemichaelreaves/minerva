@@ -301,4 +301,17 @@ RULES = (
             "rendering of Aesop's Boastful Athlete fable."
         ),
     ),
+
+    AuthorMentionRule(
+        name="marx_schiller",
+        target_author="Schiller",
+        target_work="",
+        forms=("Schiller", "Schillers", "Schillersche", "Schillerschen"),
+        confidence=0.55,
+        langs=("deu",),
+        note=(
+            "Marx quotes Schiller's poetry and invokes the aesthetic "
+            "critique of alienation; weaker, mostly literary allusion."
+        ),
+    ),
 )

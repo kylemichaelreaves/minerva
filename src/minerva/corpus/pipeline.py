@@ -28,6 +28,7 @@ from .split_ekgwb import split_ekgwb
 from .split_kant import split_by_kant_ab
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
+from .split_stephanus_de import split_stephanus_de
 from .split_zeno import split_zeno_pages
 
 # Per-run parse-failure log. ``parse_dir`` is a generator consumed
@@ -91,6 +92,13 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             yield from split_ekgwb(raw, work, path)
             return
         text = extract_html(path)
+    elif suffix == ".hocr":
+        # MDZ per-page hOCR (Schleiermacher Der Staat) — the splitter
+        # needs the raw hOCR (word bounding boxes carry the marginal
+        # Stephanus numbers), not extracted plain text.
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        yield from split_stephanus_de(raw, work, path)
+        return
     elif suffix == ".txt":
         # Descartes-style plain-text drops from Gutenberg, pre-split
         # by `perseus/download_descartes.py` into one work per file.
