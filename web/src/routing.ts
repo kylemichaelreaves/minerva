@@ -103,8 +103,8 @@ export type Route =
       kind: "concordance";
       lang?: string;
       scope?: "corpus" | "author" | "work";
-      scopeAuthor?: string;
-      scopeWork?: string;
+      scopeAuthors?: string[];
+      scopeWorks?: string[];
       letter?: string;
       sort?: "freq" | "alpha" | "pos";
       pos?: string;
@@ -119,8 +119,8 @@ export type Route =
       lemma: string;
       lang?: string;
       scope?: "corpus" | "author" | "work";
-      scopeAuthor?: string;
-      scopeWork?: string;
+      scopeAuthors?: string[];
+      scopeWorks?: string[];
       caseFilter?: string;
       numberFilter?: string;
       surface?: string;
@@ -230,8 +230,8 @@ export function readRoute(): Route {
       lemma,
       lang: qs.get("lang") ?? undefined,
       scope: scope === "corpus" || scope === "author" || scope === "work" ? scope : undefined,
-      scopeAuthor: qs.get("author") ?? undefined,
-      scopeWork: qs.get("work") ?? undefined,
+      scopeAuthors: decodeCsv(qs.get("author")),
+      scopeWorks: decodeCsv(qs.get("work")),
       caseFilter: qs.get("case") ?? undefined,
       numberFilter: qs.get("number") ?? undefined,
       surface: qs.get("surface") ?? undefined,
@@ -248,8 +248,8 @@ export function readRoute(): Route {
       kind: "concordance",
       lang: qs.get("lang") ?? undefined,
       scope: scope === "corpus" || scope === "author" || scope === "work" ? scope : undefined,
-      scopeAuthor: qs.get("author") ?? undefined,
-      scopeWork: qs.get("work") ?? undefined,
+      scopeAuthors: decodeCsv(qs.get("author")),
+      scopeWorks: decodeCsv(qs.get("work")),
       letter: qs.get("letter") ?? undefined,
       sort: sort === "freq" || sort === "alpha" || sort === "pos" ? sort : undefined,
       pos: qs.get("pos") ?? undefined,
@@ -319,8 +319,8 @@ export function routeHash(route: Route): string {
     const params = new URLSearchParams();
     if (route.lang) params.set("lang", route.lang);
     if (route.scope) params.set("scope", route.scope);
-    if (route.scopeAuthor) params.set("author", route.scopeAuthor);
-    if (route.scopeWork) params.set("work", route.scopeWork);
+    if (route.scopeAuthors?.length) params.set("author", encodeCsv(route.scopeAuthors));
+    if (route.scopeWorks?.length) params.set("work", encodeCsv(route.scopeWorks));
     if (route.letter) params.set("letter", route.letter);
     if (route.sort) params.set("sort", route.sort);
     if (route.pos) params.set("pos", route.pos);
@@ -334,8 +334,8 @@ export function routeHash(route: Route): string {
     const params = new URLSearchParams();
     if (route.lang) params.set("lang", route.lang);
     if (route.scope) params.set("scope", route.scope);
-    if (route.scopeAuthor) params.set("author", route.scopeAuthor);
-    if (route.scopeWork) params.set("work", route.scopeWork);
+    if (route.scopeAuthors?.length) params.set("author", encodeCsv(route.scopeAuthors));
+    if (route.scopeWorks?.length) params.set("work", encodeCsv(route.scopeWorks));
     if (route.caseFilter) params.set("case", route.caseFilter);
     if (route.numberFilter) params.set("number", route.numberFilter);
     if (route.surface) params.set("surface", route.surface);

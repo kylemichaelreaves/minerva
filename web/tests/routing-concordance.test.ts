@@ -41,4 +41,75 @@ describe("concordance routing", () => {
     const parsed = readRoute();
     expect(parsed.kind).toBe("concordance");
   });
+
+  it("round-trips multiple works in scopeWorks (comma-safe)", () => {
+    // A work title containing a comma must survive the CSV encode/decode
+    // round-trip rather than splitting into two phantom works.
+    const r = {
+      kind: "concordance" as const,
+      lang: "deu",
+      scope: "work" as const,
+      scopeWorks: ["Kritik der reinen Vernunft", "Sein, Zeit"],
+    };
+    const hash = routeHash(r);
+    window.location.hash = hash;
+    const parsed = readRoute();
+    expect(parsed.kind).toBe("concordance");
+    if (parsed.kind !== "concordance") return;
+    expect(parsed.scope).toBe("work");
+    expect(parsed.scopeWorks).toEqual(["Kritik der reinen Vernunft", "Sein, Zeit"]);
+  });
+
+  it("round-trips multiple works on the lemma route", () => {
+    const r = {
+      kind: "concordance-lemma" as const,
+      lemma: "Geist",
+      lang: "deu",
+      scope: "work" as const,
+      scopeWorks: ["Kritik der reinen Vernunft", "Phänomenologie des Geistes"],
+    };
+    const hash = routeHash(r);
+    window.location.hash = hash;
+    const parsed = readRoute();
+    expect(parsed.kind).toBe("concordance-lemma");
+    if (parsed.kind !== "concordance-lemma") return;
+    expect(parsed.scopeWorks).toEqual([
+      "Kritik der reinen Vernunft",
+      "Phänomenologie des Geistes",
+    ]);
+  });
+
+  it("round-trips multiple authors in scopeAuthors (comma-safe)", () => {
+    // An author name containing a comma must survive the CSV
+    // encode/decode round-trip rather than splitting into two phantoms.
+    const r = {
+      kind: "concordance" as const,
+      lang: "deu",
+      scope: "author" as const,
+      scopeAuthors: ["Kant", "Hegel, G.W.F."],
+    };
+    const hash = routeHash(r);
+    window.location.hash = hash;
+    const parsed = readRoute();
+    expect(parsed.kind).toBe("concordance");
+    if (parsed.kind !== "concordance") return;
+    expect(parsed.scope).toBe("author");
+    expect(parsed.scopeAuthors).toEqual(["Kant", "Hegel, G.W.F."]);
+  });
+
+  it("round-trips multiple authors on the lemma route", () => {
+    const r = {
+      kind: "concordance-lemma" as const,
+      lemma: "Geist",
+      lang: "deu",
+      scope: "author" as const,
+      scopeAuthors: ["Kant", "Hegel"],
+    };
+    const hash = routeHash(r);
+    window.location.hash = hash;
+    const parsed = readRoute();
+    expect(parsed.kind).toBe("concordance-lemma");
+    if (parsed.kind !== "concordance-lemma") return;
+    expect(parsed.scopeAuthors).toEqual(["Kant", "Hegel"]);
+  });
 });
