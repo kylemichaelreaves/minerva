@@ -2,26 +2,35 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createRoot } from "solid-js";
 import { ApiError } from "~/api/client";
 import { useConversations } from "~/conversations/conversationsCtrl";
+import type { askMinerva } from "~/conversations/conversationsSend";
+import type {
+  listConversations,
+  getConversation,
+  deleteConversation,
+} from "~/api/chatApi";
 import type { Conversation, ConversationDetail } from "~/utils/types";
 import { _resetToastsForTesting, useToasts } from "~/utils/apiError";
 import { createTestRouting, flush } from "./helpers/testRouting";
 
-const askMinervaMock = vi.fn();
-const listConversationsMock = vi.fn();
-const getConversationMock = vi.fn();
-const deleteConversationMock = vi.fn();
+const askMinervaMock = vi.fn<typeof askMinerva>();
+const listConversationsMock = vi.fn<typeof listConversations>();
+const getConversationMock = vi.fn<typeof getConversation>();
+const deleteConversationMock = vi.fn<typeof deleteConversation>();
 
 vi.mock("~/conversations/conversationsSend", () => ({
-  askMinerva: (...args: unknown[]) => askMinervaMock(...args),
+  askMinerva: (...args: Parameters<typeof askMinerva>) => askMinervaMock(...args),
 }));
 
 vi.mock("~/api/chatApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/api/chatApi")>();
   return {
     ...actual,
-    listConversations: (...args: unknown[]) => listConversationsMock(...args),
-    getConversation: (...args: unknown[]) => getConversationMock(...args),
-    deleteConversation: (...args: unknown[]) => deleteConversationMock(...args),
+    listConversations: (...args: Parameters<typeof listConversations>) =>
+      listConversationsMock(...args),
+    getConversation: (...args: Parameters<typeof getConversation>) =>
+      getConversationMock(...args),
+    deleteConversation: (...args: Parameters<typeof deleteConversation>) =>
+      deleteConversationMock(...args),
   };
 });
 

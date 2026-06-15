@@ -30,44 +30,48 @@ describe("<App />", () => {
     _resetToastsForTesting();
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/conversations")) {
         if (url.endsWith("/thread-1")) {
-          return okResponse({
-            id: "thread-1",
-            title: "Virtue",
-            dominant: "P",
-            created_at: 1,
-            updated_at: 2,
-            messages: [
-              {
-                role: "user",
-                content: "What is virtue?",
-                created_at: 2,
-                dominant: null,
-                abstained: null,
-                citations: [],
-              },
-            ],
-          });
-        }
-        return okResponse({
-          conversations: [
-            {
+          return Promise.resolve(
+            okResponse({
               id: "thread-1",
               title: "Virtue",
               dominant: "P",
               created_at: 1,
               updated_at: 2,
-            },
-          ],
-        });
+              messages: [
+                {
+                  role: "user",
+                  content: "What is virtue?",
+                  created_at: 2,
+                  dominant: null,
+                  abstained: null,
+                  citations: [],
+                },
+              ],
+            }),
+          );
+        }
+        return Promise.resolve(
+          okResponse({
+            conversations: [
+              {
+                id: "thread-1",
+                title: "Virtue",
+                dominant: "P",
+                created_at: 1,
+                updated_at: 2,
+              },
+            ],
+          }),
+        );
       }
       if (url.includes("/api/works")) {
-        return okResponse({ works: [] });
+        return Promise.resolve(okResponse({ works: [] }));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
   });
   afterEach(() => {

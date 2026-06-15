@@ -94,7 +94,7 @@ describe("useReader()", () => {
     dispose();
   });
 
-  it("openAtChunk aborts chat and navigates with focus", async () => {
+  it("openAtChunk aborts chat and navigates with focus", () => {
     const abortChat = vi.fn();
     const routing = createTestRouting({ kind: "landing" });
     const { api, routing: r, dispose } = runReader(routing, abortChat);
@@ -109,7 +109,7 @@ describe("useReader()", () => {
     dispose();
   });
 
-  it("openWork navigates to the selected work", async () => {
+  it("openWork navigates to the selected work", () => {
     const abortChat = vi.fn();
     const { api, routing: r, dispose } = runReader(createTestRouting(), abortChat);
     api.openWork(WORKS[1]!);
@@ -122,7 +122,7 @@ describe("useReader()", () => {
     dispose();
   });
 
-  it("setOpenTermId updates the reader route term param", async () => {
+  it("setOpenTermId updates the reader route term param", () => {
     const routing = createTestRouting({
       kind: "reader",
       workId: "Republic",
@@ -136,7 +136,7 @@ describe("useReader()", () => {
     dispose();
   });
 
-  it("setOpenTermId is a no-op off the reader route", async () => {
+  it("setOpenTermId is a no-op off the reader route", () => {
     const routing = createTestRouting({ kind: "landing" });
     const { api, routing: r, dispose } = runReader(routing);
     api.setOpenTermId(42);
@@ -220,7 +220,7 @@ describe("useReader()", () => {
     expect(a).toBe(b);
     await a;
     await flush();
-    expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes("/api/works"))).toHaveLength(
+    expect(fetchMock.mock.calls.filter((c) => (c[0] as string).includes("/api/works"))).toHaveLength(
       1,
     );
     dispose();

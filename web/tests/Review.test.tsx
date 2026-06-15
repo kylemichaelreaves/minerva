@@ -84,15 +84,15 @@ describe("<Review />", () => {
   });
 
   it("loads the queue and renders the current row", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([makeRow(), makeRow({ id: 11 })]));
+        return Promise.resolve(okResponse(makeQueue([makeRow(), makeRow({ id: 11 })])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const { container } = renderReview(defaultProps());
@@ -104,18 +104,18 @@ describe("<Review />", () => {
   });
 
   it("approve patches curation and advances the cursor", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([makeRow(), makeRow({ id: 11 })]));
+        return Promise.resolve(okResponse(makeQueue([makeRow(), makeRow({ id: 11 })])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
       if (init?.method === "PATCH") {
-        return okResponse(makeRow({ id: 10, curator_status: "approved" }));
+        return Promise.resolve(okResponse(makeRow({ id: 10, curator_status: "approved" })));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const props = defaultProps();
@@ -128,7 +128,7 @@ describe("<Review />", () => {
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true);
     });
     const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
-    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+    expect(JSON.parse(patchCall?.[1]?.body as string)).toMatchObject({
       curator_status: "approved",
     });
     await waitFor(() => {
@@ -137,18 +137,18 @@ describe("<Review />", () => {
   });
 
   it("reject patches with rejected status", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([makeRow()]));
+        return Promise.resolve(okResponse(makeQueue([makeRow()])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
       if (init?.method === "PATCH") {
-        return okResponse(makeRow({ curator_status: "rejected" }));
+        return Promise.resolve(okResponse(makeRow({ curator_status: "rejected" })));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const { container } = renderReview(defaultProps());
@@ -160,21 +160,21 @@ describe("<Review />", () => {
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true);
     });
     const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
-    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+    expect(JSON.parse(patchCall?.[1]?.body as string)).toMatchObject({
       curator_status: "rejected",
     });
   });
 
   it("skip advances without PATCH", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([makeRow(), makeRow({ id: 11 })]));
+        return Promise.resolve(okResponse(makeQueue([makeRow(), makeRow({ id: 11 })])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const props = defaultProps();
@@ -190,15 +190,15 @@ describe("<Review />", () => {
   });
 
   it("syncs a stale referenceId to the landed row on load", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([makeRow({ id: 10 }), makeRow({ id: 11 })]));
+        return Promise.resolve(okResponse(makeQueue([makeRow({ id: 10 }), makeRow({ id: 11 })])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const props = defaultProps({ referenceId: 999 });
@@ -209,15 +209,15 @@ describe("<Review />", () => {
   });
 
   it("shows empty state when the queue has no rows", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([]));
+        return Promise.resolve(okResponse(makeQueue([])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: [], targets: [] });
+        return Promise.resolve(okResponse({ sources: [], targets: [] }));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const { container } = renderReview(defaultProps());
@@ -233,33 +233,37 @@ describe("<Review />", () => {
     // offset N. The old code fetched at the local row count and
     // skipped that many still-pending rows.
     const queueCalls: string[] = [];
-    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
         queueCalls.push(url);
         if (queueCalls.length === 1) {
-          return okResponse({
-            limit: 50,
-            offset: 0,
-            total_pending: 3,
-            references: [makeRow({ id: 10 }), makeRow({ id: 11 })],
-          });
+          return Promise.resolve(
+            okResponse({
+              limit: 50,
+              offset: 0,
+              total_pending: 3,
+              references: [makeRow({ id: 10 }), makeRow({ id: 11 })],
+            }),
+          );
         }
         // After two approvals the server queue holds one row.
-        return okResponse({
-          limit: 50,
-          offset: 0,
-          total_pending: 1,
-          references: [makeRow({ id: 12 })],
-        });
+        return Promise.resolve(
+          okResponse({
+            limit: 50,
+            offset: 0,
+            total_pending: 1,
+            references: [makeRow({ id: 12 })],
+          }),
+        );
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
       if (init?.method === "PATCH") {
-        return okResponse(makeRow({ curator_status: "approved" }));
+        return Promise.resolve(okResponse(makeRow({ curator_status: "approved" })));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const props = defaultProps();
@@ -287,15 +291,15 @@ describe("<Review />", () => {
   });
 
   it("keyboard j navigates forward without PATCH", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/references/review_queue")) {
-        return okResponse(makeQueue([makeRow(), makeRow({ id: 11 })]));
+        return Promise.resolve(okResponse(makeQueue([makeRow(), makeRow({ id: 11 })])));
       }
       if (url.includes("/api/references/sources")) {
-        return okResponse({ sources: ["Plato"], targets: ["Aristotle"] });
+        return Promise.resolve(okResponse({ sources: ["Plato"], targets: ["Aristotle"] }));
       }
-      return okResponse({});
+      return Promise.resolve(okResponse({}));
     });
 
     const props = defaultProps();

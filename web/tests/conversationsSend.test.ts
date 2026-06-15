@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { askMinerva, type AskMinervaDeps } from "~/conversations/conversationsSend";
+import type { chatStream } from "~/api/chatApi";
 import type { ChatStreamMeta, MinervaTurn, Turn, UserTurn } from "~/utils/types";
 
-const chatStreamMock = vi.fn();
+const chatStreamMock = vi.fn<typeof chatStream>();
 
 vi.mock("~/api/chatApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/api/chatApi")>();
   return {
     ...actual,
-    chatStream: (...args: unknown[]) => chatStreamMock(...args),
+    chatStream: (...args: Parameters<typeof chatStream>) => chatStreamMock(...args),
   };
 });
 
@@ -51,7 +52,7 @@ describe("askMinerva()", () => {
   });
 
   it("streams meta, delta, and done; calls refreshHistory", async () => {
-    chatStreamMock.mockImplementation(async (_args, handlers) => {
+    chatStreamMock.mockImplementation((_args, handlers) => {
       handlers.onMeta({
         citations: [{ n: 1, src: "s", text: "t" }],
         abstained: false,
@@ -67,6 +68,7 @@ describe("askMinerva()", () => {
         paragraphs: ["Hello"],
         citations: [{ n: 1, src: "s", text: "t" }],
       } satisfies MinervaTurn);
+      return Promise.resolve();
     });
 
     const deps = buildDeps();
@@ -87,7 +89,7 @@ describe("askMinerva()", () => {
   });
 
   it("navigates on meta when starting a new conversation", async () => {
-    chatStreamMock.mockImplementation(async (_args, handlers) => {
+    chatStreamMock.mockImplementation((_args, handlers) => {
       handlers.onMeta({
         citations: [],
         abstained: false,
@@ -102,6 +104,7 @@ describe("askMinerva()", () => {
         paragraphs: ["ok"],
         citations: [],
       });
+      return Promise.resolve();
     });
 
     const deps = buildDeps();
@@ -112,7 +115,7 @@ describe("askMinerva()", () => {
   });
 
   it("passes pinned chunk ids and prunes stale pins from done payload", async () => {
-    chatStreamMock.mockImplementation(async (args, handlers) => {
+    chatStreamMock.mockImplementation((args, handlers) => {
       expect(args.pinnedChunkIds).toEqual(["pin-1", "pin-2"]);
       handlers.onMeta({
         citations: [],
@@ -128,6 +131,7 @@ describe("askMinerva()", () => {
         citations: [],
         missing_pinned_ids: ["pin-2"],
       });
+      return Promise.resolve();
     });
 
     const [pinnedChunkIds, setPinnedChunkIds] = createSignal(["pin-1", "pin-2"]);
@@ -137,7 +141,7 @@ describe("askMinerva()", () => {
   });
 
   it("onError drops partial stream and appends error turn", async () => {
-    chatStreamMock.mockImplementation(async (_args, handlers) => {
+    chatStreamMock.mockImplementation((_args, handlers) => {
       handlers.onMeta({
         citations: [],
         abstained: false,
@@ -145,6 +149,7 @@ describe("askMinerva()", () => {
         conversation_id: "x",
       });
       handlers.onError("upstream failed");
+      return Promise.resolve();
     });
 
     const deps = buildDeps();
@@ -159,8 +164,8 @@ describe("askMinerva()", () => {
   });
 
   it("AbortError clears thinking without adding error turn", async () => {
-    chatStreamMock.mockImplementation(async () => {
-      throw new DOMException("aborted", "AbortError");
+    chatStreamMock.mockImplementation(() => {
+      return Promise.reject(new DOMException("aborted", "AbortError"));
     });
 
     const setThinking = vi.fn();
@@ -182,8 +187,9 @@ describe("askMinerva()", () => {
       } | null;
     } = { handlers: null };
 
-    chatStreamMock.mockImplementation(async (_args, handlers) => {
+    chatStreamMock.mockImplementation((_args, handlers) => {
       stale.handlers = handlers;
+      return Promise.resolve();
     });
 
     const deps = buildDeps();

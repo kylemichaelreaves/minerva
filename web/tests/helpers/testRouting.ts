@@ -1,7 +1,7 @@
 // Shared helpers for controller and component tests that need a
 // controllable RoutingApi without mounting the full hash router.
 
-import { createSignal, type Accessor } from "solid-js";
+import { createSignal } from "solid-js";
 import { vi } from "vitest";
 import type { Route, RoutingApi } from "~/routing";
 
@@ -42,7 +42,7 @@ export function createTestRouting(initial: Route = { kind: "landing" }): TestRou
     setRoute(() => r);
   });
   return {
-    route: route as Accessor<Route>,
+    route,
     navigate: navigateSpy,
     replace: replaceSpy,
     setRoute,
