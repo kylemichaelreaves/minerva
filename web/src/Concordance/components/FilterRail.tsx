@@ -23,17 +23,20 @@ const SURFACE_CAP = 6;
 export function FilterRail(props: {
   data: LemmaDetailResponse;
   scope: ConcScope;
-  scopeAuthor?: string;
-  scopeWork?: string;
+  scopeAuthors?: string[];
+  scopeWorks?: string[];
   caseFilter?: string;
   numberFilter?: string;
   surface?: string;
-  currentWorkScope?: string;
-  onSetScope: (patch: { scope: ConcScope; scopeAuthor?: string; scopeWork?: string }) => void;
+  onSetScope: (patch: { scope: ConcScope; scopeAuthors?: string[]; scopeWorks?: string[] }) => void;
   onSetCase: (v: string | undefined) => void;
   onSetNumber: (v: string | undefined) => void;
   onSetSurface: (v: string | undefined) => void;
-  onSetWork: (w: string) => void;
+  /** Toggle one work in the multi-select scope (add if absent, remove
+   *  if present). */
+  onToggleWork: (w: string) => void;
+  /** Clear ALL selected works. */
+  onClearWorks: () => void;
   onResetAll: () => void;
 }) {
   // Morphology abbreviations are language-specific: German uses Akk/Vok,
@@ -68,6 +71,18 @@ export function FilterRail(props: {
     return top.count / total > 0.95 ? top.value : null;
   });
 
+  /** Fast membership test for the checkbox `.on` state + applied pills. */
+  const selectedWorks = createMemo(() => new Set(props.scopeWorks ?? []));
+
+  /** Author segment label: one author → its name; multiple → "N
+   *  authors"; none → the "Author" prompt. */
+  const authorLabel = createMemo(() => {
+    const authors = props.scopeAuthors ?? [];
+    if (authors.length === 0) return "Author";
+    if (authors.length === 1) return authors[0]!;
+    return `${authors.length} authors`;
+  });
+
   const [workSearch, setWorkSearch] = createSignal("");
   const [workExpanded, setWorkExpanded] = createSignal(false);
   const [surfaceExpanded, setSurfaceExpanded] = createSignal(false);
@@ -97,28 +112,33 @@ export function FilterRail(props: {
    *  remove behaviour so the card never needs to know the filter kind. */
   const appliedPills = createMemo(() => {
     const pills: { k: string; v: string; italic?: boolean; onRemove: () => void }[] = [];
-    if (props.scope === "work" && props.scopeWork) {
-      pills.push({
-        k: "work",
-        v: abbrevWork(props.scopeWork),
-        onRemove: () =>
-          props.onSetScope({
-            scope: "corpus",
-            scopeAuthor: undefined,
-            scopeWork: undefined,
-          }),
-      });
-    } else if (props.scope === "author" && props.scopeAuthor) {
-      pills.push({
-        k: "author",
-        v: props.scopeAuthor,
-        onRemove: () =>
-          props.onSetScope({
-            scope: "corpus",
-            scopeAuthor: undefined,
-            scopeWork: undefined,
-          }),
-      });
+    if (props.scope === "work" && props.scopeWorks?.length) {
+      // One pill per selected work; removing toggles that work off.
+      for (const w of props.scopeWorks) {
+        pills.push({
+          k: "work",
+          v: abbrevWork(w),
+          onRemove: () => props.onToggleWork(w),
+        });
+      }
+    } else if (props.scope === "author" && props.scopeAuthors?.length) {
+      // One pill per selected author; removing toggles that author off.
+      // Removing the last author falls back up to corpus.
+      const authors = props.scopeAuthors;
+      for (const a of authors) {
+        pills.push({
+          k: "author",
+          v: a,
+          onRemove: () => {
+            const next = authors.filter((x) => x !== a);
+            props.onSetScope(
+              next.length > 0
+                ? { scope: "author", scopeAuthors: next, scopeWorks: undefined }
+                : { scope: "corpus", scopeAuthors: undefined, scopeWorks: undefined },
+            );
+          },
+        });
+      }
     }
     if (props.caseFilter) {
       pills.push({
@@ -163,8 +183,8 @@ export function FilterRail(props: {
               if (props.scope !== "corpus") {
                 props.onSetScope({
                   scope: "corpus",
-                  scopeAuthor: undefined,
-                  scopeWork: undefined,
+                  scopeAuthors: undefined,
+                  scopeWorks: undefined,
                 });
               }
             }}
@@ -179,22 +199,26 @@ export function FilterRail(props: {
               // index page when the user clicks a lemma from an author
               // scope. Otherwise the segment is a no-op (cursor stays
               // pointer so the click target is still discoverable).
-              if (props.scope !== "author" && props.scopeAuthor) {
+              if (props.scope !== "author" && props.scopeAuthors?.length) {
                 props.onSetScope({ scope: "author" });
               }
             }}
           >
-            {props.scopeAuthor ?? "Author"}
+            {authorLabel()}
           </span>
           <span
             class={"seg" + (props.scope === "work" ? " on" : "")}
             onClick={() => {
-              if (props.scope !== "work" && props.scopeWork) {
+              if (props.scope !== "work" && selectedWorks().size > 0) {
                 props.onSetScope({ scope: "work" });
               }
             }}
           >
-            {props.scopeWork ? abbrevWork(props.scopeWork) : "Work"}
+            {selectedWorks().size === 0
+              ? "Work"
+              : selectedWorks().size === 1
+                ? abbrevWork(props.scopeWorks![0]!)
+                : `${selectedWorks().size} works`}
           </span>
         </div>
       </div>
@@ -236,12 +260,17 @@ export function FilterRail(props: {
           <div class="fr-label">
             <span>
               Work
-              <Show when={props.currentWorkScope}>
-                <span class="applied">· {abbrevWork(props.currentWorkScope!)}</span>
+              <Show when={selectedWorks().size > 0}>
+                <span class="applied">
+                  ·{" "}
+                  {selectedWorks().size === 1
+                    ? abbrevWork(props.scopeWorks![0]!)
+                    : `${selectedWorks().size} selected`}
+                </span>
               </Show>
             </span>
-            <Show when={props.currentWorkScope}>
-              <span class="clr" onClick={() => props.onSetWork("")}>
+            <Show when={selectedWorks().size > 0}>
+              <span class="clr" onClick={() => props.onClearWorks()}>
                 clear
               </span>
             </Show>
@@ -260,8 +289,8 @@ export function FilterRail(props: {
           <For each={visibleWorks()}>
             {(b) => (
               <div
-                class={"fr-check" + (props.currentWorkScope === b.value ? " on" : "")}
-                onClick={() => props.onSetWork(b.value)}
+                class={"fr-check" + (selectedWorks().has(b.value) ? " on" : "")}
+                onClick={() => props.onToggleWork(b.value)}
                 title={b.value}
               >
                 <span class="box" />

@@ -30,7 +30,7 @@ export function ConcordanceTabPanel(props: Props) {
       return fetchLemmaIndex({
         lang: args.lang,
         scope: "work",
-        work: args.work,
+        works: [args.work],
         limit: 12,
         // sort=freq is default; default POS filter strips function words.
       });

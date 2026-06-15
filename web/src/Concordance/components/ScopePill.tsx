@@ -32,15 +32,29 @@ export function ScopePill(props: {
 
 export function ScopePillDetail(props: {
   scope: ConcScope;
-  scopeAuthor?: string;
-  scopeWork?: string;
-  onPick: (patch: { scope: ConcScope; scopeAuthor?: string; scopeWork?: string }) => void;
+  scopeAuthors?: string[];
+  scopeWorks?: string[];
+  onPick: (patch: { scope: ConcScope; scopeAuthors?: string[]; scopeWorks?: string[] }) => void;
 }) {
+  // One work → its title; multiple → "N works"; none → the "Work" prompt.
+  const workLabel = createMemo(() => {
+    const works = props.scopeWorks ?? [];
+    if (works.length === 0) return "Work";
+    if (works.length === 1) return works[0]!;
+    return `${works.length} works`;
+  });
+  // One author → its name; multiple → "N authors"; none → "Author".
+  const authorLabel = createMemo(() => {
+    const authors = props.scopeAuthors ?? [];
+    if (authors.length === 0) return "Author";
+    if (authors.length === 1) return authors[0]!;
+    return `${authors.length} authors`;
+  });
   const steps = createMemo(() => [
     { label: "Corpus", scope: "corpus" as const, cur: props.scope === "corpus" },
-    { label: props.scopeAuthor ?? "Author", scope: "author" as const, cur: props.scope === "author" },
+    { label: authorLabel(), scope: "author" as const, cur: props.scope === "author" },
     {
-      label: props.scopeWork ?? "Work",
+      label: workLabel(),
       scope: "work" as const,
       cur: props.scope === "work",
     },
@@ -58,11 +72,11 @@ export function ScopePillDetail(props: {
               onClick={() => {
                 if (s.cur) return;
                 if (s.scope === "corpus") {
-                  props.onPick({ scope: "corpus", scopeAuthor: undefined, scopeWork: undefined });
+                  props.onPick({ scope: "corpus", scopeAuthors: undefined, scopeWorks: undefined });
                   return;
                 }
-                if (s.scope === "author" && !props.scopeAuthor) return;
-                if (s.scope === "work" && !props.scopeWork) return;
+                if (s.scope === "author" && !props.scopeAuthors?.length) return;
+                if (s.scope === "work" && !props.scopeWorks?.length) return;
                 props.onPick({ scope: s.scope });
               }}
             >
