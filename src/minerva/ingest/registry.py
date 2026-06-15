@@ -112,6 +112,12 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
         help="Directory of Plato Perseus XML files.",
     ),
     IngestSource(
+        "plato_de",
+        _P / "data" / "plato" / "raw_deu",
+        _corpus_label("plato-de", "plato_works"),
+        help="German Plato translations (Schleiermacher Der Staat, MDZ hOCR; see authors/plato_works.py).",
+    ),
+    IngestSource(
         "aristotle",
         _P / "perseus" / "raw_xml_aristotle",
         _tei_dir("aristotle", "Aristotle"),
@@ -465,6 +471,7 @@ INGEST_ID_TO_CORPUS: dict[str, str] = {
     "aesop_babrius": "aesop",
     "aquinas_la": "aquinas",
     "aristotle_first1k": "aristotle",
+    "plato_de": "plato",
     "aristotle_ica": "aristotle",
     "augustine_la": "augustine",
     "cicero_en": "cicero",
