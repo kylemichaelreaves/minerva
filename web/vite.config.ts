@@ -33,7 +33,17 @@ export default defineConfig({
         'src/**/*.test.{ts,tsx}',
         'src/**/*.stories.{ts,tsx}',
         'src/main.tsx',  // bootstrap entry
+        'tests/**',
       ],
+      thresholds: {
+        // Baseline from the orchestration-layer test pass (Jun 2026).
+        // Kept ~5 points below measured totals to catch regressions
+        // without blocking incremental coverage work on routes/ingest.
+        lines: 56,
+        statements: 52,
+        branches: 45,
+        functions: 46,
+      },
     },
   },
 });

@@ -134,7 +134,7 @@ function AppShell() {
         }
       />
       <Show when={isMobile() && mobileDrawerOpen()}>
-        <div
+        <button
           class="mobile-scrim"
           onClick={() => setMobileDrawerOpen(false)}
         />

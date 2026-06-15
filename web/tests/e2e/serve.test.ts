@@ -124,17 +124,20 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
 
   it("POST /api/chat returns the expected shape and finds Republic 509 for the divided line", async (ctx) => {
     if (!hasCorpus) return ctx.skip();
-    // The query names Plato so the server-side author detector
-    // (`agent.detect_corpus`) scopes retrieval to the Plato corpus.
-    // Without that scoping, the bare phrase "divided line" is too
-    // generic for BM25 alone: it matches geometry passages in
-    // Aristotle's NE / Physics more strongly than Plato's analogy in
-    // Republic 509–511, which doesn't literally contain "divided line"
-    // (Plato writes "a line divided into two unequal segments").
+    // The query names Plato AND the Republic so the server-side
+    // detectors (`agent.detect_corpus` + `agent.detect_work`) scope
+    // retrieval to that one work. Both levels are needed: "divided
+    // line" is too generic for BM25 alone (geometry passages in
+    // Aristotle outscore it), and even within the Plato corpus the
+    // analogy at Republic 509-511 doesn't literally contain "divided
+    // line" (Plato writes "a line divided into two unequal segments"),
+    // so as the corpus grows, dialogues like the Statesman with denser
+    // literal matches push it out of an author-scoped top-k. Naming
+    // the work pins the scope and makes 509d the top hit.
     const r = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query: "the divided line in Plato", history: [] }),
+      body: JSON.stringify({ query: "the divided line in Plato's Republic", history: [] }),
     });
     expect(r.ok).toBe(true);
     const json = (await r.json()) as {
