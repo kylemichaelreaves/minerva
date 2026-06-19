@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { Chrome } from "~/Reader/components/Chrome";
-import type { WorkRange } from "~/utils/types";
+import type { TargetLang, WorkRange } from "~/utils/types";
 import { withTheme } from "../../../.storybook/decorators";
 
 const META: WorkRange = {
@@ -24,7 +24,7 @@ const meta: Meta<typeof Chrome> = {
   },
   args: {
     target: "eng",
-    onTarget: (t) => {
+    onTarget: (t: TargetLang) => {
       console.debug("Chrome onTarget", t);
     },
     meta: META,

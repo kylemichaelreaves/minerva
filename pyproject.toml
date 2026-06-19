@@ -37,7 +37,7 @@ lemma = [
     # and higher lemma accuracy than Stanza on UD-PROIEL dev; see
     # `src/minerva/lemmatize.py` for eval notes.
     "grc_dep_web_sm @ https://huggingface.co/latincy/grc_dep_web_sm/resolve/main/grc_dep_web_sm-3.8.1-py3-none-any.whl",
-    "la_core_web_sm @ https://huggingface.co/latincy/la_core_web_sm/resolve/main/la_core_web_sm-3.9.0-py3-none-any.whl",
+    "la_core_web_sm @ https://huggingface.co/latincy/la_core_web_sm/resolve/main/la_core_web_sm-3.9.4-py3-none-any.whl",
     # Stanza: fallback for grc/lat when LatinCy wheels are missing;
     # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
     # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
