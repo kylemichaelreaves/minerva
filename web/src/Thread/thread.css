@@ -113,19 +113,53 @@
   word-break: break-word;
 }
 
+/* Token-stream reveal — each character flashes the accent selection tint
+   as it is typed in, then settles into the prose. A steady-cadence
+   consumer (see MinervaTurnView) mounts one character at a time, so the
+   glow cascades left-to-right with a fading "comet tail" of recently
+   revealed characters. Adapted from the "Token Stream" design's per-token
+   glow, retuned for Minerva's serif prose and warm palette (selection
+   tint instead of a cool block). */
+.turn-minerva .turn-body-streaming .tok-reveal {
+  border-radius: 2px;
+  animation: tok-reveal-glow 420ms ease-out;
+}
+
+@keyframes tok-reveal-glow {
+  from {
+    background-color: var(--selection);
+    color: var(--accent);
+  }
+  to {
+    background-color: transparent;
+    color: var(--ink);
+  }
+}
+
 .turn-minerva .stream-cursor {
   display: inline-block;
   width: 2px;
   height: 1em;
   margin-left: 2px;
   vertical-align: text-bottom;
-  background: var(--ink-mute);
-  animation: stream-cursor-blink 1s step-end infinite;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--selection);
+  animation: stream-cursor-blink 0.9s step-end infinite;
 }
 
 @keyframes stream-cursor-blink {
   50% {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-minerva .turn-body-streaming .tok-reveal {
+    animation: none;
+    color: var(--ink);
+  }
+  .turn-minerva .stream-cursor {
+    animation: none;
   }
 }
 
