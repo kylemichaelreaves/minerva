@@ -115,7 +115,7 @@ describe("<Thread />", () => {
     expect(container.querySelector(".turn-body")?.textContent).toContain("image of education");
   });
 
-  it("reveals streamed text as token spans, appending only new ones per delta", () => {
+  it("reveals streamed text as per-character spans, appending only new ones per delta", () => {
     const base: MinervaTurn = {
       role: "minerva",
       time: "12:00",
@@ -129,10 +129,10 @@ describe("<Thread />", () => {
     const { container } = render(() => (
       <Thread messages={msgs()} thinking={false} marginNotes={true} />
     ));
-    // Each subword piece is its own animated span, and together they
+    // Each character is its own animated span, and together they
     // reproduce the full streamed text.
     const firstSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
-    expect(firstSpans.length).toBeGreaterThan(0);
+    expect(firstSpans).toHaveLength("The cave".length);
     expect(firstSpans.map((s) => s.textContent).join("")).toBe("The cave");
 
     // A delta appends pieces for the new tail only — the already-revealed

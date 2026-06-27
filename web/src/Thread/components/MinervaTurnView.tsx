@@ -8,6 +8,23 @@ import { classnames, errorMessage, isAbortError } from "~/utils/util";
 import { CiteLocatorLink, PinButton } from "~/Thread/components/CiteControls";
 import { MarginNote } from "~/Thread/components/MarginNote";
 
+// Grapheme-aware character splitter for the token-stream reveal. Splitting
+// per user-perceived character keeps the glow granular while never tearing
+// a combining mark off its base letter (Greek breathings/accents, Hebrew
+// niqqud, Arabic harakat) — code-point or naive splitting would. Falls back
+// to code points if Intl.Segmenter is unavailable.
+const graphemeSegmenter =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null;
+
+function splitGraphemes(text: string): string[] {
+  if (graphemeSegmenter) {
+    return Array.from(graphemeSegmenter.segment(text), (s) => s.segment);
+  }
+  return Array.from(text);
+}
+
 export type ExpandedState =
   | { status: "loading" }
   | { status: "ready"; context: ChunkContextResponse }
@@ -99,15 +116,15 @@ export function MinervaTurnView(props: {
   const abstained = () => Boolean(props.msg.abstained);
 
   // Token-stream reveal. Split each freshly arrived slice of streamText
-  // into subword pieces (runs of 1-4 word chars, or a single punctuation /
-  // whitespace mark) and *append* them, so only the new pieces mount and
-  // run the glow-in animation — existing spans keep their DOM and never
-  // re-fire. This mirrors the producer/consumer split from the "Token
-  // Stream" design: the SSE delta is the producer, and <For> + per-piece
-  // animation-delay is the staggered consumer. The pieces stay in the DOM
-  // synchronously (the stagger is purely visual), so selection, SSR, and
-  // the streaming-text test all still see the full text. Closure state is
-  // per-turn — one MinervaTurnView instance exists per Minerva turn.
+  // into individual characters (graphemes) and *append* them, so only the
+  // new characters mount and run the glow-in animation — existing spans
+  // keep their DOM and never re-fire. This mirrors the producer/consumer
+  // split from the "Token Stream" design: the SSE delta is the producer,
+  // and <For> + per-piece animation-delay is the staggered consumer. The
+  // characters stay in the DOM synchronously (the stagger is purely
+  // visual), so selection, SSR, and the streaming-text test all still see
+  // the full text. Closure state is per-turn — one MinervaTurnView
+  // instance exists per Minerva turn.
   let revealedPieces: { text: string; id: number; delay: number }[] = [];
   let consumedLen = 0;
   let pieceSeq = 0;
@@ -123,14 +140,15 @@ export function MinervaTurnView(props: {
     if (full.length > consumedLen) {
       const tail = full.slice(consumedLen);
       consumedLen = full.length;
-      const pieces = tail.match(/\w{1,4}|\s|[^\w\s]/g) ?? [];
+      const pieces = splitGraphemes(tail);
       const added = pieces.map((text, i) => ({
         text,
         id: pieceSeq++,
-        // Stagger within a single delta so a multi-token chunk lights up
-        // left-to-right; capped so a buffered burst can't queue a long
-        // delay. Typical token-sized deltas land at delay 0.
-        delay: Math.min(i * 14, 220),
+        // Stagger within a single delta so a multi-character chunk lights
+        // up left-to-right; capped so a buffered burst can't queue a long
+        // delay. The first character of each token-sized delta lands at
+        // delay 0.
+        delay: Math.min(i * 12, 220),
       }));
       revealedPieces = [...revealedPieces, ...added];
     }
