@@ -97,6 +97,45 @@ export function MinervaTurnView(props: {
   const philName = () => dominantName(props.msg.dominant);
   const philGlyph = () => dominantGlyph(props.msg.dominant);
   const abstained = () => Boolean(props.msg.abstained);
+
+  // Token-stream reveal. Split each freshly arrived slice of streamText
+  // into subword pieces (runs of 1-4 word chars, or a single punctuation /
+  // whitespace mark) and *append* them, so only the new pieces mount and
+  // run the glow-in animation — existing spans keep their DOM and never
+  // re-fire. This mirrors the producer/consumer split from the "Token
+  // Stream" design: the SSE delta is the producer, and <For> + per-piece
+  // animation-delay is the staggered consumer. The pieces stay in the DOM
+  // synchronously (the stagger is purely visual), so selection, SSR, and
+  // the streaming-text test all still see the full text. Closure state is
+  // per-turn — one MinervaTurnView instance exists per Minerva turn.
+  let revealedPieces: { text: string; id: number; delay: number }[] = [];
+  let consumedLen = 0;
+  let pieceSeq = 0;
+  const streamPieces = createMemo(() => {
+    if (!streaming()) return revealedPieces;
+    const full = props.msg.streamText ?? "";
+    if (full.length < consumedLen) {
+      // streamText shrank (defensive — a fresh stream on a reused node).
+      revealedPieces = [];
+      consumedLen = 0;
+      pieceSeq = 0;
+    }
+    if (full.length > consumedLen) {
+      const tail = full.slice(consumedLen);
+      consumedLen = full.length;
+      const pieces = tail.match(/\w{1,4}|\s|[^\w\s]/g) ?? [];
+      const added = pieces.map((text, i) => ({
+        text,
+        id: pieceSeq++,
+        // Stagger within a single delta so a multi-token chunk lights up
+        // left-to-right; capped so a buffered burst can't queue a long
+        // delay. Typical token-sized deltas land at delay 0.
+        delay: Math.min(i * 14, 220),
+      }));
+      revealedPieces = [...revealedPieces, ...added];
+    }
+    return revealedPieces;
+  });
   // Memo — the For row below calls this once per paragraph; without
   // the memo each call rebuilt the Map from scratch.
   const citationsByN = createMemo(() => new Map(props.msg.citations.map((c) => [c.n, c])));
@@ -148,7 +187,13 @@ export function MinervaTurnView(props: {
           }
         >
           <div class="turn-body turn-body-streaming">
-            {props.msg.streamText ?? ""}
+            <For each={streamPieces()}>
+              {(ch) => (
+                <span class="tok-reveal" style={{ "animation-delay": `${ch.delay}ms` }}>
+                  {ch.text}
+                </span>
+              )}
+            </For>
             <span class="stream-cursor" aria-hidden="true" />
           </div>
         </Show>

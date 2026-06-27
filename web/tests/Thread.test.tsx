@@ -99,9 +99,7 @@ describe("<Thread />", () => {
     // SSE delta: same row, more streamText — must NOT recreate the view.
     setMsgs([{ ...base, streamText: "The cave is an image " }]);
     expect(container.querySelector(".turn-minerva")).toBe(node);
-    expect(container.querySelector(".turn-body-streaming")?.textContent).toContain(
-      "is an image",
-    );
+    expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("is an image");
 
     // Finalize: streaming flips off, paragraphs arrive — still the same node,
     // so useCitationExpand state inside the view survives the transition.
@@ -114,9 +112,40 @@ describe("<Thread />", () => {
       },
     ]);
     expect(container.querySelector(".turn-minerva")).toBe(node);
-    expect(container.querySelector(".turn-body")?.textContent).toContain(
-      "image of education",
-    );
+    expect(container.querySelector(".turn-body")?.textContent).toContain("image of education");
+  });
+
+  it("reveals streamed text as token spans, appending only new ones per delta", () => {
+    const base: MinervaTurn = {
+      role: "minerva",
+      time: "12:00",
+      dominant: "P",
+      paragraphs: [],
+      citations: [],
+      streaming: true,
+      streamText: "The cave",
+    };
+    const [msgs, setMsgs] = createSignal<Turn[]>([base]);
+    const { container } = render(() => (
+      <Thread messages={msgs()} thinking={false} marginNotes={true} />
+    ));
+    // Each subword piece is its own animated span, and together they
+    // reproduce the full streamed text.
+    const firstSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
+    expect(firstSpans.length).toBeGreaterThan(0);
+    expect(firstSpans.map((s) => s.textContent).join("")).toBe("The cave");
+
+    // A delta appends pieces for the new tail only — the already-revealed
+    // spans keep their identity so the glow animation never re-fires on
+    // text the reader has already seen.
+    setMsgs([{ ...base, streamText: "The cave is dark" }]);
+    const nextSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
+    expect(nextSpans.length).toBeGreaterThan(firstSpans.length);
+    expect(nextSpans.map((s) => s.textContent).join("")).toBe("The cave is dark");
+    // The original spans are the very same DOM nodes (reused, not rebuilt).
+    firstSpans.forEach((node, i) => {
+      expect(nextSpans[i]).toBe(node);
+    });
   });
 
   it("shows the thinking indicator only when thinking=true", () => {

@@ -113,19 +113,54 @@
   word-break: break-word;
 }
 
+/* Token-stream reveal — each freshly streamed piece flashes the accent
+   selection tint and settles into the prose, lighting up left-to-right.
+   Adapted from the "Token Stream" design's per-token glow, retuned for
+   Minerva's serif prose and warm palette (selection-tint instead of a
+   cool block). `backwards` holds the from-state through the per-piece
+   animation-delay so a multi-token delta reads as a warm sweep rather
+   than a single flash. Pieces are in the DOM immediately — the stagger
+   is purely visual. */
+.turn-minerva .turn-body-streaming .tok-reveal {
+  border-radius: 2px;
+  animation: tok-reveal-glow 380ms ease-out backwards;
+}
+
+@keyframes tok-reveal-glow {
+  from {
+    background-color: var(--selection);
+    color: var(--accent);
+  }
+  to {
+    background-color: transparent;
+    color: var(--ink);
+  }
+}
+
 .turn-minerva .stream-cursor {
   display: inline-block;
   width: 2px;
   height: 1em;
   margin-left: 2px;
   vertical-align: text-bottom;
-  background: var(--ink-mute);
-  animation: stream-cursor-blink 1s step-end infinite;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--selection);
+  animation: stream-cursor-blink 0.9s step-end infinite;
 }
 
 @keyframes stream-cursor-blink {
   50% {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-minerva .turn-body-streaming .tok-reveal {
+    animation: none;
+    color: var(--ink);
+  }
+  .turn-minerva .stream-cursor {
+    animation: none;
   }
 }
 
