@@ -261,6 +261,25 @@
   position: relative;
 }
 
+/* Structural set-apart blocks — Hegel's Remarks (Anmerkungen) and
+   Additions (Zusätze), tagged by `block_type` on the chunk (see
+   corpus/split_hegel_pr_epub.py). Indented with a left accent rule and a
+   slightly smaller, softer body, mirroring the printed edition's indented
+   type so elaboration reads as subordinate to the numbered §-proposition.
+   The gutter §-locator already carries "§N Remark" / "§N Addition". */
+.reader .line[data-block="remark"] .text,
+.reader .line[data-block="addition"] .text {
+  padding-left: 20px;
+  border-left: 2px solid var(--r-accent-mark);
+  font-size: 0.93em;
+  color: var(--r-ink-soft);
+}
+/* Additions are Gans's lecture-derived material — a dashed rule sets them
+   apart from Hegel's own Remarks at a glance. */
+.reader .line[data-block="addition"] .text {
+  border-left-style: dashed;
+}
+
 /* ───────────────── RTL (Hebrew / Arabic) ─────────────────
    When a chunk's lang ∈ {heb, ara}, Lines.tsx tags the .line with
    .rtl plus a .lang-heb / .lang-ara modifier. The grid stays the
