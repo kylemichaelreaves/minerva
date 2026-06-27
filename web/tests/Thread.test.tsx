@@ -60,92 +60,113 @@ describe("<Thread />", () => {
     expect(c2.querySelectorAll(".pull-quote")).toHaveLength(2);
   });
 
-  it("renders plain streaming text and a cursor while streaming", () => {
-    const streaming: MinervaTurn = {
-      role: "minerva",
-      time: "12:00",
-      dominant: "P",
-      paragraphs: [],
-      citations: [{ n: 1, text: "passage", src: "Republic 509d" }],
-      streaming: true,
-      streamText: "The cave ",
-    };
-    const { container } = render(() => (
-      <Thread messages={[streaming]} thinking={false} marginNotes={true} />
-    ));
-    expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("The cave");
-    expect(container.querySelector(".stream-cursor")).not.toBeNull();
-    expect(container.querySelector("sup.cite-mark")).toBeNull();
-    expect(container.querySelectorAll(".margin-note")).toHaveLength(1);
+  it("renders streaming text and a cursor while streaming", () => {
+    vi.useFakeTimers();
+    try {
+      const streaming: MinervaTurn = {
+        role: "minerva",
+        time: "12:00",
+        dominant: "P",
+        paragraphs: [],
+        citations: [{ n: 1, text: "passage", src: "Republic 509d" }],
+        streaming: true,
+        streamText: "The cave ",
+      };
+      const { container } = render(() => (
+        <Thread messages={[streaming]} thinking={false} marginNotes={true} />
+      ));
+      // The cursor shows immediately; the text is typed in by the
+      // steady-cadence consumer, so advance the timer to let it reveal.
+      expect(container.querySelector(".stream-cursor")).not.toBeNull();
+      vi.advanceTimersByTime(500);
+      expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("The cave");
+      expect(container.querySelector("sup.cite-mark")).toBeNull();
+      expect(container.querySelectorAll(".margin-note")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the same minerva turn DOM node across streaming deltas and finalize", () => {
-    const base: MinervaTurn = {
-      role: "minerva",
-      time: "12:00",
-      dominant: "P",
-      paragraphs: [],
-      citations: [],
-      streaming: true,
-      streamText: "The cave ",
-    };
-    const [msgs, setMsgs] = createSignal<Turn[]>([base]);
-    const { container } = render(() => (
-      <Thread messages={msgs()} thinking={false} marginNotes={true} />
-    ));
-    const node = container.querySelector(".turn-minerva");
-    expect(node).not.toBeNull();
+    vi.useFakeTimers();
+    try {
+      const base: MinervaTurn = {
+        role: "minerva",
+        time: "12:00",
+        dominant: "P",
+        paragraphs: [],
+        citations: [],
+        streaming: true,
+        streamText: "The cave ",
+      };
+      const [msgs, setMsgs] = createSignal<Turn[]>([base]);
+      const { container } = render(() => (
+        <Thread messages={msgs()} thinking={false} marginNotes={true} />
+      ));
+      const node = container.querySelector(".turn-minerva");
+      expect(node).not.toBeNull();
 
-    // SSE delta: same row, more streamText — must NOT recreate the view.
-    setMsgs([{ ...base, streamText: "The cave is an image " }]);
-    expect(container.querySelector(".turn-minerva")).toBe(node);
-    expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("is an image");
+      // SSE delta: same row, more streamText — must NOT recreate the view.
+      setMsgs([{ ...base, streamText: "The cave is an image " }]);
+      vi.advanceTimersByTime(500);
+      expect(container.querySelector(".turn-minerva")).toBe(node);
+      expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("is an image");
 
-    // Finalize: streaming flips off, paragraphs arrive — still the same node,
-    // so useCitationExpand state inside the view survives the transition.
-    setMsgs([
-      {
-        ...base,
-        streaming: false,
-        streamText: undefined,
-        paragraphs: ["The cave is an image of education."],
-      },
-    ]);
-    expect(container.querySelector(".turn-minerva")).toBe(node);
-    expect(container.querySelector(".turn-body")?.textContent).toContain("image of education");
+      // Finalize: streaming flips off, paragraphs arrive — still the same node,
+      // so useCitationExpand state inside the view survives the transition.
+      setMsgs([
+        {
+          ...base,
+          streaming: false,
+          streamText: undefined,
+          paragraphs: ["The cave is an image of education."],
+        },
+      ]);
+      expect(container.querySelector(".turn-minerva")).toBe(node);
+      expect(container.querySelector(".turn-body")?.textContent).toContain("image of education");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("reveals streamed text as per-character spans, appending only new ones per delta", () => {
-    const base: MinervaTurn = {
-      role: "minerva",
-      time: "12:00",
-      dominant: "P",
-      paragraphs: [],
-      citations: [],
-      streaming: true,
-      streamText: "The cave",
-    };
-    const [msgs, setMsgs] = createSignal<Turn[]>([base]);
-    const { container } = render(() => (
-      <Thread messages={msgs()} thinking={false} marginNotes={true} />
-    ));
-    // Each character is its own animated span, and together they
-    // reproduce the full streamed text.
-    const firstSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
-    expect(firstSpans).toHaveLength("The cave".length);
-    expect(firstSpans.map((s) => s.textContent).join("")).toBe("The cave");
+  it("types streamed text into per-character spans, reusing earlier spans across deltas", () => {
+    vi.useFakeTimers();
+    try {
+      const base: MinervaTurn = {
+        role: "minerva",
+        time: "12:00",
+        dominant: "P",
+        paragraphs: [],
+        citations: [],
+        streaming: true,
+        streamText: "The cave",
+      };
+      const [msgs, setMsgs] = createSignal<Turn[]>([base]);
+      const { container } = render(() => (
+        <Thread messages={msgs()} thinking={false} marginNotes={true} />
+      ));
+      // The consumer types one character (span) at a time; advance the
+      // timer to let the whole queue drain.
+      vi.advanceTimersByTime(1000);
+      const firstSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
+      expect(firstSpans).toHaveLength("The cave".length);
+      expect(firstSpans.map((s) => s.textContent).join("")).toBe("The cave");
 
-    // A delta appends pieces for the new tail only — the already-revealed
-    // spans keep their identity so the glow animation never re-fires on
-    // text the reader has already seen.
-    setMsgs([{ ...base, streamText: "The cave is dark" }]);
-    const nextSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
-    expect(nextSpans.length).toBeGreaterThan(firstSpans.length);
-    expect(nextSpans.map((s) => s.textContent).join("")).toBe("The cave is dark");
-    // The original spans are the very same DOM nodes (reused, not rebuilt).
-    firstSpans.forEach((node, i) => {
-      expect(nextSpans[i]).toBe(node);
-    });
+      // A delta queues only the new tail — the already-revealed spans keep
+      // their identity so the glow animation never re-fires on text the
+      // reader has already seen.
+      setMsgs([{ ...base, streamText: "The cave is dark" }]);
+      vi.advanceTimersByTime(1000);
+      const nextSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
+      expect(nextSpans).toHaveLength("The cave is dark".length);
+      expect(nextSpans.map((s) => s.textContent).join("")).toBe("The cave is dark");
+      // The original spans are the very same DOM nodes (reused, not rebuilt).
+      firstSpans.forEach((node, i) => {
+        expect(nextSpans[i]).toBe(node);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the thinking indicator only when thinking=true", () => {

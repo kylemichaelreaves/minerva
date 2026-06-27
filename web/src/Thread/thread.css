@@ -113,17 +113,16 @@
   word-break: break-word;
 }
 
-/* Token-stream reveal — each freshly streamed piece flashes the accent
-   selection tint and settles into the prose, lighting up left-to-right.
-   Adapted from the "Token Stream" design's per-token glow, retuned for
-   Minerva's serif prose and warm palette (selection-tint instead of a
-   cool block). `backwards` holds the from-state through the per-piece
-   animation-delay so a multi-token delta reads as a warm sweep rather
-   than a single flash. Pieces are in the DOM immediately — the stagger
-   is purely visual. */
+/* Token-stream reveal — each character flashes the accent selection tint
+   as it is typed in, then settles into the prose. A steady-cadence
+   consumer (see MinervaTurnView) mounts one character at a time, so the
+   glow cascades left-to-right with a fading "comet tail" of recently
+   revealed characters. Adapted from the "Token Stream" design's per-token
+   glow, retuned for Minerva's serif prose and warm palette (selection
+   tint instead of a cool block). */
 .turn-minerva .turn-body-streaming .tok-reveal {
   border-radius: 2px;
-  animation: tok-reveal-glow 380ms ease-out backwards;
+  animation: tok-reveal-glow 420ms ease-out;
 }
 
 @keyframes tok-reveal-glow {
