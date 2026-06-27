@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS chunks (
     -- below only mirror it into the FTS shadow. Migration 0021 adds
     -- this column + index to pre-existing databases.
     text_norm       TEXT,
+    -- Structural role within the work: NULL (≡ body) / 'remark' /
+    -- 'addition' / 'note' / 'blockquote'. Migration 0022 adds this to
+    -- pre-existing databases and recreates the chunks_full view to
+    -- surface it. See docs/block-structure-remediation-plan.md.
+    block_type      TEXT,
     CHECK ((edition_id IS NULL) <> (translation_id IS NULL))
 );
 
