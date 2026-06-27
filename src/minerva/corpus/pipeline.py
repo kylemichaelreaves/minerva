@@ -25,6 +25,7 @@ from .split_aquinas import split_aquinas
 from .split_augustine import split_augustine
 from .split_descartes import split_descartes, split_descartes_articles
 from .split_ekgwb import split_ekgwb
+from .split_hegel_pr_epub import split_hegel_pr_epub
 from .split_kant import split_by_kant_ab
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
@@ -77,6 +78,12 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         # at well-known page ranges from the bookmark TOC.
         text = extract_pdf(path, pages=work.pages)
     elif suffix == ".epub":
+        if work.locator == "pr_structured":
+            # Hegel PR: structure-aware parser reads the EPUB markup
+            # directly (typed main/remark/addition chunks per §), not the
+            # flattened text. See split_hegel_pr_epub.
+            yield from split_hegel_pr_epub(path, work)
+            return
         text = extract_epub(path)
     elif suffix in {".html", ".htm"}:
         # zeno.org dumps from `perseus/download_hegel_de.py` carry

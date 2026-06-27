@@ -103,6 +103,17 @@ Each extractor learns to emit `block_type`. Order by value/recoverability:
    rather than re-deriving from blank lines alone. **First target: Hegel's
    Cambridge EPUB** (the user's exact case) — this doubles as the vertical-slice
    proof that the whole spine works.
+
+   **Correction (verified 2026-06-27):** the English EPUB currently ingests via
+   `locator="section"` → **one merged chunk per §** (e.g. §4 is a single 7,281-char
+   chunk holding main + Remark + Addition). So labeling-in-place is impossible;
+   Phase 1.1 must **re-chunk** each § into separate typed chunks via a dedicated
+   structure-aware EPUB parser (the generic flatten→blank-line-split path drops the
+   markup). Consequence: Hegel EN `chunk_id`s churn → re-embed + re-lemmatize that
+   work (expected, contained). This supersedes the "English = labeling only, stable
+   chunk_ids" note in the migration-strategy section below. Bonus: the new parser
+   also fixes ~17 spurious fragment chunks the section splitter creates by
+   mis-reading inline "see § N" cross-references as new section starts.
 2. **TEI (`tei.py`, `sources/tei_p5.py`)** — stop discarding `<note>`; emit it as
    a `note`-typed chunk (recovers *lost* text, not just labels). Map
    `rend="blockquote"`/`<q>`/`<quote>` → `blockquote`. Preserve `<p>` boundaries.
