@@ -83,15 +83,37 @@ def _speaker_filter(speaker: str | None) -> tuple[str, tuple]:
 
 
 # Editorial apparatus — translator/editor footnotes (<note>) and dramatis-
-# personae lists (<castList>) — recovered by the TEI parser but NOT the
-# author's words. Excluded from chat retrieval so the philosopher is never
-# quoted from apparatus. They remain visible in the Reader. Phase 2b adds
-# per-text attribution to re-admit them under their real (editor/translator)
-# author. See docs/block-structure-remediation-plan.md.
+# personae lists (<castList>). Retrievable, but `format_locator` attributes
+# them to the responsible translator/editor (NEVER the author), so neither the
+# LLM prompt nor the citation can present a footnote as the philosopher's
+# words. See 2b in docs/block-structure-remediation-plan.md.
 _APPARATUS_TYPES = ("note", "cast")
-_APPARATUS_SQL = (
-    " AND (chunks.block_type IS NULL OR chunks.block_type NOT IN ('note', 'cast'))"
+_APPARATUS_LABEL = {"note": "editorial note", "cast": "cast list"}
+
+_TRANSLATED_BY_RE = re.compile(
+    r"(?:translated by|English Translation by|Translation by|trans\.?\s*by)\s+(.+)$", re.I
 )
+_EDITED_BY_RE = re.compile(r"\bed(?:ited by|\.)\s+([A-Z][^.,;]+)")
+
+
+def _clean_responsible(blob: str | None) -> str | None:
+    """Pull a clean translator/editor name from a source-bibliography blob,
+    e.g. 'Plato in Twelve Volumes, Vol. 8 translated by W.R.M. Lamb.' →
+    'W.R.M. Lamb'. None when no name is recoverable (caller falls back to a
+    bare 'editorial note' label)."""
+    if not blob:
+        return None
+    m = _TRANSLATED_BY_RE.search(blob)
+    if m:
+        name = re.split(r";|\bIntroduction\b|\bin (?:two|three) volumes", m.group(1))[0]
+        return name.strip(" .,") or None
+    m = _EDITED_BY_RE.search(blob)
+    if m:
+        return "ed. " + m.group(1).strip(" .,")
+    # Already a clean name (e.g. "Wood / Nisbet"), not a bibliography blob.
+    if len(blob) <= 50 and "Volume" not in blob and ":" not in blob:
+        return blob.strip(" .,") or None
+    return None
 
 
 def _fts_match(
@@ -138,7 +160,6 @@ def _fts_match(
         + work_sql
         + speaker_sql
         + min_chars_sql
-        + _APPARATUS_SQL
         + " "
         "ORDER BY rank ASC LIMIT ?"
     )
@@ -271,14 +292,13 @@ def _vector_search(
     work_id: int | None = None,
 ) -> dict[str, float]:
     # Filter columns come memoized alongside the embedding matrix (same
-    # invalidation), so this doesn't re-scan chunks_full per request. We
-    # always take this path now because editorial apparatus (note/cast) must
-    # be excluded unconditionally — even an otherwise-unfiltered search must
-    # not surface a footnote as the author's words.
+    # invalidation), so this doesn't re-scan chunks_full per request. (In
+    # practice min_chunk_chars defaults > 0, so a filter is essentially always
+    # active anyway.)
     ids, matrix, meta = load_embeddings_with_meta(conn)
     if not ids:
         return {}
-    keep = ~np.isin(meta.block_types, _APPARATUS_TYPES)  # drop apparatus always
+    keep = np.ones(len(ids), dtype=bool)
     if lang not in {None, "any"}:
         keep &= meta.langs == lang
     if corpus not in {None, "any"}:
@@ -436,7 +456,22 @@ def search(
 
 
 def format_locator(meta: dict) -> str:
-    """Compose a human citation like `Plato, Republic 514a (Bk 7)`."""
+    """Compose a human citation like `Plato, Republic 514a (Bk 7)`.
+
+    Editorial apparatus (block_type 'note'/'cast') is attributed to the
+    responsible translator/editor — NOT the work's author — so a footnote is
+    never presented as the philosopher's words: e.g.
+    `Republic 327a — editorial note (W.R.M. Lamb)`."""
+
+    block_type = meta.get("block_type")
+    if block_type in _APPARATUS_TYPES:
+        work = meta.get("work") or ""
+        section = meta.get("section")
+        loc_bits = [b for b in (work, section) if b]
+        loc = " ".join(loc_bits) if loc_bits else "(unknown)"
+        label = _APPARATUS_LABEL.get(block_type, "editorial")
+        who = _clean_responsible(meta.get("translator"))
+        return f"{loc} — {label}" + (f" ({who})" if who else "")
 
     bits: list[str] = []
     author = meta.get("author") or ""

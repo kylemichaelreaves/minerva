@@ -137,9 +137,28 @@ def test_search_top_hit_for_divided_line_is_in_republic(populated_db):
     assert hits[0].meta["work"] == "Republic"
 
 
-def test_search_excludes_apparatus_notes(tmp_path: Path):
-    """Editorial apparatus (block_type='note'/'cast') must never be retrieved
-    as the author's words — even on a query that matches only the note."""
+def test_format_locator_attributes_apparatus_to_translator():
+    """A note/cast locator names the translator/editor, never the author."""
+    note_meta = {
+        "author": "Plato",
+        "work": "Republic",
+        "section": "327a",
+        "translator": "Plato in Twelve Volumes, Vol. 5 translated by Paul Shorey.",
+        "block_type": "note",
+    }
+    loc = retrieve.format_locator(note_meta)
+    assert "Plato," not in loc  # not attributed to the philosopher
+    assert "editorial note" in loc
+    assert "Paul Shorey" in loc
+    assert "Republic 327a" in loc
+    # Body prose still attributes to the author.
+    body_meta = {"author": "Plato", "work": "Republic", "section": "327a", "block_type": None}
+    assert retrieve.format_locator(body_meta).startswith("Plato, Republic 327a")
+
+
+def test_search_readmits_apparatus_with_attribution(tmp_path: Path):
+    """Apparatus is retrievable again (2b), but its citation attributes it to
+    the responsible translator/editor — never the philosopher."""
 
     def chunk(cid: str, text: str, block_type: str | None = None) -> dict:
         return {
@@ -173,15 +192,18 @@ def test_search_excludes_apparatus_notes(tmp_path: Path):
     conn = store.open_db(tmp_path / "apparatus.sqlite")
     store.insert_chunks(conn, jsonl)
 
-    # Phrase that exists ONLY in the note chunk.
+    # The note IS retrievable again (re-admitted) on a phrase only it carries.
     hits = retrieve.search(conn, "Socrates narrates first person", top_k=5, lang="eng", corpus="plato")
-    ids = {h.chunk_id for h in hits}
-    assert "note1" not in ids
-    assert "cast1" not in ids
-    assert all(h.meta.get("block_type") not in ("note", "cast") for h in hits)
-    # Body text is still retrievable.
+    by_id = {h.chunk_id: h for h in hits}
+    assert "note1" in by_id
+    # But its citation attributes it to the translator + "editorial note",
+    # never to Plato.
+    loc = retrieve.format_locator(by_id["note1"].meta)
+    assert "editorial note" in loc and "Shorey" in loc and "Plato," not in loc
+    # Body text remains attributed to the author.
     body = retrieve.search(conn, "just city just soul harmony", top_k=5, lang="eng", corpus="plato")
-    assert "body1" in {h.chunk_id for h in body}
+    body_hit = {h.chunk_id: h for h in body}["body1"]
+    assert retrieve.format_locator(body_hit.meta).startswith("Plato, Republic")
 
 
 # ---------- speaker filter end-to-end ----------
