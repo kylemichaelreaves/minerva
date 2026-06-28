@@ -43,10 +43,13 @@ import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from ..corpus_works import CorpusWork
 from ..tei import Chunk, _make_chunk_id, _norm_text
+
+# NB: `bs4` is imported lazily inside split_hegel_pr_epub (see there). It's an
+# `[hegel]`-extra dependency; a module-top import would make `minerva serve`
+# (which imports the whole corpus pipeline) crash anywhere the extra isn't
+# installed, e.g. the CI base venv.
 
 _SECTION_RE = re.compile(r"§\s*(\d{1,3})")
 _CONTENT_FILE_RE = re.compile(r"\.x?html?$", re.I)
@@ -156,6 +159,15 @@ def _flush_section(
 
 
 def split_hegel_pr_epub(path: Path, work: CorpusWork) -> Iterator[Chunk]:
+    try:
+        from bs4 import BeautifulSoup  # type: ignore[import-untyped]
+    except ImportError as exc:
+        from ..corpus_extract import IngestDepsMissing
+
+        raise IngestDepsMissing(
+            "EPUB ingest requires `beautifulsoup4`. Install with `pip install -e '.[hegel]'`."
+        ) from exc
+
     front_headings = {h.lower() for h in work.front_matter_headings}
     cur_section: int | None = None
     cur_front: str | None = None
