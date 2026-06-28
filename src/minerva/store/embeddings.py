@@ -178,6 +178,7 @@ class EmbeddingChunkMeta:
     speakers_lower: np.ndarray  # unicode, lowercased, "" for NULL
     text_lens: np.ndarray  # int64, 0 for missing
     work_ids: np.ndarray  # int64, -1 for NULL/missing
+    block_types: np.ndarray  # unicode structural role, "" for body/NULL
 
 
 @dataclasses.dataclass
@@ -260,12 +261,13 @@ def load_embeddings_with_meta(
         if entry.meta is not None:
             return entry.ids, entry.matrix, entry.meta
         by_id = {
-            r[0]: (r[1], r[2], r[3], r[4], r[5])
+            r[0]: (r[1], r[2], r[3], r[4], r[5], r[6])
             for r in conn.execute(
-                "SELECT chunk_id, lang, corpus, speaker, length(text), work_id FROM chunks_full"
+                "SELECT chunk_id, lang, corpus, speaker, length(text), work_id, block_type "
+                "FROM chunks_full"
             )
         }
-        miss = ("", "", "", 0, None)
+        miss = ("", "", "", 0, None, None)
         cols = [by_id.get(cid, miss) for cid in entry.ids]
         entry.meta = EmbeddingChunkMeta(
             langs=np.array([c[0] or "" for c in cols], dtype=np.str_),
@@ -273,6 +275,7 @@ def load_embeddings_with_meta(
             speakers_lower=np.array([(c[2] or "").lower() for c in cols], dtype=np.str_),
             text_lens=np.array([c[3] or 0 for c in cols], dtype=np.int64),
             work_ids=np.array([c[4] if c[4] is not None else -1 for c in cols], dtype=np.int64),
+            block_types=np.array([c[5] or "" for c in cols], dtype=np.str_),
         )
         return entry.ids, entry.matrix, entry.meta
 
