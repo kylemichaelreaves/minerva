@@ -82,6 +82,18 @@ def _speaker_filter(speaker: str | None) -> tuple[str, tuple]:
     return " AND chunks.speaker = ? COLLATE NOCASE", (speaker,)
 
 
+# Editorial apparatus — translator/editor footnotes (<note>) and dramatis-
+# personae lists (<castList>) — recovered by the TEI parser but NOT the
+# author's words. Excluded from chat retrieval so the philosopher is never
+# quoted from apparatus. They remain visible in the Reader. Phase 2b adds
+# per-text attribution to re-admit them under their real (editor/translator)
+# author. See docs/block-structure-remediation-plan.md.
+_APPARATUS_TYPES = ("note", "cast")
+_APPARATUS_SQL = (
+    " AND (chunks.block_type IS NULL OR chunks.block_type NOT IN ('note', 'cast'))"
+)
+
+
 def _fts_match(
     conn: sqlite3.Connection,
     fts_table: str,
@@ -126,6 +138,7 @@ def _fts_match(
         + work_sql
         + speaker_sql
         + min_chars_sql
+        + _APPARATUS_SQL
         + " "
         "ORDER BY rank ASC LIMIT ?"
     )
@@ -257,41 +270,29 @@ def _vector_search(
     min_chunk_chars: int = 0,
     work_id: int | None = None,
 ) -> dict[str, float]:
-    needs_filter = (
-        lang not in {None, "any"}
-        or corpus not in {None, "any"}
-        or (bool(speaker) and speaker != "any")
-        or work_id is not None
-        or min_chunk_chars > 0
-    )
-    if not needs_filter:
-        ids, matrix = store.load_all_embeddings(conn)
-        if not ids:
-            return {}
-    else:
-        # Filter columns come memoized alongside the embedding matrix
-        # (same invalidation) — previously this scanned chunks_full
-        # (~375k rows through view joins) into a dict on EVERY filtered
-        # search, under the corpus lock. The vectorized masks below
-        # replace the old per-chunk Python loop.
-        ids, matrix, meta = load_embeddings_with_meta(conn)
-        if not ids:
-            return {}
-        keep = np.ones(len(ids), dtype=bool)
-        if lang not in {None, "any"}:
-            keep &= meta.langs == lang
-        if corpus not in {None, "any"}:
-            keep &= meta.corpora == corpus
-        if speaker and speaker != "any":
-            keep &= meta.speakers_lower == speaker.lower()
-        if min_chunk_chars > 0:
-            keep &= meta.text_lens >= min_chunk_chars
-        if work_id is not None:
-            keep &= meta.work_ids == work_id
-        if not keep.any():
-            return {}
-        ids = [c for c, k in zip(ids, keep, strict=True) if k]
-        matrix = matrix[keep]
+    # Filter columns come memoized alongside the embedding matrix (same
+    # invalidation), so this doesn't re-scan chunks_full per request. We
+    # always take this path now because editorial apparatus (note/cast) must
+    # be excluded unconditionally — even an otherwise-unfiltered search must
+    # not surface a footnote as the author's words.
+    ids, matrix, meta = load_embeddings_with_meta(conn)
+    if not ids:
+        return {}
+    keep = ~np.isin(meta.block_types, _APPARATUS_TYPES)  # drop apparatus always
+    if lang not in {None, "any"}:
+        keep &= meta.langs == lang
+    if corpus not in {None, "any"}:
+        keep &= meta.corpora == corpus
+    if speaker and speaker != "any":
+        keep &= meta.speakers_lower == speaker.lower()
+    if min_chunk_chars > 0:
+        keep &= meta.text_lens >= min_chunk_chars
+    if work_id is not None:
+        keep &= meta.work_ids == work_id
+    if not keep.any():
+        return {}
+    ids = [c for c, k in zip(ids, keep, strict=True) if k]
+    matrix = matrix[keep]
     idx, scores = embed.cosine_search(query_vec, matrix, top_k)
     return {ids[i]: float(s) for i, s in zip(idx.tolist(), scores.tolist(), strict=True)}
 

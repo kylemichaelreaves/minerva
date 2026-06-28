@@ -137,6 +137,53 @@ def test_search_top_hit_for_divided_line_is_in_republic(populated_db):
     assert hits[0].meta["work"] == "Republic"
 
 
+def test_search_excludes_apparatus_notes(tmp_path: Path):
+    """Editorial apparatus (block_type='note'/'cast') must never be retrieved
+    as the author's words — even on a query that matches only the note."""
+
+    def chunk(cid: str, text: str, block_type: str | None = None) -> dict:
+        return {
+            "chunk_id": cid,
+            "corpus": "plato",
+            "author": "Plato",
+            "work": "Republic",
+            "lang": "eng",
+            "section": "327a",
+            "book": "1",
+            "page": None,
+            "speaker": None,
+            "text": text,
+            "source_file": "republic_en.xml",
+            "translator": "Shorey",
+            "edition_year": "1930",
+            "block_type": block_type,
+        }
+
+    rows = [
+        chunk("body1", "The just city mirrors the just soul in its structure and harmony."),
+        chunk(
+            "note1",
+            "Editor's footnote: Socrates narrates this dialogue in the first person.",
+            block_type="note",
+        ),
+        chunk("cast1", "Cast: Socrates, Glaucon, Polemarchus, Thrasymachus.", block_type="cast"),
+    ]
+    jsonl = tmp_path / "c.jsonl"
+    jsonl.write_text("\n".join(json.dumps(r) for r in rows))
+    conn = store.open_db(tmp_path / "apparatus.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    # Phrase that exists ONLY in the note chunk.
+    hits = retrieve.search(conn, "Socrates narrates first person", top_k=5, lang="eng", corpus="plato")
+    ids = {h.chunk_id for h in hits}
+    assert "note1" not in ids
+    assert "cast1" not in ids
+    assert all(h.meta.get("block_type") not in ("note", "cast") for h in hits)
+    # Body text is still retrievable.
+    body = retrieve.search(conn, "just city just soul harmony", top_k=5, lang="eng", corpus="plato")
+    assert "body1" in {h.chunk_id for h in body}
+
+
 # ---------- speaker filter end-to-end ----------
 
 
