@@ -224,6 +224,16 @@ class _ChunkBuilder:
         self._cur_speaker: str | None = None
         self._note_depth = 0
         self._cast_depth = 0
+        # Set-apart text. Footnotes (<note>) and dramatis-personae lists
+        # (<castList>) used to be DROPPED entirely; now their text is
+        # collected here and emitted as block_type 'note'/'cast' chunks at
+        # the next section flush — distinct from the running body text, which
+        # is untouched, so main chunk_ids stay stable across the re-ingest.
+        self._note_buf: list[str] = []
+        self._cast_buf: list[str] = []
+        self._pending_notes: list[str] = []
+        self._pending_casts: list[str] = []
+        self._aux_seq = 0  # monotonic per work → stable note/cast chunk_ids
         self._chunks: list[Chunk] = []
         # Set by walk() before _walk() recurses. Empty frozenset for
         # bodies with no chunk-boundary milestones (rare; the body
@@ -238,45 +248,87 @@ class _ChunkBuilder:
         text = _norm_text(" ".join(t for t, _ in self._buf))
         speaker = _dominant_speaker(self._buf)
         self._buf.clear()
-        if not text:
-            return
-        meta = self.meta_common
-        chunk_id = _make_chunk_id(
-            meta["source_file"],
-            meta["work"],
-            meta["lang"],
-            self._cur_book or "",
-            self._cur_section or "",
-            self._cur_page or "",
-            text[:120],
-        )
-        # Transliterate Perseus beta-code Greek to polytonic Unicode
-        # AFTER computing chunk_id, so re-ingests keep stable ids.
-        # Migration 0006 already converted the existing in-DB chunks
-        # in-place but didn't touch ingest, so without this hook a
-        # new Greek author (Homer here, the LXX/NT later) would land
-        # beta-code text and rely on the runtime display shim. Doing
-        # it server-side at ingest matches what the UI expects and
-        # lets term-occurrence byte-offsets land against the
-        # displayable form.
-        if meta["lang"] == "grc" and _looks_like_betacode(text):
-            text = _betacode_to_unicode(text)
-        self._chunks.append(
-            Chunk(
-                chunk_id=chunk_id,
-                section=self._cur_section,
-                book=self._cur_book,
-                page=self._cur_page,
-                speaker=speaker,
-                text=text,
-                **meta,
+        if text:
+            meta = self.meta_common
+            chunk_id = _make_chunk_id(
+                meta["source_file"],
+                meta["work"],
+                meta["lang"],
+                self._cur_book or "",
+                self._cur_section or "",
+                self._cur_page or "",
+                text[:120],
             )
-        )
+            # Transliterate Perseus beta-code Greek to polytonic Unicode
+            # AFTER computing chunk_id, so re-ingests keep stable ids.
+            # Migration 0006 already converted the existing in-DB chunks
+            # in-place but didn't touch ingest, so without this hook a
+            # new Greek author (Homer here, the LXX/NT later) would land
+            # beta-code text and rely on the runtime display shim. Doing
+            # it server-side at ingest matches what the UI expects and
+            # lets term-occurrence byte-offsets land against the
+            # displayable form.
+            if meta["lang"] == "grc" and _looks_like_betacode(text):
+                text = _betacode_to_unicode(text)
+            self._chunks.append(
+                Chunk(
+                    chunk_id=chunk_id,
+                    section=self._cur_section,
+                    book=self._cur_book,
+                    page=self._cur_page,
+                    speaker=speaker,
+                    text=text,
+                    **meta,
+                )
+            )
+        # Footnotes / cast lists captured during this section, emitted AFTER
+        # the main chunk so reading order stays body-then-notes. The main
+        # chunk's id is computed without block_type/seq (above), exactly as
+        # before, so existing main chunk_ids — and their embeddings — survive
+        # the re-ingest unchanged; only these aux chunks are new.
+        self._emit_aux(self._pending_notes, "note")
+        self._emit_aux(self._pending_casts, "cast")
+
+    def _emit_aux(self, pending: list[str], block_type: str) -> None:
+        meta = self.meta_common
+        for text in pending:
+            chunk_id = _make_chunk_id(
+                meta["source_file"],
+                meta["work"],
+                meta["lang"],
+                self._cur_book or "",
+                self._cur_section or "",
+                self._cur_page or "",
+                block_type,
+                str(self._aux_seq),
+                text[:120],
+            )
+            self._aux_seq += 1
+            if meta["lang"] == "grc" and _looks_like_betacode(text):
+                text = _betacode_to_unicode(text)
+            self._chunks.append(
+                Chunk(
+                    chunk_id=chunk_id,
+                    section=self._cur_section,
+                    book=self._cur_book,
+                    page=self._cur_page,
+                    speaker=None,
+                    text=text,
+                    block_type=block_type,
+                    **meta,
+                )
+            )
+        pending.clear()
 
     def _add_text(self, text: str | None) -> None:
-        if not text or self._note_depth or self._cast_depth:
+        if not text:
             return
-        self._buf.append((text, self._cur_speaker))
+        if self._note_depth:
+            self._note_buf.append(text)
+        elif self._cast_depth:
+            self._cast_buf.append(text)
+        else:
+            self._buf.append((text, self._cur_speaker))
 
     def walk(self, body: ET.Element) -> None:
         # Pre-scan to pick the milestone units that drive chunking for
@@ -355,15 +407,30 @@ class _ChunkBuilder:
                     self._add_text(child.tail)
             finally:
                 self._cast_depth -= 1
+                if self._cast_depth == 0:
+                    cast = _norm_text(" ".join(self._cast_buf))
+                    self._cast_buf.clear()
+                    if cast:
+                        self._pending_casts.append(cast)
             return
 
         if tag == "note":
             self._note_depth += 1
             try:
+                # Capture the note's own text + child tails (the original
+                # handler walked children but never added this text, so even
+                # before the drop-guard the note body was lost).
+                self._add_text(el.text)
                 for child in el:
                     self._walk(child)
+                    self._add_text(child.tail)
             finally:
                 self._note_depth -= 1
+                if self._note_depth == 0:
+                    note = _norm_text(" ".join(self._note_buf))
+                    self._note_buf.clear()
+                    if note:
+                        self._pending_notes.append(note)
             return
 
         if tag == "sp":

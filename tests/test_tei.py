@@ -105,22 +105,48 @@ def test_parse_file_detects_language_from_stem(tmp_path: Path):
     assert all(c.lang == "grc" for c in gr_chunks)
 
 
-def test_parse_file_excludes_note_text(tmp_path: Path):
+def test_note_captured_as_separate_block(tmp_path: Path):
+    # A <note> is no longer dropped: its text is captured as a separate
+    # block_type='note' chunk, emitted AFTER the section's main chunk, while
+    # the main body chunk still excludes the note text (no pollution).
     xml = """<?xml version="1.0"?>
 <TEI.2><teiHeader><fileDesc><titleStmt><title>Test</title></titleStmt></fileDesc></teiHeader>
 <text><body><div1 type="book" n="1">
 <milestone unit="section" n="1a"/>
 Real text here.
-<note>EDITORIAL NOTE THAT MUST BE EXCLUDED</note>
+<note>The footnote text.</note>
 More real text.
 </div1></body></text></TEI.2>
 """
     path = _write_xml(tmp_path, "test_en.xml", xml)
     chunks = list(tei.parse_file(path, corpus="plato", author="Plato"))
-    assert len(chunks) == 1
-    assert "EDITORIAL NOTE" not in chunks[0].text
-    assert "Real text here." in chunks[0].text
-    assert "More real text." in chunks[0].text
+    assert len(chunks) == 2
+    body, note = chunks  # main first, note after
+    assert body.block_type is None
+    assert "footnote" not in body.text  # not polluted
+    assert "Real text here." in body.text
+    assert "More real text." in body.text
+    assert note.block_type == "note"
+    assert note.section == "1a"  # anchored to the same section
+    assert note.text == "The footnote text."
+
+
+def test_castlist_captured_as_cast_block(tmp_path: Path):
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Test</title></titleStmt></fileDesc></teiHeader>
+<text><body><div1 type="book" n="1">
+<castList><castItem>Socrates</castItem><castItem>Glaucon</castItem></castList>
+<milestone unit="section" n="1a"/>
+Real text here.
+</div1></body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "test_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="plato", author="Plato"))
+    cast = [c for c in chunks if c.block_type == "cast"]
+    assert len(cast) == 1
+    assert "Socrates" in cast[0].text and "Glaucon" in cast[0].text
+    # The cast text does not leak into any main body chunk.
+    assert all("Socrates" not in c.text for c in chunks if c.block_type is None)
 
 
 def test_speaker_preserved_across_sp_boundary(tmp_path: Path):
