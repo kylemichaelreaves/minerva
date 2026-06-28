@@ -240,11 +240,15 @@ WORKS: tuple[CorpusWork, ...] = (
         edition_year="1820",
         filenames=("pr_de.html",),
         fmt="html",
-        # zeno.org preserves only the Teil/Abschnitt structure (no inline
-        # §-markers), so chapter-based locators are the best we can do
-        # from this source.
-        locator="chapter",
+        # Structure-aware parser: zeno.org DOES carry § headings (h4/h5/h6)
+        # the chapter splitter ignored. Emits typed §-chunks — main /
+        # remark (Anmerkung) — and splices the Additions (Zusätze) from the
+        # Gans-OCR appendix (pr_de_zusaetze.txt), which zeno omits. See
+        # corpus/split_hegel_pr_de.py.
+        locator="pr_de_structured",
         lang="deu",
+        # Preserve Hegel's Vorrede (Owl-of-Minerva) — the §-pass starts at §1.
+        front_matter_headings=("Vorrede",),
     ),
     CorpusWork(
         code="enz_de",
