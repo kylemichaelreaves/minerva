@@ -35,7 +35,11 @@ WORKS: tuple[CorpusWork, ...] = (
             "elements_of_the_philosophy_of_right.epub",
         ),
         fmt="epub",
-        locator="section",
+        # Structure-aware EPUB parser: emits separate typed chunks per § —
+        # main / remark (Anmerkung) / addition (Zusatz) — instead of the
+        # generic §-splitter's one merged chunk per §. See
+        # corpus/split_hegel_pr_epub.py and the block-structure plan.
+        locator="pr_structured",
         # Capture Hegel's own Preface (which contains the Owl-of-
         # Minerva passage and the "rose in the cross" reflection) under
         # `book="Preface"`. Without this, the §-splitter dropped the
