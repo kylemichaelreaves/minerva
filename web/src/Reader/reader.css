@@ -280,6 +280,18 @@
   border-left-style: dashed;
 }
 
+/* Footnotes (TEI <note>) and dramatis-personae lists (<castList>),
+   recovered by the TEI parser. Apparatus, not primary text: read a step
+   smaller and dimmer than Remarks/Additions, with a quiet dotted rule. */
+.reader .line[data-block="note"] .text,
+.reader .line[data-block="cast"] .text {
+  padding-left: 20px;
+  border-left: 1px dotted var(--r-rule);
+  font-size: 0.8em;
+  line-height: 1.55;
+  color: var(--r-ink-mute);
+}
+
 /* ───────────────── RTL (Hebrew / Arabic) ─────────────────
    When a chunk's lang ∈ {heb, ara}, Lines.tsx tags the .line with
    .rtl plus a .lang-heb / .lang-ara modifier. The grid stays the

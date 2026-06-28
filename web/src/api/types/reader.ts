@@ -16,7 +16,7 @@ export interface Work {
  * body prose; the others mark set-apart matter (Hegel Anmerkung →
  * `remark`, Zusatz → `addition`, footnotes → `note`, quotations →
  * `blockquote`). See docs/block-structure-remediation-plan.md. */
-export type BlockType = "body" | "remark" | "addition" | "note" | "blockquote";
+export type BlockType = "body" | "remark" | "addition" | "note" | "cast" | "blockquote";
 
 export interface SourceChunk {
   chunk_id: string;
