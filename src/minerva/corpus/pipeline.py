@@ -30,6 +30,7 @@ from .split_hegel_pr_epub import split_hegel_pr_epub
 from .split_kant import split_by_kant_ab
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
+from .split_spinoza_ethica import split_spinoza_ethica
 from .split_stephanus_de import split_stephanus_de
 from .split_zeno import split_zeno_pages
 
@@ -95,6 +96,12 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             # Hegel PR (German): §-aware parser over the zeno.org markup,
             # splicing the Gans-OCR Zusätze. See split_hegel_pr_de.
             yield from split_hegel_pr_de(path, work)
+            return
+        if work.locator == "spinoza_ethica":
+            # Spinoza's Ethica (Latin): structure-aware parser over the
+            # thelatinlibrary.com per-Part markup — splits each proposition
+            # into its geometric apparatus and types Scholia as 'remark'.
+            yield from split_spinoza_ethica(path, work)
             return
         if "ZENO_PAGE:" in raw:
             yield from split_zeno_pages(raw, work, path)
