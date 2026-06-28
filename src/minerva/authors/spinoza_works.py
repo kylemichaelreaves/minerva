@@ -4,7 +4,13 @@ Four Latin works land from the `perseus/download_spinoza*.py`
 downloaders:
 
   • Ethica (5 Pars; geometric structure with Defs / Axs / Posts /
-    Props + Appendix). Posthumously published 1677.
+    Props + Appendix). Posthumously published 1677. Re-sourced from
+    thelatinlibrary.com (five per-Part HTML files, ``ethica_ll_<N>.html``)
+    whose inline PROPOSITIO / DEMONSTRATIO / SCHOLIUM / COROLLARIUM labels
+    let ``split_spinoza_ethica`` split each proposition into its apparatus
+    and type the Scholia as ``block_type='remark'`` — unlike the old flat
+    ``ethica.txt``, which fused statement + demonstration + scholium into
+    one chunk per proposition.
   • Tractatus de Intellectus Emendatione (TIE) — unfinished;
     posthumous 1677. ~110 numbered paragraphs.
   • Tractatus Politicus (TP) — unfinished; posthumous 1677.
@@ -15,10 +21,11 @@ downloaders:
     paragraph-index-within-chapter, not Bruder/Gebhardt (see
     perseus/download_spinoza_ttp.py for the rationale).
 
-All four ingest via the `spinoza` locator (see
+TIE / TP / TTP ingest via the `spinoza` locator (see
 `corpus/split_spinoza.py`), which consumes the
-`[E.<p>.<TYPE>.<n>]` / `[TIE.<nnn>]` / `[TP.<c>.<nnn>]` /
-`[TTP.<c>.<nnn>]` marker format the downloaders emit.
+`[TIE.<nnn>]` / `[TP.<c>.<nnn>]` / `[TTP.<c>.<nnn>]` marker format the
+downloaders emit. The Ethica uses its own `spinoza_ethica` locator
+(see `corpus/split_spinoza_ethica.py`).
 
 The Epistolae and Korte Verhandeling are still NOT in this pass.
 """
@@ -33,9 +40,15 @@ WORKS: tuple[CorpusWork, ...] = (
         title="Ethica",
         translator="(Original)",
         edition_year="1677",
-        filenames=("ethica.txt",),
-        fmt="txt",
-        locator="spinoza",
+        filenames=(
+            "ethica_ll_1.html",
+            "ethica_ll_2.html",
+            "ethica_ll_3.html",
+            "ethica_ll_4.html",
+            "ethica_ll_5.html",
+        ),
+        fmt="html",
+        locator="spinoza_ethica",
         lang="lat",
         corpus="spinoza",
         author="Spinoza",
