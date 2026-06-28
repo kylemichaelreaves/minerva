@@ -3,11 +3,7 @@
 // lives in WordRun.tsx.
 
 import { For, Show } from "solid-js";
-import type {
-  LemmaHighlights,
-  OccurrenceMap,
-  SourceChunk,
-} from "~/utils/types";
+import type { LemmaHighlights, OccurrenceMap, SourceChunk } from "~/utils/types";
 import { XrefMarker } from "~/components/XrefMarker";
 import { classnames } from "~/utils/util";
 import type { PinnedHighlight } from "~/Reader/utils";
@@ -55,12 +51,7 @@ export function Lines(props: {
    *  for that chunk and anchor the ReferenceCard popover. */
   onXrefOpen?: (chunkId: string, anchor: DOMRect) => void;
   onTermClick: (termId: number, anchor: DOMRect) => void;
-  onWordClick: (
-    word: string,
-    chunkId: string,
-    offset: number,
-    lineEl: Element | null,
-  ) => void;
+  onWordClick: (word: string, chunkId: string, offset: number, lineEl: Element | null) => void;
   /** When set, returns a cached translation for a previously-clicked
    *  word at (chunkId, offset) in the current target language. */
   wordTranslation?: (chunkId: string, offset: number) => string | undefined;
@@ -81,8 +72,7 @@ export function Lines(props: {
     <div class={classnames("lines", isLatin() && "latin", isRtl() && "rtl")}>
       <For each={props.chunks}>
         {(chunk) => {
-          const xref = (): XrefSummary | undefined =>
-            props.xrefMap?.[chunk.chunk_id];
+          const xref = (): XrefSummary | undefined => props.xrefMap?.[chunk.chunk_id];
           return (
             <div
               class={classnames(
@@ -92,6 +82,9 @@ export function Lines(props: {
                 isArabic() && "lang-ara",
               )}
               data-chunk-id={chunk.chunk_id}
+              // Structural role (Hegel Remark/Addition, etc.). Absent for
+              // ordinary body prose; reader.css indents the set-apart blocks.
+              data-block={chunk.block_type ?? undefined}
             >
               <span class="num">{chunk.section ?? chunk.ord + 1}</span>
               <span class="text" dir={isRtl() ? "rtl" : undefined}>
