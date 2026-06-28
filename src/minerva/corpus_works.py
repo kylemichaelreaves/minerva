@@ -72,6 +72,12 @@ class CorpusWork:
     # numbers — want a different scheme. Set per-CorpusWork to pin the
     # value; leave ``None`` to inherit from the corpus default.
     citation_system: str | None = None
+    # Structural role stamped on every chunk this work emits (paragraphic
+    # splitters only). Used for editorial-apparatus works whose entire
+    # content is set-apart material — e.g. the Hegel PR editor's-endnotes
+    # work sets ``block_type="note"`` so its chunks attribute to the
+    # editor, not Hegel. Leave ``None`` for ordinary body works.
+    block_type: str | None = None
 
 
 def filename_index(works: Iterable[CorpusWork]) -> dict[str, CorpusWork]:

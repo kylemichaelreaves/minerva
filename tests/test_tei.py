@@ -131,6 +131,24 @@ More real text.
     assert note.text == "The footnote text."
 
 
+def test_work_title_excludes_note_gloss(tmp_path: Path):
+    # A glossing <note> inside the <head> must not be swallowed into the work
+    # title (regression: Plato's Epinomis / Epictetus' Fragments titles had a
+    # paragraph-long gloss appended via head.itertext()).
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Bundle</title></titleStmt></fileDesc></teiHeader>
+<text><group>
+  <text n="d1"><body><head>Epinomis<note>i.e. the Nocturnal Council, a long editorial gloss</note></head>
+  <milestone unit="section" n="973a"/>Real dialogue text here that is long enough to chunk.</body></text>
+</group></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "plato_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="plato", author="Plato"))
+    assert chunks
+    assert all(c.work == "Epinomis" for c in chunks)
+    assert all("editorial gloss" not in c.work for c in chunks)
+
+
 def test_castlist_captured_as_cast_block(tmp_path: Path):
     xml = """<?xml version="1.0"?>
 <TEI.2><teiHeader><fileDesc><titleStmt><title>Test</title></titleStmt></fileDesc></teiHeader>
