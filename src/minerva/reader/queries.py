@@ -145,7 +145,7 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
     if meta_row is None:
         raise NotFoundError( "no chunks for that (work, lang)")
     rows = conn.execute(
-        "SELECT chunk_id, section, book, page, speaker, text, ord "
+        "SELECT chunk_id, section, book, page, speaker, text, ord, block_type "
         "FROM chunks_full WHERE work=? AND lang=? "
         "ORDER BY ord LIMIT ? OFFSET ?",
         (resolved_work, lang, limit, offset),
@@ -185,6 +185,7 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
             # through unchanged.
             "text": display_text(r["text"], lang_out),
             "ord": r["ord"],
+            "block_type": r["block_type"],
         }
         for r in rows
     ],

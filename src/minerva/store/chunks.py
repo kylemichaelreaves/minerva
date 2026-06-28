@@ -266,8 +266,8 @@ def insert_chunks(
         INSERT_SQL = (
             "INSERT OR REPLACE INTO chunks "
             "(chunk_id, edition_id, translation_id, lang, section, book, page, "
-            " speaker, source_file, text, ord, text_norm) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " speaker, source_file, text, ord, text_norm, block_type) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         for obj in load_jsonl(jsonl_path):
             # Incremental mode: skip rows whose corpus is out of scope.
@@ -305,6 +305,7 @@ def insert_chunks(
                     obj["text"],
                     ord_counter[key],
                     orthography.canonicalize(obj["text"], obj["lang"]),
+                    obj.get("block_type"),
                 )
             )
             if len(batch) >= _INSERT_BATCH:

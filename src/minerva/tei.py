@@ -68,6 +68,12 @@ class Chunk:
     # only when a single Work uses a different system from its
     # corpus, e.g. KrV (kant_ab) vs. the rest of Kant (paragraph).
     citation_system: str | None = None
+    # Structural role of this chunk within its work. ``None`` (≡ "body")
+    # is ordinary section/paragraph prose; structure-aware extractors set
+    # "remark" (Hegel Anmerkung / Spinoza Scholium), "addition" (Hegel
+    # Zusatz), "note" (footnote), or "blockquote". See
+    # docs/block-structure-remediation-plan.md.
+    block_type: str | None = None
 
     def to_json_dict(self) -> dict:
         return dataclasses.asdict(self)

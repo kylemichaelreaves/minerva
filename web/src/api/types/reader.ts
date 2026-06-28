@@ -12,6 +12,12 @@ export interface Work {
   chunks: number;
 }
 
+/** Structural role of a chunk within its work. Absent/`null` ≡ ordinary
+ * body prose; the others mark set-apart matter (Hegel Anmerkung →
+ * `remark`, Zusatz → `addition`, footnotes → `note`, quotations →
+ * `blockquote`). See docs/block-structure-remediation-plan.md. */
+export type BlockType = "body" | "remark" | "addition" | "note" | "blockquote";
+
 export interface SourceChunk {
   chunk_id: string;
   section: string | null;
@@ -20,6 +26,9 @@ export interface SourceChunk {
   speaker: string | null;
   text: string;
   ord: number;
+  /** Optional during Phase 0 rollout: only the work-range endpoint emits it
+   * so far, and every chunk is currently `null` until extractors populate it. */
+  block_type?: BlockType | null;
 }
 
 export interface WorkRange {
