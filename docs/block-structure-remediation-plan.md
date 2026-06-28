@@ -295,3 +295,49 @@ Two distinct paths, chosen to protect the expensive embed/lemma/xref artifacts:
 - Frontend: `web/src/api/types/reader.ts`, `web/src/Reader/components/Lines.tsx`,
   `web/src/Reader/reader.css`, `web/src/utils/renderMarkdown.tsx`,
   `web/src/utils/markdown.ts`, `web/src/Thread/thread.css`.
+
+## Appendix — corpus-wide audit (2026-06-28)
+
+Hegel PR (EN + DE) is DONE end-to-end (Phases 0–3; PRs #16, #17, #20, #18, #19
+merged; reader rendering is language/work-agnostic). A four-way audit of the
+rest of the corpus confirms **Hegel was not special** — the same flattening
+affects most works, in three distinct failure modes:
+
+### Mode 1 — content DROPPED (text is gone, not just unstructured)
+
+| Source / parser | What's dropped | Scale |
+|---|---|---|
+| **TEI.2 `tei.py:360`** drops every `<note>` + `<castList>` | translator/scholarly footnotes | **~8,100**: Plato 4,137 (Republic 2,769) + 68 castLists; Aristotle 3,507; Homer 295; Epictetus 92 |
+| `split_ekgwb` strips `.footnotes`/apparatus | Nietzsche Nachlass | — |
+| `extract_epub` drops editorial back-matter spine items | generic EPUB path | — |
+| `split_stephanus_de` skips the "ANMERKUNGEN" section | Schleiermacher | — |
+
+### Mode 2 — content MERGED / untyped (the Hegel problem; ~47.8k early-modern chunks are `block_type=NULL`)
+
+- **Spinoza — CRITICAL:** Demonstratio + Scholium + Corollarium merged into one
+  chunk per proposition (`split_spinoza.py`). The Scholia are Spinoza's substance.
+- **Aquinas — HIGH:** the *disputatio* structure (`[arg. 1]` / `[s.c.]` / `[co.]`
+  / `[ad 1]` = objections / sed contra / body / replies) is inline, never parsed.
+- **Descartes — HIGH** (Objections & Replies), **Kant — HIGH** (Anmerkungen +
+  A/B apparatus), **Marx / Nietzsche — MED**, **Hobbes — MED** (OCR mega-chunks),
+  Hume / Locke / Pascal / Rousseau / Schiller — LOW.
+
+### Mode 3 — apparatus POLLUTED into the text (scripture; `itertext()` pulls notes in)
+
+- **Hebrew MT** `hebrew_mt.py:70` (2,736 verses) and **Septuagint** `tei_lxx.py:38`
+  (1,575 verses): `<app>` / `<note>` critical apparatus inlined into verse text.
+- **Clean (no action):** Vulgate, SBLGNT/NT, Quran, Sophocles, Lucretius, Origen,
+  Aesop. French authors (Boulainvilliers / Gobineau / Renan) — LOW: footnotes are
+  OCR-inlined, not recoverable structure.
+
+### Prioritized remediation backlog (each follows the Hegel template: typed
+chunks → per-corpus re-ingest + re-embed; reader rendering already done)
+
+1. **TEI.2 note/cast capture** — one parser fix recovers ~8,100 dropped footnotes
+   across Plato/Aristotle/Homer/Epictetus (emit `block_type='note'`/`'cast'`
+   instead of dropping at `tei.py:349,360`). Highest impact.
+2. **Spinoza** dedicated splitter (Demonstratio / Scholium / Corollarium).
+3. **Scripture apparatus filtering** — strip `<note>`/`<app>` before `itertext()`
+   in `hebrew_mt.py` + `tei_lxx.py`.
+4. **Aquinas, Descartes, Kant** dedicated splitters.
+5. Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not parser).
