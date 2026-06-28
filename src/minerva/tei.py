@@ -126,6 +126,21 @@ def _dominant_speaker(buf: list[tuple[str, str | None]]) -> str | None:
     return None
 
 
+def _text_excluding_notes(el: ET.Element) -> str:
+    """Concatenated text of ``el``, skipping ``<note>`` subtrees. Used for
+    work titles so a glossing footnote inside a ``<head>`` (e.g. Plato's
+    Epinomis, Epictetus' Fragments) doesn't get swallowed into the title."""
+    parts: list[str] = []
+    if el.text:
+        parts.append(el.text)
+    for child in el:
+        if child.tag != "note":
+            parts.append(_text_excluding_notes(child))
+        if child.tail:
+            parts.append(child.tail)
+    return " ".join(p for p in parts if p)
+
+
 def _identify_works(root: ET.Element) -> list[TeiWork]:
     """Find each addressable work in the file."""
 
@@ -141,7 +156,7 @@ def _identify_works(root: ET.Element) -> list[TeiWork]:
             if body is None:
                 continue
             head = body.find("head")
-            head_text = _norm_text(" ".join(head.itertext())) if head is not None else None
+            head_text = _norm_text(_text_excluding_notes(head)) if head is not None else None
             title = head_text or sub.get("n") or "untitled"
             works.append(TeiWork(title=title, container_type="dialogue", body=body))
         if works:

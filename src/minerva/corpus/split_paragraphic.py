@@ -104,6 +104,7 @@ def _emit(
         translator=work.translator,
         edition_year=work.edition_year,
         citation_system=work.citation_system,
+        block_type=work.block_type,
     )
 
 

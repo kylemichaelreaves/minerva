@@ -64,6 +64,10 @@ WORKS: tuple[CorpusWork, ...] = (
         filenames=("elements_phil_of_right_eng_editors_notes.html",),
         fmt="html",
         locator="chapter",
+        # Wood's editorial endnotes — NOT Hegel's words. Type every chunk
+        # 'note' so retrieval attributes them to the editor/translator
+        # (retrieve.format_locator), not to Hegel.
+        block_type="note",
     ),
     # Inwood and Pinkard's Phenomenology translations live as separate
     # works so citations distinguish them inline ("...(Inwood) ¶17" vs
