@@ -1,17 +1,177 @@
 # Block-structure preservation (Remarks / Additions / notes) — remediation plan
 
-> **Status (2026-06-27): DRAFT — design only, no code written.**
-> Scope decided with the user: write the full plan before any code; **both Remarks
-> and Additions must be included.** Research outcome (Phase 2): no *structured*
-> German edition exists (DTA, TextGrid, Wikisource lack the work; zeno.org omits the
-> Additions; the hegel.net Werke PDF is an image-only scan) — BUT the German
-> Additions are freely available as **clean OCR** (archive.org Gans edition, 193
-> Zusätze). Plan: label German Remarks via English §-alignment + splice the
-> Additions from the Gans OCR. Triggering case:
-> Hegel's *Elements of the Philosophy of Right*, whose indented **Remarks**
-> (Anmerkungen) and **Additions** (Zusätze) elaborate on each numbered §. The
-> elaboration *text* survived ingestion; its *structural role* did not, so it
-> reads as ordinary §-body prose with no indentation.
+> **Status (2026-06-28): IN PROGRESS — spine shipped, mid-backlog.**
+> The `block_type` capability (Phases 0–3) is built and merged, the reader renders
+> it language/work-agnostically, and three backlog corpora are done (Hegel EN+DE,
+> TEI note/cast recovery, Spinoza). **The live, resumable checklist is the
+> "Execution tracker" section directly below** — start there. Everything after it
+> (Problem / Diagnosis / Design / Phases / Appendix) is the original design +
+> research record, kept as reference for *why* the approach is what it is.
+>
+> Triggering case (for context): Hegel's *Elements of the Philosophy of Right*,
+> whose indented **Remarks** (Anmerkungen) and **Additions** (Zusätze) elaborate on
+> each numbered §. The elaboration *text* survived ingestion; its *structural role*
+> did not, so it read as ordinary §-body prose. The same flattening, an audit
+> confirmed, affects most of the corpus (see Appendix).
+
+---
+
+## Execution tracker (resume here)
+
+**How to use this:** pick the top unchecked item in the status table, open its
+playbook, and run the proven template against it. Each playbook is written to be
+startable cold in a fresh session. Update the table + check boxes as you go, and
+write a per-corpus memory at the end (the gotchas always pay off on the next one).
+
+### Status
+
+| # | Corpus | Failure mode | State | PRs |
+|---|---|---|---|---|
+| — | Phase 0 plumbing (`block_type` model→DB→API→reader) | enabling | ✅ done | #16 |
+| — | Hegel *Philosophy of Right* EN + DE | Mode 2 (merged) | ✅ done | #16–#20 |
+| 1 | TEI.2 `<note>`/`<castList>` recovery (Plato/Aristotle/Homer/Epictetus) | Mode 1 (dropped) | ✅ done | #22–#23 |
+| — | Note attribution (apparatus → translator, not author) | safety | ✅ done | #24–#26 |
+| 2 | **Spinoza *Ethica*** (Demonstratio/Scholium/Corollarium merged) | Mode 2 (merged) | ✅ done | #27 |
+| 3 | **Scripture apparatus** (Hebrew MT + Septuagint) | Mode 3 (polluted) | ⬜ **NEXT** | — |
+| 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) | Mode 2 (merged) | ⬜ todo | — |
+| 5 | **Descartes** Objections & Replies | Mode 2 + attribution | ⬜ todo | — |
+| 6 | **Kant** Anmerkungen (+ A/B apparatus) | Mode 2 (merged) | ⬜ todo | — |
+| 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ todo | — |
+| 8 | Hobbes (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ todo | — |
+
+### The proven template (one corpus = one PR)
+
+Distilled from the Hegel and Spinoza runs. Steps marked ⚠ are where past runs broke.
+
+1. **Assess the source.** Find the structure markers; classify the fix:
+   *typing* (emit `block_type`), *filtering* (strip apparatus from text), or
+   *re-source* (structure absent → fetch a structured edition). Decide attribution
+   up front: is the set-apart text the **author's own** (→ `remark`/`addition`,
+   attributed to them) or **someone else's** (footnote/objection → attribute to the
+   editor/objector, never the philosopher)? See [[refs-rules-mandatory-for-new-authors]]
+   and the note-attribution work (#24–#26).
+2. **Write/extend the dedicated splitter** (`corpus/split_<x>.py`). ⚠ Lazy-import
+   `bs4`/`lxml` *inside* the function (`IngestDepsMissing`) — a module-top import
+   crashes `minerva serve` in the CI base venv. Match locator conventions for the
+   `section` strings.
+3. **Wire it:** add the locator branch in `corpus/pipeline.py:parse_file`; point the
+   `CorpusWork`(s) at the locator/source in `authors/<x>_works.py`.
+4. **Re-source if needed:** add `perseus/download_<x>.py`; drop files in the
+   registered corpus dir (`registry.py`). Commit the raw source if the parser is
+   coupled to its exact bytes (precedent: Hegel Zusätze, Spinoza HTML).
+5. ⚠ **Verify the parse OFFLINE, before touching the DB.** Run the splitter over the
+   real files in a scratch script: counts by `block_type`, char-coverage %, **0
+   duplicate `section` strings, 0 duplicate `chunk_id`s**, and spot-check the famous
+   passages by name. Only proceed when counts match a known-good figure. (Spinoza's
+   Part IV bug — 8/73 props — would have corrupted the corpus if re-ingested blind.)
+6. **Tests:** hermetic `tmp_path` fixtures (`tests/test_split_<x>.py`) locking each
+   behavior *and each bug you hit*. Model on `tests/test_split_spinoza_ethica.py`.
+7. **Snapshot:** `scripts/snapshot-db.sh <reason>` (the `make` auto-snapshot is a
+   fallback, not a substitute). See [[snapshot-before-destructive-ops]].
+8. ⚠ **Re-ingest:** `make reingest-only ONLY=<source_ids>` — `--only` wipes at the
+   **corpus** level, so pass **all sibling source ids** of a multi-source corpus or
+   they get wiped. See [[only-reingest-corpus-level-wipe]].
+9. **Embed:** `.venv/bin/minerva embed --lang <lang>` (incremental; only missing).
+   ⚠ The reingest's own embed step may not cover new chunks — verify coverage and
+   run this explicitly (Spinoza needed it: 0/925 → 925/925).
+10. ⚠ **Refs (all three — rules alone is NOT enough, see [[refs-verify-required]]):**
+    `refs build --strategy rules --source-author <X> --rescan-all`, then
+    `--strategy embed-verify --source-author <X>`, then
+    `--strategy llm-verify --source-author <X>` (background it; it only writes the
+    local DB, so the PR doesn't block on it).
+11. **Verify in DB:** per-work counts, `block_type` breakdown, embeddings coverage,
+    a sample retrieval of a famous set-apart passage.
+12. **Green:** `ruff check` the changed files + `pytest tests/` (full suite — you
+    touched shared `pipeline.py`).
+13. **Ship:** `direnv exec . git push -u origin <branch>`; `direnv exec . gh pr
+    create`; poll `gh pr checks` until all green (no admin override — it's blocked);
+    `gh pr merge --squash --delete-branch`. Personal account — always `direnv exec
+    . gh ...`, never `gh auth switch`. See [[gh-account-scoping]].
+14. **Memory:** update this tracker + the [[block-structure-remediation]] memory;
+    write a per-corpus gotchas memory (like [[spinoza-ethica-resource]]).
+
+### Playbooks
+
+#### 3. Scripture apparatus filtering — NEXT (smallest; Mode 3, *filtering* not typing)
+
+Critical-text apparatus (`<note>`, `<app>`/`<rdg>`/`<lem>`) is being pulled into
+verse bodies by `itertext()`, so a Hebrew/Greek verse string contains editorial
+sigla. Unlike literary footnotes (which we *recovered* as `note` chunks), scripture
+apparatus is text-critical noise that should simply be **excluded from the verse
+text** — no `block_type` needed.
+
+- **Files:** `src/minerva/sources/hebrew_mt.py:60` (`_verse_text` → `verse.itertext()`)
+  and `src/minerva/sources/tei_lxx.py:35` (`_text_of` → `elem.itertext()`).
+- **Fix:** before joining `itertext()`, drop `<note>`/`<app>` subtrees. Reuse the
+  pattern from `tei.py` (`_text_excluding_notes`) — walk children, skip apparatus
+  elements, keep `<w>`/`<seg>`/text/tail. Confirm the exact apparatus element names
+  in the actual OSIS (MT) and TEI (LXX/Swete) files first.
+- **Scope / churn:** ~2,736 MT verses + ~1,575 LXX verses; verse text changes ⇒
+  `chunk_id` churn ⇒ re-embed those two corpora only.
+- **Source ids:** check `registry.py` for the MT + LXX ingest source ids (pass both
+  siblings if a corpus has more than one).
+- **Verify:** apparatus sigla gone from sampled verses; verse *count* unchanged
+  (we're cleaning text, not adding/removing chunks); diff a known apparatus-heavy
+  verse before/after. See [[septuagint-ingestion]], [[bcv-canon-table]].
+- **No refs rebuild needed** unless verse chunk_ids feeding scripture-cite xrefs
+  churn — they will, so re-bind: scripture targets are mostly locator-resolved
+  (NULL `target_chunk_id`), so likely fine, but check broken-target count after.
+  See [[scripture-cite-rules]].
+
+#### 4. Aquinas *disputatio* (Mode 2 — merged)
+
+The scholastic article structure — objection(s) → *sed contra* → *corpus* (body) →
+replies — is inline as `[arg. 1]` / `[s.c.]` / `[co.]` / `[ad 1]` markers but never
+split, so a whole article is one chunk and the dialectic is unsearchable.
+
+- **Files:** `corpus/split_aquinas.py` (locator `aquinas`, 6 works in
+  `authors/aquinas_works.py`). Background survey: `docs/aquinas_cite_survey.md`.
+  Source structure: [[corpus-thomisticum-anchors]].
+- **Decision needed (assess step):** taxonomy for objections/replies. They are
+  Aquinas's *own* dialectic (positions he raises then answers), so attribution is to
+  Aquinas — but they aren't "remark"-style elaboration either. Options: (a) split
+  into separate citable units, all `body`; (b) add `objection`/`reply` to the
+  taxonomy. Lean (a) first (the win is *splitting*, locators like `ST I, q2, a3, ad 1`);
+  add types only if the reader benefits.
+- **Verify:** article counts; every `[co.]` present; spot-check the Five Ways
+  (ST I, q2, a3) split into obj/sc/co/replies.
+
+#### 5. Descartes Objections & Replies (Mode 2 + **attribution**)
+
+The *Meditations* ship with seven sets of Objections (Caterus, Mersenne, Hobbes,
+Arnauld, Gassendi, …) and Descartes's Replies. ⚠ **The Objections are by other
+authors, not Descartes** — this is the misattribution trap again. They must
+attribute to the objector, not Descartes (mirror the note-attribution model,
+#24–#26).
+
+- **Files:** `corpus/split_descartes.py` + `corpus/split_descartes_articles.py`;
+  `authors/descartes_works.py`. Re-source quality note: [[descartes-principes-reextract]],
+  [[early-modern-pg-ids-unverified]].
+- **Assess:** does the current source even contain the Objections/Replies, or only
+  the six Meditations? If absent, this becomes a re-source job. The Replies are
+  Descartes's; the Objections need an author/`block_type` that routes attribution
+  away from him.
+
+#### 6. Kant Anmerkungen (+ A/B apparatus) (Mode 2 — merged)
+
+Kant's *Anmerkungen* (remarks) sit inline in the prose. The KrV A/B edition
+pagination is already handled by `split_kant.kant_ab` (locator `kant_ab`); most
+other works use the generic `chapter` locator, which flattens Anmerkungen.
+
+- **Files:** `corpus/split_kant.py`; `authors/kant_works.py` (mix of `chapter` +
+  `kant_ab`). ⚠ Kant is multi-source (`kant`/`kant_en`) — pass both on re-ingest.
+- **Fix:** detect "Anmerkung"/"Remark" heads → `block_type='remark'`; confirm
+  `kant_ab` already preserves what it should.
+
+#### 7–8. Marx · Nietzsche · Hobbes (lower)
+
+- **Marx / Nietzsche (MED):** untyped set-apart matter; same template. Nietzsche
+  also has the eKGWB Nachlass apparatus stripped by `split_ekgwb` — separate, optional.
+- **Hobbes:** the issue is OCR **mega-chunks**, a data-quality problem, *not* a
+  block-type parser fix. Needs re-chunking / re-source, not this template. See the
+  corpus-quality audit work ([[corpus-quality-audit-lessons]]).
+
+---
 
 ## Problem
 
@@ -333,11 +493,16 @@ affects most works, in three distinct failure modes:
 ### Prioritized remediation backlog (each follows the Hegel template: typed
 chunks → per-corpus re-ingest + re-embed; reader rendering already done)
 
-1. **TEI.2 note/cast capture** — one parser fix recovers ~8,100 dropped footnotes
-   across Plato/Aristotle/Homer/Epictetus (emit `block_type='note'`/`'cast'`
-   instead of dropping at `tei.py:349,360`). Highest impact.
-2. **Spinoza** dedicated splitter (Demonstratio / Scholium / Corollarium).
-3. **Scripture apparatus filtering** — strip `<note>`/`<app>` before `itertext()`
-   in `hebrew_mt.py` + `tei_lxx.py`.
-4. **Aquinas, Descartes, Kant** dedicated splitters.
-5. Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not parser).
+> Live status lives in the **Execution tracker** table at the top of this doc;
+> this list is the original prioritization, annotated.
+
+1. ✅ **TEI.2 note/cast capture** — one parser fix recovered ~8,456 dropped
+   footnotes across Plato/Aristotle/Homer/Epictetus (emits `block_type='note'`/
+   `'cast'` instead of dropping at `tei.py`). PRs #22–#23.
+2. ✅ **Spinoza** dedicated splitter (Demonstratio / Scholium / Corollarium) —
+   re-sourced structured Latin; 307→925 chunks, 162 remarks. PR #27.
+3. ⬜ **Scripture apparatus filtering** — strip `<note>`/`<app>` before `itertext()`
+   in `hebrew_mt.py` + `tei_lxx.py`. ← NEXT
+4. ⬜ **Aquinas, Descartes, Kant** dedicated splitters (Descartes also needs
+   objector-attribution, not just typing).
+5. ⬜ Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not parser).
