@@ -16,8 +16,8 @@ version: 1
 
 references:
 
-  # ST I, q. 2, a. 3 (the Five Ways) → Aristotle Physics VIII
-  - source: { chunk_id: "c856b7a9d38b3700eab0" }
+  # ST I, q. 2, a. 3, co. (the Five Ways) → Aristotle Physics VIII
+  - source: { chunk_id: "972f03c5da36a77e2049" }
     target:
       author: Aristotle
       work: Physics
@@ -29,8 +29,8 @@ references:
       VIII.6 (the kineton akineton). The famous "manus baculum movet"
       example in the corpus is Aristotle's own.
 
-  # ST I, q. 75, a. 1 (whether the soul is a body) → Aristotle De anima II
-  - source: { chunk_id: "a6d37424784994d076b3" }
+  # ST I, q. 75, a. 1, co. (whether the soul is a body) → Aristotle De anima II
+  - source: { chunk_id: "0a301dc0a7c5f5c6bbcf" }
     target:
       author: Aristotle
       work: On the Soul
@@ -42,9 +42,9 @@ references:
       definition of soul as actus primus corporis physici as its
       starting point.
 
-  # ST I, q. 84, a. 7 (whether the intellect understands without
+  # ST I, q. 84, a. 7, s. c. (whether the intellect understands without
   # phantasm) → Aristotle De anima III.7
-  - source: { chunk_id: "4f1c245883e7aad638ed" }
+  - source: { chunk_id: "6de60c5ce02038e05baa" }
     target:
       author: Aristotle
       work: On the Soul
@@ -57,9 +57,9 @@ references:
       cognition (cf. De an. III.7, 431a16). "Necesse est intelligentem
       phantasmata speculari."
 
-  # ST I-II, q. 1, a. 1 (whether human acts are for an end) →
+  # ST I-II, q. 1, a. 1, co. (whether human acts are for an end) →
   # Aristotle NE I.1
-  - source: { chunk_id: "0238305a037be0077af2" }
+  - source: { chunk_id: "db1d643c30933f9e6aff" }
     target:
       author: Aristotle
       work: Nicomachean Ethics
@@ -71,9 +71,9 @@ references:
       "omne agens agit propter finem" — every art and inquiry aims at
       some good.
 
-  # ST I-II, q. 2, a. 1 (whether beatitude consists in wealth) →
+  # ST I-II, q. 2, a. 1, co. (whether beatitude consists in wealth) →
   # Aristotle NE I.4-5
-  - source: { chunk_id: "52fbe41af1a5ac233a1e" }
+  - source: { chunk_id: "85d34deb2477c0a76b34" }
     target:
       author: Aristotle
       work: Nicomachean Ethics
@@ -84,9 +84,9 @@ references:
       Reuses NE I.4's argument that wealth is instrumental, not the
       final good. Aquinas's frame: divitiae as means to felicitas.
 
-  # ST I-II, q. 90, a. 1 (whether law is something pertaining to
+  # ST I-II, q. 90, a. 1, ad 2 (whether law is something pertaining to
   # reason) → Aristotle NE V.1
-  - source: { chunk_id: "3fc421696f34caad1b00" }
+  - source: { chunk_id: "39f1b5103a48ef537a77" }
     target:
       author: Aristotle
       work: Nicomachean Ethics
@@ -98,9 +98,9 @@ references:
       justice ("nomos = orthos logos"). Aquinas's definition of lex
       sits squarely in this lineage.
 
-  # ST II-II, q. 23, a. 1 (whether caritas is friendship) →
+  # ST II-II, q. 23, a. 1, co. (whether caritas is friendship) →
   # Aristotle NE VIII.2
-  - source: { chunk_id: "aca0d90cccfc87e82bea" }
+  - source: { chunk_id: "a4ef9c0c27bc4b326ee2" }
     target:
       author: Aristotle
       work: Nicomachean Ethics
