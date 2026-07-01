@@ -57,17 +57,38 @@ def _normalize_verse_text(s: str) -> str:
     return unicodedata.normalize("NFC", s.replace(_MORPHEME_SEP, ""))
 
 
+# WLC/OSHB transcription apparatus: <note> carries English editorial
+# prose ("We read one or more accents in L differently than BHS…") and
+# nests the variant machinery (<rdg>, <catchWord>). None of it is verse
+# text; skipping the <note> subtree drops all of it.
+_NOTE_TAG = f"{{{_NS['osis']}}}note"
+
+
+def _text_excluding_notes(el: ET.Element) -> str:
+    """Concatenated text of ``el``, skipping ``<note>`` subtrees."""
+
+    parts: list[str] = []
+    if el.text:
+        parts.append(el.text)
+    for child in el:
+        if child.tag != _NOTE_TAG:
+            parts.append(_text_excluding_notes(child))
+        if child.tail:
+            parts.append(child.tail)
+    return " ".join(p for p in parts if p)
+
+
 def _verse_text(verse: ET.Element) -> str:
     """Concatenate the textual content of a ``<verse>`` element.
 
-    ``itertext()`` walks every descendant text/tail node in document
-    order; for OSIS verses that gives us the surface form (``<w>``
-    bodies + ``<seg>`` content like the sof-pasuq mark). Whitespace
-    is collapsed and the morpheme separator is stripped after the
-    concatenation so it doesn't leak into the chunk.
+    Walks every descendant text/tail node in document order — except
+    ``<note>`` subtrees (transcription apparatus) — giving the surface
+    form (``<w>`` bodies + ``<seg>`` content like the sof-pasuq mark).
+    Whitespace is collapsed and the morpheme separator is stripped
+    after the concatenation so it doesn't leak into the chunk.
     """
 
-    raw = " ".join(verse.itertext())
+    raw = _text_excluding_notes(verse)
     return _norm_text(_normalize_verse_text(raw))
 
 

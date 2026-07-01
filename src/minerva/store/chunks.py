@@ -118,6 +118,20 @@ def _resolve_work_refs(
         return None, int(cur.lastrowid)
 
 
+def _author_labels_for_scope(jsonl_path: Path, scope: frozenset[str]) -> set[str]:
+    """Lowercased author labels of every JSONL row whose corpus slug is
+    in ``scope``. This is the slug → ``chunks_full.corpus`` translation
+    the incremental DELETE needs (the view's corpus column is
+    ``LOWER(works.author)``, not the slug). One slug may fan out to
+    many labels (presocratic → each named philosopher)."""
+
+    labels: set[str] = set()
+    for obj in load_jsonl(jsonl_path):
+        if obj.get("corpus") in scope and obj.get("author"):
+            labels.add(obj["author"].lower())
+    return labels
+
+
 def insert_chunks(
     conn: sqlite3.Connection,
     jsonl_path: Path,
@@ -224,14 +238,26 @@ def insert_chunks(
             conn.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
         else:
             # Incremental: delete ONLY chunks whose corpus is in scope.
+            # ⚠ Scope keys differ between the two sides: the JSONL rows
+            # (and the insert filter below) key on the corpus *slug*
+            # (``obj["corpus"]``, e.g. "hebrew_mt"), but
+            # ``chunks_full.corpus`` is ``LOWER(works.author)`` (e.g.
+            # "hebrew bible"). For seven corpora they don't match —
+            # hebrew_mt, kjv, luther_1545/1912, marcus_aurelius,
+            # new_testament, and presocratic (one slug → nine author
+            # labels). Deleting by slug alone matched nothing there, so
+            # changed chunks were re-inserted BESIDE their stale
+            # predecessors. Pre-scan the JSONL to translate slugs →
+            # author labels and delete by the union of both.
+            delete_keys = scope | _author_labels_for_scope(jsonl_path, scope)
             # Capture the chunk_ids first so the FTS triggers fire on
             # row-level deletes (the trigger reads OLD.chunk_id from
             # each DELETE statement). We also remember them for the
             # narrowed xref rebind + orphan-sweep stages below.
-            placeholders = ",".join("?" for _ in scope)
+            placeholders = ",".join("?" for _ in delete_keys)
             scoped_rows = conn.execute(
                 f"SELECT chunk_id FROM chunks_full WHERE corpus IN ({placeholders})",
-                tuple(scope),
+                tuple(delete_keys),
             ).fetchall()
             deleted_chunk_ids = {row[0] for row in scoped_rows}
             if deleted_chunk_ids:

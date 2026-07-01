@@ -67,6 +67,42 @@ def test_parse_file_extracts_verse_text(tmp_path: Path) -> None:
     assert "אֱלֹהִ֑ים" in chunk.text
 
 
+# Real WLC/OSHB shape: transcription-apparatus <note> mid-verse, with
+# English editorial prose and nested variant machinery (<rdg>,
+# <catchWord>). Before the 2026-07 fix, itertext() spliced the English
+# sentence into the Hebrew verse text (735 verses affected).
+_GEN_WITH_NOTE_OSIS = """<?xml version="1.0" encoding="UTF-8"?>
+<osis xmlns="http://www.bibletechnologies.net/2003/OSIS/namespace">
+  <osisText xml:lang="he" osisIDWork="OSHB" osisRefWork="Bible">
+    <div type="book" osisID="Gen">
+      <chapter osisID="Gen.1">
+        <verse osisID="Gen.1.12">
+          <w lemma="c/3318" morph="HC/Vhw3fs" id="01TXw">וַ/תּוֹצֵ֨א</w>
+          <note n="c">We read one or more accents in L differently than BHS.
+            <rdg><catchWord>וַתּוֹצֵ֨א</catchWord></rdg>
+          </note>
+          <w lemma="d/776" morph="HTd/Ncbsa" id="01Y4K">הָ/אָ֜רֶץ</w><seg type="x-sof-pasuq">׃</seg>
+        </verse>
+      </chapter>
+    </div>
+  </osisText>
+</osis>
+"""
+
+
+def test_note_apparatus_excluded_from_verse_text(tmp_path: Path) -> None:
+    src = tmp_path / "Gen.xml"
+    src.write_text(_GEN_WITH_NOTE_OSIS, encoding="utf-8")
+    chunks = list(hebrew_mt.parse_file(src))
+    assert len(chunks) == 1
+    text = chunks[0].text
+    # The editorial prose (and the variant reading nested in the note)
+    # must not leak; the verse is pure Hebrew.
+    assert "BHS" not in text
+    assert not any("a" <= ch.lower() <= "z" for ch in text)
+    assert text == "וַתּוֹצֵ֨א הָאָ֜רֶץ ׃"
+
+
 def test_text_is_nfc_normalised(tmp_path: Path) -> None:
     src = tmp_path / "Gen.xml"
     src.write_text(_GEN_1_1_OSIS, encoding="utf-8")

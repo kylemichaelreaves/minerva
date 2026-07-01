@@ -162,6 +162,66 @@ def test_lxx_genesis_first_verse() -> None:
     assert "θεὸς" in first.text or "θεός" in first.text or "ΘΕΟΣ" in first.text
 
 
+@pytest.mark.skipif(
+    not _LXX_GENESIS.exists(),
+    reason="LXX Genesis not downloaded; skipping",
+)
+def test_lxx_genesis_1_2_has_no_apparatus_siglum() -> None:
+    """Gen 1:2 used to read "ἡ δὲ γῆ A ἦν ἀόρατος…" — the marginal
+    manuscript siglum from a mid-verse <note> leaked into the text."""
+
+    from minerva.authors.septuagint_works import book_for_filename
+    from minerva.sources.tei_lxx import parse_file
+
+    book = book_for_filename(_LXX_GENESIS.name)
+    assert book is not None
+    chunks = list(
+        parse_file(
+            _LXX_GENESIS,
+            book_title=book.title,
+            book_abbr=BCV_BOOK_ABBR[book.title],
+            work_code=book.code,
+        )
+    )
+    import unicodedata
+
+    gen_1_2 = next(c for c in chunks if c.section == "Gen 1:2")
+    # NFC both sides — Swete's file mixes oxia/tonos accent codepoints.
+    assert unicodedata.normalize("NFC", gen_1_2.text).startswith(
+        unicodedata.normalize("NFC", "ἡ δὲ γῆ ἦν ἀόρατος")
+    )
+
+
+_LXX_JOB = _LXX_DIR / "tlg0527.tlg032.1st1K-grc1.xml"
+
+
+@pytest.mark.skipif(
+    not _LXX_JOB.exists(),
+    reason="LXX Job not downloaded; skipping",
+)
+def test_lxx_job_poetry_in_l_lines_is_ingested() -> None:
+    """Job is encoded verse-div → <l> lines with no <p> at all; the
+    <p>-only walker dropped ALL 1,077 verses of the book (likewise
+    Proverbs, Wisdom, Song of Songs — ~2,545 verses total)."""
+
+    from minerva.authors.septuagint_works import book_for_filename
+    from minerva.sources.tei_lxx import parse_file
+
+    book = book_for_filename(_LXX_JOB.name)
+    assert book is not None
+    chunks = list(
+        parse_file(
+            _LXX_JOB,
+            book_title=book.title,
+            book_abbr=BCV_BOOK_ABBR[book.title],
+            work_code=book.code,
+        )
+    )
+    assert len(chunks) > 1000, "Job should have ~1077 verses"
+    job_1_21 = next(c for c in chunks if c.section == "Job 1:21")
+    assert "γυμνὸς" in job_1_21.text
+
+
 # ════════════════════════════════════════════════════════════════════
 # SBLGNT — Holmes 2010 NT custom XML
 # ════════════════════════════════════════════════════════════════════

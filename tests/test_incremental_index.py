@@ -98,9 +98,7 @@ def test_incremental_preserves_out_of_scope_corpus(tmp_path: Path):
     _write_jsonl(jsonl, new_plato, hegel_chunk)
     assert _index(db, jsonl, incremental=True, corpora="plato") == 0
 
-    chunks = dict(
-        conn.execute("SELECT chunk_id, text FROM chunks ORDER BY chunk_id")
-    )
+    chunks = dict(conn.execute("SELECT chunk_id, text FROM chunks ORDER BY chunk_id"))
     # Old plato chunk replaced; new plato chunk loaded.
     assert "plato1" not in chunks
     assert chunks.get("plato2") == "A different Plato passage."
@@ -129,9 +127,7 @@ def test_incremental_rejects_reset(tmp_path: Path):
     _write_jsonl(jsonl, make_chunk(chunk_id="c1", corpus="plato"))
     _index(db, jsonl, reset=True)
 
-    rc = _index(
-        db, jsonl, incremental=True, corpora="plato", reset=True
-    )
+    rc = _index(db, jsonl, incremental=True, corpora="plato", reset=True)
     assert rc == 2
 
 
@@ -223,3 +219,97 @@ def test_incremental_multi_corpus_scope(tmp_path: Path):
     conn = store.open_db(db)
     ids = {cid for (cid,) in conn.execute("SELECT chunk_id FROM chunks").fetchall()}
     assert ids == {"plato2", "hegel2", "kant1"}
+
+
+def test_incremental_scope_matches_slug_not_just_author_label(tmp_path: Path):
+    """Regression: the incremental DELETE used to key on
+    ``chunks_full.corpus`` — which is ``LOWER(works.author)`` — while
+    the insert filter keys on the JSONL corpus *slug*. For corpora
+    where they differ (hebrew_mt → "Hebrew Bible", new_testament,
+    kjv, luther_1545/1912, marcus_aurelius, presocratic), the delete
+    matched nothing and every changed chunk was re-inserted BESIDE
+    its stale predecessor (2026-07-01: 3,373 duplicated MT verses)."""
+    db = tmp_path / "slug.sqlite"
+    jsonl = tmp_path / "chunks.jsonl"
+
+    old = make_chunk(
+        chunk_id="mt1",
+        corpus="hebrew_mt",
+        author="Hebrew Bible",
+        work="Genesis",
+        lang="heb",
+        section="Gen 1:12",
+        text="Old polluted verse text.",
+    )
+    _write_jsonl(jsonl, old)
+    assert _index(db, jsonl, reset=True) == 0
+
+    new = make_chunk(
+        chunk_id="mt2",
+        corpus="hebrew_mt",
+        author="Hebrew Bible",
+        work="Genesis",
+        lang="heb",
+        section="Gen 1:12",
+        text="Clean verse text.",
+    )
+    _write_jsonl(jsonl, new)
+    assert _index(db, jsonl, incremental=True, corpora="hebrew_mt") == 0
+
+    conn = store.open_db(db)
+    ids = {cid for (cid,) in conn.execute("SELECT chunk_id FROM chunks").fetchall()}
+    # The stale chunk must be REPLACED, not duplicated.
+    assert ids == {"mt2"}
+
+
+def test_incremental_scope_fans_out_to_all_author_labels(tmp_path: Path):
+    """One corpus slug can carry many author labels (presocratic →
+    each named philosopher). All of them are in scope for the delete."""
+    db = tmp_path / "fanout.sqlite"
+    jsonl = tmp_path / "chunks.jsonl"
+
+    heraclitus = make_chunk(
+        chunk_id="her1",
+        corpus="presocratic",
+        author="Heraclitus",
+        work="Fragments",
+        lang="grc",
+        section="DK B1",
+        text="Old Heraclitus fragment.",
+    )
+    empedocles = make_chunk(
+        chunk_id="emp1",
+        corpus="presocratic",
+        author="Empedocles",
+        work="Fragments",
+        lang="grc",
+        section="DK B17",
+        text="Old Empedocles fragment.",
+    )
+    _write_jsonl(jsonl, heraclitus, empedocles)
+    assert _index(db, jsonl, reset=True) == 0
+
+    heraclitus_new = make_chunk(
+        chunk_id="her2",
+        corpus="presocratic",
+        author="Heraclitus",
+        work="Fragments",
+        lang="grc",
+        section="DK B1",
+        text="New Heraclitus fragment.",
+    )
+    empedocles_new = make_chunk(
+        chunk_id="emp2",
+        corpus="presocratic",
+        author="Empedocles",
+        work="Fragments",
+        lang="grc",
+        section="DK B17",
+        text="New Empedocles fragment.",
+    )
+    _write_jsonl(jsonl, heraclitus_new, empedocles_new)
+    assert _index(db, jsonl, incremental=True, corpora="presocratic") == 0
+
+    conn = store.open_db(db)
+    ids = {cid for (cid,) in conn.execute("SELECT chunk_id FROM chunks").fetchall()}
+    assert ids == {"her2", "emp2"}

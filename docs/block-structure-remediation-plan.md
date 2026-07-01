@@ -1,9 +1,9 @@
 # Block-structure preservation (Remarks / Additions / notes) — remediation plan
 
-> **Status (2026-06-28): IN PROGRESS — spine shipped, mid-backlog.**
+> **Status (2026-07-01): IN PROGRESS — spine shipped, mid-backlog.**
 > The `block_type` capability (Phases 0–3) is built and merged, the reader renders
-> it language/work-agnostically, and three backlog corpora are done (Hegel EN+DE,
-> TEI note/cast recovery, Spinoza). **The live, resumable checklist is the
+> it language/work-agnostically, and four backlog corpora are done (Hegel EN+DE,
+> TEI note/cast recovery, Spinoza, scripture MT+LXX). **The live, resumable checklist is the
 > "Execution tracker" section directly below** — start there. Everything after it
 > (Problem / Diagnosis / Design / Phases / Appendix) is the original design +
 > research record, kept as reference for *why* the approach is what it is.
@@ -32,8 +32,8 @@ write a per-corpus memory at the end (the gotchas always pay off on the next one
 | 1 | TEI.2 `<note>`/`<castList>` recovery (Plato/Aristotle/Homer/Epictetus) | Mode 1 (dropped) | ✅ done | #22–#23 |
 | — | Note attribution (apparatus → translator, not author) | safety | ✅ done | #24–#26 |
 | 2 | **Spinoza *Ethica*** (Demonstratio/Scholium/Corollarium merged) | Mode 2 (merged) | ✅ done | #27 |
-| 3 | **Scripture apparatus** (Hebrew MT + Septuagint) | Mode 3 (polluted) | ⬜ **NEXT** | — |
-| 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) | Mode 2 (merged) | ⬜ todo | — |
+| 3 | **Scripture apparatus** (Hebrew MT + Septuagint) — grew to include LXX `<l>` poetry recovery (Job/Prov/Wis/Song were 100% missing) + incremental-index slug/label delete-scope fix | Mode 3 (polluted) **+ Mode 1 (dropped)** | ✅ done | #29 |
+| 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) | Mode 2 (merged) | ⬜ **NEXT** | — |
 | 5 | **Descartes** Objections & Replies | Mode 2 + attribution | ⬜ todo | — |
 | 6 | **Kant** Anmerkungen (+ A/B apparatus) | Mode 2 (merged) | ⬜ todo | — |
 | 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ todo | — |
@@ -92,7 +92,42 @@ Distilled from the Hegel and Spinoza runs. Steps marked ⚠ are where past runs 
 
 ### Playbooks
 
-#### 3. Scripture apparatus filtering — NEXT (smallest; Mode 3, *filtering* not typing)
+#### 3. Scripture apparatus filtering — ✅ DONE 2026-07-01 (PR #29)
+
+**What shipped (scope tripled during the assess step — see gotchas):**
+
+- `hebrew_mt._verse_text` and `tei_lxx._text_of` now skip `<note>`
+  subtrees (namespaced `_text_excluding_notes` clones). MT notes carried
+  whole *English* editorial sentences ("We read one or more accents in L
+  differently than BHS…") spliced into 3,373 Hebrew verses; LXX notes
+  carried Swete's marginal sigla/footnote variants (Gen 1:2 read
+  "ἡ δὲ γῆ **A** ἦν ἀόρατος").
+- **LXX poetry recovery (found during verify):** the verse walker only
+  collected `<p>`, but poetic books encode text in `<l>`/`<lg>` —
+  **Job (1,077), Proverbs (928), Wisdom (424), Song of Songs (116) were
+  100% ABSENT from the corpus**, Lamentations was 88 hollow acrostic
+  headings + 62 dropped, Letter of Jeremiah (single-chapter, no chapter
+  div) fully dropped, plus ~2,769 inset-poetry verses (Gen 49, Exod 15,
+  Deut 32–33, Judg 5…) across prose books. All recovered: 24,215 →
+  27,082 LXX chunks. Chapter defaults to "1" when the breadcrumb has
+  none; a mis-nested wrapper verse (Ps) yields its own content.
+- Stray bare-text sigla (`§`, standalone Latin capitals — First1KGreek
+  encoding defects outside `<note>`) scrubbed via `_STRAY_SIGLA_RE`.
+- **Incremental-index delete-scope bug (store/chunks.py):** the DELETE
+  keyed on `chunks_full.corpus` = `LOWER(works.author)` while the insert
+  filter keys on the JSONL slug — mismatched for hebrew_mt/kjv/
+  luther_1545/luther_1912/marcus_aurelius/new_testament/presocratic, so
+  changed chunks were re-inserted BESIDE stale ones (3,373 dup MT verses
+  on the first re-ingest). Fixed via `_author_labels_for_scope` JSONL
+  pre-scan; regression tests in `tests/test_incremental_index.py`.
+
+Verify used: parse-vs-DB count parity per book, 0 dup sections/ids,
+0 ASCII in Hebrew text, famous-passage spot checks (Job 1:21, Prov 8:22,
+Wis 2:23, Song 1:2, Lam 2:5), 100% embed coverage, 0 broken xref
+targets (scripture cites are locator-resolved). Hermetic fixtures:
+`tests/test_tei_lxx.py`, note-exclusion test in `tests/test_hebrew_mt.py`.
+
+<details><summary>Original playbook (for reference)</summary>
 
 Critical-text apparatus (`<note>`, `<app>`/`<rdg>`/`<lem>`) is being pulled into
 verse bodies by `itertext()`, so a Hebrew/Greek verse string contains editorial
@@ -117,6 +152,8 @@ text** — no `block_type` needed.
   churn — they will, so re-bind: scripture targets are mostly locator-resolved
   (NULL `target_chunk_id`), so likely fine, but check broken-target count after.
   See [[scripture-cite-rules]].
+
+</details>
 
 #### 4. Aquinas *disputatio* (Mode 2 — merged)
 
@@ -501,8 +538,10 @@ chunks → per-corpus re-ingest + re-embed; reader rendering already done)
    `'cast'` instead of dropping at `tei.py`). PRs #22–#23.
 2. ✅ **Spinoza** dedicated splitter (Demonstratio / Scholium / Corollarium) —
    re-sourced structured Latin; 307→925 chunks, 162 remarks. PR #27.
-3. ⬜ **Scripture apparatus filtering** — strip `<note>`/`<app>` before `itertext()`
-   in `hebrew_mt.py` + `tei_lxx.py`. ← NEXT
+3. ✅ **Scripture apparatus filtering** — `<note>` subtrees excluded in
+   `hebrew_mt.py` + `tei_lxx.py`; grew to recover the LXX poetic books
+   (Job/Prov/Wis/Song were 100% missing) and fix the incremental-index
+   delete-scope slug/label mismatch. PR #29.
 4. ⬜ **Aquinas, Descartes, Kant** dedicated splitters (Descartes also needs
-   objector-attribution, not just typing).
+   objector-attribution, not just typing). ← NEXT (Aquinas)
 5. ⬜ Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not parser).
