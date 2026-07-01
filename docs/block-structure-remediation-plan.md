@@ -33,8 +33,8 @@ write a per-corpus memory at the end (the gotchas always pay off on the next one
 | — | Note attribution (apparatus → translator, not author) | safety | ✅ done | #24–#26 |
 | 2 | **Spinoza *Ethica*** (Demonstratio/Scholium/Corollarium merged) | Mode 2 (merged) | ✅ done | #27 |
 | 3 | **Scripture apparatus** (Hebrew MT + Septuagint) — grew to include LXX `<l>` poetry recovery (Job/Prov/Wis/Song were 100% missing) + incremental-index slug/label delete-scope fix | Mode 3 (polluted) **+ Mode 1 (dropped)** | ✅ done | #29 |
-| 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) | Mode 2 (merged) | ⬜ **NEXT** | — |
-| 5 | **Descartes** Objections & Replies | Mode 2 + attribution | ⬜ todo | — |
+| 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) — ST 3,178→23,325 part-level chunks + chrome strip | Mode 2 (merged) | ✅ done | #30 |
+| 5 | **Descartes** Objections & Replies | Mode 2 + attribution | ⬜ **NEXT** | — |
 | 6 | **Kant** Anmerkungen (+ A/B apparatus) | Mode 2 (merged) | ⬜ todo | — |
 | 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ todo | — |
 | 8 | Hobbes (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ todo | — |
