@@ -4,7 +4,7 @@ Shape differs from the Aristotle First1KGreek bundles handled by
 ``tei_p5.py``: the LXX uses ``<div type="textpart" subtype="chapter">``
 → ``subtype="verse">`` nesting (chapter/verse, not book/chapter), and
 the "book" of each citation is the whole file. So this parser emits
-one Chunk per ``<p>`` inside each verse, with:
+one Chunk per verse (its ``<p>``/``<l>``/``<lg>`` content joined), with:
 
 * ``book`` = canonical English book name from
   ``septuagint_works._BOOKS`` (e.g. ``"Genesis"``)
@@ -23,6 +23,7 @@ regardless of where it sits in the tree.
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
@@ -31,21 +32,81 @@ from minerva.tei import Chunk, _make_chunk_id, _norm_text
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
+# Most of Swete's apparatus is wrapped in <note> (skipped below), but a
+# residue of manuscript sigla leaked into the running text during the
+# First1KGreek encoding: standalone Latin-codepoint capitals (codex
+# letters — A, B*, D, F…) and the § supplied-text mark, floating between
+# Greek words. A standalone Latin capital or § is never genuine LXX
+# text, so strip whitespace-delimited runs of them. (Greek capitals are
+# distinct codepoints — Α U+0391 ≠ A U+0041 — so real text is safe.)
+_STRAY_SIGLA_RE = re.compile(r"(?:(?<=\s)|^)(?:(?:[A-Z]\*?|§)(?:\s+|$))+")
+
+
+# Swete's critical apparatus is encoded as inline <note> elements:
+# type="marginal" carries manuscript sigla (single capitals like "A",
+# "B*", "§"), type="footnote" the variant readings. Neither is verse
+# text — skip the whole subtree. (One file has the typo "margnal";
+# skipping by tag, not type, covers it.)
+_NOTE_TAG = f"{{{_NS['tei']}}}note"
+
+
+def _text_excluding_notes(el: ET.Element) -> str:
+    """Concatenated text of ``el``, skipping ``<note>`` subtrees."""
+
+    parts: list[str] = []
+    if el.text:
+        parts.append(el.text)
+    for child in el:
+        if child.tag != _NOTE_TAG:
+            parts.append(_text_excluding_notes(child))
+        if child.tail:
+            parts.append(child.tail)
+    return " ".join(p for p in parts if p)
+
 
 def _text_of(elem: ET.Element) -> str:
-    """All character content under `elem` with collapsed whitespace.
-    ``itertext`` handles nested ``<note>``, ``<lb/>``, ``<hi>``, etc."""
-    return _norm_text(" ".join(elem.itertext()))
+    """All character content under `elem` with collapsed whitespace,
+    excluding ``<note>`` apparatus subtrees. ``<lb/>``, ``<hi>``, etc.
+    still contribute their text/tails."""
+    return _norm_text(_text_excluding_notes(elem))
+
+
+# Verse text lives in <p> for prose books, but the poetic books
+# (Job, Proverbs, Wisdom, Song of Songs, Lamentations — plus inset
+# poetry like Gen 49 or Exod 15) put it in <l> lines (occasionally
+# grouped in <lg>) that are *siblings* of any <p>. Collect all three
+# in document order; direct-child <note>/<pb>/<lb> stay excluded.
+_CONTENT_TAGS = frozenset(f"{{{_NS['tei']}}}{t}" for t in ("p", "l", "lg"))
+
+
+def _resolve_cv(
+    breadcrumb: tuple[tuple[str | None, str | None], ...],
+) -> tuple[str, str] | None:
+    """(chapter, verse) from a breadcrumb, or None if it has no verse.
+    Single-chapter books (Letter of Jeremiah) have no chapter level in
+    the TEI at all — default their chapter to "1" so ``"EpJer 1:72"``
+    style sections still form."""
+
+    chapter: str | None = None
+    verse: str | None = None
+    for s, v in breadcrumb:
+        if s == "chapter":
+            chapter = v
+        elif s == "verse":
+            verse = v
+    if verse is None:
+        return None
+    return (chapter if chapter is not None else "1", verse)
 
 
 def _iter_verses(
     elem: ET.Element,
     breadcrumb: tuple[tuple[str | None, str | None], ...] = (),
 ) -> Iterator[tuple[str, str, list[ET.Element]]]:
-    """Walk the textpart tree; yield ``(chapter, verse, paragraphs)``
-    for every leaf textpart that carries both a chapter and verse in
-    its breadcrumb. Leaves without that pair are skipped silently —
-    headers, prefatory material, the rare ungrouped paragraph.
+    """Walk the textpart tree; yield ``(chapter, verse, content)``
+    for every textpart that carries a verse in its breadcrumb.
+    Leaves without one are skipped silently — headers, prefatory
+    material, the rare ungrouped paragraph.
     """
 
     for child in elem.findall("tei:div", _NS):
@@ -55,22 +116,19 @@ def _iter_verses(
         n = child.get("n")
         new_crumb = (*breadcrumb, (sub, n))
         has_inner = any(d.get("type") == "textpart" for d in child.findall("tei:div", _NS))
+        content = [c for c in child if c.tag in _CONTENT_TAGS]
+        cv = _resolve_cv(new_crumb)
         if has_inner:
+            # A mis-nested wrapper (Psalms has one verse div enclosing
+            # the next five) still owns its own text — yield it before
+            # descending, or that verse's content vanishes.
+            if content and cv is not None:
+                yield (*cv, content)
             yield from _iter_verses(child, new_crumb)
             continue
-        chapter: str | None = None
-        verse: str | None = None
-        for s, v in new_crumb:
-            if s == "chapter":
-                chapter = v
-            elif s == "verse":
-                verse = v
-        if chapter is None or verse is None:
+        if cv is None or not content:
             continue
-        paras = child.findall("tei:p", _NS)
-        if not paras:
-            continue
-        yield chapter, verse, paras
+        yield (*cv, content)
 
 
 def parse_file(
@@ -93,12 +151,14 @@ def parse_file(
     date_el = root.find("tei:teiHeader/tei:fileDesc/tei:sourceDesc//tei:date", _NS)
     year = date_el.text.strip() if date_el is not None and date_el.text else None
 
-    for chapter, verse, paragraphs in _iter_verses(edition):
-        # Multiple <p> per verse is rare but happens (Swete sometimes
-        # breaks a verse on a typographic boundary). Concatenate them
-        # so the chunk is one full verse; the chunk_id stays stable
-        # across re-ingests because it's content-derived.
-        text = _norm_text(" ".join(_text_of(p) for p in paragraphs))
+    for chapter, verse, content in _iter_verses(edition):
+        # A verse may span several content elements — multiple <p>
+        # (typographic breaks), or an acrostic-letter <p> heading
+        # followed by <l> poetry lines. Concatenate them so the chunk
+        # is one full verse; the chunk_id stays stable across
+        # re-ingests because it's content-derived.
+        text = _norm_text(" ".join(_text_of(p) for p in content))
+        text = _norm_text(_STRAY_SIGLA_RE.sub("", text))
         if not text:
             continue
         section = f"{book_abbr} {chapter}:{verse}"
