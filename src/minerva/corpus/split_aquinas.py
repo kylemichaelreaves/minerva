@@ -25,10 +25,19 @@ Reader-friendly section labels matching scholarly Latin citation:
     [SENT_PHY.8.4]    → 'In Physic., lib. 8, lect. 4'     book='In Physic., lib. 8'
     [SENT_AN.3.7]     → 'Sent. De anima, lib. 3, lect. 7' book='Sent. De anima, lib. 3'
 
-Granularity: one chunk per article for ST (with sub-sections inlined
-as `[arg. 1]…[s. c.]…[co.]…[ad 1]…` labels by the downloader); one
-chunk per chapter for SCG; one chunk per lectio for the commentaries
-(with `[n. K]` paragraph labels inlined).
+Granularity: one chunk per *disputatio part* for ST — each article's
+inline `[arg. 1]…[s. c.]…[co.]…[ad 1]…` sub-markers (emitted by the
+downloader) become separate citable chunks with the scholarly locator
+suffix ('ST I, q. 2, a. 3, co.' / ', arg. 1' / ', s. c.' / ', ad 1' /
+', ad arg.' / ', pr.'), so the dialectic is retrievable at the level
+Aquinas is actually cited. Objections and replies are Aquinas's own
+voice (positions he raises then answers) — attribution stays Aquinas,
+no `block_type`. One chunk per chapter for SCG; one chunk per lectio
+for the commentaries (with `[n. K]` paragraph labels inlined).
+
+The corpusthomisticum.org page footer ("© 20xx Fundación Tomás de
+Aquino … OCLC nr. …") leaks into the text stream at scrape-page
+boundaries; it is stripped before any slicing.
 """
 
 from __future__ import annotations
@@ -133,12 +142,93 @@ def _section_for_match(m: re.Match[str]) -> tuple[str, str]:
     raise RuntimeError(f"unrecognised Aquinas marker shape: {m.group(0)!r}")
 
 
+# corpusthomisticum.org page footer, leaked into the scraped text at
+# page boundaries. Two year variants observed (2011, 2019); the run-on
+# "editionemIura" is verbatim in the source.
+_CHROME_RE = re.compile(
+    r"©\s*\d{4}\s*Fundación Tomás de Aquino.{0,80}?OCLC nr\.\s*\d+",
+    re.DOTALL,
+)
+
+
+# Inline disputatio sub-markers within one ST article body. Exact
+# bracket forms produced by the downloader: [arg. 1], [s. c.],
+# [s. c. 2] (multi-sed-contra articles), [co.], [ad 1], [ad arg.]
+# (one reply answering all objections), [pr.] (a question prooemium
+# the source folds into its first article).
+_ST_SUB_RE = re.compile(
+    r"\[(?:"
+    r"arg\. (?P<arg>\d+)"
+    r"|s\. c\.(?: (?P<sc>\d+))?"
+    r"|(?P<co>co\.)"
+    r"|ad (?P<ad>\d+|arg\.)"
+    r"|(?P<pr>pr\.)"
+    r")\]"
+)
+
+
+def _st_sub_label(m: re.Match[str]) -> str:
+    """Scholarly citation suffix for one sub-marker match ('arg. 1',
+    's. c.', 'co.', 'ad 1', 'ad arg.', 'pr.')."""
+
+    if m.group("arg"):
+        return f"arg. {m.group('arg')}"
+    if m.group("co"):
+        return "co."
+    if m.group("ad"):
+        # Covers both "ad 3" and "ad arg." — the captured token is the
+        # digit or the literal "arg.".
+        return f"ad {m.group('ad')}"
+    if m.group("pr"):
+        return "pr."
+    # s. c. — the bare form has no captured group, so it's the fallback.
+    sc_n = m.group("sc")
+    return f"s. c. {sc_n}" if sc_n else "s. c."
+
+
+def _split_st_article(body: str, base_section: str) -> Iterator[tuple[str, str]]:
+    """Split one ST article body on its disputatio sub-markers,
+    yielding ``(section_label, part_text)`` pairs. Bodies without
+    sub-markers (Pars/Quaestio prooemia) yield a single pair with the
+    base label. Any preamble text before the first sub-marker is kept
+    under the base label rather than dropped.
+
+    Structure is tolerated, not enforced: two ST articles genuinely
+    lack a ``[co.]`` (I q. 74 a. 3 answers objections directly;
+    I q. 91 a. 4 stops at the sed contra), so absent parts are simply
+    absent.
+
+    Articulus-unicus questions (I q. 71–72, II-II q. 48/80/128/143)
+    have no article marker at all — the source puts the whole
+    disputatio inside the question-prooemium block ``[ST.p.q.0]``, so
+    ``base_section`` arrives as ``'ST I, q. 71, pr.'``. Sub-parts of
+    those cite at the question level ('ST I, q. 71, co.'), with only
+    the actual prooemium text (the ``[pr.]``-marked or preamble
+    stretch) keeping the ', pr.' label.
+    """
+
+    subs = list(_ST_SUB_RE.finditer(body))
+    if not subs:
+        yield base_section, body
+        return
+    sub_base = base_section.removesuffix(", pr.")
+    preamble = body[: subs[0].start()].strip()
+    if preamble:
+        yield base_section, preamble
+    for i, sm in enumerate(subs):
+        part_end = subs[i + 1].start() if i + 1 < len(subs) else len(body)
+        part = body[sm.end() : part_end]
+        yield f"{sub_base}, {_st_sub_label(sm)}", part
+
+
 def split_aquinas(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
     """Walk ``text`` for Aquinas markers, emitting one Chunk per
-    chunk. Body is everything between this marker and the next,
+    section. Body is everything between this marker and the next,
     whitespace-normalised; the marker line itself is consumed by the
-    regex match's end offset."""
+    regex match's end offset. ST article bodies are further split on
+    their disputatio sub-markers."""
 
+    text = _CHROME_RE.sub(" ", text)
     matches = list(_MARKER_RE.finditer(text))
     if not matches:
         return
@@ -146,33 +236,40 @@ def split_aquinas(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
     for i, m in enumerate(matches):
         body_start = m.end()
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = _norm_text(text[body_start:body_end])
-        if not body:
-            continue
+        raw_body = text[body_start:body_end]
 
         section_label, book_label = _section_for_match(m)
-        chunk_id = _make_chunk_id(
-            path.name,
-            work.title,
-            work.lang,
-            book_label,
-            section_label,
-            "",
-            body[:120],
-        )
-        yield Chunk(
-            chunk_id=chunk_id,
-            corpus=work.corpus,
-            author=work.author,
-            work=work.title,
-            lang=work.lang,
-            section=section_label,
-            book=book_label,
-            page=None,
-            speaker=None,
-            text=body,
-            source_file=path.name,
-            translator=work.translator,
-            edition_year=work.edition_year,
-            citation_system=work.citation_system,
-        )
+        if m.group("st_p"):
+            parts = _split_st_article(raw_body, section_label)
+        else:
+            parts = iter([(section_label, raw_body)])
+
+        for part_section, part_text in parts:
+            body = _norm_text(part_text)
+            if not body:
+                continue
+            chunk_id = _make_chunk_id(
+                path.name,
+                work.title,
+                work.lang,
+                book_label,
+                part_section,
+                "",
+                body[:120],
+            )
+            yield Chunk(
+                chunk_id=chunk_id,
+                corpus=work.corpus,
+                author=work.author,
+                work=work.title,
+                lang=work.lang,
+                section=part_section,
+                book=book_label,
+                page=None,
+                speaker=None,
+                text=body,
+                source_file=path.name,
+                translator=work.translator,
+                edition_year=work.edition_year,
+                citation_system=work.citation_system,
+            )
