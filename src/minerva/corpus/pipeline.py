@@ -28,8 +28,8 @@ from .split_descartes_objections import split_descartes_objections
 from .split_ekgwb import split_ekgwb
 from .split_hegel_pr_de import split_hegel_pr_de
 from .split_hegel_pr_epub import split_hegel_pr_epub
-from .split_kapital_mew import split_kapital_mew
 from .split_kant import split_by_kant_ab
+from .split_kapital_mew import split_kapital_mew
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
 from .split_spinoza_ethica import split_spinoza_ethica
