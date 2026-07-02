@@ -35,8 +35,8 @@ write a per-corpus memory at the end (the gotchas always pay off on the next one
 | 3 | **Scripture apparatus** (Hebrew MT + Septuagint) — grew to include LXX `<l>` poetry recovery (Job/Prov/Wis/Song were 100% missing) + incremental-index slug/label delete-scope fix | Mode 3 (polluted) **+ Mode 1 (dropped)** | ✅ done | #29 |
 | 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) — ST 3,178→23,325 part-level chunks + chrome strip | Mode 2 (merged) | ✅ done | #30 |
 | 5 | **Descartes** Objections & Replies — re-sourced (fr.wikisource Clerselier/Cousin); 537 chunks, `block_type='objection'` + objector in `speaker` | Mode 2 + attribution | ✅ done | #32 |
-| 6 | **Kant** Anmerkungen (+ A/B apparatus) | Mode 2 (merged) | ⬜ **NEXT** | — |
-| 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ todo | — |
+| 6 | **Kant** Anmerkungen — 474 `remark` chunks typed via zeno post-pass, 0 chunk_id churn (embeddings survived) | Mode 2 (merged) | ✅ done | #33 |
+| 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ **NEXT** | — |
 | 8 | Hobbes (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ todo | — |
 
 ### The proven template (one corpus = one PR)
@@ -194,16 +194,22 @@ voice tag + double-rule styling.
 (Descartes's reply to Gassendi), the entire *Septièmes* set (Bourdin) + the
 letter to Clerselier — none transcribed on fr.wikisource.
 
-#### 6. Kant Anmerkungen (+ A/B apparatus) (Mode 2 — merged)
+#### 6. Kant Anmerkungen — ✅ DONE 2026-07-01 (PR #33)
 
-Kant's *Anmerkungen* (remarks) sit inline in the prose. The KrV A/B edition
-pagination is already handled by `split_kant.kant_ab` (locator `kant_ab`); most
-other works use the generic `chapter` locator, which flattens Anmerkungen.
+The German sources are zeno.org HTML → `split_zeno_pages`; Kant's standalone
+"Anmerkung" / "Anmerkung I" / "Allgemeine Anmerkung zur …" head lines came out
+as tiny untyped chunks with the remark bodies indistinguishable from the main
+argument. New `_type_kant_remarks` post-pass (Kant-gated, in
+`corpus/split_zeno.py`): head + following paragraphs typed
+`block_type='remark'` until the next structural head (Beweis / Folgerung /
+Lehrsatz / Kasuistische Fragen / enumerated sub-heads) or page end. **Typing
+only — 0 chunk_id churn, embeddings/lemmas/xrefs all survived the re-ingest
+untouched.** 474 remarks across 7 works (MAN 126, KrV 101, KU 86, Religion 78
+— the parerga, KpV 44, MS 24, Prolegomena 15).
 
-- **Files:** `corpus/split_kant.py`; `authors/kant_works.py` (mix of `chapter` +
-  `kant_ab`). ⚠ Kant is multi-source (`kant`/`kant_en`) — pass both on re-ingest.
-- **Fix:** detect "Anmerkung"/"Remark" heads → `block_type='remark'`; confirm
-  `kant_ab` already preserves what it should.
+**Gap:** the English Gregor PDFs render "Remark" as run-in heads inside
+paragraphs (no standalone head lines), so the English side stays untyped —
+would need text-level splitting with chunk churn; deferred.
 
 #### 7–8. Marx · Nietzsche · Hobbes (lower)
 
@@ -547,7 +553,8 @@ chunks → per-corpus re-ingest + re-embed; reader rendering already done)
    `hebrew_mt.py` + `tei_lxx.py`; grew to recover the LXX poetic books
    (Job/Prov/Wis/Song were 100% missing) and fix the incremental-index
    delete-scope slug/label mismatch. PR #29.
-4. 🔶 **Aquinas ✅ (#30), Descartes ✅ (#32), Kant ⬜** dedicated splitters
+4. ✅ **Aquinas (#30), Descartes (#32), Kant (#33)** dedicated splitters
    (Descartes shipped with objector-attribution via `block_type='objection'`
-   + `speaker`). ← NEXT (Kant Anmerkungen)
-5. ⬜ Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not parser).
+   + `speaker`; Kant via the zeno remark post-pass, 0 id churn).
+5. ⬜ Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not
+   parser). ← NEXT
