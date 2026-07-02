@@ -34,8 +34,8 @@ write a per-corpus memory at the end (the gotchas always pay off on the next one
 | 2 | **Spinoza *Ethica*** (Demonstratio/Scholium/Corollarium merged) | Mode 2 (merged) | ✅ done | #27 |
 | 3 | **Scripture apparatus** (Hebrew MT + Septuagint) — grew to include LXX `<l>` poetry recovery (Job/Prov/Wis/Song were 100% missing) + incremental-index slug/label delete-scope fix | Mode 3 (polluted) **+ Mode 1 (dropped)** | ✅ done | #29 |
 | 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) — ST 3,178→23,325 part-level chunks + chrome strip | Mode 2 (merged) | ✅ done | #30 |
-| 5 | **Descartes** Objections & Replies | Mode 2 + attribution | ⬜ **NEXT** | — |
-| 6 | **Kant** Anmerkungen (+ A/B apparatus) | Mode 2 (merged) | ⬜ todo | — |
+| 5 | **Descartes** Objections & Replies — re-sourced (fr.wikisource Clerselier/Cousin); 537 chunks, `block_type='objection'` + objector in `speaker` | Mode 2 + attribution | ✅ done | #32 |
+| 6 | **Kant** Anmerkungen (+ A/B apparatus) | Mode 2 (merged) | ⬜ **NEXT** | — |
 | 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ todo | — |
 | 8 | Hobbes (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ todo | — |
 
@@ -173,21 +173,26 @@ split, so a whole article is one chunk and the dialectic is unsearchable.
 - **Verify:** article counts; every `[co.]` present; spot-check the Five Ways
   (ST I, q2, a3) split into obj/sc/co/replies.
 
-#### 5. Descartes Objections & Replies (Mode 2 + **attribution**)
+#### 5. Descartes Objections & Replies — ✅ DONE 2026-07-01 (PR #32)
 
-The *Meditations* ship with seven sets of Objections (Caterus, Mersenne, Hobbes,
-Arnauld, Gassendi, …) and Descartes's Replies. ⚠ **The Objections are by other
-authors, not Descartes** — this is the misattribution trap again. They must
-attribute to the objector, not Descartes (mirror the note-attribution model,
-#24–#26).
+**Assess confirmed a re-source job**: the Latin `meditationes.txt` holds only
+the six Meditations. Re-sourced Clerselier's 1647 French translation from
+fr.wikisource (Cousin 1824 ed.) — ten Parsoid-HTML pages committed raw,
+fetched by `perseus/download_descartes_objections.py`.
 
-- **Files:** `corpus/split_descartes.py` + `corpus/split_descartes_articles.py`;
-  `authors/descartes_works.py`. Re-source quality note: [[descartes-principes-reextract]],
-  [[early-modern-pg-ids-unverified]].
-- **Assess:** does the current source even contain the Objections/Replies, or only
-  the six Meditations? If absent, this becomes a re-source job. The Replies are
-  Descartes's; the Objections need an author/`block_type` that routes attribution
-  away from him.
+**What shipped:** new `corpus/split_descartes_objections.py` (locator
+`descartes_objections`): one work "Objections et Réponses", 537 chunks (276
+objections + 261 Descartes paragraphs). Objector-voice paragraphs are
+`block_type='objection'` with the objector (Caterus/Mersenne/Hobbes/Arnauld/
+Gassendi/divers) in `chunks.speaker`; `retrieve.format_locator` cites
+"… — objection (Hobbes)", never Descartes. Voice tracked from printed
+headings (Hobbes's interleaved OBJECTION/RÉPONSE pairs; "ADDITION DE
+DESCARTES" inside the Sixth set). Reader: `BlockType` union + `data-speaker`
+voice tag + double-rule styling.
+
+**Gap (future re-source, needs AT VII Latin OCR):** *Réponses aux cinquièmes*
+(Descartes's reply to Gassendi), the entire *Septièmes* set (Bourdin) + the
+letter to Clerselier — none transcribed on fr.wikisource.
 
 #### 6. Kant Anmerkungen (+ A/B apparatus) (Mode 2 — merged)
 
@@ -542,6 +547,7 @@ chunks → per-corpus re-ingest + re-embed; reader rendering already done)
    `hebrew_mt.py` + `tei_lxx.py`; grew to recover the LXX poetic books
    (Job/Prov/Wis/Song were 100% missing) and fix the incremental-index
    delete-scope slug/label mismatch. PR #29.
-4. ⬜ **Aquinas, Descartes, Kant** dedicated splitters (Descartes also needs
-   objector-attribution, not just typing). ← NEXT (Aquinas)
+4. 🔶 **Aquinas ✅ (#30), Descartes ✅ (#32), Kant ⬜** dedicated splitters
+   (Descartes shipped with objector-attribution via `block_type='objection'`
+   + `speaker`). ← NEXT (Kant Anmerkungen)
 5. ⬜ Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not parser).

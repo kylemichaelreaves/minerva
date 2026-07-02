@@ -280,6 +280,28 @@
   border-left-style: dashed;
 }
 
+/* Objections — a dialectical voice by ANOTHER author hosted in the work
+   (Hobbes/Caterus/Arnauld/… objecting to Descartes' Meditations; see
+   corpus/split_descartes_objections.py). Set apart like a Remark but with
+   a double rule, and the objector's name (data-speaker, from
+   `chunks.speaker`) rendered as a small voice tag so the reader never
+   mistakes the objection for the philosopher's own words. */
+.reader .line[data-block="objection"] .text {
+  padding-left: 20px;
+  border-left: 3px double var(--r-accent-mark);
+  font-size: 0.93em;
+  color: var(--r-ink-soft);
+}
+.reader .line[data-block="objection"][data-speaker] .text::before {
+  content: attr(data-speaker);
+  display: block;
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--r-ink-mute);
+  margin-bottom: 2px;
+}
+
 /* Footnotes (TEI <note>) and dramatis-personae lists (<castList>),
    recovered by the TEI parser. Apparatus, not primary text: read a step
    smaller and dimmer than Remarks/Additions, with a quiet dotted rule. */

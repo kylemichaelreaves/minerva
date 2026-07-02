@@ -16,7 +16,17 @@ export interface Work {
  * body prose; the others mark set-apart matter (Hegel Anmerkung →
  * `remark`, Zusatz → `addition`, footnotes → `note`, quotations →
  * `blockquote`). See docs/block-structure-remediation-plan.md. */
-export type BlockType = "body" | "remark" | "addition" | "note" | "cast" | "blockquote";
+export type BlockType =
+  | "body"
+  | "remark"
+  | "addition"
+  | "note"
+  | "cast"
+  | "blockquote"
+  // A dialectical voice by another author hosted inside the work —
+  // Hobbes/Caterus/Arnauld/… objecting to Descartes' Meditations.
+  // The objector's name rides in `speaker`.
+  | "objection";
 
 export interface SourceChunk {
   chunk_id: string;
