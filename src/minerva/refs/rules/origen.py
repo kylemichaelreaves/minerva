@@ -57,7 +57,6 @@ RULES: tuple[Rule, ...] = (
             "morality thesis in the Genealogy of Morals."
         ),
     ),
-
     # ─── Plato ─────────────────────────────────────────────────────
     # Origen engages Plato repeatedly — both because Celsus is a
     # Middle Platonist who cites Plato approvingly and because
@@ -70,7 +69,6 @@ RULES: tuple[Rule, ...] = (
         confidence=0.88,
         langs=("grc", "eng"),
     ),
-
     # ─── Homer ─────────────────────────────────────────────────────
     # Celsus quotes Homer as a cultural-authority argument against
     # the Christians; Origen quotes back. Frequent in Books I-IV.

@@ -31,7 +31,6 @@ from .scripture_cite import default_scripture_rules
 
 RULES = (
     *default_scripture_rules("marx"),
-
     # Hegel — Marx's central in-corpus interlocutor. Strong rule
     # because every "Hegel" mention in Marx is unambiguously THE
     # Hegel (G.W.F.), not a different person of the same name.
@@ -59,7 +58,6 @@ RULES = (
             "reference is to G.W.F. Hegel; no ambiguity in this corpus."
         ),
     ),
-
     # Feuerbach — explicit target of Thesen + Deutsche Ideologie.
     StrongMentionRule(
         name="marx_feuerbach",
@@ -82,7 +80,6 @@ RULES = (
             "Out-of-corpus target."
         ),
     ),
-
     # Aristoteles — invoked in Kapital Bd 1 ch. 1 on the form of
     # value. The German form is "Aristoteles" (not "Aristotle").
     AuthorMentionRule(
@@ -101,7 +98,6 @@ RULES = (
         confidence=0.75,
         langs=("deu",),
     ),
-
     # Adam Smith — the classical-economist backdrop for Kapital.
     AuthorMentionRule(
         name="marx_smith",
@@ -117,7 +113,6 @@ RULES = (
             "Out-of-corpus target."
         ),
     ),
-
     # David Ricardo — labor-theory-of-value precursor.
     StrongMentionRule(
         name="marx_ricardo",
@@ -132,7 +127,6 @@ RULES = (
             "Bd 1 chs. 1, 18-19. Out-of-corpus target."
         ),
     ),
-
     # Proudhon — target of Elend der Philosophie. "Misère de la
     # philosophie" was Marx's German-language reply to Proudhon's
     # "Philosophie de la misère"; the German edition uses "Proudhon"
@@ -149,7 +143,6 @@ RULES = (
             "Elend der Philosophie. Out-of-corpus target."
         ),
     ),
-
     # Max Stirner — target of the 'Sankt Max' chapter of Deutsche
     # Ideologie. Marx's polemical references are dense.
     StrongMentionRule(
@@ -165,7 +158,6 @@ RULES = (
             "sustained refutation. Out-of-corpus target."
         ),
     ),
-
     # Bruno Bauer — target of Die heilige Familie. "Bauer" alone is
     # too common a German name, so require the disambiguating
     # 'Bruno' or 'B. Bauer' form.
@@ -183,7 +175,6 @@ RULES = (
             "or other surnamed Bauers Marx mentions. Out-of-corpus."
         ),
     ),
-
     # Saint-Simon — utopian socialist named in the Manifest.
     AuthorMentionRule(
         name="marx_saint_simon",
@@ -193,7 +184,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     # Fourier — utopian socialist named in the Manifest.
     AuthorMentionRule(
         name="marx_fourier",
@@ -203,7 +193,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     # Owen — utopian socialist named in the Manifest.
     AuthorMentionRule(
         name="marx_owen",
@@ -213,7 +202,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     # Spinoza — Marx's dissertation foreshadows Spinoza's
     # immanent-materialism reading; named references appear in
     # the Heilige Familie and in early letters/notebooks.
@@ -225,7 +213,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     # Kant — referenced in the Heilige Familie, the Frühschriften,
     # and as part of Marx's general critique of "German ideology."
     # Less central than Hegel/Feuerbach but explicit.
@@ -237,7 +224,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     # Lucretius — Marx's 1841 doctoral dissertation was on Democritean
     # and Epicurean natural philosophy. The Difference Between the
     # Democritean and Epicurean Philosophy of Nature engages Lucretius
@@ -251,7 +237,6 @@ RULES = (
         langs=("deu",),
         note="Marx's 1841 dissertation engages Lucretius alongside Epicurus.",
     ),
-
     # Epicurus — primary target of Marx's dissertation. Out-of-corpus.
     AuthorMentionRule(
         name="marx_epicurus",
@@ -262,7 +247,6 @@ RULES = (
         langs=("deu",),
         note="Subject of Marx's 1841 doctoral dissertation. Out-of-corpus.",
     ),
-
     # Democritus — co-equal subject of Marx's 1841 dissertation (full
     # title: *The Difference Between the Democritean and Epicurean
     # Philosophy of Nature*). The preparatory *Hefte zur epikureischen
@@ -284,7 +268,6 @@ RULES = (
         langs=("deu",),
         note="Co-equal subject of Marx's 1841 doctoral dissertation. Out-of-corpus.",
     ),
-
     # Aesop — *18th Brumaire of Louis Bonaparte* (1852) chapter 1
     # famously reuses Hegel's "Hic Rhodus, hic salta" — which is in
     # turn a Latinisation of Aesop's *Boastful Athlete* fable. So Marx
@@ -301,7 +284,6 @@ RULES = (
             "rendering of Aesop's Boastful Athlete fable."
         ),
     ),
-
     AuthorMentionRule(
         name="marx_schiller",
         target_author="Schiller",

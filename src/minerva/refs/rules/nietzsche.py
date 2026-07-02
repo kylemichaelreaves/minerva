@@ -34,7 +34,6 @@ from .scripture_cite import default_scripture_rules
 
 RULES = (
     *default_scripture_rules("nietzsche"),
-
     # ─── Out-of-corpus targets, central interlocutors ────────────
     StrongMentionRule(
         name="nietzsche_sokrates",
@@ -57,7 +56,6 @@ RULES = (
             "'Das Problem des Sokrates' chapter. Out-of-corpus."
         ),
     ),
-
     StrongMentionRule(
         name="nietzsche_christus",
         target_author="Christ",
@@ -89,7 +87,6 @@ RULES = (
             "target by Nietzsche."
         ),
     ),
-
     StrongMentionRule(
         name="nietzsche_schopenhauer",
         target_author="Schopenhauer",
@@ -112,7 +109,6 @@ RULES = (
             "Geburt der Tragödie's metaphysics. Out-of-corpus."
         ),
     ),
-
     StrongMentionRule(
         name="nietzsche_wagner",
         target_author="Wagner",
@@ -137,7 +133,6 @@ RULES = (
             "Out-of-corpus."
         ),
     ),
-
     # ─── In-corpus targets ───────────────────────────────────────
     AuthorMentionRule(
         name="nietzsche_kant",
@@ -157,7 +152,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     AuthorMentionRule(
         name="nietzsche_hegel",
         target_author="Hegel",
@@ -175,7 +169,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     AuthorMentionRule(
         name="nietzsche_plato",
         target_author="Plato",
@@ -193,7 +186,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     AuthorMentionRule(
         name="nietzsche_aristoteles",
         target_author="Aristotle",
@@ -207,7 +199,6 @@ RULES = (
         confidence=0.75,
         langs=("deu",),
     ),
-
     AuthorMentionRule(
         name="nietzsche_spinoza",
         target_author="Spinoza",
@@ -227,7 +218,6 @@ RULES = (
             "Schopenhauer but always deliberate when named."
         ),
     ),
-
     # ─── Other out-of-corpus targets (lower confidence) ──────────
     AuthorMentionRule(
         name="nietzsche_darwin",
@@ -242,7 +232,6 @@ RULES = (
             "Out-of-corpus."
         ),
     ),
-
     AuthorMentionRule(
         name="nietzsche_goethe",
         target_author="Goethe",
@@ -251,7 +240,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     AuthorMentionRule(
         name="nietzsche_buddha",
         target_author="Buddha",
@@ -264,7 +252,6 @@ RULES = (
             "Christianity ('nihilist religion'). Out-of-corpus."
         ),
     ),
-
     # Heraclitus — Nietzsche's adopted Greek precursor. In Ecce
     # Homo (Geburt der Tragödie §3): "the doctrine of the 'eternal
     # recurrence,' that is, of the unconditional and infinitely
@@ -291,7 +278,6 @@ RULES = (
             "der Griechen and in Ecce Homo."
         ),
     ),
-
     # Rousseau — Nietzsche's polemical target on egalitarianism
     # and ressentiment-driven moralism. "Die moralische Tarantel
     # Rousseau" (Götzen-Dämmerung). Strong rule because the
@@ -315,7 +301,6 @@ RULES = (
             "BGE, GD, AC contain explicit polemics."
         ),
     ),
-
     # Pascal — Nietzsche's avowed sympathy with Pascal as the
     # tragic-religious thinker. BGE §45: "Pascal, den ich beinahe
     # liebe." Reference in EH, GM.
@@ -332,7 +317,6 @@ RULES = (
             "most reverentially-treated targets."
         ),
     ),
-
     # Hobbes — referenced in BGE and GM in the moralism / state-
     # of-nature critiques. Less frequent than the major targets
     # but explicit.
@@ -344,7 +328,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     # Descartes — referenced in MA, FW, JGB on the cogito and
     # rationalist epistemology.
     AuthorMentionRule(
@@ -362,7 +345,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     # Cicero — Nietzsche was a classical philologist; Cicero appears
     # in the early philological lectures + the Nachlass.
     AuthorMentionRule(
@@ -373,7 +355,6 @@ RULES = (
         confidence=0.75,
         langs=("deu",),
     ),
-
     # Epictetus — Stoic critique in BGE, FW. Out-of-corpus until
     # the ancient quartet round.
     AuthorMentionRule(
@@ -384,7 +365,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     # Marcus Aurelius — Stoic philosopher-emperor; appears in BGE
     # + the Nachlass as Stoic exemplar.
     AuthorMentionRule(
@@ -395,7 +375,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     # Lucretius — classical philologist's reference; Nietzsche's
     # lectures + Nachlass discuss Lucretius.
     AuthorMentionRule(
@@ -406,7 +385,6 @@ RULES = (
         confidence=0.8,
         langs=("deu",),
     ),
-
     # Democritus — Nietzsche's early philological focus. The
     # *Demokrit-Studien* notebooks (1866-69, BAW) were drafts for an
     # unpublished monograph; the published works keep invoking him as
@@ -419,7 +397,6 @@ RULES = (
         confidence=0.85,
         langs=("deu",),
     ),
-
     # Theognis of Megara — aristocratic anti-democratic elegist (6th c.
     # BCE). Subject of Nietzsche's first major philological publication
     # *Zur Geschichte der Theognideischen Spruchsammlung* (1867), which
@@ -434,7 +411,6 @@ RULES = (
         langs=("deu",),
         note="Subject of Nietzsche's 1867 philological dissertation. Out-of-corpus.",
     ),
-
     # ── Tragedians (Geburt der Tragödie + Götzen-Dämmerung) ────────
     # Aeschylus and Sophocles are the heroes of Die Geburt der
     # Tragödie's "tragic age of the Greeks"; Euripides is the
@@ -447,9 +423,14 @@ RULES = (
         target_author="Aeschylus",
         target_work="",
         forms=(
-            "Äschylus", "Aischylos", "Aeschylus",
-            "Aischylos'", "Äschylus'",
-            "äschyleisch", "äschyleische", "aischyleisch",
+            "Äschylus",
+            "Aischylos",
+            "Aeschylus",
+            "Aischylos'",
+            "Äschylus'",
+            "äschyleisch",
+            "äschyleische",
+            "aischyleisch",
         ),
         confidence=0.9,
         langs=("deu",),
@@ -464,8 +445,12 @@ RULES = (
         target_author="Sophocles",
         target_work="",
         forms=(
-            "Sophokles", "Sophocles", "Sophokles'",
-            "sophokleisch", "sophokleische", "sophocleisch",
+            "Sophokles",
+            "Sophocles",
+            "Sophokles'",
+            "sophokleisch",
+            "sophokleische",
+            "sophocleisch",
         ),
         confidence=0.9,
         langs=("deu",),
@@ -475,8 +460,10 @@ RULES = (
         target_author="Euripides",
         target_work="",
         forms=(
-            "Euripides", "Euripides'",
-            "euripideisch", "euripideische",
+            "Euripides",
+            "Euripides'",
+            "euripideisch",
+            "euripideische",
         ),
         confidence=0.9,
         langs=("deu",),
@@ -486,7 +473,6 @@ RULES = (
             "rationalism. Always a real reference."
         ),
     ),
-
     # Celsus — *Der Antichrist* invokes Celsus by name as a forerunner
     # of Nietzsche's own anti-Christian polemic; the *Genealogie der
     # Moral* slave-morality thesis structurally reformulates Celsus's
@@ -505,7 +491,6 @@ RULES = (
             "slave-morality is structurally Celsus 3.44. Out-of-corpus."
         ),
     ),
-
     # Origen — Nietzsche's classical-philology training makes Origen
     # a known quantity; references in the Nachlass and *Der Antichrist*
     # critique Origenist allegorical exegesis.
@@ -517,7 +502,6 @@ RULES = (
         confidence=0.78,
         langs=("deu",),
     ),
-
     # Henri de Boulainvilliers — proximate historical source for the
     # Frankish-conquest / two-race material that Nietzsche reformulates
     # in *Genealogie der Moral* I.5/I.11 as the master-morality / blond-
@@ -545,7 +529,6 @@ RULES = (
             "Renan / Thierry / Gobineau."
         ),
     ),
-
     # Arthur de Gobineau — *Essai sur l'inégalité des races humaines*
     # (1853-55) is the racial-determinism reformulation Nietzsche
     # absorbs (and partly distances from). Direct mentions in
@@ -570,7 +553,6 @@ RULES = (
             "beast, Götzen-Dämmerung 'Was den Deutschen abgeht'."
         ),
     ),
-
     # Ernest Renan — Nietzsche names Renan repeatedly in *Der
     # Antichrist*, *Götzen-Dämmerung*, GM, and Ecce Homo. Renan's
     # *Vie de Jésus* (1863) and *L'Antéchrist* (1877) are the
@@ -596,7 +578,6 @@ RULES = (
             "all relevant."
         ),
     ),
-
     AuthorMentionRule(
         name="nietzsche_schiller",
         target_author="Schiller",

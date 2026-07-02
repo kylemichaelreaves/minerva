@@ -57,7 +57,11 @@ def _roman(n: int) -> str:
     if n <= 0 or n > 20:
         return str(n)
     table = [
-        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
     ]
     out: list[str] = []
     for value, sym in table:
@@ -120,14 +124,12 @@ class StructuralCommentaryRule:
 RULES = (
     # ── structural rule: every commentary chunk → its Aristotle source
     StructuralCommentaryRule(),
-
     # ── scripture-cite rule: <BookAbbrev>. <chap>-<verse> → Vulgate
     # verse. Generic by design — Augustine can reuse it once that
     # source's cite conventions are surveyed. The chunk binder in
     # `insert_candidate` resolves verse-level targets to the actual
     # Vulgate chunk_id at insert time, no embed/llm verify needed.
     ScriptureCiteRule(),
-
     # ── formulaic-quote rule: introducer-phrase + colon + quoted
     # verse text, no chapter:verse locator. The Psalm number is
     # implicit in the quoted text; embed-verify Pass A binds the
@@ -152,7 +154,6 @@ RULES = (
             r"secundum\s+illud\s+Psalmi",
         ),
     ),
-
     # ── strong rules (rule_strong, confidence ~0.95) ─────────────
     StrongMentionRule(
         name="aquinas_philosophus",
@@ -190,9 +191,7 @@ RULES = (
             "definitional consistency as 'Philosophus'."
         ),
     ),
-
     # ── weak rules: surface-form name mentions ───────────────────
-
     AuthorMentionRule(
         name="aquinas_aristoteles",
         target_author="Aristotle",
@@ -211,7 +210,6 @@ RULES = (
         # convention.
         langs=("lat",),
     ),
-
     AuthorMentionRule(
         name="aquinas_plato",
         target_author="Plato",
@@ -220,7 +218,6 @@ RULES = (
         confidence=0.6,
         langs=("lat",),
     ),
-
     AuthorMentionRule(
         name="aquinas_augustinus",
         target_author="Augustine",
@@ -235,7 +232,6 @@ RULES = (
         langs=("lat",),
         note="Aquinas cites Augustine constantly across ST and SCG.",
     ),
-
     AuthorMentionRule(
         name="aquinas_dionysius",
         target_author="Pseudo-Dionysius",
@@ -254,7 +250,6 @@ RULES = (
             "the 'Pseudo-' is modern."
         ),
     ),
-
     AuthorMentionRule(
         name="aquinas_boethius",
         target_author="Boethius",
@@ -263,7 +258,6 @@ RULES = (
         confidence=0.65,
         langs=("lat",),
     ),
-
     AuthorMentionRule(
         name="aquinas_avicenna",
         target_author="Avicenna",
@@ -272,7 +266,6 @@ RULES = (
         confidence=0.7,
         langs=("lat",),
     ),
-
     AuthorMentionRule(
         name="aquinas_averroes_byname",
         target_author="Averroes",
@@ -282,7 +275,6 @@ RULES = (
         langs=("lat",),
         note="Direct name mention; complements the Commentator strong rule.",
     ),
-
     AuthorMentionRule(
         name="aquinas_cicero",
         target_author="Cicero",
@@ -292,7 +284,6 @@ RULES = (
         langs=("lat",),
         note="Includes the 'Tullius' surface form Aquinas occasionally uses.",
     ),
-
     AuthorMentionRule(
         name="aquinas_porphyrius",
         target_author="Porphyry",
@@ -301,7 +292,6 @@ RULES = (
         confidence=0.55,
         langs=("lat",),
     ),
-
     # Origen — Aquinas engages Origen via Augustine and Jerome more
     # than directly, but the ST commentaries (esp. ST I q.20 a.3,
     # q.62, q.106) name him. Lower confidence than Augustine →

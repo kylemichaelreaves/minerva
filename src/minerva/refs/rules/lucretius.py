@@ -40,7 +40,7 @@ RULES = (
             "Epicurean",
             "Epicureans",
             "Epicurean",
-            "Graius homo",   # the famous DRN I.66 periphrasis
+            "Graius homo",  # the famous DRN I.66 periphrasis
         ),
         confidence=0.95,
         langs=("lat", "eng"),
@@ -50,7 +50,6 @@ RULES = (
             "Out-of-corpus target."
         ),
     ),
-
     AuthorMentionRule(
         name="lucretius_democritus",
         target_author="Democritus",
@@ -59,7 +58,6 @@ RULES = (
         confidence=0.85,
         langs=("lat", "eng"),
     ),
-
     AuthorMentionRule(
         name="lucretius_empedocles",
         target_author="Empedocles",
@@ -69,7 +67,6 @@ RULES = (
         langs=("lat", "eng"),
         note="DRN I.716ff explicitly praises Empedocles by name.",
     ),
-
     AuthorMentionRule(
         name="lucretius_heraclitus",
         target_author="Heraclitus",
@@ -79,7 +76,6 @@ RULES = (
         langs=("lat", "eng"),
         note="DRN I.638ff pejorative reference to 'Heraclitus the Obscure'.",
     ),
-
     AuthorMentionRule(
         name="lucretius_anaxagoras",
         target_author="Anaxagoras",

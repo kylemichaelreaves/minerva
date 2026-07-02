@@ -44,7 +44,6 @@ RULES = (
         confidence=0.92,
         langs=("lat", "eng"),
     ),
-
     AuthorMentionRule(
         name="cicero_aristotle",
         target_author="Aristotle",
@@ -62,7 +61,6 @@ RULES = (
         confidence=0.85,
         langs=("lat", "eng"),
     ),
-
     # Socrates — recurring exemplar in Tusculans.
     StrongMentionRule(
         name="cicero_socrates",
@@ -72,7 +70,6 @@ RULES = (
         confidence=0.9,
         langs=("lat", "eng"),
     ),
-
     # Carneades — Cicero's New Academy authority on probability.
     # Out-of-corpus target.
     AuthorMentionRule(
@@ -87,7 +84,6 @@ RULES = (
             "probability epistemology. Out-of-corpus."
         ),
     ),
-
     # Panaetius — Stoic basis for De Officiis. Out-of-corpus.
     AuthorMentionRule(
         name="cicero_panaetius",
@@ -96,12 +92,8 @@ RULES = (
         forms=("Panaetius", "Panaeti", "Panaetium"),
         confidence=0.88,
         langs=("lat", "eng"),
-        note=(
-            "Panaetius of Rhodes. De Officiis I-II adapts his Περὶ "
-            "καθήκοντος. Out-of-corpus."
-        ),
+        note=("Panaetius of Rhodes. De Officiis I-II adapts his Περὶ καθήκοντος. Out-of-corpus."),
     ),
-
     # Epicurus — explicit polemical target (De Finibus I-II + DND).
     StrongMentionRule(
         name="cicero_epicurus",
@@ -120,7 +112,6 @@ RULES = (
         langs=("lat", "eng"),
         note="Out-of-corpus polemical target across the philosophical works.",
     ),
-
     # Democritus — atomism's founder; De Finibus, Tusculanae
     # Disputationes, and De Natura Deorum all name him as the
     # materialist ancestor behind the Epicurean physics Cicero attacks.
@@ -136,7 +127,6 @@ RULES = (
             "Disputationes, and De Natura Deorum. Out-of-corpus."
         ),
     ),
-
     # Zeno of Citium / Chrysippus / Stoics — collective Stoa reference.
     AuthorMentionRule(
         name="cicero_zeno",
@@ -152,7 +142,6 @@ RULES = (
             "in Cicero. Out-of-corpus."
         ),
     ),
-
     AuthorMentionRule(
         name="cicero_chrysippus",
         target_author="Chrysippus",
@@ -162,7 +151,6 @@ RULES = (
         langs=("lat", "eng"),
         note="Out-of-corpus.",
     ),
-
     AuthorMentionRule(
         name="cicero_pythagoras",
         target_author="Pythagoras",
@@ -171,7 +159,6 @@ RULES = (
         confidence=0.85,
         langs=("lat", "eng"),
     ),
-
     # ── Tragedians (Tusculan Disputations cites verse extensively) ─
     # Cicero quotes Aeschylus / Sophocles / Euripides as moral
     # exempla in Tusc. Disp. Bk II–IV and De Officiis Bk I. The

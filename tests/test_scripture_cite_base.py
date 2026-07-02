@@ -220,3 +220,71 @@ class TestFrPinned:
         rule = ScriptureCiteRuleFr()
         assert list(rule.scan(_chunk("Rm 1, 18", lang="eng"))) == []
         assert list(rule.scan(_chunk("Rm 1, 18", lang="fra", author="Sacy"))) == []
+
+
+# ════════════════════════════════════════════════════════════════════
+# French — 19th-c Roman-chapter convention (Renan)
+# ════════════════════════════════════════════════════════════════════
+
+
+class TestFrRomanPinned:
+    """Renan's citation shape: comma after the book name, chapter in
+    Roman numerals (either case), verse in digits — "Luc, xxiii, 34".
+    The plain FR rule requires Arabic chapters and never fired on any
+    of Renan's ~1,265 cite-bearing chunks."""
+
+    def test_lowercase_roman_chapter(self) -> None:
+        from minerva.refs.rules.scripture_cite import ScriptureCiteRuleFrRoman
+
+        rule = ScriptureCiteRuleFrRoman()
+        cands = list(
+            rule.scan(_chunk("Cf. Luc, xxiii. 34, sur le pardon.", lang="fra", author="Renan"))
+        )
+        assert len(cands) == 1
+        assert cands[0].target_author == "Sacy"
+        assert cands[0].target_work == "Luke"
+        assert cands[0].target_locator == "Luke 23:34"
+
+    def test_uppercase_roman_chapter(self) -> None:
+        from minerva.refs.rules.scripture_cite import ScriptureCiteRuleFrRoman
+
+        rule = ScriptureCiteRuleFrRoman()
+        cands = list(
+            rule.scan(_chunk("mort de Jacques dans Matth., XXIV, 9;", lang="fra", author="Renan"))
+        )
+        assert len(cands) == 1
+        assert cands[0].target_locator == "Matt 24:9"
+
+    def test_arabic_chapter_still_works(self) -> None:
+        from minerva.refs.rules.scripture_cite import ScriptureCiteRuleFrRoman
+
+        rule = ScriptureCiteRuleFrRoman()
+        cands = list(rule.scan(_chunk("voir Jean 12, 40 encore", lang="fra", author="Renan")))
+        assert len(cands) == 1
+        assert cands[0].target_locator == "John 12:40"
+
+    def test_french_pronoun_after_roman_chapter_is_not_a_verse(self) -> None:
+        # "Marc, ii, il dit" — 'il' is letters from the Roman set but
+        # the verse group is digits-only, so nothing fires.
+        from minerva.refs.rules.scripture_cite import ScriptureCiteRuleFrRoman
+
+        rule = ScriptureCiteRuleFrRoman()
+        cands = list(rule.scan(_chunk("Marc, ii, il dit ceci.", lang="fra", author="Renan")))
+        assert cands == []
+
+    def test_unknown_book_name_does_not_fire(self) -> None:
+        # 'Philon' passes the abbr shape but fails the lexicon gate.
+        from minerva.refs.rules.scripture_cite import ScriptureCiteRuleFrRoman
+
+        rule = ScriptureCiteRuleFrRoman()
+        cands = list(rule.scan(_chunk("selon Philon, ii, 21, les esséniens", lang="fra")))
+        assert cands == []
+
+    def test_implausible_roman_value_rejected(self) -> None:
+        # 'cc' parses as Roman 200 — beyond any chapter count; the
+        # base parser returns None and the match is skipped.
+        from minerva.refs.rules.scripture_cite import ScriptureCiteRuleFrRoman
+
+        rule = ScriptureCiteRuleFrRoman()
+        cands = list(rule.scan(_chunk("Luc, cc, 3", lang="fra")))
+        assert cands == []

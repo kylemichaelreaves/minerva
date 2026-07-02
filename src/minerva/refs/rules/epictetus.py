@@ -40,7 +40,6 @@ RULES = (
             "as model of the Stoic sage throughout the Discourses."
         ),
     ),
-
     # Diogenes the Cynic — secondary paradigm.
     AuthorMentionRule(
         name="epictetus_diogenes",
@@ -51,7 +50,6 @@ RULES = (
         langs=("grc", "eng"),
         note="Diogenes of Sinope (Cynic). Out-of-corpus target.",
     ),
-
     # Chrysippus — central Stoic.
     AuthorMentionRule(
         name="epictetus_chrysippus",
@@ -62,7 +60,6 @@ RULES = (
         langs=("grc", "eng"),
         note="Chrysippus of Soli. Out-of-corpus target.",
     ),
-
     # Zeno of Citium — Stoa founder.
     AuthorMentionRule(
         name="epictetus_zeno",
@@ -73,7 +70,6 @@ RULES = (
         langs=("grc", "eng"),
         note="Zeno of Citium. Out-of-corpus target.",
     ),
-
     # Plato — Epictetus references through the Socratic dialogues.
     AuthorMentionRule(
         name="epictetus_plato",

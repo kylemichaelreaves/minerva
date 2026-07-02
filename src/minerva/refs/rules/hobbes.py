@@ -26,7 +26,6 @@ RULES = (
     # biblical interpretation. Expect the largest citation count
     # of any modern author.
     ScriptureCiteRuleEn(name="hobbes_scripture_cite_en"),
-
     # Aristotle — Hobbes's central polemical target in Leviathan
     # part IV ("Of the Kingdom of Darkness") and the De Cive
     # preface. References are frequent and explicit; high
@@ -58,7 +57,6 @@ RULES = (
         confidence=0.75,
         langs=("lat",),
     ),
-
     # Plato — referenced less often than Aristotle but as a counter-
     # weight ("Plato was one of the greatest philosophers" — Lev. 46).
     AuthorMentionRule(
@@ -77,7 +75,6 @@ RULES = (
         confidence=0.65,
         langs=("lat",),
     ),
-
     # Cicero — Hobbes calls him "Tully" in the English Leviathan
     # (the standard 17th-c. anglicization). Both forms fire.
     AuthorMentionRule(
@@ -100,7 +97,6 @@ RULES = (
         confidence=0.7,
         langs=("lat",),
     ),
-
     # Thucydides — Hobbes translated him in 1629; references in the
     # later works are pointed and high-confidence. Out-of-corpus
     # target (we don't have Thucydides in minerva yet) but rules
@@ -117,7 +113,6 @@ RULES = (
             "Any named reference is deliberate."
         ),
     ),
-
     # The Schoolmen → Aquinas-shaped (out of strict accuracy this
     # spans the whole scholastic tradition, but in minerva the only
     # scholastic we have ingested is Aquinas, so route there).
@@ -142,7 +137,6 @@ RULES = (
             "broaden the target."
         ),
     ),
-
     # Descartes — Hobbes wrote the Third Objections to the
     # Meditations (1641), and the Cartesian framework is referenced
     # in the De Corpore / De Homine cycle.
@@ -162,7 +156,6 @@ RULES = (
         confidence=0.7,
         langs=("lat",),
     ),
-
     # Lucretius — Hobbes's materialist physics in De Corpore is
     # explicitly Lucretian; the Elementa de Corpore reference
     # Lucretius by name on atomism + the void.

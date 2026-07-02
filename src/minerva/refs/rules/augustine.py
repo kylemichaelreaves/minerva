@@ -43,8 +43,6 @@ RULES = (
             r"sancti\s+psalmi",
         ),
     ),
-
-
     AuthorMentionRule(
         name="augustine_cicero",
         target_author="Cicero",
@@ -58,7 +56,6 @@ RULES = (
             "philosophical career."
         ),
     ),
-
     AuthorMentionRule(
         name="augustine_plato",
         target_author="Plato",
@@ -83,7 +80,6 @@ RULES = (
             "Different surface form, but functionally a Plato reference."
         ),
     ),
-
     AuthorMentionRule(
         name="augustine_plotinus",
         target_author="Plotinus",
@@ -96,7 +92,6 @@ RULES = (
             "appears it's load-bearing (De civ. Dei IX-X)."
         ),
     ),
-
     AuthorMentionRule(
         name="augustine_porphyrius",
         target_author="Porphyry",
@@ -109,7 +104,6 @@ RULES = (
             "(against Christianity). Direct mention is unambiguous."
         ),
     ),
-
     AuthorMentionRule(
         name="augustine_vergil",
         target_author="Vergil",
@@ -123,7 +117,6 @@ RULES = (
             "the high-confidence signal here."
         ),
     ),
-
     AuthorMentionRule(
         name="augustine_ambrosius",
         target_author="Ambrose",
@@ -133,7 +126,6 @@ RULES = (
         langs=("lat",),
         note="Augustine's Milan-era teacher; named throughout the Confessions.",
     ),
-
     AuthorMentionRule(
         name="augustine_aristoteles",
         target_author="Aristotle",
@@ -151,7 +143,6 @@ RULES = (
             "the De civ. Dei VIII surveys Aristotle alongside Plato."
         ),
     ),
-
     AuthorMentionRule(
         name="augustine_manichaei",
         target_author="Manichaeus",  # the Manichaean tradition — out of corpus
@@ -166,7 +157,6 @@ RULES = (
             "until a curator can refine."
         ),
     ),
-
     # ── Tragedians (City of God uses tragedy as moral exempla) ────
     # Augustine engages Greek tragedy in De Civitate Dei Bk II–III
     # (against pagan stage shows) and occasionally in Confessions /
@@ -197,7 +187,6 @@ RULES = (
         confidence=0.65,
         langs=("lat", "eng"),
     ),
-
     # Origen — Augustine engages Origen on multiple doctrinal points
     # (apokatastasis, eschatology, allegorical exegesis). *De Civitate
     # Dei* XXI.17 critiques Origen by name; *De Haeresibus* lists him;
@@ -219,7 +208,6 @@ RULES = (
         confidence=0.88,
         langs=("eng",),
     ),
-
     # Celsus — Augustine knows Celsus via Origen and occasionally
     # invokes him as a stand-in for pagan anti-Christian critique.
     # Lower confidence than Origen itself; verify on next embed-pass.

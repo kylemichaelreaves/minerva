@@ -29,7 +29,6 @@ RULES = (
     # lightest of the British triad — Natural History of Religion and
     # Of Miracles cite scripture in critique. Expect <50 cites total.
     ScriptureCiteRuleEn(name="hume_scripture_cite_en"),
-
     # Locke — Hume's most-cited modern predecessor. The Treatise's
     # impressions-and-ideas distinction is a self-conscious refinement
     # of Locke's Essay Bk II ch 1.
@@ -41,7 +40,6 @@ RULES = (
         confidence=0.8,
         langs=("eng",),
     ),
-
     # Berkeley — engaged on idealism and abstract ideas. Hume both
     # accepts and rejects Berkeley in different places; the named
     # references are deliberate.
@@ -57,7 +55,6 @@ RULES = (
             "Berkeley's nominalist critique. Out-of-corpus target."
         ),
     ),
-
     # Descartes — the rationalist target. The Treatise's attack on
     # the cogito (I.iv.5–6) and on Cartesian doubt frames the whole
     # sceptical project.
@@ -69,7 +66,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # Hobbes — moral and political philosophy. Hume's contract-
     # theory critique in the Treatise Bk III engages Hobbes by name.
     AuthorMentionRule(
@@ -80,7 +76,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # Newton — Hume's methodological model. "Mr. Newton" / "Sir
     # Isaac Newton" appears in the Treatise introduction and in the
     # Enquiry's prefatory remarks.
@@ -97,12 +92,8 @@ RULES = (
         ),
         confidence=0.85,
         langs=("eng",),
-        note=(
-            "Hume self-positions as the 'Newton of the moral sciences'. "
-            "Out-of-corpus target."
-        ),
+        note=("Hume self-positions as the 'Newton of the moral sciences'. Out-of-corpus target."),
     ),
-
     # Cicero — moral-philosophy authority and rhetorical model.
     AuthorMentionRule(
         name="hume_cicero",
@@ -112,7 +103,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # Aristotle — engaged primarily as the source of the scholastic
     # apparatus Hume is critiquing.
     AuthorMentionRule(
@@ -123,7 +113,6 @@ RULES = (
         confidence=0.65,
         langs=("eng",),
     ),
-
     # The Schoolmen — Hume's term for the scholastic Aristotelians;
     # routed to Aquinas as the in-corpus representative.
     StrongMentionRule(
@@ -139,7 +128,6 @@ RULES = (
             "scholastic; downstream verification can broaden."
         ),
     ),
-
     # Spinoza — Hume cites "the hideous hypothesis" of Spinoza in
     # the Treatise (I.iv.5). Named references are sparse but
     # distinctive.

@@ -14,7 +14,6 @@ from .scripture_cite import default_scripture_rules
 
 RULES = (
     *default_scripture_rules("kant"),
-
     AuthorMentionRule(
         name="kant_plato",
         target_author="Plato",
@@ -36,7 +35,6 @@ RULES = (
             "explicit Kant-on-Plato moment in the corpus."
         ),
     ),
-
     AuthorMentionRule(
         name="kant_aristotle",
         target_author="Aristotle",
@@ -51,11 +49,9 @@ RULES = (
         confidence=0.6,
         langs=("deu", "eng"),
         note=(
-            "Kant's Metaphysical Deduction lifts the categories from "
-            "Aristotle by name (A80/B106)."
+            "Kant's Metaphysical Deduction lifts the categories from Aristotle by name (A80/B106)."
         ),
     ),
-
     AuthorMentionRule(
         name="kant_leibniz",
         target_author="Leibniz",  # out-of-corpus
@@ -68,7 +64,6 @@ RULES = (
             "polemic against Leibniz. Out-of-corpus."
         ),
     ),
-
     AuthorMentionRule(
         name="kant_hume",
         target_author="Hume",
@@ -81,7 +76,6 @@ RULES = (
             "openly in the Prolegomena's introduction."
         ),
     ),
-
     AuthorMentionRule(
         name="kant_descartes",
         target_author="Descartes",
@@ -100,7 +94,6 @@ RULES = (
             "anti-Cartesian; the Paralogisms also engage Descartes."
         ),
     ),
-
     AuthorMentionRule(
         name="kant_spinoza",
         target_author="Spinoza",
@@ -113,7 +106,6 @@ RULES = (
             "discussion names Spinoza as the radical-pantheist alternative."
         ),
     ),
-
     AuthorMentionRule(
         name="kant_berkeley",
         target_author="Berkeley",  # out-of-corpus
@@ -123,7 +115,6 @@ RULES = (
         langs=("deu", "eng"),
         note="Refutation of Idealism (B274).",
     ),
-
     AuthorMentionRule(
         name="kant_wolff",
         target_author="Wolff",  # out-of-corpus
@@ -133,7 +124,6 @@ RULES = (
         langs=("deu", "eng"),
         note="The Leibniz-Wolff school is Kant's local foil.",
     ),
-
     # Rousseau — Kant's principal modern moral influence. Kant
     # famously credited Rousseau with his moral-philosophical
     # turn: "Rousseau set me right." References pervade the second
@@ -159,7 +149,6 @@ RULES = (
             "study wall."
         ),
     ),
-
     # Hobbes — Kant engages Hobbes's political philosophy in the
     # Metaphysics of Morals (Doctrine of Right) and Theory and
     # Practice essay.
@@ -175,7 +164,6 @@ RULES = (
             "nature and sovereignty in the Doctrine of Right."
         ),
     ),
-
     # Locke — Kant cites Locke as the founder of empiricism and
     # the Essay-style analysis of understanding; KrV B127, A86,
     # multiple Anthropology lectures.
@@ -191,7 +179,6 @@ RULES = (
             "(with Hume); KrV B127 names him explicitly."
         ),
     ),
-
     # Newton — Kant's scientific authority. The Critique of Pure
     # Reason is methodologically Newtonian; the Metaphysical
     # Foundations of Natural Science is essentially commentary on

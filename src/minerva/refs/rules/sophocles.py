@@ -44,7 +44,6 @@ RULES = (
         confidence=0.6,
         langs=("eng",),
     ),
-
     # ── Hesiod ───────────────────────────────────────────────────
     AuthorMentionRule(
         name="sophocles_hesiod_grc",
