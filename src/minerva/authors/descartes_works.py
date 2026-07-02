@@ -102,6 +102,44 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="descartes",
         author="Descartes",
     ),
+    CorpusWork(
+        code="objections",
+        # The seven sets of Objections to the Meditations and
+        # Descartes' Replies — Clerselier's 1647 French translation as
+        # printed in Cousin's 1824 Œuvres (fr.wikisource transcription;
+        # see perseus/download_descartes_objections.py). Coverage: sets
+        # I–IV complete, V objections only, VI complete. Réponses V,
+        # the Septièmes (Bourdin) set, and the letter to Clerselier are
+        # not transcribed on fr.wikisource — an AT VII re-source would
+        # be needed for those.
+        #
+        # ⚠ Attribution: the Objections are NOT Descartes's — the
+        # splitter types them block_type='objection' with the objector
+        # (Caterus/Mersenne/Hobbes/Arnauld/Gassendi/…) in `speaker`,
+        # and `retrieve.format_locator` cites them as
+        # "… — objection (Hobbes)". Only the Replies speak as
+        # Descartes.
+        title="Objections et Réponses",
+        translator="Clerselier (éd. Cousin)",
+        edition_year="1647",
+        filenames=(
+            "objections_obj1.html",
+            "objections_rep1.html",
+            "objections_obj2.html",
+            "objections_rep2.html",
+            "objections_obj3.html",
+            "objections_obj4.html",
+            "objections_rep4.html",
+            "objections_obj5.html",
+            "objections_obj6.html",
+            "objections_rep6.html",
+        ),
+        fmt="html",
+        locator="descartes_objections",
+        lang="fra",
+        corpus="descartes",
+        author="Descartes",
+    ),
 )
 
 

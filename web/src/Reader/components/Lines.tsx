@@ -85,6 +85,11 @@ export function Lines(props: {
               // Structural role (Hegel Remark/Addition, etc.). Absent for
               // ordinary body prose; reader.css indents the set-apart blocks.
               data-block={chunk.block_type ?? undefined}
+              // Objections carry the objector's name (Hobbes, Arnauld, …);
+              // reader.css renders it as a small voice tag above the block.
+              data-speaker={
+                chunk.block_type === "objection" ? (chunk.speaker ?? undefined) : undefined
+              }
             >
               <span class="num">{chunk.section ?? chunk.ord + 1}</span>
               <span class="text" dir={isRtl() ? "rtl" : undefined}>

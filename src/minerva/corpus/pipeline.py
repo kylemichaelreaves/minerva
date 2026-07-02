@@ -24,6 +24,7 @@ from ..tei import Chunk
 from .split_aquinas import split_aquinas
 from .split_augustine import split_augustine
 from .split_descartes import split_descartes, split_descartes_articles
+from .split_descartes_objections import split_descartes_objections
 from .split_ekgwb import split_ekgwb
 from .split_hegel_pr_de import split_hegel_pr_de
 from .split_hegel_pr_epub import split_hegel_pr_epub
@@ -102,6 +103,12 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             # thelatinlibrary.com per-Part markup — splits each proposition
             # into its geometric apparatus and types Scholia as 'remark'.
             yield from split_spinoza_ethica(path, work)
+            return
+        if work.locator == "descartes_objections":
+            # Objections & Réponses (fr.wikisource Parsoid HTML):
+            # voice-aware parser typing objector paragraphs
+            # block_type='objection' with the objector in `speaker`.
+            yield from split_descartes_objections(path, work)
             return
         if "ZENO_PAGE:" in raw:
             yield from split_zeno_pages(raw, work, path)

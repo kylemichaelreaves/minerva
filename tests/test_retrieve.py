@@ -156,6 +156,35 @@ def test_format_locator_attributes_apparatus_to_translator():
     assert retrieve.format_locator(body_meta).startswith("Plato, Republic 327a")
 
 
+def test_format_locator_attributes_objection_to_objector():
+    """An objection locator names the objector (chunks.speaker) — never
+    Descartes, whose work merely hosts the exchange. See
+    split_descartes_objections.py."""
+    obj_meta = {
+        "author": "Descartes",
+        "work": "Objections et Réponses",
+        "section": "Obj. III, ¶ 3",
+        "speaker": "Hobbes",
+        "translator": "Clerselier (éd. Cousin)",
+        "block_type": "objection",
+    }
+    loc = retrieve.format_locator(obj_meta)
+    assert "Descartes," not in loc
+    assert "objection" in loc
+    assert "Hobbes" in loc
+    assert "Objections et Réponses Obj. III, ¶ 3" in loc
+    # Descartes's replies in the same work are his own words — normal
+    # author attribution.
+    rep_meta = {
+        "author": "Descartes",
+        "work": "Objections et Réponses",
+        "section": "Rép. I, ¶ 2",
+        "speaker": None,
+        "block_type": None,
+    }
+    assert retrieve.format_locator(rep_meta).startswith("Descartes, Objections et Réponses")
+
+
 def test_search_readmits_apparatus_with_attribution(tmp_path: Path):
     """Apparatus is retrievable again (2b), but its citation attributes it to
     the responsible translator/editor — never the philosopher."""

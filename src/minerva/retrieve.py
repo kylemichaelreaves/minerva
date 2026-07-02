@@ -473,6 +473,20 @@ def format_locator(meta: dict) -> str:
         who = _clean_responsible(meta.get("translator"))
         return f"{loc} — {label}" + (f" ({who})" if who else "")
 
+    if block_type == "objection":
+        # A dialectical voice by ANOTHER author hosted in the work —
+        # Hobbes/Caterus/Arnauld/… objecting to Descartes' Meditations.
+        # Cite the objector (stored in `speaker`), never the work's
+        # author: "Objections et Réponses Obj. III, ¶ 3 — objection
+        # (Hobbes)". Unlike note/cast, these stay fully retrievable —
+        # they're substantive philosophy, not editorial apparatus.
+        work = meta.get("work") or ""
+        section = meta.get("section")
+        loc_bits = [b for b in (work, section) if b]
+        loc = " ".join(loc_bits) if loc_bits else "(unknown)"
+        who = meta.get("speaker")
+        return f"{loc} — objection" + (f" ({who})" if who else "")
+
     bits: list[str] = []
     author = meta.get("author") or ""
     work = meta.get("work") or ""
