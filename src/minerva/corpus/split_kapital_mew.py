@@ -43,6 +43,11 @@ _BACKLINK_RE = re.compile(r"<=\s*$")
 # element (<I>, <A>) ends right at it ("Karl Marx , \"Zur Kritik…").
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([,.;:!?)])")
 
+# A chunk must contain at least one letter — Kapital's numeric tables
+# (the Band II reproduction schemas, the wage/price tables) linearize
+# into hundreds of bare-number cell fragments otherwise.
+_HAS_LETTER_RE = re.compile(r"[A-Za-zÄÖÜäöüß]")
+
 # In-page chapter heading, printed centered in ordinal small caps:
 # "ERSTES KAPITEL Die Ware", "SIEBENTES KAPITEL Umschlagszeit und
 # Umschlagszahl". Band II's <TITLE> carries only the Abschnitt (part)
@@ -130,6 +135,12 @@ def split_kapital_mew(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     for p in soup.find_all("p"):
         if p.find("hr") is not None:
             continue
+        # Table cells: Kapital's schemas and wage tables are 2-D
+        # layouts that don't survive linearization ("60 + 60 = 120",
+        # "Pfd.St.", bare digits, one cell per chunk). The surrounding
+        # prose narrates every table; skip the cells.
+        if p.find_parent("table") is not None:
+            continue
 
         # Track the MEW page: the first S-anchor in this paragraph
         # dates the paragraph's start.
@@ -142,7 +153,7 @@ def split_kapital_mew(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             cur_page = s_anchors[0]
         text = _norm_text(_PAGE_MARK_RE.sub(" ", raw))
         text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
-        if not text:
+        if not text or not _HAS_LETTER_RE.search(text):
             continue
         if text == "Fußnoten":
             in_footnotes = True
