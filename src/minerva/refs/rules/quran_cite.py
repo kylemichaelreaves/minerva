@@ -99,8 +99,7 @@ _SURAH_LEXICON: dict[str, int] = _build_surah_lexicon()
 # longest-first so ``Al-Baqarah`` (10 chars) doesn't get truncated to
 # ``Al-Baqara`` (9 chars) by a shorter alternate.
 _SURAH_NAMES_PATTERN = "|".join(
-    re.escape(name)
-    for name in sorted(_SURAH_LEXICON.keys(), key=len, reverse=True)
+    re.escape(name) for name in sorted(_SURAH_LEXICON.keys(), key=len, reverse=True)
 )
 _SURAH_NAME_REF_RE = re.compile(
     rf"""
@@ -194,8 +193,7 @@ class QuranCiteRule:
             # Skip overlapping matches with Pass 1 (a ``Q 2:255``
             # adjacent to ``Quran`` could double-match; trust Pass 1).
             if any(
-                seen[0] <= span[0] < seen[1] or span[0] <= seen[0] < span[1]
-                for seen in seen_spans
+                seen[0] <= span[0] < seen[1] or span[0] <= seen[0] < span[1] for seen in seen_spans
             ):
                 continue
 

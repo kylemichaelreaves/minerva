@@ -216,9 +216,57 @@ class ScriptureCiteRuleFr(BaseScriptureCiteRule):
     ambiguous_bare = _AMBIGUOUS_BARE_FR
 
 
-def default_scripture_rules(prefix: str) -> tuple[ScriptureCiteRuleDe, ScriptureCiteRuleEn]:
-    """Standard DE + EN scripture cite rules for 19th-c. philosophers."""
+# 19th-c French scholarly convention (Renan's citations): a comma
+# after the book name and the CHAPTER in lowercase Roman — "Luc,
+# xxiii, 34", "Matth., xxvi, 39". `_parse_cite_num` in the base rule
+# converts the Roman token; the lexicon gate on the book abbreviation
+# keeps stray letter-runs from firing (a match needs a recognized
+# book name AND a following digit verse).
+_CITE_RE_FR_ROMAN = re.compile(
+    # Chapters appear in lowercase ("Luc, xxiii") AND uppercase
+    # ("Matth., XXIV") roman — the two alternates below don't allow
+    # mixed case (mixed-case runs are OCR noise). Verses stay
+    # digits-only: a roman verse group would swallow French "il"
+    # ("Marc, ii, il dit…" → Mark 2:49).
+    r"(?:\b(?P<prefix>I{1,3}V?|[1-3])\s*\.?\s*)?"
+    r"\b(?P<abbr>[A-ZÉÈÀ][A-Za-zéèàç]{1,8})\.?,?"
+    r"\s+"
+    r"(?P<chap>\d{1,3}|[ivxlc]{1,7}|[IVXLC]{1,7})"
+    r"\s*[,:.]\s*"
+    r"(?P<verse>\d{1,3})"
+    r"(?:\s*[-–]\s*\d{1,3})?"
+)
+
+
+@dataclass(frozen=True)
+class ScriptureCiteRuleFrRoman(BaseScriptureCiteRule):
+    """French rule accepting Roman-numeral chapters and a comma after
+    the book abbreviation — the 19th-c convention Renan uses
+    throughout (Vie de Jésus, L'Antéchrist, Histoire du peuple
+    d'Israël)."""
+
+    name: str = "scripture_cite_sacy_fr_roman"
+    target_author: str = "Sacy"
+    langs: tuple[str, ...] = ("fra",)
+
+    lexicon = _LEXICON_FR
+    cite_re = _CITE_RE_FR_ROMAN
+    ambiguous_bare = _AMBIGUOUS_BARE_FR
+
+
+def default_scripture_rules(
+    prefix: str,
+) -> tuple[BaseScriptureCiteRule, ...]:
+    """Standard vernacular scripture cite rules for 19th-c authors.
+
+    Includes DE + EN + both French shapes. Every rule is lang-gated,
+    so a source corpus only ever fires the rules for languages it
+    actually contains — including all four here used to silently
+    hand a *French* author (Renan, via the YAML loader) only German
+    and English rules, making ~1,265 cite-bearing chunks invisible."""
     return (
         ScriptureCiteRuleDe(name=f"{prefix}_scripture_cite_de"),
         ScriptureCiteRuleEn(name=f"{prefix}_scripture_cite_en"),
+        ScriptureCiteRuleFr(name=f"{prefix}_scripture_cite_fr"),
+        ScriptureCiteRuleFrRoman(name=f"{prefix}_scripture_cite_fr_roman"),
     )

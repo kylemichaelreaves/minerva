@@ -48,7 +48,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # ── Plato ─────────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_plato_grc",
@@ -70,7 +69,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # ── Hesiod ────────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_hesiod_grc",
@@ -88,7 +86,6 @@ RULES = (
         confidence=0.65,
         langs=("eng",),
     ),
-
     # ── Heraclitus ────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_heraclitus_grc",
@@ -106,7 +103,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Parmenides ────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_parmenides_grc",
@@ -124,7 +120,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Empedocles ────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_empedocles_grc",
@@ -142,7 +137,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Anaxagoras ────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_anaxagoras_grc",
@@ -160,15 +154,18 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Pythagoras / Pythagoreans ─────────────────────────────────
     AuthorMentionRule(
         name="aristotle_pythagoras_grc",
         target_author="Pythagoras",
         target_work="",
         forms=(
-            "Πυθαγόρας", "Πυθαγόρου", "Πυθαγόραν", "Πυθαγόρᾳ",
-            "Πυθαγόρειοι", "Πυθαγόρειος",
+            "Πυθαγόρας",
+            "Πυθαγόρου",
+            "Πυθαγόραν",
+            "Πυθαγόρᾳ",
+            "Πυθαγόρειοι",
+            "Πυθαγόρειος",
         ),
         confidence=0.65,
         langs=("grc",),
@@ -181,7 +178,6 @@ RULES = (
         confidence=0.65,
         langs=("eng",),
     ),
-
     # ── Democritus ────────────────────────────────────────────────
     AuthorMentionRule(
         name="aristotle_democritus_grc",
@@ -199,7 +195,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Aeschylus (Poetics, Politics) ─────────────────────────────
     # Aristotle names Aeschylus as a structural innovator in the
     # Poetics 1449a — "two actors instead of one, primary role to
@@ -220,7 +215,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # ── Sophocles (Poetics — Oedipus is THE tragic exemplar) ──────
     AuthorMentionRule(
         name="aristotle_sophocles_grc",
@@ -243,7 +237,6 @@ RULES = (
         confidence=0.8,
         langs=("eng",),
     ),
-
     # ── Euripides ──────────────────────────────────────────────────
     # Aristotle calls Euripides "the most tragic of poets" (Poetics
     # 1453a) despite his structural complaints — heavy citation.
@@ -263,7 +256,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # Theognis — NE IX.9 (1170a) quotes the "ἀνδρὸς γνωμη" proverb
     # often attributed to Theognis; other elegiac quotations recur in
     # the ethical works.
@@ -283,7 +275,6 @@ RULES = (
         confidence=0.85,
         langs=("eng",),
     ),
-
     # Aesop — *Rhetoric* II.20 (1393b8) names Aesop as paradigmatic
     # source of rhetorical *paradeigma* (example by fable). The
     # *Meteorologica* and *Historia Animalium* also cite Aesopic

@@ -8,7 +8,7 @@ a lexicon, cite regex, and ambiguous-bare set.
 from ._base import BaseScriptureCiteRule
 from .de import ScriptureCiteRuleDe
 from .en import ScriptureCiteRuleEn
-from .fr import ScriptureCiteRuleFr, default_scripture_rules
+from .fr import ScriptureCiteRuleFr, ScriptureCiteRuleFrRoman, default_scripture_rules
 from .lat import FormulaicQuoteRule, ScriptureCiteRule
 from .lexicon import _CITE_RE, _LEXICON, _sbl_abbr_for
 
@@ -21,6 +21,7 @@ __all__ = [
     "ScriptureCiteRuleDe",
     "ScriptureCiteRuleEn",
     "ScriptureCiteRuleFr",
+    "ScriptureCiteRuleFrRoman",
     "_sbl_abbr_for",
     "default_scripture_rules",
 ]

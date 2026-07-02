@@ -52,7 +52,6 @@ RULES = (
             "running commentary footnotes also use the word."
         ),
     ),
-
     # ── Hesiod ───────────────────────────────────────────────────
     AuthorMentionRule(
         name="aeschylus_hesiod_grc",

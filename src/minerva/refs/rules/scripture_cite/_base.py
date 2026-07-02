@@ -26,6 +26,33 @@ from .lexicon import (
     _sbl_abbr_for,
 )
 
+_ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
+
+
+def _parse_cite_num(raw: str) -> int | None:
+    """Chapter/verse token → int. Accepts Arabic digits and Roman
+    numerals in either case — 19th-c French editions cite chapters in
+    lowercase Roman ("Luc, xxiii, 34" = Luke 23:34). Returns None for
+    malformed or implausible values (0, or beyond Ps 150) so the
+    caller can skip the match instead of emitting garbage."""
+
+    raw = raw.strip()
+    if raw.isdigit():
+        n = int(raw)
+        return n if 1 <= n <= 176 else None  # Ps 119 has 176 verses
+    total = 0
+    prev = 0
+    for ch in reversed(raw.lower()):
+        val = _ROMAN_VALUES.get(ch)
+        if val is None:
+            return None
+        if val < prev:
+            total -= val
+        else:
+            total += val
+            prev = val
+    return total if 1 <= total <= 176 else None
+
 
 @dataclass(frozen=True)
 class BaseScriptureCiteRule:
@@ -82,11 +109,16 @@ class BaseScriptureCiteRule:
                 # entry shouldn't kill the batch.
                 continue
 
-            chap = int(m.group("chap"))
+            chap = _parse_cite_num(m.group("chap"))
+            if chap is None:
+                continue
             verse_raw = m.group("verse")
 
             if verse_raw:
-                target_locator = f"{sbl} {chap}:{int(verse_raw)}"
+                verse = _parse_cite_num(verse_raw)
+                if verse is None:
+                    continue
+                target_locator = f"{sbl} {chap}:{verse}"
                 conf = _CONF_FULL
             else:
                 # Chapter-level locator (Latin only — the vernacular

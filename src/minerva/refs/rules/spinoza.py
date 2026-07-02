@@ -36,7 +36,6 @@ RULES = (
             "every mention is Descartes, no ambiguity."
         ),
     ),
-
     AuthorMentionRule(
         name="spinoza_maimonides",
         target_author="Maimonides",
@@ -44,12 +43,8 @@ RULES = (
         forms=("Maimonides", "Maimonidis", "Maimonidem"),
         confidence=0.75,
         langs=("lat",),
-        note=(
-            "Maimonides is named in the TTP's chapters on prophecy and "
-            "biblical hermeneutics."
-        ),
+        note=("Maimonides is named in the TTP's chapters on prophecy and biblical hermeneutics."),
     ),
-
     AuthorMentionRule(
         name="spinoza_hobbes",
         target_author="Hobbes",
@@ -59,7 +54,6 @@ RULES = (
         langs=("lat",),
         note="The TTP and TP engage Hobbesian contractualism by name.",
     ),
-
     AuthorMentionRule(
         name="spinoza_aristoteles",
         target_author="Aristotle",
@@ -73,7 +67,6 @@ RULES = (
         confidence=0.6,
         langs=("lat",),
     ),
-
     AuthorMentionRule(
         name="spinoza_plato",
         target_author="Plato",
@@ -82,7 +75,6 @@ RULES = (
         confidence=0.55,
         langs=("lat",),
     ),
-
     AuthorMentionRule(
         name="spinoza_seneca",
         target_author="Seneca",  # out-of-corpus

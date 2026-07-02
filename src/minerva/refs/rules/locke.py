@@ -32,7 +32,6 @@ RULES = (
     # is the densest biblical engagement; the Essay scatters cites
     # throughout the chapters on revelation and faith.
     ScriptureCiteRuleEn(name="locke_scripture_cite_en"),
-
     # Descartes — Locke's central epistemological target in the
     # Essay. The innate-ideas critique in Book I is essentially a
     # reply to Cartesian rationalism.
@@ -44,7 +43,6 @@ RULES = (
         confidence=0.75,
         langs=("eng",),
     ),
-
     # Hobbes — engaged in the Second Treatise on sovereignty and the
     # state of nature. Less explicit by name than Filmer but the
     # references that DO appear are deliberate.
@@ -56,7 +54,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # Aristotle — both works engage Aristotle. The Essay (Bk IV) on
     # syllogism / scholastic logic; the Second Treatise on natural
     # law inheritance from the Politics.
@@ -68,7 +65,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # Hooker — the "judicious Hooker" Locke quotes at length in
     # the Second Treatise. Out-of-corpus target until Hooker is
     # ingested directly.
@@ -85,7 +81,6 @@ RULES = (
             "in the Second Treatise."
         ),
     ),
-
     # Filmer — the explicit target of the First Treatise; named
     # references survive in the Second. Out-of-corpus target.
     StrongMentionRule(
@@ -101,7 +96,6 @@ RULES = (
             "refutation. Out-of-corpus target."
         ),
     ),
-
     # Cicero — natural-law authority cited in the Second Treatise.
     AuthorMentionRule(
         name="locke_cicero",
@@ -110,12 +104,8 @@ RULES = (
         forms=("Cicero", "Tully"),
         confidence=0.7,
         langs=("eng",),
-        note=(
-            "Locke cites Cicero on natural law and natural rights, "
-            "often via the De Officiis."
-        ),
+        note=("Locke cites Cicero on natural law and natural rights, often via the De Officiis."),
     ),
-
     # The Schoolmen — same convention Hobbes uses; routed to
     # Aquinas as the in-corpus representative.
     StrongMentionRule(
@@ -131,7 +121,6 @@ RULES = (
             "in-corpus scholastic; downstream verification can broaden."
         ),
     ),
-
     # Spinoza — contemporary; Locke references Spinoza occasionally
     # in the Essay's discussion of substance and in the Letters
     # Concerning Toleration.

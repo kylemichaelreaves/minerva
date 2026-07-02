@@ -41,7 +41,6 @@ RULES = (
         confidence=0.6,
         langs=("eng",),
     ),
-
     # ── Hesiod ───────────────────────────────────────────────────
     AuthorMentionRule(
         name="euripides_hesiod_grc",
@@ -59,7 +58,6 @@ RULES = (
         confidence=0.6,
         langs=("eng",),
     ),
-
     # ── Anaxagoras (his teacher per ancient testimony) ───────────
     AuthorMentionRule(
         name="euripides_anaxagoras_grc",
@@ -83,7 +81,6 @@ RULES = (
         confidence=0.6,
         langs=("eng",),
     ),
-
     # ── Protagoras (sophistic milieu) ────────────────────────────
     AuthorMentionRule(
         name="euripides_protagoras_grc",
@@ -107,7 +104,6 @@ RULES = (
         confidence=0.55,
         langs=("eng",),
     ),
-
     # ── Aeschylus (intra-tragedian — rare but attested) ──────────
     # Euripides' *Frogs* fame — Aristophanes' parodic confrontation
     # of Euripides with Aeschylus — depends on real intertextual

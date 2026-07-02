@@ -30,10 +30,10 @@ RULES = (
         target_work="",
         forms=(
             # Polytonic Greek inflections
-            "Ὅμηρος",   # nom
-            "Ὁμήρου",   # gen
-            "Ὅμηρον",   # acc
-            "Ὁμήρῳ",    # dat
+            "Ὅμηρος",  # nom
+            "Ὁμήρου",  # gen
+            "Ὅμηρον",  # acc
+            "Ὁμήρῳ",  # dat
         ),
         confidence=0.7,
         langs=("grc",),
@@ -51,7 +51,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Hesiod (out-of-corpus) ────────────────────────────────────
     AuthorMentionRule(
         name="plato_hesiod_grc",
@@ -69,7 +68,6 @@ RULES = (
         confidence=0.65,
         langs=("eng",),
     ),
-
     # ── Heraclitus (out-of-corpus) ────────────────────────────────
     AuthorMentionRule(
         name="plato_heraclitus_grc",
@@ -87,7 +85,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Parmenides (out-of-corpus, also a dialogue title) ─────────
     AuthorMentionRule(
         name="plato_parmenides_grc",
@@ -101,7 +98,6 @@ RULES = (
             "title; the LLM stage filters out the self-references."
         ),
     ),
-
     # ── Anaxagoras (out-of-corpus) ────────────────────────────────
     AuthorMentionRule(
         name="plato_anaxagoras_grc",
@@ -119,15 +115,18 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Pythagoras (out-of-corpus) ────────────────────────────────
     AuthorMentionRule(
         name="plato_pythagoras_grc",
         target_author="Pythagoras",
         target_work="",
         forms=(
-            "Πυθαγόρας", "Πυθαγόρου", "Πυθαγόραν", "Πυθαγόρᾳ",
-            "Πυθαγόρειοι", "Πυθαγόρειος",
+            "Πυθαγόρας",
+            "Πυθαγόρου",
+            "Πυθαγόραν",
+            "Πυθαγόρᾳ",
+            "Πυθαγόρειοι",
+            "Πυθαγόρειος",
         ),
         confidence=0.6,
         langs=("grc",),
@@ -140,7 +139,6 @@ RULES = (
         confidence=0.6,
         langs=("eng",),
     ),
-
     # ── Aeschylus ─────────────────────────────────────────────────
     # Republic Bk II–III cites tragedy as part of the censorship
     # discussion; Symposium 188c and Republic 361b–c quote Aeschylus
@@ -161,7 +159,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Sophocles ─────────────────────────────────────────────────
     # Republic Bk I opens with the famous Sophocles-on-old-age
     # anecdote (329b-c) — "no longer the master of a savage tyrant."
@@ -181,7 +178,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # ── Euripides ─────────────────────────────────────────────────
     # Symposium 177a, Phaedo 102d, Republic Bk VIII; the Apology
     # alludes to Euripides without naming him (caught by the
@@ -202,7 +198,6 @@ RULES = (
         confidence=0.7,
         langs=("eng",),
     ),
-
     # Theognis — Plato cites Theognis in *Meno* 95d-96a (the "good
     # men come from good men" elegy) and *Laws* I 630a. Both passages
     # name Theognis explicitly.
@@ -223,7 +218,6 @@ RULES = (
         confidence=0.9,
         langs=("eng",),
     ),
-
     # Aesop — *Phaedo* 60c-61b: Socrates in prison versifies Aesop.
     AuthorMentionRule(
         name="plato_aesop",

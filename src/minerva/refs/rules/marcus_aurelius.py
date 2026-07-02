@@ -41,7 +41,6 @@ RULES = (
             "Epictetus's writings."
         ),
     ),
-
     # Socrates — recurring exemplar.
     StrongMentionRule(
         name="marcus_aurelius_socrates",
@@ -58,7 +57,6 @@ RULES = (
         confidence=0.9,
         langs=("grc", "eng"),
     ),
-
     # Heraclitus — cited on flux and logos.
     AuthorMentionRule(
         name="marcus_aurelius_heraclitus",
@@ -74,7 +72,6 @@ RULES = (
         confidence=0.88,
         langs=("grc", "eng"),
     ),
-
     # Chrysippus — out-of-corpus Stoic.
     AuthorMentionRule(
         name="marcus_aurelius_chrysippus",
@@ -84,7 +81,6 @@ RULES = (
         confidence=0.85,
         langs=("grc", "eng"),
     ),
-
     # Plato — referenced occasionally.
     AuthorMentionRule(
         name="marcus_aurelius_plato",
@@ -94,7 +90,6 @@ RULES = (
         confidence=0.75,
         langs=("grc", "eng"),
     ),
-
     # Pythagoras — referenced in Meditations VI.47.
     AuthorMentionRule(
         name="marcus_aurelius_pythagoras",

@@ -38,7 +38,6 @@ RULES = (
     # and Latin abbrevs ("Rom. 1, 18" alongside "Romanos 1:18"); the
     # rule tolerates both separators.
     ScriptureCiteRuleFr(name="pascal_scripture_cite_fr"),
-
     # Augustine — Pascal's central theological authority. Strong
     # rule because the references are explicit and the Jansenist /
     # Augustinian framework makes "saint Augustin" essentially
@@ -64,7 +63,6 @@ RULES = (
             "framework of *De gratia et libero arbitrio*."
         ),
     ),
-
     # Descartes — explicitly polemicized in several Pensées
     # fragments ("Descartes inutile et incertain"). Cartesian as
     # an adjective is unambiguous in Pascal's French.
@@ -84,7 +82,6 @@ RULES = (
         confidence=0.75,
         langs=("fra",),
     ),
-
     # Montaigne — Pascal's primary modern interlocutor in the
     # Pensées. The Pensées fragments on l'homme / condition
     # humaine essentially commentary on the Essais.
@@ -97,7 +94,6 @@ RULES = (
         langs=("fra",),
         note="Pascal's *Pensées* engages Montaigne throughout.",
     ),
-
     # Plato — referenced in the L'Esprit géométrique tradition
     # and as part of the philosophical authorities Pascal critiques.
     AuthorMentionRule(
@@ -108,7 +104,6 @@ RULES = (
         confidence=0.65,
         langs=("fra",),
     ),
-
     # Aristotle — the scholastic Aristotle Pascal is often
     # implicitly arguing against ("ils ont mis tout leur soin à
     # savoir Aristote").
@@ -127,7 +122,6 @@ RULES = (
         confidence=0.7,
         langs=("fra",),
     ),
-
     # Epictetus — Pascal's "Entretien avec M. de Sacy sur Épictète
     # et Montaigne" pairs Epictetus and Montaigne as the two great
     # representatives of pagan ethics. Strong rule.
@@ -144,7 +138,6 @@ RULES = (
             "interlocutors."
         ),
     ),
-
     # Cicero — Pascal references Cicero in the Pensées, often via
     # the French form "Cicéron".
     AuthorMentionRule(
@@ -155,7 +148,6 @@ RULES = (
         confidence=0.85,
         langs=("fra",),
     ),
-
     # Origen — the *Pensées* cite the Church Fathers occasionally for
     # apologetic / prophecy / miracle arguments. Origen is named in a
     # handful of fragments; the French form is "Origène".

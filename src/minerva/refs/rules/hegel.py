@@ -17,7 +17,6 @@ from .scripture_cite import default_scripture_rules
 
 RULES = (
     *default_scripture_rules("hegel"),
-
     AuthorMentionRule(
         name="hegel_kant",
         target_author="Kant",
@@ -38,7 +37,6 @@ RULES = (
             "social-contract project."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_kritik_der_reinen_vernunft",
         target_author="Kant",
@@ -59,7 +57,6 @@ RULES = (
             "the 'Open in reader →' affordance lights up."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_plato",
         target_author="Plato",
@@ -79,7 +76,6 @@ RULES = (
             "Lectures on History of Philosophy II."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_aristotle",
         target_author="Aristotle",
@@ -98,7 +94,6 @@ RULES = (
             "the Encyclopedia's account of Spirit (Enz §§ 377–82)."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_spinoza",
         target_author="Spinoza",
@@ -112,7 +107,6 @@ RULES = (
             "chapter argues this by name."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_descartes",
         target_author="Descartes",
@@ -131,7 +125,6 @@ RULES = (
             "opens with Descartes as the inception of subjectivity."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_fichte",
         target_author="Fichte",  # out-of-corpus target
@@ -145,7 +138,6 @@ RULES = (
             "tradition. Out-of-corpus target."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_schelling",
         target_author="Schelling",  # out-of-corpus target
@@ -153,12 +145,8 @@ RULES = (
         forms=("Schelling", "Schellings", "Schellingian"),
         confidence=0.7,
         langs=("deu", "eng"),
-        note=(
-            "Schelling is the PhG Vorrede's polemical target. Out-of-"
-            "corpus target."
-        ),
+        note=("Schelling is the PhG Vorrede's polemical target. Out-of-corpus target."),
     ),
-
     AuthorMentionRule(
         name="hegel_augustine",
         target_author="Augustine",
@@ -167,7 +155,6 @@ RULES = (
         confidence=0.55,
         langs=("deu", "eng"),
     ),
-
     AuthorMentionRule(
         name="hegel_aquinas",
         target_author="Aquinas",
@@ -180,7 +167,6 @@ RULES = (
             "named in the Lectures on History of Philosophy."
         ),
     ),
-
     # Heraclitus — Hegel's famous admiration: "There is no
     # proposition of Heraclitus which I have not adopted in my
     # Logic." Discussed at length in the Lectures on History of
@@ -205,7 +191,6 @@ RULES = (
             "aufgenommen.'"
         ),
     ),
-
     # Hobbes — engaged in the Philosophy of Right (state of
     # nature, sovereignty) and the LHP Vol III (the modern
     # political philosophy chapter).
@@ -216,12 +201,8 @@ RULES = (
         forms=("Hobbes", "Hobbes'", "Hobbesisch", "Hobbesische", "Hobbesischen"),
         confidence=0.85,
         langs=("deu", "eng"),
-        note=(
-            "Philosophy of Right §§29-30 + LHP Vol III modern "
-            "political philosophy section."
-        ),
+        note=("Philosophy of Right §§29-30 + LHP Vol III modern political philosophy section."),
     ),
-
     # Locke — engaged in LHP Vol III as the founding empiricist.
     AuthorMentionRule(
         name="hegel_locke",
@@ -231,7 +212,6 @@ RULES = (
         confidence=0.85,
         langs=("deu", "eng"),
     ),
-
     # Hume — sceptical empiricism, the bridge to Kant. Discussed
     # in LHP Vol III and referenced throughout the Phenomenology
     # of Spirit's treatment of certainty.
@@ -243,7 +223,6 @@ RULES = (
         confidence=0.85,
         langs=("deu", "eng"),
     ),
-
     # Rousseau — engaged in the Philosophy of Right (general will,
     # contract theory) and LHP Vol III.
     AuthorMentionRule(
@@ -259,11 +238,8 @@ RULES = (
         ),
         confidence=0.85,
         langs=("deu", "eng"),
-        note=(
-            "Philosophy of Right §§29-30 (general will) + LHP Vol III."
-        ),
+        note=("Philosophy of Right §§29-30 (general will) + LHP Vol III."),
     ),
-
     # Pascal — referenced occasionally in the Phenomenology of
     # Religion and the LHP Vol III.
     AuthorMentionRule(
@@ -274,7 +250,6 @@ RULES = (
         confidence=0.75,
         langs=("deu", "eng"),
     ),
-
     # Cicero — engaged in LHP Vol I (Hellenistic section).
     AuthorMentionRule(
         name="hegel_cicero",
@@ -285,7 +260,6 @@ RULES = (
         langs=("deu", "eng"),
         note="LHP Vol I Hellenistic + LHP Vol II Latin patristic sections.",
     ),
-
     # Lucretius — discussed in LHP Vol I as the Epicurean.
     AuthorMentionRule(
         name="hegel_lucretius",
@@ -295,7 +269,6 @@ RULES = (
         confidence=0.85,
         langs=("deu", "eng"),
     ),
-
     # Democritus + Epicurus — LHP Vol I devotes a full atomism section
     # to Leukipp/Demokrit (the founders) and Epikur (the systematizer).
     # The Phänomenologie's sense-certainty critique and the
@@ -317,7 +290,6 @@ RULES = (
         confidence=0.88,
         langs=("deu", "eng"),
     ),
-
     # Epictetus — Stoic discussion in LHP Vol I and the Stoicism
     # chapter of the Phenomenology of Spirit.
     AuthorMentionRule(
@@ -328,7 +300,6 @@ RULES = (
         confidence=0.88,
         langs=("deu", "eng"),
     ),
-
     # Marcus Aurelius — paired with Epictetus in the LHP Stoicism
     # section.
     AuthorMentionRule(
@@ -339,7 +310,6 @@ RULES = (
         confidence=0.85,
         langs=("deu", "eng"),
     ),
-
     # ── Tragedians ────────────────────────────────────────────────
     # The Phänomenologie's Antigone reading (Section C, VI.A.a — the
     # "Sittlichkeit" chapter) and the Vorlesungen über die Ästhetik's
@@ -354,8 +324,11 @@ RULES = (
         target_author="Aeschylus",
         target_work="",
         forms=(
-            "Äschylus", "Aeschylus", "Aischylos",
-            "äschyleisch", "äschyleische",
+            "Äschylus",
+            "Aeschylus",
+            "Aischylos",
+            "äschyleisch",
+            "äschyleische",
         ),
         confidence=0.85,
         langs=("deu", "eng"),
@@ -365,8 +338,11 @@ RULES = (
         target_author="Sophocles",
         target_work="",
         forms=(
-            "Sophokles", "Sophocles",
-            "sophokleisch", "sophokleische", "Sophoclean",
+            "Sophokles",
+            "Sophocles",
+            "sophokleisch",
+            "sophokleische",
+            "Sophoclean",
         ),
         confidence=0.9,
         langs=("deu", "eng"),
@@ -382,13 +358,14 @@ RULES = (
         target_author="Euripides",
         target_work="",
         forms=(
-            "Euripides", "Euripideisch",
-            "euripideisch", "euripideische",
+            "Euripides",
+            "Euripideisch",
+            "euripideisch",
+            "euripideische",
         ),
         confidence=0.8,
         langs=("deu", "eng"),
     ),
-
     # Aesop — the marquee link is the Preface to *Philosophy of Right*:
     # Hegel's "Hic Rhodus, hic salta" Latin tag and his German
     # "Hier ist die Rose, hier tanze" are both renderings of Aesop's
@@ -407,7 +384,6 @@ RULES = (
             "Athlete fable (Babrius 47 / Perry 33)."
         ),
     ),
-
     # Origen — LHP Vol II patristic section discusses Origen on
     # allegorical exegesis and the Logos doctrine.
     AuthorMentionRule(
@@ -418,7 +394,6 @@ RULES = (
         confidence=0.82,
         langs=("deu", "eng"),
     ),
-
     # Celsus — Hegel knows Celsus only via Origen; named in the LHP
     # patristic section as exemplar pagan critic of Christianity.
     AuthorMentionRule(
@@ -430,7 +405,6 @@ RULES = (
         langs=("deu", "eng"),
         note="LHP Vol II patristic-era discussion. Out-of-corpus.",
     ),
-
     # ─── Homer ───────────────────────────────────────────────────
     # Hegel cites Homer across the Phenomenology, the Aesthetics, the
     # Philosophy of Right (Preface — *Penelope's weaving* as figure
@@ -474,7 +448,6 @@ RULES = (
             "treats Iliad as the paradigmatic epic."
         ),
     ),
-
     AuthorMentionRule(
         name="hegel_schiller",
         target_author="Schiller",
