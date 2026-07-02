@@ -304,10 +304,14 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
         help="Directory of clean Marx HTML-derived texts (see authors/marx_works.py).",
     ),
     IngestSource(
-        "marx_ocr",
-        _P / "data" / "marx" / "raw_deu_ocr",
-        _module_parse_dir("sources.marx_de"),
-        help="Directory of Marx Kapital IA-OCR texts (see marx_de.py).",
+        "marx_mew",
+        _P / "data" / "marx" / "raw_mew",
+        _corpus_label("marx-mew", "marx_works"),
+        help=(
+            "Das Kapital I-III per-chapter MEW pages (mlwerke.de via "
+            "Wayback; see perseus/download_kapital_mew.py). Replaces "
+            "the old marx_ocr IA-OCR source."
+        ),
     ),
     IngestSource(
         "nietzsche",
@@ -481,7 +485,7 @@ INGEST_ID_TO_CORPUS: dict[str, str] = {
     "hobbes_la": "hobbes",
     "kant_en": "kant",
     "lxx": "septuagint",
-    "marx_ocr": "marx",
+    "marx_mew": "marx",
     "nt": "new_testament",
     "origen_eng": "origen",
     "origen_grc": "origen",
