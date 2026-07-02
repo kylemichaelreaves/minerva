@@ -8,9 +8,10 @@ extracted plain text.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import urllib.parse
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from ..corpus_extract import IngestDepsMissing
@@ -37,6 +38,51 @@ def _derive_zeno_heading(page_path: str, root_path: str) -> str:
     rel = page_path[len(root_path) + 1 :] if page_path.startswith(root_path + "/") else page_path
     rel = urllib.parse.unquote(rel.replace("+", " "))
     return rel.replace("/", " › ")
+
+
+# ── Kant Anmerkungen ─────────────────────────────────────────────
+# Kant sets his Anmerkungen (remarks) apart with a standalone
+# "Anmerkung" / "Anmerkung I" head line; zeno's paragraph stream turns
+# that head into its own tiny chunk and leaves the remark body
+# indistinguishable from the main argument (Mode 2 of the
+# block-structure remediation). Type the head AND the following
+# paragraphs block_type='remark' until the next structural head
+# (Beweis / Folgerung / Lehrsatz / § …) or the page ends. Typing only —
+# text is untouched, so chunk_ids (and embeddings) stay stable.
+# "Anmerkung" / "Anmerkung I" / "Anmerkung 2", plus MAN's long-form
+# "Allgemeine Anmerkung zur Dynamik/Mechanik/Phänomenologie" heads.
+_REMARK_HEAD_RE = re.compile(
+    r"^Anmerkung(\s+(?:[IVX]+|\d+))?\s*\.?$|^Allgemeine Anmerkung\b[^.]{0,60}\.?$"
+)
+
+# Structural heads that close a remark. Kant's section-internal heads
+# are short standalone lines built from a small vocabulary — plus
+# enumerated sub-heads ("II. Vom Geize", "A. Der Hochmut") in the
+# Tugendlehre. The length cap keeps ordinary short sentences from
+# matching.
+_STRUCT_HEAD_RE = re.compile(
+    r"^[§\s0-9IVX.]*"
+    r"(Lehrsatz|Erklärung|Beweis|Folgerung|Zusatz|Aufgabe|Grundgesetz|Grundsatz|"
+    r"Postulat|Definition|Scholie|Scholium|Corollarium|Kasuistische Fragen)\b"
+    r"|^(?:[IVX]+|[A-Z]|\d+)\.\s+\S"
+)
+_STRUCT_HEAD_MAX_CHARS = 40
+
+
+def _type_kant_remarks(chunks: Iterable[Chunk]) -> Iterator[Chunk]:
+    """Post-pass over one zeno page's chunks: type Anmerkung blocks."""
+
+    in_remark = False
+    for chunk in chunks:
+        text = chunk.text.strip()
+        if _REMARK_HEAD_RE.match(text):
+            in_remark = True
+        elif in_remark and len(text) <= _STRUCT_HEAD_MAX_CHARS and _STRUCT_HEAD_RE.match(text):
+            in_remark = False
+        if in_remark:
+            yield dataclasses.replace(chunk, block_type="remark")
+        else:
+            yield chunk
 
 
 def split_zeno_pages(html: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
@@ -107,4 +153,10 @@ def split_zeno_pages(html: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
         # rather than attributing it to the work's author.
         if _is_editorial_heading(heading):
             continue
-        yield from _split_chapter_block(work, path, heading, page_text)
+        page_chunks = _split_chapter_block(work, path, heading, page_text)
+        if work.author == "Kant":
+            # Remark-mode state is per page — a new ZENO_PAGE always
+            # starts back in the main voice.
+            yield from _type_kant_remarks(page_chunks)
+        else:
+            yield from page_chunks
