@@ -14,12 +14,13 @@
   pages under projekt-gutenberg.org/authors/karl-marx/books/<slug>/
   chapter/<n>; concatenated with KAPITEL N headers.
 
-* Internet Archive OCR (3): Das Kapital Bd 1 / Bd 2 / Bd 3.
-  Bd 1 = `daskapitalkritik67marx` (1867 Fraktur, the original Marx
-  edition); Bd 2 = `ldpd_13046079_002` (Engels 1885); Bd 3 =
-  `ldpd_13046079_003` (Engels 1894). All routed through the German
-  state-machine parser at `src/minerva/marx_de.py` for chapter
-  detection on Fraktur OCR.
+* MEW chapter pages (3): Das Kapital Bd 1 / Bd 2 / Bd 3 — MEW 23–25
+  per-chapter HTML from the Wayback snapshot of mlwerke.de
+  (`perseus/download_kapital_mew.py` → `data/marx/raw_mew/`,
+  parsed by `corpus/split_kapital_mew.py` with MEW page numbers and
+  Marx's own footnotes as `remark` chunks). Replaced the 2026-07
+  Internet-Archive Fraktur-OCR source (55 mega-chunks of scan noise
+  in the 1867 six-chapter structure).
 
 * mlwerke.de / web.archive.org snapshots (2): Die deutsche
   Ideologie (14 sub-pages of MEW Bd 3 via web.archive.org snapshot
@@ -37,6 +38,8 @@ raw_deu_ocr directories), not in this works module.
 """
 
 from __future__ import annotations
+
+import re
 
 from ..corpus_works import CorpusWork, make_find_work
 
@@ -209,15 +212,21 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="marx",
         author="Marx",
     ),
-    # ─── Internet Archive OCR (routed to marx_de.py parser) ──────
+    # ─── Das Kapital I–III: MEW 23–25 from mlwerke.de (Wayback) ───
+    # Replaces the Internet-Archive OCR of the 1867 first edition
+    # (55 mega-chunks of scan noise in the six-chapter structure
+    # nobody cites). Files are per-chapter HTML named by MEW start
+    # page (me23_049.htm = "Die Ware", MEW 23 p. 49); the wildcard
+    # matching lives in `find_work` below — `filenames` stays empty.
+    # See perseus/download_kapital_mew.py + corpus/split_kapital_mew.py.
     CorpusWork(
         code="kapital_bd1",
         title="Das Kapital, Band I",
         translator="(Original)",
         edition_year="1867",
-        filenames=("kapital_bd1.txt",),
-        fmt="txt",
-        locator="chapter",
+        filenames=(),
+        fmt="html",
+        locator="kapital_mew",
         lang="deu",
         corpus="marx",
         author="Marx",
@@ -227,9 +236,9 @@ WORKS: tuple[CorpusWork, ...] = (
         title="Das Kapital, Band II",
         translator="(Original)",
         edition_year="1885",
-        filenames=("kapital_bd2.txt",),
-        fmt="txt",
-        locator="chapter",
+        filenames=(),
+        fmt="html",
+        locator="kapital_mew",
         lang="deu",
         corpus="marx",
         author="Marx",
@@ -239,13 +248,36 @@ WORKS: tuple[CorpusWork, ...] = (
         title="Das Kapital, Band III",
         translator="(Original)",
         edition_year="1894",
-        filenames=("kapital_bd3.txt",),
-        fmt="txt",
-        locator="chapter",
+        filenames=(),
+        fmt="html",
+        locator="kapital_mew",
         lang="deu",
         corpus="marx",
         author="Marx",
     ),
 )
 
-find_work = make_find_work(WORKS)
+_base_find_work = make_find_work(WORKS)
+
+_KAPITAL_BY_PREFIX = {
+    "me23": next(w for w in WORKS if w.code == "kapital_bd1"),
+    "me24": next(w for w in WORKS if w.code == "kapital_bd2"),
+    "me25": next(w for w in WORKS if w.code == "kapital_bd3"),
+}
+
+_KAPITAL_FILE_RE = re.compile(r"^(me2[345])_\d+\.html?$")
+
+
+def find_work(filename: str) -> CorpusWork | None:
+    """Exact-name lookup plus the MEW-chapter wildcard: any
+    ``me{23,24,25}_NNN.htm`` file belongs to its Kapital volume (the
+    per-chapter page set is ~110 files, enumerated by the downloader —
+    not worth hard-coding)."""
+
+    w = _base_find_work(filename)
+    if w is not None:
+        return w
+    m = _KAPITAL_FILE_RE.match(filename)
+    if m:
+        return _KAPITAL_BY_PREFIX[m.group(1)]
+    return None

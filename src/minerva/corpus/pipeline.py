@@ -29,6 +29,7 @@ from .split_ekgwb import split_ekgwb
 from .split_hegel_pr_de import split_hegel_pr_de
 from .split_hegel_pr_epub import split_hegel_pr_epub
 from .split_kant import split_by_kant_ab
+from .split_kapital_mew import split_kapital_mew
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
 from .split_spinoza import split_spinoza
 from .split_spinoza_ethica import split_spinoza_ethica
@@ -109,6 +110,12 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             # voice-aware parser typing objector paragraphs
             # block_type='objection' with the objector in `speaker`.
             yield from split_descartes_objections(path, work)
+            return
+        if work.locator == "kapital_mew":
+            # Das Kapital I–III (mlwerke.de MEW pages via Wayback):
+            # paragraph chunks with MEW page numbers + Marx's own
+            # footnotes typed 'remark'. See split_kapital_mew.
+            yield from split_kapital_mew(path, work)
             return
         if "ZENO_PAGE:" in raw:
             yield from split_zeno_pages(raw, work, path)

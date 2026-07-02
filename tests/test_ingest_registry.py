@@ -12,6 +12,6 @@ def test_corpus_slugs_for_ingest_ids_maps_dual_parser_sources():
 
 def test_ingest_id_to_corpus_covers_documented_mismatches():
     # Guard against regressions in the incremental re-ingest workflow.
-    assert INGEST_ID_TO_CORPUS["marx_ocr"] == "marx"
+    assert INGEST_ID_TO_CORPUS["marx_mew"] == "marx"
     assert INGEST_ID_TO_CORPUS["hobbes_la"] == "hobbes"
     assert INGEST_ID_TO_CORPUS["descartes_fr"] == "descartes"
