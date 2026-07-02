@@ -37,7 +37,7 @@ write a per-corpus memory at the end (the gotchas always pay off on the next one
 | 5 | **Descartes** Objections & Replies — re-sourced (fr.wikisource Clerselier/Cousin); 537 chunks, `block_type='objection'` + objector in `speaker` | Mode 2 + attribution | ✅ done | #32 |
 | 6 | **Kant** Anmerkungen — 474 `remark` chunks typed via zeno post-pass, 0 chunk_id churn (embeddings survived) | Mode 2 (merged) | ✅ done | #33 |
 | 7 | Marx · Nietzsche | Mode 2 (MED) | ✅ **assessed — no fix needed** (see playbook) | — |
-| 8 | Hobbes **+ Marx Kapital I–III** (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ **NEXT** (re-source project) | — |
+| 8 | Hobbes **+ Marx Kapital I–III** (OCR mega-chunks) — Kapital re-sourced from MEW 23–25 (55 noise chunks → 11,167 incl. 971 Marx footnotes as `remark`); English Hobbes recovered (0 → 3,564); Latin Hobbes OCR-repair deferred | data quality | ✅ done | #36 |
 
 ### The proven template (one corpus = one PR)
 
@@ -232,14 +232,28 @@ assess step found nothing to type:
   MEW text). Also noted: title-page junk chunks (e.g. GM ¶1–3 "Friedrich
   Nietzsche" / "Eine Streitschrift") → corpus-quality-audit backlog.
 
-#### 8. Hobbes + Marx Kapital (data quality — re-source project)
+#### 8. Hobbes + Marx Kapital — ✅ DONE 2026-07-02 (PR #36)
 
-The issue is OCR **mega-chunks**, a data-quality problem, *not* a block-type
-parser fix. Needs re-chunking / re-source, not this template. See the
-corpus-quality audit work ([[corpus-quality-audit-lessons]]). Scope: Hobbes
-(Leviathan et al. OCR) + Marx Kapital I–III (re-source from mlwerke.de /
-MEW; the current scan is the 1867 6-chapter first edition — decide edition
-before sourcing). Plan as its own project (Spinoza-re-source precedent).
+- **Das Kapital I–III re-sourced from MEW 23–25** (mlwerke.de via Wayback;
+  the site died in 2025, so every page is CDX-pinned to its last pre-2025
+  capture). 55 OCR mega-chunks (85–582 KB, 1867 six-chapter Fraktur scan) →
+  **11,167 clean chunks**: 10,196 paragraphs (with the MEW page number in
+  `chunks.page` — "MEW 23, S. 49" is the citable locator) + **971 of Marx's
+  own footnotes as `block_type='remark'`** (authorial voice, not editorial
+  'note'). Chapter labels come from the in-page KAPITEL heads (Band II's
+  `<TITLE>` only carries the Abschnitt). `perseus/download_kapital_mew.py`
+  + `corpus/split_kapital_mew.py`; marx_ocr IngestSource → marx_mew.
+- **English Hobbes recovered**: the 4 clean Gutenberg texts (incl.
+  Leviathan) were ENTIRELY missing from chunks.jsonl — a past corpus-level
+  `--only` wipe ate the sibling source unnoticed. Re-ingest with both
+  sources restored 0 → 3,564 English chunks (Leviathan 2,084, De Cive 800,
+  De Corpore Politico 432, Human Nature 248), embedded + lemmatized.
+- **Deferred:** Latin Leviathan/De Cive (65 mega-chunks) are long-s OCR —
+  readable mid-file ("fblet"→solet, "Obje&um"→Objectum) but need a
+  systematic OCR-repair pass with Latin dictionary checking; a future
+  project of its own. Kapital's centered circulation-formula diagrams
+  (G–W–G′ tables) don't survive text extraction — inline prose carries
+  the formulas.
 
 ---
 
