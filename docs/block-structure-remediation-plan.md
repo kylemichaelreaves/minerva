@@ -36,8 +36,8 @@ write a per-corpus memory at the end (the gotchas always pay off on the next one
 | 4 | **Aquinas** *disputatio* (obj. / sed contra / body / replies) — ST 3,178→23,325 part-level chunks + chrome strip | Mode 2 (merged) | ✅ done | #30 |
 | 5 | **Descartes** Objections & Replies — re-sourced (fr.wikisource Clerselier/Cousin); 537 chunks, `block_type='objection'` + objector in `speaker` | Mode 2 + attribution | ✅ done | #32 |
 | 6 | **Kant** Anmerkungen — 474 `remark` chunks typed via zeno post-pass, 0 chunk_id churn (embeddings survived) | Mode 2 (merged) | ✅ done | #33 |
-| 7 | Marx · Nietzsche | Mode 2 (MED) | ⬜ **NEXT** | — |
-| 8 | Hobbes (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ todo | — |
+| 7 | Marx · Nietzsche | Mode 2 (MED) | ✅ **assessed — no fix needed** (see playbook) | — |
+| 8 | Hobbes **+ Marx Kapital I–III** (OCR mega-chunks — *not* a parser fix) | data quality | ⬜ **NEXT** (re-source project) | — |
 
 ### The proven template (one corpus = one PR)
 
@@ -211,13 +211,35 @@ untouched.** 474 remarks across 7 works (MAN 126, KrV 101, KU 86, Religion 78
 paragraphs (no standalone head lines), so the English side stays untyped —
 would need text-level splitting with chunk churn; deferred.
 
-#### 7–8. Marx · Nietzsche · Hobbes (lower)
+#### 7. Marx · Nietzsche — ✅ ASSESSED 2026-07-01, no parser fix needed
 
-- **Marx / Nietzsche (MED):** untyped set-apart matter; same template. Nietzsche
-  also has the eKGWB Nachlass apparatus stripped by `split_ekgwb` — separate, optional.
-- **Hobbes:** the issue is OCR **mega-chunks**, a data-quality problem, *not* a
-  block-type parser fix. Needs re-chunking / re-source, not this template. See the
-  corpus-quality audit work ([[corpus-quality-audit-lessons]]).
+The audit's "MED — untyped set-apart matter" rating was precautionary; the
+assess step found nothing to type:
+
+- **Marx (clean works):** the marxists.org-derived texts ship with **zero
+  footnote markers** (0 standalone `Anmerkung`/`Fußnote` heads across the
+  corpus) — Marx's apparatus was dropped upstream at the source, not merged
+  by our parser. Nothing to recover without a re-source.
+- **Nietzsche (zeno):** aphorism-level chunking is already correct
+  (GS 1,162, MAM 1,535 …); the verse matter (GS *Scherz, List und Rache*
+  prelude + *Lieder des Prinzen Vogelfrei*, JGB *Aus hohen Bergen*) is
+  already sectioned under its own headings; the eKGWB Nachlass apparatus is
+  intentionally stripped ([[ekgwb-nachlass-ingest]]). 0 footnote heads.
+- **What the assess DID find:** *Das Kapital* Bd. I–III are **55 OCR
+  mega-chunks** (85–582 KB each!) from a Google-Books scan of the 1867
+  first edition, heavy OCR noise, chapter-level only. Moved to item 8 —
+  it's the Hobbes failure mode, needs a re-source (mlwerke.de carries clean
+  MEW text). Also noted: title-page junk chunks (e.g. GM ¶1–3 "Friedrich
+  Nietzsche" / "Eine Streitschrift") → corpus-quality-audit backlog.
+
+#### 8. Hobbes + Marx Kapital (data quality — re-source project)
+
+The issue is OCR **mega-chunks**, a data-quality problem, *not* a block-type
+parser fix. Needs re-chunking / re-source, not this template. See the
+corpus-quality audit work ([[corpus-quality-audit-lessons]]). Scope: Hobbes
+(Leviathan et al. OCR) + Marx Kapital I–III (re-source from mlwerke.de /
+MEW; the current scan is the 1867 6-chapter first edition — decide edition
+before sourcing). Plan as its own project (Spinoza-re-source precedent).
 
 ---
 
@@ -556,5 +578,7 @@ chunks → per-corpus re-ingest + re-embed; reader rendering already done)
 4. ✅ **Aquinas (#30), Descartes (#32), Kant (#33)** dedicated splitters
    (Descartes shipped with objector-attribution via `block_type='objection'`
    + `speaker`; Kant via the zeno remark post-pass, 0 id churn).
-5. ⬜ Lower: **Marx, Nietzsche, Hobbes** (Hobbes is an OCR-quality issue, not
-   parser). ← NEXT
+5. ✅ **Marx, Nietzsche — assessed 2026-07-01, no parser fix needed** (source
+   texts carry no untyped set-apart matter; see playbook 7). Remaining: ⬜
+   **Hobbes + Marx Kapital I–III** OCR mega-chunk re-source (data quality,
+   its own project — playbook 8). ← NEXT
