@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .. import serve_lock
 from .. import store
-from ..sqlite_util import foreign_keys_disabled, table_exists
+from ..sqlite_util import foreign_keys_disabled, sweep_orphan_chunk_ids, table_exists
 from ._shared import (
     DEFAULT_CHUNKS,
     Timer,
@@ -360,34 +360,15 @@ def _sweep_orphan_chunk_lemmas(conn: sqlite3.Connection) -> None:
     when every chunk_id survived (typical content-stable reingest).
     """
 
-    _sweep_orphan_table(conn, "chunk_lemmas")
-    _sweep_orphan_table(conn, "embeddings")
-
-
-def _sweep_orphan_table(conn: sqlite3.Connection, table: str) -> None:
-    """Generic orphan sweep — ``DELETE FROM <table> WHERE chunk_id NOT
-    IN (SELECT chunk_id FROM chunks)``. Used by the post-insert hook
-    to clean both ``chunk_lemmas`` and ``embeddings`` after the
-    snapshot-restore loop."""
-
-    if not table_exists(conn, table):
-        return
-    if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is None:
-        return
-    before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    conn.execute(
-        f"DELETE FROM {table} WHERE chunk_id NOT IN "
-        "(SELECT chunk_id FROM chunks)"
-    )
-    after = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    conn.commit()
-    dropped = before - after
-    if dropped:
-        print(
-            f"Dropped {dropped:,} orphan {table} (chunks whose text "
-            f"changed); {after:,} rows preserved.",
-            file=sys.stderr,
-        )
+    for table in ("chunk_lemmas", "embeddings"):
+        dropped = sweep_orphan_chunk_ids(conn, table)
+        if dropped:
+            remaining = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            print(
+                f"Dropped {dropped:,} orphan {table} (chunks whose text "
+                f"changed); {remaining:,} rows preserved.",
+                file=sys.stderr,
+            )
 
 
 def _resolve_incremental_scope(args: argparse.Namespace) -> frozenset[str]:

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .. import orthography
 from ..ingest import load_jsonl
+from ..sqlite_util import table_exists
 from .embeddings import invalidate_embedding_cache
 from .schema import _set_meta
 
@@ -142,21 +143,25 @@ def _db_author_labels_for_scope(
     Catches parser author-label renames: the new JSONL carries the
     updated label, but stale chunks may still be keyed under the old
     ``chunks_full.corpus`` value until we delete by work title too.
+    Keys on ``(author, work)`` pairs from the scoped JSONL rows so an
+    unrelated corpus that happens to share a work title is not swept.
     """
 
-    work_titles: set[str] = set()
+    work_keys: set[tuple[str, str]] = set()
     for obj in load_jsonl(jsonl_path):
-        if obj.get("corpus") in scope and obj.get("work"):
-            work_titles.add(obj["work"])
-    if not work_titles:
+        if obj.get("corpus") in scope and obj.get("work") and obj.get("author"):
+            work_keys.add((obj["author"].lower(), obj["work"]))
+    if not work_keys:
         return set()
-    placeholders = ",".join("?" for _ in work_titles)
-    rows = conn.execute(
-        f"SELECT DISTINCT LOWER(corpus) AS corpus FROM chunks_full "
-        f"WHERE work IN ({placeholders})",
-        tuple(work_titles),
-    ).fetchall()
-    return {row["corpus"] for row in rows if row["corpus"]}
+    labels: set[str] = set()
+    for author, work in work_keys:
+        rows = conn.execute(
+            "SELECT DISTINCT LOWER(corpus) AS corpus FROM chunks_full "
+            "WHERE LOWER(author) = ? AND work = ?",
+            (author, work),
+        ).fetchall()
+        labels.update(row["corpus"] for row in rows if row["corpus"])
+    return labels
 
 
 def insert_chunks(
@@ -226,12 +231,7 @@ def insert_chunks(
 
     # Pre-flight: how many xref rows are we trying to preserve? Used
     # both for the rebind logging and for the integrity check after.
-    xref_table_exists = (
-        conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='cross_references'"
-        ).fetchone()
-        is not None
-    )
+    xref_table_exists = table_exists(conn, "cross_references")
     xref_count_before = (
         conn.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0]
         if xref_table_exists
