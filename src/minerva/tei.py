@@ -397,9 +397,7 @@ class _ChunkBuilder:
                 self._cur_section = n
             elif unit == "card" and n and "card" in self._chunk_boundary_units:
                 self._flush()
-                self._cur_section = (
-                    f"{self._cur_book}.{n}" if self._cur_book else n
-                )
+                self._cur_section = f"{self._cur_book}.{n}" if self._cur_book else n
             elif unit == "page" and n:
                 self._cur_page = n
             elif unit == "bekker line" and n:

@@ -35,7 +35,11 @@ from ..ingest import (
     write_jsonl,
 )
 from ..ingest.parallel import concat_shards, parallel_ingest
-from ..ingest.registry import INGEST_SOURCES, build_iter_corpus_kwargs
+from ..ingest.registry import (
+    INGEST_SOURCES,
+    build_iter_corpus_kwargs,
+    missing_registered_sources,
+)
 from ._shared import DEFAULT_CHUNKS, DEFAULT_DB, Timer, fmt_elapsed, record_timing
 
 
@@ -106,6 +110,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             chunks = iter_corpus_chunks(
                 only=only,
                 per_source_timing=args.timing,
+                allow_missing_sources=getattr(args, "allow_missing_sources", False),
                 **overrides,
             )
             if only is None:
@@ -162,14 +167,7 @@ def _missing_source_paths(
     raw data path is absent from disk. Empty list = all present."""
 
     paths_by_kwarg = build_iter_corpus_kwargs(**overrides)
-    out: list[tuple[str, Path | None]] = []
-    for source in INGEST_SOURCES:
-        if only is not None and source.id not in only:
-            continue
-        path = paths_by_kwarg.get(source.kwarg_name)
-        if not source.path_present(path):
-            out.append((source.id, path))
-    return out
+    return missing_registered_sources(paths_by_kwarg, only=only)
 
 
 def _partial_corpus_selection(requested: frozenset[str]) -> dict[str, set[str]]:

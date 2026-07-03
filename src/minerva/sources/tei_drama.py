@@ -62,9 +62,7 @@ def _text_of(elem: ET.Element) -> str:
     child-walk extractor so inline stage directions don't drop the prose
     that follows them."""
 
-    return _norm_text(
-        text_excluding(elem, frozenset({_SPEAKER_TAG, _STAGE_TAG}))
-    )
+    return _norm_text(text_excluding(elem, frozenset({_SPEAKER_TAG, _STAGE_TAG})))
 
 
 def _has_inner_textpart(elem: ET.Element) -> bool:

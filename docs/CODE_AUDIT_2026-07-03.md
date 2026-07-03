@@ -212,8 +212,10 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 (Items 4, 5, 8 in the shortlist above, plus:). **Phase 5 started**
 (`remediation/phase-5-ingestion`): shared ``text_excluding`` + missing-path loud failure.
 
-Note: shortlist #5 (missing ingest source paths) was fixed in phase 1/2
-via ``cmd_ingest`` upfront ``SKIPPED`` lines + exit 2 /
+Note: shortlist #5 now enforced at the registry layer too —
+``missing_registered_sources`` + ``iter_registered_chunks`` raise
+:class:`~minerva.ingest.registry.MissingIngestSourcesError` with loud
+``SKIPPED`` stderr; ``cmd_ingest`` still exits 2 unless
 ``--allow-missing-sources``.
 
 ### Text-corruption bugs (live, in the DB now)
@@ -222,10 +224,11 @@ via ``cmd_ingest`` upfront ``SKIPPED`` lines + exit 2 /
   without dropping following ``tail`` text.
 - 🟡 ~~`sources/tei_p5.py:47-51`~~ — **fixed**: ``_text_of`` uses
   ``text_excluding`` to drop namespaced ``<note>`` apparatus.
-- Root cause: ~~five~~ three remaining implementations of note-excluding
-  extract — **partially fixed**: ``tei.text_excluding`` hoisted;
-  ``tei_lxx``, ``hebrew_mt``, ``tei_p5``, ``tei_drama`` migrated;
-  ``osis_bible.py`` still has a divergent walker (note/reference/rdg).
+- Root cause: ~~five implementations~~ — **partially fixed**:
+  ``tei.text_excluding(el, skip_tags)`` hoisted into ``tei.py``; drama
+  and P5 parsers migrated. Remaining clones in ``hebrew_mt.py``,
+  ``tei_lxx.py``, ``osis_bible.py`` still divergent but correct for their
+  markup.
 
 ### Silent-failure gaps
 - 🟠 `corpus/pipeline.py:88-135` vs guard at `:154-166` — the zero-chunk warning covers only

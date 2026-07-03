@@ -26,6 +26,7 @@ def iter_corpus_chunks(
     *,
     only: frozenset[str] | None = None,
     per_source_timing: bool = False,
+    allow_missing_sources: bool = False,
     **paths: Path | None,
 ) -> Iterator[tei.Chunk]:
     """Yield chunks from all configured corpora whose paths exist.
@@ -37,7 +38,12 @@ def iter_corpus_chunks(
     """
 
     kwargs = build_iter_corpus_kwargs(**paths)
-    yield from iter_registered_chunks(kwargs, only=only, per_source_timing=per_source_timing)
+    yield from iter_registered_chunks(
+        kwargs,
+        only=only,
+        per_source_timing=per_source_timing,
+        allow_missing_sources=allow_missing_sources,
+    )
 
 
 def write_jsonl(chunks: Iterable[tei.Chunk], output_path: Path) -> tuple[int, dict[str, int]]:
