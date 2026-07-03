@@ -89,6 +89,22 @@ def _dispatch_json_mutation(
         raise domain_error_to_http(exc) from exc
 
 
+def _translate_route_exception(label: str, exc: BaseException) -> _HTTPError:
+    """Map handler exceptions to HTTP errors consistently across verbs."""
+
+    if isinstance(exc, _HTTPError):
+        return exc
+    if isinstance(exc, MinervaError):
+        return domain_error_to_http(exc)
+    if isinstance(exc, llm.LLMError):
+        _log.exception("LLM error", exc_info=exc)
+        return _HTTPError(HTTPStatus.BAD_GATEWAY, "LLM backend error")
+    if isinstance(exc, json.JSONDecodeError):
+        return _HTTPError(HTTPStatus.BAD_REQUEST, "invalid JSON")
+    _log.exception("%s error", label, exc_info=exc)
+    return _HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error")
+
+
 def _cors_headers(deps: ServerDeps, origin: str | None) -> dict[str, str]:
     """Return the CORS headers for one response."""
 
@@ -173,19 +189,8 @@ class ChatHandler(BaseHTTPRequestHandler):
                 self._send_sse(HTTPStatus.OK, _handle_chat_stream(self.deps, payload))
                 return
             body = _dispatch_json_mutation(handler, args, payload)
-        except _HTTPError as exc:
-            self._send_error_json(exc)
-            return
-        except json.JSONDecodeError:
-            self._send_error_json(_HTTPError(HTTPStatus.BAD_REQUEST, "invalid JSON"))
-            return
-        except llm.LLMError as exc:
-            _log.exception("LLM error", exc_info=exc)
-            self._send_error_json(_HTTPError(HTTPStatus.BAD_GATEWAY, "LLM backend error"))
-            return
         except Exception as exc:
-            _log.exception("%s error", label, exc_info=exc)
-            self._send_error_json(_HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error"))
+            self._send_error_json(_translate_route_exception(label, exc))
             return
         self._send_json(HTTPStatus.OK, body)
 
@@ -207,15 +212,9 @@ class ChatHandler(BaseHTTPRequestHandler):
             try:
                 body = handler(*args)  # type: ignore[arg-type]
                 self._send_json(HTTPStatus.OK, body)
-            except MinervaError as exc:
-                self._send_error_json(domain_error_to_http(exc))
-            except _HTTPError as exc:
-                self._send_error_json(exc)
             except Exception as exc:
-                _log.exception("%s error", label, exc_info=exc)
-                self._send_error_json(
-                    _HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error")
-                )
+                self._send_error_json(_translate_route_exception(label, exc))
+                return
             return
 
         if path.startswith("/api/"):
@@ -233,15 +232,8 @@ class ChatHandler(BaseHTTPRequestHandler):
         try:
             payload = _read_json_body(self.headers, self.rfile)
             body = _dispatch_json_mutation(handler, args, payload)
-        except _HTTPError as exc:
-            self._send_error_json(exc)
-            return
-        except json.JSONDecodeError:
-            self._send_error_json(_HTTPError(HTTPStatus.BAD_REQUEST, "invalid JSON"))
-            return
         except Exception as exc:
-            _log.exception("%s error", label, exc_info=exc)
-            self._send_error_json(_HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error"))
+            self._send_error_json(_translate_route_exception(label, exc))
             return
         self._send_json(HTTPStatus.OK, body)
 
@@ -254,15 +246,8 @@ class ChatHandler(BaseHTTPRequestHandler):
         label, handler, args = matched
         try:
             removed = handler(*args)
-        except MinervaError as exc:
-            self._send_error_json(domain_error_to_http(exc))
-            return
-        except _HTTPError as exc:
-            self._send_error_json(exc)
-            return
         except Exception as exc:
-            _log.exception("%s error", label, exc_info=exc)
-            self._send_error_json(_HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error"))
+            self._send_error_json(_translate_route_exception(label, exc))
             return
         if not removed:
             self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, "conversation not found"))

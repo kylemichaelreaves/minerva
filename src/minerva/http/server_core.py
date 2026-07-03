@@ -57,11 +57,19 @@ class _RateLimiter:
         t = _time.monotonic() if now is None else now
         cutoff = t - window
         with self._lock:
-            q = self._buckets.setdefault((route, ip), deque())
+            key = (route, ip)
+            q = self._buckets.get(key)
+            if q is None:
+                q = deque()
             while q and q[0] < cutoff:
                 q.popleft()
             if len(q) >= cap:
+                if q:
+                    self._buckets[key] = q
+                else:
+                    self._buckets.pop(key, None)
                 return False
+            self._buckets[key] = q
             q.append(t)
             return True
 

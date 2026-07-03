@@ -80,6 +80,27 @@ def test_handle_chat_stream_persists_same_as_blocking(populated_db, conversation
     assert "Same reply" in rows[-1][1] or "reply" in rows[-1][1]
 
 
+def test_handle_chat_stream_keeps_turn_on_client_disconnect(populated_db, conversations_conn):
+    """Closing the SSE generator after persist must keep user + assistant rows."""
+    backend = StubBackend(reply="Hello world [1].")
+    deps = _make_deps(populated_db, backend, conversations_conn=conversations_conn)
+    gen = server._handle_chat_stream(deps, {"query": "What is justice?"})
+    next(gen)  # meta
+    while (
+        conversations_conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE role='assistant'"
+        ).fetchone()[0]
+        == 0
+    ):
+        next(gen)
+    gen.close()
+
+    rows = conversations_conn.execute(
+        "SELECT role FROM messages ORDER BY id"
+    ).fetchall()
+    assert [r[0] for r in rows] == ["user", "assistant"]
+
+
 def test_handle_chat_stream_validation_errors_raise_before_first_event(
     populated_db, conversations_conn
 ):

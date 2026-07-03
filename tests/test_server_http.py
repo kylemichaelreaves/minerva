@@ -70,6 +70,14 @@ def test_rate_limiter_window_expires(populated_db):
     assert deps.rate_limiter.allow("/api/chat", "1.1.1.1", now=window + 1.0) is True
 
 
+def test_rate_limiter_evicts_drained_buckets(populated_db):
+    deps = _make_deps(populated_db, StubBackend())
+    rl = server._RateLimiter()
+    rl.allow("/api/chat", "1.1.1.1", now=0.0)
+    rl.allow("/api/chat", "1.1.1.1", now=61.0)
+    assert len(rl._buckets[("/api/chat", "1.1.1.1")]) == 1
+
+
 def test_rate_limiter_unknown_route_always_allows(populated_db):
     backend = StubBackend()
     deps = _make_deps_with_limiter(populated_db, backend)

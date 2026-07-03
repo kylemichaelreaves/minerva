@@ -7,6 +7,10 @@ import sqlite3
 from typing import Any
 
 from .errors import BadRequestError, NotFoundError
+from .query_params import escape_like_substring, parse_int_param
+
+_DEFAULT_TERMS_LIMIT = 500
+_MAX_TERMS_LIMIT = 5000
 from .reader.window import (
     empty_window_response,
     fetch_chunk_ids_in_window,
@@ -45,11 +49,16 @@ def terms_list(conn: sqlite3.Connection,
         where.append("t.source_language = ?")
         params.append(query["lang"])
     if query.get("like"):
-        where.append("t.source_form LIKE ?")
-        params.append(f"%{query['like']}%")
+        where.append("t.source_form LIKE ? ESCAPE '\\'")
+        params.append(f"%{escape_like_substring(query['like'])}%")
     if where:
         sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY t.source_language, t.source_form"
+    limit = parse_int_param(
+        query, "limit", _DEFAULT_TERMS_LIMIT, lo=1, hi=_MAX_TERMS_LIMIT, clamp=True,
+    )
+    offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
+    sql += " ORDER BY t.source_language, t.source_form LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
     rows = conn.execute(sql, params).fetchall()
     out_terms = []
     for r in rows:
