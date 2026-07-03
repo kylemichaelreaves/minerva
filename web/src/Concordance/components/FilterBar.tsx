@@ -6,6 +6,8 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { isConcSort, type ConcScope, type ConcSort } from "~/api/concordanceApi";
 import { Select, type SelectOption } from "~/components/Select";
+import { useClickOutside } from "~/hooks/useClickOutside";
+import { useEscape } from "~/hooks/useEscape";
 
 /** Debounce window for the lemma search box. Each commit patches the
  *  URL and refetches the lemma index, so per-keystroke commits were a
@@ -87,8 +89,15 @@ function Dropdown(props: {
   onPick: (v: string) => void;
 }) {
   const [open, setOpen] = createSignal(false);
+  const [rootEl, setRootEl] = createSignal<HTMLSpanElement | null>(null);
+  useClickOutside(
+    () => rootEl() ?? undefined,
+    open,
+    () => setOpen(false),
+  );
+  useEscape(() => setOpen(false), open);
   return (
-    <span class="fbar-drop" classList={{ on: !!props.current }}>
+    <span class="fbar-drop" classList={{ on: !!props.current }} ref={setRootEl}>
       <span class="trigger" onClick={() => setOpen((o) => !o)}>
         {props.label}
         <span class="chev">▾</span>
@@ -147,8 +156,16 @@ export function FreqRange(props: {
   const [hiDrag, setHiDrag] = createSignal<number | null>(null);
   const lo = () => loDrag() ?? props.min ?? 1;
   const hi = () => hiDrag() ?? props.max ?? ceil();
-  const loPct = () => Math.min(99, Math.max(0, ((lo() - 1) / (ceil() - 1)) * 100));
-  const hiPct = () => Math.min(100, Math.max(1, ((hi() - 1) / (ceil() - 1)) * 100));
+  const loPct = () => {
+    const c = ceil();
+    if (c <= 1) return 0;
+    return Math.min(99, Math.max(0, ((lo() - 1) / (c - 1)) * 100));
+  };
+  const hiPct = () => {
+    const c = ceil();
+    if (c <= 1) return 100;
+    return Math.min(100, Math.max(1, ((hi() - 1) / (c - 1)) * 100));
+  };
 
   // Don't let the knobs cross — clamp to the opposite bound so the
   // slider can't invert (the backend tolerates it, but the UX is

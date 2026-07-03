@@ -15,6 +15,11 @@ export type Route =
       kind: "reader";
       workId: string;
       sourceLang?: string;
+      /** Disambiguates same-titled works (Luther 1912 vs 1545 share
+       *  every book title AND lang). Optional so pre-existing
+       *  bookmarks keep working — the server then picks one edition
+       *  deterministically. */
+      author?: string;
       focusChunkId?: string;
       /** Term-card open state. When set, the Reader resumes the
        *  popover for this term on next paint — used so a click on a
@@ -173,6 +178,7 @@ export function readRoute(): Route {
       kind: "reader",
       workId,
       sourceLang: qs.get("lang") ?? undefined,
+      author: qs.get("author") ?? undefined,
       focusChunkId: qs.get("focus") ?? undefined,
       openTermId,
     };
@@ -280,6 +286,7 @@ export function routeHash(route: Route): string {
   if (route.kind === "reader") {
     const params = new URLSearchParams();
     if (route.sourceLang) params.set("lang", route.sourceLang);
+    if (route.author) params.set("author", route.author);
     if (route.focusChunkId) params.set("focus", route.focusChunkId);
     if (route.openTermId !== undefined) params.set("term", String(route.openTermId));
     const qs = params.toString();

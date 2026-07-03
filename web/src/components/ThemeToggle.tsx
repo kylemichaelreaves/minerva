@@ -9,7 +9,7 @@ export function ThemeToggle(props: {
   variant: ThemeToggleVariant;
   class?: string;
 }) {
-  const label =
+  const label = () =>
     props.theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
 
   if (props.variant === "icon") {
@@ -17,7 +17,7 @@ export function ThemeToggle(props: {
       <button
         type="button"
         class={props.class ?? "ico-btn"}
-        aria-label={label}
+        aria-label={label()}
         title="Toggle theme"
         onClick={() => props.onToggle()}
       >
@@ -43,7 +43,7 @@ export function ThemeToggle(props: {
       <button
         type="button"
         class={props.class ?? "sidebar-foot-cog"}
-        aria-label={label}
+        aria-label={label()}
         title="Toggle theme"
         onClick={() => props.onToggle()}
       >
@@ -56,7 +56,7 @@ export function ThemeToggle(props: {
     <button
       type="button"
       class={props.class ?? "landing-theme-toggle"}
-      aria-label={label}
+      aria-label={label()}
       title="Toggle theme"
       onClick={() => props.onToggle()}
     >

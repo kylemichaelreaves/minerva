@@ -56,16 +56,34 @@ export default function Network(props: NetworkProps) {
   // This is a side-effect (a signal write), not derived state — so it belongs
   // in createEffect, not a createMemo invoked for its side-effect.
   const [allAuthors, setAllAuthors] = createSignal<string[]>([]);
+  let authorsSeedInflight = false;
   createEffect(() => {
     const d = data();
+    if (!d) return;
     if (
-      d &&
       !props.sourceAuthors?.length &&
       !props.corpora?.length &&
       !props.sourceMethods?.length &&
       allAuthors().length === 0
     ) {
       setAllAuthors(d.matrix.authors.map((a) => a.name));
+      return;
+    }
+    // Deep link with ?source= filters the matrix but the author
+    // dropdown must still offer every author — seed once via an
+    // unfiltered fetch.
+    if (allAuthors().length === 0 && !authorsSeedInflight) {
+      authorsSeedInflight = true;
+      void fetchNetworkSummary({
+        minConfidence: props.minConfidence,
+        includeRejected: props.includeRejected,
+      })
+        .then((res) => {
+          setAllAuthors(res.matrix.authors.map((a) => a.name));
+        })
+        .catch(() => {
+          authorsSeedInflight = false;
+        });
     }
   });
 
@@ -132,6 +150,7 @@ export default function Network(props: NetworkProps) {
           onOpenTargetWork={props.onOpenTargetWork}
           onOpenArc={props.onOpenArc}
           onOpenCoverage={props.onOpenCoverage}
+          onOpenMore={() => shell.setFiltersSheetOpen(true)}
         />
       </Show>
       <footer class="net-footer">

@@ -93,9 +93,6 @@ def _cors_headers(deps: ServerDeps, origin: str | None) -> dict[str, str]:
     """Return the CORS headers for one response."""
 
     out = dict(_BASE_CORS_HEADERS)
-    if deps.cors_wildcard:
-        out["Access-Control-Allow-Origin"] = "*"
-        return out
     if origin and origin in deps.allowed_origins:
         out["Access-Control-Allow-Origin"] = origin
         out["Vary"] = "Origin"
@@ -103,7 +100,8 @@ def _cors_headers(deps: ServerDeps, origin: str | None) -> dict[str, str]:
 
 
 class ChatHandler(BaseHTTPRequestHandler):
-    deps: ServerDeps  # bound by make_handler
+    deps: ServerDeps  # bound by handler factory
+    timeout = 60  # slow-loris guard on non-loopback binds
 
     def log_message(self, fmt: str, *args: Any) -> None:  # quieter logs
         line = f"{self.address_string()} - - [{self.log_date_time_string()}] {fmt % args}"
@@ -324,6 +322,25 @@ def make_handler(deps: ServerDeps):
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
+def _default_loopback_origins(port: int) -> frozenset[str]:
+    """Dev-server origins allowed when bound to loopback.
+
+    Vite (`npm run dev`) serves the UI on :5173 and proxies `/api` to
+    this process, so the browser's Origin is the Vite port — not the
+    API port. Same-origin production (`--static`) uses the API port.
+    """
+
+    bases = (
+        f"http://127.0.0.1:{port}",
+        f"http://localhost:{port}",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173",
+    )
+    return frozenset(bases)
+
+
 def serve(
     *,
     host: str,
@@ -345,6 +362,9 @@ def serve(
     allowed_origins: frozenset[str] = frozenset(),
 ) -> None:
     is_loopback = host in _LOOPBACK_HOSTS
+    origins = allowed_origins
+    if is_loopback:
+        origins = _default_loopback_origins(port) | allowed_origins
     deps = ServerDeps(
         conn=conn,
         conversations_conn=conversations_conn,
@@ -360,8 +380,8 @@ def serve(
         allow_client_rewrite=allow_client_rewrite,
         force_rewrite=force_rewrite,
         enable_concept_expand=enable_concept_expand,
-        cors_wildcard=is_loopback,
-        allowed_origins=allowed_origins,
+        cors_wildcard=False,
+        allowed_origins=origins,
     )
     if not is_loopback:
         print(
@@ -379,9 +399,7 @@ def serve(
                 flush=True,
             )
     server = ThreadingHTTPServer((host, port), make_handler(deps))
-    origins_repr = (
-        ",".join(sorted(allowed_origins)) if allowed_origins else "*" if is_loopback else "(none)"
-    )
+    origins_repr = ",".join(sorted(origins)) if origins else "(none)"
     print(
         f"minerva serve  http://{host}:{port}  "
         f"backend={backend.name} lang={lang or 'any'} corpus={corpus or 'any'} "

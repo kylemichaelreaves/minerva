@@ -632,3 +632,54 @@ def test_multi_author_kwic_spans_selected_authors(two_author_db: sqlite3.Connect
     )
     assert res["total"] == 3
     assert {r["author"] for r in res["rows"]} == {"Hegel", "Kant"}
+
+
+@pytest.fixture
+def case_merge_db(tmp_path: Path) -> sqlite3.Connection:
+    """German lemmas with case variants for merge_case pagination."""
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="c-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie",
+            lang="deu",
+            section="¶1",
+            text="Gott GOtt haben",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "case.sqlite")
+    store.insert_chunks(conn, jsonl)
+    for chunk_id, idx, lemma, pos in [
+        ("c-1", 0, "Gott", "NOUN"),
+        ("c-1", 1, "GOtt", "NOUN"),
+        ("c-1", 2, "haben", "VERB"),
+        ("c-1", 3, "haben", "VERB"),
+        ("c-1", 4, "haben", "VERB"),
+    ]:
+        _insert_lemma(conn, chunk_id=chunk_id, token_index=idx, surface=lemma, lemma=lemma, pos=pos)
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def test_merge_case_pagination_honors_offset(case_merge_db: sqlite3.Connection) -> None:
+    first = concordance_queries.lemma_index(
+        case_merge_db,
+        {"lang": "deu", "scope": "corpus", "limit": "1", "offset": "0", "min_count": "1"},
+    )
+    second = concordance_queries.lemma_index(
+        case_merge_db,
+        {"lang": "deu", "scope": "corpus", "limit": "1", "offset": "1", "min_count": "1"},
+    )
+    assert len(first["rows"]) == 1
+    assert len(second["rows"]) == 1
+    assert first["rows"][0]["lemma"] == "haben"
+    assert second["rows"][0]["lemma"] == "Gott"
+    assert second["rows"][0]["count"] == 2

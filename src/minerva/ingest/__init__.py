@@ -41,15 +41,29 @@ def iter_corpus_chunks(
 
 
 def write_jsonl(chunks: Iterable[tei.Chunk], output_path: Path) -> tuple[int, dict[str, int]]:
+    """Write ``chunks`` to ``output_path`` via temp-file + atomic rename.
+
+    ``chunks`` is usually a lazy parser iterator, so any exception it
+    raises lands mid-write — writing straight to ``output_path`` would
+    leave a truncated ``chunks.jsonl`` that the next ``index --reset``
+    happily loads, mass-deleting every chunk past the truncation point.
+    """
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     counts: dict[str, int] = {}
     n = 0
-    with output_path.open("w", encoding="utf-8") as fh:
-        for ch in chunks:
-            fh.write(json.dumps(ch.to_json_dict(), ensure_ascii=False) + "\n")
-            n += 1
-            key = f"{ch.corpus}/{ch.lang}"
-            counts[key] = counts.get(key, 0) + 1
+    try:
+        with tmp_path.open("w", encoding="utf-8") as fh:
+            for ch in chunks:
+                fh.write(json.dumps(ch.to_json_dict(), ensure_ascii=False) + "\n")
+                n += 1
+                key = f"{ch.corpus}/{ch.lang}"
+                counts[key] = counts.get(key, 0) + 1
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(output_path)
     return n, counts
 
 

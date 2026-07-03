@@ -24,7 +24,7 @@ export type { LandingStats } from "~/api/landingApi";
 // wireframe to broaden the doorway into modern epistemology and
 // reception history. Each topic pairs with a serif-italic paraphrase
 // rendered alongside the topic label inside the pill.
-export const STARTER_PROMPTS: StarterPrompt[] = [
+const STARTER_PROMPTS: StarterPrompt[] = [
   {
     topic: "Ethics",
     paraphrase: "virtue & the soul",

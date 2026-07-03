@@ -183,86 +183,31 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         "pos": "pos COLLATE NOCASE ASC, count DESC",
     }[sort]
 
-    # Pull headroom when aggregating in Python — case variants and/or
-    # multiple works live in separate rows, so a merged page can need
-    # many more raw rows than ``limit``; pagination then happens after
-    # the merge.
-    fetch_limit = max(limit * 10, 2000) if aggregate else limit
-    fetch_offset = 0 if aggregate else offset
-
-    sql_main = f"""
-        SELECT lemma, pos, count AS n, distinct_works, per_work_json
-        FROM lemma_counts
-        WHERE {" AND ".join(where_parts)}
-        ORDER BY {order_clause}
-        LIMIT ? OFFSET ?
-    """
-    raw_rows = conn.execute(sql_main, [*where_params, fetch_limit, fetch_offset]).fetchall()
-
-    # ── Case-merge ────────────────────────────────────────────────
-    # Group orthographic variants (Gott / GOtt / GOTT) by casefolded
-    # lemma and POS. Counts sum, distinct_works merge through the
-    # per_work JSON (a work present in two variants counts once),
-    # per_work entries combine and re-truncate to top-8.
-    variants_by_display: dict[tuple[str, str], list[str]] = {}
     if aggregate:
-        # When case-merge is on, group orthographic variants by casefold;
-        # when it's off (multi-work only), group on the exact lemma so we
-        # sum the same lemma across the selected works without folding
-        # case variants together.
-        groups: dict[tuple[str, str], dict[str, Any]] = {}
-        for r in raw_rows:
-            lemma = r["lemma"] or ""
-            pos = r["pos"] or ""
-            key = (lemma.casefold() if merge_case else lemma, pos)
-            g = groups.setdefault(
-                key,
-                {
-                    "pos": pos,
-                    "variants": [],
-                    "n_total": 0,
-                    "work_counts": {},
-                },
-            )
-            g["variants"].append((lemma, int(r["n"])))
-            g["n_total"] += int(r["n"])
-            per_work = json.loads(r["per_work_json"] or "[]")
-            for entry in per_work:
-                w = entry.get("work")
-                if w:
-                    g["work_counts"][w] = g["work_counts"].get(w, 0) + int(entry.get("n", 0))
-        merged: list[dict[str, Any]] = []
-        for g in groups.values():
-            g["variants"].sort(key=lambda v: -v[1])
-            display = _canonical_display(
-                lang,
-                g["pos"],
-                [v[0] for v in g["variants"]],
-            )
-            top_per_work = sorted(g["work_counts"].items(), key=lambda kv: -kv[1])[:8]
-            merged.append(
-                {
-                    "lemma": display,
-                    "pos": g["pos"],
-                    "n": g["n_total"],
-                    "distinct_works": len(g["work_counts"]),
-                    "per_work": [{"work": w, "n": n} for w, n in top_per_work],
-                }
-            )
-            variants_by_display[(display, g["pos"])] = [v[0] for v in g["variants"]]
-        # Re-apply the freq range after merging — variants individually
-        # under max_count can exceed it when summed.
-        if max_count is not None:
-            merged = [m for m in merged if m["n"] <= max_count]
-        merged = [m for m in merged if m["n"] >= min_count]
-        if sort == "freq":
-            merged.sort(key=lambda x: (-x["n"], x["lemma"].casefold()))
-        elif sort == "alpha":
-            merged.sort(key=lambda x: x["lemma"].casefold())
-        else:
-            merged.sort(key=lambda x: (x["pos"].casefold(), -x["n"]))
-        rows = merged[offset : offset + limit]
+        rows, variants_by_display = _fetch_aggregate_page(
+            conn,
+            lang=lang,
+            fold_letter=fold_letter,
+            merge_case=merge_case,
+            where_parts=where_parts,
+            where_params=where_params,
+            min_count=min_count,
+            max_count=max_count,
+            sort=sort,
+            limit=limit,
+            offset=offset,
+        )
     else:
+        sql_main = f"""
+            SELECT lemma, pos, count AS n, distinct_works, per_work_json
+            FROM lemma_counts
+            WHERE {" AND ".join(where_parts)}
+            ORDER BY {order_clause}
+            LIMIT ? OFFSET ?
+        """
+        raw_rows = conn.execute(
+            sql_main, [*where_params, limit, offset]
+        ).fetchall()
         rows = [
             {
                 "lemma": r["lemma"],
@@ -271,10 +216,9 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
                 "distinct_works": int(r["distinct_works"]),
                 "per_work": json.loads(r["per_work_json"] or "[]"),
             }
-            for r in raw_rows[:limit]
+            for r in raw_rows
         ]
-        for r in rows:
-            variants_by_display[(r["lemma"], r["pos"])] = [r["lemma"]]
+        variants_by_display = {(r["lemma"], r["pos"]): [r["lemma"]] for r in rows}
 
     # ── Totals ────────────────────────────────────────────────────
     # Sum the same scope+filter slice for header counts. Frequency
@@ -291,16 +235,40 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         pos_in=pos_in,
         q=q,
     )
-    # COUNT(DISTINCT lemma) — not COUNT(*) — because a single lemma
-    # can carry multiple POS tags (the lemmatizer occasionally splits
-    # the same word into NOUN + VERB rows). The header reads as
-    # "distinct lemmas", which is what users expect.
-    sql_totals = f"""
-        SELECT COUNT(DISTINCT lemma) AS total_lemmas,
-               COALESCE(SUM(count), 0) AS total_tokens
-        FROM lemma_counts
-        WHERE {" AND ".join(totals_where_parts)}
-    """
+    if aggregate and merge_case:
+        group_expr = _lemma_group_expr(fold_letter, merge_case=True)
+        sql_totals = f"""
+            SELECT COUNT(*) AS total_lemmas,
+                   COALESCE(SUM(n), 0) AS total_tokens
+            FROM (
+                SELECT {group_expr} AS lemma_key, pos, SUM(count) AS n
+                FROM lemma_counts
+                WHERE {" AND ".join(totals_where_parts)}
+                GROUP BY lemma_key, pos
+            )
+        """
+    elif aggregate:
+        sql_totals = f"""
+            SELECT COUNT(*) AS total_lemmas,
+                   COALESCE(SUM(n), 0) AS total_tokens
+            FROM (
+                SELECT lemma, pos, SUM(count) AS n
+                FROM lemma_counts
+                WHERE {" AND ".join(totals_where_parts)}
+                GROUP BY lemma, pos
+            )
+        """
+    else:
+        # COUNT(DISTINCT lemma) — not COUNT(*) — because a single lemma
+        # can carry multiple POS tags (the lemmatizer occasionally splits
+        # the same word into NOUN + VERB rows). The header reads as
+        # "distinct lemmas", which is what users expect.
+        sql_totals = f"""
+            SELECT COUNT(DISTINCT lemma) AS total_lemmas,
+                   COALESCE(SUM(count), 0) AS total_tokens
+            FROM lemma_counts
+            WHERE {" AND ".join(totals_where_parts)}
+        """
     totals = conn.execute(sql_totals, totals_where_params).fetchone()
 
     out_rows = []
@@ -339,6 +307,120 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         "offset": offset,
         "rows": out_rows,
     }
+
+
+def _lemma_group_expr(fold_letter: bool, *, merge_case: bool) -> str:
+    if not merge_case:
+        return "lemma"
+    return "fold_initial(lemma)" if fold_letter else "LOWER(lemma)"
+
+
+def _fetch_aggregate_page(
+    conn: sqlite3.Connection,
+    *,
+    lang: str,
+    fold_letter: bool,
+    merge_case: bool,
+    where_parts: list[str],
+    where_params: list[Any],
+    min_count: int,
+    max_count: int | None,
+    sort: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[dict[str, Any]], dict[tuple[str, str], list[str]]]:
+    """Page merged lemma rows in SQL instead of scanning from offset 0."""
+
+    group_expr = _lemma_group_expr(fold_letter, merge_case=merge_case)
+    having_parts = ["SUM(count) >= ?"]
+    having_params: list[Any] = [min_count]
+    if max_count is not None:
+        having_parts.append("SUM(count) <= ?")
+        having_params.append(max_count)
+
+    order_clause = {
+        "freq": "n DESC, lemma_key COLLATE NOCASE ASC",
+        "alpha": "lemma_key COLLATE NOCASE ASC",
+        "pos": "pos COLLATE NOCASE ASC, n DESC",
+    }[sort]
+
+    sql = f"""
+        SELECT lemma_key, pos, n, variants_blob, per_work_blob
+        FROM (
+            SELECT
+                {group_expr} AS lemma_key,
+                pos,
+                SUM(count) AS n,
+                GROUP_CONCAT(lemma || CHAR(1) || count, CHAR(2)) AS variants_blob,
+                GROUP_CONCAT(per_work_json, CHAR(3)) AS per_work_blob
+            FROM lemma_counts
+            WHERE {" AND ".join(where_parts)}
+            GROUP BY lemma_key, pos
+            HAVING {" AND ".join(having_parts)}
+        )
+        ORDER BY {order_clause}
+        LIMIT ? OFFSET ?
+    """
+    raw_rows = conn.execute(
+        sql,
+        [*where_params, *having_params, limit, offset],
+    ).fetchall()
+
+    rows: list[dict[str, Any]] = []
+    variants_by_display: dict[tuple[str, str], list[str]] = {}
+    for r in raw_rows:
+        pos = r["pos"] or ""
+        variants = _parse_variants_blob(r["variants_blob"] or "")
+        display = _canonical_display(lang, pos, [v[0] for v in variants])
+        work_counts = _merge_per_work_blobs(r["per_work_blob"] or "")
+        top_per_work = sorted(work_counts.items(), key=lambda kv: -kv[1])[:8]
+        rows.append(
+            {
+                "lemma": display,
+                "pos": pos,
+                "n": int(r["n"]),
+                "distinct_works": len(work_counts),
+                "per_work": [{"work": w, "n": n} for w, n in top_per_work],
+            }
+        )
+        variants_by_display[(display, pos)] = [v[0] for v in variants]
+    return rows, variants_by_display
+
+
+def _parse_variants_blob(blob: str) -> list[tuple[str, int]]:
+    variants: list[tuple[str, int]] = []
+    for part in blob.split(chr(2)):
+        if not part:
+            continue
+        lemma, _, count_raw = part.partition(chr(1))
+        if not lemma:
+            continue
+        try:
+            variants.append((lemma, int(count_raw)))
+        except ValueError:
+            continue
+    variants.sort(key=lambda v: -v[1])
+    return variants
+
+
+def _merge_per_work_blobs(blob: str) -> dict[str, int]:
+    work_counts: dict[str, int] = {}
+    for chunk in blob.split(chr(3)):
+        if not chunk:
+            continue
+        try:
+            entries = json.loads(chunk)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            work = entry.get("work")
+            if work:
+                work_counts[work] = work_counts.get(work, 0) + int(entry.get("n", 0))
+    return work_counts
 
 
 def _counts_where(

@@ -1,6 +1,6 @@
-# `check` mirrors `make check` (lint + typecheck + tests + coverage)
-# so the gate every contributor runs locally is also the gate CI
-# enforces. Three jobs:
+# `check` mirrors `make check` (lint + typecheck + tests + author/API
+# contract gates) so the gate every contributor runs locally is also
+# the gate CI enforces. Three jobs:
 #
 #   * python — lint + pytest with coverage
 #   * web — lint + typecheck + vitest with coverage
@@ -70,6 +70,24 @@ jobs:
         # dead URL (404) and unneeded here, since the suite mocks the
         # lemmatizer (the `[lemma]` extra is intentionally not installed).
         run: uv run --no-sync ruff check src tests
+
+      - name: Author manifest sync
+        # Mirrors `make check-authors`: generated corpus_registry /
+        # author_ordering / atlasData / dominantPhil must match
+        # manifest.yaml, and every author must have an ingest entry.
+        run: |
+          uv run --no-sync python scripts/generate_author_artifacts.py --check
+          uv run --no-sync python scripts/check_author_ingest.py --all
+
+      - name: API wire-type contract
+        # Mirrors `make check-api-types`: fixture keys must exist on TS
+        # wire types so backend/frontend drift is caught before merge.
+        run: uv run --no-sync python scripts/check_api_types.py
+
+      - name: Author import hygiene
+        # Mirrors `make check-author-imports`: no stale per-author
+        # module imports outside the manifest-driven paths.
+        run: uv run --no-sync python scripts/check_author_imports.py
 
       - name: Tests (pytest with coverage)
         # `--cov` reads config from [tool.coverage.run] in

@@ -50,7 +50,7 @@ export function Lines(props: {
    *  marker's bounding rect so the caller can fetch the references
    *  for that chunk and anchor the ReferenceCard popover. */
   onXrefOpen?: (chunkId: string, anchor: DOMRect) => void;
-  onTermClick: (termId: number, anchor: DOMRect) => void;
+  onTermClick: (termId: number, anchor: DOMRect, direction?: "ltr" | "rtl") => void;
   onWordClick: (word: string, chunkId: string, offset: number, lineEl: Element | null) => void;
   /** When set, returns a cached translation for a previously-clicked
    *  word at (chunkId, offset) in the current target language. */

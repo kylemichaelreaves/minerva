@@ -45,6 +45,8 @@ import type { OccurrenceMap, ReferencesMap, WorkRange } from "~/utils/types";
 export interface UseWorkRangeProps {
   workId: string;
   sourceLang?: string;
+  /** Disambiguates same-titled works; forwarded to /api/works/:work. */
+  author?: string;
   focusChunkId?: string;
 }
 
@@ -185,6 +187,7 @@ export function useWorkRange(
         props.workId,
         {
           lang: props.sourceLang ?? "grc",
+          author: props.author,
           ...(props.focusChunkId
             ? { around: props.focusChunkId, limit: FOCUS_WINDOW }
             : { from: 0, limit: PAGE_SIZE }),
@@ -254,6 +257,7 @@ export function useWorkRange(
         props.workId,
         {
           lang: cur.lang,
+          author: props.author,
           from: cur.chunks.length,
           limit: PAGE_SIZE,
         },
@@ -296,7 +300,7 @@ export function useWorkRange(
     // effect re-runs when either changes. They look like dead code
     // to ESLint; the void-comma form keeps it quiet without altering
     // semantics.
-    void (props.workId, props.focusChunkId, props.sourceLang);
+    void (props.workId, props.focusChunkId, props.sourceLang, props.author);
     void loadWork();
   });
 

@@ -18,12 +18,13 @@
 // in their sibling files; pure helpers (inferRefFromSelection,
 // occurrenceFor) live in ./utils.
 
-import { Show, createEffect, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, onMount } from "solid-js";
 import { classnames } from "~/utils/util";
 import ReferenceCard from "~/components/ReferenceCard";
 import TermCard from "~/components/TermCard";
 import { useMobileShell } from "~/components/MobileShellContext";
 import { useEscape } from "~/hooks/useEscape";
+import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
 import { Chrome } from "~/Reader/components/Chrome";
 import { ReaderHead } from "~/Reader/components/ReaderHead";
 import { useSelectionToolbar } from "~/Reader/useSelectionToolbar";
@@ -45,6 +46,10 @@ interface ReaderProps {
    *  "deu" for Hegel/Kant. The reader exposes a lang chip in the
    *  chrome for the TARGET (translation) language, not the source. */
   sourceLang?: string;
+  /** Disambiguates same-titled works (Luther 1912 vs 1545 share every
+   *  book title AND lang). Optional — the server falls back to one
+   *  deterministic edition for legacy bookmarks. */
+  author?: string;
   /** When set, open the reader at the window around this chunk and
    *  scroll it into view. Used by citation locator clicks from chat. */
   focusChunkId?: string;
@@ -77,6 +82,9 @@ export default function Reader(props: ReaderProps) {
         get sourceLang() {
           return props.sourceLang;
         },
+        get author() {
+          return props.author;
+        },
         get focusChunkId() {
           return props.focusChunkId;
         },
@@ -86,37 +94,22 @@ export default function Reader(props: ReaderProps) {
 
   // Infinite-scroll sentinel. We mount an empty <div> below the
   // rendered chunks and observe it with an IntersectionObserver
-  // scoped to the scrolling `.stage` element. When the sentinel
-  // enters the viewport (with a generous `rootMargin` so we
-  // pre-fetch BEFORE the user actually reaches the bottom), we
-  // call ``loadMore()``. The hook gates against re-entry while a
-  // request is in flight, so repeated fires from the observer
+  // scoped to the scrolling `.stage` element, pre-fetching 800px
+  // before the user runs out of text. ``useWorkRange`` gates against
+  // re-entry while a request is in flight, so repeated observer fires
   // collapse to one network call per page.
-  let sentinelRef: HTMLDivElement | undefined;
-  createEffect(() => {
-    const sentinel = sentinelRef;
-    const stage = stageRef;
-    if (!sentinel || !stage) return;
-    if (!hasMore()) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) void loadMore();
-        }
-      },
-      {
-        root: stage,
-        // 800px ahead — start loading before the user runs out of
-        // text, so the scroll appears continuous on typical reading
-        // speeds. Tune downward if memory pressure becomes a
-        // concern for very long works.
-        rootMargin: "800px 0px",
-        threshold: 0,
-      },
-    );
-    observer.observe(sentinel);
-    onCleanup(() => observer.disconnect());
-  });
+  //
+  // The shared hook's signal-based ref callback matters here: the
+  // sentinel lives inside `<Show when={range()}>`, so on first run it
+  // doesn't exist yet — the previous hand-rolled effect read plain
+  // `let` refs, tracked zero dependencies, returned early, and never
+  // re-ran; the observer was never attached and works longer than one
+  // page could not be scrolled past chunk 80.
+  const setSentinelEl = useInfiniteScrollSentinel(
+    hasMore,
+    () => void loadMore(),
+    { root: () => stageRef, rootMargin: "800px 0px" },
+  );
 
   const railApi = useTranslateRail();
 
@@ -243,7 +236,7 @@ export default function Reader(props: ReaderProps) {
                     typical scrolling produces no visual flicker. */}
                 <Show when={hasMore()}>
                   <div
-                    ref={sentinelRef}
+                    ref={setSentinelEl}
                     aria-hidden="true"
                     style={{ height: "1px" }}
                   />
@@ -330,6 +323,7 @@ export default function Reader(props: ReaderProps) {
           <TermCard
             termId={c().termId}
             anchor={c().anchor}
+            direction={c().direction}
             onClose={term.close}
           />
         )}

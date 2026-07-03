@@ -125,7 +125,7 @@ def parallel_ingest(
     *,
     jobs: int,
     per_source_timing: bool = False,
-) -> tuple[list[Path], int, dict[str, int], dict[str, list[str]]]:
+) -> tuple[list[Path], int, dict[str, int], dict[str, list[str]], list[str]]:
     """Parse ``source_ids`` in parallel across ``jobs`` worker processes.
 
     Returns:
@@ -144,6 +144,13 @@ def parallel_ingest(
       that corpus) or that recorded per-file parse failures inside
       ``corpus.pipeline.parse_dir``. The caller (``cmd_ingest``) must
       surface these and exit non-zero.
+    * ``dropped``: source ids whose shard is entirely absent from
+      ``shard_paths`` (source-level error, or shard file missing) —
+      i.e. the sources whose corpora would VANISH from chunks.jsonl if
+      a full ingest concatenated the surviving shards. ``cmd_ingest``
+      aborts a full write when this is non-empty. Deliberately-skipped
+      sources (missing path, vetted upfront by ``cmd_ingest``) are not
+      included.
 
     Failed sources are reported on stderr and excluded from the shard
     list. ``per_source_timing=True`` mirrors the sequential ingest's
@@ -215,6 +222,7 @@ def parallel_ingest(
     total = 0
     counts: dict[str, int] = {}
     failures: dict[str, list[str]] = {}
+    dropped: list[str] = []
     for source in INGEST_SOURCES:
         res = results.get(source.id)
         if res is None:
@@ -224,31 +232,45 @@ def parallel_ingest(
             msgs.append(str(res["error"]))
         if msgs:
             failures[source.id] = msgs
-        if res.get("skipped") or res.get("error"):
+        if res.get("skipped"):
             continue
-        shard = Path(res["shard"])
-        if not shard.exists():
+        if res.get("error"):
+            dropped.append(source.id)
+            continue
+        shard = Path(res.get("shard", ""))
+        if not res.get("shard") or not shard.exists():
+            dropped.append(source.id)
             continue
         shard_paths.append(shard)
         total += res["count"]
         for k, v in res.get("counts", {}).items():
             counts[k] = counts.get(k, 0) + v
 
-    return shard_paths, total, counts, failures
+    return shard_paths, total, counts, failures, dropped
 
 
 def concat_shards(shard_paths: list[Path], output_path: Path) -> int:
     """Stream every shard's lines into ``output_path``, in order, and
     return the total line count. Memory stays flat (no full-file
     materialization) so this scales with corpus size.
+
+    Writes go to a temp file first, atomically renamed onto
+    ``output_path`` — a crash or disk-full mid-concat must not leave a
+    truncated ``chunks.jsonl`` for the next ``index --reset`` to load.
     """
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     n = 0
-    with output_path.open("w", encoding="utf-8") as out_fh:
-        for shard in shard_paths:
-            with shard.open("r", encoding="utf-8") as in_fh:
-                for line in in_fh:
-                    out_fh.write(line)
-                    n += 1
+    try:
+        with tmp_path.open("w", encoding="utf-8") as out_fh:
+            for shard in shard_paths:
+                with shard.open("r", encoding="utf-8") as in_fh:
+                    for line in in_fh:
+                        out_fh.write(line)
+                        n += 1
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(output_path)
     return n

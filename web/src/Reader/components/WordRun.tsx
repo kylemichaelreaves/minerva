@@ -12,6 +12,7 @@
 
 import { For, Show, type JSX } from "solid-js";
 import { HoverTip } from "~/components/HoverTip";
+import { detectAnchorDirection } from "~/utils/popoverPosition";
 import { romanize as romanizeArabic } from "~/utils/arabic";
 import { romanize as romanizeGreek, tokenizeWords } from "~/utils/greek";
 import { romanize as romanizeHebrew } from "~/utils/hebrew";
@@ -52,7 +53,7 @@ export function WordRun(props: {
   highlights: { start: number; end: number }[];
   pinned: PinnedHighlight[];
   chunkId: string;
-  onTermClick: (termId: number, anchor: DOMRect) => void;
+  onTermClick: (termId: number, anchor: DOMRect, direction?: "ltr" | "rtl") => void;
   onWordClick: (
     word: string,
     chunkId: string,
@@ -196,7 +197,11 @@ export function WordRun(props: {
                 onClick={(e) => {
                   e.stopPropagation();
                   const rect = e.currentTarget.getBoundingClientRect();
-                  props.onTermClick(occ().term_id, rect);
+                  props.onTermClick(
+                    occ().term_id,
+                    rect,
+                    detectAnchorDirection(e.currentTarget),
+                  );
                 }}
               >
                 {t.s}

@@ -535,36 +535,45 @@ def fetch_chunk_context(
 ) -> tuple[sqlite3.Row | None, list[sqlite3.Row], list[sqlite3.Row]]:
     """Return ``(focus, before, after)`` rows from ``chunks_full``.
 
-    Neighbors are scoped by ``(work, lang)`` and ``ord`` — the same
-    semantics as the reader ``/api/chunks/:id/context`` endpoint.
+    Neighbors are scoped by the focus chunk's edition/translation —
+    the same semantics as :func:`neighbor_ids`. Scoping by
+    ``(work, lang)`` instead (the old behavior) bled context across
+    same-titled works: every Luther 1912 book shares its title AND
+    lang with the 1545 edition, so context at an edition boundary
+    walked into the other translation.
     ``before`` / ``after`` are ascending by ``ord``; both are empty
     when ``radius == 0``. Focus is ``None`` when ``chunk_id`` is unknown.
     """
 
     focus = conn.execute(
         "SELECT corpus, author, work, lang, chunk_id, section, book, page, "
-        "speaker, text, ord FROM chunks_full WHERE chunk_id=?",
+        "speaker, text, ord, edition_id, translation_id "
+        "FROM chunks_full WHERE chunk_id=?",
         (chunk_id,),
     ).fetchone()
     if focus is None:
         return None, [], []
+    if focus["edition_id"] is not None:
+        fk_col, fk_val = "edition_id", focus["edition_id"]
+    else:
+        fk_col, fk_val = "translation_id", focus["translation_id"]
     before_rows: list[sqlite3.Row] = []
     after_rows: list[sqlite3.Row] = []
     if radius > 0:
         before_rows = list(
             reversed(
                 conn.execute(
-                    "SELECT chunk_id, section, book, page, speaker, text, ord "
-                    "FROM chunks_full WHERE work=? AND lang=? AND ord<? "
-                    "ORDER BY ord DESC LIMIT ?",
-                    (focus["work"], focus["lang"], focus["ord"], radius),
+                    f"SELECT chunk_id, section, book, page, speaker, text, ord "
+                    f"FROM chunks_full WHERE {fk_col}=? AND ord<? "
+                    f"ORDER BY ord DESC LIMIT ?",
+                    (fk_val, focus["ord"], radius),
                 ).fetchall()
             )
         )
         after_rows = conn.execute(
-            "SELECT chunk_id, section, book, page, speaker, text, ord "
-            "FROM chunks_full WHERE work=? AND lang=? AND ord>? "
-            "ORDER BY ord ASC LIMIT ?",
-            (focus["work"], focus["lang"], focus["ord"], radius),
+            f"SELECT chunk_id, section, book, page, speaker, text, ord "
+            f"FROM chunks_full WHERE {fk_col}=? AND ord>? "
+            f"ORDER BY ord ASC LIMIT ?",
+            (fk_val, focus["ord"], radius),
         ).fetchall()
     return focus, before_rows, after_rows

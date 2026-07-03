@@ -133,44 +133,54 @@ export default function Review(props: ReviewProps) {
   });
 
   const advanceAfterWrite = async (): Promise<void> => {
-    const nextCursor = cursor() + 1;
-    setCursor(nextCursor);
-    const localCount = queue().length;
+    const c = cursor();
+    const q = queue();
+    const localCount = q.length;
+    if (localCount === 0) return;
+
     const m = meta();
     const decided = decidedCount();
-    // `localCount - decided` is how many of our locally-loaded rows
-    // are still pending server-side; there are more to fetch only if
-    // the server's pending total exceeds that.
-    if (nextCursor >= localCount && localCount - decided < m.total_pending) {
-      await pagination.loadMore(firstPage(), async (offset) => {
-        // `offset` from loadMore is the local row count; subtract the
-        // decided rows (no longer in the server queue) so we fetch the
-        // first page of rows we haven't seen rather than skipping past
-        // `decided` of them.
-        const res = await fetchReviewQueue({
-          limit: PAGE_SIZE,
-          offset: offset - decided,
-          sourceAuthor: props.sourceAuthor,
-          referenceType: props.referenceType,
-        });
-        setMeta({ total_pending: res.total_pending });
-        return { items: res.references };
-      });
-      if (pagination.appendError()) {
-        setActionError(pagination.appendError());
-      }
+    const hasMoreOnServer = localCount - decided < m.total_pending;
+
+    if (c < localCount - 1) {
+      const nextCursor = c + 1;
+      setCursor(nextCursor);
+      setActionError(null);
+      props.onNavigateToReference(q[nextCursor]?.id);
+      return;
     }
-    // Sync the URL to the new current row's id. `replaceState` keeps
-    // the back button from accumulating a history entry per review
-    // action — see RoutingApi.replace in routing.ts.
-    const nextRow = queue().at(nextCursor);
-    props.onNavigateToReference(nextRow?.id);
+
+    if (!hasMoreOnServer) return;
+
+    await pagination.loadMore(firstPage(), async (offset) => {
+      const res = await fetchReviewQueue({
+        limit: PAGE_SIZE,
+        offset: offset - decided,
+        sourceAuthor: props.sourceAuthor,
+        referenceType: props.referenceType,
+      });
+      setMeta({ total_pending: res.total_pending });
+      return { items: res.references };
+    });
+    if (pagination.appendError()) {
+      setActionError(pagination.appendError());
+      return;
+    }
+
+    const grown = queue();
+    if (grown.length <= localCount) return;
+
+    const nextCursor = c + 1;
+    setCursor(nextCursor);
+    setActionError(null);
+    props.onNavigateToReference(grown[nextCursor]?.id);
   };
 
   const submit = async (status: "approved" | "rejected"): Promise<void> => {
     const row = currentRow();
     if (!row || acting()) return;
     setActing(true);
+    setActionError(null);
     try {
       const note = noteDraft().trim();
       await updateReferenceCuration(row.id, {
@@ -190,6 +200,7 @@ export default function Review(props: ReviewProps) {
   };
 
   const skip = (): void => {
+    if (acting()) return;
     void advanceAfterWrite();
   };
 
@@ -201,6 +212,7 @@ export default function Review(props: ReviewProps) {
   // handler falls through to native scroll when the user is inside the
   // source-text blockquote (which has its own overflow-y:auto).
   const goPrev = (): void => {
+    if (acting()) return;
     const c = cursor();
     if (c <= 0) return;
     setCursor(c - 1);
@@ -208,6 +220,7 @@ export default function Review(props: ReviewProps) {
     props.onNavigateToReference(queue()[c - 1]?.id);
   };
   const goNext = (): void => {
+    if (acting()) return;
     // Same forward path as the Skip button — no curator status change,
     // just advance + URL update.
     void advanceAfterWrite();
@@ -234,6 +247,7 @@ export default function Review(props: ReviewProps) {
   const WHEEL_THRESHOLD = 80;
   const WHEEL_COOLDOWN_MS = 300;
   const onWheel = (e: WheelEvent): void => {
+    if (acting()) return;
     // Walk up from the wheel target — if it sits inside a scrollable
     // element that still has room to scroll IN THE WHEEL DIRECTION,
     // yield to native scrolling. Otherwise we eat the wheel and use it

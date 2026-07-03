@@ -29,14 +29,6 @@ import "~/Refs/refs.css";
 
 const PAGE_SIZE = REFS_PAGE_SIZE;
 
-export {
-  REFS_PAGE_SIZE,
-  buildReferencesListArgs,
-  mergeRefsNavigate,
-  stringsToSelectOptions,
-  useRefsSourceAuthors,
-} from "~/Refs/components/refsList";
-
 export interface RefsProps {
   sourceAuthor?: string;
   targetAuthor?: string;

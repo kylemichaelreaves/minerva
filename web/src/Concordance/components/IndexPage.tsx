@@ -164,7 +164,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       lastScopeKey = scopeKey;
       setFreqCeil(10000);
     }
-    const top = data()?.rows[0]?.count;
+    const top = sort() === "freq" ? data()?.rows[0]?.count : undefined;
     if (top && top > freqCeil()) {
       setFreqCeil(top);
     }
@@ -259,7 +259,14 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       workOptions={workOptions()}
       onPickAuthor={pickAuthor}
       onPickWork={pickWork}
-      onSetLang={(v) => props.onNavigate({ lang: v, letter: undefined })}
+      onSetLang={(v) =>
+        props.onNavigate({
+          lang: v,
+          letter: undefined,
+          scopeAuthors: undefined,
+          scopeWorks: undefined,
+        })
+      }
       onSetSort={(v) => props.onNavigate({ sort: v })}
       onSetPos={(v) => props.onNavigate({ pos: v })}
       onSetFreqRange={(lo, hi) => props.onNavigate({ freqMin: lo, freqMax: hi })}

@@ -4,7 +4,7 @@
 // owns the in-text lemma highlight set so a fast subsequent click
 // cancels both fetches together.
 
-import { createSignal, type Accessor } from "solid-js";
+import { createSignal, onCleanup, type Accessor } from "solid-js";
 import { fetchLemmaHighlights, fetchWordLookup } from "~/api/readerApi";
 import { errorMessage, isAbortError } from "~/utils/util";
 import type { LemmaHighlights, WorkRange } from "~/utils/types";
@@ -37,6 +37,7 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
   const [wordInfo, setWordInfo] = createSignal<WordInfoState>({ kind: "idle" });
   const [lemmaHighlights, setLemmaHighlights] = createSignal<LemmaHighlights | null>(null);
   let wordInfoController: AbortController | undefined;
+  let samplesController: AbortController | undefined;
 
   function onWordClick(
     word: string,
@@ -48,6 +49,7 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
     const ref = numText.trim() || "—";
     props.onTranslateRequest(word, ref);
     wordInfoController?.abort();
+    samplesController?.abort();
     const controller = new AbortController();
     wordInfoController = controller;
     setWordInfo({ kind: "loading" });
@@ -119,12 +121,12 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
     // coords work for that).
     const sample = current.info.samples[0];
     if (sample === undefined) return;
+    const lemma = current.info.lemma;
+    samplesController?.abort();
+    const controller = new AbortController();
+    samplesController = controller;
     setWordInfo({ ...current, loadingMore: true });
     try {
-      // No abort controller here — the user explicitly asked for
-      // more; cancelling on a subsequent click is already handled by
-      // the parent `wordInfoController` whose abort propagates out
-      // of fetchWordLookup.
       const next = await fetchWordLookup(
         sample.chunk_id,
         sample.surface_start,
@@ -132,11 +134,10 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
           samplesLimit: SAMPLES_PAGE_SIZE,
           samplesOffset: current.info.next_samples_offset,
         },
+        controller.signal,
       );
       const merged = wordInfo();
-      // Guard against a fresh click clearing the panel between our
-      // request firing and resolving.
-      if (merged.kind !== "ready") return;
+      if (merged.kind !== "ready" || merged.info.lemma !== lemma) return;
       setWordInfo({
         kind: "ready",
         loadingMore: false,
@@ -149,7 +150,7 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
     } catch (err) {
       if (isAbortError(err)) return;
       const merged = wordInfo();
-      if (merged.kind !== "ready") return;
+      if (merged.kind !== "ready" || merged.info.lemma !== lemma) return;
       setWordInfo({ ...merged, loadingMore: false });
     }
   }
@@ -160,10 +161,17 @@ export function useWordLookup(props: WordLookupProps): WordLookupApi {
 
   function reset() {
     wordInfoController?.abort();
+    samplesController?.abort();
     wordInfoController = undefined;
+    samplesController = undefined;
     setWordInfo({ kind: "idle" });
     setLemmaHighlights(null);
   }
+
+  onCleanup(() => {
+    wordInfoController?.abort();
+    samplesController?.abort();
+  });
 
   return { wordInfo, lemmaHighlights, onWordClick, loadMoreSamples, reset };
 }

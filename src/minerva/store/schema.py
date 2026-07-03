@@ -110,8 +110,13 @@ def open_db(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection
 
 
 def reset_db(path: Path) -> None:
-    if path.exists():
-        path.unlink()
+    # Unlink the WAL/SHM siblings along with the main file. Leaving a
+    # stale -wal behind means the next open of a freshly-created DB at
+    # this path would attempt WAL recovery against the wrong database —
+    # a documented SQLite corruption vector.
+    for p in (path, Path(str(path) + "-wal"), Path(str(path) + "-shm")):
+        if p.exists():
+            p.unlink()
 
 
 def _set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:

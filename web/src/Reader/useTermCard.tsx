@@ -9,12 +9,13 @@
 // opened card. Closing is owned by the dismiss UI (outside click,
 // Esc, close button), which also clears the URL.
 
-import { createEffect, createSignal, type Accessor } from "solid-js";
+import { createEffect, createSignal, untrack, type Accessor } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
 
 export interface OpenTermCard {
   termId: number;
   anchor: DOMRect;
+  direction?: "ltr" | "rtl";
 }
 
 export interface TermCardApi {
@@ -22,7 +23,7 @@ export interface TermCardApi {
   /** Toggle: a second click on the same marked term dismisses; a
    *  different term replaces. Updates the URL via the supplied
    *  callback. */
-  onTermClick: (termId: number, anchor: DOMRect) => void;
+  onTermClick: (termId: number, anchor: DOMRect, direction?: "ltr" | "rtl") => void;
   /** Close + clear the URL param. */
   close: () => void;
 }
@@ -37,13 +38,17 @@ export interface TermCardProps {
 export function useTermCard(props: TermCardProps): TermCardApi {
   const [openCard, setOpenCard] = createSignal<OpenTermCard | null>(null);
 
-  function onTermClick(termId: number, anchor: DOMRect) {
+  function onTermClick(
+    termId: number,
+    anchor: DOMRect,
+    direction?: "ltr" | "rtl",
+  ) {
     if (openCard()?.termId === termId) {
       setOpenCard(null);
       props.onOpenTermIdChange?.(null);
       return;
     }
-    setOpenCard({ termId, anchor });
+    setOpenCard({ termId, anchor, direction: direction ?? "ltr" });
     props.onOpenTermIdChange?.(termId);
   }
 
@@ -73,7 +78,13 @@ export function useTermCard(props: TermCardProps): TermCardApi {
   createEffect(() => {
     const targetId = props.openTermId();
     if (targetId === undefined) return;
-    const current = openCard();
+    // untrack: this effect must react to URL changes ONLY. Tracking
+    // openCard() too meant that close() — which nulls openCard first
+    // and clears the URL second — could flush this effect between the
+    // two writes (Esc/outside-click arrive via native listeners, so
+    // the writes aren't batched); it then saw the stale `?term=` and
+    // re-opened the just-dismissed card at the sentinel anchor.
+    const current = untrack(openCard);
     if (current?.termId === targetId) return;
     const w = window.innerWidth;
     const sentinel = new DOMRect(w / 2 - 40, 100, 80, 20);

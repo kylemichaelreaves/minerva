@@ -62,49 +62,14 @@ def _wait_for_leader(deps: ServerDeps, source: str, target: str, waiter) -> dict
     raise llm.LLMError("translation wait timed out")
 
 
-@map_domain_errors
-def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, Any]:
-    source = payload.get("source_text")
-    target = payload.get("target_lang")
-    if not isinstance(source, str) or not source.strip():
-        raise BadRequestError("missing or empty 'source_text'")
-    if len(source) > MAX_TRANSLATE_CHARS:
-        raise PayloadTooLargeError(
-            f"source_text exceeds {MAX_TRANSLATE_CHARS}-character limit",
-        )
-    if not isinstance(target, str) or target not in translations.SUPPORTED_LANGS:
-        raise BadRequestError(
-            f"target_lang must be one of {sorted(translations.SUPPORTED_LANGS)}",
-        )
-
-    cached = _lookup_cached(deps, source, target)
-    if cached is not None:
-        return _cached_response(cached)
-    if deps.backend.name == "none":
-        return {
-            "translated_text": "(translation unavailable — server running with --llm none)",
-            "literal_text": "",
-            "model": "none",
-            "cached": False,
-        }
-
-    cache_key = (source, target)
-    for _attempt in range(2):
-        is_leader, ev = begin_inflight(cache_key)
-        if is_leader:
-            break
-        hit = _wait_for_leader(deps, source, target, ev)
-        if hit is not None:
-            return hit
-        cached = _lookup_cached(deps, source, target)
-        if cached is not None:
-            return _cached_response(cached)
-        # The leader finished without landing a cache row (LLM error or
-        # refusal). Loop and try to become the leader ourselves; only a
-        # request whose begin_inflight said is_leader may call the LLM.
-    else:
-        raise llm.LLMError("translation repeatedly failed upstream")
-
+def _leader_translate(
+    deps: ServerDeps,
+    *,
+    source: str,
+    target: str,
+    cache_key: tuple[str, str],
+    ev,
+) -> dict[str, Any]:
     target_name = LANG_NAME.get(target, target)
     messages = [
         llm.Message(role="system", content=TRANSLATE_SYSTEM.format(target_lang_name=target_name)),
@@ -142,6 +107,55 @@ def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, An
         }
     finally:
         finish_inflight(cache_key, ev)
+
+
+@map_domain_errors
+def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, Any]:
+    source = payload.get("source_text")
+    target = payload.get("target_lang")
+    if not isinstance(source, str) or not source.strip():
+        raise BadRequestError("missing or empty 'source_text'")
+    if len(source) > MAX_TRANSLATE_CHARS:
+        raise PayloadTooLargeError(
+            f"source_text exceeds {MAX_TRANSLATE_CHARS}-character limit",
+        )
+    if not isinstance(target, str) or target not in translations.SUPPORTED_LANGS:
+        raise BadRequestError(
+            f"target_lang must be one of {sorted(translations.SUPPORTED_LANGS)}",
+        )
+
+    cached = _lookup_cached(deps, source, target)
+    if cached is not None:
+        return _cached_response(cached)
+    if deps.backend.name == "none":
+        return {
+            "translated_text": "(translation unavailable — server running with --llm none)",
+            "literal_text": "",
+            "model": "none",
+            "cached": False,
+        }
+
+    cache_key = (source, target)
+    for _attempt in range(2):
+        is_leader, ev = begin_inflight(cache_key)
+        if is_leader:
+            return _leader_translate(
+                deps,
+                source=source,
+                target=target,
+                cache_key=cache_key,
+                ev=ev,
+            )
+        hit = _wait_for_leader(deps, source, target, ev)
+        if hit is not None:
+            return hit
+        cached = _lookup_cached(deps, source, target)
+        if cached is not None:
+            return _cached_response(cached)
+        # The leader finished without landing a cache row (LLM error or
+        # refusal). Loop and try to become the leader ourselves; only a
+        # request whose begin_inflight said is_leader may call the LLM.
+    raise llm.LLMError("translation repeatedly failed upstream")
 
 
 # Re-export for tests importing `minerva.server._TRANSLATE_SYSTEM`, etc.

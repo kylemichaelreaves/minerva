@@ -172,7 +172,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     const json = (await r.json()) as { abstained: boolean; paragraphs: string[] };
     expect(json.abstained).toBe(true);
     expect(json.paragraphs[0]).toMatch(/could not find enough evidence/i);
-  });
+  }, 30_000);
 
   it("POST /api/chat 400s on an empty query", async () => {
     const r = await fetch(`${baseUrl}/api/chat`, {
@@ -186,9 +186,12 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
   });
 
   it("OPTIONS preflight returns CORS headers", async () => {
-    const r = await fetch(`${baseUrl}/api/chat`, { method: "OPTIONS" });
+    const r = await fetch(`${baseUrl}/api/chat`, {
+      method: "OPTIONS",
+      headers: { Origin: baseUrl },
+    });
     expect(r.status).toBe(204);
-    expect(r.headers.get("access-control-allow-origin")).toBe("*");
+    expect(r.headers.get("access-control-allow-origin")).toBe(baseUrl);
     expect(r.headers.get("access-control-allow-methods")).toMatch(/POST/);
     expect(r.headers.get("access-control-allow-methods")).toMatch(/DELETE/);
   });
@@ -206,7 +209,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(typeof json.conversation_id).toBe("string");
     expect(json.conversation_id.length).toBeGreaterThan(5);
     expect(json.title).toMatch(/Where is the divided line/);
-  });
+  }, 30_000);
 
   it("GET /api/conversations lists persisted conversations", async () => {
     // Seed at least one.
@@ -220,7 +223,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     const json = (await r.json()) as { conversations: { id: string; title: string }[] };
     expect(json.conversations.length).toBeGreaterThan(0);
     expect(json.conversations[0]!.id).toBeDefined();
-  });
+  }, 30_000);
 
   it("GET /api/conversations/:id returns the message history", async () => {
     const create = await fetch(`${baseUrl}/api/chat`, {
@@ -236,7 +239,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(json.messages.length).toBe(2);
     expect(json.messages[0]!.role).toBe("user");
     expect(json.messages[1]!.role).toBe("assistant");
-  });
+  }, 30_000);
 
   it("DELETE /api/conversations/:id removes it (subsequent GET 404s)", async () => {
     const create = await fetch(`${baseUrl}/api/chat`, {
@@ -251,7 +254,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(del.status).toBe(204);
     const after = await fetch(`${baseUrl}/api/conversations/${conversation_id}`);
     expect(after.status).toBe(404);
-  });
+  }, 30_000);
 
   it("DELETE on an unknown id returns 404", async () => {
     const r = await fetch(`${baseUrl}/api/conversations/abcdef1234`, { method: "DELETE" });

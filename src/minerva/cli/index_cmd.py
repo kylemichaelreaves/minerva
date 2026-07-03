@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sqlite3
 import sys
 from pathlib import Path
 
 from .. import store
+from ..sqlite_util import foreign_keys_disabled, table_exists
 from ._shared import (
     DEFAULT_CHUNKS,
     Timer,
@@ -63,9 +63,11 @@ def cmd_index(args: argparse.Namespace) -> int:
     # finds no file and silently no-ops, taking all xrefs with the
     # re-index. (That's how 21,751 cross_references got wiped on the
     # 2026-05-29 Hegel-Preface rechunk re-ingest.)
-    _maybe_snapshot_pre_index(args.db)
-    if args.reset and args.db.exists():
-        args.db.unlink()
+    _maybe_snapshot_pre_index(args.db, incremental=incremental)
+    if args.reset:
+        # reset_db also unlinks the -wal/-shm siblings — a stale WAL
+        # next to a freshly-created file is a corruption vector.
+        store.reset_db(args.db)
     conn = store.open_db(args.db)
     # If `--reset` just deleted the DB, the fresh schema has no
     # cross_references / chunk_lemmas rows — meaning the rebind step
@@ -113,8 +115,8 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 0
 
 
-def _maybe_snapshot_pre_index(db_path: Path) -> None:
-    """Copy ``db_path`` to ``<db_path>.bak.pre-index`` when the DB
+def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> None:
+    """Back up ``db_path`` to ``<db_path>.bak.pre-index`` when the DB
     carries cross_references, chunk_lemmas, OR embeddings rows.
 
     Three pieces of expensive state need to survive a ``--reset``:
@@ -124,9 +126,23 @@ def _maybe_snapshot_pre_index(db_path: Path) -> None:
     overwritten on each subsequent re-index — one snapshot, not a tower
     of them. No-op for fresh DBs (where neither table exists yet) and
     for fully-empty DBs.
+
+    The copy goes through SQLite's backup API, NOT a filesystem copy:
+    the DB runs in WAL mode, and a plain ``cp``/``copy2`` grabs the
+    main file without the -wal sibling — silently dropping every
+    not-yet-checkpointed commit (exactly the rows this snapshot exists
+    to protect) and risking a torn copy if a checkpoint runs
+    concurrently.
+
+    Skipped for incremental runs: they only delete/reinsert the scoped
+    corpora (the preserved tables aren't wiped), and a full backup of
+    a multi-GB DB before every 1.5 s incremental index costs ~50× the
+    operation it would guard.
     """
 
     if not db_path.exists():
+        return
+    if incremental:
         return
     # Read counts via a brand-new connection so we don't entangle with
     # the index pass's connection lifecycle. Closed immediately so the
@@ -136,12 +152,19 @@ def _maybe_snapshot_pre_index(db_path: Path) -> None:
         xref_count = _count_or_zero(probe, "cross_references")
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
         emb_count = _count_or_zero(probe, "embeddings")
+        if xref_count == 0 and lemma_count == 0 and emb_count == 0:
+            return
+        backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
+        # Clear any prior snapshot (and its own WAL siblings) so the
+        # backup lands in a fresh file rather than on top of stale pages.
+        store.reset_db(backup)
+        dest = sqlite3.connect(backup)
+        try:
+            probe.backup(dest)
+        finally:
+            dest.close()
     finally:
         probe.close()
-    if xref_count == 0 and lemma_count == 0 and emb_count == 0:
-        return
-    backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
-    shutil.copy2(db_path, backup)
     bits = []
     if xref_count:
         bits.append(f"{xref_count} cross_references")
@@ -161,11 +184,7 @@ def _count_or_zero(conn: sqlite3.Connection, table: str) -> int:
     have either or both tables before any rows are inserted) doesn't
     crash on missing schema."""
 
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (table,),
-    ).fetchone()
-    if row is None:
+    if not table_exists(conn, table):
         return 0
     return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
@@ -215,30 +234,9 @@ def _maybe_restore_preserved_state_from_snapshot(
     # Probe the snapshot for what it has.
     probe = sqlite3.connect(backup)
     try:
-        has_xrefs = probe.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type='table' AND name='cross_references'"
-        ).fetchone() is not None
-        xref_count = (
-            probe.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0]
-            if has_xrefs else 0
-        )
-        has_lemmas = probe.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type='table' AND name='chunk_lemmas'"
-        ).fetchone() is not None
-        lemma_count = (
-            probe.execute("SELECT COUNT(*) FROM chunk_lemmas").fetchone()[0]
-            if has_lemmas else 0
-        )
-        has_emb = probe.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type='table' AND name='embeddings'"
-        ).fetchone() is not None
-        emb_count = (
-            probe.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
-            if has_emb else 0
-        )
+        xref_count = _count_or_zero(probe, "cross_references")
+        lemma_count = _count_or_zero(probe, "chunk_lemmas")
+        emb_count = _count_or_zero(probe, "embeddings")
     finally:
         probe.close()
     if xref_count == 0 and lemma_count == 0 and emb_count == 0:
@@ -252,67 +250,52 @@ def _maybe_restore_preserved_state_from_snapshot(
     # The xref FK integrity check after rebind catches genuine breakage;
     # the post-insert ``_sweep_orphan_chunk_lemmas`` handles lemma
     # orphans.
-    fk_prev = conn.execute("PRAGMA foreign_keys").fetchone()[0]
-    conn.execute("PRAGMA foreign_keys = OFF")
-    try:
+    with foreign_keys_disabled(conn):
         conn.execute("ATTACH DATABASE ? AS snap", (str(backup),))
         try:
-            xref_restored = 0
-            target_restored = 0
-            if xref_count:
-                # A fresh-DB ``open_db`` already seeds out-of-corpus
-                # reference_targets (Celsus, etc.) from migrations. Clear
-                # both tables before re-populating from the snapshot so
-                # the bulk INSERT doesn't collide on the PK. order matters
-                # — cross_references FK-references reference_targets, so
-                # delete the child first.
-                conn.execute("DELETE FROM cross_references")
-                conn.execute("DELETE FROM reference_targets")
-                conn.execute(
-                    "INSERT INTO reference_targets SELECT * FROM snap.reference_targets"
-                )
-                conn.execute(
-                    "INSERT INTO cross_references SELECT * FROM snap.cross_references"
-                )
-                xref_restored = conn.execute(
-                    "SELECT COUNT(*) FROM cross_references"
-                ).fetchone()[0]
-                target_restored = conn.execute(
-                    "SELECT COUNT(*) FROM reference_targets"
-                ).fetchone()[0]
-            lemma_restored = 0
-            if lemma_count:
-                # chunk_lemmas is empty in a fresh DB; just bulk-insert.
-                conn.execute(
-                    "INSERT INTO chunk_lemmas SELECT * FROM snap.chunk_lemmas"
-                )
-                lemma_restored = conn.execute(
-                    "SELECT COUNT(*) FROM chunk_lemmas"
-                ).fetchone()[0]
-            emb_restored = 0
-            if emb_count:
-                # ``embeddings.chunk_id`` is a PK with CASCADE-on-delete to
-                # ``chunks``; a fresh DB has zero rows. Bulk-insert from
-                # snapshot; the post-insert orphan sweep handles
-                # chunk_ids that changed text. Without this, every
-                # ``index --reset`` re-encodes the entire corpus —
-                # ~20 min on 344K chunks — even when only a single
-                # source's content changed.
-                conn.execute(
-                    "INSERT INTO embeddings SELECT * FROM snap.embeddings"
-                )
-                emb_restored = conn.execute(
-                    "SELECT COUNT(*) FROM embeddings"
-                ).fetchone()[0]
-                # The restore bypasses upsert_embeddings, so bump the
-                # generation counter by hand — a live server's embedding
-                # cache must not serve the pre-restore matrix.
-                from ..store.embeddings import bump_embedding_generation
+            # Roll back before the DETACH in ``finally`` runs: SQLite
+            # refuses to DETACH inside an open transaction, so an
+            # un-rolled-back failure here would raise a second error
+            # that masks the real one (and leave the transaction open,
+            # turning the FK-restore PRAGMA into a silent no-op).
+            try:
+                xref_restored = 0
+                target_restored = 0
+                if xref_count:
+                    # A fresh-DB ``open_db`` already seeds out-of-corpus
+                    # reference_targets (Celsus, etc.) from migrations. Clear
+                    # both tables before re-populating from the snapshot so
+                    # the bulk INSERT doesn't collide on the PK. order matters
+                    # — cross_references FK-references reference_targets, so
+                    # delete the child first.
+                    conn.execute("DELETE FROM cross_references")
+                    conn.execute("DELETE FROM reference_targets")
+                    target_restored = _restore_from_snap(conn, "reference_targets")
+                    xref_restored = _restore_from_snap(conn, "cross_references")
+                lemma_restored = 0
+                if lemma_count:
+                    # chunk_lemmas is empty in a fresh DB; just bulk-insert.
+                    lemma_restored = _restore_from_snap(conn, "chunk_lemmas")
+                emb_restored = 0
+                if emb_count:
+                    # ``embeddings.chunk_id`` is a PK with CASCADE-on-delete to
+                    # ``chunks``; a fresh DB has zero rows. Bulk-insert from
+                    # snapshot; the post-insert orphan sweep handles
+                    # chunk_ids that changed text. Without this, every
+                    # ``index --reset`` re-encodes the entire corpus —
+                    # ~20 min on 344K chunks — even when only a single
+                    # source's content changed.
+                    emb_restored = _restore_from_snap(conn, "embeddings")
+                    # The restore bypasses upsert_embeddings, so bump the
+                    # generation counter by hand — a live server's embedding
+                    # cache must not serve the pre-restore matrix.
+                    from ..store.embeddings import bump_embedding_generation
 
-                bump_embedding_generation(conn)
-            # Commit before DETACH — SQLite refuses to detach a
-            # database with open writes pending on the connection.
-            conn.commit()
+                    bump_embedding_generation(conn)
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
             if xref_restored or target_restored:
                 print(
                     f"Restored {xref_restored} cross_references + "
@@ -334,8 +317,26 @@ def _maybe_restore_preserved_state_from_snapshot(
                 )
         finally:
             conn.execute("DETACH DATABASE snap")
-    finally:
-        conn.execute(f"PRAGMA foreign_keys = {'ON' if fk_prev else 'OFF'}")
+
+
+def _restore_from_snap(conn: sqlite3.Connection, table: str) -> int:
+    """Bulk-copy ``snap.<table>`` into the live ``<table>`` and return
+    the live row count.
+
+    The INSERT names the live table's columns explicitly (rather than
+    ``SELECT *``): if the snapshot predates a schema migration that
+    added or reordered columns, a positional copy would silently write
+    values into the wrong columns — with named columns the mismatch
+    errors loudly instead ("no such column: snap.<table>.<col>").
+    """
+
+    cols = ", ".join(
+        row[1] for row in conn.execute(f"PRAGMA table_info({table})")
+    )
+    conn.execute(
+        f"INSERT INTO {table} ({cols}) SELECT {cols} FROM snap.{table}"
+    )
+    return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
 def _sweep_orphan_chunk_lemmas(conn: sqlite3.Connection) -> None:
@@ -360,10 +361,7 @@ def _sweep_orphan_table(conn: sqlite3.Connection, table: str) -> None:
     to clean both ``chunk_lemmas`` and ``embeddings`` after the
     snapshot-restore loop."""
 
-    if conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (table,),
-    ).fetchone() is None:
+    if not table_exists(conn, table):
         return
     if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is None:
         return

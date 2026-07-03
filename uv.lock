@@ -780,6 +780,7 @@ embed = [
 hegel = [
     { name = "beautifulsoup4" },
     { name = "ebooklib" },
+    { name = "lxml" },
     { name = "pymupdf" },
 ]
 lemma = [
@@ -804,6 +805,7 @@ requires-dist = [
     { name = "fr-core-news-sm", marker = "extra == 'lemma'", url = "https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl" },
     { name = "grc-dep-web-sm", marker = "extra == 'lemma'", url = "https://huggingface.co/latincy/grc_dep_web_sm/resolve/main/grc_dep_web_sm-3.8.1-py3-none-any.whl" },
     { name = "la-core-web-sm", marker = "extra == 'lemma'", url = "https://huggingface.co/latincy/la_core_web_sm/resolve/main/la_core_web_sm-3.9.4-py3-none-any.whl" },
+    { name = "lxml", marker = "extra == 'hegel'", specifier = ">=5.0" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pymupdf", marker = "extra == 'all'", specifier = ">=1.24" },
     { name = "pymupdf", marker = "extra == 'hegel'", specifier = ">=1.24" },

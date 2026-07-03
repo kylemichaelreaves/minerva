@@ -27,6 +27,7 @@ export interface TermCardProps {
    *  to this rect's bottom-left, falling back to viewport corners if
    *  it would overflow. */
   anchor: DOMRect;
+  direction?: "ltr" | "rtl";
   /** Called when the user dismisses the card (outside click / Esc /
    *  close button). The Reader uses this to clear its selection state. */
   onClose: () => void;
@@ -62,6 +63,7 @@ export default function TermCard(props: TermCardProps) {
     <PopoverCard
       variant="termcard"
       anchor={props.anchor}
+      direction={props.direction}
       ariaLabel="Term details"
       onClose={props.onClose}
     >

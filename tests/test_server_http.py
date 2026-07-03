@@ -82,12 +82,23 @@ def test_rate_limiter_unknown_route_always_allows(populated_db):
 # ---------- CORS hardening ----------
 
 
-def test_cors_wildcard_on_localhost_emits_star(populated_db):
+def test_cors_loopback_allows_default_vite_origin(populated_db):
     backend = StubBackend()
     deps = _make_deps(populated_db, backend)
-    deps.cors_wildcard = True
+    deps.cors_wildcard = False
+    deps.allowed_origins = frozenset({"http://localhost:5173"})
+    h = server._cors_headers(deps, origin="http://localhost:5173")
+    assert h["Access-Control-Allow-Origin"] == "http://localhost:5173"
+    assert h["Vary"] == "Origin"
+
+
+def test_cors_loopback_rejects_unlisted_origin(populated_db):
+    backend = StubBackend()
+    deps = _make_deps(populated_db, backend)
+    deps.cors_wildcard = False
+    deps.allowed_origins = frozenset({"http://localhost:5173"})
     h = server._cors_headers(deps, origin="https://attacker.example")
-    assert h["Access-Control-Allow-Origin"] == "*"
+    assert "Access-Control-Allow-Origin" not in h
 
 
 def test_cors_non_local_with_allow_list_echoes_matching_origin(populated_db):
