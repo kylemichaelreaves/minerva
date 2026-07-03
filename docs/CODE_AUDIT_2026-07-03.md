@@ -308,9 +308,9 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 ### Live drift (only two channels found — both closable)
 - 🟡 ~~`web/src/utils/dominantPhil.ts`~~ — **fixed**: `PHIL_DOMINANT_GLYPH` now codegen'd from
   `manifest.yaml` (includes Schiller `'l'`); hand-maintained copy removed.
-- 🟡 `.github/workflows/check.yml` claims to mirror `make check` but omits `check-api-types` (the
-  TS-side contract gate), `check-author-imports`, and `check_author_ingest --all` — TS wire-type
-  drift can merge green.
+- 🟡 ~~`.github/workflows/check.yml` claims to mirror `make check` but omits `check-api-types` (the
+  TS-side contract gate), `check-author-imports`, and `check_author_ingest --all`~~ — **fixed** in PR
+  #38: python job now runs all three contract scripts.
 
 ### Codegen script defects
 - 🟡 `scripts/generate_author_artifacts.py:320-324,348-357,373-395` — dead identical-branch
