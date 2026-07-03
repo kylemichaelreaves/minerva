@@ -16,6 +16,8 @@ import type { Work } from "~/utils/types";
 interface ReaderLocation {
   workId: string;
   sourceLang?: string;
+  /** Disambiguates same-titled works (Luther 1912 vs 1545). */
+  author?: string;
   focusChunkId?: string;
   /** Term-card open state mirrored from the URL (`?term=<id>`). When
    *  set, the Reader resumes the popover on next paint. */
@@ -69,6 +71,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
       ? {
           workId: r.workId,
           sourceLang: r.sourceLang,
+          author: r.author,
           focusChunkId: r.focusChunkId,
           openTermId: r.openTermId,
         }
@@ -82,7 +85,10 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     if (!loc) return null;
     return (
       works().find(
-        (w) => w.work === loc.workId && (loc.sourceLang == null || w.lang === loc.sourceLang),
+        (w) =>
+          w.work === loc.workId &&
+          (loc.sourceLang == null || w.lang === loc.sourceLang) &&
+          (loc.author == null || w.author === loc.author),
       ) ?? null
     );
   };
@@ -94,7 +100,12 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
 
   function openWork(work: Work) {
     abortChat();
-    routing.navigate({ kind: "reader", workId: work.work, sourceLang: work.lang });
+    routing.navigate({
+      kind: "reader",
+      workId: work.work,
+      sourceLang: work.lang,
+      author: work.author,
+    });
   }
 
   // Lazy single-flight loader. Avoid hammering `/api/works` on every
@@ -138,9 +149,9 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     const remembered = localStorage.getItem(STORAGE_KEY);
     if (remembered) {
       try {
-        const { workId, sourceLang } = JSON.parse(remembered) as ReaderLocation;
+        const { workId, sourceLang, author } = JSON.parse(remembered) as ReaderLocation;
         if (workId) {
-          routing.navigate({ kind: "reader", workId, sourceLang });
+          routing.navigate({ kind: "reader", workId, sourceLang, author });
           return;
         }
       } catch (_) {
@@ -158,7 +169,12 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
       const greek = all.find((w) => w.lang === "grc");
       const pick = greek ?? all[0];
       if (pick === undefined) return;
-      routing.navigate({ kind: "reader", workId: pick.work, sourceLang: pick.lang });
+      routing.navigate({
+        kind: "reader",
+        workId: pick.work,
+        sourceLang: pick.lang,
+        author: pick.author,
+      });
     } catch (err) {
       console.warn("failed to fetch works for reader", err);
       apiError("Couldn't load the works list.");

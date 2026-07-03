@@ -35,6 +35,7 @@ export function usePaginatedAppend<T>(
     generation += 1;
     setExtraRows([]);
     setAppendError(null);
+    setAppending(false);
   });
 
   const rows = (firstPage: T[]): T[] => [...firstPage, ...extraRows()];
@@ -59,9 +60,11 @@ export function usePaginatedAppend<T>(
       if (gen !== generation) return;
       setAppendError(errorMessage(err));
     } finally {
-      if (gen === generation) {
-        setAppending(false);
-      }
+      // Unconditional: the generation bump on a filter change doesn't
+      // touch `appending`, so a gen-gated reset left it stuck true
+      // whenever a filter changed mid-flight — every later loadMore()
+      // early-returned and pagination was dead until remount.
+      setAppending(false);
     }
   }
 

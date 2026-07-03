@@ -466,6 +466,11 @@ def verify_rows_with_llm(
     n_calls_target = min(max_llm_calls, n_batches_total)
     progress = _ProgressBar(total=n_calls_target, label="llm-verify")
 
+    # Earliest row id in a batch that failed LLM/parse. Checkpoint must
+    # never advance to or past this id — otherwise a later successful
+    # batch would make --resume skip the failed rows forever.
+    first_failed_id: int | None = None
+
     for batch_start in range(0, len(row_dicts), batch_size):
         if n_calls >= max_llm_calls:
             progress.close(
@@ -496,6 +501,8 @@ def verify_rows_with_llm(
                 print(f"\n  [error] batch {batch_start//batch_size}: {exc}", flush=True)
             n_calls += 1
             n_parse_errors += 1
+            bid = batch[0]["id"]
+            first_failed_id = bid if first_failed_id is None else min(first_failed_id, bid)
             progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)
             progress.update()
             if sleep_between_calls:
@@ -513,6 +520,8 @@ def verify_rows_with_llm(
                     flush=True,
                 )
             n_parse_errors += 1
+            bid = batch[0]["id"]
+            first_failed_id = bid if first_failed_id is None else min(first_failed_id, bid)
             progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)
             progress.update()
             if sleep_between_calls:
@@ -578,10 +587,12 @@ def verify_rows_with_llm(
             n_promoted += 1
 
         # Persist the last processed xr.id so a follow-up `--resume`
-        # picks up at exactly the next row. Cheap (single meta upsert)
-        # and bounded — one write per batch, not per row.
-        _write_checkpoint(conn, batch[-1]["id"])
-        conn.commit()
+        # picks up at exactly the next row. Never advance past a batch
+        # that errored earlier in the run — that would skip those rows
+        # on resume.
+        if first_failed_id is None or batch[-1]["id"] < first_failed_id:
+            _write_checkpoint(conn, batch[-1]["id"])
+            conn.commit()
 
         # Tick the progress bar once per successful call.
         progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)

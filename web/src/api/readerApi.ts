@@ -18,6 +18,8 @@ export async function listWorks(signal?: AbortSignal): Promise<Work[]> {
 
 export interface WorkRangeArgs {
   lang?: string;
+  /** Disambiguates same-titled works (Luther 1912 vs 1545). */
+  author?: string;
   from?: number;
   limit?: number;
   around?: string;
@@ -31,6 +33,7 @@ export async function getWorkRange(
   return apiGet<WorkRange>(
     `/api/works/${encodeURIComponent(work)}${qs({
       lang: args.lang,
+      author: args.author,
       from: args.from,
       limit: args.limit,
       around: args.around,

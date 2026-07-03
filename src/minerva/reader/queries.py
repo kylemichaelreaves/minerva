@@ -103,32 +103,49 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) -> dict[str, Any]:
-    """Return a contiguous range of chunks for one (work, lang), ordered
-    by `ord`. Used by the reader to render a passage in its source
+    """Return a contiguous range of chunks for one work, ordered by
+    `ord`. Used by the reader to render a passage in its source
     language with line numbers / section locators preserved.
 
+    ``work_id`` (the path segment) is the work TITLE string — the SPA
+    hash routes pre-date the works table. The optional ``author``
+    query param disambiguates same-titled works (Luther 1912 vs 1545).
+
     When `around=<chunk_id>` is set, the server resolves the chunk's
-    `ord` and centers a `limit`-wide window on it. Other params (lang,
-    from) are ignored in that mode so the client doesn't have to know
-    the chunk's offset to deep-link from a citation.
+    work + position and centers a `limit`-wide window on it. Other
+    params (lang, from, author) are ignored in that mode so the client
+    doesn't have to know the chunk's offset to deep-link from a
+    citation.
     """
 
     around = query.get("around")
     limit = parse_limit_only(query)
 
+    # Everything below keys on the integer ``works.id``, never on the
+    # title string alone: same-titled works exist (Luther 1912 and
+    # 1545 share every book title AND lang), and a title-keyed range
+    # paged across the concatenation of both editions — walking from
+    # one translation into the other past its last chunk.
     if around:
         focus_row = conn.execute(
-            "SELECT work, lang, ord FROM chunks_full WHERE chunk_id=?",
+            "SELECT work_id, lang, ord FROM chunks_full WHERE chunk_id=?",
             (around,),
         ).fetchone()
         if focus_row is None:
             raise NotFoundError( "unknown chunk_id")
-        resolved_work = focus_row["work"]
+        resolved_work_id = focus_row["work_id"]
         lang = focus_row["lang"]
-        half = limit // 2
-        offset = max(0, focus_row["ord"] - half)
+        # Position of the focus chunk WITHIN its work, counted rather
+        # than read off ``ord``: historical inserts numbered ``ord``
+        # across a same-titled group, so the second edition's ords
+        # don't start at 0.
+        pos = conn.execute(
+            "SELECT COUNT(*) FROM chunks_full "
+            "WHERE work_id=? AND lang=? AND ord<?",
+            (resolved_work_id, lang, focus_row["ord"]),
+        ).fetchone()[0]
+        offset = max(0, pos - limit // 2)
     else:
-        resolved_work = work_id
         lang = query.get("lang", "grc")
         try:
             offset = int(query.get("from", "0"))
@@ -136,19 +153,34 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
             raise BadRequestError( "invalid 'from' query param") from None
         if offset < 0:
             raise BadRequestError( "'from' must be >= 0")
+        # Resolve (title, lang[, author]) → one works.id. The optional
+        # ``author`` param disambiguates same-titled works; legacy
+        # bookmarks without it get the lowest work id deterministically
+        # (one consistent edition) instead of the old GROUP BY picking
+        # arbitrary metadata over a mixed row set.
+        author = query.get("author")
+        sql = "SELECT DISTINCT work_id FROM chunks_full WHERE work=? AND lang=?"
+        params: list[Any] = [work_id, lang]
+        if author:
+            sql += " AND author=?"
+            params.append(author)
+        id_rows = conn.execute(sql + " ORDER BY work_id", params).fetchall()
+        if not id_rows:
+            raise NotFoundError( "no chunks for that (work, lang)")
+        resolved_work_id = id_rows[0][0]
     meta_row = conn.execute(
         "SELECT work_id, corpus, author, work, lang, COUNT(*) AS n "
-        "FROM chunks_full WHERE work=? AND lang=? "
+        "FROM chunks_full WHERE work_id=? AND lang=? "
         "GROUP BY work_id, corpus, author, work, lang",
-        (resolved_work, lang),
+        (resolved_work_id, lang),
     ).fetchone()
     if meta_row is None:
         raise NotFoundError( "no chunks for that (work, lang)")
     rows = conn.execute(
         "SELECT chunk_id, section, book, page, speaker, text, ord, block_type "
-        "FROM chunks_full WHERE work=? AND lang=? "
+        "FROM chunks_full WHERE work_id=? AND lang=? "
         "ORDER BY ord LIMIT ? OFFSET ?",
-        (resolved_work, lang, limit, offset),
+        (resolved_work_id, lang, limit, offset),
     ).fetchall()
     lang_out = meta_row["lang"]
     dt, ds = trilingual_display(

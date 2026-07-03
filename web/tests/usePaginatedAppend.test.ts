@@ -47,7 +47,7 @@ describe("usePaginatedAppend", () => {
     });
   });
 
-  it("ignores stale in-flight appends after filter reset", async () => {
+  it("clears appending when filter changes mid-flight", async () => {
     await createRoot(async (dispose) => {
       const [data, setData] = createSignal<{ items: number[] } | null>({
         items: [1],
@@ -64,12 +64,14 @@ describe("usePaginatedAppend", () => {
       );
       void api.loadMore(first(), fetchPage);
       await flush();
+      expect(api.appending()).toBe(true);
 
       setData({ items: [10] });
       await flush();
+      expect(api.appending()).toBe(false);
+
       resolvePage?.({ items: [99] });
       await flush();
-
       expect(api.rows(first())).toEqual([10]);
       dispose();
     });

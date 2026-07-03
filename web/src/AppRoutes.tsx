@@ -1,4 +1,4 @@
-import { Match, Switch, createEffect, createMemo } from "solid-js";
+import { Match, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
 import { NetworkRoute } from "~/routes/NetworkRoute";
@@ -29,6 +29,8 @@ export interface AppRoutesProps {
 
 export function AppRoutes(props: AppRoutesProps) {
   let scrollEl: HTMLDivElement | undefined;
+  const [stickToBottom, setStickToBottom] = createSignal(true);
+  const NEAR_BOTTOM_PX = 80;
 
   const streamTail = createMemo(() => {
     const msgs = props.conversations.messages();
@@ -41,12 +43,22 @@ export function AppRoutes(props: AppRoutesProps) {
     props.conversations.messages();
     props.conversations.thinking();
     streamTail();
-    if (scrollEl) {
-      const el = scrollEl;
-      queueMicrotask(() => {
-        el.scrollTop = el.scrollHeight;
-      });
-    }
+    if (!stickToBottom() || !scrollEl) return;
+    const el = scrollEl;
+    queueMicrotask(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  });
+
+  onMount(() => {
+    const el = scrollEl;
+    if (!el) return;
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setStickToBottom(dist < NEAR_BOTTOM_PX);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onCleanup(() => el.removeEventListener("scroll", onScroll));
   });
 
   const ctx: RouteContextProps = {

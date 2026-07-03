@@ -359,6 +359,9 @@ class TestBudgetAndErrorHandling:
         )
         assert stats.parse_errors == 1
         assert stats.promoted == 1
+        # Checkpoint must not leap past the first (failed) row — resume
+        # would otherwise skip ids[0] forever.
+        assert llm_verify._read_checkpoint(populated_db) is None
 
     def test_unparseable_response_counted_as_parse_error(
         self, populated_db: sqlite3.Connection

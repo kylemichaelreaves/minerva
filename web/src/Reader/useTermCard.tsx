@@ -9,7 +9,7 @@
 // opened card. Closing is owned by the dismiss UI (outside click,
 // Esc, close button), which also clears the URL.
 
-import { createEffect, createSignal, type Accessor } from "solid-js";
+import { createEffect, createSignal, untrack, type Accessor } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
 
 export interface OpenTermCard {
@@ -73,7 +73,13 @@ export function useTermCard(props: TermCardProps): TermCardApi {
   createEffect(() => {
     const targetId = props.openTermId();
     if (targetId === undefined) return;
-    const current = openCard();
+    // untrack: this effect must react to URL changes ONLY. Tracking
+    // openCard() too meant that close() — which nulls openCard first
+    // and clears the URL second — could flush this effect between the
+    // two writes (Esc/outside-click arrive via native listeners, so
+    // the writes aren't batched); it then saw the stale `?term=` and
+    // re-opened the just-dismissed card at the sentinel anchor.
+    const current = untrack(openCard);
     if (current?.termId === targetId) return;
     const w = window.innerWidth;
     const sentinel = new DOMRect(w / 2 - 40, 100, 80, 20);

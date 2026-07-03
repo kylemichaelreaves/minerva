@@ -2,7 +2,8 @@
 
 Full-stack audit (frontend, backend/API, data layer/CLI, ingestion pipeline, cross-cutting seams).
 Five parallel review passes; every finding below was verified against the actual code at the cited
-location. Status: **OPEN** — no fixes applied yet.
+location. Status: **OPEN** — Phase 2 (critical UX) in progress on `remediation/phase-2-critical-ux`.
+Phase 1 (data safety, items 2–5 & 7) merged from `remediation/phase-1-data-safety`.
 
 Severity legend: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
 

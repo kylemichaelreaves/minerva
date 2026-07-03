@@ -214,6 +214,13 @@ export async function chatStream(
     }
     if (!meta) {
       handlers.onError("Stream ended before any data arrived.");
+    } else {
+      // meta (and possibly deltas) arrived but the stream closed
+      // without a `done` or `error` event — proxy timeout or server
+      // crash mid-answer. Without this the placeholder turn stayed
+      // `streaming: true` forever (stuck cursor, partial text dropped
+      // from history) because nothing ever finalized it.
+      handlers.onError("Stream ended early — the answer was cut off.");
     }
   } catch (err) {
     if (isAbortError(err)) throw err;

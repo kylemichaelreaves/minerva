@@ -118,6 +118,7 @@ describe("useReader()", () => {
       kind: "reader",
       workId: "Republic",
       sourceLang: "eng",
+      author: "Plato",
     });
     dispose();
   });
@@ -192,6 +193,7 @@ describe("useReader()", () => {
       kind: "reader",
       workId: "Republic",
       sourceLang: "grc",
+      author: "Plato",
     });
     dispose();
   });

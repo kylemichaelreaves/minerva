@@ -6,6 +6,8 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { isConcSort, type ConcScope, type ConcSort } from "~/api/concordanceApi";
 import { Select, type SelectOption } from "~/components/Select";
+import { useClickOutside } from "~/hooks/useClickOutside";
+import { useEscape } from "~/hooks/useEscape";
 
 /** Debounce window for the lemma search box. Each commit patches the
  *  URL and refetches the lemma index, so per-keystroke commits were a
@@ -87,8 +89,15 @@ function Dropdown(props: {
   onPick: (v: string) => void;
 }) {
   const [open, setOpen] = createSignal(false);
+  const [rootEl, setRootEl] = createSignal<HTMLSpanElement | null>(null);
+  useClickOutside(
+    () => rootEl() ?? undefined,
+    open,
+    () => setOpen(false),
+  );
+  useEscape(() => setOpen(false), open);
   return (
-    <span class="fbar-drop" classList={{ on: !!props.current }}>
+    <span class="fbar-drop" classList={{ on: !!props.current }} ref={setRootEl}>
       <span class="trigger" onClick={() => setOpen((o) => !o)}>
         {props.label}
         <span class="chev">▾</span>
