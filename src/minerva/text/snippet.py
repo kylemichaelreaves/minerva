@@ -27,7 +27,7 @@ def build_mark_snippet(
     if start < 0 or end < start or end > len(text):
         return {"snippet": text, "match_start": 0, "match_end": len(text)}
 
-    lo, hi, before, match, after = _window_bounds(text, start, end, radius)
+    _lo, _hi, before, match, after = _window_bounds(text, start, end, radius)
     if before:
         sep = "" if before[-1] in ATTACHED_LEAD else " "
         prefix = f"{before}{sep}"

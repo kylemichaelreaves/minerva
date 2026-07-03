@@ -29,6 +29,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from ..store.preserved_state import _maybe_snapshot_pre_index  # noqa: F401
+
 # Re-export the per-command handlers + shared helpers under the old
 # module names so external callers (tests, scripts) don't break.
 from . import (
@@ -65,8 +67,7 @@ from .ask_cmd import cmd_ask
 from .chat_cmd import cmd_chat
 from .embed_cmd import cmd_embed
 from .eval_cmd import cmd_eval
-from .index_cmd import cmd_index  # noqa: F401
-from ..store.preserved_state import _maybe_snapshot_pre_index  # noqa: F401
+from .index_cmd import cmd_index
 from .ingest_cmd import cmd_ingest
 from .serve_cmd import cmd_serve
 from .stats_cmd import cmd_stats
