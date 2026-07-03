@@ -238,7 +238,7 @@ export function FilterRail(props: {
               {(p) => (
                 <span class="pill">
                   <span class="k">{p.k}</span>
-                  <span class={"v" + (p.italic ? "" : "")}>{p.v}</span>
+                  <span class={"v" + (p.italic ? " italic" : "")}>{p.v}</span>
                   <span
                     class="x"
                     onClick={(e) => {

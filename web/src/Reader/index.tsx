@@ -323,6 +323,7 @@ export default function Reader(props: ReaderProps) {
           <TermCard
             termId={c().termId}
             anchor={c().anchor}
+            direction={c().direction}
             onClose={term.close}
           />
         )}

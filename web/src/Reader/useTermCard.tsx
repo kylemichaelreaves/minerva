@@ -15,6 +15,7 @@ import { useClickOutside } from "~/hooks/useClickOutside";
 export interface OpenTermCard {
   termId: number;
   anchor: DOMRect;
+  direction?: "ltr" | "rtl";
 }
 
 export interface TermCardApi {
@@ -22,7 +23,7 @@ export interface TermCardApi {
   /** Toggle: a second click on the same marked term dismisses; a
    *  different term replaces. Updates the URL via the supplied
    *  callback. */
-  onTermClick: (termId: number, anchor: DOMRect) => void;
+  onTermClick: (termId: number, anchor: DOMRect, direction?: "ltr" | "rtl") => void;
   /** Close + clear the URL param. */
   close: () => void;
 }
@@ -37,13 +38,17 @@ export interface TermCardProps {
 export function useTermCard(props: TermCardProps): TermCardApi {
   const [openCard, setOpenCard] = createSignal<OpenTermCard | null>(null);
 
-  function onTermClick(termId: number, anchor: DOMRect) {
+  function onTermClick(
+    termId: number,
+    anchor: DOMRect,
+    direction?: "ltr" | "rtl",
+  ) {
     if (openCard()?.termId === termId) {
       setOpenCard(null);
       props.onOpenTermIdChange?.(null);
       return;
     }
-    setOpenCard({ termId, anchor });
+    setOpenCard({ termId, anchor, direction: direction ?? "ltr" });
     props.onOpenTermIdChange?.(termId);
   }
 

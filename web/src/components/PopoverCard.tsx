@@ -1,5 +1,6 @@
-import { type JSX } from "solid-js";
+import { type JSX, createSignal } from "solid-js";
 import { POPOVER_CARD_WIDTH } from "~/utils/popoverPosition";
+import { useDialogFocus } from "~/hooks/useDialogFocus";
 import { useEscape } from "~/hooks/useEscape";
 import { usePopoverPosition } from "~/hooks/usePopoverPosition";
 
@@ -15,16 +16,21 @@ export interface PopoverCardProps {
   class?: string;
   /** Override fixed width (term cards use POPOVER_CARD_WIDTH). */
   width?: number;
+  /** Text flow at the anchor — RTL passages need logical-start placement. */
+  direction?: "ltr" | "rtl";
 }
 
 export default function PopoverCard(props: PopoverCardProps) {
-  const { pos } = usePopoverPosition(() => props.anchor, {
+  const [cardRef, setCardRef] = createSignal<HTMLDivElement>();
+  const { pos } = usePopoverPosition(() => props.anchor, () => ({
     heightEstimate: props.heightEstimate ?? 400,
-  });
+    direction: props.direction ?? "ltr",
+  }));
 
   useEscape(() => {
     props.onClose();
   });
+  useDialogFocus(cardRef, () => true);
 
   function onCardClick(e: MouseEvent) {
     e.stopPropagation();
@@ -36,6 +42,7 @@ export default function PopoverCard(props: PopoverCardProps) {
 
   return (
     <div
+      ref={setCardRef}
       class={shellClass()}
       style={{
         top: `${pos().top}px`,
@@ -44,6 +51,7 @@ export default function PopoverCard(props: PopoverCardProps) {
       }}
       onClick={onCardClick}
       role="dialog"
+      aria-modal="true"
       aria-label={props.ariaLabel}
     >
       {props.variant === "termcard" ? (

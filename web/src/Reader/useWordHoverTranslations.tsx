@@ -34,6 +34,8 @@ export interface WordHoverTranslationsProps {
   target: Accessor<TargetLang>;
 }
 
+const HOVER_TRANSLATION_CACHE_MAX = 500;
+
 export function useWordHoverTranslations(
   props: WordHoverTranslationsProps,
 ): WordHoverTranslationsApi {
@@ -49,10 +51,16 @@ export function useWordHoverTranslations(
     if (r.kind !== "ready" || pending === null) return;
     if (r.source !== pending.source) return;
     const key = cacheKey(pending.chunkId, pending.offset, lang);
-    setTranslations((prev) => ({
-      ...prev,
-      [key]: r.response.translated_text,
-    }));
+    setTranslations((prev) => {
+      const next = { ...prev, [key]: r.response.translated_text };
+      const keys = Object.keys(next);
+      if (keys.length <= HOVER_TRANSLATION_CACHE_MAX) return next;
+      const drop = keys.length - HOVER_TRANSLATION_CACHE_MAX;
+      for (let i = 0; i < drop; i++) {
+        delete next[keys[i]!];
+      }
+      return next;
+    });
   });
 
   function registerWordClick(

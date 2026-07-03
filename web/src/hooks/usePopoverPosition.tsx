@@ -1,12 +1,17 @@
 import { createEffect, createSignal, onCleanup, onMount, type Accessor } from "solid-js";
-import { computePopoverPosition, type PopoverPosition } from "~/utils/popoverPosition";
+import {
+  computePopoverPosition,
+  POPOVER_CARD_HEIGHT_ESTIMATE,
+  type PopoverPosition,
+} from "~/utils/popoverPosition";
 
 export function usePopoverPosition(
   anchor: Accessor<DOMRect>,
-  opts?: { heightEstimate?: number; direction?: "ltr" | "rtl" },
+  opts?: Accessor<{ heightEstimate?: number; direction?: "ltr" | "rtl" }>,
 ): { pos: () => PopoverPosition; flipUp: () => boolean } {
+  const resolveOpts = () => opts?.() ?? {};
   const [pos, setPos] = createSignal(
-    computePopoverPosition(anchor(), opts),
+    computePopoverPosition(anchor(), resolveOpts()),
   );
 
   // Track the anchor reactively: the Reader swaps card content inside
@@ -15,12 +20,24 @@ export function usePopoverPosition(
   // effect the card stayed pinned at the previous word's position
   // until the next scroll/resize.
   createEffect(() => {
-    setPos(computePopoverPosition(anchor(), opts));
+    const o = resolveOpts();
+    setPos(
+      computePopoverPosition(anchor(), {
+        heightEstimate: o.heightEstimate ?? POPOVER_CARD_HEIGHT_ESTIMATE,
+        direction: o.direction ?? "ltr",
+      }),
+    );
   });
 
   onMount(() => {
     const onScrollResize = () => {
-      setPos(computePopoverPosition(anchor(), opts));
+      const o = resolveOpts();
+      setPos(
+        computePopoverPosition(anchor(), {
+          heightEstimate: o.heightEstimate ?? POPOVER_CARD_HEIGHT_ESTIMATE,
+          direction: o.direction ?? "ltr",
+        }),
+      );
     };
     window.addEventListener("scroll", onScrollResize, true);
     window.addEventListener("resize", onScrollResize);

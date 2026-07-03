@@ -156,8 +156,16 @@ export function FreqRange(props: {
   const [hiDrag, setHiDrag] = createSignal<number | null>(null);
   const lo = () => loDrag() ?? props.min ?? 1;
   const hi = () => hiDrag() ?? props.max ?? ceil();
-  const loPct = () => Math.min(99, Math.max(0, ((lo() - 1) / (ceil() - 1)) * 100));
-  const hiPct = () => Math.min(100, Math.max(1, ((hi() - 1) / (ceil() - 1)) * 100));
+  const loPct = () => {
+    const c = ceil();
+    if (c <= 1) return 0;
+    return Math.min(99, Math.max(0, ((lo() - 1) / (c - 1)) * 100));
+  };
+  const hiPct = () => {
+    const c = ceil();
+    if (c <= 1) return 100;
+    return Math.min(100, Math.max(1, ((hi() - 1) / (c - 1)) * 100));
+  };
 
   // Don't let the knobs cross — clamp to the opposite bound so the
   // slider can't invert (the backend tolerates it, but the UX is

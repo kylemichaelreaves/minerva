@@ -164,7 +164,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       lastScopeKey = scopeKey;
       setFreqCeil(10000);
     }
-    const top = data()?.rows[0]?.count;
+    const top = sort() === "freq" ? data()?.rows[0]?.count : undefined;
     if (top && top > freqCeil()) {
       setFreqCeil(top);
     }
