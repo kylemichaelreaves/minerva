@@ -2,8 +2,9 @@
 
 Full-stack audit (frontend, backend/API, data layer/CLI, ingestion pipeline, cross-cutting seams).
 Five parallel review passes; every finding below was verified against the actual code at the cited
-location. Status: **OPEN** — Phase 2 (critical UX) in progress on `remediation/phase-2-critical-ux`.
-Phase 1 (data safety, items 2–5 & 7) merged from `remediation/phase-1-data-safety`.
+location. Status: **Phase 2 largely complete** on `remediation/phase-2-critical-ux` (commits
+`3cbfd1a`, `a84ba82`). Fix-first shortlist items 1, 6, 8 done; items 2–5 & 7 done in phase 1
+(`43f62df`). Frontend §2 high/medium/low items addressed except dead-code cleanup.
 
 Severity legend: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
 
