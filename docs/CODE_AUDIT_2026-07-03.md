@@ -190,20 +190,21 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
   non-incremental re-indexes).
 
 ### Choreography duplication (the root-cause pattern)
-- Partially addressed: ``sqlite_util.sweep_orphan_chunk_ids`` centralises
-  chunk-id orphan sweeps; ``store/chunks`` uses ``table_exists`` helper.
-- Still open: FK save/toggle boilerplate in ``insert_chunks``; ``chunks_full``
-  view + FTS trigger DDL duplicated across migrations; ``preserved_state``
-  context manager not yet extracted.
+- ~~Partially addressed~~ — **fixed**: ``sqlite_util.sweep_orphan_chunk_ids``
+  centralises chunk-id orphan sweeps; ``store/chunks`` uses ``table_exists``
+  helper; ``foreign_keys_off_for_transaction`` replaces hand-rolled FK
+  toggle in ``insert_chunks``; shared ``store/ddl.py`` for ``chunks_full``
+  view + FTS trigger DDL (schema + migrations 0021/0022); snapshot/restore
+  extracted to ``store/preserved_state.py``.
 
 ### Test gaps (worst first)
 1. ~~**No end-to-end test for xref survival across `index --reset`**~~ — covered by
    ``test_index_xref_preservation.py``; ``--from-ingest-only`` exercised there too.
 2. ~~**`store/chunks._resolve_work_refs`**~~ — **fixed**: ``test_store_resolve_work_refs.py``.
-3. Migrations: no legacy-shape (pre-0003) application test, no mid-migration-failure re-entrancy
-   test (would have caught the executescript findings).
-4. `cli/refs/review.py` (240 lines, writes curated verdicts) — zero tests.
-5. `store/stats.py` / `cli/db_cmd.py` — zero test references.
+3. ~~Migrations: legacy-shape + mid-migration-failure re-entrancy~~ — **fixed**:
+   ``test_migrations_legacy_shape.py``, ``test_migration_failure_semantics.py``.
+4. ~~``cli/refs/review.py``~~ — **fixed**: ``test_refs_review.py``.
+5. ~~``store/stats.py`` / ``cli/db_cmd.py``~~ — **fixed**: ``test_store_stats.py``.
 
 ---
 

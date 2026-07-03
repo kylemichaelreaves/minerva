@@ -89,6 +89,31 @@ def foreign_keys_disabled(conn: sqlite3.Connection) -> Iterator[sqlite3.Connecti
     conn.execute(restore)
 
 
+@contextlib.contextmanager
+def foreign_keys_off_for_transaction(
+    conn: sqlite3.Connection,
+) -> Iterator[sqlite3.Connection]:
+    """Disable FK enforcement for a block that commits or rolls back inside.
+
+    Unlike :func:`foreign_keys_disabled`, this allows an open transaction
+    and restores the prior ``PRAGMA foreign_keys`` setting after commit or
+    rollback — the pattern ``insert_chunks`` needs for its destructive
+    delete/insert/rebind sequence.
+    """
+
+    prev = int(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+    conn.execute("PRAGMA foreign_keys = OFF")
+    restore = f"PRAGMA foreign_keys = {'ON' if prev else 'OFF'}"
+    try:
+        yield conn
+    except BaseException:
+        if conn.in_transaction:
+            conn.rollback()
+        conn.execute(restore)
+        raise
+    conn.execute(restore)
+
+
 def sweep_orphan_chunk_ids(
     conn: sqlite3.Connection,
     table: str,

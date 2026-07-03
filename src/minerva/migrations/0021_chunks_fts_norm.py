@@ -35,36 +35,10 @@ from __future__ import annotations
 import sqlite3
 
 from minerva import orthography
-
-_CREATE_FTS_NORM = (
-    "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts_norm USING fts5("
-    "text_norm, content='chunks', content_rowid='rowid', "
-    "tokenize='unicode61 remove_diacritics 2')"
-)
-
-# Each statement runs via a separate conn.execute — NOT executescript,
-# whose implicit COMMIT would break the migration runner's per-version
-# transaction (see migrations/__init__.apply).
-_TRIGGER_STATEMENTS = (
-    "DROP TRIGGER IF EXISTS chunks_ai",
-    "DROP TRIGGER IF EXISTS chunks_ad",
-    "DROP TRIGGER IF EXISTS chunks_au",
-    """CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN
-        INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
-        INSERT INTO chunks_fts_norm(rowid, text_norm) VALUES (new.rowid, new.text_norm);
-    END""",
-    """CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN
-        INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
-        INSERT INTO chunks_fts_norm(chunks_fts_norm, rowid, text_norm)
-            VALUES('delete', old.rowid, old.text_norm);
-    END""",
-    """CREATE TRIGGER chunks_au AFTER UPDATE ON chunks BEGIN
-        INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
-        INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
-        INSERT INTO chunks_fts_norm(chunks_fts_norm, rowid, text_norm)
-            VALUES('delete', old.rowid, old.text_norm);
-        INSERT INTO chunks_fts_norm(rowid, text_norm) VALUES (new.rowid, new.text_norm);
-    END""",
+from minerva.store.ddl import (
+    CHUNKS_FTS_NORM_CREATE,
+    chunks_fts_trigger_creates,
+    chunks_fts_trigger_drops,
 )
 
 
@@ -94,9 +68,9 @@ def apply(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE chunks SET text_norm = mn_canonicalize(text, lang)")
 
     # 4. Create + populate the normalized FTS from the column.
-    conn.execute(_CREATE_FTS_NORM)
+    conn.execute(CHUNKS_FTS_NORM_CREATE)
     conn.execute("INSERT INTO chunks_fts_norm(chunks_fts_norm) VALUES('rebuild')")
 
     # 5. Recreate triggers maintaining BOTH FTS shadows.
-    for stmt in _TRIGGER_STATEMENTS:
+    for stmt in chunks_fts_trigger_drops() + chunks_fts_trigger_creates():
         conn.execute(stmt)

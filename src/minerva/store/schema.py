@@ -7,8 +7,13 @@ from pathlib import Path
 
 from .. import migrations
 from ..sqlite_util import open_sqlite
+from .ddl import CHUNKS_FTS_NORM_CREATE, chunks_fts_trigger_creates
 
-SCHEMA = """
+_CHUNKS_FTS_TRIGGERS = "\n\n".join(
+    chunks_fts_trigger_creates(if_not_exists=True)
+) + "\n\n"
+
+SCHEMA = f"""
 -- Bootstrap shape for a brand-new database. The 0003 migration may
 -- rebuild `chunks` into a different shape (FKs to editions /
 -- translations); subsequent migrations may further evolve it. This
@@ -60,31 +65,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 -- Normalized recall index over the canonicalized text. Same external-
 -- content + trigger pattern as chunks_fts; matched with a canonicalized
 -- query and fused with the exact index in retrieve._bm25_search.
-CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts_norm USING fts5(
-    text_norm,
-    content='chunks',
-    content_rowid='rowid',
-    tokenize='unicode61 remove_diacritics 2'
-);
+{CHUNKS_FTS_NORM_CREATE};
 
-CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
-    INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
-    INSERT INTO chunks_fts_norm(rowid, text_norm) VALUES (new.rowid, new.text_norm);
-END;
-
-CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
-    INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
-    INSERT INTO chunks_fts_norm(chunks_fts_norm, rowid, text_norm)
-        VALUES('delete', old.rowid, old.text_norm);
-END;
-
-CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
-    INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
-    INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
-    INSERT INTO chunks_fts_norm(chunks_fts_norm, rowid, text_norm)
-        VALUES('delete', old.rowid, old.text_norm);
-    INSERT INTO chunks_fts_norm(rowid, text_norm) VALUES (new.rowid, new.text_norm);
-END;
+{_CHUNKS_FTS_TRIGGERS}
 
 CREATE TABLE IF NOT EXISTS embeddings (
     chunk_id  TEXT PRIMARY KEY REFERENCES chunks(chunk_id) ON DELETE CASCADE,
