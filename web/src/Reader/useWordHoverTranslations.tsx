@@ -56,10 +56,8 @@ export function useWordHoverTranslations(
       const keys = Object.keys(next);
       if (keys.length <= HOVER_TRANSLATION_CACHE_MAX) return next;
       const drop = keys.length - HOVER_TRANSLATION_CACHE_MAX;
-      for (let i = 0; i < drop; i++) {
-        delete next[keys[i]!];
-      }
-      return next;
+      const kept = keys.slice(drop);
+      return Object.fromEntries(kept.map((k) => [k, next[k]!]));
     });
   });
 

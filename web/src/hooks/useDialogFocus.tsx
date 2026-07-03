@@ -46,7 +46,7 @@ export function useDialogFocus(
     document.addEventListener("keydown", onKeyDown);
     onCleanup(() => {
       document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus?.();
+      previouslyFocused?.focus();
     });
   });
 }

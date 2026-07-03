@@ -42,6 +42,7 @@ def test_validate_history_rejects_oversize_content():
 
 def test_parse_chat_payload_rejects_oversize_query(populated_db):
     from conftest import StubBackend, make_deps
+
     from minerva.chat_context import ChatContext
 
     deps = make_deps(populated_db, StubBackend())
