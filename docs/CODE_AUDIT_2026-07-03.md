@@ -126,11 +126,12 @@ The eight items most worth fixing before anything else, across all layers:
 - ⚪ `utils/popoverPosition.ts:15-19` — RTL placement branch unreachable (no caller passes
   `direction`); Hebrew/Arabic word-cards always get LTR placement.
 
-### Dead code (grep-verified zero importers)
-Whole files: `utils/citations.ts`, `api/types/concordance.ts` (and drifted — its `ConcSort`
-contradicts the live values), `api/types/terms.ts`, `Concordance/components/SortBtn.tsx`.
-Smaller: `ScopePillDetail`, `CASE_LABEL`/`NUMBER_LABEL`, refsList re-export block, unused
-`retryKey`/`flipUp` returns, `STARTER_PROMPTS` export.
+### Dead code (grep-verified zero importers) — **removed** (`a84ba82` follow-up)
+Whole files removed: `utils/citations.ts` (+ test), drifted `api/types/concordance.ts` (fixture
+now points at `concordanceApi.ts`), `api/types/terms.ts` (no frontend caller), `SortBtn.tsx`,
+`src/minerva/parsers/`, `src/minerva/works/`. Smaller: `ScopePillDetail`, `CASE_LABEL`/`NUMBER_LABEL`
+exports, `Refs/index` refsList re-export block, `usePopoverPosition` `flipUp` return,
+`STARTER_PROMPTS` export. `retryKey` retained — used by concordance refetch.
 
 ### Duplication
 `turnId` in `Thread/index.tsx:22` vs `ThreadSearchSheet.tsx:14` (must stay in sync or search-scroll

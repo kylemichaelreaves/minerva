@@ -11,6 +11,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 FIXTURES = REPO / "tests" / "fixtures" / "api"
 TS_TYPES = REPO / "web" / "src" / "api" / "types"
+TS_API = REPO / "web" / "src" / "api"
 
 # fixture stem -> (types file, interface name)
 FIXTURE_TYPES: dict[str, tuple[Path, str]] = {
@@ -20,8 +21,7 @@ FIXTURE_TYPES: dict[str, tuple[Path, str]] = {
     "references_list": (TS_TYPES / "refs.ts", "ReferencesListResponse"),
     "refs_review": (TS_TYPES / "refs.ts", "ReviewQueueResponse"),
     "refs_sources": (TS_TYPES / "refs.ts", "RefsSourcesResponse"),
-    "terms_list": (TS_TYPES / "terms.ts", "TermsListResponse"),
-    "concordance_index": (TS_TYPES / "concordance.ts", "LemmaIndexResponse"),
+    "concordance_index": (TS_API / "concordanceApi.ts", "LemmaIndexResponse"),
 }
 
 

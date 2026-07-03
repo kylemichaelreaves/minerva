@@ -8,7 +8,7 @@ import {
 export function usePopoverPosition(
   anchor: Accessor<DOMRect>,
   opts?: Accessor<{ heightEstimate?: number; direction?: "ltr" | "rtl" }>,
-): { pos: () => PopoverPosition; flipUp: () => boolean } {
+): { pos: () => PopoverPosition } {
   const resolveOpts = () => opts?.() ?? {};
   const [pos, setPos] = createSignal(
     computePopoverPosition(anchor(), resolveOpts()),
@@ -49,6 +49,5 @@ export function usePopoverPosition(
 
   return {
     pos,
-    flipUp: () => pos().flipUp,
   };
 }

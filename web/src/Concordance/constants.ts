@@ -57,11 +57,8 @@ const CASE_LABEL_CLASSICAL: Record<string, string> = {
 const NUMBER_LABEL_DEU: Record<string, string> = { Sing: "Sg", Plur: "Pl" };
 const NUMBER_LABEL_CLASSICAL: Record<string, string> = { Sing: "Sg", Plur: "Pl", Dual: "Du" };
 
-/** Default German label maps, kept for the (deu-only) call sites that
- *  haven't been threaded a language. Prefer ``caseLabelFor`` /
+/** Default German label maps are internal; use ``caseLabelFor`` /
  *  ``numberLabelFor`` in language-aware contexts. */
-export const CASE_LABEL = CASE_LABEL_DEU;
-export const NUMBER_LABEL = NUMBER_LABEL_DEU;
 
 /** Case-abbreviation map for ``lang``. Greek/Latin get the classical
  *  Latin abbreviations; everything else falls back to the German set. */
