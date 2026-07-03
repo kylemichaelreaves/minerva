@@ -132,6 +132,33 @@ def _author_labels_for_scope(jsonl_path: Path, scope: frozenset[str]) -> set[str
     return labels
 
 
+def _db_author_labels_for_scope(
+    conn: sqlite3.Connection,
+    jsonl_path: Path,
+    scope: frozenset[str],
+) -> set[str]:
+    """Author labels already stored for works being re-ingested.
+
+    Catches parser author-label renames: the new JSONL carries the
+    updated label, but stale chunks may still be keyed under the old
+    ``chunks_full.corpus`` value until we delete by work title too.
+    """
+
+    work_titles: set[str] = set()
+    for obj in load_jsonl(jsonl_path):
+        if obj.get("corpus") in scope and obj.get("work"):
+            work_titles.add(obj["work"])
+    if not work_titles:
+        return set()
+    placeholders = ",".join("?" for _ in work_titles)
+    rows = conn.execute(
+        f"SELECT DISTINCT LOWER(corpus) AS corpus FROM chunks_full "
+        f"WHERE work IN ({placeholders})",
+        tuple(work_titles),
+    ).fetchall()
+    return {row["corpus"] for row in rows if row["corpus"]}
+
+
 def insert_chunks(
     conn: sqlite3.Connection,
     jsonl_path: Path,
@@ -249,7 +276,11 @@ def insert_chunks(
             # changed chunks were re-inserted BESIDE their stale
             # predecessors. Pre-scan the JSONL to translate slugs →
             # author labels and delete by the union of both.
-            delete_keys = scope | _author_labels_for_scope(jsonl_path, scope)
+            delete_keys = (
+                scope
+                | _author_labels_for_scope(jsonl_path, scope)
+                | _db_author_labels_for_scope(conn, jsonl_path, scope)
+            )
             # Capture the chunk_ids first so the FTS triggers fire on
             # row-level deletes (the trigger reads OLD.chunk_id from
             # each DELETE statement). We also remember them for the
@@ -347,7 +378,20 @@ def insert_chunks(
         # translation surrogate ids. Skipped on fresh DBs where the
         # table doesn't exist yet; cheap no-op when the table is empty.
         if xref_table_exists and xref_count_before:
-            _rebind_cross_references(conn, xref_count_before)
+            affected: frozenset[str] | None = (
+                frozenset(deleted_chunk_ids) if mode == "incremental" else None
+            )
+            if mode == "full" or affected:
+                scoped_count = (
+                    _xref_count_for_chunks(conn, affected)
+                    if affected is not None
+                    else xref_count_before
+                )
+                _rebind_cross_references(
+                    conn,
+                    scoped_count,
+                    affected_chunk_ids=affected,
+                )
 
         _set_meta(conn, "ingest.source", str(jsonl_path))
         _set_meta(conn, "ingest.count", str(inserted))
@@ -391,7 +435,25 @@ def insert_chunks(
     return inserted
 
 
-def _rebind_cross_references(conn: sqlite3.Connection, count_before: int) -> None:
+def _xref_count_for_chunks(
+    conn: sqlite3.Connection, chunk_ids: frozenset[str]
+) -> int:
+    if not chunk_ids:
+        return 0
+    placeholders = ",".join("?" for _ in chunk_ids)
+    return conn.execute(
+        f"SELECT COUNT(*) FROM cross_references "
+        f"WHERE source_chunk_id IN ({placeholders})",
+        tuple(chunk_ids),
+    ).fetchone()[0]
+
+
+def _rebind_cross_references(
+    conn: sqlite3.Connection,
+    count_before: int,
+    *,
+    affected_chunk_ids: frozenset[str] | None = None,
+) -> None:
     """Re-link every ``cross_references`` row to the freshly-inserted
     edition / translation surrogate ids.
 
@@ -410,13 +472,23 @@ def _rebind_cross_references(conn: sqlite3.Connection, count_before: int) -> Non
     target_chunk_id is nullable so we NULL it out rather than deleting
     the row (the target_id pointer to reference_targets keeps the row
     meaningful even without a specific chunk anchor).
+
+    When ``affected_chunk_ids`` is set (incremental mode), only xrefs
+    whose ``source_chunk_id`` / ``target_chunk_id`` fall in that set are
+    touched — out-of-scope corpora are left alone.
     """
 
-    # Rebind source-side FKs via the chunk pivot. NULL-safe — rows
-    # whose source_chunk_id doesn't match any new chunk get NULL'd here
-    # and are then deleted by the orphan sweep below.
+    source_filter = ""
+    source_params: tuple[Any, ...] = ()
+    if affected_chunk_ids is not None:
+        if not affected_chunk_ids:
+            return
+        placeholders = ",".join("?" for _ in affected_chunk_ids)
+        source_filter = f" WHERE source_chunk_id IN ({placeholders})"
+        source_params = tuple(affected_chunk_ids)
+
     conn.execute(
-        """
+        f"""
         UPDATE cross_references
         SET source_edition_id    = (
             SELECT c.edition_id    FROM chunks c
@@ -426,26 +498,42 @@ def _rebind_cross_references(conn: sqlite3.Connection, count_before: int) -> Non
             SELECT c.translation_id FROM chunks c
             WHERE c.chunk_id = cross_references.source_chunk_id
         )
-        """
+        {source_filter}
+        """,
+        source_params,
     )
 
-    # Source-side orphans: source_chunk_id no longer exists. These rows
-    # are genuinely stale (the source passage changed enough that its
-    # content-derived chunk_id moved); deleting them is correct.
-    cur = conn.execute(
-        "DELETE FROM cross_references WHERE source_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
-    )
+    if affected_chunk_ids is not None:
+        placeholders = ",".join("?" for _ in affected_chunk_ids)
+        cur = conn.execute(
+            f"DELETE FROM cross_references "
+            f"WHERE source_chunk_id IN ({placeholders}) "
+            f"  AND source_chunk_id NOT IN (SELECT chunk_id FROM chunks)",
+            tuple(affected_chunk_ids),
+        )
+    else:
+        cur = conn.execute(
+            "DELETE FROM cross_references "
+            "WHERE source_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
+        )
     orphans_source = cur.rowcount
 
-    # Target-side orphans: target_chunk_id stale. Don't delete — the
-    # target_id (reference_targets) still anchors a meaningful row;
-    # we just lose the specific-chunk pointer.
-    cur = conn.execute(
-        "UPDATE cross_references "
-        "SET target_chunk_id = NULL "
-        "WHERE target_chunk_id IS NOT NULL "
-        "  AND target_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
-    )
+    if affected_chunk_ids is not None:
+        placeholders = ",".join("?" for _ in affected_chunk_ids)
+        cur = conn.execute(
+            f"UPDATE cross_references "
+            f"SET target_chunk_id = NULL "
+            f"WHERE target_chunk_id IN ({placeholders}) "
+            f"  AND target_chunk_id NOT IN (SELECT chunk_id FROM chunks)",
+            tuple(affected_chunk_ids),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE cross_references "
+            "SET target_chunk_id = NULL "
+            "WHERE target_chunk_id IS NOT NULL "
+            "  AND target_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
+        )
     orphans_target = cur.rowcount
 
     kept = count_before - orphans_source

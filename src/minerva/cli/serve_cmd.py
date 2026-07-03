@@ -12,7 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import concept_cache, conversations, llm, store, translations
+from .. import concept_cache, conversations, llm, serve_lock, store, translations
 from ._shared import (
     DEFAULT_CONCEPT_CACHE_DB,
     DEFAULT_CONVERSATIONS_DB,
@@ -28,6 +28,15 @@ from ._shared import (
 
 def cmd_serve(args: argparse.Namespace) -> int:
     from .. import server as _server
+
+    running = serve_lock.find_running_server(args.db)
+    if running:
+        print(
+            f"minerva serve refused: another server is already running "
+            f"({running}) against {args.db}.",
+            file=sys.stderr,
+        )
+        return 2
 
     conn = store.open_db(args.db, check_same_thread=False)
     conversations_conn = conversations.open_db(args.conversations_db, check_same_thread=False)
@@ -49,25 +58,29 @@ def cmd_serve(args: argparse.Namespace) -> int:
     except llm.LLMError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    _server.serve(
-        host=args.host,
-        port=args.port,
-        static_dir=args.static,
-        conn=conn,
-        conversations_conn=conversations_conn,
-        translations_conn=translations_conn,
-        concept_cache_conn=concept_cache_conn,
-        backend=backend,
-        embedder=embedder,
-        lang=None if args.lang == "any" else args.lang,
-        corpus=None if args.corpus == "any" else args.corpus,
-        speaker=args.speaker,
-        top_k=args.top_k,
-        allow_client_rewrite=not args.no_client_rewrite,
-        force_rewrite=not args.no_auto_rewrite,
-        enable_concept_expand=not args.no_concept_expand,
-        allowed_origins=frozenset(args.allow_origin),
-    )
+    serve_lock.write_serve_lock(args.db, host=args.host, port=args.port)
+    try:
+        _server.serve(
+            host=args.host,
+            port=args.port,
+            static_dir=args.static,
+            conn=conn,
+            conversations_conn=conversations_conn,
+            translations_conn=translations_conn,
+            concept_cache_conn=concept_cache_conn,
+            backend=backend,
+            embedder=embedder,
+            lang=None if args.lang == "any" else args.lang,
+            corpus=None if args.corpus == "any" else args.corpus,
+            speaker=args.speaker,
+            top_k=args.top_k,
+            allow_client_rewrite=not args.no_client_rewrite,
+            force_rewrite=not args.no_auto_rewrite,
+            enable_concept_expand=not args.no_concept_expand,
+            allowed_origins=frozenset(args.allow_origin),
+        )
+    finally:
+        serve_lock.clear_serve_lock(args.db)
     return 0
 
 

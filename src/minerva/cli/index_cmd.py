@@ -12,6 +12,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from .. import serve_lock
 from .. import store
 from ..sqlite_util import foreign_keys_disabled, table_exists
 from ._shared import (
@@ -65,6 +66,14 @@ def cmd_index(args: argparse.Namespace) -> int:
     # 2026-05-29 Hegel-Preface rechunk re-ingest.)
     _maybe_snapshot_pre_index(args.db, incremental=incremental)
     if args.reset:
+        running = serve_lock.find_running_server(args.db)
+        if running:
+            print(
+                f"index --reset refused: minerva serve is already running "
+                f"({running}) against {args.db}. Stop the server first.",
+                file=sys.stderr,
+            )
+            return 2
         # reset_db also unlinks the -wal/-shm siblings — a stale WAL
         # next to a freshly-created file is a corruption vector.
         store.reset_db(args.db)

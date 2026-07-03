@@ -176,16 +176,11 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 
 (Items 2, 3, 7 in the shortlist above, plus:)
 
-- 🟡 `store/chunks.py:184-187,221-222,349-350` — incremental xref rebind/orphan-sweep is documented
-  as corpus-scoped but is actually global; `deleted_chunk_ids` is captured and never used. O(all
-  xrefs) per incremental index, and any pre-existing dangling row anywhere is deleted during an
-  unrelated single-corpus reindex. Fix code or docstring.
-- 🟡 `cli/index_cmd.py:67-69` + `serve_cmd.py:32` — `index --reset` unlinks the DB out from under a
-  running server (long-lived connection keeps the deleted inode; API xref-curation writes lost on
-  close). Needs at least a "stop the server" probe.
-- 🟡 `store/chunks.py:121-132,252` — incremental delete-scope derives author labels from the *new*
-  JSONL only; a parser author-label rename leaves stale chunks beside replacements (same dup class
-  the slug/label fix addressed, one step removed).
+- 🟡 ~~`store/chunks.py:184-187,221-222,349-350`~~ — **fixed**: incremental xref
+  rebind/orphan sweep scoped to ``deleted_chunk_ids``; DB-side author labels included in
+  delete scope for parser renames.
+- 🟡 ~~`cli/index_cmd.py:67-69` + `serve_cmd.py:32`~~ — **fixed**: ``serve_lock`` pid file
+  blocks ``index --reset`` while ``minerva serve`` holds the DB open.
 - ⚪ `cli/ingest_cmd.py:178-181` — `meta.ingest.only` never cleared by a full ingest; a later
   `--from-ingest-only` silently scopes to a stale corpus set.
 - ⚪ `cli/embed_cmd.py:64-67` — `--all --lang X` with zero chunks of that lang exits 2 with "No
