@@ -50,6 +50,17 @@ def answer_to_json(ans: agent.Answer) -> dict[str, Any]:
 
 # ---------- Request parsing helpers ----------
 
+# Mirror translate's 8 KiB source cap — each chat turn can otherwise
+# ship ~1 MiB of query + history under the global body limit.
+_MAX_QUERY_CHARS = 8 * 1024
+_MAX_HISTORY_TURNS = 40
+_MAX_HISTORY_CHARS = 32 * 1024
+# Hard cap on pinned_chunk_ids so a large payload can't force a heavy
+# IN-list lookup under the shared corpus lock. 50 is well past the UI's
+# practical limit (the reader pins ~5-10 per conversation) and small
+# enough that the resulting `IN (?,?,…)` clause stays cheap.
+_MAX_PINNED_IDS = 50
+
 
 def history_from_payload(raw: Any) -> list[llm.Message]:
     if not isinstance(raw, list):
@@ -65,11 +76,17 @@ def history_from_payload(raw: Any) -> list[llm.Message]:
     return out
 
 
-# Hard cap on pinned_chunk_ids so a large payload can't force a heavy
-# IN-list lookup under the shared corpus lock. 50 is well past the UI's
-# practical limit (the reader pins ~5-10 per conversation) and small
-# enough that the resulting `IN (?,?,…)` clause stays cheap.
-_MAX_PINNED_IDS = 50
+def _validate_history(history: list[llm.Message]) -> list[llm.Message]:
+    if len(history) > _MAX_HISTORY_TURNS:
+        raise PayloadTooLargeError(
+            f"history exceeds the per-request cap ({len(history)} > {_MAX_HISTORY_TURNS})",
+        )
+    total = sum(len(m.content) for m in history)
+    if total > _MAX_HISTORY_CHARS:
+        raise PayloadTooLargeError(
+            f"history exceeds the {_MAX_HISTORY_CHARS}-character cap",
+        )
+    return history
 
 
 def pinned_ids_from_payload(raw: Any) -> list[str]:
@@ -179,10 +196,14 @@ def parse_chat_payload(ctx: ChatContext, payload: dict[str, Any]) -> ChatRequest
     if not isinstance(query, str) or not query.strip():
         raise BadRequestError("missing or empty 'query'")
     query = query.strip()
+    if len(query) > _MAX_QUERY_CHARS:
+        raise PayloadTooLargeError(
+            f"query exceeds the {_MAX_QUERY_CHARS}-character limit",
+        )
     # Validated in this order so a multiply-invalid payload reports the
     # same field it did before this parsing was extracted.
     reply_lang = reply_lang_from_payload(payload)
-    history = history_from_payload(payload.get("history"))
+    history = _validate_history(history_from_payload(payload.get("history")))
     raw_speaker = payload.get("speaker")
     speaker = (
         raw_speaker.strip() if isinstance(raw_speaker, str) and raw_speaker.strip() else ctx.speaker

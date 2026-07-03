@@ -144,20 +144,14 @@ clones `useRefsSourceAuthors`; Reader's inline IntersectionObserver duplicates
 
 ## 3. Backend / API
 
-- 🟡 `concordance/index_queries.py:190,264` — merge_case pagination fetches ≤ max(limit·10, 2000)
-  raw rows from offset 0, merges in Python, slices; deep pages are silently short/empty while
-  `total_lemmas` advertises more. Fix: page in SQL over a materialized `lemma_fold`.
-- 🟡 `http/serve.py:96-98` + `server_core.py:118` — loopback binds send `Access-Control-Allow-Origin: *`;
-  any web page the operator visits can read `/api/conversations` and drive billable
-  `/api/chat`/`/api/translate` from drive-by JS. Fix: allow only explicit origins even on loopback.
-- 🟡 `http/serve.py:105,72` — no socket timeout on the handler; a stalled `Content-Length` body
-  pins a ThreadingHTTPServer thread forever (slow-loris on non-loopback binds). Fix: `timeout = 60`.
-- 🟡 `chat_service.py:54-65,173-215` — no cap on `query` length or `history` size below the global
-  1 MiB body cap; each of 30 req/min can carry ~1 MiB into the LLM prompt. translate already caps
-  at 8 KiB (`translate.py:71`) — mirror it.
-- 🟡 `http/handlers/translate.py:93-113` — `begin_inflight` acquired at :93 but `finish_inflight`
-  lives in a `finally` whose `try` starts at :113; an exception in the gap leaks the inflight entry
-  permanently (every later request for that pair waits 240 s and 502s until restart).
+- 🟡 ~~`concordance/index_queries.py`~~ — **fixed**: merge_case / multi-work pages use SQL
+  `GROUP BY` + `LIMIT`/`OFFSET` instead of scanning 2000 rows from offset 0.
+- 🟡 ~~`http/serve.py` + `server_core.py`~~ — **fixed**: loopback CORS uses explicit dev
+  origins (API port + Vite :5173/:4173), never `*`; unmatched origins get no ACAO header.
+- 🟡 ~~`http/serve.py`~~ — **fixed**: `ChatHandler.timeout = 60` slow-loris guard.
+- 🟡 ~~`chat_service.py`~~ — **fixed**: 8 KiB query cap + history turn/char caps (mirror translate).
+- 🟡 ~~`http/handlers/translate.py`~~ — **fixed**: leader translate path wraps LLM work in
+  `try`/`finally` so `finish_inflight` always runs.
 - ⚪ `http/handlers/chat.py:150-162` + `serve.py:150-153` — client disconnect mid-SSE raises
   `GeneratorExit` (uncaught by `except Exception`) → the fully generated, billed answer *and* the
   user's message are rolled back.

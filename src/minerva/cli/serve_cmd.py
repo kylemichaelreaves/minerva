@@ -122,10 +122,9 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
         default=[],
         metavar="ORIGIN",
         help=(
-            "Origin to allow via CORS when not bound to localhost. "
-            "Pass multiple times for multiple origins, e.g. "
-            "`--allow-origin https://example.com`. Localhost binds use a "
-            "permissive `*` and ignore this flag."
+            "Origin to allow via CORS (repeatable). Loopback binds always "
+            "include the API port and common Vite dev origins (:5173, "
+            ":4173); pass extra origins here when needed."
         ),
     )
     psv.add_argument(
