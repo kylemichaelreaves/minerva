@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -50,25 +50,11 @@ _STRAY_SIGLA_RE = re.compile(r"(?:(?<=\s)|^)(?:(?:[A-Z]\*?|§)(?:\s+|$))+")
 _NOTE_TAG = f"{{{_NS['tei']}}}note"
 
 
-def _text_excluding_notes(el: ET.Element) -> str:
-    """Concatenated text of ``el``, skipping ``<note>`` subtrees."""
-
-    parts: list[str] = []
-    if el.text:
-        parts.append(el.text)
-    for child in el:
-        if child.tag != _NOTE_TAG:
-            parts.append(_text_excluding_notes(child))
-        if child.tail:
-            parts.append(child.tail)
-    return " ".join(p for p in parts if p)
-
-
 def _text_of(elem: ET.Element) -> str:
     """All character content under `elem` with collapsed whitespace,
     excluding ``<note>`` apparatus subtrees. ``<lb/>``, ``<hi>``, etc.
     still contribute their text/tails."""
-    return _norm_text(_text_excluding_notes(elem))
+    return _norm_text(text_excluding(elem, frozenset({_NOTE_TAG})))
 
 
 # Verse text lives in <p> for prose books, but the poetic books

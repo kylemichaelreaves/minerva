@@ -45,13 +45,12 @@ The eight items most worth fixing before anything else, across all layers:
    or disk-full truncates it, and the next `index --reset` mass-deletes chunks.
    `_merge_dicts_to_jsonl` (`:120-135`) already does temp-file + rename — mirror it.
 
-5. 🟠 **A full ingest silently skips any source whose raw path is missing.**
-   `src/minerva/ingest/registry.py:546-548` + `parallel.py:77-84` — no stderr, not in failures,
-   exit 0; `chunks.jsonl` is rewritten without that corpus and the next reset wipes it from the DB.
-   This is the English-Hobbes silent-wipe class with zero detection. Fix: loud per-source SKIPPED
-   line and non-zero exit (or opt-out flag). Related: full parallel ingest concats shards into
-   `chunks.jsonl` *before* the failure check (`cli/ingest_cmd.py:232-235`), so a failed source's
-   corpus is already dropped from the file by the time it exits 1.
+5. 🟠 ~~**A full ingest silently skips any source whose raw path is missing.**~~
+   **Fixed** (`remediation/phase-5-ingestion`): `missing_registered_sources` +
+   `iter_registered_chunks(..., allow_missing_sources=)` print loud per-source
+   ``SKIPPED`` lines and raise :class:`~minerva.ingest.registry.MissingIngestSourcesError`
+   before yielding; ``cmd_ingest`` exits 2 unless ``--allow-missing-sources``.
+   Related full parallel concat-before-failure check unchanged in ``cli/ingest_cmd.py``.
 
 6. 🟠 **Reader work identity keys on `(title, lang)`, not `work_id`.**
    `src/minerva/reader/queries.py:139-152` — 72 (title, lang) pairs in the live DB map to two
@@ -210,17 +209,23 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 
 ## 5. Ingestion pipeline
 
-(Items 4, 5, 8 in the shortlist above, plus:)
+(Items 4, 5, 8 in the shortlist above, plus:). **Phase 5 started**
+(`remediation/phase-5-ingestion`): shared ``text_excluding`` + missing-path loud failure.
+
+Note: shortlist #5 (missing ingest source paths) was fixed in phase 1/2
+via ``cmd_ingest`` upfront ``SKIPPED`` lines + exit 2 /
+``--allow-missing-sources``.
 
 ### Text-corruption bugs (live, in the DB now)
-- 🟠 `sources/tei_drama.py:66-79` — `_text_of` claims to skip `<speaker>`/`<stage>` but
-  `elem.iter()` still yields their descendants and drops the skipped node's tail: stage-direction
-  names leak into Greek line text/lemmas/embeddings; prose after inline stage directions is lost.
-- 🟡 `sources/tei_p5.py:47-51` — `_text_of` uses `itertext()` without excluding `<note>` (every
-  sibling parser excludes it): critical-apparatus prose folds into Aristotle/Origen chunks.
-- Root cause: **five** implementations of "text excluding `<note>`" — three byte-identical
-  (`tei.py:129-141` ≡ `hebrew_mt.py:67-78` ≡ `tei_lxx.py:53-64`), one divergent (`osis_bible.py`),
-  one broken (`tei_drama`). Hoist one `text_excluding(el, skip_tags)` into `tei.py`.
+- 🟠 ~~`sources/tei_drama.py:66-79`~~ — **fixed**: shared
+  ``tei.text_excluding`` child-walk skips ``speaker``/``stage`` subtrees
+  without dropping following ``tail`` text.
+- 🟡 ~~`sources/tei_p5.py:47-51`~~ — **fixed**: ``_text_of`` uses
+  ``text_excluding`` to drop namespaced ``<note>`` apparatus.
+- Root cause: ~~five~~ three remaining implementations of note-excluding
+  extract — **partially fixed**: ``tei.text_excluding`` hoisted;
+  ``tei_lxx``, ``hebrew_mt``, ``tei_p5``, ``tei_drama`` migrated;
+  ``osis_bible.py`` still has a divergent walker (note/reference/rdg).
 
 ### Silent-failure gaps
 - 🟠 `corpus/pipeline.py:88-135` vs guard at `:154-166` — the zero-chunk warning covers only

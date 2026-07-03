@@ -39,16 +39,18 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
+_NOTE_TAG = f"{{{_NS['tei']}}}note"
+
 
 def _text_of(elem: ET.Element) -> str:
-    """All character content under `elem`, in document order, with
-    interleaved whitespace. ``itertext`` handles nested tags
-    (milestones, hi spans, etc.) correctly."""
-    return _norm_text(" ".join(elem.itertext()))
+    """All character content under ``elem``, excluding ``<note>``
+    apparatus subtrees. Milestones, ``<hi>`` spans, etc. still
+    contribute their text/tails."""
+    return _norm_text(text_excluding(elem, frozenset({_NOTE_TAG})))
 
 
 def _leaf_paragraphs(textpart: ET.Element) -> list[ET.Element]:

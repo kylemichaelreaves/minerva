@@ -130,12 +130,27 @@ def _text_excluding_notes(el: ET.Element) -> str:
     """Concatenated text of ``el``, skipping ``<note>`` subtrees. Used for
     work titles so a glossing footnote inside a ``<head>`` (e.g. Plato's
     Epinomis, Epictetus' Fragments) doesn't get swallowed into the title."""
+    return text_excluding(el, frozenset({"note"}))
+
+
+def text_excluding(el: ET.Element, skip_tags: frozenset[str]) -> str:
+    """Concatenated text of ``el``, skipping entire subtrees whose tag is
+    in ``skip_tags``.
+
+    Walks direct children only (not ``iter()``), so skipped elements'
+    descendants are omitted and each child's ``tail`` (text after the
+    closing tag, before the next sibling) is still collected. This is
+    the shared implementation behind every "text excluding ``<note>``"
+    parser — TEI.2 ``note``, namespaced TEI P5 ``{tei}note``, drama
+    ``speaker``/``stage``, OSIS apparatus, etc.
+    """
+
     parts: list[str] = []
     if el.text:
         parts.append(el.text)
     for child in el:
-        if child.tag != "note":
-            parts.append(_text_excluding_notes(child))
+        if child.tag not in skip_tags:
+            parts.append(text_excluding(child, skip_tags))
         if child.tail:
             parts.append(child.tail)
     return " ".join(p for p in parts if p)
