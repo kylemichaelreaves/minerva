@@ -24,6 +24,7 @@ regardless of where it sits in the tree.
 from __future__ import annotations
 
 import re
+import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
@@ -130,6 +131,10 @@ def parse_file(
     root = tree.getroot()
     edition = root.find("tei:text/tei:body/tei:div", _NS)
     if edition is None:
+        print(
+            f"tei_lxx: {path.name!r}: no edition root at text/body/div — skipping file",
+            file=sys.stderr,
+        )
         return
 
     editor_el = root.find("tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:editor", _NS)

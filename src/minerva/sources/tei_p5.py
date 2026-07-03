@@ -35,6 +35,7 @@ file with a Bekker-numbered edition; out of scope here.
 
 from __future__ import annotations
 
+import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
@@ -194,9 +195,17 @@ def parse_file(
     #   walker descends through every sibling book.
     body = root.find("tei:text/tei:body", _NS)
     if body is None:
+        print(
+            f"tei_p5: {path.name!r}: no text/body root element — skipping file",
+            file=sys.stderr,
+        )
         return
     first_div = body.find("tei:div", _NS)
     if first_div is None:
+        print(
+            f"tei_p5: {path.name!r}: body has no div children — skipping file",
+            file=sys.stderr,
+        )
         return
     edition = first_div if first_div.get("type") == "edition" else body
     if lang is None:

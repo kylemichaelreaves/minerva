@@ -38,10 +38,18 @@ from collections.abc import Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
 
 # OSIS namespace; lookups in iter() need this prefix.
 _OSIS_NS = "{http://www.bibletechnologies.net/2003/OSIS/namespace}"
+
+_SKIP_VERSE_TAGS = frozenset(
+    {
+        f"{_OSIS_NS}note",
+        f"{_OSIS_NS}reference",
+        f"{_OSIS_NS}rdg",
+    }
+)
 
 
 # OSIS book ID → canonical English book name. The right side matches
@@ -159,24 +167,7 @@ def _verse_text(verse: ET.Element) -> str:
     Editorial / footnote elements (``<note>``, ``<reference>``) are
     skipped — their content is apparatus, not verse text."""
 
-    parts: list[str] = []
-    if verse.text:
-        parts.append(verse.text)
-    for child in verse:
-        local = child.tag.split("}", 1)[-1] if "}" in child.tag else child.tag
-        local_lc = local.lower()
-        if local_lc in {"note", "reference", "rdg"}:
-            # Drop note/reference content but keep tail (text after </note>
-            # back in the verse flow).
-            if child.tail:
-                parts.append(child.tail)
-            continue
-        # Other elements (e.g. <w>, <transChange>, <hi>) carry verse
-        # content — include their text and tail.
-        parts.append("".join(child.itertext()))
-        if child.tail:
-            parts.append(child.tail)
-    return _norm_text("".join(parts))
+    return _norm_text(text_excluding(verse, _SKIP_VERSE_TAGS))
 
 
 def parse_file(

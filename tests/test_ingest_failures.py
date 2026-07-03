@@ -79,6 +79,50 @@ def test_parse_dir_records_per_file_failures(tmp_path: Path, capsys):
     assert "broken.txt" in capsys.readouterr().err
 
 
+def test_structured_parser_zero_chunks_warns(tmp_path: Path, capsys, monkeypatch):
+    """Structure-aware splitters (yield-from branches) must warn when
+    they emit nothing — unlike _SPLITTERS locators there is no chapter
+    fallback."""
+
+    from minerva.corpus import split_ekgwb
+
+    monkeypatch.setattr(split_ekgwb, "split_ekgwb", lambda _raw, _work, _path: iter([]))
+
+    html = tmp_path / "page.html"
+    html.write_text("<html><body><div>stub</div></body></html>", encoding="utf-8")
+    work = _work(filenames=(html.name,), locator="ekgwb")
+
+    chunks = list(pipeline.parse_file(html, work))
+    assert chunks == []
+    out = capsys.readouterr()
+    assert "0 chunks" in out.out
+    assert "ekgwb" in out.out
+    assert "structured parser" in out.out
+
+
+def test_tei_parse_dir_records_per_file_failures(tmp_path: Path, capsys):
+    """TEI Perseus bundles share the pipeline failure log so one bad
+    XML file doesn't abort the whole Plato/Aristotle ingest."""
+
+    (tmp_path / "good.xml").write_text(
+        """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>T</title></titleStmt></fileDesc></teiHeader>
+<text><body><div1 type="book" n="1">
+<milestone unit="section" n="1a"/>Hello.</div1></body></text></TEI.2>""",
+        encoding="utf-8",
+    )
+    (tmp_path / "bad.xml").write_text("not xml at all", encoding="utf-8")
+
+    pipeline.reset_parse_failures()
+    chunks = list(tei.parse_dir(tmp_path, corpus="plato", author="Plato"))
+    assert len(chunks) == 1
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "bad.xml" in failures[0]
+    assert "plato" in failures[0]
+    assert "bad.xml" in capsys.readouterr().err
+
+
 def test_reset_parse_failures_clears_the_log(tmp_path: Path):
     (tmp_path / "broken.txt").write_text("any content", encoding="utf-8")
     work = _work(filenames=("broken.txt",), locator="no-such-locator")

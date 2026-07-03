@@ -39,6 +39,7 @@ serves all three tragedians + their English translations.
 
 from __future__ import annotations
 
+import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
@@ -164,6 +165,10 @@ def parse_file(
     root = tree.getroot()
     edition = root.find("tei:text/tei:body/tei:div", _NS)
     if edition is None:
+        print(
+            f"tei_drama: {path.name!r}: no edition root at text/body/div — skipping file",
+            file=sys.stderr,
+        )
         return
 
     # Editor / translator metadata. For Greek originals the editor name

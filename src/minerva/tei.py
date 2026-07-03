@@ -21,6 +21,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import re
+import sys
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -513,6 +514,11 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
 
     works = _identify_works(root)
     if not works:
+        print(
+            f"tei: {path.name!r}: no addressable works found "
+            f"(missing <text> or <body> root elements?)",
+            file=sys.stderr,
+        )
         return
 
     for work in works:
@@ -538,5 +544,11 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
 
 
 def parse_dir(directory: Path, *, corpus: str, author: str) -> Iterable[Chunk]:
+    from .corpus.pipeline import record_parse_failure
+
+    label = corpus
     for xml_path in sorted(directory.glob("*.xml")):
-        yield from parse_file(xml_path, corpus=corpus, author=author)
+        try:
+            yield from parse_file(xml_path, corpus=corpus, author=author)
+        except Exception as exc:
+            record_parse_failure(f"{label}: failed to parse {xml_path.name!r}: {exc}")

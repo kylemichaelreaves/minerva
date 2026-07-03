@@ -224,25 +224,23 @@ Note: shortlist #5 now enforced at the registry layer too —
   without dropping following ``tail`` text.
 - 🟡 ~~`sources/tei_p5.py:47-51`~~ — **fixed**: ``_text_of`` uses
   ``text_excluding`` to drop namespaced ``<note>`` apparatus.
-- Root cause: ~~five implementations~~ — **partially fixed**:
-  ``tei.text_excluding(el, skip_tags)`` hoisted into ``tei.py``; drama
-  and P5 parsers migrated. Remaining clones in ``hebrew_mt.py``,
-  ``tei_lxx.py``, ``osis_bible.py`` still divergent but correct for their
-  markup.
+- Root cause: ~~five implementations~~ — **fixed**:
+  ``tei.text_excluding(el, skip_tags)`` hoisted into ``tei.py``; drama,
+  P5, ``hebrew_mt``, ``tei_lxx``, and ``osis_bible`` parsers migrated.
 
 ### Silent-failure gaps
-- 🟠 `corpus/pipeline.py:88-135` vs guard at `:154-166` — the zero-chunk warning covers only
-  `_SPLITTERS`-dispatched locators; all 8 direct `yield from` branches (hegel_pr ×2,
-  spinoza_ethica, descartes_objections, kapital_mew, zeno_pages, ekgwb, stephanus_de) bypass it.
-  Markup drift drops a whole work with exit 0.
-- 🟠 `tei.py:527-529` — `tei.parse_dir` has no per-file error capture (unlike
-  `corpus/pipeline.py:209-216`); one malformed XML aborts the whole sequential ingest mid-write.
+- 🟡 ~~`corpus/pipeline.py:88-135` vs guard at `:154-166`~~ — **fixed**:
+  all 8 direct ``yield from`` structured-parser branches route through
+  ``_yield_structured``, which warns on zero output (no chapter fallback).
+- 🟡 ~~`tei.py:527-529`~~ — **fixed**: ``tei.parse_dir`` catches per-file
+  errors via shared ``record_parse_failure`` (same log as ``corpus/pipeline``).
 - 🟠 Chunk-count validation still missing: neither `scripts/check_author_ingest.py` nor
   `scripts/corpus-quality-audit.py` validates counts against expected work size; the Theognis
   failure (2,237 junk chunks) would pass both today (`theognis` is even in SKIP_RULES). Add
   manifest-declared expected ranges.
-- 🟡 Root-element `find()` misses are silent empty iterators in 4 parsers (`tei_lxx.py:145-147`,
-  `tei_p5.py:193-198`, `tei_drama.py:180-182`, `tei.py:147-149`).
+- 🟡 ~~Root-element `find()` misses are silent empty iterators in 4 parsers~~ —
+  **fixed**: ``tei.py``, ``tei_lxx.py``, ``tei_p5.py``, ``tei_drama.py`` now warn on
+  stderr when expected root elements are absent.
 
 ### Refs rules gaps
 - 🟠 `refs/embed_verify.py:232-239` — work-level target matrix joins editions only; translation-only
