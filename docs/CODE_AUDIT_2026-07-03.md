@@ -306,10 +306,8 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 ## 6. Cross-cutting seams
 
 ### Live drift (only two channels found — both closable)
-- 🟡 `web/src/utils/dominantPhil.ts:6-46` — hand-maintained `PHIL_DOMINANT_GLYPH` is missing
-  Schiller's dominant code `'l'`; renders the raw letter as a glyph. Fold into the manifest codegen
-  (the one place codegen discipline wasn't applied; `citations.ts:23-27` already set the precedent
-  by deleting its hand copy).
+- 🟡 ~~`web/src/utils/dominantPhil.ts`~~ — **fixed**: `PHIL_DOMINANT_GLYPH` now codegen'd from
+  `manifest.yaml` (includes Schiller `'l'`); hand-maintained copy removed.
 - 🟡 `.github/workflows/check.yml` claims to mirror `make check` but omits `check-api-types` (the
   TS-side contract gate), `check-author-imports`, and `check_author_ingest --all` — TS wire-type
   drift can merge green.

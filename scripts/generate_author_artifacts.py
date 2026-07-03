@@ -14,6 +14,7 @@ MANIFEST_PATH = REPO_ROOT / "data" / "authors" / "manifest.yaml"
 CORPUS_REGISTRY = REPO_ROOT / "src" / "minerva" / "corpus_registry.py"
 AUTHOR_ORDERING = REPO_ROOT / "src" / "minerva" / "author_ordering.py"
 ATLAS_DATA = REPO_ROOT / "web" / "src" / "data" / "atlasData.ts"
+DOMINANT_PHIL = REPO_ROOT / "web" / "src" / "utils" / "dominantPhil.ts"
 
 BEGIN_CORPORA = "# BEGIN CORPORA"
 END_CORPORA = "# END CORPORA"
@@ -21,6 +22,22 @@ BEGIN_ORDINAL = "# BEGIN AUTHOR_ORDINAL"
 END_ORDINAL = "# END AUTHOR_ORDINAL"
 BEGIN_ATLAS = "// BEGIN ATLAS_AUTHORS"
 END_ATLAS = "// END ATLAS_AUTHORS"
+BEGIN_DOMINANT = "// BEGIN DOMINANT_GLYPH"
+END_DOMINANT = "// END DOMINANT_GLYPH"
+
+# Gutter glyphs that differ from the API dominant letter. Every other
+# code maps to itself (Schiller's lowercase ``l``, Gobineau's ``o``, …).
+DOMINANT_GLYPH_OVERRIDES: dict[str, str] = {
+    "P": "Π",
+    "A": "Α",
+    "O": "Ο",
+    "Q": "ق",
+    "J": "ת",
+    "a": "α",
+    "s": "σ",
+    "e": "ε",
+    "t": "τ",
+}
 
 # Chunk ``author`` field → corpus id when not 1:1 with display name.
 DISPLAY_TO_CORPUS: dict[str, str] = {
@@ -293,6 +310,16 @@ def generate_corpora_block(corpora: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def generate_dominant_phil_block(corpora: list[dict[str, Any]]) -> str:
+    codes = sorted({str(c["dominant_code"]) for c in corpora})
+    lines = ["export const PHIL_DOMINANT_GLYPH: Record<string, string> = {"]
+    for code in codes:
+        glyph = DOMINANT_GLYPH_OVERRIDES.get(code, code)
+        lines.append(f"  {_py_str(code)}: {_py_str(glyph)},")
+    lines.append("};")
+    return "\n".join(lines)
+
+
 def generate_ordinal_block(authors: list[dict[str, Any]]) -> str:
     lines = ["AUTHOR_ORDINAL: dict[str, int] = {"]
     for a in sorted(authors, key=lambda x: x["ordinal"]):
@@ -367,6 +394,7 @@ def generate_all(manifest: dict[str, Any]) -> dict[str, str]:
         "corpus_registry": generate_corpora_block(corpora),
         "author_ordering": generate_ordinal_block(authors),
         "atlasData": generate_atlas_block(authors, atlas_order),
+        "dominantPhil": generate_dominant_phil_block(corpora),
     }
 
 
@@ -393,6 +421,13 @@ def apply_writes(manifest: dict[str, Any]) -> None:
         blocks["atlasData"],
     )
     ATLAS_DATA.write_text(ad, encoding="utf-8")
+    dp = _replace_region(
+        DOMINANT_PHIL,
+        BEGIN_DOMINANT,
+        END_DOMINANT,
+        blocks["dominantPhil"],
+    )
+    DOMINANT_PHIL.write_text(dp, encoding="utf-8")
 
 
 def check_sync(manifest: dict[str, Any]) -> list[str]:
@@ -402,6 +437,7 @@ def check_sync(manifest: dict[str, Any]) -> list[str]:
         (CORPUS_REGISTRY, BEGIN_CORPORA, END_CORPORA, "corpus_registry"),
         (AUTHOR_ORDERING, BEGIN_ORDINAL, END_ORDINAL, "author_ordering"),
         (ATLAS_DATA, BEGIN_ATLAS, END_ATLAS, "atlasData"),
+        (DOMINANT_PHIL, BEGIN_DOMINANT, END_DOMINANT, "dominantPhil"),
     ]:
         text = path.read_text(encoding="utf-8")
         m = re.search(
@@ -447,7 +483,7 @@ def main() -> int:
     manifest = _load_yaml(MANIFEST_PATH)
     if args.write:
         apply_writes(manifest)
-        print("Updated corpus_registry, author_ordering, atlasData")
+        print("Updated corpus_registry, author_ordering, atlasData, dominantPhil")
         return 0
     if args.check:
         errors = check_sync(manifest)
