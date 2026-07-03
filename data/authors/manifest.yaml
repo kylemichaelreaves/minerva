@@ -817,3 +817,124 @@ authors:
   row: 2
   x_shift: 0
   work_hint: Also sprach Zarathustra, Genealogie
+expected_chunks:
+  plato:
+    min: 18463
+    max: 23894
+  aristotle:
+    min: 14529
+    max: 18802
+  hegel:
+    min: 9155
+    max: 11848
+  kant:
+    min: 6120
+    max: 7921
+  schiller:
+    min: 920
+    max: 1411
+  homer:
+    min: 1321
+    max: 2026
+  aeschylus:
+    min: 600
+    max: 919
+  sophocles:
+    min: 397
+    max: 609
+  euripides:
+    min: 1026
+    max: 1573
+  descartes:
+    min: 2815
+    max: 3643
+  spinoza:
+    min: 1141
+    max: 1750
+  hobbes:
+    min: 3084
+    max: 3991
+  pascal:
+    min: 1977
+    max: 2558
+  hume:
+    min: 1430
+    max: 2193
+  locke:
+    min: 2372
+    max: 3070
+  rousseau:
+    min: 2371
+    max: 3069
+  augustine:
+    min: 1054
+    max: 1616
+  aquinas:
+    min: 20623
+    max: 26689
+  marx:
+    min: 11183
+    max: 14472
+  nietzsche:
+    min: 16382
+    max: 21200
+  cicero:
+    min: 8995
+    max: 11641
+  lucretius:
+    min: 319
+    max: 489
+  epictetus:
+    min: 2408
+    max: 3116
+  marcus_aurelius:
+    min: 861
+    max: 1320
+  septuagint:
+    min: 23019
+    max: 29790
+  new_testament:
+    min: 6748
+    max: 8732
+  vulgate:
+    min: 30437
+    max: 39389
+  luther_1912:
+    min: 26495
+    max: 34288
+  luther_1545:
+    min: 26494
+    max: 34287
+  kjv:
+    min: 26436
+    max: 34212
+  sacy:
+    min: 26721
+    max: 34580
+  presocratic:
+    min: 552
+    max: 847
+  hebrew_mt:
+    min: 19731
+    max: 25534
+  quran:
+    min: 5300
+    max: 6859
+  theognis:
+    min: 1214
+    max: 1861
+  aesop:
+    min: 2438
+    max: 3155
+  origen:
+    min: 1185
+    max: 1818
+  boulainvilliers:
+    min: 5999
+    max: 7763
+  gobineau:
+    min: 6526
+    max: 8445
+  renan:
+    min: 16762
+    max: 21693

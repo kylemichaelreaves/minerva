@@ -20,14 +20,18 @@ from __future__ import annotations
 
 import argparse
 import time
+import urllib.error
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import quote
 
 from _download import make_fetcher
 
-
-# Greek source: el.wikisource page tree.
+# Wikisource REST HTML chrome — same tokens as the Pascal/Rousseau scrapers.
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_SKIP_CLASS_TOKENS = frozenset(
+    {"mw-references", "headertemplate", "ws-noexport", "navbox", "metadata"}
+)
 _GRC_BASE_TITLE = "Τα εις εαυτόν"
 _GRC_BOOKS = list(range(1, 13))  # 12 books
 

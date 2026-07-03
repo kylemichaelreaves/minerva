@@ -135,3 +135,47 @@ def test_fetch_parallel_returns_exceptions_not_raises(monkeypatch, download_mod)
     assert isinstance(results[0][1], str) and results[0][1] == "ok-http://a/good"
     assert isinstance(results[1][1], RuntimeError)
     assert isinstance(results[2][1], str)
+
+
+def test_fetch_bytes_rejects_small_body(monkeypatch, download_mod):
+    class FakeResp:
+        def read(self):
+            return b"tiny"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(
+        download_mod.urllib.request, "urlopen", lambda req, timeout: FakeResp()
+    )
+    with pytest.raises(RuntimeError, match="too small"):
+        download_mod.fetch_bytes_with_retry(
+            "http://example.test/x", retries=1, min_bytes=100
+        )
+
+
+def test_fetch_bytes_rejects_marker(monkeypatch, download_mod):
+    body = b"x" * 500 + b"Hier entsteht eine neue Homepage"
+
+    class FakeResp:
+        def read(self):
+            return body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(
+        download_mod.urllib.request, "urlopen", lambda req, timeout: FakeResp()
+    )
+    with pytest.raises(RuntimeError, match="rejected"):
+        download_mod.fetch_bytes_with_retry(
+            "http://example.test/x",
+            retries=1,
+            reject_markers=("Hier entsteht eine neue Homepage",),
+        )

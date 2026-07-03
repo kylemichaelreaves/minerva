@@ -234,10 +234,12 @@ Note: shortlist #5 now enforced at the registry layer too —
   ``_yield_structured``, which warns on zero output (no chapter fallback).
 - 🟡 ~~`tei.py:527-529`~~ — **fixed**: ``tei.parse_dir`` catches per-file
   errors via shared ``record_parse_failure`` (same log as ``corpus/pipeline``).
-- 🟠 Chunk-count validation still missing: neither `scripts/check_author_ingest.py` nor
+- 🟠 ~~Chunk-count validation still missing: neither `scripts/check_author_ingest.py` nor
   `scripts/corpus-quality-audit.py` validates counts against expected work size; the Theognis
   failure (2,237 junk chunks) would pass both today (`theognis` is even in SKIP_RULES). Add
-  manifest-declared expected ranges.
+  manifest-declared expected ranges.~~ — **fixed**: top-level `expected_chunks` in
+  `manifest.yaml`; shared `scripts/chunk_count_validation.py`; wired into
+  `check_author_ingest --db` and `corpus-quality-audit.py` (non-zero exit on violation).
 - 🟡 ~~Root-element `find()` misses are silent empty iterators in 4 parsers~~ —
   **fixed**: ``tei.py``, ``tei_lxx.py``, ``tei_p5.py``, ``tei_drama.py`` now warn on
   stderr when expected root elements are absent.
@@ -257,11 +259,14 @@ Note: shortlist #5 now enforced at the registry layer too —
   rules don't retroactively apply without `--rescan-all`.
 
 ### Download/extract scripts
-- 🟠 `perseus/download_first1kgreek_lxx.py:79`, `download_first1kgreek_aristotle.py:95,105`,
+- 🟠 ~~`perseus/download_first1kgreek_lxx.py:79`, `download_first1kgreek_aristotle.py:95,105`,
   `download_marcus_aurelius.py:103` — `except urllib.error.HTTPError` with **no `import
-  urllib.error`**: the expected-404 path raises NameError and aborts the batch.
-- 🟠 `perseus/_download.py:73` — retry helper never validates body/size/content-type; the
-  mlwerke-parking-page trap generalizes to every fetch. Add a validate/min-size gate.
+  urllib.error`**: the expected-404 path raises NameError and aborts the batch.~~ — **fixed**:
+  added missing imports.
+- 🟠 ~~`perseus/_download.py:73` — retry helper never validates body/size/content-type; the
+  mlwerke-parking-page trap generalizes to every fetch. Add a validate/min-size gate.~~ —
+  **fixed**: `fetch_bytes_with_retry` accepts `min_bytes` and `reject_markers` (parking-page
+  substring guard).
 - 🟡 Five byte-identical zeno crawlers (hegel/kant/marx/nietzsche/schiller); four swallow
   exceptions inside BFS, silently truncating whole chapter subtrees. Extract `perseus/_zeno.py`.
 - 🟡 `_gutenberg.py:52-57` — missing `Language:` header bypasses the wrong-ID guard built after the

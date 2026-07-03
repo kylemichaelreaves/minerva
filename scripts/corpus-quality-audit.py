@@ -59,6 +59,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DB = REPO_ROOT / "data" / "index.sqlite"
 
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from chunk_count_validation import (  # noqa: E402
+    MANIFEST_PATH,
+    chunk_count_report,
+    load_manifest,
+    validate_chunk_counts,
+)
+
 # Pre-compile expensive regexes once; chunk loop hits them millions
 # of times.
 _LONG_S_CP = "ſ"  # ſ
@@ -321,10 +329,39 @@ def audit(
     return counts
 
 
+def render_chunk_count_section(
+    rows: list[tuple[str, int, int, int, str]],
+) -> str:
+    """Markdown table for manifest range violations."""
+
+    bad = [r for r in rows if r[4] != "ok"]
+    out: list[str] = ["## Chunk count ranges\n"]
+    if not bad:
+        out.append(
+            "All corpora with manifest `expected_chunks` are within range.\n"
+        )
+        return "\n".join(out)
+
+    out.append(
+        f"**{len(bad)}** corpus/corpora outside manifest "
+        "`expected_chunks` bounds (would also fail "
+        "`check_author_ingest --all --db`).\n\n"
+    )
+    out.append("| Corpus | Count | Min | Max | Status |")
+    out.append("|---|---:|---:|---:|---|")
+    for corpus_id, count, lo, hi, status in bad:
+        out.append(
+            f"| {corpus_id} | {count:,} | {lo:,} | {hi:,} | {status} |"
+        )
+    out.append("")
+    return "\n".join(out)
+
+
 def render_report(
     findings: dict[str, dict[str, tuple[int, list[tuple[str, str]]]]],
     *,
     top_authors: int = 25,
+    chunk_count_rows: list[tuple[str, int, int, int, str]] | None = None,
 ) -> str:
     """Render a Markdown report. Authors ranked by total findings."""
 
@@ -336,6 +373,9 @@ def render_report(
 
     ranked = sorted(findings.items(), key=lambda kv: _total(kv[1]), reverse=True)
     out: list[str] = ["# Corpus quality audit\n"]
+    if chunk_count_rows is not None:
+        out.append(render_chunk_count_section(chunk_count_rows))
+        out.append("")
     out.append(
         f"Total authors with findings: **{len(ranked)}**. "
         f"Showing top **{min(top_authors, len(ranked))}** by issue count.\n\n"
@@ -422,15 +462,26 @@ def main() -> int:
     args = p.parse_args()
 
     conn = sqlite3.connect(args.db)
+    manifest = load_manifest(MANIFEST_PATH)
+    chunk_rows = chunk_count_report(conn, manifest)
+    count_errs = validate_chunk_counts(conn, manifest)
+    if count_errs:
+        print("Chunk count range violations:", file=sys.stderr)
+        for err in count_errs:
+            print(f"  - {err}", file=sys.stderr)
     findings = audit(conn, sample_size=args.sample_size)
-    report = render_report(findings, top_authors=args.top_authors)
+    report = render_report(
+        findings,
+        top_authors=args.top_authors,
+        chunk_count_rows=chunk_rows,
+    )
     Path(args.out).write_text(report, encoding="utf-8")
     print(f"Wrote report: {args.out}", file=sys.stderr)
     print(
         f"Authors with findings: {len(findings)}",
         file=sys.stderr,
     )
-    return 0
+    return 1 if count_errs else 0
 
 
 if __name__ == "__main__":
