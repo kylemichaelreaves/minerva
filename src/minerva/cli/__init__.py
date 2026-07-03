@@ -65,7 +65,8 @@ from .ask_cmd import cmd_ask
 from .chat_cmd import cmd_chat
 from .embed_cmd import cmd_embed
 from .eval_cmd import cmd_eval
-from .index_cmd import _maybe_snapshot_pre_index, cmd_index  # noqa: F401
+from .index_cmd import cmd_index  # noqa: F401
+from ..store.preserved_state import _maybe_snapshot_pre_index  # noqa: F401
 from .ingest_cmd import cmd_ingest
 from .serve_cmd import cmd_serve
 from .stats_cmd import cmd_stats

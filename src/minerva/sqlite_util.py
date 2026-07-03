@@ -89,6 +89,58 @@ def foreign_keys_disabled(conn: sqlite3.Connection) -> Iterator[sqlite3.Connecti
     conn.execute(restore)
 
 
+@contextlib.contextmanager
+def foreign_keys_off_for_transaction(
+    conn: sqlite3.Connection,
+) -> Iterator[sqlite3.Connection]:
+    """Disable FK enforcement for a block that commits or rolls back inside.
+
+    Unlike :func:`foreign_keys_disabled`, this allows an open transaction
+    and restores the prior ``PRAGMA foreign_keys`` setting after commit or
+    rollback — the pattern ``insert_chunks`` needs for its destructive
+    delete/insert/rebind sequence.
+    """
+
+    prev = int(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+    conn.execute("PRAGMA foreign_keys = OFF")
+    restore = f"PRAGMA foreign_keys = {'ON' if prev else 'OFF'}"
+    try:
+        yield conn
+    except BaseException:
+        if conn.in_transaction:
+            conn.rollback()
+        conn.execute(restore)
+        raise
+    conn.execute(restore)
+
+
+def sweep_orphan_chunk_ids(
+    conn: sqlite3.Connection,
+    table: str,
+    *,
+    commit: bool = True,
+) -> int:
+    """Delete rows in ``table`` whose ``chunk_id`` is absent from ``chunks``.
+
+    Returns the number of rows dropped. No-op when ``table`` is missing
+    or empty.
+    """
+
+    if not table_exists(conn, table):
+        return 0
+    if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is None:
+        return 0
+    before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    conn.execute(
+        f"DELETE FROM {table} WHERE chunk_id NOT IN "
+        "(SELECT chunk_id FROM chunks)"
+    )
+    after = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    if commit:
+        conn.commit()
+    return before - after
+
+
 def iter_sql_statements(script: str) -> Iterator[str]:
     """Split a multi-statement SQL script into individual statements.
 

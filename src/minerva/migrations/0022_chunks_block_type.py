@@ -28,36 +28,7 @@ from __future__ import annotations
 
 import sqlite3
 
-# Mirrors 0003's chunks_full definition with ``c.block_type`` added. Kept
-# in sync with store/schema.py's chunks columns; if the view's column set
-# changes again, write a new migration that recreates it.
-_CREATE_CHUNKS_FULL = """
-CREATE VIEW chunks_full AS
-SELECT
-    c.chunk_id,
-    c.lang,
-    c.section,
-    c.book,
-    c.page,
-    c.speaker,
-    c.source_file,
-    c.text,
-    c.ord,
-    c.block_type,
-    c.edition_id,
-    c.translation_id,
-    w.id      AS work_id,
-    w.author  AS author,
-    w.title   AS work,
-    LOWER(w.author) AS corpus,
-    COALESCE(e.name, t.translator_name) AS translator,
-    COALESCE(e.year, t.year)            AS edition_year,
-    CASE WHEN c.edition_id IS NOT NULL THEN 1 ELSE 0 END AS is_original
-FROM chunks c
-LEFT JOIN editions     e ON e.id = c.edition_id
-LEFT JOIN translations t ON t.id = c.translation_id
-JOIN works w ON w.id = COALESCE(e.work_id, t.work_id)
-"""
+from minerva.store.ddl import recreate_chunks_full_view
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -72,5 +43,4 @@ def apply(conn: sqlite3.Connection) -> None:
     # 2. Recreate the convenience view so block_type is selectable through
     #    it. Safe to drop — it's a pure view, and the migrations that read
     #    chunks_full all ran at their own apply time.
-    conn.execute("DROP VIEW IF EXISTS chunks_full")
-    conn.execute(_CREATE_CHUNKS_FULL)
+    recreate_chunks_full_view(conn)

@@ -64,7 +64,15 @@ def cmd_embed(args: argparse.Namespace) -> int:
     if total == 0:
         t_overall.__exit__(None, None, None)
         if args.all:
-            print("No chunks present. Run `minerva index` first.", file=sys.stderr)
+            total_any = store.chunk_count(conn)
+            if total_any == 0:
+                print("No chunks present. Run `minerva index` first.", file=sys.stderr)
+            else:
+                print(
+                    f"No {args.lang} chunks in the index "
+                    f"({total_any:,} chunks of other languages present).",
+                    file=sys.stderr,
+                )
             return 2
         print(
             f"All chunks already embedded with {args.model}. "

@@ -193,18 +193,23 @@ def _partial_corpus_selection(requested: frozenset[str]) -> dict[str, set[str]]:
 
 
 def _record_ingest_only(db_path: Path, only: frozenset[str] | None) -> None:
-    """Write the most recent ``--only`` argument list to ``meta.ingest.only``.
+    """Write or clear the most recent ``--only`` argument list in
+    ``meta.ingest.only``.
 
-    Idempotent (overwrites the prior value each ingest). The
-    counterpart reader is :func:`minerva.cli.index_cmd._read_ingest_only_meta`,
-    which maps IngestSource ids → corpus slugs and scopes
-    ``index --incremental`` to those corpora.
+    Partial ingests overwrite the prior value. Full ingests clear it so
+    a later ``index --incremental --from-ingest-only`` does not silently
+    rescope to a stale corpus set.
+
+    The counterpart reader is
+    :func:`minerva.cli.index_cmd._read_ingest_only_meta`, which maps
+    IngestSource ids → corpus slugs and scopes ``index --incremental``
+    to those corpora.
 
     No-op when the DB doesn't exist yet (first checkout) or hasn't
     been initialized with a ``meta`` table.
     """
 
-    if only is None or not db_path.exists():
+    if not db_path.exists():
         return
     try:
         import sqlite3
@@ -217,10 +222,13 @@ def _record_ingest_only(db_path: Path, only: frozenset[str] | None) -> None:
         # handles the not-yet-initialized case as a no-op.
         conn = sqlite3.connect(db_path)
         try:
-            conn.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES('ingest.only', ?)",
-                (",".join(sorted(only)),),
-            )
+            if only is None:
+                conn.execute("DELETE FROM meta WHERE key='ingest.only'")
+            else:
+                conn.execute(
+                    "INSERT OR REPLACE INTO meta(key, value) VALUES('ingest.only', ?)",
+                    (",".join(sorted(only)),),
+                )
             conn.commit()
         finally:
             conn.close()

@@ -176,44 +176,35 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 
 (Items 2, 3, 7 in the shortlist above, plus:)
 
-- 🟡 `store/chunks.py:184-187,221-222,349-350` — incremental xref rebind/orphan-sweep is documented
-  as corpus-scoped but is actually global; `deleted_chunk_ids` is captured and never used. O(all
-  xrefs) per incremental index, and any pre-existing dangling row anywhere is deleted during an
-  unrelated single-corpus reindex. Fix code or docstring.
-- 🟡 `cli/index_cmd.py:67-69` + `serve_cmd.py:32` — `index --reset` unlinks the DB out from under a
-  running server (long-lived connection keeps the deleted inode; API xref-curation writes lost on
-  close). Needs at least a "stop the server" probe.
-- 🟡 `store/chunks.py:121-132,252` — incremental delete-scope derives author labels from the *new*
-  JSONL only; a parser author-label rename leaves stale chunks beside replacements (same dup class
-  the slug/label fix addressed, one step removed).
-- ⚪ `cli/ingest_cmd.py:178-181` — `meta.ingest.only` never cleared by a full ingest; a later
-  `--from-ingest-only` silently scopes to a stale corpus set.
-- ⚪ `cli/embed_cmd.py:64-67` — `--all --lang X` with zero chunks of that lang exits 2 with "No
-  chunks present. Run `minerva index` first." in a populated DB.
-- ⚪ Snapshot cost: `_maybe_snapshot_pre_index` does a full byte copy of the ~8 GB DB on *every*
-  index run, including 1.5 s incremental ones.
+- 🟡 ~~`store/chunks.py:184-187,221-222,349-350`~~ — **fixed**: incremental xref
+  rebind/orphan sweep scoped to ``deleted_chunk_ids``; DB-side author labels included in
+  delete scope for parser renames.
+- 🟡 ~~`cli/index_cmd.py:67-69` + `serve_cmd.py:32`~~ — **fixed**: ``serve_lock`` pid file
+  blocks ``index --reset`` while ``minerva serve`` holds the DB open.
+- ⚪ ~~`cli/ingest_cmd.py:178-181`~~ — **fixed**: full ingests clear
+  ``meta.ingest.only`` so ``--from-ingest-only`` cannot rescope to a stale set.
+- ⚪ ~~`cli/embed_cmd.py:64-67`~~ — **fixed**: ``--all --lang X`` with zero
+  matching chunks reports how many chunks of other languages are present.
+- ⚪ ~~Snapshot cost~~ — **fixed**: incremental index runs skip
+  ``_maybe_snapshot_pre_index`` (full-byte copy only before destructive
+  non-incremental re-indexes).
 
 ### Choreography duplication (the root-cause pattern)
-- FK save/toggle/restore boilerplate ×12 (`store/chunks.py:380,385`, `index_cmd.py:338`, 9
-  migrations); table-exists probes ×7; three orphan-cleanup implementations; `chunks_full` view +
-  FTS trigger DDL duplicated in 4 places (`store/schema.py:70-87`, migrations 0003/0021/0022).
-  Fix: `sqlite_util.foreign_keys_disabled(conn)` context manager (asserting no open transaction —
-  closes the PRAGMA-no-op trap class for good), `sqlite_util.table_exists`, one orphan-sweep
-  helper, a shared DDL constants module.
-- The snapshot→reset→restore→insert→rebind→sweep invariant lives in call-order comments across two
-  layers; should be one context manager (`with preserved_state(db_path, tables=...)`).
+- ~~Partially addressed~~ — **fixed**: ``sqlite_util.sweep_orphan_chunk_ids``
+  centralises chunk-id orphan sweeps; ``store/chunks`` uses ``table_exists``
+  helper; ``foreign_keys_off_for_transaction`` replaces hand-rolled FK
+  toggle in ``insert_chunks``; shared ``store/ddl.py`` for ``chunks_full``
+  view + FTS trigger DDL (schema + migrations 0021/0022); snapshot/restore
+  extracted to ``store/preserved_state.py``.
 
 ### Test gaps (worst first)
-1. **No end-to-end test for xref survival across `index --reset`** — the headline recovery path
-   (historically lost 21,751 xrefs). Lemma/embedding preservation is tested; xrefs are not.
-   `--from-ingest-only` never exercised.
-2. **`store/chunks._resolve_work_refs`** — docstring cites `test_store_resolve_work_refs.py`,
-   *which does not exist*. This is the edition-vs-translation classifier whose drift vs migration
-   0003 corrupts on re-ingest.
-3. Migrations: no legacy-shape (pre-0003) application test, no mid-migration-failure re-entrancy
-   test (would have caught the executescript findings).
-4. `cli/refs/review.py` (240 lines, writes curated verdicts) — zero tests.
-5. `store/stats.py` / `cli/db_cmd.py` — zero test references.
+1. ~~**No end-to-end test for xref survival across `index --reset`**~~ — covered by
+   ``test_index_xref_preservation.py``; ``--from-ingest-only`` exercised there too.
+2. ~~**`store/chunks._resolve_work_refs`**~~ — **fixed**: ``test_store_resolve_work_refs.py``.
+3. ~~Migrations: legacy-shape + mid-migration-failure re-entrancy~~ — **fixed**:
+   ``test_migrations_legacy_shape.py``, ``test_migration_failure_semantics.py``.
+4. ~~``cli/refs/review.py``~~ — **fixed**: ``test_refs_review.py``.
+5. ~~``store/stats.py`` / ``cli/db_cmd.py``~~ — **fixed**: ``test_store_stats.py``.
 
 ---
 
