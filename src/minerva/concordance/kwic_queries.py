@@ -6,9 +6,9 @@ import sqlite3
 from typing import Any
 
 from ..errors import BadRequestError
-from ..query_params import escape_like_substring, parse_int_param
-from ..text.snippet import build_kwic
+from ..query_params import parse_int_param
 from ..reader.queries import _parse_morph_feats
+from ..text.snippet import build_kwic
 from ._scope import (
     _DEFAULT_KWIC_LIMIT,
     _KWIC_CONTEXT_RADIUS,

@@ -25,8 +25,6 @@ _KWIC_CONTEXT_RADIUS = 60  # characters on each side of the match
 _DEFAULT_CONTENT_POS = ("NOUN", "VERB", "ADJ", "PROPN")
 
 # Re-export snippet punctuation constants for legacy imports.
-from ..text.snippet import ATTACHED_LEAD as _ATTACHED_LEAD
-from ..text.snippet import ATTACHED_TRAIL as _ATTACHED_TRAIL
 
 
 # ──────────────────────────────────────────────────────────────────

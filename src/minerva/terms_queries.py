@@ -8,14 +8,14 @@ from typing import Any
 
 from .errors import BadRequestError, NotFoundError
 from .query_params import escape_like_substring, parse_int_param
-
-_DEFAULT_TERMS_LIMIT = 500
-_MAX_TERMS_LIMIT = 5000
 from .reader.window import (
     empty_window_response,
     fetch_chunk_ids_in_window,
     parse_window_params,
 )
+
+_DEFAULT_TERMS_LIMIT = 500
+_MAX_TERMS_LIMIT = 5000
 
 
 def term_to_dict(row: sqlite3.Row) -> dict[str, Any]:

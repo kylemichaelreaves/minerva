@@ -12,8 +12,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from .. import serve_lock
-from .. import store
+from .. import serve_lock, store
 from ..sqlite_util import sweep_orphan_chunk_ids
 from ..store.preserved_state import (
     _maybe_restore_preserved_state_from_snapshot,

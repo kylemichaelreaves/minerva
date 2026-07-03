@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
 from .. import orthography
 from ..ingest import load_jsonl

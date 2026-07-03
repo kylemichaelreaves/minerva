@@ -13,7 +13,6 @@ import dataclasses
 import sqlite3
 from typing import Any
 
-from ..errors import BadRequestError
 from ..query_params import parse_int_param
 
 
