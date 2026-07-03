@@ -141,6 +141,11 @@ def _ingest_args(tmp_path: Path, **overrides) -> argparse.Namespace:
     base: dict = {
         "only": None,
         "allow_partial_corpus": False,
+        # The test Namespace carries no per-source path overrides, so
+        # every registered source resolves to a missing path — opt in
+        # so the upfront missing-path gate doesn't exit 2 before the
+        # behavior under test runs.
+        "allow_missing_sources": True,
         "output": tmp_path / "chunks.jsonl",
         "db": tmp_path / "index.sqlite",
         "jobs": 1,
@@ -192,9 +197,11 @@ def test_cmd_ingest_clean_run_exits_zero(tmp_path: Path, monkeypatch, capsys):
     assert "failure" not in capsys.readouterr().err
 
 
-def test_cmd_ingest_parallel_reports_failed_sources(tmp_path: Path, monkeypatch, capsys):
-    """Parallel path: a source-level failure (excluded from the shard
-    merge) must surface in the summary and flip the exit code."""
+def test_cmd_ingest_parallel_full_aborts_on_dropped_source(tmp_path: Path, monkeypatch, capsys):
+    """Full parallel path: a source-level failure means its corpus is
+    absent from the shard list — the write must ABORT (existing
+    chunks.jsonl untouched) instead of rewriting the JSONL without
+    that corpus, and the run exits non-zero."""
 
     from minerva.cli import ingest_cmd
 
@@ -202,7 +209,37 @@ def test_cmd_ingest_parallel_reports_failed_sources(tmp_path: Path, monkeypatch,
         shard = shard_dir / "chunks.plato.jsonl"
         shard.write_text(json.dumps(_chunk("good-1").to_json_dict()) + "\n", encoding="utf-8")
         failures = {"hegel": ["ValueError: bad PDF"]}
-        return [shard], 1, {"plato/eng": 1}, failures
+        return [shard], 1, {"plato/eng": 1}, failures, ["hegel"]
+
+    monkeypatch.setattr(ingest_cmd, "parallel_ingest", fake_parallel_ingest)
+
+    args = _ingest_args(tmp_path, jobs=2)
+    args.output.write_text('{"chunk_id": "pre-existing"}\n', encoding="utf-8")
+    rc = ingest_cmd.cmd_ingest(args)
+    assert rc == 1
+
+    # The pre-existing output survives byte-for-byte.
+    written = [json.loads(line) for line in args.output.read_text().splitlines()]
+    assert [c["chunk_id"] for c in written] == ["pre-existing"]
+
+    err = capsys.readouterr().err
+    assert "aborting full write" in err
+    assert "ingest:hegel" in err
+    assert "bad PDF" in err
+
+
+def test_cmd_ingest_parallel_per_file_failures_still_write(tmp_path: Path, monkeypatch, capsys):
+    """Parallel path: per-FILE failures (shard still produced) keep the
+    partial-output-plus-exit-1 contract — only whole-source drops
+    abort the write."""
+
+    from minerva.cli import ingest_cmd
+
+    def fake_parallel_ingest(source_ids, paths_by_kwarg, shard_dir, *, jobs, per_source_timing):
+        shard = shard_dir / "chunks.plato.jsonl"
+        shard.write_text(json.dumps(_chunk("good-1").to_json_dict()) + "\n", encoding="utf-8")
+        failures = {"plato": ["plato: failed to parse 'r.xml' as 'Republic': boom"]}
+        return [shard], 1, {"plato/eng": 1}, failures, []
 
     monkeypatch.setattr(ingest_cmd, "parallel_ingest", fake_parallel_ingest)
 
@@ -212,7 +249,22 @@ def test_cmd_ingest_parallel_reports_failed_sources(tmp_path: Path, monkeypatch,
 
     written = [json.loads(line) for line in args.output.read_text().splitlines()]
     assert [c["chunk_id"] for c in written] == ["good-1"]
+    assert "r.xml" in capsys.readouterr().err
+
+
+def test_cmd_ingest_missing_source_paths_refused(tmp_path: Path, capsys):
+    """A registered source with no data on disk must abort the run
+    (exit 2) before anything is written, unless the operator passes
+    --allow-missing-sources. The test Namespace carries no source
+    paths at all, so every source counts as missing."""
+
+    from minerva.cli import ingest_cmd
+
+    args = _ingest_args(tmp_path, allow_missing_sources=False)
+    rc = ingest_cmd.cmd_ingest(args)
+    assert rc == 2
+    assert not args.output.exists()
 
     err = capsys.readouterr().err
-    assert "ingest:hegel" in err
-    assert "bad PDF" in err
+    assert "SKIPPED" in err
+    assert "--allow-missing-sources" in err

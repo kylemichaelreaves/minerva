@@ -59,6 +59,7 @@ from minerva.migrations.runtime_helpers import (
     _ORIGINAL_LANG_BY_CORPUS,
     parse_year,
 )
+from minerva.sqlite_util import execute_script_statements
 
 
 def apply(conn: sqlite3.Connection) -> None:
@@ -78,11 +79,22 @@ def apply(conn: sqlite3.Connection) -> None:
     # to look broken to its FK referrers (term_occurrences,
     # occurrence_renderings) while we're in flight. Disable for the
     # migration; re-enable at exit so callers see the same pragma
-    # state they had on entry.
+    # state they had on entry. The PRAGMA must be set BEFORE the
+    # explicit BEGIN (it's a silent no-op inside a transaction), and
+    # the BEGIN must be explicit because the ALTER TABLEs below are
+    # DDL, which doesn't auto-begin a transaction — without it a
+    # mid-migration failure would leave the ALTERs committed and the
+    # re-apply would fail on "duplicate column".
     fk_prev = conn.execute("PRAGMA foreign_keys").fetchone()[0]
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
+        if not conn.in_transaction:
+            conn.execute("BEGIN")
         _apply_inner(conn)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
     finally:
         conn.execute(f"PRAGMA foreign_keys = {'ON' if fk_prev else 'OFF'}")
 
@@ -90,7 +102,7 @@ def apply(conn: sqlite3.Connection) -> None:
 def _ensure_chunks_full_view(conn: sqlite3.Connection) -> None:
     """Create the chunks_full convenience view. Idempotent."""
 
-    conn.executescript("""
+    conn.execute("""
         CREATE VIEW IF NOT EXISTS chunks_full AS
         SELECT
             c.chunk_id,
@@ -121,10 +133,8 @@ def _ensure_chunks_full_view(conn: sqlite3.Connection) -> None:
 def _apply_inner(conn: sqlite3.Connection) -> None:
 
     # ── 1. ADD COLUMNs ────────────────────────────────────────────────
-    conn.executescript("""
-        ALTER TABLE chunks ADD COLUMN edition_id     INTEGER;
-        ALTER TABLE chunks ADD COLUMN translation_id INTEGER;
-    """)
+    conn.execute("ALTER TABLE chunks ADD COLUMN edition_id     INTEGER")
+    conn.execute("ALTER TABLE chunks ADD COLUMN translation_id INTEGER")
 
     # ── 2. Backfill `works` ───────────────────────────────────────────
     # For each distinct (corpus, author, work), determine original_language:
@@ -238,8 +248,9 @@ def _apply_inner(conn: sqlite3.Connection) -> None:
     # `ALTER TABLE ... DROP COLUMN`) because we also want to add a CHECK
     # constraint requiring exactly one FK to be set per row. SQLite
     # can't add a CHECK to an existing table; the canonical rebuild
-    # dance is the way.
-    conn.executescript("""
+    # dance is the way. Statement-by-statement (not executescript) so
+    # the whole rebuild stays inside this migration's transaction.
+    execute_script_statements(conn, """
         DROP INDEX IF EXISTS chunks_corpus;
         DROP INDEX IF EXISTS chunks_work_ord;
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import re
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 
@@ -37,6 +39,96 @@ def open_sqlite(
         post_open(conn)
     conn.commit()
     return conn
+
+
+def table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    """True when ``name`` exists as a table on ``conn``."""
+
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
+    ).fetchone() is not None
+
+
+@contextlib.contextmanager
+def foreign_keys_disabled(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Temporarily disable FK enforcement, restoring the prior setting.
+
+    ``PRAGMA foreign_keys`` is a silent no-op while a transaction is
+    open, so this context manager enforces the choreography at both
+    edges: it refuses to start inside an open transaction, and it
+    requires the caller to have committed before the block ends (an
+    exception unwinding through it rolls back first) so the restore
+    PRAGMA actually takes effect.
+    """
+
+    if conn.in_transaction:
+        raise RuntimeError(
+            "foreign_keys_disabled: a transaction is already open — "
+            "PRAGMA foreign_keys would be a silent no-op. Commit or "
+            "roll back before entering."
+        )
+    prev = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    conn.execute("PRAGMA foreign_keys = OFF")
+    restore = f"PRAGMA foreign_keys = {'ON' if prev else 'OFF'}"
+    try:
+        yield conn
+    except BaseException:
+        if conn.in_transaction:
+            conn.rollback()
+        conn.execute(restore)
+        raise
+    if conn.in_transaction:
+        conn.rollback()
+        conn.execute(restore)
+        raise RuntimeError(
+            "foreign_keys_disabled: block ended with an open transaction; "
+            "commit inside the block so the FK restore isn't a no-op. "
+            "(The uncommitted work has been rolled back.)"
+        )
+    conn.execute(restore)
+
+
+def iter_sql_statements(script: str) -> Iterator[str]:
+    """Split a multi-statement SQL script into individual statements.
+
+    Boundaries are detected with :func:`sqlite3.complete_statement`,
+    so semicolons inside trigger bodies and string literals don't
+    split. Leading comments stay attached to the statement they
+    precede.
+    """
+
+    buf = ""
+    for piece in script.split(";"):
+        buf += piece + ";"
+        if sqlite3.complete_statement(buf):
+            yield buf
+            buf = ""
+    if buf.strip():
+        # Script ended without a terminating semicolon.
+        yield buf
+
+
+def _sql_has_content(stmt: str) -> bool:
+    """True when ``stmt`` contains SQL beyond comments/semicolons."""
+
+    stripped = re.sub(r"/\*.*?\*/", "", stmt, flags=re.S)
+    stripped = re.sub(r"--[^\n]*", "", stripped)
+    return bool(stripped.replace(";", "").strip())
+
+
+def execute_script_statements(conn: sqlite3.Connection, script: str) -> None:
+    """Run a multi-statement SQL script one ``execute`` at a time.
+
+    Unlike ``Connection.executescript`` — which issues a COMMIT before
+    running and autocommits statement-by-statement — this keeps every
+    statement inside whatever transaction is currently open, so a
+    failure mid-script rolls the whole script back with it.
+    """
+
+    for stmt in iter_sql_statements(script):
+        if _sql_has_content(stmt):
+            conn.execute(stmt)
 
 
 def insert_with_shadow_retry(

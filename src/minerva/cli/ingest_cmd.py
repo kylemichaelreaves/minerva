@@ -75,6 +75,29 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             return 2
         only = requested
 
+    # A registered source whose raw path is missing used to be skipped
+    # in silence — a full ingest would then rewrite chunks.jsonl WITHOUT
+    # that corpus, and the next `index --reset` wiped it from the DB
+    # (the 2026-06 English-Hobbes incident). Vet the paths upfront,
+    # before anything is written, and refuse to proceed unless the
+    # operator explicitly opts in.
+    missing_paths = _missing_source_paths(only, overrides)
+    if missing_paths:
+        for sid, path in missing_paths:
+            print(
+                f"ingest: SKIPPED {sid} — source path missing: {path}",
+                file=sys.stderr,
+            )
+        if not getattr(args, "allow_missing_sources", False):
+            print(
+                f"ingest: {len(missing_paths)} registered source(s) have no "
+                f"data on disk; writing {args.output} without them would "
+                f"drop their corpora on the next index. Fix the paths, or "
+                f"pass --allow-missing-sources to proceed without them.",
+                file=sys.stderr,
+            )
+            return 2
+
     with Timer() as overall:
         if args.jobs > 1:
             total, touched, counts, mode, failures = _parallel_ingest_path(args, only, overrides)
@@ -97,9 +120,10 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 mode = "merged"
             failures = parse_failures()
 
-    print(f"{mode.capitalize()} {touched} chunks into {args.output} (total: {total})")
-    for k, v in sorted(counts.items()):
-        print(f"  {k}: {v}")
+    if mode != "aborted":
+        print(f"{mode.capitalize()} {touched} chunks into {args.output} (total: {total})")
+        for k, v in sorted(counts.items()):
+            print(f"  {k}: {v}")
 
     if args.timing:
         print(f"timing: ingest  {fmt_elapsed(overall.elapsed)}", file=sys.stderr)
@@ -128,6 +152,24 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             print(f"  {msg}", file=sys.stderr)
         return 1
     return 0
+
+
+def _missing_source_paths(
+    only: frozenset[str] | None,
+    overrides: dict[str, Path | None],
+) -> list[tuple[str, Path | None]]:
+    """``(source_id, resolved_path)`` for every selected source whose
+    raw data path is absent from disk. Empty list = all present."""
+
+    paths_by_kwarg = build_iter_corpus_kwargs(**overrides)
+    out: list[tuple[str, Path | None]] = []
+    for source in INGEST_SOURCES:
+        if only is not None and source.id not in only:
+            continue
+        path = paths_by_kwarg.get(source.kwarg_name)
+        if not source.path_present(path):
+            out.append((source.id, path))
+    return out
 
 
 def _partial_corpus_selection(requested: frozenset[str]) -> dict[str, set[str]]:
@@ -217,7 +259,7 @@ def _parallel_ingest_path(
 
     with tempfile.TemporaryDirectory(prefix="minerva-ingest-shards-") as tmp:
         shard_dir = Path(tmp)
-        shard_paths, _total, counts, failures_by_source = parallel_ingest(
+        shard_paths, _total, counts, failures_by_source, dropped = parallel_ingest(
             source_ids,
             paths_by_kwarg,
             shard_dir,
@@ -230,7 +272,24 @@ def _parallel_ingest_path(
             for msg in msgs
         ]
         if only is None:
-            # Full ingest: stream shards directly into the final JSONL.
+            # Full ingest: a source-level failure means its whole
+            # corpus is absent from the shard list — concatenating the
+            # survivors would rewrite chunks.jsonl WITHOUT that corpus,
+            # and the next `index --reset` would wipe it from the DB.
+            # Abort before touching the output; per-FILE failures
+            # (recorded but shard present) still write partial output
+            # below and exit 1 via the failures summary.
+            if dropped:
+                print(
+                    f"ingest: aborting full write — source(s) "
+                    f"{sorted(dropped)!r} failed outright and their corpora "
+                    f"would be dropped from {args.output}. The existing "
+                    f"output is untouched; fix and re-run (or re-run with "
+                    f"--only for just the failed sources).",
+                    file=sys.stderr,
+                )
+                return 0, 0, counts, "aborted", failures
+            # Stream shards directly into the final JSONL.
             written = concat_shards(shard_paths, args.output)
             return written, written, counts, "wrote", failures
         # Partial ingest: load shards and overlay onto the existing
@@ -318,6 +377,16 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
             "replace drops the stale ones). Every other corpus is "
             "preserved bit-for-bit. Default is to parse every source "
             "and overwrite the output."
+        ),
+    )
+    pi.add_argument(
+        "--allow-missing-sources",
+        action="store_true",
+        help=(
+            "Proceed even when a registered source's raw data path is "
+            "missing from disk. Without this flag such a run is refused: "
+            "writing chunks.jsonl without a registered corpus means the "
+            "next `minerva index` silently drops that corpus from the DB."
         ),
     )
     pi.add_argument(

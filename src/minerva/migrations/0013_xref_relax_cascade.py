@@ -88,30 +88,41 @@ CREATE TABLE cross_references__new (
 
 # Indexes are dropped with the old table; we re-create them under the
 # original names so existing query plans don't surprise. Names match
-# the 0012 migration's CREATE INDEX statements exactly.
-_REBUILD_INDEXES = """
-CREATE INDEX xref_by_source_chunk ON cross_references(source_chunk_id);
-CREATE INDEX xref_by_target_chunk ON cross_references(target_chunk_id);
-CREATE INDEX xref_by_target_id    ON cross_references(target_id);
-CREATE INDEX xref_by_status       ON cross_references(curator_status);
-CREATE INDEX xref_by_shadow       ON cross_references(source_edition_id, source_sort_key, source_form_snapshot);
-"""
+# the 0012 migration's CREATE INDEX statements exactly. One statement
+# per element — run via `execute`, NOT `executescript`, whose implicit
+# COMMITs would persist a half-done rebuild (see migrations/__init__).
+_REBUILD_INDEXES = (
+    "CREATE INDEX xref_by_source_chunk ON cross_references(source_chunk_id)",
+    "CREATE INDEX xref_by_target_chunk ON cross_references(target_chunk_id)",
+    "CREATE INDEX xref_by_target_id    ON cross_references(target_id)",
+    "CREATE INDEX xref_by_status       ON cross_references(curator_status)",
+    "CREATE INDEX xref_by_shadow       ON cross_references(source_edition_id, source_sort_key, source_form_snapshot)",
+)
 
 
 def apply(conn: sqlite3.Connection) -> None:
+    # PRAGMAs must be set BEFORE the explicit BEGIN — they're silent
+    # no-ops inside an open transaction. The BEGIN must be explicit
+    # because CREATE/DROP/ALTER are DDL, which doesn't auto-begin a
+    # transaction in Python's legacy isolation mode — without it a
+    # mid-rebuild failure would leave cross_references__new committed
+    # and the retry would fail on "table already exists".
     fk_prev = conn.execute("PRAGMA foreign_keys").fetchone()[0]
     legacy_prev = conn.execute("PRAGMA legacy_alter_table").fetchone()[0]
     conn.execute("PRAGMA foreign_keys = OFF")
     conn.execute("PRAGMA legacy_alter_table = ON")
     try:
-        conn.executescript(_REBUILD_XREF)
+        if not conn.in_transaction:
+            conn.execute("BEGIN")
+        conn.execute(_REBUILD_XREF)
         # Column order is identical, so a bare INSERT ... SELECT works.
         conn.execute(
             "INSERT INTO cross_references__new SELECT * FROM cross_references"
         )
         conn.execute("DROP TABLE cross_references")
         conn.execute("ALTER TABLE cross_references__new RENAME TO cross_references")
-        conn.executescript(_REBUILD_INDEXES)
+        for stmt in _REBUILD_INDEXES:
+            conn.execute(stmt)
         bad = conn.execute("PRAGMA foreign_key_check").fetchall()
         if bad:
             raise RuntimeError(

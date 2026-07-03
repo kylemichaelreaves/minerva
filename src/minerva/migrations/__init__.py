@@ -11,15 +11,29 @@ Conventions
 * File names: ``0001_term_glossary.sql``, ``0003_chunks_backfill.py``.
   Four-digit zero-padded version, snake_case description. The version
   prefix is what's tracked; the description is for humans.
-* ``.sql`` files run via ``executescript`` — multiple statements
-  separated by ``;`` are fine.
+* ``.sql`` files may hold multiple statements separated by ``;``. The
+  runner executes them statement-by-statement inside one explicit
+  transaction — NEVER via ``executescript``, whose implicit COMMITs
+  would persist a half-applied script with the version unrecorded
+  (re-apply then fails on e.g. "duplicate column" and the DB is
+  wedged).
 * ``.py`` files must define ``def apply(conn: sqlite3.Connection) ->
   None``. Use these when the migration needs branching logic or row-
   by-row processing that would be unreadable in pure SQL. The runner
   loads them via ``importlib.util`` so they can live alongside the
   ``.sql`` peers.
-* Each migration runs in its own implicit transaction — if it raises
-  the runner rolls back and the version is NOT recorded.
+* ``.py`` migrations MUST NOT call ``conn.executescript`` (same
+  implicit-COMMIT trap; use ``sqlite_util.execute_script_statements``
+  or plain ``execute`` loops — see 0021/0022 for the pattern). A
+  migration that needs PRAGMAs (``foreign_keys``,
+  ``legacy_alter_table``) must set them BEFORE opening its own
+  explicit ``BEGIN`` — PRAGMAs are silent no-ops inside a
+  transaction — and commit before restoring them (see 0003/0013).
+* If a migration raises, the runner rolls back and the version is
+  NOT recorded, so the next ``open_db`` retries it. ``.py``
+  migrations must therefore be re-entrant against a partially
+  committed prior attempt (idempotency guards like 0003's
+  column probe / 0021's ``IF NOT EXISTS``).
 * No down migrations. Adding a column or table is forward-only; if a
   decision needs reversing, write a new migration that does it.
 * The legacy ``chunks`` / ``chunks_fts`` / ``embeddings`` / ``meta``
@@ -41,18 +55,20 @@ from importlib import resources
 from pathlib import Path
 from typing import Callable
 
+from minerva.sqlite_util import execute_script_statements
+
 
 _VERSION_RE = re.compile(r"^(\d{4})_[a-z0-9_]+\.(sql|py)$")
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:
-    conn.executescript(
+    conn.execute(
         """
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version    INTEGER PRIMARY KEY,
             name       TEXT NOT NULL,
             applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
+        )
         """
     )
 
@@ -77,7 +93,9 @@ def _discover() -> list[tuple[int, str, str, Callable[[sqlite3.Connection], None
         stem = name[: -(len(kind) + 1)]
         if kind == "sql":
             sql = entry.read_text(encoding="utf-8")
-            runner = (lambda script=sql: lambda conn: conn.executescript(script))()
+            runner = (
+                lambda script=sql: lambda conn: execute_script_statements(conn, script)
+            )()
         else:
             # importlib by file path. We don't go through `__package__` /
             # `from . import` because we don't want to expose migration
@@ -118,10 +136,20 @@ def apply(conn: sqlite3.Connection) -> list[int]:
         row[0] for row in conn.execute("SELECT version FROM schema_migrations")
     }
     ran: list[int] = []
-    for version, stem, _kind, runner in _discover():
+    for version, stem, kind, runner in _discover():
         if version in applied:
             continue
         try:
+            # .sql migrations get one explicit transaction around the
+            # whole script + version record: DDL statements don't
+            # auto-begin a transaction in Python's legacy isolation
+            # mode, so without this a failure mid-script would leave
+            # earlier statements committed with the version unrecorded.
+            # .py migrations manage their own transaction shape (they
+            # may need PRAGMAs, which are no-ops inside an open
+            # transaction) — see the module docstring conventions.
+            if kind == "sql" and not conn.in_transaction:
+                conn.execute("BEGIN")
             runner(conn)
             conn.execute(
                 "INSERT INTO schema_migrations(version, name) VALUES (?, ?)",
