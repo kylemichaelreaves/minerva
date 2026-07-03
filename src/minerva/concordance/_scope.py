@@ -24,10 +24,9 @@ _KWIC_CONTEXT_RADIUS = 60  # characters on each side of the match
 # tuple is the source of truth.
 _DEFAULT_CONTENT_POS = ("NOUN", "VERB", "ADJ", "PROPN")
 
-# Closing punctuation that should hug the preceding word (no leading space).
-_ATTACHED_TRAIL = ",.;:!?)]}»"
-# Opening punctuation that should hug the following word.
-_ATTACHED_LEAD = "([{«"
+# Re-export snippet punctuation constants for legacy imports.
+from ..text.snippet import ATTACHED_LEAD as _ATTACHED_LEAD
+from ..text.snippet import ATTACHED_TRAIL as _ATTACHED_TRAIL
 
 
 # ──────────────────────────────────────────────────────────────────

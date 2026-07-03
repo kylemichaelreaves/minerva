@@ -115,10 +115,10 @@ def test_terms_list_filters_by_lang(seeded_db):
     assert server._handle_terms_list(deps, {"lang": "deu"})["terms"] == []
 
 
-def test_terms_list_like_filter_is_substring(seeded_db):
+def test_terms_list_like_filter_escapes_wildcards(seeded_db):
     deps = _make_deps(seeded_db, StubBackend())
-    out = server._handle_terms_list(deps, {"like": "λόγ"})["terms"]
-    assert len(out) == 1
+    assert server._handle_terms_list(deps, {"like": "%"})["terms"] == []
+    assert len(server._handle_terms_list(deps, {"like": "λόγ"})["terms"]) == 1
 
 
 # ════════════════════════════════════════════════════════════════════

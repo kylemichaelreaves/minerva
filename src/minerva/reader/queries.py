@@ -10,6 +10,7 @@ from ..author_ordering import author_sort_key, lang_sort_key
 from ..authors.quran_works import find_surah_by_transliteration as _find_surah
 from ..errors import BadRequestError, NotFoundError
 from ..locations import BCV_BOOK_ORDINAL, TANAKH_BOOK_ORDINAL
+from ..text.snippet import build_mark_snippet
 from ..transliterate import display_text, display_title
 from .display import trilingual_display
 from .window import (
@@ -346,48 +347,7 @@ def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     def _snippet(
         text: str, start: int, end: int, radius: int = 40
     ) -> dict[str, Any]:
-        """Build a whitespace-normalised window around an occurrence
-        and report where in the resulting string the matched surface
-        starts/ends. Letting the frontend wrap `<mark>` around that
-        slice without doing string-search heuristics — string-search
-        is fragile when the lemma appears multiple times inside the
-        same snippet (very common for high-frequency lemmas).
-
-        Whitespace between the surface and an adjacent punctuation
-        token (`,` `.` `;` etc.) is suppressed so `Erklärung,` doesn't
-        render as `Erklärung ,`. The same rule applies on the leading
-        side for opening brackets — `(Geist` instead of `( Geist`.
-        """
-
-        # Closing punctuation that should hug the preceding word.
-        _ATTACHED_TRAIL = ",.;:!?)]}"
-        # Opening punctuation that should hug the following word.
-        _ATTACHED_LEAD = "([{«"
-
-        lo = max(0, start - radius)
-        hi = min(len(text), end + radius)
-        before = " ".join(text[lo:start].split())
-        match = text[start:end]
-        after = " ".join(text[end:hi].split())
-        # Insert a single space between non-empty segments — unless
-        # the adjacent character is "attached" punctuation that
-        # belongs to the surface itself.
-        if before:
-            sep = "" if before[-1] in _ATTACHED_LEAD else " "
-            prefix = f"{before}{sep}"
-        else:
-            prefix = ""
-        if after:
-            sep = "" if after[0] in _ATTACHED_TRAIL else " "
-            suffix = f"{sep}{after}"
-        else:
-            suffix = ""
-        snippet = f"{prefix}{match}{suffix}"
-        return {
-            "snippet": snippet,
-            "match_start": len(prefix),
-            "match_end": len(prefix) + len(match),
-        }
+        return build_mark_snippet(text, start, end, radius=radius)
 
     feats_dict = _parse_morph_feats(focus["feats"])
     return {

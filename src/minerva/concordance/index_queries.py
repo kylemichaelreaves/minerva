@@ -8,6 +8,7 @@ import unicodedata
 from typing import Any
 
 from ..errors import BadRequestError
+from ..query_params import parse_int_param
 from ._scope import (
     _DEFAULT_CONTENT_POS,
     _DEFAULT_INDEX_LIMIT,
@@ -101,17 +102,18 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         "off",
     )
 
-    try:
-        limit = int(query.get("limit", str(_DEFAULT_INDEX_LIMIT)))
-        offset = int(query.get("offset", "0"))
-        min_count = int(query.get("min_count", "2"))
-        max_count_raw = query.get("max_count")
-        max_count: int | None = int(max_count_raw) if max_count_raw not in (None, "") else None
-    except ValueError as e:
-        raise BadRequestError(f"integer query param parse error: {e}") from None
-    limit = max(1, min(_MAX_INDEX_LIMIT, limit))
-    offset = max(0, offset)
-    min_count = max(1, min_count)
+    limit = parse_int_param(
+        query, "limit", _DEFAULT_INDEX_LIMIT, lo=1, hi=_MAX_INDEX_LIMIT, clamp=True,
+    )
+    offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
+    min_count = parse_int_param(query, "min_count", 2, lo=1, clamp=True)
+    max_count_raw = query.get("max_count")
+    max_count: int | None = None
+    if max_count_raw not in (None, ""):
+        try:
+            max_count = int(max_count_raw)
+        except ValueError:
+            raise BadRequestError("invalid 'max_count' query param") from None
     if max_count is not None and max_count < min_count:
         # Caller passed an inverted range — return zero rows rather than
         # silently swapping or erroring. The UI's slider can land here

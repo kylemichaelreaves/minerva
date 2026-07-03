@@ -14,6 +14,7 @@ import sqlite3
 from typing import Any
 
 from ..errors import BadRequestError
+from ..query_params import parse_int_param
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,24 +37,10 @@ def parse_window_params(
     """
 
     lang = query.get("lang", default_lang)
-    try:
-        from_ord = int(query.get("from", "0"))
-    except ValueError:
-        raise BadRequestError(
-            "invalid 'from' query param",
-        ) from None
-    try:
-        limit = int(query.get("limit", str(default_limit)))
-    except ValueError:
-        raise BadRequestError(
-            "invalid 'limit' query param",
-        ) from None
-    if from_ord < 0:
-        raise BadRequestError("'from' must be >= 0")
-    if limit <= 0 or limit > max_limit:
-        raise BadRequestError(
-            f"'limit' must be in 1..{max_limit}",
-        )
+    from_ord = parse_int_param(query, "from", 0, lo=0)
+    limit = parse_int_param(
+        query, "limit", default_limit, lo=1, hi=max_limit,
+    )
     return WindowParams(from_ord=from_ord, limit=limit, lang=lang)
 
 
@@ -66,17 +53,9 @@ def parse_limit_only(
     """Parse ``limit`` alone — used by ``work_range`` which has custom
     ``from`` / ``around`` handling."""
 
-    try:
-        limit = int(query.get("limit", str(default_limit)))
-    except ValueError:
-        raise BadRequestError(
-            "invalid 'limit' query param",
-        ) from None
-    if limit <= 0 or limit > max_limit:
-        raise BadRequestError(
-            f"'limit' must be in 1..{max_limit}",
-        )
-    return limit
+    return parse_int_param(
+        query, "limit", default_limit, lo=1, hi=max_limit,
+    )
 
 
 def fetch_chunk_ids_in_window(

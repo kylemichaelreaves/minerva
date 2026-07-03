@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -229,11 +230,19 @@ class AnthropicBackend(LLMBackend):
             )
         else:
             self.enable_prompt_cache = enable_prompt_cache
-        # Most recent usage block surfaced by complete(). Read by callers
+        # Per-thread usage block surfaced by complete(). Read by callers
         # that want to log cache_read_input_tokens / cache_creation_input_tokens
         # for observability. Non-streaming only; SSE responses aggregate
         # usage in their message_delta events.
-        self.last_usage: dict[str, Any] | None = None
+        self._usage_tls = threading.local()
+
+    @property
+    def last_usage(self) -> dict[str, Any] | None:
+        return getattr(self._usage_tls, "usage", None)
+
+    @last_usage.setter
+    def last_usage(self, value: dict[str, Any] | None) -> None:
+        self._usage_tls.usage = value
 
     def _build_body(
         self,

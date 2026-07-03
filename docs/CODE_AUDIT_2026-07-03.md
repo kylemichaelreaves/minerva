@@ -152,22 +152,20 @@ clones `useRefsSourceAuthors`; Reader's inline IntersectionObserver duplicates
 - 🟡 ~~`chat_service.py`~~ — **fixed**: 8 KiB query cap + history turn/char caps (mirror translate).
 - 🟡 ~~`http/handlers/translate.py`~~ — **fixed**: leader translate path wraps LLM work in
   `try`/`finally` so `finish_inflight` always runs.
-- ⚪ `http/handlers/chat.py:150-162` + `serve.py:150-153` — client disconnect mid-SSE raises
-  `GeneratorExit` (uncaught by `except Exception`) → the fully generated, billed answer *and* the
-  user's message are rolled back.
-- ⚪ `llm.py:236,350,375` — `AnthropicBackend.last_usage` is shared mutable state across request
-  threads; concurrent calls mis-attribute usage (observability only).
-- ⚪ `http/server_core.py:49-66` — rate-limiter buckets never evict drained `(route, ip)` keys;
-  unbounded growth on public binds.
-- ⚪ `concordance/kwic_queries.py:254-328` — `_lemma_breakdowns` fetches every occurrence row of a
-  lemma into Python with no LIMIT, under `deps.corpus_lock`, stalling all corpus endpoints.
-- ⚪ Duplication: `reader/queries.py:314-358` vs `kwic_queries.py:331-373` — near-duplicate KWIC
-  builders with already-drifted punctuation constants (reader's lacks `»`). Integer query-param
-  parsing hand-rolled at 6+ sites with inconsistent clamp-vs-400 semantics — one
-  `parse_int_param(query, name, default, lo, hi)` unifies. `terms_list`/`lemma_detail` LIKE filters
-  don't escape `%`/`_` (wildcard smuggling; `_counts_where` does escape); `terms_list` has no LIMIT.
-- ⚪ `serve.py:161-275` — do_POST/GET/PATCH/DELETE each hand-roll dispatch with drift (only do_POST
-  maps LLMError→502; three coexisting domain-error-mapping layers).
+- ⚪ ~~`http/handlers/chat.py:150-162` + `serve.py:150-153`~~ — **fixed**: assistant turn
+  persisted before the ``done`` SSE event; rollback skipped once ``persisted`` is set so client
+  disconnect no longer deletes a billed answer.
+- ⚪ ~~`llm.py:236,350,375`~~ — **fixed**: ``AnthropicBackend.last_usage`` stored per-thread via
+  ``threading.local``.
+- ⚪ ~~`http/server_core.py:49-66`~~ — **fixed**: drained rate-limiter buckets evict their
+  ``(route, ip)`` key.
+- ⚪ ~~`concordance/kwic_queries.py:254-328`~~ — **fixed**: ``_lemma_breakdowns`` aggregates
+  pos/surface/feats/work in SQL instead of fetching every occurrence row.
+- ⚪ ~~Duplication~~ — **fixed**: shared ``text/snippet.py`` KWIC/mark builders (incl. ``»``);
+  ``query_params.parse_int_param`` + ``escape_like_substring``; ``terms_list`` LIKE escape +
+  LIMIT/OFFSET.
+- ⚪ ~~`serve.py:161-275`~~ — **fixed**: ``_translate_route_exception`` shared across
+  POST/GET/PATCH/DELETE; LLMError→502 on all verbs.
 
 Verified clean: SQL consistently parameterized; static-file traversal guard sound; translate
 leader/follower coalescing and chat lock/LLM-release choreography well designed.

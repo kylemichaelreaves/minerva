@@ -93,6 +93,7 @@ def _stream_prepared_turn(
 
     skip_deltas = prep.retrieval.abstain or deps.backend.name == "none"
     completed = False
+    persisted = False
 
     meta: dict[str, Any] = {
         "citations": chat_service.citations_from_retrieval(prep.retrieval),
@@ -131,6 +132,7 @@ def _stream_prepared_turn(
         )
         body = chat_service.answer_to_json(ans)
         _persist_assistant_turn(deps, prep, body)
+        persisted = True
         yield (
             "done",
             {
@@ -153,7 +155,7 @@ def _stream_prepared_turn(
         logging.getLogger(__name__).exception("chat stream failed")
         yield ("error", {"error": "server error"})
     finally:
-        if not completed:
+        if not completed and not persisted:
             chat_service.rollback_chat_turn(
                 ctx,
                 created_new_conversation=prep.created_new_conversation,

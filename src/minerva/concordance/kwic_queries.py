@@ -6,10 +6,10 @@ import sqlite3
 from typing import Any
 
 from ..errors import BadRequestError
+from ..query_params import escape_like_substring, parse_int_param
+from ..text.snippet import build_kwic
 from ..reader.queries import _parse_morph_feats
 from ._scope import (
-    _ATTACHED_LEAD,
-    _ATTACHED_TRAIL,
     _DEFAULT_KWIC_LIMIT,
     _KWIC_CONTEXT_RADIUS,
     _MAX_KWIC_LIMIT,
@@ -91,15 +91,13 @@ def lemma_detail(
         "0", "false", "no", "off",
     )
 
-    try:
-        limit = int(query.get("limit", str(_DEFAULT_KWIC_LIMIT)))
-        offset = int(query.get("offset", "0"))
-        radius = int(query.get("radius", str(_KWIC_CONTEXT_RADIUS)))
-    except ValueError as e:
-        raise BadRequestError(f"integer query param parse error: {e}") from None
-    limit = max(1, min(_MAX_KWIC_LIMIT, limit))
-    offset = max(0, offset)
-    radius = max(20, min(240, radius))
+    limit = parse_int_param(
+        query, "limit", _DEFAULT_KWIC_LIMIT, lo=1, hi=_MAX_KWIC_LIMIT, clamp=True,
+    )
+    offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
+    radius = parse_int_param(
+        query, "radius", _KWIC_CONTEXT_RADIUS, lo=20, hi=240, clamp=True,
+    )
 
     morph_filters: dict[str, str] = {}
     for part in morph_str.split(","):
@@ -215,7 +213,7 @@ def lemma_detail(
     out: list[dict[str, Any]] = []
     for r in page:
         morph = _parse_morph_feats(r["feats"])
-        kwic = _build_kwic(r["text"], r["s_start"], r["s_end"], radius)
+        kwic = build_kwic(r["text"], r["s_start"], r["s_end"], radius)
         out.append({
             "chunk_id": r["chunk_id"],
             "section": r["section"] or "",
@@ -268,23 +266,55 @@ def _lemma_breakdowns(
 
     rows = conn.execute(
         f"""
-        SELECT cl.pos AS pos, cl.surface_form AS surface, cl.feats AS feats
+        SELECT cl.pos AS pos, COUNT(*) AS n
         FROM chunk_lemmas cl
         JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
         WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
+          AND cl.pos IS NOT NULL AND cl.pos != ''
+        GROUP BY cl.pos
+        """,
+        [lang, lemma, *scope_params],
+    ).fetchall()
+    pos_b = {r["pos"]: int(r["n"]) for r in rows}
+
+    surface_rows = conn.execute(
+        f"""
+        SELECT cl.surface_form AS surface, COUNT(*) AS n
+        FROM chunk_lemmas cl
+        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
+        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
+          AND cl.surface_form IS NOT NULL AND cl.surface_form != ''
+        GROUP BY cl.surface_form
+        """,
+        [lang, lemma, *scope_params],
+    ).fetchall()
+    surface_b = {r["surface"]: int(r["n"]) for r in surface_rows}
+
+    feat_rows = conn.execute(
+        f"""
+        SELECT cl.feats AS feats, COUNT(*) AS n
+        FROM chunk_lemmas cl
+        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
+        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
+          AND cl.feats IS NOT NULL AND cl.feats != ''
+        GROUP BY cl.feats
         """,
         [lang, lemma, *scope_params],
     ).fetchall()
 
-    pos_b: dict[str, int] = {}
     case_b: dict[str, int] = {}
     number_b: dict[str, int] = {}
     gender_b: dict[str, int] = {}
-    surface_b: dict[str, int] = {}
-    work_b: dict[str, int] = {}
+    for r in feat_rows:
+        feats = _parse_morph_feats(r["feats"])
+        count = int(r["n"])
+        if "Case" in feats:
+            case_b[feats["Case"]] = case_b.get(feats["Case"], 0) + count
+        if "Number" in feats:
+            number_b[feats["Number"]] = number_b.get(feats["Number"], 0) + count
+        if "Gender" in feats:
+            gender_b[feats["Gender"]] = gender_b.get(feats["Gender"], 0) + count
 
-    # Also compute per-work counts via a second batched query because
-    # the row above doesn't carry the work column.
     work_rows = conn.execute(
         f"""
         SELECT cf.work AS work, COUNT(*) AS n
@@ -296,21 +326,7 @@ def _lemma_breakdowns(
         """,
         [lang, lemma, *scope_params],
     ).fetchall()
-    for wr in work_rows:
-        work_b[wr["work"]] = int(wr["n"])
-
-    for r in rows:
-        if r["pos"]:
-            pos_b[r["pos"]] = pos_b.get(r["pos"], 0) + 1
-        if r["surface"]:
-            surface_b[r["surface"]] = surface_b.get(r["surface"], 0) + 1
-        feats = _parse_morph_feats(r["feats"])
-        if "Case" in feats:
-            case_b[feats["Case"]] = case_b.get(feats["Case"], 0) + 1
-        if "Number" in feats:
-            number_b[feats["Number"]] = number_b.get(feats["Number"], 0) + 1
-        if "Gender" in feats:
-            gender_b[feats["Gender"]] = gender_b.get(feats["Gender"], 0) + 1
+    work_b = {wr["work"]: int(wr["n"]) for wr in work_rows}
 
     def _top(d: dict[str, int], n: int = 12) -> list[dict[str, Any]]:
         return [
@@ -325,51 +341,6 @@ def _lemma_breakdowns(
         "gender_breakdown": _top(gender_b),
         "surface_breakdown": _top(surface_b),
         "work_breakdown": _top(work_b, n=20),
-    }
-
-
-def _build_kwic(
-    text: str, start: int, end: int, radius: int
-) -> dict[str, Any]:
-    """Slice ``text`` into (left | match | right) windows of approx.
-    ``radius`` chars on each side, normalising whitespace. The
-    match is *always* the literal slice ``text[start:end]`` — we
-    never re-search by surface form, because high-frequency lemmas
-    like ``der`` appear many times inside the same snippet and
-    string-search would mis-mark them.
-
-    Whitespace around attached punctuation is collapsed so
-    ``Geist,`` doesn't render as ``Geist ,``."""
-
-    if start < 0 or end < start or end > len(text):
-        # Malformed offset — return the whole text as match-only.
-        return {"kwic_left": "", "kwic_match": text, "kwic_right": ""}
-
-    lo = max(0, start - radius)
-    hi = min(len(text), end + radius)
-    left = " ".join(text[lo:start].split())
-    match = text[start:end]
-    right = " ".join(text[end:hi].split())
-
-    # Re-attach hugging punctuation: if ``left`` ends with an opener
-    # like ``(``, drop the trailing space implicitly (no joiner
-    # needed); if ``right`` starts with closing punctuation, drop the
-    # leading space.
-    left_sep = "" if left and left[-1] in _ATTACHED_LEAD else " " if left else ""
-    right_sep = (
-        "" if right and right[0] in _ATTACHED_TRAIL else " " if right else ""
-    )
-
-    # The frontend joins the three pieces with these separators; emit
-    # already-joined strings so the client doesn't need to know about
-    # the punctuation rule. Add ellipses when we truncated.
-    leading_ellipsis = "… " if lo > 0 else ""
-    trailing_ellipsis = " …" if hi < len(text) else ""
-
-    return {
-        "kwic_left": f"{leading_ellipsis}{left}{left_sep}".rstrip(),
-        "kwic_match": match,
-        "kwic_right": f"{right_sep}{right}{trailing_ellipsis}".lstrip(),
     }
 
 
