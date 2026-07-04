@@ -45,13 +45,12 @@ The eight items most worth fixing before anything else, across all layers:
    or disk-full truncates it, and the next `index --reset` mass-deletes chunks.
    `_merge_dicts_to_jsonl` (`:120-135`) already does temp-file + rename — mirror it.
 
-5. 🟠 **A full ingest silently skips any source whose raw path is missing.**
-   `src/minerva/ingest/registry.py:546-548` + `parallel.py:77-84` — no stderr, not in failures,
-   exit 0; `chunks.jsonl` is rewritten without that corpus and the next reset wipes it from the DB.
-   This is the English-Hobbes silent-wipe class with zero detection. Fix: loud per-source SKIPPED
-   line and non-zero exit (or opt-out flag). Related: full parallel ingest concats shards into
-   `chunks.jsonl` *before* the failure check (`cli/ingest_cmd.py:232-235`), so a failed source's
-   corpus is already dropped from the file by the time it exits 1.
+5. 🟠 ~~**A full ingest silently skips any source whose raw path is missing.**~~
+   **Fixed** (`remediation/phase-5-ingestion`): `missing_registered_sources` +
+   `iter_registered_chunks(..., allow_missing_sources=)` print loud per-source
+   ``SKIPPED`` lines and raise :class:`~minerva.ingest.registry.MissingIngestSourcesError`
+   before yielding; ``cmd_ingest`` exits 2 unless ``--allow-missing-sources``.
+   Related full parallel concat-before-failure check unchanged in ``cli/ingest_cmd.py``.
 
 6. 🟠 **Reader work identity keys on `(title, lang)`, not `work_id`.**
    `src/minerva/reader/queries.py:139-152` — 72 (title, lang) pairs in the live DB map to two
@@ -210,31 +209,40 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
 
 ## 5. Ingestion pipeline
 
-(Items 4, 5, 8 in the shortlist above, plus:)
+(Items 4, 5, 8 in the shortlist above, plus:). **Phase 5 started**
+(`remediation/phase-5-ingestion`): shared ``text_excluding`` + missing-path loud failure.
+
+Note: shortlist #5 now enforced at the registry layer too —
+``missing_registered_sources`` + ``iter_registered_chunks`` raise
+:class:`~minerva.ingest.registry.MissingIngestSourcesError` with loud
+``SKIPPED`` stderr; ``cmd_ingest`` still exits 2 unless
+``--allow-missing-sources``.
 
 ### Text-corruption bugs (live, in the DB now)
-- 🟠 `sources/tei_drama.py:66-79` — `_text_of` claims to skip `<speaker>`/`<stage>` but
-  `elem.iter()` still yields their descendants and drops the skipped node's tail: stage-direction
-  names leak into Greek line text/lemmas/embeddings; prose after inline stage directions is lost.
-- 🟡 `sources/tei_p5.py:47-51` — `_text_of` uses `itertext()` without excluding `<note>` (every
-  sibling parser excludes it): critical-apparatus prose folds into Aristotle/Origen chunks.
-- Root cause: **five** implementations of "text excluding `<note>`" — three byte-identical
-  (`tei.py:129-141` ≡ `hebrew_mt.py:67-78` ≡ `tei_lxx.py:53-64`), one divergent (`osis_bible.py`),
-  one broken (`tei_drama`). Hoist one `text_excluding(el, skip_tags)` into `tei.py`.
+- 🟠 ~~`sources/tei_drama.py:66-79`~~ — **fixed**: shared
+  ``tei.text_excluding`` child-walk skips ``speaker``/``stage`` subtrees
+  without dropping following ``tail`` text.
+- 🟡 ~~`sources/tei_p5.py:47-51`~~ — **fixed**: ``_text_of`` uses
+  ``text_excluding`` to drop namespaced ``<note>`` apparatus.
+- Root cause: ~~five implementations~~ — **fixed**:
+  ``tei.text_excluding(el, skip_tags)`` hoisted into ``tei.py``; drama,
+  P5, ``hebrew_mt``, ``tei_lxx``, and ``osis_bible`` parsers migrated.
 
 ### Silent-failure gaps
-- 🟠 `corpus/pipeline.py:88-135` vs guard at `:154-166` — the zero-chunk warning covers only
-  `_SPLITTERS`-dispatched locators; all 8 direct `yield from` branches (hegel_pr ×2,
-  spinoza_ethica, descartes_objections, kapital_mew, zeno_pages, ekgwb, stephanus_de) bypass it.
-  Markup drift drops a whole work with exit 0.
-- 🟠 `tei.py:527-529` — `tei.parse_dir` has no per-file error capture (unlike
-  `corpus/pipeline.py:209-216`); one malformed XML aborts the whole sequential ingest mid-write.
-- 🟠 Chunk-count validation still missing: neither `scripts/check_author_ingest.py` nor
+- 🟡 ~~`corpus/pipeline.py:88-135` vs guard at `:154-166`~~ — **fixed**:
+  all 8 direct ``yield from`` structured-parser branches route through
+  ``_yield_structured``, which warns on zero output (no chapter fallback).
+- 🟡 ~~`tei.py:527-529`~~ — **fixed**: ``tei.parse_dir`` catches per-file
+  errors via shared ``record_parse_failure`` (same log as ``corpus/pipeline``).
+- 🟠 ~~Chunk-count validation still missing: neither `scripts/check_author_ingest.py` nor
   `scripts/corpus-quality-audit.py` validates counts against expected work size; the Theognis
   failure (2,237 junk chunks) would pass both today (`theognis` is even in SKIP_RULES). Add
-  manifest-declared expected ranges.
-- 🟡 Root-element `find()` misses are silent empty iterators in 4 parsers (`tei_lxx.py:145-147`,
-  `tei_p5.py:193-198`, `tei_drama.py:180-182`, `tei.py:147-149`).
+  manifest-declared expected ranges.~~ — **fixed**: top-level `expected_chunks` in
+  `manifest.yaml`; shared `scripts/chunk_count_validation.py`; wired into
+  `check_author_ingest --db` and `corpus-quality-audit.py` (non-zero exit on violation).
+- 🟡 ~~Root-element `find()` misses are silent empty iterators in 4 parsers~~ —
+  **fixed**: ``tei.py``, ``tei_lxx.py``, ``tei_p5.py``, ``tei_drama.py`` now warn on
+  stderr when expected root elements are absent.
 
 ### Refs rules gaps
 - 🟠 `refs/embed_verify.py:232-239` — work-level target matrix joins editions only; translation-only
@@ -251,11 +259,14 @@ leader/follower coalescing and chat lock/LLM-release choreography well designed.
   rules don't retroactively apply without `--rescan-all`.
 
 ### Download/extract scripts
-- 🟠 `perseus/download_first1kgreek_lxx.py:79`, `download_first1kgreek_aristotle.py:95,105`,
+- 🟠 ~~`perseus/download_first1kgreek_lxx.py:79`, `download_first1kgreek_aristotle.py:95,105`,
   `download_marcus_aurelius.py:103` — `except urllib.error.HTTPError` with **no `import
-  urllib.error`**: the expected-404 path raises NameError and aborts the batch.
-- 🟠 `perseus/_download.py:73` — retry helper never validates body/size/content-type; the
-  mlwerke-parking-page trap generalizes to every fetch. Add a validate/min-size gate.
+  urllib.error`**: the expected-404 path raises NameError and aborts the batch.~~ — **fixed**:
+  added missing imports.
+- 🟠 ~~`perseus/_download.py:73` — retry helper never validates body/size/content-type; the
+  mlwerke-parking-page trap generalizes to every fetch. Add a validate/min-size gate.~~ —
+  **fixed**: `fetch_bytes_with_retry` accepts `min_bytes` and `reject_markers` (parking-page
+  substring guard).
 - 🟡 Five byte-identical zeno crawlers (hegel/kant/marx/nietzsche/schiller); four swallow
   exceptions inside BFS, silently truncating whole chapter subtrees. Extract `perseus/_zeno.py`.
 - 🟡 `_gutenberg.py:52-57` — missing `Language:` header bypasses the wrong-ID guard built after the

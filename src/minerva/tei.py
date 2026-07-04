@@ -21,6 +21,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import re
+import sys
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -130,12 +131,27 @@ def _text_excluding_notes(el: ET.Element) -> str:
     """Concatenated text of ``el``, skipping ``<note>`` subtrees. Used for
     work titles so a glossing footnote inside a ``<head>`` (e.g. Plato's
     Epinomis, Epictetus' Fragments) doesn't get swallowed into the title."""
+    return text_excluding(el, frozenset({"note"}))
+
+
+def text_excluding(el: ET.Element, skip_tags: frozenset[str]) -> str:
+    """Concatenated text of ``el``, skipping entire subtrees whose tag is
+    in ``skip_tags``.
+
+    Walks direct children only (not ``iter()``), so skipped elements'
+    descendants are omitted and each child's ``tail`` (text after the
+    closing tag, before the next sibling) is still collected. This is
+    the shared implementation behind every "text excluding ``<note>``"
+    parser — TEI.2 ``note``, namespaced TEI P5 ``{tei}note``, drama
+    ``speaker``/``stage``, OSIS apparatus, etc.
+    """
+
     parts: list[str] = []
     if el.text:
         parts.append(el.text)
     for child in el:
-        if child.tag != "note":
-            parts.append(_text_excluding_notes(child))
+        if child.tag not in skip_tags:
+            parts.append(text_excluding(child, skip_tags))
         if child.tail:
             parts.append(child.tail)
     return " ".join(p for p in parts if p)
@@ -382,9 +398,7 @@ class _ChunkBuilder:
                 self._cur_section = n
             elif unit == "card" and n and "card" in self._chunk_boundary_units:
                 self._flush()
-                self._cur_section = (
-                    f"{self._cur_book}.{n}" if self._cur_book else n
-                )
+                self._cur_section = f"{self._cur_book}.{n}" if self._cur_book else n
             elif unit == "page" and n:
                 self._cur_page = n
             elif unit == "bekker line" and n:
@@ -500,6 +514,11 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
 
     works = _identify_works(root)
     if not works:
+        print(
+            f"tei: {path.name!r}: no addressable works found "
+            f"(missing <text> or <body> root elements?)",
+            file=sys.stderr,
+        )
         return
 
     for work in works:
@@ -525,5 +544,11 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
 
 
 def parse_dir(directory: Path, *, corpus: str, author: str) -> Iterable[Chunk]:
+    from .corpus.pipeline import record_parse_failure
+
+    label = corpus
     for xml_path in sorted(directory.glob("*.xml")):
-        yield from parse_file(xml_path, corpus=corpus, author=author)
+        try:
+            yield from parse_file(xml_path, corpus=corpus, author=author)
+        except Exception as exc:
+            record_parse_failure(f"{label}: failed to parse {xml_path.name!r}: {exc}")

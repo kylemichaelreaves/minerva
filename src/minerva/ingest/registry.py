@@ -14,6 +14,14 @@ PathKind = Literal["dir", "file"]
 ParseFn = Callable[[Path], Iterator[tei.Chunk]]
 
 
+class MissingIngestSourcesError(Exception):
+    """Selected ingest sources have no raw data path on disk."""
+
+    def __init__(self, missing: list[tuple[str, Path | None]]) -> None:
+        self.missing = missing
+        super().__init__(f"{len(missing)} ingest source(s) missing")
+
+
 @dataclasses.dataclass(frozen=True)
 class IngestSource:
     id: str
@@ -516,11 +524,30 @@ def build_iter_corpus_kwargs(**overrides: Path | None) -> dict[str, Path | None]
     return out
 
 
+def missing_registered_sources(
+    paths: dict[str, Path | None],
+    *,
+    only: frozenset[str] | None = None,
+) -> list[tuple[str, Path | None]]:
+    """``(source_id, resolved_path)`` for every selected source whose
+    raw data path is absent from disk."""
+
+    out: list[tuple[str, Path | None]] = []
+    for source in INGEST_SOURCES:
+        if only is not None and source.id not in only:
+            continue
+        path = paths.get(source.kwarg_name)
+        if not source.path_present(path):
+            out.append((source.id, path))
+    return out
+
+
 def iter_registered_chunks(
     paths: dict[str, Path | None],
     *,
     only: frozenset[str] | None = None,
     per_source_timing: bool = False,
+    allow_missing_sources: bool = False,
 ) -> Iterator[tei.Chunk]:
     """Walk every configured corpus source whose path exists on disk.
 
@@ -535,10 +562,26 @@ def iter_registered_chunks(
     surprise stderr noise; ``cmd_ingest`` flips it on under
     ``--timing`` or implicitly whenever a single source took noticeable
     wall time.
+
+    ``allow_missing_sources``: when false (default), any selected source
+    whose path is missing prints a loud ``SKIPPED`` line to stderr and
+    raises :class:`MissingIngestSourcesError` before yielding chunks.
+    Set true only when the caller explicitly opts in (``cmd_ingest``
+    ``--allow-missing-sources``).
     """
 
     import sys as _sys
     import time as _time
+
+    missing = missing_registered_sources(paths, only=only)
+    if missing:
+        for sid, path in missing:
+            print(
+                f"ingest: SKIPPED {sid} — source path missing: {path}",
+                file=_sys.stderr,
+            )
+        if not allow_missing_sources:
+            raise MissingIngestSourcesError(missing)
 
     for source in INGEST_SOURCES:
         if only is not None and source.id not in only:

@@ -39,12 +39,13 @@ serves all three tragedians + their English translations.
 
 from __future__ import annotations
 
+import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
 from minerva.sources.tragedians import find_play
-from minerva.tei import Chunk, _make_chunk_id, _norm_text
+from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -57,27 +58,12 @@ def _text_of(elem: ET.Element) -> str:
     """All text content beneath ``elem``, whitespace-normalised.
 
     Excludes ``<speaker>`` (the character name belongs in the chunk's
-    ``speaker`` column, not its body — leaking it into the text would
-    make "Oedipus" show up as a Greek lemma) and ``<stage>`` (editorial
-    stage directions like "[Enter messenger.]" aren't part of the
-    line-numbered text)."""
+    ``speaker`` column, not its body) and ``<stage>`` (editorial stage
+    directions aren't part of the line-numbered text). Uses the shared
+    child-walk extractor so inline stage directions don't drop the prose
+    that follows them."""
 
-    parts: list[str] = []
-    for node in elem.iter():
-        if node.tag in (_SPEAKER_TAG, _STAGE_TAG):
-            # Skip this element and its descendants entirely. ET has no
-            # built-in "iter excluding subtree" so we mark by tag and
-            # let the loop continue; itertext() of the parent would
-            # have included these, this constructed form does not.
-            continue
-        if node.text:
-            parts.append(node.text)
-        # Children's text is collected as the loop descends into them;
-        # we only need to also grab each node's `tail` (whitespace /
-        # text BETWEEN children of its parent).
-        if node.tail:
-            parts.append(node.tail)
-    return _norm_text(" ".join(parts))
+    return _norm_text(text_excluding(elem, frozenset({_SPEAKER_TAG, _STAGE_TAG})))
 
 
 def _has_inner_textpart(elem: ET.Element) -> bool:
@@ -179,6 +165,10 @@ def parse_file(
     root = tree.getroot()
     edition = root.find("tei:text/tei:body/tei:div", _NS)
     if edition is None:
+        print(
+            f"tei_drama: {path.name!r}: no edition root at text/body/div — skipping file",
+            file=sys.stderr,
+        )
         return
 
     # Editor / translator metadata. For Greek originals the editor name

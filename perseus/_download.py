@@ -53,6 +53,8 @@ def fetch_bytes_with_retry(
     extra_headers: Mapping[str, str] | None = None,
     backoff_initial: float = 2.0,
     backoff_max: float = 60.0,
+    min_bytes: int = 0,
+    reject_markers: tuple[str, ...] = (),
 ) -> bytes:
     """GET ``url`` with capped exponential backoff on transient errors.
 
@@ -62,6 +64,11 @@ def fetch_bytes_with_retry(
 
     ``extra_headers`` are merged with ``User-Agent`` — use for Perseus
     ``Referer``, Wikisource ``Accept``, etc.
+
+    When ``min_bytes`` is set, responses shorter than that threshold
+    raise ``RuntimeError`` (guards parking-page / empty-body traps).
+    ``reject_markers`` are UTF-8 substrings that invalidate a body even
+    when it passes the size gate — e.g. mlwerke.de's t-online stub.
     """
 
     headers = {"User-Agent": user_agent}
@@ -71,7 +78,19 @@ def fetch_bytes_with_retry(
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return resp.read()
+                data = resp.read()
+            if min_bytes and len(data) < min_bytes:
+                raise RuntimeError(
+                    f"response too small ({len(data)} bytes < {min_bytes})"
+                )
+            if reject_markers:
+                text = data.decode("utf-8", errors="replace")
+                for marker in reject_markers:
+                    if marker in text:
+                        raise RuntimeError(
+                            f"response rejected: found marker {marker!r}"
+                        )
+            return data
         except urllib.error.HTTPError as e:
             if e.code in _RETRY_CODES and attempt + 1 < retries:
                 wait = min(backoff_max, backoff_initial * (2**attempt))
@@ -118,6 +137,8 @@ def fetch_with_retry(
     extra_headers: Mapping[str, str] | None = None,
     backoff_initial: float = 2.0,
     backoff_max: float = 60.0,
+    min_bytes: int = 0,
+    reject_markers: tuple[str, ...] = (),
 ) -> str:
     """GET ``url`` with retries; decode as ``encoding``.
 
@@ -133,6 +154,8 @@ def fetch_with_retry(
         extra_headers=extra_headers,
         backoff_initial=backoff_initial,
         backoff_max=backoff_max,
+        min_bytes=min_bytes,
+        reject_markers=reject_markers,
     )
     return data.decode(encoding)
 
@@ -390,9 +413,9 @@ def roman_to_int(s: str) -> int | None:
 
 __all__ = [
     "HTML_HEADERS",
+    "USER_AGENT",
     "ParagraphExtractor",
     "RateLimiter",
-    "USER_AGENT",
     "fetch_bytes_with_retry",
     "fetch_parallel",
     "fetch_with_retry",

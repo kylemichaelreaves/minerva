@@ -4,8 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
+
+from chunk_count_validation import (
+    DEFAULT_DB,
+    validate_chunk_counts,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RULES_DIR = REPO_ROOT / "src" / "minerva" / "refs" / "rules"
@@ -118,6 +124,19 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", help="Check one corpus id")
     parser.add_argument("--all", action="store_true", help="Check every manifest corpus")
+    parser.add_argument(
+        "--db",
+        default=None,
+        help=(
+            "Optional index.sqlite path for chunk-count range validation "
+            f"(default when present: {DEFAULT_DB.relative_to(REPO_ROOT)})"
+        ),
+    )
+    parser.add_argument(
+        "--skip-chunk-counts",
+        action="store_true",
+        help="Skip manifest expected_chunks validation even when --db exists",
+    )
     args = parser.parse_args()
     if not MANIFEST_PATH.is_file():
         print(f"Missing {MANIFEST_PATH}", file=sys.stderr)
@@ -145,6 +164,23 @@ def main() -> int:
             print(f"{cid}:")
             for e in errs:
                 print(f"  - {e}")
+
+    db_path = Path(args.db) if args.db else DEFAULT_DB
+    if not args.skip_chunk_counts and db_path.is_file():
+        with sqlite3.connect(db_path) as conn:
+            count_errs = validate_chunk_counts(
+                conn,
+                manifest,
+                corpus_ids=tuple(corpus_ids),
+            )
+        if count_errs:
+            failed = True
+            print("chunk counts:")
+            for e in count_errs:
+                print(f"  - {e}")
+    elif not args.skip_chunk_counts and args.db:
+        print(f"chunk counts: skipped — DB not found at {db_path}", file=sys.stderr)
+
     return 1 if failed else 0
 
 

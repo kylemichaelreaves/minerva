@@ -60,6 +60,29 @@ def parse_failures() -> list[str]:
     return list(_PARSE_FAILURES)
 
 
+def record_parse_failure(msg: str) -> None:
+    """Append one parse failure and print it to stderr."""
+
+    _PARSE_FAILURES.append(msg)
+    print(msg, file=sys.stderr)
+
+
+def _yield_structured(
+    chunks: Iterator[Chunk],
+    path: Path,
+    work: CorpusWork,
+) -> Iterator[Chunk]:
+    """Materialize a structure-aware splitter and warn on zero output."""
+
+    materialized = list(chunks)
+    if not materialized:
+        print(
+            f"parse: {path.name!r} produced 0 chunks under {work.locator!r} "
+            f"(structured parser; no fallback available)"
+        )
+    yield from materialized
+
+
 _SPLITTERS = {
     "section": split_by_section,
     "paragraph": split_by_paragraph,
@@ -86,7 +109,7 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             # Hegel PR: structure-aware parser reads the EPUB markup
             # directly (typed main/remark/addition chunks per §), not the
             # flattened text. See split_hegel_pr_epub.
-            yield from split_hegel_pr_epub(path, work)
+            yield from _yield_structured(split_hegel_pr_epub(path, work), path, work)
             return
         text = extract_epub(path)
     elif suffix in {".html", ".htm"}:
@@ -97,33 +120,33 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         if work.locator == "pr_de_structured":
             # Hegel PR (German): §-aware parser over the zeno.org markup,
             # splicing the Gans-OCR Zusätze. See split_hegel_pr_de.
-            yield from split_hegel_pr_de(path, work)
+            yield from _yield_structured(split_hegel_pr_de(path, work), path, work)
             return
         if work.locator == "spinoza_ethica":
             # Spinoza's Ethica (Latin): structure-aware parser over the
             # thelatinlibrary.com per-Part markup — splits each proposition
             # into its geometric apparatus and types Scholia as 'remark'.
-            yield from split_spinoza_ethica(path, work)
+            yield from _yield_structured(split_spinoza_ethica(path, work), path, work)
             return
         if work.locator == "descartes_objections":
             # Objections & Réponses (fr.wikisource Parsoid HTML):
             # voice-aware parser typing objector paragraphs
             # block_type='objection' with the objector in `speaker`.
-            yield from split_descartes_objections(path, work)
+            yield from _yield_structured(split_descartes_objections(path, work), path, work)
             return
         if work.locator == "kapital_mew":
             # Das Kapital I–III (mlwerke.de MEW pages via Wayback):
             # paragraph chunks with MEW page numbers + Marx's own
             # footnotes typed 'remark'. See split_kapital_mew.
-            yield from split_kapital_mew(path, work)
+            yield from _yield_structured(split_kapital_mew(path, work), path, work)
             return
         if "ZENO_PAGE:" in raw:
-            yield from split_zeno_pages(raw, work, path)
+            yield from _yield_structured(split_zeno_pages(raw, work, path), path, work)
             return
         if work.locator == "ekgwb":
             # eKGWB Nachlass pages: the splitter needs the raw HTML
             # structure (div1/head/txt_block), not extracted plain text.
-            yield from split_ekgwb(raw, work, path)
+            yield from _yield_structured(split_ekgwb(raw, work, path), path, work)
             return
         text = extract_html(path)
     elif suffix == ".hocr":
@@ -131,7 +154,7 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         # needs the raw hOCR (word bounding boxes carry the marginal
         # Stephanus numbers), not extracted plain text.
         raw = path.read_text(encoding="utf-8", errors="replace")
-        yield from split_stephanus_de(raw, work, path)
+        yield from _yield_structured(split_stephanus_de(raw, work, path), path, work)
         return
     elif suffix == ".txt":
         # Descartes-style plain-text drops from Gutenberg, pre-split
@@ -211,6 +234,6 @@ def parse_dir(
             except IngestDepsMissing:
                 raise
             except Exception as exc:  # one bad file shouldn't kill the whole ingest
-                msg = f"{label}: failed to parse {path.name!r} as {work.code!r}: {exc}"
-                _PARSE_FAILURES.append(msg)
-                print(msg, file=sys.stderr)
+                record_parse_failure(
+                    f"{label}: failed to parse {path.name!r} as {work.code!r}: {exc}"
+                )
