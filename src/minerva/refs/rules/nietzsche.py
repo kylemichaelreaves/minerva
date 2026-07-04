@@ -29,7 +29,7 @@ All rules gate on `langs=("deu",)` — Nietzsche is German-only.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import default_scripture_rules
 
 RULES = (
@@ -224,13 +224,7 @@ RULES = (
         name="nietzsche_spinoza",
         target_author="Spinoza",
         target_work="",
-        forms=(
-            "Spinoza",
-            "Spinozas",
-            "Spinozismus",
-            "spinozistisch",
-            "spinozistische",
-        ),
+        forms=_figures.SPINOZA_DEU,
         confidence=0.85,
         langs=("deu",),
         note=(
@@ -345,7 +339,7 @@ RULES = (
         name="nietzsche_hobbes",
         target_author="Hobbes",
         target_work="",
-        forms=("Hobbes", "Hobbes'", "Hobbesisch", "Hobbesische", "Hobbesischen"),
+        forms=_figures.HOBBES_DEU_ENG,
         confidence=0.8,
         langs=("deu",),
     ),

@@ -25,7 +25,7 @@ All rules gate on `langs=("fra",)` — Rousseau is French-only.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import ScriptureCiteRuleFr
 
 RULES = (
@@ -90,7 +90,7 @@ RULES = (
         name="rousseau_platon",
         target_author="Plato",
         target_work="",
-        forms=("Platon", "platonicien", "platonicienne", "platoniciens"),
+        forms=_figures.PLATO_FRA,
         confidence=0.65,
         langs=("fra",),
     ),
@@ -144,7 +144,7 @@ RULES = (
         name="rousseau_ciceron",
         target_author="Cicero",
         target_work="",
-        forms=("Cicéron", "Ciceron"),
+        forms=_figures.CICERO_FRA,
         confidence=0.85,
         langs=("fra",),
     ),

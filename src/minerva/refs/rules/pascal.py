@@ -28,7 +28,7 @@ are not in our ingest of the *Pensées*.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import ScriptureCiteRuleFr
 
 RULES = (
@@ -100,7 +100,7 @@ RULES = (
         name="pascal_plato",
         target_author="Plato",
         target_work="",
-        forms=("Platon", "platonicien", "platonicienne", "platoniciens"),
+        forms=_figures.PLATO_FRA,
         confidence=0.65,
         langs=("fra",),
     ),
@@ -144,7 +144,7 @@ RULES = (
         name="pascal_ciceron",
         target_author="Cicero",
         target_work="",
-        forms=("Cicéron", "Ciceron"),
+        forms=_figures.CICERO_FRA,
         confidence=0.85,
         langs=("fra",),
     ),

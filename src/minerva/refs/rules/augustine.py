@@ -13,7 +13,7 @@ teacher cited throughout the Confessions.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule
+from . import AuthorMentionRule, _figures
 from .scripture_cite import FormulaicQuoteRule
 
 RULES = (
@@ -47,7 +47,7 @@ RULES = (
         name="augustine_cicero",
         target_author="Cicero",
         target_work="",
-        forms=("Cicero", "Ciceronis", "Ciceronem", "Cicerone", "Tullius", "Tullii"),
+        forms=_figures.CICERO_LAT,
         confidence=0.65,
         langs=("lat",),
         note=(
@@ -96,7 +96,7 @@ RULES = (
         name="augustine_porphyrius",
         target_author="Porphyry",
         target_work="",
-        forms=("Porphyrius", "Porphyrii", "Porphyrium", "Porphyrio"),
+        forms=_figures.PORPHYRY_LAT,
         confidence=0.7,
         langs=("lat",),
         note=(
@@ -130,12 +130,7 @@ RULES = (
         name="augustine_aristoteles",
         target_author="Aristotle",
         target_work="",
-        forms=(
-            "Aristoteles",
-            "Aristotelis",
-            "Aristotelem",
-            "Aristotele",
-        ),
+        forms=_figures.ARISTOTLE_LAT,
         confidence=0.6,
         langs=("lat",),
         note=(
@@ -167,7 +162,7 @@ RULES = (
         name="augustine_aeschylus",
         target_author="Aeschylus",
         target_work="",
-        forms=("Aeschylus", "Aeschyli", "Aeschylum", "Aeschylo"),
+        forms=_figures.AESCHYLUS_LAT_ENG,
         confidence=0.65,
         langs=("lat", "eng"),
     ),
@@ -175,7 +170,7 @@ RULES = (
         name="augustine_sophocles",
         target_author="Sophocles",
         target_work="",
-        forms=("Sophocles", "Sophoclis", "Sophoclem", "Sophocle"),
+        forms=_figures.SOPHOCLES_LAT_ENG,
         confidence=0.65,
         langs=("lat", "eng"),
     ),
@@ -183,7 +178,7 @@ RULES = (
         name="augustine_euripides",
         target_author="Euripides",
         target_work="",
-        forms=("Euripides", "Euripidis", "Euripidem", "Euripide"),
+        forms=_figures.EURIPIDES_LAT_ENG,
         confidence=0.65,
         langs=("lat", "eng"),
     ),

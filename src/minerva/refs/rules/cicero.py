@@ -20,7 +20,7 @@ All rules language-gated to Latin + English.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 
 RULES = (
     # Plato — Cicero's most-cited philosophical authority. Strong
@@ -167,7 +167,7 @@ RULES = (
         name="cicero_aeschylus",
         target_author="Aeschylus",
         target_work="",
-        forms=("Aeschylus", "Aeschyli", "Aeschylum", "Aeschylo"),
+        forms=_figures.AESCHYLUS_LAT_ENG,
         confidence=0.85,
         langs=("lat", "eng"),
     ),
@@ -175,7 +175,7 @@ RULES = (
         name="cicero_sophocles",
         target_author="Sophocles",
         target_work="",
-        forms=("Sophocles", "Sophoclis", "Sophoclem", "Sophocle"),
+        forms=_figures.SOPHOCLES_LAT_ENG,
         confidence=0.85,
         langs=("lat", "eng"),
     ),
@@ -183,7 +183,7 @@ RULES = (
         name="cicero_euripides",
         target_author="Euripides",
         target_work="",
-        forms=("Euripides", "Euripidis", "Euripidem", "Euripide"),
+        forms=_figures.EURIPIDES_LAT_ENG,
         confidence=0.85,
         langs=("lat", "eng"),
     ),

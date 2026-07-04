@@ -26,7 +26,7 @@ All rules gate on `langs=("deu",)` — Marx is German-only.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import default_scripture_rules
 
 RULES = (
@@ -209,7 +209,7 @@ RULES = (
         name="marx_spinoza",
         target_author="Spinoza",
         target_work="",
-        forms=("Spinoza", "Spinozas", "Spinozismus", "spinozistisch", "spinozistische"),
+        forms=_figures.SPINOZA_DEU,
         confidence=0.85,
         langs=("deu",),
     ),
