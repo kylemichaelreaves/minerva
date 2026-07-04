@@ -73,9 +73,10 @@ export default function Refs(props: RefsProps) {
   const hasMore = (): boolean =>
     pagination.hasMore(firstPage(), total());
 
-  const fetchPage = (offset: number) =>
+  const fetchPage = (offset: number, signal: AbortSignal) =>
     fetchReferencesList(
       buildReferencesListArgs({ ...props, limit: PAGE_SIZE, offset }),
+      signal,
     ).then((res) => ({ items: res.references }));
 
   const setSentinelEl = useInfiniteScrollSentinel(

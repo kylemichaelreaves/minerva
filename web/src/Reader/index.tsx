@@ -119,12 +119,14 @@ export default function Reader(props: ReaderProps) {
   // sources never collide with the three target options, so no shift.
   createEffect(() => {
     const src = props.sourceLang;
+    // promote:false — this only adjusts the DEFAULT target so a chip
+    // isn't disabled; it must not open an empty rail on load (#63).
     if (src === "eng" && railApi.target() === "eng") {
-      railApi.setTargetLang("deu");
+      railApi.setTargetLang("deu", { promote: false });
     } else if (src === "fra" && railApi.target() === "fra") {
-      railApi.setTargetLang("eng");
+      railApi.setTargetLang("eng", { promote: false });
     } else if (src === "deu" && railApi.target() === "deu") {
-      railApi.setTargetLang("eng");
+      railApi.setTargetLang("eng", { promote: false });
     }
   });
 

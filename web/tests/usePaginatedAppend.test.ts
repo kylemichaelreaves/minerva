@@ -20,7 +20,7 @@ describe("usePaginatedAppend", () => {
       await api.loadMore(first(), fetchPage);
       await flush();
 
-      expect(fetchPage).toHaveBeenCalledWith(2);
+      expect(fetchPage).toHaveBeenCalledWith(2, expect.any(AbortSignal));
       expect(api.rows(first())).toEqual([1, 2, 3, 4]);
       dispose();
     });

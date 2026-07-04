@@ -1,6 +1,7 @@
 // Chat send / SSE streaming helpers for the conversation controller.
 
 import { chatStream, errorTurn, nowTime } from "~/api/chatApi";
+import { renumberCitations } from "~/utils/renumber";
 import { errorMessage, isAbortError } from "~/utils/util";
 import type {
   ChatHistoryMessage,
@@ -76,15 +77,30 @@ export async function askMinerva(text: string, deps: AskMinervaDeps): Promise<vo
   }
 
   function finalizeStreamTurn(reply: MinervaTurn) {
+    // Renumber citations into first-mention order, exactly as the
+    // hydrate path does (conversationsHydrate). Without this the live
+    // streamed turn showed the server's retrieval-rank numbering while
+    // the same message renumbered to [1],[2],… after reload/history
+    // (issue #64). renumberCitations is idempotent, so re-running it on
+    // reload is a no-op.
+    const renumbered = renumberCitations({
+      paragraphs: reply.paragraphs,
+      citations: reply.citations,
+    });
+    const normalized: MinervaTurn = {
+      ...reply,
+      paragraphs: renumbered.paragraphs,
+      citations: renumbered.citations,
+    };
     deps.setMessages((m) => {
       const last = m[m.length - 1];
       if (last?.role === "minerva" && last.streaming) {
-        return [...m.slice(0, -1), { ...reply, streaming: false }];
+        return [...m.slice(0, -1), { ...normalized, streaming: false }];
       }
-      return [...m, { ...reply, streaming: false }];
+      return [...m, { ...normalized, streaming: false }];
     });
-    if (reply.missing_pinned_ids?.length) {
-      const stale = new Set(reply.missing_pinned_ids);
+    if (normalized.missing_pinned_ids?.length) {
+      const stale = new Set(normalized.missing_pinned_ids);
       deps.setPinnedChunkIds((ids) => ids.filter((id) => !stale.has(id)));
     }
     deps.refreshHistory();

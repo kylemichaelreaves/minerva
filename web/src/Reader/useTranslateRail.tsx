@@ -15,8 +15,10 @@ export interface TranslateRailApi {
   target: () => TargetLang;
   /** Change target language. Re-runs any ready/error rail in the new
    *  language; promotes idle to "awaiting" so the lang chips visibly
-   *  affect something before the user selects text. */
-  setTargetLang: (t: TargetLang) => void;
+   *  affect something before the user selects text. Pass
+   *  ``{ promote: false }`` for a programmatic default shift that must
+   *  not open the rail (issue #63). */
+  setTargetLang: (t: TargetLang, opts?: { promote?: boolean }) => void;
   /** Fire-and-forget translation. Cancels any prior inflight. */
   runTranslate: (source: string, ref: string) => void;
   /** Re-run the source/ref of the current error state, if any. */
@@ -62,7 +64,7 @@ export function useTranslateRail(): TranslateRailApi {
     if (r.kind === "error") runTranslate(r.source, r.ref);
   }
 
-  function setTargetLang(t: TargetLang) {
+  function setTargetLang(t: TargetLang, opts?: { promote?: boolean }) {
     setTarget(t);
     const r = rail();
     if (r.kind === "ready" || r.kind === "error") {
@@ -70,6 +72,10 @@ export function useTranslateRail(): TranslateRailApi {
       runTranslate(r.source, r.ref);
       return;
     }
+    // A programmatic default shift (e.g. auto-target on an English
+    // work) must not promote idle→awaiting — that pops an empty rail
+    // before the user has asked for anything (issue #63).
+    if (opts?.promote === false) return;
     if (r.kind === "idle" || r.kind === "awaiting") {
       setRail({ kind: "awaiting" });
     }
