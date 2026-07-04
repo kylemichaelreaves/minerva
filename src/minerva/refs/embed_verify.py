@@ -151,10 +151,12 @@ def verify_quoted_references(
     against the target chunk(s); promote / reject based on the
     threshold pair.
 
-    Idempotent: re-running won't double-promote an already-promoted
-    row because the SQL filter excludes
-    ``source_method='rule+embed*'``. Re-runnable safely after a rules
-    pass adds new quoted_phrase rows.
+    Idempotent: re-running won't re-process an already-promoted row
+    because the SQL filter selects only ``source_method IN
+    ('rule_weak', 'rule_strong')`` — it will NOT match ``rule+embed``
+    or ``rule+embed+llm`` (an earlier ``LIKE 'rule_%'`` did, see issue
+    #43). Re-runnable safely after a rules pass adds new quoted_phrase
+    rows.
 
     Manual rows (curator_status IN 'manual','approved','rejected') are
     skipped — embedding can't override a curator decision.
@@ -167,7 +169,13 @@ def verify_quoted_references(
     clauses = [
         "xr.quoted_phrase IS NOT NULL",
         "xr.curator_status = 'auto'",
-        "xr.source_method LIKE 'rule_%'",  # only rules-stamp rows; skip embed_only / rule+embed
+        # Only rows the *rules* stamped. Must be an exact set, NOT
+        # ``LIKE 'rule_%'`` — the SQLite ``_`` wildcard matches a single
+        # char, so ``'rule_%'`` also matches ``'rule+embed'`` and
+        # ``'rule+embed+llm'`` and would re-process already-verified
+        # rows (overwriting the ``+llm`` provenance and re-billing
+        # llm-verify). See issue #43.
+        "xr.source_method IN ('rule_weak', 'rule_strong')",
     ]
     params: list[object] = []
     if source_author is not None:
@@ -479,6 +487,11 @@ def find_cross_author_allusions(
                 # as the catch-all "*" so the auto row attaches to the
                 # author-level reference_targets row; a future locator-
                 # extracting rule can refine the work later.
+                # Pin ``target_chunk_id`` on the Candidate itself so the
+                # dedup key in ``insert_candidate`` treats each of the
+                # top-k target chunks as distinct — otherwise every match
+                # for one source chunk collapses to a single row (#44).
+                # It also lets the reader's "Open in reader →" resolve.
                 cand = refs_rules.Candidate(
                     source_chunk_id=src_id,
                     source_span_start=None,
@@ -491,6 +504,7 @@ def find_cross_author_allusions(
                     confidence=score,
                     source_method="embed_only",
                     quoted_phrase=None,
+                    target_chunk_id=tgt_chunk_id,
                     note=(
                         f"embedding cosine {score:.3f} against "
                         f"{target_author} chunk {tgt_chunk_id[:10]}…"
@@ -501,14 +515,6 @@ def find_cross_author_allusions(
                     n_skipped += 1
                     continue
                 n_inserted += 1
-                # Pin the target_chunk_id on the new row so the
-                # reader's "Open in reader →" affordance can resolve.
-                conn.execute(
-                    "UPDATE cross_references "
-                    "SET target_chunk_id = ? "
-                    "WHERE id = ?",
-                    (tgt_chunk_id, new_id),
-                )
 
         # Commit per-pair so a long run doesn't hold a huge implicit
         # transaction. Each pair adds at most ~top_k × #source rows.

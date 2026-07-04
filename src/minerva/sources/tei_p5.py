@@ -40,7 +40,13 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
+from minerva.tei import (
+    Chunk,
+    _make_chunk_id,
+    _norm_text,
+    guarded_parse_file,
+    text_excluding,
+)
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -288,7 +294,11 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             if meta is None:
                 print(f"first1k: skipping unknown work directory {entry.name!r}")
                 continue
-            yield from parse_file(xml_file, work=meta.canonical_title)
+            yield from guarded_parse_file(
+                entry.name,
+                xml_file,
+                lambda f=xml_file, w=meta.canonical_title: parse_file(f, work=w),
+            )
         return
 
     # Flat single-work layout (Origen / Aesop / future). Corpus =
@@ -307,7 +317,13 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
                 stem = stem.removesuffix(suffix)
                 break
         work_title = stem.replace("_", " ").title()
-        yield from parse_file(xml_file, work=work_title, corpus=corpus, author=author)
+        yield from guarded_parse_file(
+            corpus,
+            xml_file,
+            lambda f=xml_file, w=work_title: parse_file(
+                f, work=w, corpus=corpus, author=author
+            ),
+        )
 
 
 def _slug_for_title(title: str) -> str:

@@ -29,7 +29,13 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
+from minerva.tei import (
+    Chunk,
+    _make_chunk_id,
+    _norm_text,
+    guarded_parse_file,
+    text_excluding,
+)
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -199,9 +205,10 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
         if abbr is None:
             print(f"lxx: book {book.title!r} not in BCV_BOOK_ABBR; add it to locations._BCV_BOOKS")
             continue
-        yield from parse_file(
+        yield from guarded_parse_file(
+            "lxx",
             entry,
-            book_title=book.title,
-            book_abbr=abbr,
-            work_code=book.code,
+            lambda e=entry, b=book, a=abbr: parse_file(
+                e, book_title=b.title, book_abbr=a, work_code=b.code
+            ),
         )

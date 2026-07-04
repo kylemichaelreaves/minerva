@@ -45,7 +45,13 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from minerva.sources.tragedians import find_play
-from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
+from minerva.tei import (
+    Chunk,
+    _make_chunk_id,
+    _norm_text,
+    guarded_parse_file,
+    text_excluding,
+)
 
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -267,10 +273,10 @@ def parse_dir(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
             lang = _LANG_BY_FILENAME.get(xml_file.name)
             if lang is None:
                 continue
-            yield from parse_file(
+            yield from guarded_parse_file(
+                corpus,
                 xml_file,
-                corpus=corpus,
-                author=author,
-                lang=lang,
-                work=play.title,
+                lambda f=xml_file, ln=lang, w=play.title: parse_file(
+                    f, corpus=corpus, author=author, lang=ln, work=w
+                ),
             )

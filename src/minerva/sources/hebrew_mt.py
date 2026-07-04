@@ -32,7 +32,13 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
+from minerva.tei import (
+    Chunk,
+    _make_chunk_id,
+    _norm_text,
+    guarded_parse_file,
+    text_excluding,
+)
 
 # OSIS XML uses a default namespace; ElementTree exposes it as a
 # Clark-notation prefix on every tag. Bind it so XPath queries stay
@@ -184,4 +190,6 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             continue
         if find_book(entry.name) is None:
             continue
-        yield from parse_file(entry)
+        yield from guarded_parse_file(
+            "hebrew_mt", entry, lambda e=entry: parse_file(e)
+        )
