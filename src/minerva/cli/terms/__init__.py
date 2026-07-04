@@ -254,12 +254,16 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     _add_common_db_arg(plm)
+    # choices come from the lemmatizer's supported set so a typo like
+    # "de" is rejected at parse time (exit 2) instead of returning 0 as
+    # a silent no-op that a pipeline mistakes for success (issue #67).
+    from ...lemmatize import SUPPORTED_LANGUAGES
+
     plm.add_argument(
         "--lang",
         required=True,
-        help=(
-            "ISO 639-3 source language (deu, fra, eng, grc, lat, heb, ara)."
-        ),
+        choices=sorted(SUPPORTED_LANGUAGES),
+        help="ISO 639-3 source language.",
     )
     plm.add_argument(
         "--edition-id",

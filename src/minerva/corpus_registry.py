@@ -29,7 +29,6 @@ CORPORA: tuple[CorpusEntry, ...] = (
     # Deliberately omitted: "bible", "scripture", "testament" (ambiguous
     # across biblical corpora), bare "hebrew" (ambiguous), "meditations"
     # only routes to Marcus Aurelius when unqualified.
-    # BEGIN CORPORA
     CorpusEntry(
         'plato',
         'grc',
