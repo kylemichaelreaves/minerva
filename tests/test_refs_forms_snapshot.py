@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import os
 import pkgutil
 from pathlib import Path
 
@@ -27,7 +26,7 @@ SNAPSHOT = Path(__file__).parent / "data" / "refs_forms_snapshot.json"
 
 
 def _current_rows() -> list[dict]:
-    pkgdir = os.path.dirname(R.__file__)
+    pkgdir = str(Path(R.__file__).parent)
     mods = [
         n
         for _, n, _ in pkgutil.iter_modules([pkgdir])
