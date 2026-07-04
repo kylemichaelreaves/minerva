@@ -186,6 +186,29 @@ def test_tei_p5_flat_parse_dir_isolates_bad_file(tmp_path: Path):
     assert "broken_grc.xml" in failures[0]
 
 
+def test_tei_p5_flat_unsuffixed_lang_fails_loudly(tmp_path: Path):
+    """A flat-layout file with no recognizable language suffix must be
+    recorded as a failure, NOT silently stamped Greek (issue #48)."""
+
+    from minerva.sources import tei_p5
+
+    (tmp_path / "mystery.xml").write_text(
+        """<?xml version="1.0"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>
+<div type="edition"><div type="textpart" subtype="book" n="1"><p>Hello.</p></div></div>
+</body></text></TEI>""",
+        encoding="utf-8",
+    )
+
+    pipeline.reset_parse_failures()
+    chunks = list(tei_p5.parse_dir(tmp_path))
+    assert chunks == []
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "mystery.xml" in failures[0]
+    assert "cannot detect language" in failures[0]
+
+
 def test_reset_parse_failures_clears_the_log(tmp_path: Path):
     (tmp_path / "broken.txt").write_text("any content", encoding="utf-8")
     work = _work(filenames=("broken.txt",), locator="no-such-locator")

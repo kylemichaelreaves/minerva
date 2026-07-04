@@ -161,11 +161,21 @@ _LANG_BY_SUFFIX = {
 }
 
 
-def _lang_from_stem(stem: str) -> str:
+def _lang_from_stem(stem: str) -> str | None:
+    """Detect the language from a filename stem, or ``None`` when no
+    marker is present.
+
+    Matches both the trailing-suffix form used by the flat layout
+    (``phaedrus_lat`` → lat) and the bare-code filename used by the
+    Aristotle/First1KGreek subdir layout (``grc.xml`` → grc). Returning
+    ``None`` rather than silently defaulting to ``grc`` lets the flat
+    layout fail loudly on an unsuffixed file instead of mis-stamping a
+    Latin/English work as Greek (issue #48)."""
     for suffix, lang in _LANG_BY_SUFFIX.items():
-        if stem.endswith(suffix):
+        # ``_grc`` matches both ``foo_grc`` (suffix) and ``grc`` (bare).
+        if stem.endswith(suffix) or f"_{stem}" == suffix:
             return lang
-    return "grc"  # First1KGreek default — Aristotle layout files are grc.xml
+    return None
 
 
 def parse_file(
@@ -216,6 +226,15 @@ def parse_file(
     edition = first_div if first_div.get("type") == "edition" else body
     if lang is None:
         lang = _lang_from_stem(path.stem)
+        if lang is None:
+            # No recognizable language marker. Fail loudly rather than
+            # silently stamping the file Greek (issue #48). The dir
+            # walker's guarded_parse_file records this and skips.
+            raise ValueError(
+                f"tei_p5: cannot detect language for {path.name!r} — "
+                f"stem has no recognized suffix ({sorted(_LANG_BY_SUFFIX)}). "
+                f"Rename the file or pass lang= explicitly."
+            )
 
     # Translator: First1KGreek files carry an editor (often Bekker /
     # Koetschau / etc.) but not a translator — these are Greek originals.
