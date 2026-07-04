@@ -61,3 +61,29 @@ def test_rebind_scoped_orphan_sweep_keeps_out_of_scope_dangling(tmp_path: Path):
         "SELECT source_chunk_id FROM cross_references ORDER BY source_chunk_id"
     ).fetchall()
     assert [r[0] for r in rows] == ["hegel-1", "plato-1"]
+
+
+def test_rebind_large_affected_set_does_not_overflow_variables(tmp_path: Path):
+    """An affected set larger than SQLite's SQLITE_MAX_VARIABLE_NUMBER
+    (32,766 on 3.32+) must not raise 'too many SQL variables' — the
+    rebind scopes via a temp-table join, not an IN (?, …) list (#49)."""
+
+    conn = store.open_db(tmp_path / "rebind_big.sqlite")
+    _seed_xrefs(conn)
+
+    # Real chunk + 40k synthetic ids that don't exist in `chunks`.
+    affected = frozenset({"plato-1", *(f"synthetic-{i}" for i in range(40_000))})
+
+    # Must complete without OperationalError.
+    _rebind_cross_references(conn, count_before=1, affected_chunk_ids=affected)
+
+    rows = conn.execute(
+        "SELECT source_chunk_id FROM cross_references ORDER BY source_chunk_id"
+    ).fetchall()
+    # plato-1 rebound and kept; out-of-scope hegel-1 untouched.
+    assert [r[0] for r in rows] == ["hegel-1", "plato-1"]
+    # The temp table was dropped (no leak for the next statement).
+    leaked = conn.execute(
+        "SELECT name FROM sqlite_temp_master WHERE name = '_affected_chunk_ids'"
+    ).fetchall()
+    assert leaked == []

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any
 
 from .. import orthography
 from ..ingest import load_jsonl
@@ -314,6 +314,14 @@ def insert_chunks(
             # try/rollback — if a parse error or an FK violation fires
             # mid-stream, the whole transaction unwinds.
             ord_counter: dict[tuple[str, str], int] = {}
+            # Memoize work/edition/translation resolution: the JSONL has
+            # ~hundreds of distinct sources but hundreds of thousands of
+            # chunks, and _resolve_work_refs runs 1-2 SELECTs per call.
+            # Caching by the full arg tuple collapses that to one lookup
+            # per distinct source (issue #51). Safe because the first
+            # call for a key creates the row and returns its surrogate
+            # id; every later chunk of the same source reuses it.
+            resolve_cache: dict[tuple, tuple[int | None, int | None]] = {}
             batch: list[tuple] = []
             inserted = 0
             INSERT_SQL = (
@@ -329,19 +337,33 @@ def insert_chunks(
                 # modes — keeps merge_jsonl + insert_chunks decoupled.
                 if mode == "incremental" and obj["corpus"] not in scope:
                     continue
-                edition_id, translation_id = _resolve_work_refs(
-                    conn,
-                    corpus=obj["corpus"],
-                    author=obj["author"],
-                    work=obj["work"],
-                    lang=obj["lang"],
-                    translator=obj.get("translator"),
-                    edition_year=obj.get("edition_year"),
-                    # The JSONL carries citation_system when a parser
-                    # decided to override the corpus default (e.g. KrV =
-                    # kant_ab). Otherwise None → corpus default applies.
-                    citation_system_override=obj.get("citation_system"),
+                resolve_key = (
+                    obj["corpus"],
+                    obj["author"],
+                    obj["work"],
+                    obj["lang"],
+                    obj.get("translator"),
+                    obj.get("edition_year"),
+                    obj.get("citation_system"),
                 )
+                cached = resolve_cache.get(resolve_key)
+                if cached is not None:
+                    edition_id, translation_id = cached
+                else:
+                    edition_id, translation_id = _resolve_work_refs(
+                        conn,
+                        corpus=obj["corpus"],
+                        author=obj["author"],
+                        work=obj["work"],
+                        lang=obj["lang"],
+                        translator=obj.get("translator"),
+                        edition_year=obj.get("edition_year"),
+                        # The JSONL carries citation_system when a parser
+                        # decided to override the corpus default (e.g. KrV
+                        # = kant_ab). Otherwise None → corpus default.
+                        citation_system_override=obj.get("citation_system"),
+                    )
+                    resolve_cache[resolve_key] = (edition_id, translation_id)
                 key = (obj["work"], obj["lang"])
                 ord_counter[key] = ord_counter.get(key, -1) + 1
                 batch.append(
@@ -424,17 +446,43 @@ def insert_chunks(
     return inserted
 
 
+@contextlib.contextmanager
+def _affected_id_temp_table(
+    conn: sqlite3.Connection, chunk_ids: frozenset[str]
+) -> Iterator[str]:
+    """Materialize ``chunk_ids`` into a temp table and yield its name.
+
+    A bare ``IN (?, ?, …)`` clause over the full affected set blows past
+    SQLite's ``SQLITE_MAX_VARIABLE_NUMBER`` (32,766 on 3.32+, 999 before)
+    on a large incremental reindex — e.g. Aquinas is ~23k chunks and a
+    bigger corpus would simply throw ``too many SQL variables`` and roll
+    back the whole transaction (issue #49). Joining against a temp table
+    sidesteps the variable limit entirely and is indexed on the id."""
+    conn.execute(
+        "CREATE TEMP TABLE _affected_chunk_ids (chunk_id TEXT PRIMARY KEY)"
+    )
+    try:
+        ids = list(chunk_ids)
+        for i in range(0, len(ids), _INSERT_BATCH):
+            conn.executemany(
+                "INSERT OR IGNORE INTO _affected_chunk_ids(chunk_id) VALUES (?)",
+                [(cid,) for cid in ids[i : i + _INSERT_BATCH]],
+            )
+        yield "_affected_chunk_ids"
+    finally:
+        conn.execute("DROP TABLE IF EXISTS _affected_chunk_ids")
+
+
 def _xref_count_for_chunks(
     conn: sqlite3.Connection, chunk_ids: frozenset[str]
 ) -> int:
     if not chunk_ids:
         return 0
-    placeholders = ",".join("?" for _ in chunk_ids)
-    return conn.execute(
-        f"SELECT COUNT(*) FROM cross_references "
-        f"WHERE source_chunk_id IN ({placeholders})",
-        tuple(chunk_ids),
-    ).fetchone()[0]
+    with _affected_id_temp_table(conn, chunk_ids) as tbl:
+        return conn.execute(
+            f"SELECT COUNT(*) FROM cross_references "
+            f"WHERE source_chunk_id IN (SELECT chunk_id FROM {tbl})"
+        ).fetchone()[0]
 
 
 def _rebind_cross_references(
@@ -467,63 +515,54 @@ def _rebind_cross_references(
     touched — out-of-scope corpora are left alone.
     """
 
-    source_filter = ""
-    source_params: tuple[Any, ...] = ()
-    if affected_chunk_ids is not None:
-        if not affected_chunk_ids:
-            return
-        placeholders = ",".join("?" for _ in affected_chunk_ids)
-        source_filter = f" WHERE source_chunk_id IN ({placeholders})"
-        source_params = tuple(affected_chunk_ids)
+    if affected_chunk_ids is not None and not affected_chunk_ids:
+        return
 
-    conn.execute(
-        f"""
-        UPDATE cross_references
-        SET source_edition_id    = (
-            SELECT c.edition_id    FROM chunks c
-            WHERE c.chunk_id = cross_references.source_chunk_id
-        ),
-            source_translation_id = (
-            SELECT c.translation_id FROM chunks c
-            WHERE c.chunk_id = cross_references.source_chunk_id
+    # In incremental mode, scope every statement to the affected set via
+    # a temp-table join rather than an ``IN (?, …)`` list — the latter
+    # exceeds SQLite's variable limit on large corpora (issue #49). In
+    # full mode there is no scope filter at all.
+    with contextlib.ExitStack() as stack:
+        if affected_chunk_ids is not None:
+            tbl = stack.enter_context(
+                _affected_id_temp_table(conn, affected_chunk_ids)
+            )
+            source_scope = f"AND source_chunk_id IN (SELECT chunk_id FROM {tbl})"
+            target_scope = f"AND target_chunk_id IN (SELECT chunk_id FROM {tbl})"
+        else:
+            source_scope = ""
+            target_scope = ""
+
+        conn.execute(
+            f"""
+            UPDATE cross_references
+            SET source_edition_id    = (
+                SELECT c.edition_id    FROM chunks c
+                WHERE c.chunk_id = cross_references.source_chunk_id
+            ),
+                source_translation_id = (
+                SELECT c.translation_id FROM chunks c
+                WHERE c.chunk_id = cross_references.source_chunk_id
+            )
+            WHERE 1=1 {source_scope}
+            """
         )
-        {source_filter}
-        """,
-        source_params,
-    )
 
-    if affected_chunk_ids is not None:
-        placeholders = ",".join("?" for _ in affected_chunk_ids)
         cur = conn.execute(
             f"DELETE FROM cross_references "
-            f"WHERE source_chunk_id IN ({placeholders}) "
-            f"  AND source_chunk_id NOT IN (SELECT chunk_id FROM chunks)",
-            tuple(affected_chunk_ids),
+            f"WHERE source_chunk_id NOT IN (SELECT chunk_id FROM chunks) "
+            f"{source_scope}"
         )
-    else:
-        cur = conn.execute(
-            "DELETE FROM cross_references "
-            "WHERE source_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
-        )
-    orphans_source = cur.rowcount
+        orphans_source = cur.rowcount
 
-    if affected_chunk_ids is not None:
-        placeholders = ",".join("?" for _ in affected_chunk_ids)
         cur = conn.execute(
             f"UPDATE cross_references "
             f"SET target_chunk_id = NULL "
-            f"WHERE target_chunk_id IN ({placeholders}) "
-            f"  AND target_chunk_id NOT IN (SELECT chunk_id FROM chunks)",
-            tuple(affected_chunk_ids),
+            f"WHERE target_chunk_id IS NOT NULL "
+            f"  AND target_chunk_id NOT IN (SELECT chunk_id FROM chunks) "
+            f"{target_scope}"
         )
-    else:
-        cur = conn.execute(
-            "UPDATE cross_references "
-            "SET target_chunk_id = NULL "
-            "WHERE target_chunk_id IS NOT NULL "
-            "  AND target_chunk_id NOT IN (SELECT chunk_id FROM chunks)"
-        )
-    orphans_target = cur.rowcount
+        orphans_target = cur.rowcount
 
     kept = count_before - orphans_source
     print(
