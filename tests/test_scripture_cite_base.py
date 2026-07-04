@@ -83,6 +83,17 @@ class TestLatPinned:
         assert cands[0].target_work == "1 Corinthians"
         assert cands[0].confidence == 0.90
 
+    def test_ad_prefix_stays_ambiguous(self) -> None:
+        # "ad Cor." marks an epistle but does NOT disambiguate 1 vs 2
+        # Corinthians, so it must stay in the ambiguous band, not the
+        # full-confidence rule_strong band (issue #52).
+        rule = ScriptureCiteRule()
+        cands = list(rule.scan(_chunk("ut habetur ad Cor. 13-4: caritas", lang="lat")))
+        assert len(cands) == 1
+        assert cands[0].target_work == "1 Corinthians"
+        assert cands[0].confidence == 0.65
+        assert cands[0].source_method == "rule_weak"
+
     def test_lang_and_self_reference_gates(self) -> None:
         rule = ScriptureCiteRule()
         assert list(rule.scan(_chunk("Matth. 5-48", lang="eng"))) == []

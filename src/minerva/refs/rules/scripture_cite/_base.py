@@ -86,6 +86,12 @@ class BaseScriptureCiteRule:
     lexicon: ClassVar[dict[tuple[str | None, str], str]]
     cite_re: ClassVar[re.Pattern[str]]
     ambiguous_bare: ClassVar[frozenset[str]]
+    # Prefixes that appear on a cite but do NOT disambiguate an
+    # ambiguous abbrev (e.g. the Latin preposition "ad": "ad Cor" is
+    # still 1-vs-2 Corinthians). Ordinal prefixes (I/II/III/…) are
+    # absent from this set because they DO pin the number. Empty by
+    # default — only the Latin subclass overrides it (issue #52).
+    non_disambiguating_prefixes: ClassVar[frozenset[str]] = frozenset()
 
     def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
         if self.langs and chunk.lang not in self.langs:
@@ -130,7 +136,9 @@ class BaseScriptureCiteRule:
                 target_locator = f"{sbl} {chap}"
                 conf = _CONF_CHAPTER_ONLY
 
-            if prefix is None and abbr in self.ambiguous_bare:
+            if abbr in self.ambiguous_bare and (
+                prefix is None or prefix in self.non_disambiguating_prefixes
+            ):
                 conf = _CONF_AMBIGUOUS
 
             yield Candidate(
