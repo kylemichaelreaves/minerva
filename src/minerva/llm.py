@@ -67,6 +67,60 @@ def _iter_sse_data_lines(resp: HTTPResponse) -> Iterator[str]:
             yield payload
 
 
+_RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504, 529})
+_MAX_RETRY_ATTEMPTS = 5
+
+
+def _urlopen_with_retry(
+    req: urllib.request.Request,
+    *,
+    timeout: float,
+    api_key: str | None,
+    provider: str,
+) -> HTTPResponse:
+    """Open ``req`` with bounded exponential backoff for transient
+    failures, returning the (still-open) response.
+
+    Shared by every HTTP backend so retry behavior is consistent —
+    previously only Anthropic retried, and an OpenAI/Ollama run died on
+    the first 429 or mid-run ConnectionResetError (issue #57). Five
+    tries, doubling waits from 2s to 32s, then surface as ``LLMError``.
+    """
+
+    last_exc: BaseException | None = None
+    for attempt in range(_MAX_RETRY_ATTEMPTS):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code in _RETRYABLE_STATUS and attempt + 1 < _MAX_RETRY_ATTEMPTS:
+                last_exc = exc
+                time.sleep(min(32.0, 2.0 * (2**attempt)))
+                continue
+            detail = _redact(exc.read().decode("utf-8", errors="replace"), api_key)
+            raise LLMError(f"{provider} HTTP {exc.code}: {detail}") from exc
+        except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
+            if attempt + 1 < _MAX_RETRY_ATTEMPTS:
+                last_exc = exc
+                time.sleep(min(32.0, 2.0 * (2**attempt)))
+                continue
+            raise LLMError(f"{provider} connection reset after retries: {exc}") from exc
+        except urllib.error.URLError as exc:
+            # URLError wraps a variety of socket-layer issues; treat the
+            # ones that look transient (reset / refused / DNS blip) as
+            # retryable, the rest as fatal.
+            reason = getattr(exc, "reason", None)
+            transient = isinstance(
+                reason,
+                (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),
+            )
+            if transient and attempt + 1 < _MAX_RETRY_ATTEMPTS:
+                last_exc = exc
+                time.sleep(min(32.0, 2.0 * (2**attempt)))
+                continue
+            raise LLMError(f"{provider} connection error: {exc}") from exc
+    raise LLMError(f"{provider} call failed after retries: {last_exc!r}")
+
+
 def _iter_ndjson_lines(resp: HTTPResponse) -> Iterator[dict]:
     """Yield parsed JSON objects from newline-delimited response bodies."""
 
@@ -144,14 +198,10 @@ class OpenAIBackend(LLMBackend):
             },
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
-            raise LLMError(f"OpenAI HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise LLMError(f"OpenAI connection error: {exc}") from exc
+        with _urlopen_with_retry(
+            req, timeout=self.timeout, api_key=self.api_key, provider="OpenAI"
+        ) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
         try:
             content = payload["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
@@ -180,13 +230,9 @@ class OpenAIBackend(LLMBackend):
             },
             method="POST",
         )
-        try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout)
-        except urllib.error.HTTPError as exc:
-            detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
-            raise LLMError(f"OpenAI HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise LLMError(f"OpenAI connection error: {exc}") from exc
+        resp = _urlopen_with_retry(
+            req, timeout=self.timeout, api_key=self.api_key, provider="OpenAI"
+        )
         try:
             for data_line in _iter_sse_data_lines(resp):
                 chunk = json.loads(data_line)
@@ -196,6 +242,11 @@ class OpenAIBackend(LLMBackend):
                 text = delta.get("content")
                 if text:
                     yield text
+        except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
+            # A failure mid-iteration (dropped connection, truncated
+            # frame) must surface as LLMError, not a raw exception that
+            # the handler reports as a generic "server error" (issue #59).
+            raise LLMError(f"OpenAI stream interrupted: {exc}") from exc
         finally:
             resp.close()
 
@@ -305,53 +356,15 @@ class AnthropicBackend(LLMBackend):
         return body_dict
 
     def _urlopen_with_retry(self, req: urllib.request.Request) -> HTTPResponse:
-        """Open ``req`` with bounded exponential backoff for transient
-        failures, returning the (still-open) response.
+        """Thin wrapper over the shared :func:`_urlopen_with_retry`
+        (issue #57). Long-running batched jobs (refs llm-verify) hit
+        Anthropic for hundreds of calls and routinely catch a
+        ConnectionResetError or 429/5xx mid-run; retry keeps the job
+        alive. Shared by ``complete`` and ``stream_complete``."""
 
-        Long-running batched jobs (refs llm-verify) hit Anthropic for
-        hundreds of calls and routinely catch a ConnectionResetError
-        or 429/5xx mid-run; without retry the whole job dies and the
-        caller has to manually re-launch. Five tries, doubling waits
-        from 2s to 32s, then give up and surface as LLMError. Shared
-        by ``complete`` and ``stream_complete``."""
-
-        retryable_status = {408, 425, 429, 500, 502, 503, 504, 529}
-        last_exc: BaseException | None = None
-        for attempt in range(5):
-            try:
-                return urllib.request.urlopen(req, timeout=self.timeout)
-            except urllib.error.HTTPError as exc:
-                if exc.code in retryable_status and attempt + 1 < 5:
-                    wait = min(32.0, 2.0 * (2**attempt))
-                    last_exc = exc
-                    time.sleep(wait)
-                    continue
-                detail = _redact(exc.read().decode("utf-8", errors="replace"), self.api_key)
-                raise LLMError(f"Anthropic HTTP {exc.code}: {detail}") from exc
-            except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
-                if attempt + 1 < 5:
-                    wait = min(32.0, 2.0 * (2**attempt))
-                    last_exc = exc
-                    time.sleep(wait)
-                    continue
-                raise LLMError(f"Anthropic connection reset after retries: {exc}") from exc
-            except urllib.error.URLError as exc:
-                # URLError wraps a variety of socket-layer issues; treat
-                # the ones that look transient (reset / refused / DNS
-                # blip) as retryable, the rest as fatal.
-                reason = getattr(exc, "reason", None)
-                transient = isinstance(
-                    reason,
-                    (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),
-                )
-                if transient and attempt + 1 < 5:
-                    wait = min(32.0, 2.0 * (2**attempt))
-                    last_exc = exc
-                    time.sleep(wait)
-                    continue
-                raise LLMError(f"Anthropic connection error: {exc}") from exc
-        # Loop exhausted without returning — every attempt failed.
-        raise LLMError(f"Anthropic call failed after retries: {last_exc!r}")
+        return _urlopen_with_retry(
+            req, timeout=self.timeout, api_key=self.api_key, provider="Anthropic"
+        )
 
     def complete(self, messages: list[Message], *, temperature: float = 0.2) -> str:
         # Reset up front so a failed call can't surface the previous
@@ -415,6 +428,10 @@ class AnthropicBackend(LLMBackend):
                         text = delta.get("text")
                         if text:
                             yield text
+        except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
+            # Mid-stream failure → LLMError, not a raw exception the
+            # handler would mislabel as a generic "server error" (#59).
+            raise LLMError(f"Anthropic stream interrupted: {exc}") from exc
         finally:
             resp.close()
 
@@ -493,6 +510,9 @@ class OllamaBackend(LLMBackend):
                     yield text
                 if chunk.get("done"):
                     break
+        except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
+            # Mid-stream failure → LLMError, not a raw exception (#59).
+            raise LLMError(f"Ollama stream interrupted: {exc}") from exc
         finally:
             resp.close()
 

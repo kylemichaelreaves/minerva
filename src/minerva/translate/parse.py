@@ -19,7 +19,21 @@ REFUSAL_PATTERNS = re.compile(
 )
 
 
+def is_dual_translation(text: str) -> bool:
+    """True when the response carries the ``LITERAL:/LITERARY:`` labeled
+    structure — i.e. the model actually produced a translation rather
+    than a prose refusal/clarification."""
+    return LABELS_RE.match(text) is not None
+
+
 def looks_like_refusal(text: str) -> bool:
+    """Heuristic refusal detector for an UNSTRUCTURED response.
+
+    Only meaningful on a response that failed to parse as a labeled
+    dual-translation — the patterns are substrings that legitimately
+    appear inside a real translation's content ("incomplete",
+    "truncated", "sorry"), so callers must not run this against a
+    parsed translation body or valid output gets blanked (issue #58)."""
     return bool(REFUSAL_PATTERNS.search(text))
 
 
