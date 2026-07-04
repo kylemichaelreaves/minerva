@@ -43,7 +43,7 @@ describe("<ConfirmDialog />", () => {
   it("Enter confirms when focus is inside the dialog", () => {
     const { onCancel, onConfirm } = renderDialog();
     // Focus trap keeps focus inside the dialog; simulate that.
-    (screen.getByRole("button", { name: "Delete" }) as HTMLElement).focus();
+    screen.getByRole("button", { name: "Delete" }).focus();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();
