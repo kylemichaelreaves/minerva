@@ -31,6 +31,7 @@ from .split_hegel_pr_epub import split_hegel_pr_epub
 from .split_kant import split_by_kant_ab
 from .split_kapital_mew import split_kapital_mew
 from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
+from .split_platon_werke import split_platon_werke
 from .split_spinoza import split_spinoza
 from .split_spinoza_ethica import split_spinoza_ethica
 from .split_stephanus_de import split_stephanus_de
@@ -99,6 +100,13 @@ _SPLITTERS = {
 def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
+        if work.locator == "platon_werke":
+            # "Platon: die Werke" — one PDF holding every dialogue + the
+            # Letters. The multi-work splitter reads the pages directly
+            # (heading detection + Stephanus-marker reconstruction), so it
+            # bypasses the flat extract_pdf + single-work _SPLITTERS path.
+            yield from _yield_structured(split_platon_werke(path, work), path, work)
+            return
         # ``work.pages`` (when set) carves a sub-range of the PDF for
         # this CorpusWork. Used by the Cambridge "Practical Philosophy"
         # Gregor omnibus, where one file contains a dozen Kant works
