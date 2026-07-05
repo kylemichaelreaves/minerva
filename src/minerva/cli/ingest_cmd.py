@@ -124,6 +124,19 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 total, touched, counts = merge_jsonl(chunks, args.output)
                 mode = "merged"
             failures = parse_failures()
+            # A --only run that produced ZERO chunks is almost always a
+            # misconfiguration (bad glob, renamed file, wrong subtype):
+            # merge_jsonl preserves the stale rows untouched and would
+            # otherwise report "merged 0 chunks" + exit 0, so the
+            # operator believes the corpus was re-ingested (issue #47).
+            # Treat it as a loud failure.
+            if only is not None and touched == 0:
+                failures = [
+                    *failures,
+                    f"ingest: --only {sorted(only)!r} produced 0 chunks — "
+                    f"nothing was re-ingested (existing rows left untouched). "
+                    f"Check the source path/glob and subtype.",
+                ]
 
     if mode != "aborted":
         print(f"{mode.capitalize()} {touched} chunks into {args.output} (total: {total})")

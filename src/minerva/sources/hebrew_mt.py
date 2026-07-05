@@ -32,7 +32,13 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
+from minerva.tei import (
+    Chunk,
+    _make_chunk_id,
+    _norm_text,
+    guarded_parse_file,
+    text_excluding,
+)
 
 # OSIS XML uses a default namespace; ElementTree exposes it as a
 # Clark-notation prefix on every tag. Bind it so XPath queries stay
@@ -113,10 +119,15 @@ def parse_file(path: Path) -> Iterator[Chunk]:
     book_title = book.english
     sbl_abbr = BCV_BOOK_ABBR.get(book_title)
     if sbl_abbr is None:
-        raise RuntimeError(
-            f"hebrew_mt: book {book_title!r} from {path.name} is not in "
-            f"BCV_BOOK_ABBR — add it to locations.py before re-running"
+        # Print-and-skip, matching the sibling scripture parsers
+        # (tei_lxx, osis_bible) which treat a missing BCV entry as a
+        # soft skip rather than raising. A raise here would abort the
+        # whole book (issue #46).
+        print(
+            f"hebrew_mt: book {book_title!r} from {path.name} not in "
+            f"BCV_BOOK_ABBR; add it to locations._BCV_BOOKS"
         )
+        return
 
     tree = ET.parse(path)
     root = tree.getroot()
@@ -184,4 +195,6 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             continue
         if find_book(entry.name) is None:
             continue
-        yield from parse_file(entry)
+        yield from guarded_parse_file(
+            "hebrew_mt", entry, lambda e=entry: parse_file(e)
+        )

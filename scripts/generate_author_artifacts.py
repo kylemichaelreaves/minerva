@@ -381,6 +381,16 @@ def _replace_region(path: Path, begin: str, end: str, new_block: str) -> str:
     replacement = f"{begin}\n{new_block}\n{end}"
     if not pattern.search(text):
         raise RuntimeError(f"Markers {begin!r}/{end!r} not found in {path}")
+    # Guard against a duplicated marker — e.g. a manifest `comment:` that
+    # happens to contain a literal BEGIN/END line and leaks the sentinel
+    # into generated output (issue #69). A second marker would make the
+    # non-greedy sub truncate or mis-bound the region on the next run.
+    if text.count(begin) != 1 or text.count(end) != 1:
+        raise RuntimeError(
+            f"Markers {begin!r}/{end!r} must appear exactly once in {path} "
+            f"(found begin×{text.count(begin)}, end×{text.count(end)}); "
+            f"a manifest comment likely leaked the sentinel string."
+        )
     return pattern.sub(replacement, text, count=1)
 
 

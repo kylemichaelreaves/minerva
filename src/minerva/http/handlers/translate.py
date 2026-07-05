@@ -8,7 +8,11 @@ from typing import Any
 from ... import llm, translations
 from ...errors import BadRequestError, PayloadTooLargeError
 from ...translate.coalesce import begin_inflight, current_inflight, finish_inflight
-from ...translate.parse import looks_like_refusal, parse_dual_translation
+from ...translate.parse import (
+    is_dual_translation,
+    looks_like_refusal,
+    parse_dual_translation,
+)
 from ...translate.prompts import LANG_NAME, MAX_TRANSLATE_CHARS, TRANSLATE_SYSTEM
 from ..server_core import ServerDeps
 from ._locks import map_domain_errors
@@ -78,7 +82,12 @@ def _leader_translate(
     try:
         raw = deps.backend.complete(messages, temperature=0.0).strip()
         literal_text, literary_text = parse_dual_translation(raw)
-        if looks_like_refusal(literary_text) or looks_like_refusal(literal_text):
+        # A refusal is prose WITHOUT the LITERAL:/LITERARY: structure.
+        # Only treat unstructured output as a refusal — scanning a valid
+        # translation's body for substrings like "incomplete"/"truncated"
+        # blanks out legitimate translations of passages about those
+        # words (issue #58).
+        if not is_dual_translation(raw) and looks_like_refusal(raw):
             # Deliberately NOT cached: refusals are usually transient
             # (model mood, truncated source), and translations.lookup
             # treats an empty-string row as a valid hit — caching one

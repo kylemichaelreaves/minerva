@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 
 from minerva.refs import embed_verify
+from minerva.refs import rules as refs_rules
 from minerva.refs import schema as refs_schema
 
 # ════════════════════════════════════════════════════════════════════
@@ -380,3 +381,111 @@ class TestFindCrossAuthorAllusions:
         assert stats.pairs_examined == 1
         assert stats.candidates_emitted == 0
         assert stats.candidates_inserted == 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# Regression: Pass A must not re-process already-verified rows (#43)
+# ════════════════════════════════════════════════════════════════════
+
+
+class TestPassASkipsAlreadyProcessedRows:
+    """An earlier ``source_method LIKE 'rule_%'`` filter also matched
+    ``rule+embed`` and ``rule+embed+llm`` (SQLite ``_`` is a single-char
+    wildcard), so re-runs re-processed promoted / LLM-verified rows and
+    clobbered the ``+llm`` provenance. The filter must select only the
+    exact rules-stamped methods."""
+
+    def test_rule_embed_and_llm_rows_are_not_examined(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        _seed_embeddings(populated_db, {"ne-1097b": V_X})
+        target = refs_schema.ensure_target(
+            populated_db,
+            canonical_author="Aristotle",
+            canonical_work="Nicomachean Ethics",
+        )
+        # Two auto rows that a prior verification pass already produced,
+        # each with a quoted_phrase and a high-cosine target — the only
+        # thing keeping them out of Pass A is the source_method filter.
+        for method, phrase in (
+            ("rule+embed", "already promoted phrase"),
+            ("rule+embed+llm", "already llm-verified phrase"),
+        ):
+            refs_schema.insert_cross_reference(
+                populated_db,
+                source_chunk_id="rep-509d",
+                target_id=target.id,
+                target_chunk_id="ne-1097b",
+                reference_type="quotes",
+                source_form_snapshot=None,
+                quoted_phrase=phrase,
+                confidence=0.9,
+                source_method=method,
+                curator_status="auto",
+            )
+        populated_db.commit()
+
+        embedder = FakeEmbedder(
+            {
+                "already promoted phrase": V_X,
+                "already llm-verified phrase": V_X,
+            }
+        )
+        stats = embed_verify.verify_quoted_references(populated_db, embedder)
+
+        # Neither row is a candidate → nothing examined, nothing changed.
+        assert stats.examined == 0
+        methods = {
+            r[0]
+            for r in populated_db.execute(
+                "SELECT source_method FROM cross_references"
+            ).fetchall()
+        }
+        assert "rule+embed+llm" in methods  # provenance preserved
+        assert "rule+embed" in methods
+
+
+# ════════════════════════════════════════════════════════════════════
+# Regression: allusion dedup keeps distinct target chunks (#44)
+# ════════════════════════════════════════════════════════════════════
+
+
+class TestInsertCandidateAllusionDedup:
+    """Author-level allusion candidates share target_id / reference_type
+    / NULL form / NULL phrase and differ only by ``target_chunk_id``.
+    The dedup key must include ``target_chunk_id`` or the top-k matches
+    for one source chunk collapse to a single row."""
+
+    def _allusion(self, target_chunk_id: str) -> refs_rules.Candidate:
+        return refs_rules.Candidate(
+            source_chunk_id="rep-509d",
+            source_span_start=None,
+            source_span_end=None,
+            source_form_snapshot=None,
+            target_author="Aristotle",
+            target_work="",
+            target_locator=None,
+            reference_type="alludes",
+            confidence=0.9,
+            source_method="embed_only",
+            quoted_phrase=None,
+            target_chunk_id=target_chunk_id,
+        )
+
+    def test_distinct_target_chunks_each_insert(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        id1 = refs_rules.insert_candidate(populated_db, self._allusion("ne-1097b"))
+        id2 = refs_rules.insert_candidate(populated_db, self._allusion("phaedo-72e"))
+        assert id1 is not None
+        assert id2 is not None
+        assert id1 != id2
+
+        # Re-inserting an identical candidate (same target_chunk_id) still dedups.
+        dup = refs_rules.insert_candidate(populated_db, self._allusion("ne-1097b"))
+        assert dup is None
+
+        n = populated_db.execute(
+            "SELECT COUNT(*) FROM cross_references WHERE reference_type = 'alludes'"
+        ).fetchone()[0]
+        assert n == 2

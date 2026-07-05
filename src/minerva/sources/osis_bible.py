@@ -38,7 +38,13 @@ from collections.abc import Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from minerva.tei import Chunk, _make_chunk_id, _norm_text, text_excluding
+from minerva.tei import (
+    Chunk,
+    _make_chunk_id,
+    _norm_text,
+    guarded_parse_file,
+    text_excluding,
+)
 
 # OSIS namespace; lookups in iter() need this prefix.
 _OSIS_NS = "{http://www.bibletechnologies.net/2003/OSIS/namespace}"
@@ -279,11 +285,15 @@ def parse_dir(
     for entry in sorted(directory.iterdir()):
         if not entry.is_file() or not entry.name.endswith(".xml"):
             continue
-        yield from parse_file(
+        yield from guarded_parse_file(
+            corpus,
             entry,
-            corpus=corpus,
-            author=author,
-            lang=lang,
-            edition_year=edition_year,
-            translator=translator,
+            lambda e=entry: parse_file(
+                e,
+                corpus=corpus,
+                author=author,
+                lang=lang,
+                edition_year=edition_year,
+                translator=translator,
+            ),
         )

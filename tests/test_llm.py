@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+import urllib.error
+
+import pytest
 
 from minerva.llm import (
     AnthropicBackend,
+    LLMError,
     Message,
     NullBackend,
     OllamaBackend,
@@ -93,6 +97,57 @@ def test_openai_stream_complete_yields_deltas(monkeypatch):
     monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
     out = list(backend.stream_complete([Message("user", "q")]))
     assert out == ["The", " cave"]
+
+
+def test_openai_complete_retries_transient_429(monkeypatch):
+    # Shared retry now covers OpenAI, not just Anthropic (issue #57):
+    # a transient 429 is retried rather than raised on the first hit.
+    backend = OpenAIBackend(api_key="sk-test", base_url="https://api.example.com/v1")
+    calls = {"n": 0}
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"choices":[{"message":{"content":"ok"}}]}'
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise urllib.error.HTTPError(
+                req.full_url, 429, "rate", {}, io.BytesIO(b"slow down")
+            )
+        return FakeResp()
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    assert backend.complete([Message("user", "q")]) == "ok"
+    assert calls["n"] == 2
+
+
+def test_openai_stream_wraps_midstream_error_as_llmerror(monkeypatch):
+    # A dropped connection mid-iteration must surface as LLMError, not a
+    # raw ConnectionResetError the handler mislabels (issue #59).
+    backend = OpenAIBackend(api_key="sk-test", base_url="https://api.example.com/v1")
+
+    class BoomResp:
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"hi"}}]}\n'
+            raise ConnectionResetError("dropped")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "minerva.llm.urllib.request.urlopen", lambda req, timeout=None: BoomResp()
+    )
+    with pytest.raises(LLMError):
+        list(backend.stream_complete([Message("user", "q")]))
 
 
 def test_ollama_stream_complete_yields_deltas(monkeypatch):

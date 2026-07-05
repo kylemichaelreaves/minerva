@@ -123,6 +123,92 @@ def test_tei_parse_dir_records_per_file_failures(tmp_path: Path, capsys):
     assert "bad.xml" in capsys.readouterr().err
 
 
+def test_guarded_parse_file_records_and_isolates(tmp_path: Path, capsys):
+    """The shared guard yields whatever ``produce()`` emits before it
+    fails, then records the failure instead of propagating — this is
+    the isolation contract every dir-walker now uses (issue #45)."""
+
+    def produce():
+        yield _chunk("ok-1")
+        raise ValueError("boom mid-file")
+
+    pipeline.reset_parse_failures()
+    got = list(tei.guarded_parse_file("mycorpus", tmp_path / "f.xml", produce))
+
+    assert [c.chunk_id for c in got] == ["ok-1"]
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "f.xml" in failures[0]
+    assert "mycorpus" in failures[0]
+    assert "boom mid-file" in failures[0]
+    assert "f.xml" in capsys.readouterr().err
+
+
+def test_osis_parse_dir_isolates_bad_file(tmp_path: Path):
+    """A malformed OSIS XML must be recorded and skipped, not abort the
+    whole (multi-corpus) ingest (issue #45)."""
+
+    from minerva.sources import osis_bible
+
+    (tmp_path / "bad.xml").write_text("this is not xml", encoding="utf-8")
+
+    pipeline.reset_parse_failures()
+    chunks = list(
+        osis_bible.parse_dir(
+            tmp_path,
+            corpus="kjv",
+            author="King James Version",
+            lang="eng",
+            edition_year="1769",
+            translator="KJV",
+        )
+    )
+    assert chunks == []
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "bad.xml" in failures[0]
+    assert "kjv" in failures[0]
+
+
+def test_tei_p5_flat_parse_dir_isolates_bad_file(tmp_path: Path):
+    """The First1KGreek flat single-work layout must isolate a bad XML
+    the same way (issue #45)."""
+
+    from minerva.sources import tei_p5
+
+    (tmp_path / "broken_grc.xml").write_text("<not-valid", encoding="utf-8")
+
+    pipeline.reset_parse_failures()
+    chunks = list(tei_p5.parse_dir(tmp_path))
+    assert chunks == []
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "broken_grc.xml" in failures[0]
+
+
+def test_tei_p5_flat_unsuffixed_lang_fails_loudly(tmp_path: Path):
+    """A flat-layout file with no recognizable language suffix must be
+    recorded as a failure, NOT silently stamped Greek (issue #48)."""
+
+    from minerva.sources import tei_p5
+
+    (tmp_path / "mystery.xml").write_text(
+        """<?xml version="1.0"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>
+<div type="edition"><div type="textpart" subtype="book" n="1"><p>Hello.</p></div></div>
+</body></text></TEI>""",
+        encoding="utf-8",
+    )
+
+    pipeline.reset_parse_failures()
+    chunks = list(tei_p5.parse_dir(tmp_path))
+    assert chunks == []
+    failures = pipeline.parse_failures()
+    assert len(failures) == 1
+    assert "mystery.xml" in failures[0]
+    assert "cannot detect language" in failures[0]
+
+
 def test_reset_parse_failures_clears_the_log(tmp_path: Path):
     (tmp_path / "broken.txt").write_text("any content", encoding="utf-8")
     work = _work(filenames=("broken.txt",), locator="no-such-locator")

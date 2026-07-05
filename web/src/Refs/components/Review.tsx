@@ -152,13 +152,16 @@ export default function Review(props: ReviewProps) {
 
     if (!hasMoreOnServer) return;
 
-    await pagination.loadMore(firstPage(), async (offset) => {
-      const res = await fetchReviewQueue({
-        limit: PAGE_SIZE,
-        offset: offset - decided,
-        sourceAuthor: props.sourceAuthor,
-        referenceType: props.referenceType,
-      });
+    await pagination.loadMore(firstPage(), async (offset, signal) => {
+      const res = await fetchReviewQueue(
+        {
+          limit: PAGE_SIZE,
+          offset: offset - decided,
+          sourceAuthor: props.sourceAuthor,
+          referenceType: props.referenceType,
+        },
+        signal,
+      );
       setMeta({ total_pending: res.total_pending });
       return { items: res.references };
     });

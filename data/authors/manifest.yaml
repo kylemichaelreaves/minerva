@@ -53,9 +53,7 @@ corpora:
 
     across biblical corpora), bare "hebrew" (ambiguous), "meditations"
 
-    only routes to Marcus Aurelius when unqualified.
-
-    BEGIN CORPORA'
+    only routes to Marcus Aurelius when unqualified.'
 - id: aristotle
   original_lang: grc
   citation_system: bekker

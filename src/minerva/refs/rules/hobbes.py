@@ -18,7 +18,7 @@ Latin Hobbes uses standard Renaissance Latin spellings — Aristoteles
 from __future__ import annotations
 
 from . import AuthorMentionRule, StrongMentionRule
-from .scripture_cite import ScriptureCiteRuleEn
+from .scripture_cite import ScriptureCiteRule, ScriptureCiteRuleEn
 
 RULES = (
     # ── English scripture cites → KJV. Hobbes is the corpus's heaviest
@@ -26,6 +26,10 @@ RULES = (
     # biblical interpretation. Expect the largest citation count
     # of any modern author.
     ScriptureCiteRuleEn(name="hobbes_scripture_cite_en"),
+    # ── Latin Vulgate cites → the 1668 Latin Leviathan and 1642 De
+    # Cive quote scripture in Latin; without this rule those biblical
+    # citations were never detected (issue #55).
+    ScriptureCiteRule(name="hobbes_scripture_cite_lat"),
     # Aristotle — Hobbes's central polemical target in Leviathan
     # part IV ("Of the Kingdom of Darkness") and the De Cive
     # preface. References are frequent and explicit; high

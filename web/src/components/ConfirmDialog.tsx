@@ -7,6 +7,7 @@
 
 import { Show, createEffect, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
+import { useDialogFocus } from "~/hooks/useDialogFocus";
 import { useEscape } from "~/hooks/useEscape";
 
 interface ConfirmDialogProps {
@@ -20,20 +21,28 @@ interface ConfirmDialogProps {
 }
 
 export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
-  // Esc and Enter both fire only while open. Esc is delegated to the
-  // shared useEscape helper; Enter stays inline because dialog-confirm
-  // is the only place we want that key, and folding it into a
-  // generic helper isn't worth the indirection.
+  let dialogRef: HTMLDivElement | undefined;
+
+  // Esc cancels. Enter confirms — but ONLY while focus is inside the
+  // dialog. A window-level Enter that fired regardless of focus would
+  // delete a conversation on a stray keystroke while the user was
+  // typing in a background field (issue #60). useDialogFocus moves
+  // focus into the dialog on open, traps Tab, and restores focus on
+  // close, so the focus-within check is reliable.
   useEscape(
     () => {
       props.onCancel();
     },
     () => props.open,
   );
+  useDialogFocus(
+    () => dialogRef,
+    () => props.open,
+  );
   createEffect(() => {
     if (!props.open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
+      if (e.key === "Enter" && dialogRef?.contains(document.activeElement)) {
         e.preventDefault();
         props.onConfirm();
       }
@@ -53,6 +62,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
         }}
       >
         <div
+          ref={dialogRef}
           class="dialog"
           role="dialog"
           aria-modal="true"
@@ -76,11 +86,6 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
             </button>
             <button
               class="dialog-btn danger"
-              ref={(el) => {
-                queueMicrotask(() => {
-                  el.focus();
-                });
-              }}
               onClick={() => {
                 props.onConfirm();
               }}

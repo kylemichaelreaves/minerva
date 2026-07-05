@@ -293,10 +293,12 @@ def insert_candidate(
     row with ``curator_status='auto'``. Returns the new row id, or
     ``None`` when a content-equivalent row already exists.
 
-    Dedup key matches :func:`cli.refs.load_spec_cmd._insert_one_reference`:
-    ``(source_chunk_id, target_id, reference_type, source_form_snapshot,
-    quoted_phrase)`` with NULL-safe equality. This means a curator-
-    approved manual row at the same logical site is preserved unchanged
+    Dedup key: ``(source_chunk_id, target_id, reference_type,
+    source_form_snapshot, quoted_phrase, target_chunk_id)`` with
+    NULL-safe equality. ``target_chunk_id`` is included so author-level
+    allusion candidates that share every other field don't collapse to
+    a single row (issue #44). This means a curator-approved manual row
+    at the same logical site is preserved unchanged
     and we don't grow a parallel auto-row alongside it on every
     `refs build` run — the curator's work survives subsequent passes.
 
@@ -325,25 +327,36 @@ def insert_candidate(
         row = conn.execute(
             "SELECT chunk_id FROM chunks_full "
             "WHERE author = ? AND work = ? AND section = ? "
-            "LIMIT 1",
+            # Deterministic pick when a (author, work, section) maps to
+            # more than one chunk, so re-runs bind the same chunk_id and
+            # don't grow parallel auto-rows through the dedup key below.
+            "ORDER BY chunk_id LIMIT 1",
             (cand.target_author, cand.target_work, cand.target_locator),
         ).fetchone()
         if row is not None:
             bound_chunk_id = row[0]
 
+    # ``target_chunk_id`` is part of the dedup identity: author-level
+    # allusion candidates (target_work="*") share target_id / type /
+    # NULL form / NULL phrase and would otherwise collapse to one row,
+    # dropping the other top-k chunk matches (issue #44). Including the
+    # bound chunk keeps distinct target chunks distinct; it can only
+    # make rows MORE distinct, never merge previously-separate ones.
     existing = conn.execute(
         "SELECT id FROM cross_references "
         "WHERE source_chunk_id = ? "
         "  AND target_id = ? "
         "  AND reference_type = ? "
         "  AND source_form_snapshot IS ? "
-        "  AND quoted_phrase IS ?",
+        "  AND quoted_phrase IS ? "
+        "  AND target_chunk_id IS ?",
         (
             cand.source_chunk_id,
             target.id,
             cand.reference_type,
             cand.source_form_snapshot,
             cand.quoted_phrase,
+            bound_chunk_id,
         ),
     ).fetchone()
     if existing is not None:

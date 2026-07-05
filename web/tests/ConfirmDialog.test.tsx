@@ -40,11 +40,25 @@ describe("<ConfirmDialog />", () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it("Enter confirms", () => {
+  it("Enter confirms when focus is inside the dialog", () => {
     const { onCancel, onConfirm } = renderDialog();
+    // Focus trap keeps focus inside the dialog; simulate that.
+    screen.getByRole("button", { name: "Delete" }).focus();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("Enter does NOT confirm when focus is outside the dialog", () => {
+    // A stray Enter while the user is typing in a background field must
+    // not delete the conversation (issue #60).
+    const outside = document.createElement("input");
+    document.body.appendChild(outside);
+    const { onConfirm } = renderDialog();
+    outside.focus();
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(onConfirm).not.toHaveBeenCalled();
+    outside.remove();
   });
 
   it("clicking the scrim cancels", () => {

@@ -34,7 +34,6 @@ RULES = (
             "Platonis",
             "Platonem",
             "Platone",
-            "Platonis",
             "Platonicus",
             "Platonici",
             "Platonic",

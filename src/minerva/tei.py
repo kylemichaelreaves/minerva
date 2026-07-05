@@ -22,7 +22,7 @@ import dataclasses
 import hashlib
 import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -543,12 +543,29 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
         yield from builder.chunks
 
 
-def parse_dir(directory: Path, *, corpus: str, author: str) -> Iterable[Chunk]:
+def guarded_parse_file(
+    label: str, path: Path, produce: Callable[[], Iterable[Chunk]]
+) -> Iterator[Chunk]:
+    """Yield chunks from ``produce()``, but convert any per-file parse
+    error into a recorded ``record_parse_failure`` and skip that file.
+
+    This is the isolation contract every dir-walker must use: one
+    malformed/truncated XML file must never abort a whole (potentially
+    multi-corpus) ingest. The older ``tei_*``/``osis``/``hebrew_mt``
+    walkers called ``parse_file`` unguarded and would hard-abort the
+    entire run on a single bad file (issue #45); route them through
+    here so they degrade to a partial ingest like ``parse_dir`` does.
+    """
     from .corpus.pipeline import record_parse_failure
 
-    label = corpus
+    try:
+        yield from produce()
+    except Exception as exc:
+        record_parse_failure(f"{label}: failed to parse {path.name!r}: {exc}")
+
+
+def parse_dir(directory: Path, *, corpus: str, author: str) -> Iterable[Chunk]:
     for xml_path in sorted(directory.glob("*.xml")):
-        try:
-            yield from parse_file(xml_path, corpus=corpus, author=author)
-        except Exception as exc:
-            record_parse_failure(f"{label}: failed to parse {xml_path.name!r}: {exc}")
+        yield from guarded_parse_file(
+            corpus, xml_path, lambda p=xml_path: parse_file(p, corpus=corpus, author=author)
+        )

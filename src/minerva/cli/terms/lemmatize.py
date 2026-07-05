@@ -20,6 +20,9 @@ import sys
 import unicodedata
 
 from ...lemmatize import (
+    SUPPORTED_LANGUAGES as _SUPPORTED,
+)
+from ...lemmatize import (
     Lemmatizer,
     UnsupportedLanguageError,
     is_supported,
@@ -40,12 +43,16 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
 
     lang = args.lang
     if not is_supported(lang):
+        # argparse `choices` already rejects unknown codes at parse time;
+        # this guards programmatic callers. An unsupported language is an
+        # ERROR, not a silent success — a pipeline must not mistake a
+        # no-op for a completed lemmatize pass (issue #67).
         print(
-            f"lemmatize: language {lang!r} not supported on this Python "
-            "build. The glossary importer falls back to search_forms — "
-            "no action needed."
+            f"lemmatize: language {lang!r} is not supported "
+            f"(known: {', '.join(sorted(_SUPPORTED))}).",
+            file=sys.stderr,
         )
-        return 0
+        return 2
 
     conn = _open(args)
     try:

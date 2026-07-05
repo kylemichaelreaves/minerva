@@ -60,6 +60,9 @@ RULES = (
         name="nietzsche_christus",
         target_author="Christ",
         target_work="",
+        # Only the UNAMBIGUOUS direct references to the founder / the
+        # named religion. German uses "Christus" for the person, so
+        # these forms reliably point at the target (issue #54).
         forms=(
             "Christus",
             "Christi",
@@ -68,12 +71,6 @@ RULES = (
             "Jesus",
             "Christentum",
             "Christenthum",
-            "christlich",
-            "christliche",
-            "christlichen",
-            "christlicher",
-            "Christ",
-            "Christen",
             "Christlichkeit",
         ),
         confidence=0.88,
@@ -81,10 +78,34 @@ RULES = (
         note=(
             "Christianity / Christ is the central target of Der "
             "Antichrist and a sustained sub-theme across the late "
-            "works (GD, EH, GM). The form cluster covers both the "
-            "founder (Christus/Jesus) and the religion "
-            "(Christentum/christlich) — they're treated as one "
-            "target by Nietzsche."
+            "works (GD, EH, GM). Unambiguous founder/religion forms "
+            "only; the ambiguous common-noun/adjective cluster is a "
+            "separate rule_weak rule so it routes through llm-verify."
+        ),
+    ),
+    AuthorMentionRule(
+        name="nietzsche_christlich",
+        target_author="Christ",
+        target_work="",
+        # High-volume, low-precision cluster: bare "Christ"/"Christen"
+        # in German mean "a Christian"/"Christians" (NOT the person —
+        # that's "Christus"), and "christlich*" is a topic adjective.
+        # As rule_weak (< 0.85) these route through llm-verify triage
+        # instead of landing as unverified rule_strong edges (issue #54).
+        forms=(
+            "Christ",
+            "Christen",
+            "christlich",
+            "christliche",
+            "christlichen",
+            "christlicher",
+        ),
+        confidence=0.45,
+        source_method="rule_weak",
+        langs=("deu",),
+        note=(
+            "Ambiguous Christ/christlich cluster — weak signal, "
+            "verified downstream rather than trusted as a strong cite."
         ),
     ),
     StrongMentionRule(

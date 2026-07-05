@@ -30,6 +30,9 @@ class ScriptureCiteRule(BaseScriptureCiteRule):
     lexicon = _LEXICON
     cite_re = _CITE_RE
     ambiguous_bare = _AMBIGUOUS_BARE
+    # "ad Cor." / "ad Thess." / "ad Tim." mark an epistle but not the
+    # number, so they stay ambiguous like the bare form (issue #52).
+    non_disambiguating_prefixes = frozenset({"ad"})
 
 
 # ──────────────────────────────────────────────────────────────────
