@@ -2,6 +2,7 @@
 // presentational pieces live in ./components.
 
 import { For, Show, createEffect, createMemo, createResource, createSignal } from "solid-js";
+import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import {
   fetchLemmaIndex,
   type ConcScope,
@@ -90,8 +91,15 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
 
   /** Works manifest for the scope pickers. One fetch; the reader's
    *  /api/works list carries (author, work, lang) in chronological
-   *  author order, which is exactly the order we want the menus in. */
-  const [worksList] = createResource(() => listWorks());
+   *  author order, which is exactly the order we want the menus in.
+   *  useAbortableFetch (not a raw createResource) so the request is
+   *  aborted on unmount and its failure is captured in `worksData.error`
+   *  rather than silently leaving the pickers empty (issue #65). */
+  const worksData = useAbortableFetch(
+    () => null,
+    (_args, signal) => listWorks(signal),
+  );
+  const worksList = worksData.data;
   const langWorks = createMemo(() => (worksList() ?? []).filter((w) => w.lang === lang()));
   const authorOptions = createMemo<SelectOption[]>(() => {
     const seen = new Set<string>();

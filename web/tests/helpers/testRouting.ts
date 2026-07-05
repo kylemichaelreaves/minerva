@@ -17,12 +17,12 @@ export function errorResponse(
   statusText: string,
   body?: unknown,
 ): Response {
+  // readErrorDetail reads the body via .text(); mirror a real Response.
   return {
     ok: false,
     status,
     statusText,
-    json: () =>
-      body === undefined ? Promise.reject(new Error("not json")) : Promise.resolve(body),
+    text: () => Promise.resolve(body === undefined ? "" : JSON.stringify(body)),
   } as unknown as Response;
 }
 

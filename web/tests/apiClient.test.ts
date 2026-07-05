@@ -8,23 +8,47 @@ import {
   readErrorDetail,
 } from "~/api/client";
 
+function resp(status: number, statusText: string, bodyText: string): Response {
+  return {
+    status,
+    statusText,
+    text: () => Promise.resolve(bodyText),
+  } as unknown as Response;
+}
+
 describe("readErrorDetail", () => {
   it("returns JSON error body when present", async () => {
-    const r = {
-      status: 404,
-      statusText: "Not Found",
-      json: () => Promise.resolve({ error: "unknown chunk_id" }),
-    } as unknown as Response;
+    const r = resp(404, "Not Found", JSON.stringify({ error: "unknown chunk_id" }));
     expect(await readErrorDetail(r)).toBe("unknown chunk_id");
   });
 
-  it("falls back to status text when body is not JSON", async () => {
-    const r = {
-      status: 502,
-      statusText: "Bad Gateway",
-      json: () => Promise.reject(new Error("not json")),
-    } as unknown as Response;
+  it("returns FastAPI {detail} string", async () => {
+    const r = resp(422, "Unprocessable", JSON.stringify({ detail: "bad work id" }));
+    expect(await readErrorDetail(r)).toBe("bad work id");
+  });
+
+  it("joins FastAPI validation {detail:[{msg}]} array", async () => {
+    const r = resp(
+      422,
+      "Unprocessable",
+      JSON.stringify({ detail: [{ msg: "field required" }, { msg: "too big" }] }),
+    );
+    expect(await readErrorDetail(r)).toBe("field required; too big");
+  });
+
+  it("surfaces a short plain-text (proxy) body", async () => {
+    const r = resp(504, "Gateway Timeout", "upstream timeout");
+    expect(await readErrorDetail(r)).toBe("upstream timeout");
+  });
+
+  it("falls back to status text for an HTML error page", async () => {
+    const r = resp(502, "Bad Gateway", "<html><body>502</body></html>");
     expect(await readErrorDetail(r)).toBe("502 Bad Gateway");
+  });
+
+  it("falls back to status text for an empty body", async () => {
+    const r = resp(500, "Internal Server Error", "");
+    expect(await readErrorDetail(r)).toBe("500 Internal Server Error");
   });
 });
 
@@ -38,7 +62,7 @@ describe("apiGet", () => {
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      json: () => Promise.resolve({ error: "invalid limit" }),
+      text: () => Promise.resolve(JSON.stringify({ error: "invalid limit" })),
     } as unknown as Response);
     await expect(apiGet("/api/test")).rejects.toThrow("invalid limit");
   });
@@ -48,7 +72,7 @@ describe("apiGet", () => {
       ok: false,
       status: 404,
       statusText: "Not Found",
-      json: () => Promise.resolve({ error: "no such conversation" }),
+      text: () => Promise.resolve(JSON.stringify({ error: "no such conversation" })),
     } as unknown as Response);
     const err = await apiGet("/api/test").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
@@ -67,7 +91,7 @@ describe("apiPost", () => {
       ok: false,
       status: 500,
       statusText: "Internal Server Error",
-      json: () => Promise.reject(new Error("not json")),
+      text: () => Promise.resolve(""),
     } as unknown as Response);
     const err = await apiPost("/api/test", {}).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);

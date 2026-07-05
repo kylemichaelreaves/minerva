@@ -4,6 +4,7 @@ import { LoadingDots } from "~/components/LoadingDots";
 import type { MinervaTurn, Turn, UserTurn } from "~/utils/types";
 import { MinervaTurnView } from "~/Thread/components/MinervaTurnView";
 import { ThreadSkeleton } from "~/Thread/components/ThreadSkeleton";
+import { turnId } from "~/Thread/turnId";
 import "~/Thread/thread.css";
 import { UserTurnView } from "~/Thread/components/UserTurnView";
 
@@ -17,10 +18,6 @@ interface ThreadProps {
   pinnedChunkIds?: string[];
   onTogglePin?: (chunkId: string) => void;
   onOpenReader?: (workId: string, sourceLang: string | undefined, chunkId: string) => void;
-}
-
-function turnId(msg: Turn, index: number): string {
-  return msg.role === "user" ? `user-${index}` : `minerva-${index}`;
 }
 
 export default function Thread(props: ThreadProps) {
