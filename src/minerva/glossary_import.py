@@ -31,6 +31,7 @@ from . import locations
 from . import terms as terms_mod
 from .glossary_spec import GlossarySpec, Term, WorkApply
 from .lemmatize import is_supported
+from .text.snippet import find_occurrences, plain_window
 
 
 @dataclass(frozen=True)
@@ -356,15 +357,8 @@ def _surface_sites(text: str, forms: tuple[str, ...]) -> list[tuple[int, int, st
 
     out: list[tuple[int, int, str]] = []
     for form in forms:
-        if not form:
-            continue
-        start = 0
-        while True:
-            idx = text.find(form, start)
-            if idx == -1:
-                break
+        for idx in find_occurrences(text, form, allow_overlap=False):
             out.append((idx, idx + len(form), form))
-            start = idx + len(form)
     out.sort()
     return out
 
@@ -459,10 +453,7 @@ def _section_payload(citation_system: str, section: str) -> dict[str, Any] | Non
 def _context_snippet(text: str, start: int, end: int, *, radius: int = 40) -> str:
     """Whitespace-cleaned window around an occurrence."""
 
-    lo = max(0, start - radius)
-    hi = min(len(text), end + radius)
-    snippet = text[lo:hi]
-    return " ".join(snippet.split())
+    return plain_window(text, start, end, radius=radius)
 
 
 # ──────────────────────────────────────────────────────────────────

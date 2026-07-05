@@ -15,6 +15,7 @@ import sys
 from typing import Any
 
 from ... import locations, terms
+from ...text.snippet import find_occurrences, plain_window
 from ._io import _emit, _open
 
 
@@ -134,15 +135,10 @@ def cmd_terms_tag(args: argparse.Namespace) -> int:
     sort_key = locations.format_sort_key(citation_system, payload)
 
     # Find the match-form's nth occurrence in the chunk's text.
+    # allow_overlap=True so a curator can address any textual position,
+    # even inside a self-overlapping form (shared finder, issue #71).
     text = chunk["text"]
-    positions: list[int] = []
-    start = 0
-    while True:
-        idx = text.find(match_form, start)
-        if idx < 0:
-            break
-        positions.append(idx)
-        start = idx + 1  # allow overlapping matches; conservative
+    positions = find_occurrences(text, match_form, allow_overlap=True)
     if not positions:
         hint = (
             ""
@@ -165,15 +161,9 @@ def cmd_terms_tag(args: argparse.Namespace) -> int:
     start_offset = positions[nth - 1]
     end_offset = start_offset + len(match_form)
 
-    # Build a context snippet: ~40 chars on either side of the match.
-    pad = 40
-    ctx_start = max(0, start_offset - pad)
-    ctx_end = min(len(text), end_offset + pad)
-    snippet = text[ctx_start:ctx_end].replace("\n", " ")
-    if ctx_start > 0:
-        snippet = "…" + snippet
-    if ctx_end < len(text):
-        snippet = snippet + "…"
+    # Build a context snippet: ~40 chars on either side of the match
+    # (shared window helper, whitespace-collapsed + truncation ellipsis).
+    snippet = plain_window(text, start_offset, end_offset, radius=40, ellipsis=True)
 
     try:
         occ_id = terms.insert_occurrence(
