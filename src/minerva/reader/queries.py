@@ -180,6 +180,7 @@ def _work_editions(conn: sqlite3.Connection, work_id: int) -> list[dict[str, Any
         "SELECT cf.edition_id, cf.translation_id, cf.lang, cf.is_original, "
         "       cf.edition_year AS yr, cf.work AS work, "
         "       e.name AS edition_name, t.translator_name AS translator, "
+        "       COALESCE(t.title_local, e.title_local) AS title_local, "
         "       COUNT(*) AS n "
         "FROM chunks_full cf "
         "LEFT JOIN editions e ON e.id = cf.edition_id "
@@ -193,6 +194,7 @@ def _work_editions(conn: sqlite3.Connection, work_id: int) -> list[dict[str, Any
     for r in rows:
         lang_disp = _LANG_DISPLAY.get(r["lang"], r["lang"].upper())
         year = r["yr"]
+        local = r["title_local"]
         if r["is_original"]:
             # Tab stays concise (the language); the full recension name
             # (OCT, Teubner, "Platonis Opera, ed. Burnet"…) rides in the
@@ -200,8 +202,15 @@ def _work_editions(conn: sqlite3.Connection, work_id: int) -> list[dict[str, Any
             # extra info, so it degrades to just "Original · <lang>".
             name = r["edition_name"]
             named = bool(name) and name != r["work"]
-            short = lang_disp
+            short = local or lang_disp
             label = (name + " · " if named else "Original · ") + lang_disp
+        elif local:
+            # A translation with its own local title (canonical work
+            # "Politeia" → English "Republic"): lead with that title, the
+            # translator/lang trails in the label (#50).
+            who = r["translator"] or "Translation"
+            short = local
+            label = f"{local} · {who}"
         else:
             who = r["translator"] or "Translation"
             short = who.split()[-1] if who.split() else who

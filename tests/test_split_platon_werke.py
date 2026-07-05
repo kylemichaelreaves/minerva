@@ -1,0 +1,78 @@
+"""Core logic of the German Plato splitter (no PDF needed — the text
+helpers are exercised directly)."""
+
+from __future__ import annotations
+
+from minerva.corpus.split_platon_werke import _emit_sections, _resolve_heading
+
+
+def test_resolve_heading_known_dialogue():
+    assert _resolve_heading("EUTHYPHRON.\n(De Sancto)\n", 0) == "Euthyphron"
+    assert _resolve_heading("POLITEIA\n", 0) == "Politeia"
+    assert _resolve_heading("NOMOI\nERSTES BUCH\n", 0) == "Nomoi"
+
+
+def test_resolve_heading_alkibiades_i_then_ii():
+    assert _resolve_heading("ALKIBIADES.\n", 0) == "Alkibiades I"
+    assert _resolve_heading("ALKIBIADES.\n", 1) == "Alkibiades II"
+
+
+def test_resolve_heading_brief_ordinals():
+    assert _resolve_heading("SIEBENTER BRIEF\n", 0) == "Epistole VII"
+    assert _resolve_heading("ERSTER BRIEF\n", 0) == "Epistole I"
+    assert _resolve_heading("DREIZEHNTER BRIEF\n", 0) == "Epistole XIII"
+
+
+def test_resolve_heading_ignores_non_work_lines():
+    # book/speaker/section-divider headings must not start a work
+    assert _resolve_heading("ERSTES BUCH ÜBER DIE GESETZE\n", 0) is None
+    assert _resolve_heading("SOKRATES: und so weiter\n", 0) is None
+    assert _resolve_heading("DIE BRIEFE\n", 0) is None
+    assert _resolve_heading("gewöhnlicher Fließtext ohne Überschrift.\n", 0) is None
+
+
+def test_emit_sections_reconstructs_stephanus():
+    # [2 St.1 A] opens page 2 §a; [B]/[C] change section on the page;
+    # [3 St.1 A] moves to page 3 §a. Text before the first marker (the
+    # heading) is dropped.
+    body = (
+        "EUTHYPHRON.\n"
+        "[2 St.1 A]\nWas hat sich ereignet, o Sokrates? "
+        "[B]\nDenn du pflegst doch. "
+        "[C]\nEin Prozess, sagst du? "
+        "[3 St.1 A]\nEin ganz neuer."
+    )
+    chunks = list(
+        _emit_sections(body, work_title="Euthyphron", translator="Schleiermacher",
+                       year="1818", source_file="Platon_Werke.pdf")
+    )
+    locs = [c.section for c in chunks]
+    assert locs == ["2a", "2b", "2c", "3a"]
+    first = chunks[0]
+    assert first.work == "Euthyphron"
+    assert first.lang == "deu"
+    assert first.translator == "Schleiermacher"
+    assert first.citation_system == "stephanus"
+    assert first.title_local is None
+    assert "Was hat sich ereignet" in first.text
+    assert "EUTHYPHRON." not in first.text  # heading dropped
+    # markers are stripped from the emitted prose
+    assert "[" not in first.text
+
+
+def test_emit_sections_newline_split_marker():
+    # markers broken across a line break (the PDF's text layer does this)
+    body = "[2 \nSt.1 A]\nHallo Welt. [B]\nmehr Text."
+    chunks = list(
+        _emit_sections(body, work_title="Kriton", translator="Schleiermacher",
+                       year="1818", source_file="x.pdf")
+    )
+    assert [c.section for c in chunks] == ["2a", "2b"]
+
+
+def test_emit_sections_stable_chunk_ids():
+    body = "[5 St.1 A]\nText eins. [B]\nText zwei."
+    a = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
+    b = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
+    assert [c.chunk_id for c in a] == [c.chunk_id for c in b]
+    assert a[0].chunk_id != a[1].chunk_id

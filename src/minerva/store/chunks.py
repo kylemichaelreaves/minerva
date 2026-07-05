@@ -31,6 +31,7 @@ def _resolve_work_refs(
     translator: str | None,
     edition_year: str | None,
     citation_system_override: str | None = None,
+    title_local: str | None = None,
 ) -> tuple[int | None, int | None]:
     """Look up or create the works/editions/translations rows for one
     chunk's legacy metadata. Returns ``(edition_id, translation_id)``;
@@ -96,10 +97,14 @@ def _resolve_work_refs(
             (work_id, name, lang, year, year),
         ).fetchone()
         if edition_row is not None:
-            return int(edition_row[0]), None
+            eid = int(edition_row[0])
+            if title_local is not None:
+                conn.execute("UPDATE editions SET title_local = ? WHERE id = ?", (title_local, eid))
+            return eid, None
         cur = conn.execute(
-            "INSERT INTO editions (work_id, name, language, year, notes) VALUES (?, ?, ?, ?, ?)",
-            (work_id, name, lang, year, None),
+            "INSERT INTO editions (work_id, name, language, year, notes, title_local) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (work_id, name, lang, year, None, title_local),
         )
         return int(cur.lastrowid), None
     else:
@@ -110,12 +115,17 @@ def _resolve_work_refs(
             (work_id, translator_value, lang, year, year),
         ).fetchone()
         if trans_row is not None:
-            return None, int(trans_row[0])
+            tid = int(trans_row[0])
+            if title_local is not None:
+                conn.execute(
+                    "UPDATE translations SET title_local = ? WHERE id = ?", (title_local, tid)
+                )
+            return None, tid
         cur = conn.execute(
             "INSERT INTO translations "
-            "  (work_id, translator_name, year, language, edition_notes) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (work_id, translator_value, year, lang, None),
+            "  (work_id, translator_name, year, language, edition_notes, title_local) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (work_id, translator_value, year, lang, None, title_local),
         )
         return None, int(cur.lastrowid)
 
@@ -362,6 +372,9 @@ def insert_chunks(
                         # decided to override the corpus default (e.g. KrV
                         # = kant_ab). Otherwise None → corpus default.
                         citation_system_override=obj.get("citation_system"),
+                        # Subordinate per-edition title (Plato: English
+                        # "Republic" on canonical work "Politeia").
+                        title_local=obj.get("title_local"),
                     )
                     resolve_cache[resolve_key] = (edition_id, translation_id)
                 key = (obj["work"], obj["lang"])
