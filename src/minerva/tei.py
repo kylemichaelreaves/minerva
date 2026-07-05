@@ -26,6 +26,7 @@ from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from .authors import plato_titles
 from .transliterate import (
     betacode_to_unicode as _betacode_to_unicode,
 )
@@ -75,6 +76,13 @@ class Chunk:
     # Zusatz), "note" (footnote), or "blockquote". See
     # docs/block-structure-remediation-plan.md.
     block_type: str | None = None
+    # Subordinate per-edition/translation display title, when the
+    # canonical ``work`` title differs from what this edition calls it —
+    # e.g. canonical Plato work "Politeia" whose English translation is
+    # locally titled "Republic". Written to editions/translations
+    # .title_local by the store; NOT part of the chunk_id hash (display
+    # metadata only). See authors/plato_titles.py.
+    title_local: str | None = None
 
     def to_json_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -233,6 +241,7 @@ class _ChunkBuilder:
         source_file: str,
         translator: str | None,
         edition_year: str | None,
+        title_local: str | None = None,
     ) -> None:
         self.meta_common = {
             "corpus": corpus,
@@ -242,6 +251,9 @@ class _ChunkBuilder:
             "source_file": source_file,
             "translator": translator,
             "edition_year": edition_year,
+            # Subordinate display title (spread into every Chunk; excluded
+            # from _make_chunk_id, so it never churns ids).
+            "title_local": title_local,
         }
         # Buffered fragments paired with the speaker active at the time the
         # fragment was emitted. The speaker is captured here (not at flush
@@ -530,6 +542,18 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
             if not work_title:
                 work_title = path.stem
 
+        # Canonicalize Plato work titles to their Latinized-Greek names so
+        # the Greek original, English translation, and German translation
+        # of a dialogue resolve to ONE works row. The raw title (beta-code
+        # for grc, anglicized for eng) is kept as the subordinate
+        # title_local so each edition can still show its own title.
+        title_local: str | None = None
+        if corpus == "plato":
+            canonical = plato_titles.canonical_for(work_title)
+            if canonical is not None:
+                title_local = plato_titles.local_title(canonical, lang)
+                work_title = canonical
+
         builder = _ChunkBuilder(
             corpus=corpus,
             author=author,
@@ -538,6 +562,7 @@ def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
             source_file=path.name,
             translator=translator,
             edition_year=edition_year,
+            title_local=title_local,
         )
         builder.walk(work.body)
         yield from builder.chunks

@@ -272,5 +272,9 @@ def test_parse_grouped_works(tmp_path: Path):
 """
     path = _write_xml(tmp_path, "bundle_en.xml", xml)
     chunks = list(tei.parse_file(path, corpus="plato", author="Plato"))
+    # Plato titles are canonicalized to their Latinized-Greek names; the
+    # anglicized English title rides along as the subordinate title_local.
     works = {c.work for c in chunks}
-    assert works == {"Phaedo", "Crito"}
+    assert works == {"Phaidon", "Kriton"}
+    local = {c.work: c.title_local for c in chunks}
+    assert local == {"Phaidon": "Phaedo", "Kriton": "Crito"}
