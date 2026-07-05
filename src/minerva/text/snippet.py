@@ -1,4 +1,6 @@
-"""Whitespace-normalised text windows around a span match."""
+"""Whitespace-normalised text windows around a span match, plus the
+shared occurrence-finder used by every "find a surface form in chunk
+text" path (issue #71)."""
 
 from __future__ import annotations
 
@@ -6,6 +8,56 @@ from __future__ import annotations
 ATTACHED_TRAIL = ",.;:!?)]}»"
 # Opening punctuation that should hug the following word.
 ATTACHED_LEAD = "([{«"
+
+
+def find_occurrences(text: str, form: str, *, allow_overlap: bool = False) -> list[int]:
+    """Return the start offsets of every occurrence of ``form`` in ``text``.
+
+    ``allow_overlap`` controls the advance after a hit — this is the one
+    place that decision is made, so callers can't silently diverge:
+
+    * ``False`` (default) advances past the whole match, so a
+      self-overlapping form (e.g. ``"aa"`` in ``"aaa"``) yields distinct,
+      non-overlapping occurrences. Used by the glossary importer's
+      auto-tagging, where each occurrence should be counted once.
+    * ``True`` advances by one char, so overlapping matches are all
+      reported. Used by the manual ``terms tag`` CLI so a curator can
+      address any textual position of the form.
+    """
+
+    if not form:
+        return []
+    out: list[int] = []
+    start = 0
+    step = len(form) if not allow_overlap else 1
+    while True:
+        idx = text.find(form, start)
+        if idx == -1:
+            break
+        out.append(idx)
+        start = idx + step
+    return out
+
+
+def plain_window(
+    text: str, start: int, end: int, *, radius: int = 40, ellipsis: bool = False
+) -> str:
+    """Whitespace-collapsed text window around ``[start, end)``.
+
+    A single readable line (all whitespace runs collapse to one space)
+    for curator-facing context snippets. When ``ellipsis`` is set, prefix
+    / suffix ``…`` mark truncation at the text boundaries.
+    """
+
+    lo = max(0, start - radius)
+    hi = min(len(text), end + radius)
+    window = " ".join(text[lo:hi].split())
+    if ellipsis:
+        if lo > 0:
+            window = "…" + window
+        if hi < len(text):
+            window = window + "…"
+    return window
 
 
 def _window_bounds(

@@ -36,7 +36,9 @@ inserting. Run after a fresh MT or Quran ingest.
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import subprocess
 import sys
 import time
 from collections.abc import Iterable
@@ -44,6 +46,32 @@ from pathlib import Path
 
 from minerva import store
 from minerva.refs.schema import ensure_target, insert_cross_reference
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_DB = _REPO_ROOT / "data" / "index.sqlite"
+
+
+def _snapshot_before_mutation(db_path: Path) -> None:
+    """Snapshot the DB before writing cross_references (issue #68).
+
+    This script commits `curator_status='manual'`, `confidence=1.0` rows
+    that bypass review, so a bad `_DIRECTIONS` edit or wrong re-ingest
+    has nothing to roll back to without a snapshot. ``snapshot-db.sh``
+    only snapshots the default ``data/index.sqlite``; if a custom path
+    is passed, refuse the auto-snapshot and require a manual one so we
+    never claim to have backed up a DB we didn't."""
+
+    if db_path.resolve() != _DEFAULT_DB.resolve():
+        raise SystemExit(
+            f"refusing to mutate {db_path} without a snapshot: "
+            f"snapshot-db.sh only covers {_DEFAULT_DB}. Snapshot the "
+            f"target DB yourself, then re-run with MINERVA_SKIP_SNAPSHOT=1."
+        )
+    print("snapshotting data/index.sqlite before alignment build…", flush=True)
+    subprocess.run(
+        [str(_REPO_ROOT / "scripts" / "snapshot-db.sh"), "biblical-alignment"],
+        check=True,
+    )
 
 # (translator_author, source_author) pairs and the direction. Each
 # tuple is: source = translator (chunks doing the translating),
@@ -109,6 +137,8 @@ def _iter_aligned_pairs(
 
 
 def main(db_path: Path) -> int:
+    if os.environ.get("MINERVA_SKIP_SNAPSHOT") != "1":
+        _snapshot_before_mutation(db_path)
     conn = store.open_db(db_path)
     conn.row_factory = sqlite3.Row
 

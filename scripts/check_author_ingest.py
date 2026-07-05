@@ -18,21 +18,6 @@ RULES_DIR = REPO_ROOT / "src" / "minerva" / "refs" / "rules"
 SPECS_DIR = RULES_DIR / "specs"
 MANIFEST_PATH = REPO_ROOT / "data" / "authors" / "manifest.yaml"
 
-# Manifest corpus id → ingest/registry IngestSource.id (any match suffices).
-CORPUS_TO_INGEST: dict[str, tuple[str, ...]] = {
-    "septuagint": ("lxx",),
-    "new_testament": ("nt",),
-    "descartes": ("descartes_la", "descartes_fr"),
-    "spinoza": ("spinoza_la",),
-    "augustine": ("augustine_la",),
-    "aquinas": ("aquinas_la",),
-    "cicero": ("cicero_la", "cicero_en"),
-    "origen": ("origen_grc", "origen_eng"),
-    "hobbes": ("hobbes", "hobbes_la"),
-    "kant": ("kant", "kant_en"),
-    "marx": ("marx", "marx_ocr"),
-}
-
 
 def _load_manifest() -> dict:
     import yaml
@@ -64,13 +49,12 @@ def check_corpus(corpus_id: str, manifest: dict, ingest_ids: set[str]) -> list[s
     corpus_ids = {c["id"] for c in manifest.get("corpora") or []}
     if corpus_id not in corpus_ids:
         errors.append(f"corpus {corpus_id!r} missing from manifest corpora")
-    ingest_aliases = CORPUS_TO_INGEST.get(corpus_id, (corpus_id,))
-    if not any(alias in ingest_ids for alias in ingest_aliases):
-        errors.append(
-            f"corpus {corpus_id!r} missing from ingest/registry "
-            f"(expected one of {ingest_aliases!r})"
-        )
-    sys.path.insert(0, str(REPO_ROOT / "src"))
+    # Registry is the single source of truth for which IngestSources feed
+    # a corpus — no hand-maintained corpus→ingest map to drift (issue #70).
+    from minerva.ingest.registry import corpus_slugs_for_ingest_ids
+
+    if corpus_id not in corpus_slugs_for_ingest_ids(ingest_ids):
+        errors.append(f"corpus {corpus_id!r} has no IngestSource in ingest/registry")
     from minerva import author_ordering, corpus_registry
 
     if corpus_id not in {e.id for e in corpus_registry.CORPORA}:
@@ -94,11 +78,16 @@ def check_corpus(corpus_id: str, manifest: dict, ingest_ids: set[str]) -> list[s
     return errors
 
 
-# Biblical / classical hosts covered by scripture_cite or no outgoing rules yet.
+# Curated allowlist of corpora that intentionally ship NO per-corpus refs
+# rules module: biblical hosts covered by scripture_cite, plus text-only
+# reference targets (Homer, the Presocratics) that other authors cite but
+# which have no outgoing rules of their own. A corpus that later grows a
+# rules module must be REMOVED from here — the meta-check in main() flags
+# a stale entry so this list can't silently rot (issue #70). It used to
+# also list plato/aristotle/descartes/the tragedians, which have since
+# grown real rules modules.
 SKIP_RULES: frozenset[str] = frozenset(
     {
-        "plato",
-        "aristotle",
         "homer",
         "hebrew_mt",
         "septuagint",
@@ -110,12 +99,6 @@ SKIP_RULES: frozenset[str] = frozenset(
         "sacy",
         "quran",
         "presocratic",
-        "aeschylus",
-        "sophocles",
-        "euripides",
-        "theognis",
-        "aesop",
-        "descartes",  # scripture_cite + future locator rules
     }
 )
 
@@ -158,7 +141,17 @@ def main() -> int:
     for cid in corpus_ids:
         errs = check_corpus(cid, manifest, ingest_ids)
         if cid in SKIP_RULES:
-            errs = [e for e in errs if "refs rules" not in e]
+            # Suppress the "no refs rules" error for intentionally
+            # rule-less corpora — but flag the skip entry itself as
+            # stale if the corpus has since grown a rules module, so
+            # SKIP_RULES stays honest (issue #70).
+            if _has_rules(cid, manifest):
+                errs.append(
+                    f"corpus {cid!r} is in SKIP_RULES but now has a rules "
+                    f"module — remove it from SKIP_RULES"
+                )
+            else:
+                errs = [e for e in errs if "refs rules" not in e]
         if errs:
             failed = True
             print(f"{cid}:")

@@ -100,7 +100,14 @@ def apply(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_chunks_full_view(conn: sqlite3.Connection) -> None:
-    """Create the chunks_full convenience view. Idempotent."""
+    """Create the chunks_full convenience view. Idempotent.
+
+    FROZEN HISTORICAL DDL — do NOT add columns here. This is the
+    migration-0003-era shape (no ``block_type``); the canonical, current
+    definition lives in ``store/ddl.py`` and migration 0022 recreates the
+    view from it. A newer column (e.g. ``block_type``) belongs in
+    ``ddl.py`` + a forward migration, never in this backfill (issue #72).
+    """
 
     conn.execute("""
         CREATE VIEW IF NOT EXISTS chunks_full AS
@@ -325,6 +332,11 @@ def _apply_inner(conn: sqlite3.Connection) -> None:
         -- lowercased author name — the four-author corpus naming
         -- (plato/aristotle/hegel/kant) is conveniently the same as
         -- lowercase author.
+        --
+        -- FROZEN HISTORICAL DDL — do NOT add columns here. This is the
+        -- 0003-era shape (no `block_type`); the canonical definition is
+        -- in store/ddl.py and migration 0022 recreates the view from it.
+        -- New columns go in ddl.py + a forward migration (issue #72).
         CREATE VIEW chunks_full AS
         SELECT
             c.chunk_id,
