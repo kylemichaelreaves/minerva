@@ -103,62 +103,188 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"works": out_works}
 
 
+# Human-readable source-language names for edition labels. Superset of
+# translate.prompts.LANG_NAME (which is target-only): the reader also
+# surfaces Greek/Latin/Hebrew/Arabic originals.
+_LANG_DISPLAY = {
+    "grc": "Greek",
+    "lat": "Latin",
+    "heb": "Hebrew",
+    "ara": "Arabic",
+    "eng": "English",
+    "deu": "German",
+    "fra": "French",
+}
+
+
+def _edition_selector(edition_id: int | None, translation_id: int | None) -> str:
+    """Opaque per-edition key the reader echoes back to scope the range.
+
+    Exactly one of ``edition_id`` / ``translation_id`` is set on every
+    chunk (CHECK constraint), so ``e<id>`` / ``t<id>`` uniquely names the
+    edition a chunk belongs to — the unit the reader pages over (#50)."""
+    if edition_id is not None:
+        return f"e{edition_id}"
+    if translation_id is not None:
+        return f"t{translation_id}"
+    raise NotFoundError("chunk belongs to neither an edition nor a translation")
+
+
+def _parse_edition_selector(sel: str) -> tuple[int | None, int | None]:
+    """``"e123"`` → ``(123, None)``; ``"t456"`` → ``(None, 456)``."""
+    if len(sel) >= 2 and sel[1:].isdigit():
+        n = int(sel[1:])
+        if sel[0] == "e":
+            return n, None
+        if sel[0] == "t":
+            return None, n
+    raise BadRequestError(f"invalid edition selector {sel!r}")
+
+
+def _default_edition(
+    conn: sqlite3.Connection, work_id: int, lang: str
+) -> tuple[int | None, int | None]:
+    """Pick the default (edition_id, translation_id) for a work in one
+    language when the caller didn't name one (legacy bookmarks).
+
+    Decision (#50): the most-recent TRANSLATION in the requested language;
+    failing that, the canonical original-language edition (then newest,
+    then lowest id). Deterministic — never the old behavior of paging
+    across every same-(work, lang) chunk concatenated together."""
+
+    rows = conn.execute(
+        "SELECT cf.edition_id, cf.translation_id, cf.edition_year AS yr, "
+        "       COALESCE(e.is_canonical, 0) AS canon "
+        "FROM chunks_full cf "
+        "LEFT JOIN editions e ON e.id = cf.edition_id "
+        "WHERE cf.work_id = ? AND cf.lang = ? "
+        "GROUP BY cf.edition_id, cf.translation_id",
+        (work_id, lang),
+    ).fetchall()
+    if not rows:
+        raise NotFoundError("no chunks for that (work, lang)")
+    translations = [r for r in rows if r["translation_id"] is not None]
+    if translations:
+        best = max(translations, key=lambda r: ((r["yr"] or 0), -(r["translation_id"])))
+        return None, best["translation_id"]
+    best = max(rows, key=lambda r: (r["canon"], (r["yr"] or 0), -(r["edition_id"] or 0)))
+    return best["edition_id"], best["translation_id"]
+
+
+def _work_editions(conn: sqlite3.Connection, work_id: int) -> list[dict[str, Any]]:
+    """Every edition + translation of ``work_id`` that has chunks — the
+    data the reader's segmented edition bar renders (#50). Ordered
+    original(s) first, then by language and year."""
+
+    rows = conn.execute(
+        "SELECT cf.edition_id, cf.translation_id, cf.lang, cf.is_original, "
+        "       cf.edition_year AS yr, cf.work AS work, "
+        "       e.name AS edition_name, t.translator_name AS translator, "
+        "       COUNT(*) AS n "
+        "FROM chunks_full cf "
+        "LEFT JOIN editions e ON e.id = cf.edition_id "
+        "LEFT JOIN translations t ON t.id = cf.translation_id "
+        "WHERE cf.work_id = ? "
+        "GROUP BY cf.edition_id, cf.translation_id "
+        "ORDER BY cf.is_original DESC, cf.lang, cf.edition_year, cf.edition_id",
+        (work_id,),
+    ).fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        lang_disp = _LANG_DISPLAY.get(r["lang"], r["lang"].upper())
+        year = r["yr"]
+        if r["is_original"]:
+            # Tab stays concise (the language); the full recension name
+            # (OCT, Teubner, "Platonis Opera, ed. Burnet"…) rides in the
+            # label. An edition named after the work title carries no
+            # extra info, so it degrades to just "Original · <lang>".
+            name = r["edition_name"]
+            named = bool(name) and name != r["work"]
+            short = lang_disp
+            label = (name + " · " if named else "Original · ") + lang_disp
+        else:
+            who = r["translator"] or "Translation"
+            short = who.split()[-1] if who.split() else who
+            label = who
+        if year:
+            label = f"{label} · {year}"
+        out.append(
+            {
+                "selector": _edition_selector(r["edition_id"], r["translation_id"]),
+                "lang": r["lang"],
+                "is_original": bool(r["is_original"]),
+                "translator": r["translator"] or r["edition_name"],
+                "year": year,
+                "label": label,
+                "short": short,
+                "n_chunks": r["n"],
+            }
+        )
+    return out
+
+
 def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) -> dict[str, Any]:
-    """Return a contiguous range of chunks for one work, ordered by
-    `ord`. Used by the reader to render a passage in its source
-    language with line numbers / section locators preserved.
+    """Return a contiguous range of chunks for ONE edition of a work,
+    ordered by ``ord``. Used by the reader to render a passage with line
+    numbers / section locators preserved, plus the list of sibling
+    editions so it can offer a switcher (#50).
 
     ``work_id`` (the path segment) is the work TITLE string — the SPA
-    hash routes pre-date the works table. The optional ``author``
-    query param disambiguates same-titled works (Luther 1912 vs 1545).
+    hash routes pre-date the works table.
 
-    When `around=<chunk_id>` is set, the server resolves the chunk's
-    work + position and centers a `limit`-wide window on it. Other
-    params (lang, from, author) are ignored in that mode so the client
-    doesn't have to know the chunk's offset to deep-link from a
-    citation.
+    The range is scoped to a single edition, never ``(work_id, lang)``:
+    two translations of one work share that key and used to page across
+    the concatenation, silently walking from one translator into another.
+    Edition resolution, in precedence order:
+
+    * ``edition=<selector>`` (``e<id>`` / ``t<id>``) — an explicit pick
+      from the switcher.
+    * ``around=<chunk_id>`` — deep-link from a citation; the chunk's own
+      edition is used and the window centers on it.
+    * otherwise the default edition for ``(title, lang[, author])`` via
+      :func:`_default_edition`.
+
+    ``at_section=<locator>`` centers the window on the first chunk with
+    that section in the resolved edition (falling back to the top) —
+    used to preserve reading position across an edition switch. The
+    optional ``author`` param disambiguates same-titled works.
     """
 
     around = query.get("around")
+    edition_sel = query.get("edition")
+    at_section = query.get("at_section")
     limit = parse_limit_only(query)
 
-    # Everything below keys on the integer ``works.id``, never on the
-    # title string alone: same-titled works exist (Luther 1912 and
-    # 1545 share every book title AND lang), and a title-keyed range
-    # paged across the concatenation of both editions — walking from
-    # one translation into the other past its last chunk.
     if around:
         focus_row = conn.execute(
-            "SELECT work_id, lang, ord FROM chunks_full WHERE chunk_id=?",
+            "SELECT work_id, lang, ord, edition_id, translation_id "
+            "FROM chunks_full WHERE chunk_id=?",
             (around,),
         ).fetchone()
         if focus_row is None:
-            raise NotFoundError( "unknown chunk_id")
+            raise NotFoundError("unknown chunk_id")
         resolved_work_id = focus_row["work_id"]
         lang = focus_row["lang"]
-        # Position of the focus chunk WITHIN its work, counted rather
-        # than read off ``ord``: historical inserts numbered ``ord``
-        # across a same-titled group, so the second edition's ords
-        # don't start at 0.
+        edition_id, translation_id = focus_row["edition_id"], focus_row["translation_id"]
         pos = conn.execute(
             "SELECT COUNT(*) FROM chunks_full "
-            "WHERE work_id=? AND lang=? AND ord<?",
-            (resolved_work_id, lang, focus_row["ord"]),
+            "WHERE edition_id IS ? AND translation_id IS ? AND ord < ?",
+            (edition_id, translation_id, focus_row["ord"]),
         ).fetchone()[0]
         offset = max(0, pos - limit // 2)
+    elif edition_sel is not None:
+        edition_id, translation_id = _parse_edition_selector(edition_sel)
+        head = conn.execute(
+            "SELECT work_id, lang FROM chunks_full "
+            "WHERE edition_id IS ? AND translation_id IS ? LIMIT 1",
+            (edition_id, translation_id),
+        ).fetchone()
+        if head is None:
+            raise NotFoundError("unknown edition selector")
+        resolved_work_id, lang = head["work_id"], head["lang"]
+        offset = _resolve_offset(conn, edition_id, translation_id, at_section, query, limit)
     else:
         lang = query.get("lang", "grc")
-        try:
-            offset = int(query.get("from", "0"))
-        except ValueError:
-            raise BadRequestError( "invalid 'from' query param") from None
-        if offset < 0:
-            raise BadRequestError( "'from' must be >= 0")
-        # Resolve (title, lang[, author]) → one works.id. The optional
-        # ``author`` param disambiguates same-titled works; legacy
-        # bookmarks without it get the lowest work id deterministically
-        # (one consistent edition) instead of the old GROUP BY picking
-        # arbitrary metadata over a mixed row set.
         author = query.get("author")
         sql = "SELECT DISTINCT work_id FROM chunks_full WHERE work=? AND lang=?"
         params: list[Any] = [work_id, lang]
@@ -167,21 +293,24 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
             params.append(author)
         id_rows = conn.execute(sql + " ORDER BY work_id", params).fetchall()
         if not id_rows:
-            raise NotFoundError( "no chunks for that (work, lang)")
+            raise NotFoundError("no chunks for that (work, lang)")
         resolved_work_id = id_rows[0][0]
+        edition_id, translation_id = _default_edition(conn, resolved_work_id, lang)
+        offset = _resolve_offset(conn, edition_id, translation_id, at_section, query, limit)
+
     meta_row = conn.execute(
         "SELECT work_id, corpus, author, work, lang, COUNT(*) AS n "
-        "FROM chunks_full WHERE work_id=? AND lang=? "
+        "FROM chunks_full WHERE edition_id IS ? AND translation_id IS ? "
         "GROUP BY work_id, corpus, author, work, lang",
-        (resolved_work_id, lang),
+        (edition_id, translation_id),
     ).fetchone()
     if meta_row is None:
-        raise NotFoundError( "no chunks for that (work, lang)")
+        raise NotFoundError("no chunks for that edition")
     rows = conn.execute(
         "SELECT chunk_id, section, book, page, speaker, text, ord, block_type "
-        "FROM chunks_full WHERE work_id=? AND lang=? "
+        "FROM chunks_full WHERE edition_id IS ? AND translation_id IS ? "
         "ORDER BY ord LIMIT ? OFFSET ?",
-        (resolved_work_id, lang, limit, offset),
+        (edition_id, translation_id, limit, offset),
     ).fetchall()
     lang_out = meta_row["lang"]
     dt, ds = trilingual_display(
@@ -190,39 +319,79 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
         display_title(meta_row["work"], lang_out),
     )
     return {
-    # `work_id` is the integer surrogate from the `works` table.
-    # The reader needs it to call work-id-keyed endpoints like
-    # /api/works/<work_id>/occurrence_map without an extra round
-    # trip through the works listing.
-    "work_id": meta_row["work_id"],
-    "corpus": meta_row["corpus"],
-    "author": meta_row["author"],
-    "work": meta_row["work"],
-    "display_title": dt,
-    "display_subtitle": ds,
-    "lang": lang_out,
-    "total": meta_row["n"],
-    "offset": offset,
-    "limit": limit,
-    "chunks": [
-        {
-            "chunk_id": r["chunk_id"],
-            "section": r["section"],
-            "book": r["book"],
-            "page": r["page"],
-            "speaker": r["speaker"],
-            # Perseus-sourced Greek chunks are stored in beta-code
-            # (see README "Bilingual storage"); transliterate on
-            # the way out so the Reader renders polytonic Unicode.
-            # First1KGreek chunks lack the marker glyphs and pass
-            # through unchanged.
-            "text": display_text(r["text"], lang_out),
-            "ord": r["ord"],
-            "block_type": r["block_type"],
-        }
-        for r in rows
-    ],
+        # `work_id` is the integer surrogate from the `works` table.
+        # The reader needs it to call work-id-keyed endpoints like
+        # /api/works/<work_id>/occurrence_map without an extra round
+        # trip through the works listing.
+        "work_id": meta_row["work_id"],
+        "corpus": meta_row["corpus"],
+        "author": meta_row["author"],
+        "work": meta_row["work"],
+        "display_title": dt,
+        "display_subtitle": ds,
+        "lang": lang_out,
+        "total": meta_row["n"],
+        "offset": offset,
+        "limit": limit,
+        # The edition currently rendered + every edition of this work,
+        # so the reader can draw the switcher without a second round trip.
+        "edition": _edition_selector(edition_id, translation_id),
+        "editions": _work_editions(conn, resolved_work_id),
+        "chunks": [
+            {
+                "chunk_id": r["chunk_id"],
+                "section": r["section"],
+                "book": r["book"],
+                "page": r["page"],
+                "speaker": r["speaker"],
+                # Perseus-sourced Greek chunks are stored in beta-code
+                # (see README "Bilingual storage"); transliterate on
+                # the way out so the Reader renders polytonic Unicode.
+                # First1KGreek chunks lack the marker glyphs and pass
+                # through unchanged.
+                "text": display_text(r["text"], lang_out),
+                "ord": r["ord"],
+                "block_type": r["block_type"],
+            }
+            for r in rows
+        ],
     }
+
+
+def _resolve_offset(
+    conn: sqlite3.Connection,
+    edition_id: int | None,
+    translation_id: int | None,
+    at_section: str | None,
+    query: dict[str, str],
+    limit: int,
+) -> int:
+    """Offset into an edition's ord-ordered chunks. ``at_section`` centers
+    the window on the first chunk carrying that locator (preserving place
+    across an edition switch, #50); otherwise the ``from`` param, default
+    0. A locator absent from the target edition falls back to the top."""
+
+    if at_section:
+        row = conn.execute(
+            "SELECT MIN(ord) AS o FROM chunks_full "
+            "WHERE edition_id IS ? AND translation_id IS ? AND section = ?",
+            (edition_id, translation_id, at_section),
+        ).fetchone()
+        if row is not None and row["o"] is not None:
+            pos = conn.execute(
+                "SELECT COUNT(*) FROM chunks_full "
+                "WHERE edition_id IS ? AND translation_id IS ? AND ord < ?",
+                (edition_id, translation_id, row["o"]),
+            ).fetchone()[0]
+            return max(0, pos - limit // 2)
+        return 0
+    try:
+        offset = int(query.get("from", "0"))
+    except ValueError:
+        raise BadRequestError("invalid 'from' query param") from None
+    if offset < 0:
+        raise BadRequestError("'from' must be >= 0")
+    return offset
 
 
 def _parse_morph_feats(feats: str | None) -> dict[str, str]:

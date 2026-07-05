@@ -17,6 +17,7 @@ export type {
 
 export type {
   ChunkContextResponse,
+  EditionOption,
   LemmaHighlightSpan,
   LemmaHighlights,
   OccurrenceMap,
