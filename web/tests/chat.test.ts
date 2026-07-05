@@ -16,12 +16,13 @@ import {
 let fetchMock: MockedFunction<typeof fetch>;
 
 function errorResponse(status: number, statusText: string, body?: unknown): Response {
+  // readErrorDetail reads the body via .text() (so non-JSON proxy bodies
+  // aren't lost); mirror a real Response by serialising the body to text.
   return {
     ok: false,
     status,
     statusText,
-    json: () =>
-      body === undefined ? Promise.reject(new Error("not json")) : Promise.resolve(body),
+    text: () => Promise.resolve(body === undefined ? "" : JSON.stringify(body)),
   } as unknown as Response;
 }
 
@@ -680,7 +681,10 @@ describe("translate()", () => {
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      json: () => Promise.resolve({ error: 'target_lang must be one of ["de", "en", "fr"]' }),
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({ error: 'target_lang must be one of ["de", "en", "fr"]' }),
+        ),
     } as unknown as Response);
     await expect(translate("x", "eng")).rejects.toThrow(/target_lang must be one of/);
   });
@@ -690,7 +694,7 @@ describe("translate()", () => {
       ok: false,
       status: 500,
       statusText: "Internal Server Error",
-      json: () => Promise.reject(new Error("not json")),
+      text: () => Promise.resolve("<html>error</html>"),
     } as unknown as Response);
     await expect(translate("x", "eng")).rejects.toThrow(/500 Internal Server Error/);
   });

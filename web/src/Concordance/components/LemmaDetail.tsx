@@ -395,9 +395,17 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
   );
 
   createEffect(() => {
-    morph();
-    args.surface();
+    // Reset the KWIC cursor whenever the underlying query changes. This
+    // must track EVERY input the `data` resource reads above — omitting
+    // lemma / lang / scope-authors / scope-works left the cursor on a
+    // stale (possibly out-of-range) row after those changed (issue #66).
+    args.lemma();
+    args.lang();
     args.scope();
+    args.scopeAuthors();
+    args.scopeWorks();
+    args.surface();
+    morph();
     setCursor(0);
   });
 

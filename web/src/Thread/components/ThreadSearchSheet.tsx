@@ -1,6 +1,7 @@
-import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, type JSX } from "solid-js";
 import type { Turn } from "~/utils/types";
 import { MobileSheet } from "~/components/MobileSheet";
+import { turnId } from "~/Thread/turnId";
 
 function turnText(msg: Turn): string {
   if (msg.role === "user") return msg.text;
@@ -11,10 +12,6 @@ function turnText(msg: Turn): string {
   return msg.paragraphs.join("\n\n");
 }
 
-function turnId(msg: Turn, index: number): string {
-  return msg.role === "user" ? `user-${index}` : `minerva-${index}`;
-}
-
 export function ThreadSearchSheet(props: {
   open: boolean;
   messages: Turn[];
@@ -22,17 +19,32 @@ export function ThreadSearchSheet(props: {
 }) {
   const [query, setQuery] = createSignal("");
 
+  // Reset the query when the sheet closes so a stale search + its old
+  // result list don't flash on the next open (issue #66).
+  createEffect(() => {
+    if (!props.open) setQuery("");
+  });
+
+  const PREVIEW_LEN = 160;
+  const PREVIEW_LEAD = 30;
+
   const matches = createMemo(() => {
     const q = query().trim().toLowerCase();
     if (!q) return [];
     const out: { index: number; id: string; preview: string; role: string }[] = [];
     props.messages.forEach((msg, index) => {
       const text = turnText(msg);
-      if (text.toLowerCase().includes(q)) {
+      const hit = text.toLowerCase().indexOf(q);
+      if (hit >= 0) {
+        // Window the preview around the match. Slicing a flat [0, 160]
+        // would drop matches past char 160 entirely, so highlight()
+        // found nothing to mark (issue #66).
+        const start = Math.max(0, hit - PREVIEW_LEAD);
+        const window = text.slice(start, start + PREVIEW_LEN);
         out.push({
           index,
           id: turnId(msg, index),
-          preview: text,
+          preview: (start > 0 ? "…" : "") + window,
           role: msg.role,
         });
       }
@@ -81,7 +93,7 @@ export function ThreadSearchSheet(props: {
             <li>
               <button type="button" class="thread-search-hit" onClick={() => scrollTo(m.id)}>
                 <span class="thread-search-role">{m.role === "user" ? "You" : "Minerva"}</span>
-                <span class="thread-search-preview">{highlight(m.preview.slice(0, 160))}</span>
+                <span class="thread-search-preview">{highlight(m.preview)}</span>
               </button>
             </li>
           )}
