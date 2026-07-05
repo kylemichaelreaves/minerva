@@ -9,7 +9,7 @@ both German originals and English Cambridge editions.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import default_scripture_rules
 
 RULES = (
@@ -39,13 +39,7 @@ RULES = (
         name="kant_aristotle",
         target_author="Aristotle",
         target_work="",
-        forms=(
-            "Aristotle",
-            "Aristoteles",
-            "Aristotelian",
-            "Aristotelische",
-            "Aristotelischen",
-        ),
+        forms=_figures.ARISTOTLE_DEU_ENG,
         confidence=0.6,
         langs=("deu", "eng"),
         note=(
@@ -98,7 +92,7 @@ RULES = (
         name="kant_spinoza",
         target_author="Spinoza",
         target_work="",
-        forms=("Spinoza", "Spinozas", "Spinozism", "Spinozismus"),
+        forms=_figures.SPINOZA_DEU_ENG,
         confidence=0.6,
         langs=("deu", "eng"),
         note=(
@@ -133,13 +127,7 @@ RULES = (
         name="kant_rousseau",
         target_author="Rousseau",
         target_work="",
-        forms=(
-            "Rousseau",
-            "Rousseaus",
-            "Rousseausche",
-            "Rousseauschen",
-            "rousseauisch",
-        ),
+        forms=_figures.ROUSSEAU_DEU_ENG,
         confidence=0.92,
         langs=("deu", "eng"),
         note=(
@@ -156,7 +144,7 @@ RULES = (
         name="kant_hobbes",
         target_author="Hobbes",
         target_work="",
-        forms=("Hobbes", "Hobbes'", "Hobbesisch", "Hobbesische", "Hobbesischen"),
+        forms=_figures.HOBBES_DEU_ENG,
         confidence=0.75,
         langs=("deu", "eng"),
         note=(
@@ -171,7 +159,7 @@ RULES = (
         name="kant_locke",
         target_author="Locke",
         target_work="",
-        forms=("Locke", "Lockes", "Lockesche", "Lockeschen", "lockesch"),
+        forms=_figures.LOCKE_DEU_ENG,
         confidence=0.85,
         langs=("deu", "eng"),
         note=(

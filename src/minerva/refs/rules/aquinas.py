@@ -28,7 +28,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from . import AuthorMentionRule, Candidate, ChunkInfo, StrongMentionRule
+from . import AuthorMentionRule, Candidate, ChunkInfo, StrongMentionRule, _figures
 from .scripture_cite import FormulaicQuoteRule, ScriptureCiteRule
 
 # ──────────────────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ RULES = (
         name="aquinas_cicero",
         target_author="Cicero",
         target_work="",
-        forms=("Cicero", "Ciceronis", "Ciceronem", "Cicerone", "Tullius", "Tullii"),
+        forms=_figures.CICERO_LAT,
         confidence=0.55,
         langs=("lat",),
         note="Includes the 'Tullius' surface form Aquinas occasionally uses.",
@@ -288,7 +288,7 @@ RULES = (
         name="aquinas_porphyrius",
         target_author="Porphyry",
         target_work="",
-        forms=("Porphyrius", "Porphyrii", "Porphyrium", "Porphyrio"),
+        forms=_figures.PORPHYRY_LAT,
         confidence=0.55,
         langs=("lat",),
     ),

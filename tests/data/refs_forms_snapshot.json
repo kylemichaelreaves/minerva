@@ -1,0 +1,5188 @@
+[
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ὁμήρου",
+   "Ὁμήρῳ",
+   "Ὅμηρον",
+   "Ὅμηρος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aeschylus",
+  "name": "aeschylus_homer_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Homer",
+   "Homer's",
+   "Homeric"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aeschylus",
+  "name": "aeschylus_homer_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ἡσίοδον",
+   "Ἡσίοδος",
+   "Ἡσιόδου",
+   "Ἡσιόδῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aeschylus",
+  "name": "aeschylus_hesiod_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Hesiod",
+   "Hesiod's"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aeschylus",
+  "name": "aeschylus_hesiod_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.95,
+  "forms": [
+   "Philosophi",
+   "Philosopho",
+   "Philosophum",
+   "Philosophus"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_philosophus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Commentator",
+   "Commentatorem",
+   "Commentatori",
+   "Commentatoris"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_commentator",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Averroes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Aristotele",
+   "Aristotelem",
+   "Aristoteles",
+   "Aristoteli",
+   "Aristotelis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_aristoteles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Plato",
+   "Platone",
+   "Platonem",
+   "Platoni",
+   "Platonis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Augustini",
+   "Augustino",
+   "Augustinum",
+   "Augustinus"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_augustinus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Augustine"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Dionysii",
+   "Dionysio",
+   "Dionysium",
+   "Dionysius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_dionysius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pseudo-Dionysius"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Boethii",
+   "Boethio",
+   "Boethium",
+   "Boethius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_boethius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Boethius"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Avicenna",
+   "Avicennae",
+   "Avicennam"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_avicenna",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Avicenna"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Averroem",
+   "Averroes",
+   "Averrois"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_averroes_byname",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Averroes"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Cicero",
+   "Cicerone",
+   "Ciceronem",
+   "Ciceronis",
+   "Tullii",
+   "Tullius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_cicero",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Porphyrii",
+   "Porphyrio",
+   "Porphyrium",
+   "Porphyrius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_porphyrius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Porphyry"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Origenem",
+   "Origenes",
+   "Origeni",
+   "Origenis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "aquinas",
+  "name": "aquinas_origen",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Ὁμήρου",
+   "Ὁμήρῳ",
+   "Ὅμηρον",
+   "Ὅμηρος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_homer_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Homer",
+   "Homer's",
+   "Homeric"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_homer_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Πλάτων",
+   "Πλάτωνα",
+   "Πλάτωνι",
+   "Πλάτωνος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_plato_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Plato",
+   "Plato's",
+   "Platonic",
+   "Platonist",
+   "Platonists"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_plato_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Ἡσίοδον",
+   "Ἡσίοδος",
+   "Ἡσιόδου",
+   "Ἡσιόδῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_hesiod_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Hesiod",
+   "Hesiod's"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_hesiod_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ἡράκλειτον",
+   "Ἡράκλειτος",
+   "Ἡρακλείτου",
+   "Ἡρακλείτῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_heraclitus_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Heraclitean",
+   "Heraclitus"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_heraclitus_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Παρμενίδην",
+   "Παρμενίδης",
+   "Παρμενίδου",
+   "Παρμενίδῃ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_parmenides_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Parmenides"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Parmenidean",
+   "Parmenides"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_parmenides_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Parmenides"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ἐμπεδοκλέα",
+   "Ἐμπεδοκλέους",
+   "Ἐμπεδοκλεῖ",
+   "Ἐμπεδοκλῆς"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_empedocles_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Empedocles"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Empedocles"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_empedocles_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Empedocles"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ἀναξαγόραν",
+   "Ἀναξαγόρας",
+   "Ἀναξαγόρου",
+   "Ἀναξαγόρᾳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_anaxagoras_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Anaxagoras"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_anaxagoras_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Πυθαγόραν",
+   "Πυθαγόρας",
+   "Πυθαγόρειοι",
+   "Πυθαγόρειος",
+   "Πυθαγόρου",
+   "Πυθαγόρᾳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_pythagoras_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pythagoras"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Pythagoras",
+   "Pythagorean",
+   "Pythagoreans"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_pythagoras_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pythagoras"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Δημοκρίτου",
+   "Δημοκρίτῳ",
+   "Δημόκριτον",
+   "Δημόκριτος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_democritus_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Democritean",
+   "Democritus"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_democritus_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Αἰσχύλον",
+   "Αἰσχύλος",
+   "Αἰσχύλου",
+   "Αἰσχύλῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_aeschylus_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Aeschylean",
+   "Aeschylus"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_aeschylus_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Σοφοκλέα",
+   "Σοφοκλέους",
+   "Σοφοκλεῖ",
+   "Σοφοκλῆς"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_sophocles_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Sophoclean",
+   "Sophocles"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_sophocles_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Εὐριπίδην",
+   "Εὐριπίδης",
+   "Εὐριπίδου",
+   "Εὐριπίδῃ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_euripides_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Euripidean",
+   "Euripides"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_euripides_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Θέογνιν",
+   "Θέογνις",
+   "Θεόγνιδι",
+   "Θεόγνιδος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_theognis",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Theognis"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Theognidean",
+   "Theognis"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_theognis_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Theognis"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Αἰσώπου",
+   "Αἰσώπῳ",
+   "Αἴσωπον",
+   "Αἴσωπος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_aesop",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aesop"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Aesop",
+   "Aesopic"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "aristotle",
+  "name": "aristotle_aesop_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aesop"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Cicero",
+   "Cicerone",
+   "Ciceronem",
+   "Ciceronis",
+   "Tullii",
+   "Tullius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_cicero",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Plato",
+   "Platone",
+   "Platonem",
+   "Platoni",
+   "Platonis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Platonici",
+   "Platonicis",
+   "Platonicorum",
+   "Platonicos"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_platonici",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Plotini",
+   "Plotino",
+   "Plotinum",
+   "Plotinus"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_plotinus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plotinus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Porphyrii",
+   "Porphyrio",
+   "Porphyrium",
+   "Porphyrius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_porphyrius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Porphyry"
+ },
+ {
+  "confidence": 0.5,
+  "forms": [
+   "Maro",
+   "Maronis",
+   "Virgilii",
+   "Virgilius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_vergil",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Vergil"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Ambrosii",
+   "Ambrosio",
+   "Ambrosium",
+   "Ambrosius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_ambrosius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Ambrose"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Aristotele",
+   "Aristotelem",
+   "Aristoteles",
+   "Aristotelis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_aristoteles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.5,
+  "forms": [
+   "Manichaei",
+   "Manichaeis",
+   "Manichaeorum",
+   "Manichaeus"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "augustine",
+  "name": "augustine_manichaei",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Manichaeus"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Aeschyli",
+   "Aeschylo",
+   "Aeschylum",
+   "Aeschylus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "augustine",
+  "name": "augustine_aeschylus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Sophocle",
+   "Sophoclem",
+   "Sophocles",
+   "Sophoclis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "augustine",
+  "name": "augustine_sophocles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Euripide",
+   "Euripidem",
+   "Euripides",
+   "Euripidis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "augustine",
+  "name": "augustine_euripides",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Origenem",
+   "Origenes",
+   "Origeni",
+   "Origenian",
+   "Origenis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "augustine",
+  "name": "augustine_origen",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Origen",
+   "Origenistic"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "augustine",
+  "name": "augustine_origen_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Celsi",
+   "Celso",
+   "Celsum",
+   "Celsus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "augustine",
+  "name": "augustine_celsus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Celsus"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Plato",
+   "Platone",
+   "Platonem",
+   "Platonic",
+   "Platonici",
+   "Platonicus",
+   "Platonis",
+   "Platonist",
+   "Platonists"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_plato",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Aristotele",
+   "Aristotelem",
+   "Aristoteles",
+   "Aristotelian",
+   "Aristotelis",
+   "Aristotle",
+   "Peripatetic",
+   "Peripatetics"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_aristotle",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Socrate",
+   "Socratem",
+   "Socrates",
+   "Socratic",
+   "Socratis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_socrates",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Socrates"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Carneadem",
+   "Carneades",
+   "Carneadis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_carneades",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Carneades"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Panaeti",
+   "Panaetium",
+   "Panaetius"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_panaetius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Panaetius"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Epicurean",
+   "Epicureans",
+   "Epicuri",
+   "Epicuro",
+   "Epicurum",
+   "Epicurus",
+   "Epicurus's"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_epicurus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Epicurus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Democritean",
+   "Democriti",
+   "Democrito",
+   "Democritum",
+   "Democritus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_democritus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Zeno",
+   "Zenonem",
+   "Zenonis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_zeno",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Zeno"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Chrysippi",
+   "Chrysippum",
+   "Chrysippus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_chrysippus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Chrysippus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Pythagorae",
+   "Pythagoram",
+   "Pythagoras",
+   "Pythagorean",
+   "Pythagoreans"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_pythagoras",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pythagoras"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Aeschyli",
+   "Aeschylo",
+   "Aeschylum",
+   "Aeschylus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_aeschylus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Sophocle",
+   "Sophoclem",
+   "Sophocles",
+   "Sophoclis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_sophocles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Euripide",
+   "Euripidem",
+   "Euripides",
+   "Euripidis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "cicero",
+  "name": "cicero_euripides",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Aristote",
+   "Aristotelem",
+   "Aristoteles",
+   "aristotélicien",
+   "péripatéticien",
+   "péripatéticiens"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_aristote",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Plato",
+   "Platon",
+   "Platonem",
+   "platonicien",
+   "platoniciens"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_platon",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Socrate",
+   "Socratem",
+   "Socrates"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_socrate",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Augustin",
+   "Augustini",
+   "Augustinus",
+   "S. Augustin",
+   "saint Augustin"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_augustin",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Augustine"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "S. Thomas",
+   "divus Thomas",
+   "saint Thomas",
+   "sanctus Thomas"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_saint_thomas",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Aquinas"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Archimede",
+   "Archimedes",
+   "Archimède"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_archimede",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Archimedes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Epicure",
+   "Epicurus",
+   "Épicure",
+   "épicurien",
+   "épicuriens"
+  ],
+  "langs": [
+   "fra",
+   "lat"
+  ],
+  "module": "descartes",
+  "name": "descartes_epicure",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Epicurus"
+ },
+ {
+  "confidence": 0.93,
+  "forms": [
+   "Socrates",
+   "Socratic",
+   "Σωκράτει",
+   "Σωκράτη",
+   "Σωκράτης",
+   "Σωκράτους"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "epictetus",
+  "name": "epictetus_socrates",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Socrates"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Diogenes",
+   "Διογένην",
+   "Διογένης",
+   "Διογένους"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "epictetus",
+  "name": "epictetus_diogenes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Diogenes"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Chrysippus",
+   "Χρυσίππου",
+   "Χρύσιππον",
+   "Χρύσιππος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "epictetus",
+  "name": "epictetus_chrysippus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Chrysippus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Zeno",
+   "Ζήνων",
+   "Ζήνωνα",
+   "Ζήνωνος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "epictetus",
+  "name": "epictetus_zeno",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Zeno"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Plato",
+   "Πλάτων",
+   "Πλάτωνα",
+   "Πλάτωνος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "epictetus",
+  "name": "epictetus_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ὁμήρου",
+   "Ὁμήρῳ",
+   "Ὅμηρον",
+   "Ὅμηρος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "euripides",
+  "name": "euripides_homer_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Homer",
+   "Homer's",
+   "Homeric"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "euripides",
+  "name": "euripides_homer_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Ἡσίοδον",
+   "Ἡσίοδος",
+   "Ἡσιόδου",
+   "Ἡσιόδῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "euripides",
+  "name": "euripides_hesiod_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Hesiod",
+   "Hesiod's"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "euripides",
+  "name": "euripides_hesiod_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Ἀναξαγόραν",
+   "Ἀναξαγόρας",
+   "Ἀναξαγόρου",
+   "Ἀναξαγόρᾳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "euripides",
+  "name": "euripides_anaxagoras_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Anaxagoras"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "euripides",
+  "name": "euripides_anaxagoras_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Πρωταγόραν",
+   "Πρωταγόρας",
+   "Πρωταγόρου",
+   "Πρωταγόρᾳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "euripides",
+  "name": "euripides_protagoras_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Protagoras"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Protagoras"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "euripides",
+  "name": "euripides_protagoras_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Protagoras"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Αἰσχύλον",
+   "Αἰσχύλος",
+   "Αἰσχύλου",
+   "Αἰσχύλῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "euripides",
+  "name": "euripides_aeschylus_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Aeschylean",
+   "Aeschylus"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "euripides",
+  "name": "euripides_aeschylus_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Kant",
+   "Kantian",
+   "Kantianism",
+   "Kantische",
+   "Kantischen",
+   "kantisch"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_kant",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Kant"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Critique of Pure Reason",
+   "Kritik der reinen Vernunft",
+   "Vernunftkritik"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_kritik_der_reinen_vernunft",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Kant"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Plato",
+   "Platon",
+   "Platonic",
+   "Platonische",
+   "Platonischen",
+   "Platons"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Aristoteles",
+   "Aristotelian",
+   "Aristotelische",
+   "Aristotelischen",
+   "Aristotle"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_aristotle",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Spinoza",
+   "Spinozas",
+   "Spinozism",
+   "Spinozismus"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cartesian",
+   "Cartesianism",
+   "Cartesische",
+   "Cartesischen",
+   "Descartes"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_descartes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Fichte",
+   "Fichtean",
+   "Fichtes",
+   "Fichtesche",
+   "Fichteschen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_fichte",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Fichte"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Schelling",
+   "Schellingian",
+   "Schellings"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_schelling",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Schelling"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Augustin",
+   "Augustine",
+   "Augustinus"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_augustine",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Augustine"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Aquinaten",
+   "Thomas Aquinas",
+   "Thomas von Aquin",
+   "Thomism"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_aquinas",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aquinas"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Heraclitus",
+   "Heraklit",
+   "Heraklits",
+   "heraklitisch",
+   "heraklitische",
+   "heraklitischen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_heraclitus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Hobbes",
+   "Hobbes'",
+   "Hobbesisch",
+   "Hobbesische",
+   "Hobbesischen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Locke",
+   "Lockes",
+   "Lockesche",
+   "Lockeschen",
+   "lockesch"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_locke",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Locke"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Hume",
+   "Humes",
+   "Humesch",
+   "Humesche",
+   "Humeschen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_hume",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hume"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Rousseau",
+   "Rousseaus",
+   "Rousseausche",
+   "Rousseauschen",
+   "rousseauisch"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_rousseau",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Rousseau"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Pascal",
+   "Pascals",
+   "pascalsch",
+   "pascalsche"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_pascal",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pascal"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Cicero",
+   "Ciceronisch",
+   "Ciceronische",
+   "Ciceronischen",
+   "Ciceros"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_cicero",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Lucretian",
+   "Lucretius",
+   "Lukrez",
+   "Lukrezius"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_lucretius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Lucretius"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Democritean",
+   "Democritus",
+   "Demokrit",
+   "Demokritisch",
+   "Demokrits"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_democritus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Epicurean",
+   "Epicurus",
+   "Epikur",
+   "Epikureisch",
+   "Epikureische",
+   "Epikurs"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_epicurus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Epicurus"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Epictetus",
+   "Epiktet",
+   "Epiktets"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_epictetus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Epictetus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Antoninus",
+   "Marc Aurel",
+   "Marcus Aurelius",
+   "Mark Aurel"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_marcus_aurelius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Marcus Aurelius"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Aeschylus",
+   "Aischylos",
+   "Äschylus",
+   "äschyleisch",
+   "äschyleische"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_aeschylus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Sophoclean",
+   "Sophocles",
+   "Sophokles",
+   "sophokleisch",
+   "sophokleische"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_sophocles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Euripideisch",
+   "Euripides",
+   "euripideisch",
+   "euripideische"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_euripides",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Aesop",
+   "Hic Rhodus",
+   "Äsop",
+   "Äsops"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_aesop",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aesop"
+ },
+ {
+  "confidence": 0.82,
+  "forms": [
+   "Origen",
+   "Origenes",
+   "Origenian"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_origen",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.72,
+  "forms": [
+   "Celsus",
+   "Kelsos"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_celsus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Celsus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Achill",
+   "Achilles",
+   "Achilleus",
+   "Hector",
+   "Hektor",
+   "Homer",
+   "Homère",
+   "Iliad",
+   "Iliade",
+   "Odyssee",
+   "Odysseus",
+   "Odyssey",
+   "Odyssée",
+   "Penelope",
+   "Pénélope",
+   "Trojan War",
+   "Trojanische Krieg",
+   "Ulysses"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_homer",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Schiller",
+   "Schillers",
+   "Schillersche",
+   "Schillerschen",
+   "schillersch"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "hegel",
+  "name": "hegel_schiller",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Schiller"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Aristotelian",
+   "Aristotelians",
+   "Aristotle",
+   "Stagirite"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_aristotle_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Aristotele",
+   "Aristotelem",
+   "Aristoteles",
+   "Aristotelici",
+   "Aristotelis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_aristotle_lat",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Plato",
+   "Platonic",
+   "Platonist",
+   "Platonists"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_plato_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Plato",
+   "Platone",
+   "Platonem",
+   "Platonis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_plato_lat",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cicero",
+   "Tullie",
+   "Tully"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_cicero_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cicero",
+   "Cicerone",
+   "Ciceronem",
+   "Ciceronis",
+   "Tullius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_cicero_lat",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Thucydidem",
+   "Thucydides",
+   "Thucydidis"
+  ],
+  "langs": [],
+  "module": "hobbes",
+  "name": "hobbes_thucydides",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Thucydides"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Scholastics",
+   "School-men",
+   "Schoolemen",
+   "Schoolman",
+   "Schoolmans",
+   "Schoolmen"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_schoolmen",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Aquinas"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cartesian",
+   "Cartesians",
+   "Descartes"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_descartes_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cartesianus",
+   "Cartesii",
+   "Cartesio",
+   "Cartesium",
+   "Cartesius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_descartes_lat",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Lucreti",
+   "Lucretian",
+   "Lucretium",
+   "Lucretius"
+  ],
+  "langs": [
+   "eng",
+   "lat"
+  ],
+  "module": "hobbes",
+  "name": "hobbes_lucretius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Lucretius"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Locke",
+   "Locke's",
+   "Lockean",
+   "Mr. Locke"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_locke",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Locke"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Berkeleian",
+   "Berkeley",
+   "Berkeley's",
+   "Berkleian"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_berkeley",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Berkeley"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Cartesian",
+   "Cartesianism",
+   "Cartesians",
+   "Descartes"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_descartes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Hobbes",
+   "Hobbes's",
+   "Hobbesian",
+   "Hobbist",
+   "Hobbists"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Mr. Newton",
+   "Newton",
+   "Newton's",
+   "Newtonian",
+   "Sir Isaac Newton"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_newton",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Newton"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cicero",
+   "Ciceronian",
+   "Tully"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_cicero",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Aristotelian",
+   "Aristotelians",
+   "Aristotle",
+   "Peripatetic"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_aristotle",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Scholastics",
+   "School-men",
+   "Schoolman",
+   "Schoolmen"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_schoolmen",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Aquinas"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Spinoza",
+   "Spinoza's",
+   "Spinozism",
+   "Spinozist"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "hume",
+  "name": "hume_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Plato",
+   "Platon",
+   "Platonic",
+   "Platonische",
+   "Platonischen",
+   "Platonism",
+   "Platons"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Aristoteles",
+   "Aristotelian",
+   "Aristotelische",
+   "Aristotelischen",
+   "Aristotle"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_aristotle",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Leibnitian",
+   "Leibniz",
+   "Leibnizens",
+   "Leibnizsche",
+   "Leibnizschen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_leibniz",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Leibniz"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Hume",
+   "Humean",
+   "Humes",
+   "Humesche",
+   "Humeschen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_hume",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hume"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Cartesian",
+   "Cartesianisch",
+   "Cartesianischen",
+   "Cartesianism",
+   "Descartes"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_descartes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Spinoza",
+   "Spinozas",
+   "Spinozism",
+   "Spinozismus"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Berkeley",
+   "Berkeleyan",
+   "Berkeleys"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_berkeley",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Berkeley"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Wolff",
+   "Wolffian",
+   "Wolffischen",
+   "Wolffs",
+   "Wolffsche"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_wolff",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Wolff"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Rousseau",
+   "Rousseaus",
+   "Rousseausche",
+   "Rousseauschen",
+   "rousseauisch"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_rousseau",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Rousseau"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Hobbes",
+   "Hobbes'",
+   "Hobbesisch",
+   "Hobbesische",
+   "Hobbesischen"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Locke",
+   "Lockes",
+   "Lockesche",
+   "Lockeschen",
+   "lockesch"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_locke",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Locke"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Newton",
+   "Newtonisch",
+   "Newtonische",
+   "Newtonischen",
+   "Newtons"
+  ],
+  "langs": [
+   "deu",
+   "eng"
+  ],
+  "module": "kant",
+  "name": "kant_newton",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Newton"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Cartesian",
+   "Cartesianism",
+   "Cartesians",
+   "Descartes"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_descartes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Hobbes",
+   "Hobbes's",
+   "Hobbesian",
+   "Hobbist",
+   "Hobbists"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Aristotelian",
+   "Aristotelians",
+   "Aristotle",
+   "Peripatetic"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_aristotle",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Hooker",
+   "judicious Hooker"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_hooker",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Hooker"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Filmer",
+   "Patriarcha",
+   "Sir Robert Filmer"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_filmer",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Filmer"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Cicero",
+   "Tully"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_cicero",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Scholastics",
+   "School-men",
+   "Schoolman",
+   "Schoolmen"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_schoolmen",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Aquinas"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Spinoza",
+   "Spinoza's",
+   "Spinozism",
+   "Spinozist"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "locke",
+  "name": "locke_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.95,
+  "forms": [
+   "Epicurean",
+   "Epicurean",
+   "Epicureans",
+   "Epicuri",
+   "Epicuro",
+   "Epicurum",
+   "Epicurus",
+   "Graius homo"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "lucretius",
+  "name": "lucretius_epicurus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Epicurus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Democriti",
+   "Democritum",
+   "Democritus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "lucretius",
+  "name": "lucretius_democritus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Empedoclem",
+   "Empedocles",
+   "Empedoclis"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "lucretius",
+  "name": "lucretius_empedocles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Empedocles"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Heracliteans",
+   "Heracliti",
+   "Heraclitum",
+   "Heraclitus"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "lucretius",
+  "name": "lucretius_heraclitus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Anaxagorae",
+   "Anaxagoram",
+   "Anaxagoras"
+  ],
+  "langs": [
+   "lat",
+   "eng"
+  ],
+  "module": "lucretius",
+  "name": "lucretius_anaxagoras",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.95,
+  "forms": [
+   "Epictetus",
+   "Ἐπίκτητον",
+   "Ἐπίκτητος",
+   "Ἐπικτήτου",
+   "Ἐπικτήτῳ"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "marcus_aurelius",
+  "name": "marcus_aurelius_epictetus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Epictetus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Socrates",
+   "Socratic",
+   "Σωκράτει",
+   "Σωκράτη",
+   "Σωκράτης",
+   "Σωκράτους"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "marcus_aurelius",
+  "name": "marcus_aurelius_socrates",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Socrates"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Heraclitean",
+   "Heraclitus",
+   "Ἡράκλειτον",
+   "Ἡράκλειτος",
+   "Ἡρακλείτου"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "marcus_aurelius",
+  "name": "marcus_aurelius_heraclitus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Chrysippus",
+   "Χρυσίππου",
+   "Χρύσιππον",
+   "Χρύσιππος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "marcus_aurelius",
+  "name": "marcus_aurelius_chrysippus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Chrysippus"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Plato",
+   "Πλάτων",
+   "Πλάτωνα",
+   "Πλάτωνος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "marcus_aurelius",
+  "name": "marcus_aurelius_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Pythagoras",
+   "Πυθαγόραν",
+   "Πυθαγόρας",
+   "Πυθαγόρου"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "marcus_aurelius",
+  "name": "marcus_aurelius_pythagoras",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pythagoras"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Hegel",
+   "Hegelianer",
+   "Hegelianern",
+   "Hegels",
+   "Hegelsche",
+   "Hegelschen",
+   "Hegelscher",
+   "Hegelsches",
+   "hegelianisch",
+   "hegelianische",
+   "hegelianischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_hegel",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Hegel"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Feuerbach",
+   "Feuerbachs",
+   "Feuerbachsche",
+   "Feuerbachschen",
+   "feuerbachsch",
+   "feuerbachsche",
+   "feuerbachschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_feuerbach",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Feuerbach"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Aristoteles",
+   "Aristotelisch",
+   "Aristotelische",
+   "Aristotelischen",
+   "aristotelisch",
+   "aristotelische",
+   "aristotelischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_aristoteles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Adam Smith",
+   "Smith's",
+   "Smithsche",
+   "Smithschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_smith",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Smith"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Ricardo",
+   "Ricardo's",
+   "Ricardos",
+   "Ricardosche",
+   "Ricardoschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_ricardo",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Ricardo"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Proudhon",
+   "Proudhons",
+   "Proudhonsche",
+   "Proudhonschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_proudhon",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Proudhon"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Sankt Max",
+   "Stirner",
+   "Stirners",
+   "Stirnersche",
+   "Stirnerschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_stirner",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Stirner"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "B. Bauer",
+   "Bruno Bauer",
+   "Bruno Bauers"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_bauer",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Bauer"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Saint-Simon",
+   "Saint-Simons",
+   "Saint-Simonsche",
+   "Saint-Simonschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_saint_simon",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Saint-Simon"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Fourier",
+   "Fouriers",
+   "Fouriersche",
+   "Fourierschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_fourier",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Fourier"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Owen",
+   "Owens",
+   "Owensche",
+   "Owenschen",
+   "Robert Owen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_owen",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Owen"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Spinoza",
+   "Spinozas",
+   "Spinozismus",
+   "spinozistisch",
+   "spinozistische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Kant",
+   "Kantianer",
+   "Kantische",
+   "Kantischen",
+   "Kants"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_kant",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Kant"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Lucretian",
+   "Lucretius",
+   "Lukrez"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_lucretius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Lucretius"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Epicurus",
+   "Epikur",
+   "Epikureisch",
+   "Epikureische",
+   "Epikurs"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_epicurus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Epicurus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Democritean",
+   "Democritus",
+   "Demokrit",
+   "Demokriteisch",
+   "Demokritisch",
+   "Demokritischen",
+   "Demokrits"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_democritus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Aesop",
+   "Hic Rhodus",
+   "Äsop",
+   "Äsops"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_aesop",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aesop"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Schiller",
+   "Schillers",
+   "Schillersche",
+   "Schillerschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "marx",
+  "name": "marx_schiller",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Schiller"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Sokrates",
+   "Sokrates'",
+   "Sokratiker",
+   "Sokratismus",
+   "sokratisch",
+   "sokratische",
+   "sokratischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_sokrates",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Socrates"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Christenthum",
+   "Christentum",
+   "Christi",
+   "Christlichkeit",
+   "Christo",
+   "Christum",
+   "Christus",
+   "Jesus"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_christus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Christ"
+ },
+ {
+  "confidence": 0.45,
+  "forms": [
+   "Christ",
+   "Christen",
+   "christlich",
+   "christliche",
+   "christlichen",
+   "christlicher"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_christlich",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Christ"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Schopenhauer",
+   "Schopenhauers",
+   "Schopenhauersche",
+   "Schopenhauerschen",
+   "schopenhauerisch",
+   "schopenhauerische",
+   "schopenhauerischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_schopenhauer",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Schopenhauer"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Richard Wagner",
+   "Wagner",
+   "Wagnerianer",
+   "Wagners",
+   "Wagnersche",
+   "Wagnerschen",
+   "wagnerisch",
+   "wagnerische",
+   "wagnerischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_wagner",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Wagner"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Kant",
+   "Kantianer",
+   "Kantianismus",
+   "Kantische",
+   "Kantischen",
+   "Kantischer",
+   "Kants",
+   "kantianisch",
+   "kantianische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_kant",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Kant"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Hegel",
+   "Hegelianer",
+   "Hegels",
+   "Hegelsche",
+   "Hegelschen",
+   "hegelianisch",
+   "hegelianische",
+   "hegelianischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_hegel",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hegel"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Plato",
+   "Platon",
+   "Platoniker",
+   "Platonismus",
+   "Platons",
+   "platonisch",
+   "platonische",
+   "platonischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Aristoteles",
+   "aristotelisch",
+   "aristotelische",
+   "aristotelischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_aristoteles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Spinoza",
+   "Spinozas",
+   "Spinozismus",
+   "spinozistisch",
+   "spinozistische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Darwin",
+   "Darwinismus",
+   "Darwins",
+   "darwinistisch",
+   "darwinistische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_darwin",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Darwin"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Goethe",
+   "Goethes",
+   "Goethesche",
+   "Goetheschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_goethe",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Goethe"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Buddha",
+   "Buddhas",
+   "Buddhismus",
+   "buddhistisch",
+   "buddhistische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_buddha",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Buddha"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Heraclitus",
+   "Heraklit",
+   "Heraklits",
+   "heraklitisch",
+   "heraklitische",
+   "heraklitischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_heraclitus",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Rousseau",
+   "Rousseaus",
+   "Rousseausche",
+   "Rousseauschen",
+   "rousseauisch",
+   "rousseauische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_rousseau",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Rousseau"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Pascal",
+   "Pascals",
+   "pascalsch",
+   "pascalsche"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_pascal",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Pascal"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Hobbes",
+   "Hobbes'",
+   "Hobbesisch",
+   "Hobbesische",
+   "Hobbesischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Cartesianisch",
+   "Cartesianische",
+   "Cartesianischen",
+   "Descartes",
+   "Kartesianer",
+   "cartesianisch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_descartes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Cicero",
+   "Ciceronian",
+   "Ciceros",
+   "ciceronianisch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_cicero",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Epictetus",
+   "Epiktet",
+   "Epiktets"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_epictetus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Epictetus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Antoninus",
+   "Marc Aurel",
+   "Marcus Aurelius",
+   "Mark Aurel"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_marcus_aurelius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Marcus Aurelius"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Lucretius",
+   "Lukrez",
+   "lukrezisch",
+   "lukrezische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_lucretius",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Lucretius"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Democritus",
+   "Demokrit",
+   "Demokrits",
+   "demokritisch",
+   "demokritische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_democritus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Democritus"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Theognidis",
+   "Theognis",
+   "theognideisch",
+   "theognideische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_theognis",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Theognis"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Aeschylus",
+   "Aischylos",
+   "Aischylos'",
+   "aischyleisch",
+   "Äschylus",
+   "Äschylus'",
+   "äschyleisch",
+   "äschyleische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_aeschylus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Sophocles",
+   "Sophokles",
+   "Sophokles'",
+   "sophocleisch",
+   "sophokleisch",
+   "sophokleische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_sophocles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Euripides",
+   "Euripides'",
+   "euripideisch",
+   "euripideische"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_euripides",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Celsus",
+   "Kelsos",
+   "celsisch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_celsus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Celsus"
+ },
+ {
+  "confidence": 0.78,
+  "forms": [
+   "Origen",
+   "Origenes",
+   "origenisch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_origen",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Boulainviller",
+   "Boulainvillier",
+   "Boulainvilliers"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_boulainvilliers",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Boulainvilliers"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Gobineau",
+   "Gobineaus",
+   "Graf Gobineau",
+   "comte de Gobineau"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_gobineau",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Gobineau"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Ernest Renan",
+   "Renan",
+   "Renans",
+   "Renanscher"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_renan",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Renan"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Schiller",
+   "Schillers",
+   "Schillersche",
+   "Schillerschen",
+   "schillersch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "nietzsche",
+  "name": "nietzsche_schiller",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Schiller"
+ },
+ {
+  "confidence": 0.95,
+  "forms": [
+   "Celsian",
+   "Celsus",
+   "Celsus's",
+   "Κέλσον",
+   "Κέλσος",
+   "Κέλσου",
+   "Κέλσῳ"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "origen",
+  "name": "origen_celsus",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Celsus"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Plato",
+   "Πλάτων",
+   "Πλάτωνα",
+   "Πλάτωνι",
+   "Πλάτωνος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "origen",
+  "name": "origen_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Homer",
+   "Homeric",
+   "Ὁμήρου",
+   "Ὁμήρῳ",
+   "Ὅμηρον",
+   "Ὅμηρος"
+  ],
+  "langs": [
+   "grc",
+   "eng"
+  ],
+  "module": "origen",
+  "name": "origen_homer",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Augustin",
+   "Augustinien",
+   "Augustinienne",
+   "S. Augustin",
+   "augustinien",
+   "augustinienne",
+   "saint Augustin"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_augustin",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Augustine"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Cartésien",
+   "Cartésienne",
+   "Cartésiennes",
+   "Cartésiens",
+   "Descartes",
+   "cartésien",
+   "cartésienne"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_descartes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Montaigne"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_montaigne",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Montaigne"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Platon",
+   "platonicien",
+   "platonicienne",
+   "platoniciens"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Aristote",
+   "aristotélicien",
+   "aristotélicienne",
+   "aristotéliciens",
+   "péripatéticien",
+   "péripatéticiens"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_aristote",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Epictète",
+   "Épictete",
+   "Épictète"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_epictete",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Epictetus"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Ciceron",
+   "Cicéron"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_ciceron",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Origen",
+   "Origenes",
+   "Origène"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "pascal",
+  "name": "pascal_origene",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ὁμήρου",
+   "Ὁμήρῳ",
+   "Ὅμηρον",
+   "Ὅμηρος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_homer_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Homer",
+   "Homer's",
+   "Homeric"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_homer_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Ἡσίοδον",
+   "Ἡσίοδος",
+   "Ἡσιόδου",
+   "Ἡσιόδῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_hesiod_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Hesiod",
+   "Hesiod's"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_hesiod_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ἡράκλειτον",
+   "Ἡράκλειτος",
+   "Ἡρακλείτου",
+   "Ἡρακλείτῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_heraclitus_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Heraclitean",
+   "Heraclitus"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_heraclitus_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Heraclitus"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Παρμενίδην",
+   "Παρμενίδης",
+   "Παρμενίδου",
+   "Παρμενίδῃ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_parmenides_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Parmenides"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ἀναξαγόραν",
+   "Ἀναξαγόρας",
+   "Ἀναξαγόρου",
+   "Ἀναξαγόρᾳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_anaxagoras_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Anaxagoras"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_anaxagoras_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Anaxagoras"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Πυθαγόραν",
+   "Πυθαγόρας",
+   "Πυθαγόρειοι",
+   "Πυθαγόρειος",
+   "Πυθαγόρου",
+   "Πυθαγόρᾳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_pythagoras_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pythagoras"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Pythagoras",
+   "Pythagorean",
+   "Pythagoreans"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_pythagoras_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pythagoras"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Αἰσχύλον",
+   "Αἰσχύλος",
+   "Αἰσχύλου",
+   "Αἰσχύλῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_aeschylus_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Aeschylean",
+   "Aeschylus"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_aeschylus_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aeschylus"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Σοφοκλέα",
+   "Σοφοκλέους",
+   "Σοφοκλεῖ",
+   "Σοφοκλῆς"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_sophocles_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Sophoclean",
+   "Sophocles"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_sophocles_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Sophocles"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Εὐριπίδην",
+   "Εὐριπίδης",
+   "Εὐριπίδου",
+   "Εὐριπίδῃ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_euripides_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Euripidean",
+   "Euripides"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_euripides_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Euripides"
+ },
+ {
+  "confidence": 0.92,
+  "forms": [
+   "Θέογνιν",
+   "Θέογνις",
+   "Θεόγνιδι",
+   "Θεόγνιδος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_theognis",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Theognis"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Theognidean",
+   "Theognis"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_theognis_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Theognis"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Αἰσώπεια",
+   "Αἰσώπου",
+   "Αἰσώπῳ",
+   "Αἴσωπον",
+   "Αἴσωπος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "plato",
+  "name": "plato_aesop",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aesop"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Aesop",
+   "Aesopian",
+   "Aesopic"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "plato",
+  "name": "plato_aesop_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aesop"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Flavius Josèphe",
+   "Josephe",
+   "Josephus",
+   "Josèphe"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_josephe",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Josephus"
+ },
+ {
+  "confidence": 0.88,
+  "forms": [
+   "Philon"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_philon",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Philo"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Origène",
+   "origéniste"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_origene",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Spinosa",
+   "Spinoza",
+   "spinoziste"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_spinoza",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Spinoza"
+ },
+ {
+  "confidence": 0.78,
+  "forms": [
+   "M. Strauss",
+   "Strauss",
+   "Strausz"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_strauss",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Strauss"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Celse"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_celse",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Origen"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Platon",
+   "platonicien",
+   "platonicienne",
+   "platonisme"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_platon",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Seneque",
+   "Sénèque"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_seneque",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Seneca"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Ciceron",
+   "Cicéron"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_ciceron",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Marc Aurèle",
+   "Marc-Aurèle"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_marc_aurele",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Marcus Aurelius"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Aristote",
+   "aristotélicien",
+   "aristotélisme"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_aristote",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Augustin",
+   "augustinien",
+   "saint Augustin"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_augustin",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Augustine"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Epictète",
+   "Épictète"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "renan",
+  "name": "renan_epictete",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Epictetus"
+ },
+ {
+  "confidence": 0.8,
+  "forms": [
+   "Hobbes",
+   "Hobbes's",
+   "Hobbesien",
+   "Hobbesienne",
+   "hobbesien"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Grotius",
+   "grotien",
+   "grotienne"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_grotius",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Grotius"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Locke",
+   "Locke's",
+   "lockéen",
+   "lockéenne"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_locke",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Locke"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Aristote",
+   "aristotélicien",
+   "aristotélicienne",
+   "aristotéliciens"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_aristote",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Platon",
+   "platonicien",
+   "platonicienne",
+   "platoniciens"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_platon",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Pufendorf",
+   "Puffendorf"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_pufendorf",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Pufendorf"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Barbeyrac"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_barbeyrac",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Barbeyrac"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Montesquieu"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_montesquieu",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Montesquieu"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Ciceron",
+   "Cicéron"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_ciceron",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Cicero"
+ },
+ {
+  "confidence": 0.85,
+  "forms": [
+   "Hume"
+  ],
+  "langs": [
+   "fra"
+  ],
+  "module": "rousseau",
+  "name": "rousseau_hume",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hume"
+ },
+ {
+  "confidence": 0.9,
+  "forms": [
+   "Kant",
+   "Kantisch",
+   "Kantische",
+   "Kantischen",
+   "Kants",
+   "kantisch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "schiller",
+  "name": "schiller_kant",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Kant"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Plato",
+   "Platon",
+   "Platonisch",
+   "Platonische",
+   "Platonischen",
+   "Platons"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "schiller",
+  "name": "schiller_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.65,
+  "forms": [
+   "Aristoteles",
+   "Aristotelisch",
+   "Aristotelische",
+   "Aristotelischen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "schiller",
+  "name": "schiller_aristotle",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Homer",
+   "Homerisch",
+   "Homerische",
+   "Homerischen",
+   "Homers"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "schiller",
+  "name": "schiller_homer",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Rousseau",
+   "Rousseaus",
+   "Rousseausche",
+   "Rousseauschen"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "schiller",
+  "name": "schiller_rousseau",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Rousseau"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Goethe",
+   "Goethes",
+   "Goethesche",
+   "Goetheschen",
+   "Goethisch"
+  ],
+  "langs": [
+   "deu"
+  ],
+  "module": "schiller",
+  "name": "schiller_goethe",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Goethe"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Ὁμήρου",
+   "Ὁμήρῳ",
+   "Ὅμηρον",
+   "Ὅμηρος"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "sophocles",
+  "name": "sophocles_homer_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Homer",
+   "Homer's",
+   "Homeric"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "sophocles",
+  "name": "sophocles_homer_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Homer"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Ἡσίοδον",
+   "Ἡσίοδος",
+   "Ἡσιόδου",
+   "Ἡσιόδῳ"
+  ],
+  "langs": [
+   "grc"
+  ],
+  "module": "sophocles",
+  "name": "sophocles_hesiod_grc",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Hesiod",
+   "Hesiod's"
+  ],
+  "langs": [
+   "eng"
+  ],
+  "module": "sophocles",
+  "name": "sophocles_hesiod_eng",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hesiod"
+ },
+ {
+  "confidence": 0.93,
+  "forms": [
+   "Cartesianorum",
+   "Cartesianus",
+   "Cartesii",
+   "Cartesio",
+   "Cartesium",
+   "Cartesius",
+   "Renatus Cartesius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "spinoza",
+  "name": "spinoza_cartesius",
+  "reference_type": "cites",
+  "source_method": "rule_strong",
+  "target_author": "Descartes"
+ },
+ {
+  "confidence": 0.75,
+  "forms": [
+   "Maimonidem",
+   "Maimonides",
+   "Maimonidis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "spinoza",
+  "name": "spinoza_maimonides",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Maimonides"
+ },
+ {
+  "confidence": 0.7,
+  "forms": [
+   "Hobbes",
+   "Hobbesii",
+   "Hobbesium",
+   "Hobbesius"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "spinoza",
+  "name": "spinoza_hobbes",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Hobbes"
+ },
+ {
+  "confidence": 0.6,
+  "forms": [
+   "Aristotele",
+   "Aristotelem",
+   "Aristoteles",
+   "Aristotelis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "spinoza",
+  "name": "spinoza_aristoteles",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Aristotle"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Plato",
+   "Platone",
+   "Platonem",
+   "Platonis"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "spinoza",
+  "name": "spinoza_plato",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Plato"
+ },
+ {
+  "confidence": 0.55,
+  "forms": [
+   "Seneca",
+   "Senecae",
+   "Senecam"
+  ],
+  "langs": [
+   "lat"
+  ],
+  "module": "spinoza",
+  "name": "spinoza_seneca",
+  "reference_type": "cites",
+  "source_method": "rule_weak",
+  "target_author": "Seneca"
+ }
+]

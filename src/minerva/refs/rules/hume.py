@@ -21,7 +21,7 @@ All rules gate on `langs=("eng",)` — Hume is English-only.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import ScriptureCiteRuleEn
 
 RULES = (
@@ -62,7 +62,7 @@ RULES = (
         name="hume_descartes",
         target_author="Descartes",
         target_work="",
-        forms=("Descartes", "Cartesian", "Cartesians", "Cartesianism"),
+        forms=_figures.DESCARTES_ENG,
         confidence=0.75,
         langs=("eng",),
     ),
@@ -72,7 +72,7 @@ RULES = (
         name="hume_hobbes",
         target_author="Hobbes",
         target_work="",
-        forms=("Hobbes", "Hobbes's", "Hobbist", "Hobbists", "Hobbesian"),
+        forms=_figures.HOBBES_ENG,
         confidence=0.75,
         langs=("eng",),
     ),
@@ -109,7 +109,7 @@ RULES = (
         name="hume_aristotle",
         target_author="Aristotle",
         target_work="",
-        forms=("Aristotle", "Aristotelian", "Aristotelians", "Peripatetic"),
+        forms=_figures.ARISTOTLE_ENG,
         confidence=0.65,
         langs=("eng",),
     ),
@@ -119,7 +119,7 @@ RULES = (
         name="hume_schoolmen",
         target_author="Aquinas",
         target_work="",
-        forms=("Schoolmen", "School-men", "Scholastics", "Schoolman"),
+        forms=_figures.AQUINAS_ENG,
         confidence=0.75,
         langs=("eng",),
         note=(
@@ -135,7 +135,7 @@ RULES = (
         name="hume_spinoza",
         target_author="Spinoza",
         target_work="",
-        forms=("Spinoza", "Spinozism", "Spinozist", "Spinoza's"),
+        forms=_figures.SPINOZA_ENG,
         confidence=0.8,
         langs=("eng",),
         note=(

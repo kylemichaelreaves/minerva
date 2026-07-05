@@ -21,7 +21,7 @@ below are LIKE-matches over the ingested chunks (2026-07 audit):
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 from .scripture_cite import ScriptureCiteRuleFr, ScriptureCiteRuleFrRoman
 
 RULES = (
@@ -118,7 +118,7 @@ RULES = (
         name="renan_ciceron",
         target_author="Cicero",
         target_work="",
-        forms=("Cicéron", "Ciceron"),
+        forms=_figures.CICERO_FRA,
         confidence=0.8,
         langs=("fra",),
     ),

@@ -17,7 +17,7 @@ All language-gated to Greek + English.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 
 RULES = (
     # Socrates — Epictetus's central exemplar. Strong rule.
@@ -25,14 +25,7 @@ RULES = (
         name="epictetus_socrates",
         target_author="Socrates",
         target_work="",
-        forms=(
-            "Σωκράτης",
-            "Σωκράτη",
-            "Σωκράτους",
-            "Σωκράτει",
-            "Socrates",
-            "Socratic",
-        ),
+        forms=_figures.SOCRATES_GRC_ENG,
         confidence=0.93,
         langs=("grc", "eng"),
         note=(
@@ -55,7 +48,7 @@ RULES = (
         name="epictetus_chrysippus",
         target_author="Chrysippus",
         target_work="",
-        forms=("Χρύσιππος", "Χρύσιππον", "Χρυσίππου", "Chrysippus"),
+        forms=_figures.CHRYSIPPUS_GRC_ENG,
         confidence=0.9,
         langs=("grc", "eng"),
         note="Chrysippus of Soli. Out-of-corpus target.",
@@ -75,7 +68,7 @@ RULES = (
         name="epictetus_plato",
         target_author="Plato",
         target_work="",
-        forms=("Πλάτων", "Πλάτωνα", "Πλάτωνος", "Plato"),
+        forms=_figures.PLATO_GRC_ENG,
         confidence=0.75,
         langs=("grc", "eng"),
     ),

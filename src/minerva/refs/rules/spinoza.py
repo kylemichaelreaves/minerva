@@ -12,7 +12,7 @@ often and at lower confidence by default.
 
 from __future__ import annotations
 
-from . import AuthorMentionRule, StrongMentionRule
+from . import AuthorMentionRule, StrongMentionRule, _figures
 
 RULES = (
     StrongMentionRule(
@@ -58,12 +58,7 @@ RULES = (
         name="spinoza_aristoteles",
         target_author="Aristotle",
         target_work="",
-        forms=(
-            "Aristoteles",
-            "Aristotelis",
-            "Aristotelem",
-            "Aristotele",
-        ),
+        forms=_figures.ARISTOTLE_LAT,
         confidence=0.6,
         langs=("lat",),
     ),

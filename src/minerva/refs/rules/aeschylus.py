@@ -19,7 +19,7 @@ text is doing a real citation rather than a mythological allusion."""
 
 from __future__ import annotations
 
-from . import AuthorMentionRule
+from . import AuthorMentionRule, _figures
 
 RULES = (
     # ── Homer ─────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ RULES = (
         name="aeschylus_homer_grc",
         target_author="Homer",
         target_work="",
-        forms=("Ὅμηρος", "Ὁμήρου", "Ὅμηρον", "Ὁμήρῳ"),
+        forms=_figures.HOMER_GRC,
         confidence=0.7,
         langs=("grc",),
         note=(
@@ -43,7 +43,7 @@ RULES = (
         name="aeschylus_homer_eng",
         target_author="Homer",
         target_work="",
-        forms=("Homer", "Homer's", "Homeric"),
+        forms=_figures.HOMER_ENG,
         confidence=0.6,
         langs=("eng",),
         note=(
@@ -57,7 +57,7 @@ RULES = (
         name="aeschylus_hesiod_grc",
         target_author="Hesiod",
         target_work="",
-        forms=("Ἡσίοδος", "Ἡσιόδου", "Ἡσίοδον", "Ἡσιόδῳ"),
+        forms=_figures.HESIOD_GRC,
         confidence=0.7,
         langs=("grc",),
     ),
@@ -65,7 +65,7 @@ RULES = (
         name="aeschylus_hesiod_eng",
         target_author="Hesiod",
         target_work="",
-        forms=("Hesiod", "Hesiod's"),
+        forms=_figures.HESIOD_ENG,
         confidence=0.65,
         langs=("eng",),
     ),
