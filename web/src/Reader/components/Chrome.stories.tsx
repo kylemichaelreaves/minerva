@@ -13,6 +13,13 @@ const META: WorkRange = {
   total: 412,
   offset: 0,
   limit: 40,
+  edition: "e81",
+  editions: [
+    { selector: "e81", lang: "grc", is_original: true, translator: "OCT", year: 1903,
+      label: "OCT · Greek · 1903", short: "Greek", n_chunks: 412 },
+    { selector: "t12", lang: "eng", is_original: false, translator: "Benjamin Jowett", year: 1892,
+      label: "Benjamin Jowett · 1892", short: "Jowett", n_chunks: 388 },
+  ],
   chunks: [],
 };
 

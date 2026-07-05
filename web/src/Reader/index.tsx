@@ -26,6 +26,7 @@ import { useMobileShell } from "~/components/MobileShellContext";
 import { useEscape } from "~/hooks/useEscape";
 import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
 import { Chrome } from "~/Reader/components/Chrome";
+import { EditionBar } from "~/Reader/components/EditionBar";
 import { ReaderHead } from "~/Reader/components/ReaderHead";
 import { useSelectionToolbar } from "~/Reader/useSelectionToolbar";
 import { useTermCard } from "~/Reader/useTermCard";
@@ -73,7 +74,7 @@ export default function Reader(props: ReaderProps) {
     });
   });
 
-  const { range, occMap, refsMap, loadError, loadMore, hasMore, loadingMore } =
+  const { range, occMap, refsMap, loadError, loadMore, hasMore, loadingMore, switchEdition } =
     useWorkRange(
       {
         get workId() {
@@ -171,6 +172,29 @@ export default function Reader(props: ReaderProps) {
     selection.markAllPinnedSaved();
   }
 
+  /** Section locator of the chunk currently at the top of the viewport,
+   *  so an edition switch can keep the reader's place (#50). Returns
+   *  undefined when nothing's resolvable — the switch then starts the
+   *  new edition at the top. */
+  function topVisibleSection(): string | undefined {
+    const stage = stageRef;
+    const r = range();
+    if (!stage || !r) return undefined;
+    const stageTop = stage.getBoundingClientRect().top;
+    for (const el of stage.querySelectorAll("[data-chunk-id]")) {
+      if (el.getBoundingClientRect().bottom >= stageTop + 4) {
+        const id = el.getAttribute("data-chunk-id");
+        return r.chunks.find((c) => c.chunk_id === id)?.section ?? undefined;
+      }
+    }
+    return undefined;
+  }
+
+  function onSwitchEdition(selector: string) {
+    dismiss();
+    switchEdition(selector, topVisibleSection());
+  }
+
   // Esc dismisses the rail whenever it's open. Gated on `kind !==
   // "idle"` so a stray Esc-press without an open drawer doesn't
   // intercept anything else (e.g. TermCard's own Esc listener — which
@@ -207,6 +231,11 @@ export default function Reader(props: ReaderProps) {
             {(r) => (
               <>
                 <ReaderHead range={r()} />
+                <EditionBar
+                  editions={r().editions}
+                  current={r().edition}
+                  onSwitch={onSwitchEdition}
+                />
                 <Lines
                   chunks={r().chunks}
                   lang={r().lang}

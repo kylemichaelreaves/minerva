@@ -41,6 +41,24 @@ export interface SourceChunk {
   block_type?: BlockType | null;
 }
 
+/** One selectable edition of a work — an original-language edition or a
+ * translation — as surfaced to the reader's edition switcher (#50). */
+export interface EditionOption {
+  /** Opaque scope key echoed back to /api/works/:work?edition= —
+   * `e<edition_id>` for an original, `t<translation_id>` for a translation. */
+  selector: string;
+  lang: string;
+  is_original: boolean;
+  /** Translator name, or the edition/recension name for an original. */
+  translator: string | null;
+  year: number | null;
+  /** Full label for a menu/tooltip ("Benjamin Jowett · 1892"). */
+  label: string;
+  /** Concise tab label ("Jowett", "Greek"). */
+  short: string;
+  n_chunks: number;
+}
+
 export interface WorkRange {
   work_id: number;
   corpus: string;
@@ -52,6 +70,10 @@ export interface WorkRange {
   total: number;
   offset: number;
   limit: number;
+  /** Selector of the edition currently rendered. */
+  edition: string;
+  /** Every edition of this work, for the switcher. */
+  editions: EditionOption[];
   chunks: SourceChunk[];
 }
 

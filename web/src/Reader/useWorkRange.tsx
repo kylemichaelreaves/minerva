@@ -68,6 +68,11 @@ export interface UseWorkRangeResult {
    *  Reader render a small "loading more…" affordance and prevent
    *  rapid re-triggers from the IntersectionObserver. */
   loadingMore: Accessor<boolean>;
+  /** Switch the reader to another edition/translation of the same work
+   *  (#50). ``atSection`` centers the new edition's window on that
+   *  section locator so the reader keeps its place; omit to start at
+   *  the top. Resets pagination — the new edition streams from there. */
+  switchEdition: (selector: string, atSection?: string) => void;
 }
 
 // First-page window size. 80 fills ~3 screens of typical reader
@@ -107,6 +112,11 @@ export function useWorkRange(
   let workController: AbortController | undefined;
   // Track whether we're in focus-around mode (no pagination then).
   let focusMode = false;
+  // Edition-switch state (#50). Plain vars, not signals: `switchEdition`
+  // drives `loadWork` imperatively, so there's no reactive loop with the
+  // props effect. A work-identity change resets both to the default.
+  let editionOverride: string | undefined;
+  let pendingAtSection: string | undefined;
 
   const hasMore = (): boolean => {
     if (focusMode) return false;
@@ -183,14 +193,18 @@ export function useWorkRange(
     focusMode = Boolean(props.focusChunkId);
 
     try {
+      // Consume the pending remap section for this load, then clear it.
+      const atSection = pendingAtSection;
+      pendingAtSection = undefined;
       const r = await getWorkRange(
         props.workId,
         {
           lang: props.sourceLang ?? "grc",
           author: props.author,
+          edition: editionOverride,
           ...(props.focusChunkId
             ? { around: props.focusChunkId, limit: FOCUS_WINDOW }
-            : { from: 0, limit: PAGE_SIZE }),
+            : { from: 0, limit: PAGE_SIZE, at_section: atSection }),
         },
         controller.signal,
       );
@@ -256,7 +270,10 @@ export function useWorkRange(
       const next = await getWorkRange(
         props.workId,
         {
-          lang: cur.lang,
+          // Page within the SAME edition — falling back to lang would
+          // re-resolve the default edition and could paginate into a
+          // different translation (#50). The selector pins it.
+          edition: cur.edition,
           author: props.author,
           from: cur.chunks.length,
           limit: PAGE_SIZE,
@@ -295,12 +312,22 @@ export function useWorkRange(
   // separate effect produced two requests on first paint. The effect
   // alone is sufficient — Solid runs it synchronously after the
   // initial render.
+  function switchEdition(selector: string, atSection?: string): void {
+    editionOverride = selector;
+    pendingAtSection = atSection;
+    void loadWork();
+  }
+
   createEffect(() => {
     // Bare property accesses register Solid signal reads so the
     // effect re-runs when either changes. They look like dead code
     // to ESLint; the void-comma form keeps it quiet without altering
     // semantics.
     void (props.workId, props.focusChunkId, props.sourceLang, props.author);
+    // A genuine work-identity change resets to the default edition —
+    // a selector chosen for the previous work must not leak across.
+    editionOverride = undefined;
+    pendingAtSection = undefined;
     void loadWork();
   });
 
@@ -310,5 +337,5 @@ export function useWorkRange(
     workController?.abort();
   });
 
-  return { range, occMap, refsMap, loadError, loadMore, hasMore, loadingMore };
+  return { range, occMap, refsMap, loadError, loadMore, hasMore, loadingMore, switchEdition };
 }

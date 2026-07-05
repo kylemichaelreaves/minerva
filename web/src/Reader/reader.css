@@ -219,6 +219,55 @@
   letter-spacing: 0.01em;
 }
 
+/* Edition switcher (#50) — a segmented control under the head listing
+   the work's editions + translations. Sits between the byline and the
+   source text. */
+.reader .edition-bar {
+  display: flex;
+  gap: 4px;
+  margin: 20px 0 4px;
+  padding: 3px;
+  background: var(--r-paper-deep);
+  border: 1px solid var(--r-rule-soft);
+  border-radius: 999px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.reader .edition-seg {
+  font-family: var(--r-sans);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--r-ink-mute);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 120ms ease, color 120ms ease;
+}
+.reader .edition-seg:hover {
+  color: var(--r-ink);
+}
+.reader .edition-seg[aria-selected="true"] {
+  background: var(--r-paper);
+  color: var(--r-accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px var(--r-shadow-soft);
+}
+.reader .edition-seg .yr {
+  font-variant-numeric: tabular-nums;
+  color: var(--r-ink-faint);
+  font-weight: 400;
+}
+.reader .edition-seg[aria-selected="true"] .yr {
+  color: var(--r-accent);
+}
+
 /* Source lines */
 .reader .lines {
   font-family: var(--r-greek);

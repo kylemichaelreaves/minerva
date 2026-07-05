@@ -23,6 +23,12 @@ export interface WorkRangeArgs {
   from?: number;
   limit?: number;
   around?: string;
+  /** Scope the range to a specific edition (`e<id>`/`t<id>`); overrides
+   * the default-edition resolution. From the edition switcher (#50). */
+  edition?: string;
+  /** Center the window on the first chunk with this section locator in
+   * the target edition — preserves reading position across a switch. */
+  at_section?: string;
 }
 
 export async function getWorkRange(
@@ -37,6 +43,8 @@ export async function getWorkRange(
       from: args.from,
       limit: args.limit,
       around: args.around,
+      edition: args.edition,
+      at_section: args.at_section,
     })}`,
     signal,
   );
