@@ -90,6 +90,24 @@ for _canon, _cur, _en in (*_UNIFIED, *_LETTERS):
     ALIASES[_cur] = _canon
     LOCAL_EN[_canon] = _en
 
+# Display-title corrections. The anglicized Perseus titles stay in ALIASES
+# (so ingest still resolves the raw stored titles like "Alcibiades 1" /
+# "Letter 7"), but the reader shows cleaner conventional English: Roman
+# numerals for Alcibiades and the Letters — parallel to the canonical
+# Latinized-Greek "Alkibiades I" / "Epistole VII" — and the Epinomis
+# subtitle dropped.
+_LOCAL_EN_OVERRIDES: dict[str, str] = {
+    "Alkibiades I": "Alcibiades I",
+    "Alkibiades II": "Alcibiades II",
+    "Epinomis": "Epinomis",
+}
+for _i, _rom in enumerate(_ROMAN, start=1):
+    _LOCAL_EN_OVERRIDES[f"Epistole {_rom}"] = f"Letter {_rom}"
+LOCAL_EN.update(_LOCAL_EN_OVERRIDES)
+# Recognize the corrected display forms as input aliases too.
+for _canon_key, _disp in _LOCAL_EN_OVERRIDES.items():
+    ALIASES.setdefault(_disp, _canon_key)
+
 # German edition heading (UPPERCASE, from the PDF's tetralogy index) → canonical.
 # The splitter matches its dialogue headings against this. Alkibiades I/II are
 # disambiguated by the splitter (two "ALKIBIADES" headings in reading order).
@@ -132,6 +150,22 @@ GERMAN_HEADINGS: dict[str, str] = {
 }
 
 
+# canonical → conventional German title, for the dialogues whose established
+# German name differs from the Greek transliteration. The German source (this
+# edition's tetralogy index) actually heads each work with the Greek name
+# ("POLITEIA"), but the reader wants the familiar German title ("Der Staat").
+# Dialogues NOT listed here keep the Greek name for German too (Phaidon,
+# Kriton, Gorgias, Menon, …) — which is genuine German usage.
+LOCAL_DE: dict[str, str] = {
+    "Politeia": "Der Staat",
+    "Nomoi": "Die Gesetze",
+    "Politikos": "Der Staatsmann",
+    "Sophistes": "Der Sophist",
+    "Symposion": "Das Gastmahl",
+    "Apologia": "Apologie des Sokrates",
+}
+
+
 def canonical_for(raw_title: str | None) -> str | None:
     """Map a raw stored/heading title to its canonical Latinized-Greek
     name, or ``None`` when unknown (caller keeps the raw title)."""
@@ -145,8 +179,11 @@ def canonical_for(raw_title: str | None) -> str | None:
 
 def local_title(canonical: str, lang: str) -> str | None:
     """Subordinate per-edition display title. English gets its anglicized
-    title; the Greek original and German render the canonical name, so
-    they have no local override (``None``)."""
+    title; German gets its conventional title for the dialogues that have a
+    distinct one (``LOCAL_DE``), else the Greek name. The Greek original
+    always renders the canonical Latinized-Greek name (``None``)."""
     if lang == "eng":
         return LOCAL_EN.get(canonical)
+    if lang == "deu":
+        return LOCAL_DE.get(canonical)
     return None

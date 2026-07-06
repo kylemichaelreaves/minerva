@@ -134,9 +134,10 @@ def _emit_sections(
             edition_year=year,
             citation_system="stephanus",
             block_type=None,
-            # canonical title IS the German edition's own (Greek) name, so
-            # no subordinate local title for the German side.
-            title_local=None,
+            # Conventional German title where one differs from the Greek
+            # name ("Der Staat" for Politeia); else None → the reader shows
+            # the canonical Latinized-Greek name (correct German usage).
+            title_local=plato_titles.local_title(work_title, "deu"),
         )
 
 
