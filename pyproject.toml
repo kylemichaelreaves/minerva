@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-embed = ["sentence-transformers>=2.2"]
+embed = ["sentence-transformers>=5.6.0"]
 hegel = ["pymupdf>=1.24", "ebooklib>=0.18", "beautifulsoup4>=4.12", "lxml>=5.0"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
@@ -45,7 +45,7 @@ lemma = [
     "pyyaml>=6.0",
 ]
 all = [
-    "sentence-transformers>=2.2",
+    "sentence-transformers>=5.6.0",
     "pymupdf>=1.24",
     "ebooklib>=0.18",
     "beautifulsoup4>=4.12",
