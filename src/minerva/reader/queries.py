@@ -45,6 +45,22 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
             "GROUP BY cf.work_id, cf.corpus, cf.author, cf.work, cf.lang"
         ).fetchall()
 
+    # Per-edition/translation local title, keyed on (work_id, lang). This is
+    # the language's own name for the work — "Republic"/"Laws" on the English
+    # translations of Politeia/Nomoi — kept subordinate to the canonical
+    # (Latinized-Greek) title in `works.title`. Populated only for Plato
+    # today (see authors/plato_titles + migration 0023); everywhere else it
+    # is NULL and the row falls through to the existing display logic.
+    local_titles: dict[tuple[int, str], str] = {}
+    for wid, lang, local in conn.execute(
+        "SELECT work_id, language, title_local FROM editions "
+        "WHERE title_local IS NOT NULL "
+        "UNION ALL "
+        "SELECT work_id, language, title_local FROM translations "
+        "WHERE title_local IS NOT NULL"
+    ).fetchall():
+        local_titles[(wid, lang)] = local
+
     def sort_key(row: tuple[int, str, str, str, str, int]) -> tuple:
         _work_id, _corpus, author, work, lang, _n = row
         # Per-author work ordering:
@@ -72,7 +88,15 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
 
     out_works = []
     for (work_id, c, a, w, lang, n) in rows_sorted:
-        dt, ds = trilingual_display(a, w, display_title(w, lang))
+        local = local_titles.get((work_id, lang))
+        if local:
+            # This language has its own name for the work (English
+            # "Republic", German "Der Staat"). Show it as the primary
+            # label and keep the canonical Latinized-Greek title
+            # ("Politeia") as the subordinate original.
+            dt, ds = local, (w if local != w else None)
+        else:
+            dt, ds = trilingual_display(a, w, display_title(w, lang))
         out_works.append(
             {
                 # `work_id` is the integer surrogate from the `works`

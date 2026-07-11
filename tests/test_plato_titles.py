@@ -35,11 +35,36 @@ def test_german_headings_including_variants():
     assert pt.canonical_for("APOLOGIA SOCRATIS") == "Apologia"
 
 
-def test_local_title_only_english():
+def test_local_title_english():
     assert pt.local_title("Politeia", "eng") == "Republic"
     assert pt.local_title("Politikos", "eng") == "Statesman"
+    # Display corrections: Roman numerals for Alcibiades + Letters, and the
+    # Epinomis subtitle dropped.
+    assert pt.local_title("Alkibiades I", "eng") == "Alcibiades I"
+    assert pt.local_title("Alkibiades II", "eng") == "Alcibiades II"
+    assert pt.local_title("Epinomis", "eng") == "Epinomis"
+    assert pt.local_title("Epistole VII", "eng") == "Letter VII"
+    assert pt.local_title("Epistole XIII", "eng") == "Letter XIII"
+
+
+def test_local_title_german():
+    # Conventional German titles where they differ from the Greek name…
+    assert pt.local_title("Politeia", "deu") == "Der Staat"
+    assert pt.local_title("Nomoi", "deu") == "Die Gesetze"
+    assert pt.local_title("Politikos", "deu") == "Der Staatsmann"
+    assert pt.local_title("Sophistes", "deu") == "Der Sophist"
+    assert pt.local_title("Symposion", "deu") == "Das Gastmahl"
+    assert pt.local_title("Apologia", "deu") == "Apologie des Sokrates"
+    # …else the Greek name (no override), and the Greek original never has one.
+    assert pt.local_title("Kriton", "deu") is None
     assert pt.local_title("Euthyphron", "grc") is None
-    assert pt.local_title("Euthyphron", "deu") is None
+
+
+def test_corrected_display_forms_still_recognized():
+    # The cleaner display strings must also resolve back to canonical, so a
+    # future source that stores them ingests correctly.
+    assert pt.canonical_for("Alcibiades I") == "Alkibiades I"
+    assert pt.canonical_for("Epinomis") == "Epinomis"
 
 
 def test_unknown_returns_none():

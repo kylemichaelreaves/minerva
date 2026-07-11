@@ -424,6 +424,17 @@ def insert_chunks(
                         affected_chunk_ids=affected,
                     )
 
+            # GC works/editions/translations left with zero chunks. In
+            # incremental mode a chunk delete + re-insert under a *different*
+            # work title (the Plato Latinized-Greek canonicalization did this
+            # for ~73 works) re-homes the chunks but strands the old rows;
+            # they're invisible to chunk queries but inflate the works count.
+            # Runs after the xref rebind, so any xref that referenced a
+            # re-homed chunk now points at its new (chunk-backed) edition and
+            # nothing live references the rows we prune. Cheap no-op in full
+            # mode (works are only ever created for inserted chunks).
+            _prune_orphan_works(conn)
+
             _set_meta(conn, "ingest.source", str(jsonl_path))
             _set_meta(conn, "ingest.count", str(inserted))
 
@@ -584,6 +595,32 @@ def _rebind_cross_references(
         f"{orphans_target} target-orphans NULL'd)",
         flush=True,
     )
+
+
+def _prune_orphan_works(conn: sqlite3.Connection) -> None:
+    """Delete editions/translations with no chunks, then works left with
+    neither. Idempotent; keeps the works/editions/translations tables in
+    step with what's actually readable so counts (landing, network) are
+    honest. See the call site in ``insert_chunks`` for why orphans arise."""
+
+    ed = conn.execute(
+        "DELETE FROM editions WHERE id NOT IN "
+        "(SELECT edition_id FROM chunks WHERE edition_id IS NOT NULL)"
+    ).rowcount
+    tr = conn.execute(
+        "DELETE FROM translations WHERE id NOT IN "
+        "(SELECT translation_id FROM chunks WHERE translation_id IS NOT NULL)"
+    ).rowcount
+    wk = conn.execute(
+        "DELETE FROM works WHERE id NOT IN "
+        "(SELECT work_id FROM editions UNION SELECT work_id FROM translations)"
+    ).rowcount
+    if wk or ed or tr:
+        print(
+            f"  pruned {wk} orphan works "
+            f"({ed} editions, {tr} translations with no chunks)",
+            flush=True,
+        )
 
 
 def chunk_count(conn: sqlite3.Connection, *, lang: str | None = None) -> int:
