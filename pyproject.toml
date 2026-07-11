@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 embed = ["sentence-transformers>=5.6.0"]
-hegel = ["pymupdf>=1.24", "ebooklib>=0.18", "beautifulsoup4>=4.12", "lxml>=5.0"]
+hegel = ["pymupdf>=1.24", "ebooklib>=0.20", "beautifulsoup4>=4.15.0", "lxml>=6.1.1"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
 # Install via `uv pip install -e '.[lemma]'`. spaCy's German model
@@ -42,15 +42,15 @@ lemma = [
     # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
     # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
     "stanza>=1.10",
-    "pyyaml>=6.0",
+    "pyyaml>=6.0.3",
 ]
 all = [
     "sentence-transformers>=5.6.0",
     "pymupdf>=1.24",
-    "ebooklib>=0.18",
-    "beautifulsoup4>=4.12",
+    "ebooklib>=0.20",
+    "beautifulsoup4>=4.15.0",
 ]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.15.21", "pyyaml>=6.0"]
+dev = ["pytest>=8.0", "pytest-cov>=7.1.0", "ruff>=0.15.21", "pyyaml>=6.0.3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
