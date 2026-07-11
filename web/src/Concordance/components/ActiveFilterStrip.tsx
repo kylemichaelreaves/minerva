@@ -40,7 +40,7 @@ export function ActiveFilterStrip(props: {
         </For>
         <Show when={props.count !== undefined}>
           <span class="afs-ct">
-            <b>{props.count!.toLocaleString()}</b> {props.countLabel ?? "results"}
+            <b>{props.count?.toLocaleString()}</b> {props.countLabel ?? "results"}
           </span>
         </Show>
         <span class="afs-reset" onClick={() => props.onReset()}>

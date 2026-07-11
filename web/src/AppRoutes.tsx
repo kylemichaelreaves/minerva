@@ -61,6 +61,12 @@ export function AppRoutes(props: AppRoutesProps) {
     onCleanup(() => el.removeEventListener("scroll", onScroll));
   });
 
+  // `ctx` copies stable controller bundles + functions (created once in
+  // AppShell) into the route context; the reactive scalars are wrapped as
+  // accessors below. The bundle/function/constant reads are stable
+  // references, so the solid/reactivity warnings they trigger are false
+  // positives — hence the block disable.
+  /* eslint-disable solid/reactivity */
   const ctx: RouteContextProps = {
     routing: props.routing,
     conversations: props.conversations,
@@ -82,6 +88,7 @@ export function AppRoutes(props: AppRoutesProps) {
     },
     onScroll: (e) => props.onScrollChange(e.currentTarget.scrollTop > 4),
   };
+  /* eslint-enable solid/reactivity */
 
   return (
     <Switch fallback={<ChatRoute {...ctx} />}>
