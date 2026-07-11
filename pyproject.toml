@@ -25,7 +25,7 @@ lemma = [
     # German: spaCy + `de_core_news_sm`. spaCy ≥3.8 needed for any
     # Python ≥3.13 (older versions pull `blis<0.8` which fails to
     # compile against 3.13's longobject API).
-    "spacy>=3.8",
+    "spacy>=3.8.14",
     "de_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl",
     # French: spaCy + `fr_core_news_sm`. Powers the lat/fra Descartes
     # corpus — the Discours, the Luynes Méditations, and the Picot
