@@ -41,7 +41,7 @@ lemma = [
     # Stanza: fallback for grc/lat when LatinCy wheels are missing;
     # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
     # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
-    "stanza>=1.10",
+    "stanza>=1.13.0",
     "pyyaml>=6.0.3",
 ]
 all = [
