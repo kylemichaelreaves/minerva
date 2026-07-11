@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 embed = ["sentence-transformers>=5.6.0"]
-hegel = ["pymupdf>=1.24", "ebooklib>=0.18", "beautifulsoup4>=4.12", "lxml>=6.1.1"]
+hegel = ["pymupdf>=1.24", "ebooklib>=0.20", "beautifulsoup4>=4.12", "lxml>=6.1.1"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
 # Install via `uv pip install -e '.[lemma]'`. spaCy's German model
@@ -47,7 +47,7 @@ lemma = [
 all = [
     "sentence-transformers>=5.6.0",
     "pymupdf>=1.24",
-    "ebooklib>=0.18",
+    "ebooklib>=0.20",
     "beautifulsoup4>=4.12",
 ]
 dev = ["pytest>=8.0", "pytest-cov>=7.1.0", "ruff>=0.15.21", "pyyaml>=6.0"]
