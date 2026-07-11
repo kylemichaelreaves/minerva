@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,11 +10,11 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
 dependencies = [
-    "numpy>=1.24",
+    "numpy>=2.4.6",
 ]
 
 [project.optional-dependencies]
-embed = ["sentence-transformers>=2.2"]
+embed = ["sentence-transformers>=5.6.0"]
 hegel = ["pymupdf>=1.24", "ebooklib>=0.18", "beautifulsoup4>=4.12", "lxml>=5.0"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
@@ -25,7 +25,7 @@ lemma = [
     # German: spaCy + `de_core_news_sm`. spaCy ≥3.8 needed for any
     # Python ≥3.13 (older versions pull `blis<0.8` which fails to
     # compile against 3.13's longobject API).
-    "spacy>=3.8",
+    "spacy>=3.8.14",
     "de_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl",
     # French: spaCy + `fr_core_news_sm`. Powers the lat/fra Descartes
     # corpus — the Discours, the Luynes Méditations, and the Picot
@@ -45,12 +45,12 @@ lemma = [
     "pyyaml>=6.0",
 ]
 all = [
-    "sentence-transformers>=2.2",
+    "sentence-transformers>=5.6.0",
     "pymupdf>=1.24",
     "ebooklib>=0.18",
     "beautifulsoup4>=4.12",
 ]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "pyyaml>=6.0"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.15.21", "pyyaml>=6.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
