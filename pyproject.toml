@@ -50,7 +50,7 @@ all = [
     "ebooklib>=0.20",
     "beautifulsoup4>=4.15.0",
 ]
-dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.15.21", "pyyaml>=6.0.3"]
+dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.15.22", "pyyaml>=6.0.3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
