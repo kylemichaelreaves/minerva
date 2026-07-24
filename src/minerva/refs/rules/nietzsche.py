@@ -203,6 +203,11 @@ RULES = (
             "platonisch",
             "platonische",
             "platonischen",
+            # Capitalised attributive / nominalised forms ("das
+            # Platonische"); matching is case-sensitive so the lowercase
+            # pair above does not cover them.
+            "Platonische",
+            "Platonischen",
         ),
         confidence=0.8,
         langs=("deu",),

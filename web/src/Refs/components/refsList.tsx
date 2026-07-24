@@ -8,7 +8,13 @@ export function stringsToSelectOptions(authors: string[]): SelectOption[] {
   return authors.map((a) => ({ value: a, label: a }));
 }
 
-export function buildReferencesListArgs(props: {
+// The parameter is deliberately NOT named `props`: this is a plain mapping
+// helper, not a component, and callers already invoke it inside a tracked
+// scope (see the `useAbortableFetch` source thunk in ../index.tsx). Naming it
+// `props` made eslint-plugin-solid's reactivity heuristic report every field
+// read as an untracked access — seven false positives that buried the real
+// reactivity warnings elsewhere in the tree.
+export function buildReferencesListArgs(filters: {
   sourceAuthor?: string;
   targetAuthor?: string;
   targetWork?: string;
@@ -18,13 +24,13 @@ export function buildReferencesListArgs(props: {
   offset: number;
 }) {
   return {
-    sourceAuthor: props.sourceAuthor,
-    targetAuthor: props.targetAuthor,
-    targetWork: props.targetWork,
-    referenceType: props.referenceType,
-    includeRejected: props.includeRejected,
-    limit: props.limit,
-    offset: props.offset,
+    sourceAuthor: filters.sourceAuthor,
+    targetAuthor: filters.targetAuthor,
+    targetWork: filters.targetWork,
+    referenceType: filters.referenceType,
+    includeRejected: filters.includeRejected,
+    limit: filters.limit,
+    offset: filters.offset,
   };
 }
 
@@ -39,7 +45,9 @@ export function useRefsSourceAuthors(
   sourcesData: () => { sources?: string[] } | null | undefined,
   listRows: () => ReferencesListRow[] | undefined,
 ) {
-  return createMemo<string[]>(() => {
+  // Captured in a local rather than returned inline so
+  // eslint-plugin-solid can see the memo's identity.
+  const authors = createMemo<string[]>(() => {
     const fromEndpoint = sourcesData()?.sources;
     if (fromEndpoint && fromEndpoint.length > 0) return fromEndpoint;
     const set = new Set<string>();
@@ -48,4 +56,5 @@ export function useRefsSourceAuthors(
     }
     return Array.from(set).sort();
   });
+  return authors;
 }

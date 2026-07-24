@@ -68,6 +68,12 @@ RULES = (
             "Platonic",
             "Platonische",
             "Platonischen",
+            # Lowercase attributive forms: German adjectives are lowercase
+            # except sentence-initial / nominalised, and matching is
+            # case-sensitive, so these need listing alongside the
+            # capitalised pair above.
+            "platonische",
+            "platonischen",
         ),
         confidence=0.65,
         langs=("deu", "eng"),
@@ -92,7 +98,11 @@ RULES = (
         name="hegel_spinoza",
         target_author="Spinoza",
         target_work="",
-        forms=_figures.SPINOZA_DEU_ENG,
+        # Shared base plus a Hegel-local extra: the Haldane/Sibree English
+        # translations use the possessive heavily (53 occurrences), while
+        # Kant's English side — the other SPINOZA_DEU_ENG consumer — has
+        # none, so this stays local rather than widening the shared tuple.
+        forms=(*_figures.SPINOZA_DEU_ENG, "Spinoza's"),
         confidence=0.75,
         langs=("deu", "eng"),
         note=(
@@ -202,7 +212,9 @@ RULES = (
         name="hegel_locke",
         target_author="Locke",
         target_work="",
-        forms=_figures.LOCKE_DEU_ENG,
+        # Shared base plus a Hegel-local possessive (26 occurrences in the
+        # English translations; absent from Kant's side).
+        forms=(*_figures.LOCKE_DEU_ENG, "Locke's"),
         confidence=0.85,
         langs=("deu", "eng"),
     ),

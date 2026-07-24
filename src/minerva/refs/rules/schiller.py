@@ -36,7 +36,17 @@ RULES = (
         name="schiller_plato",
         target_author="Plato",
         target_work="",
-        forms=("Plato", "Platon", "Platons", "Platonisch", "Platonische", "Platonischen"),
+        forms=(
+            "Plato",
+            "Platon",
+            "Platons",
+            "Platonisch",
+            "Platonische",
+            "Platonischen",
+            # Lowercase attributive forms — matching is case-sensitive.
+            "platonische",
+            "platonischen",
+        ),
         confidence=0.65,
         langs=("deu",),
         note=(
