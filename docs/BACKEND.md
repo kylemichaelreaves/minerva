@@ -11,7 +11,7 @@ For architecture (route tables, DB layout, ChatContext), see
 ## Module layout
 
 - **Top-level packages**: `concordance/`, `reader/`, `refs/`, `ingest/`,
-  `store/`, `agent/`, `http/`. Each contains a `__init__.py` that re-exports
+  `store/`, `agent/`, `http/`, `syntax/`. Each contains a `__init__.py` that re-exports
   the public surface (functions, classes, types). Importers go through the
   package, not the module file.
 - **Chat** lives at the package root (not a `chat/` subpackage):
@@ -22,6 +22,18 @@ For architecture (route tables, DB layout, ChatContext), see
   package root. Shared work metadata is in `corpus_works.py`.
 - **One responsibility per module.** `concordance/queries.py` is the read path;
   if a write path lands, it goes in `concordance/writes.py`, not the same file.
+- **`syntax/`** splits along its dependency seam, which is the point of the
+  package: `parse.py` wraps Stanza (a lazy German singleton; the model
+  downloads to `~/stanza_resources/` on first use) and is the only module
+  needing the `[lemma]` extra, imported lazily so the rest works without it;
+  `queries.py` (`load_or_parse`, `append_correction`, `delete_correction`,
+  and the replay `materialise`) and `validate.py` (tree invariants — cycle,
+  single root, deprel shape) depend on nothing but `sqlite3`. Keep
+  `materialise` pure: it is the integrity guarantee for every hand correction
+  in the system. **Tests must mock at the pipeline boundary** — CI installs
+  `.[dev,hegel,embed]`, *not* `[lemma]`, so there is no `stanza` and no model
+  there. A test that constructs a real pipeline passes locally and fails
+  everywhere else.
 - **HTTP handlers** live in `src/minerva/http/handlers/` — thin wrappers that
   unpack the request, call the domain function, return JSON. No business logic
   in handlers. Transport (`ChatHandler`, static SPA) is in `http/serve.py`;

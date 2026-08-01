@@ -40,7 +40,7 @@ for experiments.
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Fresh-machine setup, `make check` |
 | [docs/MEMORY.md](docs/MEMORY.md) | Operator rules (snapshots, re-ingest) |
 | [docs/SCRIPTS.md](docs/SCRIPTS.md) | One-off scripts |
-| [docs/syntax-annotation-plan.md](docs/syntax-annotation-plan.md) | Dependency-syntax reader overlay (planned) |
+| [docs/syntax-annotation-plan.md](docs/syntax-annotation-plan.md) | Dependency-syntax reader overlay — design, derivations, known gaps |
 | [FigJam — App Flow + Ingestion](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26) | User journeys + pipeline diagram |
 | [FigJam — Author Ingest Wave](https://www.figma.com/board/uaeZ5hqmEClhmBQf4Gv0xA) | Ingest checklist visual |
 
