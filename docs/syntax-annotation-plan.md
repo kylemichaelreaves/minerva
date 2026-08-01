@@ -1,0 +1,349 @@
+# Dependency-syntax close reading — implementation plan
+
+> **Status (2026-07-31): planned, not started.** No code has landed. The
+> execution tracker below is the resume point. Phase 1 ends in a mandatory
+> stop-and-report: if level assignment or non-projectivity detection is wrong,
+> every later phase inherits the error.
+
+## Problem
+
+Minerva can say what a German word *is* — `chunk_lemmas` holds 26,163,969 rows
+carrying surface form, lemma, UPOS and raw UD `feats`:
+
+```
+2 | Pessimismus | Pessimismus | NOUN | Case=Nom|Gender=Masc|Number=Sing
+5 | endet       | enden       | VERB | Mood=Ind|Number=Sing|Person=3|VerbForm=Fin
+```
+
+It cannot say how the words *hang together*. There is no `head`, no `deprel`,
+and no sentence boundary anywhere in the schema. The dependency step was
+switched off deliberately for throughput — every spaCy pipeline loads with
+`disable=["parser"]` (`lemmatize.py:210,230,261,324,348`, the last citing a
+2–3× per-chunk cost) and every Stanza pipeline is `tokenize,pos,lemma`
+(`lemmatize.py:295,302`).
+
+For Hegel and Nietzsche that gap is the interesting one. No gold German
+treebank exists for philosophical prose, and statistical parsers fail
+precisely where the syntax is doing interpretive work: extraposed relatives,
+heavy Mittelfeld, verb-final subordination. So a viewer alone is not the
+deliverable — **correcting the parse is the primary activity**, and the tool
+has to be built around the ergonomics of reattaching a node and relabelling an
+edge.
+
+The same chunk above already shows why: `d. h.` was split into two tokens and
+lemmatized as `der` (PRON) + `heißen` (VERB).
+
+## Scope
+
+German only. Not in scope, and no scaffolding for them: multi-language
+comparison, parallel text, word alignment, RTL, constituency trees, an in-app
+parser, or a theming layer.
+
+The UI is a **full-bleed overlay** off the Reader, following the existing
+`#/network/arc` drilldown pattern.
+
+## Design decisions
+
+| Question | Decision | Why |
+|---|---|---|
+| Where trees come from | Parse on demand, cache | No 26M-row re-pass; the corpus fills in where you actually read. The bulk CLI writes the same table, so the two aren't in tension. |
+| Token layer | Fresh Stanza parse into a new `chunk_syntax` table | `chunk_lemmas` stays untouched, so `term_occurrences`, the glossary importer and concordance are unaffected. Aligned to the reading pane by character offset. |
+| Parser | Stanza German (UD), **not** spaCy | See below — spaCy German emits TIGER, not UD. |
+| Persistence | SQLite | Corrections are hand labour and must survive a browser, a device, and a re-ingest. |
+| Correction shape | Append-only log, replayed over the pristine parse | Real undo, full history, and the DB knows which tokens are hand-corrected — which is what drives the epistemic colouring. |
+
+### spaCy German is unusable here
+
+`de_core_news_sm` has a parser; it is only disabled. But it emits TIGER labels
+and an inverted verbal-complex tree:
+
+```
+spaCy:  hat = ROOT,  entwickelt = oc,  Geist = sb,  Der = nk
+UD:     entwickelt = root,  hat = aux,  Geist = nsubj,  Der = det
+```
+
+That breaks the relation inventory, the fixtures, and the topological-field
+rule, which depends specifically on UD attaching `aux` *to* the participle.
+Stanza German (GSD/HDT) is the only option producing UD. Note German is
+currently absent from `_init_stanza_generic`'s `{"heb": "he", "ara": "ar"}` map
+at `lemmatize.py:287`; the syntax pipeline is a separate one, not a change to
+that.
+
+## Two corrections to the source brief
+
+Found by hand-checking the golden fixtures against the brief's own algorithms.
+Both change acceptance criteria.
+
+### 1. `fixture_nonprojective.conllu` has two non-projective arcs, not one
+
+The brief asserts only `acl:relcl` is non-projective. Apply `isNonProjective`
+to token 10 (`.`, head 5, span `[5,10]`): interior token 9 has `head = 2`, and
+`2 < 5`, so it returns true.
+
+This is not an artefact of the rule. Arcs `9→2` and `10→5` genuinely interleave
+(`2 < 5 < 9 < 10`) and would cross if both were drawn above the row. Running
+`assignLevels` over the non-projective set gives the below-line stack:
+
+| relation | span | level |
+|---|---|---|
+| `punct` (10→5) | [5,10] | 1 |
+| `acl:relcl` (9→2) | [2,9] | 2 |
+
+The level table for `fixture_projective.conllu` **is** correct as briefed — all
+eight rows were traced and the specified sort (width ascending, then start) plus
+the "disjoint or share exactly one endpoint" rule reproduce it exactly.
+
+### 2. The Rechte Klammer rule is inverted for UD
+
+The brief defines RK as "tokens depending on LK". In UD the participle is the
+head and the finite auxiliary is its `aux` dependent — so in fixture 1, `hat`
+(3) depends on `entwickelt` (8), nothing depends on `hat`, RK computes empty,
+and the Mittelfeld swallows the rest of the clause. The briefed expectation is
+`RK = entwickelt`.
+
+Corrected heuristic:
+
+```
+LK = finite verb (VerbForm=Fin, UPOS in {VERB, AUX})
+if deprel(LK) in {aux, aux:pass}:
+    V  = head(LK)                       # the non-finite verbal head
+    RK = {V} ∪ {dependents of V with deprel in
+               {aux, aux:pass, xcomp, compound:prt} and index > LK}
+else:
+    V  = LK
+    RK = {dependents of LK with deprel in {compound:prt, xcomp}}   # may be empty
+```
+
+Punctuation must also be excluded from field assignment, or fixture 1's
+Nachfeld contains `.` rather than being empty as briefed.
+
+This stays a heuristic and will be wrong on complex sentences. It renders in
+the derived colour and is toggleable. Do not special-case to improve accuracy —
+if it is wrong, the user corrects the tree and the fields recompute.
+
+## Backend
+
+### Migration `0024_chunk_syntax.sql`
+
+`0023` is the latest on disk and applied (`schema_migrations` → 23).
+
+```sql
+CREATE TABLE chunk_syntax (               -- the machine parse; immutable
+  chunk_id      TEXT    NOT NULL REFERENCES chunks(chunk_id) ON DELETE CASCADE,
+  sent_ord      INTEGER NOT NULL,         -- 0-based sentence within the chunk
+  tok_id        INTEGER NOT NULL,         -- 1-based, CoNLL-U ID
+  form, lemma, upos, xpos, feats, misc  TEXT,
+  head          INTEGER NOT NULL,         -- 0 = root
+  deprel        TEXT    NOT NULL,
+  surface_start INTEGER NOT NULL,         -- offsets into chunks.text
+  surface_end   INTEGER NOT NULL,
+  PRIMARY KEY (chunk_id, sent_ord, tok_id)
+);
+
+CREATE TABLE chunk_syntax_state (         -- what parsed it, when
+  chunk_id  TEXT PRIMARY KEY REFERENCES chunks(chunk_id) ON DELETE CASCADE,
+  parser    TEXT NOT NULL,                -- 'stanza-de-<version>'
+  parsed_at REAL NOT NULL
+);
+
+CREATE TABLE chunk_syntax_corrections (   -- hand labour; NO foreign key
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  chunk_id   TEXT    NOT NULL,
+  sent_ord   INTEGER NOT NULL,
+  tok_id     INTEGER NOT NULL,
+  kind       TEXT    NOT NULL CHECK (kind IN ('head','deprel')),
+  from_val   TEXT,
+  to_val     TEXT    NOT NULL,
+  created_at REAL    NOT NULL
+);
+```
+
+**The missing FK on the corrections table is deliberate.** This repo has lost
+annotation to re-ingest three times — see `docs/MEMORY.md`, the `0013` cascade
+relaxation, and the lemma/xref snapshot machinery in
+`src/minerva/store/preserved_state.py`. Hand corrections will be the most
+expensive data the system holds. They must survive `index --reset`: no cascade,
+plus an entry in `preserved_state.py` alongside the existing snapshots.
+
+`chunk_syntax` itself *does* cascade — it is reproducible machine output, and a
+re-ingest should invalidate it.
+
+### `src/minerva/syntax/`
+
+- **`parse.py`** — lazy Stanza German singleton
+  (`tokenize,pos,lemma,depparse`). Model downloads to `~/stanza_resources/` on
+  first use. Emits sentences with per-sentence 1-based ids and character
+  offsets back into `chunks.text`.
+- **`queries.py`** — `load_or_parse(conn, chunk_id)`, `append_correction`,
+  `delete_correction`, and the replay `materialise(pristine, corrections)`.
+  Keep `materialise` pure and tested; it is the integrity guarantee for the
+  whole tool.
+
+### HTTP
+
+```
+GET    /api/chunks/{id}/syntax              parse-if-absent → sentences, corrections applied
+POST   /api/chunks/{id}/syntax/corrections  append one correction
+DELETE /api/syntax/corrections/{id}         undo
+```
+
+Each token carries `corrected: bool` so the client can colour by epistemic
+status without re-deriving it.
+
+Two things to get right, both from the July 2026 audit:
+
+- **Rate-limit the GET.** An uncached parse is CPU-bound; add it to
+  `_RATE_LIMITS` in `http/server_core.py`. That limiter has a known
+  bucket-eviction bug (#121).
+- **This adds the third state-changing POST**, and unlike chat it mutates
+  durable scholarly data. There is still no CSRF protection (#118). Land #118
+  first, or at minimum enforce `Content-Type: application/json` on this route.
+
+### CLI
+
+`minerva syntax parse --work <id>` warms a whole work in bulk, following the
+`cli/terms/lemmatize.py` shape. Writes the same table the endpoint reads, so a
+warmed chunk is simply a cache hit.
+
+## Frontend — `web/src/Syntax/`
+
+```
+Syntax/
+  conllu/{types,parse,serialise}.ts    export + external-treebank import + test substrate
+  layout/{measure,arcs,fields}.ts      the real geometry
+  corrections/store.ts                 optimistic queue over the API
+  components/{ArcDiagram,TokenInspector,SentenceList}.tsx
+  index.tsx
+  syntax.css
+web/public/data/fixture_{projective,nonprojective}.conllu
+```
+
+`conllu/`, `layout/` and `corrections/` are not `hooks/` or `utils/`, so they
+clear the `no-restricted-syntax` rule at `eslint.config.js:70-96`. This departs
+deliberately from the single-file-component convention in `docs/FRONTEND.md`:
+every one of these modules is pure and independently testable, which is worth
+the exception.
+
+**No new dependencies.** SVG is hand-written; the CoNLL-U parser is written,
+not installed. The format is tab-separated, ten columns, sentences separated by
+blank lines, `#` comments carrying metadata.
+
+**Route.** New `{ kind: "syntax"; chunkId: string; workId: number }` at
+`#/syntax/<chunkId>?work=<id>`, added to the regex cascade in `routing.ts` and
+special-cased out of the chrome in `App.tsx` the way `network-arc` is at line
+147.
+
+**Reuse.** `computePopoverPosition` (`utils/popoverPosition.ts`) for the token
+card; `POS_LABEL` (`Reader/wordInfoMorph.ts`) for UPOS display;
+`useElementSize` for the canvas. `layoutLabelsGreedy`
+(`utils/atlasGeometry.ts`) is **not** reusable — it packs label boxes with no
+nesting awareness, and arc levels need nested-interval logic. Write
+`assignLevels` fresh.
+
+**Measurement is greenfield.** Nothing in the repo measures text; everything
+estimates `chars × 0.55 × fontSize` (`atlasData.ts:274`, `NetworkArc.tsx:129`).
+`measure.ts` introduces the first real `getComputedTextLength`, gated on
+`document.fonts.ready` — measuring before fonts resolve makes arcs land wrong
+on first paint and then snap, which reads as broken. Cache by
+`(text, fontKey)`. jsdom returns `0`, so `tests/setup.ts` needs a stub; width
+proportional to length suffices, since the golden assertions are about levels
+and projectivity, not pixels.
+
+**Fonts.** Token text needs full German diacritic coverage (and polytonic Greek
+later). Add Gentium Plus to the single Google Fonts `<link>` in
+`web/index.html`. There are no self-hosted fonts in this repo and this need not
+be the first. UI chrome keeps the existing grotesque; do not set token text in
+the UI font.
+
+**Colour encodes epistemic status** — the one thing this tool genuinely knows.
+Feature-scoped tokens under `:root` and `[data-theme="dark"]`, following the
+`--net-*` / `--atlas-*` precedent:
+
+```
+--syn-gold      saturated ink blue      hand-corrected
+--syn-machine   same hue, desaturated   uncorrected parse
+--syn-derived   muted oxide, dashed     topological fields
+```
+
+Non-projective arcs use the same blue but render *below* the row — position
+carries the meaning, not hue. Do not redefine `--accent`, `--accent-soft` or
+`--selection`; `theme.ts:43-48` writes those inline on `<html>` and will win.
+Prefix every class `syn-`; `net-`, `atlas-`, `r-`, `conc-`, `refs-` are taken
+and all stylesheets are global.
+
+**Signature interaction.** Hovering a token dims every arc except the subtree
+it governs, so the constituent it heads becomes visible as a shape. This is the
+thing that makes the tool worth using over a printed text.
+
+**Quality floor**, without announcing it in the UI: arrow-key navigation
+between tokens, visible focus rings, `prefers-reduced-motion` respected.
+
+## Execution tracker
+
+| # | Scope | Status |
+|---|---|---|
+| **0** | `conllu/` types + parse + serialise, both fixtures, round-trip tests | pending |
+| **1** | `measure.ts`, `arcs.ts` + golden-fixture tests. No rendering. **Stop and report.** | pending |
+| **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | pending |
+| **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | pending |
+| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | pending |
+| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach, subtree-hover dimming | pending |
+| **6** | Topological fields overlay, toggleable | pending |
+
+Commit at each boundary.
+
+Seven phases rather than the briefed six: the backend is work the brief did not
+anticipate (its standalone `scripts/parse_text.py` is absorbed into Phase 2),
+and the briefed Phase 3 was doing too much — it is split into 4 and 5 so the
+correction loop is exportable and under test one commit before pointer
+interaction lands on top of it.
+
+**Phase 0 detail worth not forgetting:** multiword-token ranges (`1-2`) and
+empty nodes (`1.1`) are skipped for rendering but must be **retained as raw
+lines with their ordinal**, because byte-identical round-trip requires
+re-emitting them in place.
+
+**Where this could overrun.** Phase 5. Drag-to-reattach in SVG with a
+live-updating layout, a refusal path, and subtree dimming is more than it reads
+as. If it bloats, the cut is to ship keyboard reattach alone — it satisfies
+every acceptance criterion except the word "drag", and it is the faster input
+method anyway.
+
+## Acceptance criteria
+
+- Both fixtures parse and round-trip through `writeConllu` byte-identically
+- Level assignment matches the eight-row table for fixture 1 exactly
+- Fixture 2 flags **both** `acl:relcl` [2,9] and `punct` [5,10] as
+  non-projective, and both render below the row
+- No arc path crosses the bounding box of any token's text
+- No two relation labels overlap at any zoom level
+- Reattaching re-lays out without a full remount and without a visible reflow jump
+- A cycle-creating reattachment is refused with a visible reason
+- Exactly one token per sentence has `head = 0`; an edit that would orphan or
+  duplicate the root shows what is wrong inline rather than silently repairing
+- Exported JSON patch, reapplied to the pristine parse, reproduces the edited state
+- Exported CoNLL-U reparses cleanly
+- Arrow keys move token focus; focus is visibly ringed
+
+## Validation
+
+**TypeScript.** `npx vitest run tests/syntax*.test.ts` — round-trip, the level
+table, both non-projective arcs, and `apply()` reproducing an edited state from
+an exported patch.
+
+**Python.** `pytest tests/test_syntax_parse.py tests/test_syntax_queries.py` —
+parse a known German sentence and assert UD deprels not TIGER (`nsubj`, not
+`sb`); replay ordering; corrections survive a simulated `index --reset`.
+
+**End to end.** `make run`, open a German work, open the overlay on a chunk.
+Confirm arcs land on token centres after fonts resolve with no snap; no arc
+crosses a token's text box; reattach re-lays out without remount; a
+cycle-creating drop is refused visibly; export CoNLL-U and re-parse it through
+`parseConllu`. Drive it with Chrome DevTools MCP at 1440×900 to check label
+overlap at several zoom levels and keyboard focus behaviour.
+
+**Regression.** `npm run typecheck`, `npx eslint src tests --quiet`,
+`npm run test:unit` and `ruff check src tests` stay clean. Watch the coverage
+thresholds (lines 56 / statements 52 / branches 45 / functions 46) — new
+`src/**` files are auto-included, though these modules are mostly pure and
+should lift rather than drag them.
