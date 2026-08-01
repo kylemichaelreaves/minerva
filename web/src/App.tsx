@@ -77,6 +77,9 @@ function AppShell() {
     const k = routing.route().kind;
     return k === "network" || k === "network-arc" || k === "network-coverage";
   });
+  // Full-bleed like the network drilldowns: it renders its own back bar, so
+  // the mobile chrome steps aside the same way.
+  const onSyntax = createMemo(() => routing.route().kind === "syntax");
   const onConcordance = createMemo(() => {
     const k = routing.route().kind;
     return k === "concordance" || k === "concordance-lemma";
@@ -145,7 +148,8 @@ function AppShell() {
             isMobile() &&
             !conversations.showLanding() &&
             routing.route().kind !== "network-arc" &&
-            routing.route().kind !== "network-coverage"
+            routing.route().kind !== "network-coverage" &&
+            routing.route().kind !== "syntax"
           }
         >
           {/* MobileTopBar is suppressed on the two Network drilldown
@@ -168,6 +172,7 @@ function AppShell() {
           conversationTitle={conversationTitle}
           onRefs={onRefs}
           onNetwork={onNetwork}
+          onSyntax={onSyntax}
           onConcordance={onConcordance}
           openSourceInReader={openSourceInReader}
           onScrollChange={setScrolled}

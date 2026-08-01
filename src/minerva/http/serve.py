@@ -59,6 +59,57 @@ def _parse_content_length(raw: str | None) -> int:
     return n
 
 
+def _require_json_content_type(headers: Any) -> None:
+    """Reject a request body that isn't declared ``application/json``.
+
+    This is the load-bearing half of the CSRF defence (issue #118). The three
+    CORS-safelisted content types — ``text/plain``,
+    ``application/x-www-form-urlencoded`` and ``multipart/form-data`` — make a
+    cross-origin POST a "simple request", which the browser sends with no
+    preflight at all. Requiring ``application/json`` forces a preflight, and
+    the preflight already withholds ``Access-Control-Allow-Origin`` from
+    unlisted origins, so the real request is never issued.
+
+    A browser cannot suppress ``Content-Type`` on a body-bearing request, so
+    there is no way to sidestep this from a page.
+    """
+
+    raw = headers.get("Content-Type") or ""
+    mime = raw.split(";", 1)[0].strip().lower()
+    if mime != "application/json":
+        raise _HTTPError(
+            HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+            "request body must be sent as Content-Type: application/json",
+        )
+
+
+def _same_origin_forms(host: str | None) -> frozenset[str]:
+    """The origins that are same-origin with a request sent to ``host``."""
+
+    if not host:
+        return frozenset()
+    return frozenset({f"http://{host}", f"https://{host}"})
+
+
+def _origin_allowed(deps: ServerDeps, origin: str | None, host: str | None) -> bool:
+    """Whether a state-changing request may proceed.
+
+    No ``Origin`` means no browser: curl, the CLI and the e2e harness send
+    none, and a browser *always* sends one on POST/PATCH/DELETE. Absence is
+    therefore not evidence of a cross-origin request.
+
+    Beyond the configured allowlist, a request whose ``Origin`` is the very
+    host it was addressed to is same-origin by definition. Without that,
+    `serve --host 0.0.0.0 --static` would reject every POST from its own SPA
+    unless the operator also passed a matching `--allow-origin` — turning a
+    documented warning into a broken app.
+    """
+
+    if origin is None:
+        return True
+    return origin in deps.allowed_origins or origin in _same_origin_forms(host)
+
+
 def _read_json_body(headers: Any, rfile: Any) -> dict[str, Any]:
     """Read and parse a JSON object request body."""
 
@@ -69,6 +120,11 @@ def _read_json_body(headers: Any, rfile: Any) -> dict[str, Any]:
             f"Transfer-Encoding {te!r} is not supported; send Content-Length",
         )
     length = _parse_content_length(headers.get("Content-Length"))
+    # Only gate requests that actually carry a body. A bodyless POST parses to
+    # `{}` and every handler rejects it on validation, so there is nothing to
+    # protect — and demanding a Content-Type for no content would be pedantry.
+    if length:
+        _require_json_content_type(headers)
     raw = rfile.read(length) if length else b"{}"
     payload = json.loads(raw.decode("utf-8")) if raw else {}
     if not isinstance(payload, dict):
@@ -166,6 +222,21 @@ class ChatHandler(BaseHTTPRequestHandler):
         finally:
             it.close()
 
+    def _refused_cross_origin(self) -> bool:
+        """Answer and return True when a state-changing request comes from an
+        origin we don't trust.
+
+        Runs before routing: this is a transport-level policy, and it also
+        avoids telling a hostile origin which routes exist.
+        """
+
+        origin = self.headers.get("Origin")
+        if _origin_allowed(self.deps, origin, self.headers.get("Host")):
+            return False
+        self.log_message("cross-origin refused: %s from %s", self.path, origin)
+        self._send_error_json(_HTTPError(HTTPStatus.FORBIDDEN, "cross-origin request refused"))
+        return True
+
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
         for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
@@ -173,13 +244,18 @@ class ChatHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
+        if self._refused_cross_origin():
+            return
         path = urlparse(self.path).path
         matched = _match_route(path, build_post_routes(self.deps))
         if matched is None:
             self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"no route for {path}"))
             return
         label, handler, args = matched
-        if not self.deps.rate_limiter.allow(path, self.client_address[0]):
+        # By label, not path — see `_RATE_LIMITS`. `/api/chunks/<id>/syntax/
+        # corrections` has a different path per chunk and would otherwise get
+        # a fresh bucket for every chunk, which is no limit at all.
+        if not self.deps.rate_limiter.allow(label, self.client_address[0]):
             self.log_message("rate-limited: %s from %s", path, self.client_address[0])
             self._send_error_json(_HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded"))
             return
@@ -209,6 +285,14 @@ class ChatHandler(BaseHTTPRequestHandler):
         matched = _match_route(path, routes)
         if matched is not None:
             label, handler, args = matched
+            # GET routes rate-limit by label, not path: theirs carry ids and
+            # would never match a fixed key. Most have no entry and sail past.
+            if not self.deps.rate_limiter.allow(label, self.client_address[0]):
+                self.log_message("rate-limited: %s from %s", label, self.client_address[0])
+                self._send_error_json(
+                    _HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded")
+                )
+                return
             try:
                 body = handler(*args)  # type: ignore[arg-type]
                 self._send_json(HTTPStatus.OK, body)
@@ -223,6 +307,8 @@ class ChatHandler(BaseHTTPRequestHandler):
         self._serve_static(path)
 
     def do_PATCH(self) -> None:
+        if self._refused_cross_origin():
+            return
         path = urlparse(self.path).path
         matched = _match_route(path, build_patch_routes(self.deps))
         if matched is None:
@@ -238,6 +324,8 @@ class ChatHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, body)
 
     def do_DELETE(self) -> None:
+        if self._refused_cross_origin():
+            return
         path = urlparse(self.path).path
         matched = _match_route(path, build_delete_routes(self.deps))
         if matched is None:
@@ -250,7 +338,12 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_translate_route_exception(label, exc))
             return
         if not removed:
-            self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, "conversation not found"))
+            # Name the thing the route deletes. Router labels read
+            # "<noun> delete", so dropping the verb gives "conversation",
+            # "syntax correction". This was hardcoded to "conversation" while
+            # that was the only DELETE route, and silently lied once it wasn't.
+            noun = label.removesuffix(" delete")
+            self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
             return
         self.send_response(HTTPStatus.NO_CONTENT)
         for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():

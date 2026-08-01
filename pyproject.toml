@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-embed = ["sentence-transformers>=5.6.0"]
+embed = ["sentence-transformers>=5.6.1"]
 hegel = ["pymupdf>=1.28.0", "ebooklib>=0.20", "beautifulsoup4>=4.15.0", "lxml>=6.1.1"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
@@ -41,16 +41,16 @@ lemma = [
     # Stanza: fallback for grc/lat when LatinCy wheels are missing;
     # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
     # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
-    "stanza>=1.13.0",
+    "stanza>=1.14.0",
     "pyyaml>=6.0.3",
 ]
 all = [
-    "sentence-transformers>=5.6.0",
+    "sentence-transformers>=5.6.1",
     "pymupdf>=1.28.0",
     "ebooklib>=0.20",
     "beautifulsoup4>=4.15.0",
 ]
-dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.15.21", "pyyaml>=6.0.3"]
+dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.16.0", "pyyaml>=6.0.3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

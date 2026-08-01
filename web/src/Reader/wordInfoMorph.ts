@@ -1,6 +1,6 @@
 import type { WordLookup } from "~/utils/types";
 
-const POS_LABEL: Record<string, string> = {
+export const POS_LABEL: Record<string, string> = {
   NOUN: "noun",
   VERB: "verb",
   ADJ: "adjective",

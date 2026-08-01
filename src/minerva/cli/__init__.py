@@ -43,6 +43,7 @@ from . import (
     ingest_cmd,
     serve_cmd,
     stats_cmd,
+    syntax_cmd,
 )
 from ._shared import (
     DEFAULT_CHUNKS,
@@ -112,6 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     db_cmd.register(sub)
     serve_cmd.register(sub)
     eval_cmd.register(sub)
+    syntax_cmd.register(sub)
 
     # Term-glossary curator commands (cli/terms subpackage).
     from .terms import register_subparsers as _register_terms

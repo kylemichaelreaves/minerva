@@ -1,0 +1,928 @@
+/* Dependency-syntax close-reading overlay.
+   Cool neutral ground, ink-blue epistemic scale, oxide for derived layers.
+
+   Colour here encodes one thing and one thing only: how much of what you are
+   looking at you can trust. Saturated blue is a human's judgement; the same
+   hue desaturated is the parser's guess; muted oxide dashed is derived from
+   the tree rather than annotated. Nothing else gets to use colour.
+
+   Non-projective arcs are NOT distinguished by hue — they render below the
+   token row. Position carries the discontinuity, which is the fact worth
+   seeing.
+
+   Everything is `syn-` prefixed: stylesheets in this app are global, and
+   `net-`, `atlas-`, `r-`, `conc-` and `refs-` are taken. */
+
+.syn {
+  --syn-paper: #f3f4f6;
+  --syn-paper-2: #fafbfc;
+  --syn-rule: #dcdfe4;
+  --syn-rule-soft: #e7e9ed;
+  --syn-ink: #15181c;
+  --syn-ink-2: #474d55;
+  --syn-ink-3: #767d86;
+  --syn-ink-4: #a2a8b1;
+  --syn-ink-5: #c3c8ce;
+  --syn-corr: #23429b; /* hand-corrected — saturated ink blue */
+  --syn-mach: #8a90a2; /* machine-parsed — same hue, desaturated */
+  --syn-oxide: #5f8079; /* derived layers — muted oxide, dashed */
+  --syn-sel: rgb(35 66 155 / 9%);
+  --syn-sel-2: rgb(35 66 155 / 16%);
+  --syn-bad: #8e3b34;
+  --syn-shadow: rgb(15 20 30 / 22%);
+  --syn-ui: "Geist", "Söhne", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --syn-tok: "Gentium Plus", "Gentium", "Charis SIL", Georgia, serif;
+
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--syn-paper);
+  color: var(--syn-ink);
+  font-family: var(--syn-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="dark"] .syn {
+  --syn-paper: #0e1013;
+  --syn-paper-2: #141719;
+  --syn-rule: #272b31;
+  --syn-rule-soft: #1d2126;
+  --syn-ink: #e7eaee;
+  --syn-ink-2: #b2b8c0;
+  --syn-ink-3: #828993;
+  --syn-ink-4: #5e656e;
+  --syn-ink-5: #3c424a;
+  --syn-corr: #88a6f5;
+  --syn-mach: #6f7887;
+  --syn-oxide: #79a096;
+  --syn-sel: rgb(136 166 245 / 11%);
+  --syn-sel-2: rgb(136 166 245 / 20%);
+  --syn-bad: #c97a6e;
+  --syn-shadow: rgb(0 0 0 / 60%);
+}
+
+/* ── chrome ─────────────────────────────────────────────── */
+.syn-top {
+  display: flex;
+  flex: 0 0 52px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+}
+.syn-top .l,
+.syn-top .r {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.syn-mode {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--syn-ink-3);
+}
+.syn-cite {
+  font-family: var(--syn-tok);
+  font-size: 14px;
+  color: var(--syn-ink-2);
+}
+.syn-cite em {
+  color: var(--syn-ink-3);
+}
+.syn-vr {
+  width: 1px;
+  height: 16px;
+  background: var(--syn-rule);
+}
+.syn-back {
+  font-family: var(--syn-ui);
+  font-size: 12px;
+  color: var(--syn-corr);
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.syn-kbd {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--syn-ink-4);
+  border: 1px solid var(--syn-rule);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+
+.syn-stage {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 28px 48px;
+}
+
+.syn-foot {
+  display: flex;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-top: 1px solid var(--syn-rule-soft);
+}
+.syn-legend {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.syn-lg {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  color: var(--syn-ink-3);
+}
+.syn-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--syn-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.syn-status b {
+  color: var(--syn-corr);
+  font-weight: 500;
+}
+
+/* ── the diagram ────────────────────────────────────────── */
+.syn-diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+.syn-rowblock {
+  position: relative;
+}
+.syn-above,
+.syn-below {
+  position: relative;
+  width: 100%;
+}
+.syn-above svg,
+.syn-below svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.syn-toks {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: nowrap;
+}
+.syn-tok {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    opacity 0.13s,
+    background 0.13s;
+}
+.syn-form {
+  font-family: var(--syn-tok);
+  font-size: 20px;
+  line-height: 1.15;
+  color: var(--syn-ink);
+  white-space: nowrap;
+}
+.syn-ix {
+  font-size: 9px;
+  line-height: 1;
+  color: var(--syn-ink-5);
+  font-variant-numeric: tabular-nums;
+}
+.syn-punct .syn-form {
+  color: var(--syn-ink-3);
+}
+/* The sentence root, marked structurally rather than with colour. */
+.syn-root .syn-form {
+  box-shadow: inset 0 -2px 0 var(--syn-ink-4);
+}
+.syn-corr .syn-ix {
+  color: var(--syn-corr);
+}
+.syn-dimtok {
+  opacity: 0.26;
+}
+.syn-sub {
+  background: var(--syn-sel);
+}
+.syn-head-of {
+  background: var(--syn-sel-2);
+}
+.syn-focus {
+  background: var(--syn-sel);
+}
+.syn-focus .syn-ix {
+  color: var(--syn-corr);
+}
+.syn-tok:focus-visible {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 1px;
+}
+
+/* arcs */
+.syn path.syn-arc {
+  fill: none;
+  stroke-width: 1.4;
+}
+.syn-a-mach path.syn-arc,
+.syn-a-np path.syn-arc {
+  stroke: var(--syn-mach);
+}
+.syn-a-mach polygon,
+.syn-a-np polygon {
+  fill: var(--syn-mach);
+}
+.syn-a-mach text,
+.syn-a-np text {
+  fill: var(--syn-mach);
+}
+.syn-a-corr path.syn-arc {
+  stroke: var(--syn-corr);
+  stroke-width: 1.9;
+}
+.syn-a-corr polygon {
+  fill: var(--syn-corr);
+}
+.syn-a-corr text {
+  fill: var(--syn-corr);
+  font-weight: 500;
+}
+.syn-arcg {
+  transition: opacity 0.13s;
+}
+.syn-arcg.syn-dim {
+  opacity: 0.13;
+}
+.syn-arcg text {
+  font-family: var(--syn-ui);
+  font-size: 10.5px;
+  text-anchor: middle;
+}
+.syn-arcg text.syn-cut {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+/* ── topological fields (derived) ───────────────────────── */
+/* The only inferred layer in the diagram. Dashed and oxide, never the parse's
+   blue: a heuristic that will be wrong on Hegel must not look like something
+   the tool knows. It sits under the non-projective stack rather than tight
+   against the row, so an inferred bracket never crowds out a parsed arc. */
+.syn-fields {
+  position: relative;
+  width: 100%;
+  height: 40px;
+  margin-top: 6px;
+}
+.syn-field {
+  position: absolute;
+  top: 0;
+  height: 36px;
+  border-top: 1.5px dashed var(--syn-oxide);
+}
+.syn-field span {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--syn-oxide);
+  white-space: nowrap;
+}
+/* Alternating slots. The names are wider than the fields they label —
+   RECHTE KLAMMER over one participle — so every other one drops a line
+   rather than colliding with its neighbour. */
+.syn-stag span {
+  top: 22px;
+}
+
+/* ── the whole-sentence strip (phase 7) ─────────────────── */
+/* One tick per token, its height the depth of the arc stack over that token,
+   and a frame showing which rows are on screen. Orientation for the tail:
+   the worst sentence in the corpus is 5.4 screens wide, and wrapping — which
+   is what makes it readable — is also what makes it easy to lose your place
+   in. Shown only when the sentence wraps. */
+/* Sticky, which the design could not show: its artboard is 1180px tall and
+   holds the whole sentence at once. Here the pane scrolls, and a frame
+   saying where you are is worth nothing if it scrolls away with you. */
+.syn-minimap {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: 100%;
+  padding: 4px 0 14px;
+  background: var(--syn-paper);
+}
+/* A sticky child pins below its scroll pane's own top padding, so there is a
+   28px band between the header and the strip that scrolled arcs show through.
+   Paint over it here rather than restructure the pane's padding, which the
+   root drop-bar and the hint line also depend on. */
+.syn-minimap::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 30px;
+  background: var(--syn-paper);
+}
+.syn-minilab {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-mini {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--syn-rule-soft);
+  border-radius: 6px;
+  background: var(--syn-paper-2);
+  overflow: hidden;
+}
+.syn-tick {
+  flex: 1 1 0;
+  background: var(--syn-mach);
+  opacity: 0.42;
+  border-radius: 0.5px;
+}
+.syn-tick-corr {
+  background: var(--syn-corr);
+  opacity: 0.9;
+}
+.syn-vp {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px solid var(--syn-ink-4);
+  border-radius: 5px;
+  background: rgb(0 0 0 / 2%);
+  transition: left 0.12s, right 0.12s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .syn-vp {
+    transition: none;
+  }
+}
+
+/* ── token inspector ────────────────────────────────────── */
+.syn-panel {
+  position: fixed;
+  right: 32px;
+  bottom: 72px;
+  width: 336px;
+  background: var(--syn-paper-2);
+  border: 1px solid var(--syn-rule);
+  border-radius: 8px;
+  box-shadow: 0 20px 50px -24px var(--syn-shadow);
+  z-index: 45;
+}
+.syn-ph {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+}
+.syn-ph .t {
+  font-family: var(--syn-tok);
+  font-size: 19px;
+}
+.syn-ph .s {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 14px 12px;
+}
+.syn-kv {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+  font-size: 11.5px;
+  align-items: baseline;
+}
+.syn-kv .k {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-kv .v {
+  color: var(--syn-ink-2);
+}
+.syn-kv .v.serif {
+  font-family: var(--syn-tok);
+  font-size: 14px;
+  color: var(--syn-ink);
+}
+.syn-feats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.syn-feat {
+  font-size: 10px;
+  border: 1px solid var(--syn-rule);
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--syn-ink-2);
+  background: var(--syn-paper);
+}
+.syn-feat b {
+  font-weight: 500;
+  color: var(--syn-ink-3);
+}
+.syn-prov {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--syn-rule-soft);
+  font-size: 10.5px;
+  color: var(--syn-ink-3);
+}
+.syn-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--syn-mach);
+  flex: 0 0 auto;
+}
+.syn-dot.c {
+  background: var(--syn-corr);
+}
+
+/* ── sentence list ──────────────────────────────────────── */
+.syn-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.syn-slist {
+  flex: 0 0 288px;
+  border-right: 1px solid var(--syn-rule);
+  background: var(--syn-paper-2);
+  overflow-y: auto;
+}
+.syn-slh {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+}
+.syn-slh .t {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-sitem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 13px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--syn-rule-soft);
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.syn-sitem.on {
+  background: var(--syn-sel);
+  box-shadow: inset 2px 0 0 var(--syn-corr);
+}
+.syn-sn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 9.5px;
+  color: var(--syn-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.syn-sx {
+  font-family: var(--syn-tok);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--syn-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.syn-chip {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--syn-rule);
+  border-radius: 3px;
+  padding: 1.5px 5px;
+  color: var(--syn-ink-3);
+}
+.syn-chip.c {
+  border-color: var(--syn-corr);
+  color: var(--syn-corr);
+}
+
+.syn-hint {
+  font-size: 10.5px;
+  color: var(--syn-ink-3);
+  text-align: center;
+  margin-top: 28px;
+}
+.syn-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--syn-ink-3);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .syn-tok,
+  .syn-arcg {
+    transition: none;
+  }
+}
+
+/* Off-flow copies of every token, rendered once so their widths can be read
+   without the row layout depending on the measurement that depends on it. */
+.syn-probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+  top: -9999px;
+  left: -9999px;
+}
+
+/* ── inspector actions ──────────────────────────────────── */
+.syn-pact {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--syn-rule-soft);
+}
+.syn-pact button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px;
+  font-family: var(--syn-ui);
+  font-size: 11px;
+  color: var(--syn-ink-2);
+  background: var(--syn-paper);
+  border: 1px solid var(--syn-rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.syn-pact button:hover {
+  border-color: var(--syn-ink-4);
+  color: var(--syn-ink);
+}
+.syn-pact button.pri {
+  border-color: var(--syn-corr);
+  color: var(--syn-corr);
+}
+.syn-kv .v.syn-mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.syn-was {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* ── relation picker ────────────────────────────────────── */
+.syn-pick {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+}
+.syn-pickq {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+}
+.syn-pickl {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+  flex: 0 0 auto;
+}
+/* `all: unset` on an input drops the caret colour too, so set it back —
+   the blinking caret is the affordance that says this field is live. */
+.syn-pickq input {
+  all: unset;
+  flex: 1;
+  font-family: var(--syn-ui);
+  font-size: 13px;
+  color: var(--syn-ink);
+  caret-color: var(--syn-corr);
+  min-width: 0;
+}
+.syn-pickq input::placeholder {
+  color: var(--syn-ink-5);
+}
+.syn-picklist {
+  max-height: 330px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.syn-pgrp {
+  padding: 9px 14px 4px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-prow {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  align-items: baseline;
+  cursor: pointer;
+}
+.syn-prow .syn-rel {
+  font-family: var(--syn-ui);
+  font-weight: 500;
+  color: var(--syn-ink);
+}
+.syn-prow .syn-gl {
+  font-size: 11px;
+  color: var(--syn-ink-3);
+}
+.syn-prow.on {
+  background: var(--syn-sel);
+}
+.syn-prow.on .syn-rel {
+  color: var(--syn-corr);
+}
+.syn-prow.syn-cur {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+  background: var(--syn-sel);
+}
+.syn-prow.syn-cur .syn-rel::after {
+  content: "current";
+  margin-left: 7px;
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-pnone {
+  padding: 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--syn-ink-3);
+}
+.syn-pickfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-top: 1px solid var(--syn-rule-soft);
+  font-size: 10px;
+  color: var(--syn-ink-4);
+}
+
+/* ── refusal ────────────────────────────────────────────── */
+/* A panel, not a toast: the reason only means something read next to the arc
+   it is about, so it stays until dismissed or superseded. */
+.syn-refuse {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  z-index: 46;
+  max-width: 440px;
+  padding: 12px 14px;
+  background: var(--syn-paper-2);
+  border: 1px solid var(--syn-bad);
+  border-radius: 7px;
+  box-shadow: 0 18px 44px -22px var(--syn-shadow);
+}
+.syn-rt {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--syn-bad);
+}
+.syn-rb {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--syn-ink-2);
+}
+.syn-rf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--syn-rule-soft);
+  font-size: 10.5px;
+}
+.syn-rlink {
+  padding: 0;
+  font-family: var(--syn-ui);
+  font-size: 10.5px;
+  color: var(--syn-ink-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.syn-rlink:hover {
+  color: var(--syn-ink);
+}
+.syn-rnote {
+  margin-left: auto;
+  color: var(--syn-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.syn-saving {
+  color: var(--syn-corr);
+}
+
+/* Chrome buttons in the top bar. */
+.syn-ctl {
+  padding: 5px 10px;
+  font-family: var(--syn-ui);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--syn-ink-2);
+  background: none;
+  border: 1px solid var(--syn-rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.syn-ctl:hover:not(:disabled) {
+  border-color: var(--syn-ink-4);
+  color: var(--syn-ink);
+}
+.syn-ctl:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* A toggle rather than an action: it takes the colour of the layer it turns
+   on, so the button and the brackets are visibly the same thing. */
+.syn-ctl[aria-pressed="true"] {
+  color: var(--syn-oxide);
+  border-color: var(--syn-oxide);
+}
+
+/* The quality floor: focus must be visible everywhere, and nothing animates
+   for a reader who asked it not to. */
+.syn-prow:focus-visible,
+.syn-ctl:focus-visible,
+.syn-pact button:focus-visible,
+.syn-rlink:focus-visible {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .syn-refuse,
+  .syn-panel {
+    transition: none;
+  }
+}
+
+/* ── reattachment (frame 06) ────────────────────────────── */
+/* Tokens are real buttons now, so the browser's own styling has to go before
+   anything below has an effect. */
+.syn-tok {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+}
+/* One tab stop for the diagram; arrows move between tokens from there. The
+   ring is on :focus-visible AND on the current token, so keyboard navigation
+   stays visible even where the browser would suppress the ring. */
+.syn-tok:focus-visible,
+.syn-tok[aria-current="true"] {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+/* The word being moved: still in place, but plainly not settled. */
+.syn-lifted .syn-form,
+.syn-lifted .syn-ix {
+  opacity: 0.3;
+}
+/* Somewhere it could legally go. */
+.syn-cand {
+  box-shadow: inset 0 0 0 1px var(--syn-corr);
+  border-radius: 5px;
+}
+.syn-cand .syn-ix {
+  color: var(--syn-corr);
+}
+/* Refused: struck through, in the bad hue, until aimed somewhere else. */
+.syn-bad {
+  box-shadow: inset 0 0 0 1px var(--syn-bad);
+  border-radius: 5px;
+}
+.syn-bad .syn-form {
+  color: var(--syn-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* The root is the one target that is nowhere on the row, so it needs a place
+   of its own above the sentence. */
+.syn-rootbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 30px;
+  margin-bottom: 14px;
+  background: var(--syn-sel);
+  border: 1px dashed var(--syn-corr);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--syn-ui);
+}
+.syn-rootbar span:first-child {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--syn-corr);
+}
+.syn-rootbar.on {
+  background: var(--syn-sel-2);
+  border-style: solid;
+}
+.syn-rootbar:focus-visible {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 2px;
+}
+
+/* The word travelling with the cursor. `pointer-events: none` is load-bearing:
+   the drop target is resolved with elementFromPoint, and a ghost that could be
+   hit would always be the answer. */
+.syn-ghost {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, -140%);
+  padding: 3px 9px;
+  font-family: var(--syn-tok);
+  font-size: 20px;
+  color: var(--syn-corr);
+  background: var(--syn-paper-2);
+  border: 1px solid var(--syn-corr);
+  border-radius: 5px;
+  box-shadow: 0 10px 26px -12px var(--syn-shadow);
+  white-space: nowrap;
+  pointer-events: none;
+}
