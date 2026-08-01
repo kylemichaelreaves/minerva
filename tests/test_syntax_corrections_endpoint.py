@@ -220,14 +220,30 @@ def test_refuses_a_non_integer_token_id(deps) -> None:
 # ---------- undo ----------
 
 
+def replayed_deprel(deps, tok_id: int) -> str | None:
+    """The relation a client would show, replaying the log the way it does.
+
+    The GET answers with the pristine parse and the log side by side, so this
+    mirrors `applyCorrections` in `Syntax/corrections/apply.ts`: last write per
+    token wins, in id order.
+    """
+
+    body = _handle_chunk_syntax(deps, CHUNK)
+    token = next(t for t in body["sentences"][0]["tokens"] if t["id"] == tok_id)
+    deprel = token["deprel"]
+    for c in sorted(body["corrections"], key=lambda c: c["id"]):
+        if c["tok_id"] == tok_id and c["kind"] == "deprel":
+            deprel = c["to_val"]
+    return deprel
+
+
 def test_deleting_a_correction_reverts_the_token(deps) -> None:
     created = post(deps, sent_ord=0, tok_id=1, kind="deprel", to_val="nmod")
 
     assert _handle_syntax_correction_delete(deps, created["id"]) is True
 
-    tok = _handle_chunk_syntax(deps, CHUNK)["sentences"][0]["tokens"][0]
-    assert tok["deprel"] == "det"
-    assert tok["corrected"] is False
+    assert replayed_deprel(deps, 1) == "det"
+    assert _handle_chunk_syntax(deps, CHUNK)["corrections"] == []
 
 
 def test_deleting_an_unknown_correction_reports_that_nothing_went(deps) -> None:
@@ -240,6 +256,4 @@ def test_undo_of_the_later_edit_leaves_the_earlier_one_standing(deps) -> None:
 
     _handle_syntax_correction_delete(deps, second["id"])
 
-    tok = _handle_chunk_syntax(deps, CHUNK)["sentences"][0]["tokens"][0]
-    assert tok["deprel"] == "nmod"
-    assert tok["corrected"] is True
+    assert replayed_deprel(deps, 1) == "nmod"

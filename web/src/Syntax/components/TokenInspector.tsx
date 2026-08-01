@@ -20,10 +20,25 @@ export interface TokenInspectorProps {
   /** The token this one attaches to; absent when it is the root. */
   head: SyntaxToken | undefined;
   onClose: () => void;
+  /** Open the relation picker on this token. */
+  onRelabel?: () => void;
+  /** Drop the correction on this token, if it has one. */
+  onRevert?: () => void;
+  /** What the parser said before a human changed it — the "was obj". */
+  wasDeprel?: string | null;
 }
 
 export function TokenInspector(props: TokenInspectorProps) {
   const feats = () => parseFeats(props.token.feats);
+
+  // Returns the tag itself, never a boolean. `<Show when={x && x !== "_"}>`
+  // hands the *condition* to the child callback, so the callback would
+  // receive `true` and Solid renders that as nothing — a labelled row with an
+  // empty value. Narrow to the value here instead.
+  const xpos = (): string | undefined => {
+    const tag = props.token.xpos;
+    return tag !== null && tag !== "" && tag !== "_" ? tag : undefined;
+  };
 
   return (
     <aside class="syn-panel" aria-label={`Token ${String(props.token.id)}`}>
@@ -45,6 +60,16 @@ export function TokenInspector(props: TokenInspectorProps) {
             </Show>
           </span>
         </div>
+        <Show when={xpos()}>
+          {(tag) => (
+            <div class="syn-kv">
+              {/* The German tagset draws distinctions UPOS cannot — PRF for a
+                  reflexive, which is exactly what an expl:pv correction is about. */}
+              <span class="k">XPOS</span>
+              <span class="v syn-mono">{tag()}</span>
+            </div>
+          )}
+        </Show>
         <div class="syn-kv">
           <span class="k">Head</span>
           <span class="v">
@@ -87,7 +112,32 @@ export function TokenInspector(props: TokenInspectorProps) {
       <div class="syn-prov">
         <span class={`syn-dot${props.token.corrected ? " c" : ""}`} />
         {props.token.corrected ? "Hand-corrected" : "Machine-parsed · uncorrected"}
+        {/* The "was obj" the design asks for. No author: this is a
+            single-operator tool and there is no user to name. */}
+        <Show when={props.token.corrected && props.wasDeprel}>
+          {(was) => (
+            <>
+              {" · was "}
+              <span class="syn-was">{was()}</span>
+            </>
+          )}
+        </Show>
       </div>
+
+      <Show when={props.onRelabel ?? props.onRevert}>
+        <div class="syn-pact">
+          <Show when={props.onRelabel}>
+            <button type="button" class="pri" onClick={() => props.onRelabel?.()}>
+              Relabel <span class="syn-kbd">L</span>
+            </button>
+          </Show>
+          <Show when={props.token.corrected && props.onRevert}>
+            <button type="button" onClick={() => props.onRevert?.()}>
+              Revert
+            </button>
+          </Show>
+        </div>
+      </Show>
     </aside>
   );
 }

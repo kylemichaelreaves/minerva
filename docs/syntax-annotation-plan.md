@@ -1,10 +1,10 @@
 # Dependency-syntax close reading — implementation plan
 
-> **Status (2026-07-31): phases 0–3 shipped; the overlay renders real trees.**
-> The execution tracker below is the resume point. **Phase 4 is next**, and it
-> is the first phase that writes: corrections, the relation picker, and the two
-> refusals. Two design questions are open before it starts — see
-> *Open questions* at the end.
+> **Status (2026-07-31): phases 0–4 shipped; corrections are written and undone.**
+> The execution tracker below is the resume point. **Phase 5 is next** — drag
+> reattach, the ROOT drop-zone, keyboard reattach. Everything under it
+> (validation, the optimistic queue, undo, both exports) landed in phase 4 and
+> is under test, so phase 5 is input method rather than machinery.
 
 ## Problem
 
@@ -330,8 +330,8 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 | **1** | `measure.ts`, `arcs.ts` + golden-fixture tests. No rendering. **Stop and report.** | ✅ DONE 2026-07-31 (#131) |
 | **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | ✅ DONE 2026-07-31 (#134) |
 | **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | ✅ DONE 2026-07-31 (#135) |
-| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | **next** |
-| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | pending |
+| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | ✅ DONE 2026-07-31 |
+| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | **next** |
 | **6** | Topological fields overlay, toggleable | pending |
 | **7** | Long-sentence minimap | pending — added by the design, see below |
 
@@ -448,17 +448,75 @@ Neither would have failed a test written from the spec. Both were found by
 looking at the rendered page — which is why Phase 4 and 5 should also be
 checked in a browser and not only under vitest.
 
-## Open questions before Phase 4
+## What Phase 4 actually ships
 
-**Corrections have no author.** The design's inspector reads
-`Hand-corrected · a.reuter · 12 Mar · was obj`. `created_at` and `from_val`
-cover the date and the "was"; there is **no author column** on
-`chunk_syntax_corrections`. For a single-operator tool that may be right — but
-it is a migration, and cheaper to decide before Phase 4 starts writing rows
-than after.
+The relabel loop, end to end: select a token, `L`, filter a closed inventory,
+Enter. The edit shows immediately, posts behind you, and rolls back whole if
+the server says no. Revert takes it off again, including a correction made in
+an earlier session.
+
+**Decided: corrections have no author.** There is no user or auth concept
+anywhere in this codebase — it is a single-operator tool — so the inspector
+reads `Hand-corrected · was obj` and drops the design's `a.reuter`. Not a
+one-way door: the log is append-only with no backfill need, so
+`ALTER TABLE chunk_syntax_corrections ADD COLUMN author TEXT` is a one-liner
+whenever a second operator turns up.
+
+**The GET contract changed.** It now answers with the *pristine* parse and the
+correction log side by side, instead of the two already merged. Undo has to
+recompute the tree without one entry, and that is impossible from a merged
+tree — the first attempt shipped a Revert button that was correctly rendered,
+correctly wired, and pointed at nothing after a reload. The client replays via
+`corrections/apply.ts`, the mirror of `materialise`.
+
+**Deprels are validated twice, differently, on purpose.** The client checks
+membership of the 47-entry inventory, because the picker is right there and
+nothing off-list should reach the wire. The server checks only the *shape*
+(`^[a-z]+(:[a-z]+)?$`), because duplicating the inventory across two languages
+means two lists to keep in step. The shape check is what stops a TIGER label
+or a paste from reaching storage.
+
+**Root is checked before cycles.** In a well-formed tree the root governs every
+token, so *every* reattachment of the root is also a cycle. Reporting that
+would be true and useless; "give the root to another token first" is the
+sentence that tells the user what to do.
+
+### Three bugs the tests could not have found
+
+All three were found by opening the page, which is why the plan says to.
+
+1. **`<Show when={x && x !== "_"}>` renders an empty row.** The callback form
+   receives the *condition*, not the value — so `xpos()` was `true`, which
+   Solid renders as nothing, and XPOS showed a label with no tag. Narrow to
+   the value, never to a boolean.
+2. **A capture-phase `stopPropagation` ate the picker's own Enter.** The
+   picker registered a window listener to stop the overlay's shortcuts firing
+   underneath it. Capture runs *before* the target, so the component's own
+   `onKeyDown` never ran and Enter silently did nothing. The overlay already
+   ignores keys while the picker is open; that is the right place for it.
+3. **Revert was dead after a reload** — the merged-tree contract above.
+
+A fourth, caught by curl rather than the browser: a 502 from the dev proxy was
+rendering as `Refused · 502 Bad Gateway`, telling the user their edit had been
+rejected on the merits. 5xx and dropped sockets now read "Not saved".
+
+### Not in Phase 4
+
+Reattachment of any kind, so **the refusal panel has no user-reachable trigger
+yet** — the picker is a closed list, so `bad-deprel` cannot come from it, and
+there is no way to set a head. It is built, styled, unit-tested, and was
+verified live by taking the backend down mid-edit. It becomes reachable in
+Phase 5.
+
+Also still open: **tokens are not focusable**, so the acceptance criterion
+"arrow keys move token focus; focus is visibly ringed" is unmet. Arrows
+currently move between sentences. Token focus is a prerequisite for keyboard
+reattach, so it belongs to Phase 5.
+
+## Open questions
 
 **The minimap has no home.** It is scope the design added, it addresses the
-109-token tail, and it depends on nothing in Phases 4–6. Listed as Phase 7
+109-token tail, and it depends on nothing in Phases 5–6. Listed as Phase 7
 above, but it could equally be a Phase 3 follow-up.
 
 ## Acceptance criteria

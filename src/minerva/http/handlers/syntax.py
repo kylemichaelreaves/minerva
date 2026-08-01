@@ -1,10 +1,15 @@
 """Dependency trees for one chunk, and the hand corrections over them.
 
 ``GET /api/chunks/{id}/syntax`` parses on first request and caches; every later
-call is a read. The response is the *materialised* tree — the machine parse
-with hand corrections replayed over it — and each token reports whether a human
-has touched it, so the client can colour by epistemic status without
-re-deriving anything.
+call is a read. It answers with the **pristine machine parse and the
+correction log separately**, rather than with the two already merged.
+
+That is deliberate. The client replays the log itself
+(`Syntax/corrections/apply.ts`, the mirror of :func:`materialise`), which is
+what makes the optimistic queue and undo work: to take a correction back the
+client has to know its id and be able to recompute the tree without it, and
+neither is possible from a merged tree. Merging server-side would also mean
+every undo needed a round trip to see its own effect.
 
 ``POST …/syntax/corrections`` and ``DELETE /api/syntax/corrections/{id}`` are
 the write half. They append to and remove from a log; the machine parse is
@@ -28,12 +33,28 @@ def _token_json(tok: syntax_queries.SyntaxToken) -> dict[str, Any]:
         "form": tok.form,
         "lemma": tok.lemma,
         "upos": tok.upos,
+        # The German tagset says things UPOS cannot — PRF for a reflexive,
+        # which is exactly the distinction the `expl:pv` correction turns on.
+        # Also the difference between a faithful CoNLL-U export and a lossy one.
+        "xpos": tok.xpos,
         "feats": tok.feats,
+        "misc": tok.misc,
         "head": tok.head,
         "deprel": tok.deprel,
         "start": tok.surface_start,
         "end": tok.surface_end,
         "corrected": tok.corrected,
+    }
+
+
+def _correction_json(c: syntax_queries.Correction) -> dict[str, Any]:
+    return {
+        "id": c.id,
+        "sent_ord": c.sent_ord,
+        "tok_id": c.tok_id,
+        "kind": c.kind,
+        "from_val": c.from_val,
+        "to_val": c.to_val,
     }
 
 
@@ -44,12 +65,11 @@ def _handle_chunk_syntax(deps: ServerDeps, chunk_id: str) -> dict[str, Any]:
         raise _HTTPError(HTTPStatus.NOT_FOUND, "chunk not found")
 
     corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
-    merged = syntax_queries.materialise(tokens, corrections)
 
     # Group into sentences. Tokens arrive ordered by (sent_ord, tok_id), so a
     # single pass suffices; sentence ordinals are contiguous from 0.
     sentences: list[dict[str, Any]] = []
-    for tok in merged:
+    for tok in tokens:
         if not sentences or sentences[-1]["sent_ord"] != tok.sent_ord:
             sentences.append({"sent_ord": tok.sent_ord, "tokens": []})
         sentences[-1]["tokens"].append(_token_json(tok))
@@ -57,7 +77,10 @@ def _handle_chunk_syntax(deps: ServerDeps, chunk_id: str) -> dict[str, Any]:
     return {
         "chunk_id": chunk_id,
         "sentences": sentences,
-        "corrections": len(corrections),
+        # The log itself, not just its effect. Undo addresses a correction by
+        # id, and the inspector's "was obj" is a `from_val` — with only the
+        # materialised tree, a reload leaves Revert pointing at nothing.
+        "corrections": [_correction_json(c) for c in corrections],
     }
 
 

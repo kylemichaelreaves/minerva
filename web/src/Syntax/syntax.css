@@ -479,3 +479,238 @@
   top: -9999px;
   left: -9999px;
 }
+
+/* ── inspector actions ──────────────────────────────────── */
+.syn-pact {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--syn-rule-soft);
+}
+.syn-pact button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px;
+  font-family: var(--syn-ui);
+  font-size: 11px;
+  color: var(--syn-ink-2);
+  background: var(--syn-paper);
+  border: 1px solid var(--syn-rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.syn-pact button:hover {
+  border-color: var(--syn-ink-4);
+  color: var(--syn-ink);
+}
+.syn-pact button.pri {
+  border-color: var(--syn-corr);
+  color: var(--syn-corr);
+}
+.syn-kv .v.syn-mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.syn-was {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* ── relation picker ────────────────────────────────────── */
+.syn-pick {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+}
+.syn-pickq {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+}
+.syn-pickl {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+  flex: 0 0 auto;
+}
+/* `all: unset` on an input drops the caret colour too, so set it back —
+   the blinking caret is the affordance that says this field is live. */
+.syn-pickq input {
+  all: unset;
+  flex: 1;
+  font-family: var(--syn-ui);
+  font-size: 13px;
+  color: var(--syn-ink);
+  caret-color: var(--syn-corr);
+  min-width: 0;
+}
+.syn-pickq input::placeholder {
+  color: var(--syn-ink-5);
+}
+.syn-picklist {
+  max-height: 330px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.syn-pgrp {
+  padding: 9px 14px 4px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-prow {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  align-items: baseline;
+  cursor: pointer;
+}
+.syn-prow .syn-rel {
+  font-family: var(--syn-ui);
+  font-weight: 500;
+  color: var(--syn-ink);
+}
+.syn-prow .syn-gl {
+  font-size: 11px;
+  color: var(--syn-ink-3);
+}
+.syn-prow.on {
+  background: var(--syn-sel);
+}
+.syn-prow.on .syn-rel {
+  color: var(--syn-corr);
+}
+.syn-prow.syn-cur {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--syn-rule-soft);
+  background: var(--syn-sel);
+}
+.syn-prow.syn-cur .syn-rel::after {
+  content: "current";
+  margin-left: 7px;
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-pnone {
+  padding: 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--syn-ink-3);
+}
+.syn-pickfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-top: 1px solid var(--syn-rule-soft);
+  font-size: 10px;
+  color: var(--syn-ink-4);
+}
+
+/* ── refusal ────────────────────────────────────────────── */
+/* A panel, not a toast: the reason only means something read next to the arc
+   it is about, so it stays until dismissed or superseded. */
+.syn-refuse {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  z-index: 46;
+  max-width: 440px;
+  padding: 12px 14px;
+  background: var(--syn-paper-2);
+  border: 1px solid var(--syn-bad);
+  border-radius: 7px;
+  box-shadow: 0 18px 44px -22px var(--syn-shadow);
+}
+.syn-rt {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--syn-bad);
+}
+.syn-rb {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--syn-ink-2);
+}
+.syn-rf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--syn-rule-soft);
+  font-size: 10.5px;
+}
+.syn-rlink {
+  padding: 0;
+  font-family: var(--syn-ui);
+  font-size: 10.5px;
+  color: var(--syn-ink-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.syn-rlink:hover {
+  color: var(--syn-ink);
+}
+.syn-rnote {
+  margin-left: auto;
+  color: var(--syn-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.syn-saving {
+  color: var(--syn-corr);
+}
+
+/* Chrome buttons in the top bar. */
+.syn-ctl {
+  padding: 5px 10px;
+  font-family: var(--syn-ui);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--syn-ink-2);
+  background: none;
+  border: 1px solid var(--syn-rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.syn-ctl:hover:not(:disabled) {
+  border-color: var(--syn-ink-4);
+  color: var(--syn-ink);
+}
+.syn-ctl:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The quality floor: focus must be visible everywhere, and nothing animates
+   for a reader who asked it not to. */
+.syn-prow:focus-visible,
+.syn-ctl:focus-visible,
+.syn-pact button:focus-visible,
+.syn-rlink:focus-visible {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .syn-refuse,
+  .syn-panel {
+    transition: none;
+  }
+}
