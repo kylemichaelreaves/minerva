@@ -52,6 +52,42 @@ The UI is a **full-bleed overlay** off the Reader, following the existing
 | Persistence | SQLite | Corrections are hand labour and must survive a browser, a device, and a re-ingest. |
 | Correction shape | Append-only log, replayed over the pristine parse | Real undo, full history, and the DB knows which tokens are hand-corrected — which is what drives the epistemic colouring. |
 
+### What Stanza German actually produces (measured 2026-07-31)
+
+Run against the two fixture sentences, `stanza 1.13.0`, model
+`de` (`tokenize,pos,lemma,depparse`):
+
+**The projective fixture — 8 of 9 tokens exact**, including the shape that
+matters: `entwickelt` root, `hat` as its `aux`. The one divergence is `sich`
+→ `obj` where the fixture has `expl:pv`.
+
+**The non-projective fixture — Stanza cannot produce it.** It attaches the
+relative clause to `gesehen` (the root) rather than to `Mann`, i.e. it makes
+the extraposition error:
+
+```
+              Stanza           fixture
+9  steht      head=5  acl      head=2  acl:relcl
+
+non-projective arcs, Stanza:  NONE
+non-projective arcs, fixture: 2->9 [2,9], 5->10 [5,10]
+```
+
+Two consequences worth holding onto:
+
+1. **The fixtures are corrected trees, not machine output.** Both crossings
+   exist only after a human reattaches `steht` to `Mann`. This is the tool's
+   premise demonstrating itself on the brief's own example sentence, and it is
+   the clearest justification for colouring by epistemic status.
+2. **Stanza's German is GSD-trained; the fixtures are HDT-style.** `obj` vs
+   `expl:pv`, `acl` vs `acl:relcl` — the machine emits one subtype family and
+   the corrector will reach for the other. Phase 4's relation picker must
+   offer both, or the correction the user wants will not be in the list.
+
+Performance, for the on-demand decision: **4.3 s** one-time pipeline load,
+then **0.15 s** for a 284-character chunk. Lazy singleton, warmed once per
+process.
+
 ### spaCy German is unusable here
 
 `de_core_news_sm` has a parser; it is only disabled. But it emits TIGER labels
@@ -179,6 +215,13 @@ re-ingest should invalidate it.
   Keep `materialise` pure and tested; it is the integrity guarantee for the
   whole tool.
 
+**Tests must mock the pipeline.** `.github/workflows/check.yml` installs
+`.[dev,hegel,embed]` — *not* `[lemma]` — so there is no `stanza` in CI and no
+model in `~/stanza_resources/`. A test that constructs a real pipeline would
+pass locally and fail the moment it ran anywhere else. Follow the precedent
+the lemmatizer tests already set: mock at the pipeline boundary and test the
+storage, replay and endpoint logic against fixed token structures.
+
 ### HTTP
 
 ```
@@ -282,9 +325,9 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 
 | # | Scope | Status |
 |---|---|---|
-| **0** | `conllu/` types + parse + serialise, both fixtures, round-trip tests | pending |
-| **1** | `measure.ts`, `arcs.ts` + golden-fixture tests. No rendering. **Stop and report.** | pending |
-| **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | pending |
+| **0** | `conllu/` types + parse + serialise, both fixtures, round-trip tests | ✅ DONE 2026-07-31 (#131) |
+| **1** | `measure.ts`, `arcs.ts` + golden-fixture tests. No rendering. **Stop and report.** | ✅ DONE 2026-07-31 (#131) |
+| **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | in progress |
 | **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | pending |
 | **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | pending |
 | **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach, subtree-hover dimming | pending |
