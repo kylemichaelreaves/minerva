@@ -25,6 +25,9 @@ RULES = (
             "Platonic",
             "Platonische",
             "Platonischen",
+            # Lowercase attributive forms — matching is case-sensitive.
+            "platonische",
+            "platonischen",
             "Platonism",
         ),
         confidence=0.7,
@@ -175,7 +178,15 @@ RULES = (
         name="kant_newton",
         target_author="Newton",
         target_work="",
-        forms=("Newton", "Newtons", "Newtonisch", "Newtonische", "Newtonischen"),
+        forms=(
+            "Newton",
+            "Newtons",
+            "Newtonisch",
+            "Newtonische",
+            "Newtonischen",
+            # English possessive occurs in the Gregor translation side.
+            "Newton's",
+        ),
         confidence=0.85,
         langs=("deu", "eng"),
         note=(

@@ -1439,6 +1439,7 @@
    "Plato",
    "Πλάτων",
    "Πλάτωνα",
+   "Πλάτωνι",
    "Πλάτωνος"
   ],
   "langs": [
@@ -1655,7 +1656,9 @@
    "Platonic",
    "Platonische",
    "Platonischen",
-   "Platons"
+   "Platons",
+   "platonische",
+   "platonischen"
   ],
   "langs": [
    "deu",
@@ -1690,6 +1693,7 @@
   "confidence": 0.75,
   "forms": [
    "Spinoza",
+   "Spinoza's",
    "Spinozas",
    "Spinozism",
    "Spinozismus"
@@ -1837,6 +1841,7 @@
   "confidence": 0.85,
   "forms": [
    "Locke",
+   "Locke's",
    "Lockes",
    "Lockesche",
    "Lockeschen",
@@ -2528,7 +2533,9 @@
    "Platonische",
    "Platonischen",
    "Platonism",
-   "Platons"
+   "Platons",
+   "platonische",
+   "platonischen"
   ],
   "langs": [
    "deu",
@@ -2731,6 +2738,7 @@
   "confidence": 0.85,
   "forms": [
    "Newton",
+   "Newton's",
    "Newtonisch",
    "Newtonische",
    "Newtonischen",
@@ -2881,7 +2889,6 @@
  {
   "confidence": 0.95,
   "forms": [
-   "Epicurean",
    "Epicurean",
    "Epicureans",
    "Epicuri",
@@ -3051,6 +3058,7 @@
    "Plato",
    "Πλάτων",
    "Πλάτωνα",
+   "Πλάτωνι",
    "Πλάτωνος"
   ],
   "langs": [
@@ -3069,6 +3077,7 @@
    "Pythagoras",
    "Πυθαγόραν",
    "Πυθαγόρας",
+   "Πυθαγόρειοι",
    "Πυθαγόρου"
   ],
   "langs": [
@@ -3558,6 +3567,8 @@
    "Plato",
    "Platon",
    "Platoniker",
+   "Platonische",
+   "Platonischen",
    "Platonismus",
    "Platons",
    "platonisch",
@@ -4936,7 +4947,9 @@
    "Platonisch",
    "Platonische",
    "Platonischen",
-   "Platons"
+   "Platons",
+   "platonische",
+   "platonischen"
   ],
   "langs": [
    "deu"

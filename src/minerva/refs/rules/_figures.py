@@ -75,7 +75,9 @@ PARMENIDES_GRC: tuple[str, ...] = ("Παρμενίδης", "Παρμενίδου
 # Plato — fra; shared by pascal, rousseau
 PLATO_FRA: tuple[str, ...] = ("Platon", "platonicien", "platonicienne", "platoniciens")
 # Plato — grc/eng; shared by epictetus, marcus_aurelius
-PLATO_GRC_ENG: tuple[str, ...] = ("Πλάτων", "Πλάτωνα", "Πλάτωνος", "Plato")
+# Πλάτωνι completes the singular paradigm (nom/acc/gen were present, dative
+# was not); `origen` already carried it. Not a broadening — same name.
+PLATO_GRC_ENG: tuple[str, ...] = ("Πλάτων", "Πλάτωνα", "Πλάτωνος", "Πλάτωνι", "Plato")
 # Porphyry — lat; shared by aquinas, augustine
 PORPHYRY_LAT: tuple[str, ...] = ("Porphyrius", "Porphyrii", "Porphyrium", "Porphyrio")
 # Pythagoras — eng; shared by aristotle, plato
