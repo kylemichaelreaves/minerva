@@ -1,0 +1,18 @@
+[
+  "lemma",
+  "lang",
+  "scope",
+  "scope_label",
+  "filters",
+  "total",
+  "limit",
+  "offset",
+  "pos_breakdown",
+  "case_breakdown",
+  "number_breakdown",
+  "gender_breakdown",
+  "surface_breakdown",
+  "work_breakdown",
+  "rows",
+  "next_offset"
+]

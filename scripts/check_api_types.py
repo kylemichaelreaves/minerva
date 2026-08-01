@@ -18,10 +18,23 @@ FIXTURE_TYPES: dict[str, tuple[Path, str]] = {
     "chat_response": (TS_TYPES / "chat.ts", "ChatResponse"),
     "chat_stream_meta": (TS_TYPES / "chat.ts", "ChatStreamMeta"),
     "work_range": (TS_TYPES / "reader.ts", "WorkRange"),
+    "chunk_context": (TS_TYPES / "reader.ts", "ChunkContextResponse"),
+    "word_lookup": (TS_TYPES / "reader.ts", "WordLookup"),
     "references_list": (TS_TYPES / "refs.ts", "ReferencesListResponse"),
     "refs_review": (TS_TYPES / "refs.ts", "ReviewQueueResponse"),
     "refs_sources": (TS_TYPES / "refs.ts", "RefsSourcesResponse"),
     "concordance_index": (TS_API / "concordanceApi.ts", "LemmaIndexResponse"),
+    "concordance_lemma": (TS_API / "concordanceApi.ts", "LemmaDetailResponse"),
+    "network_summary": (TS_API / "networkApi.ts", "NetworkSummary"),
+    "landing_stats": (TS_API / "landingApi.ts", "LandingStats"),
+    "chunk_syntax": (TS_API / "syntaxApi.ts", "ChunkSyntax"),
+    "syntax_correction": (TS_API / "syntaxApi.ts", "CorrectionAccepted"),
+}
+
+# Fixtures with no TS interface to check against, and why. An entry here is a
+# deliberate exemption; anything else unmapped is an error (see `main`).
+UNTYPED_FIXTURES: dict[str, str] = {
+    "terms_list": "no exported response interface — the terms list is consumed inline",
 }
 
 
@@ -57,6 +70,22 @@ def _interface_fields(path: Path, name: str) -> set[str]:
 
 def main() -> int:
     errors: list[str] = []
+
+    # A fixture with no mapping used to be skipped in silence, which is how
+    # `terms_list` sat unchecked from the day it was added. Adding a fixture
+    # must now either map it to an interface or say why it can't — otherwise
+    # the next one drifts the same way.
+    on_disk = {p.name[: -len(".keys.json")] for p in FIXTURES.glob("*.keys.json")}
+    unmapped = on_disk - set(FIXTURE_TYPES) - set(UNTYPED_FIXTURES)
+    for stem in sorted(unmapped):
+        errors.append(
+            f"{stem}.keys.json has no FIXTURE_TYPES entry — add one, or record "
+            f"an exemption with its reason in UNTYPED_FIXTURES"
+        )
+    declared = set(FIXTURE_TYPES) | set(UNTYPED_FIXTURES)
+    for stem in sorted(declared - on_disk):
+        errors.append(f"{stem} is mapped but {stem}.keys.json does not exist")
+
     for stem, (ts_path, iface) in FIXTURE_TYPES.items():
         keys_path = FIXTURES / f"{stem}.keys.json"
         if not keys_path.is_file():

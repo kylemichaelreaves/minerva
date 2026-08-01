@@ -1,0 +1,16 @@
+[
+  "surface",
+  "lemma",
+  "lang",
+  "edition_id",
+  "work_id",
+  "work_title",
+  "occurrence_count",
+  "samples_offset",
+  "next_samples_offset",
+  "pos",
+  "gender",
+  "number",
+  "feats",
+  "samples"
+]
