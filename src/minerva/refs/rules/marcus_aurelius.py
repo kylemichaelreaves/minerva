@@ -88,7 +88,7 @@ RULES = (
         name="marcus_aurelius_pythagoras",
         target_author="Pythagoras",
         target_work="",
-        forms=("Πυθαγόρας", "Πυθαγόραν", "Πυθαγόρου", "Pythagoras"),
+        forms=("Πυθαγόρας", "Πυθαγόραν", "Πυθαγόρου", "Πυθαγόρειοι", "Pythagoras"),
         confidence=0.7,
         langs=("grc", "eng"),
     ),

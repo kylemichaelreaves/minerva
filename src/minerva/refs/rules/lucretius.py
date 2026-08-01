@@ -39,7 +39,6 @@ RULES = (
             "Epicuro",
             "Epicurean",
             "Epicureans",
-            "Epicurean",
             "Graius homo",  # the famous DRN I.66 periphrasis
         ),
         confidence=0.95,

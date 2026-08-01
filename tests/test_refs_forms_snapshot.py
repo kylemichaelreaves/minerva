@@ -8,9 +8,20 @@ that the extraction — and any future edit to _figures or a module —
 cannot silently change which forms a rule matches. If you intentionally
 change a rule's forms, regenerate the snapshot:
 
-    python - <<'PY'
-    # (see tests/data/refs_forms_snapshot.json header / git history)
-    PY
+    python -c "
+    import sys, json; sys.path.insert(0, 'tests')
+    from test_refs_forms_snapshot import _current_rows, SNAPSHOT
+    SNAPSHOT.write_text(
+        json.dumps(_current_rows(), indent=1, sort_keys=True, ensure_ascii=False) + '\\n',
+        encoding='utf-8',
+    )"
+
+Keep `_current_rows()` order (module, then rule-definition order) rather than
+re-sorting: the comparison below sorts before asserting, so a reordered file
+still passes, but it produces a ~1900-line diff that hides the real change.
+
+A forms change usually also needs `tests/test_refs_forms_inflection_gate.py`
+to agree — that gate flags same-author/same-language inflection gaps.
 """
 
 from __future__ import annotations
