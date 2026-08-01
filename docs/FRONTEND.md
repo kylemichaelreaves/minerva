@@ -28,6 +28,18 @@ root controllers (`routing.ts`, `*Ctrl.ts`, `conversationsSend.ts`); `routes/rou
 generated/data (`atlasData.ts`, `data.ts`); `util.ts`; shared pure libs in `lib/`
 (`renumber.ts`, `popoverPosition.ts`, …). Shared hooks use `lib/use*.tsx`.
 
+**`src/Syntax/` is a deliberate structural exception.** It carries
+`conllu/`, `layout/` and `corrections/` subtrees of pure `.ts` modules plus a
+`components/` folder, which the Layout rule above otherwise forbids. The
+justification is that every one of those modules is pure, independently
+testable, and the thing most likely to be subtly wrong: arc levels,
+projectivity, row wrapping, the CoNLL-U round trip, and the correction replay
+are all cheap to unit-test in isolation and expensive to debug through a
+rendered SVG. Note the subtree names — `conllu`, `layout`, `corrections`, not
+`hooks` or `utils` — which is what clears the `no-restricted-syntax` rule at
+`eslint.config.js:70-96`. Don't read this as a general licence: it applies to
+provably pure geometry and format code, not to component state.
+
 **Types:** API wire shapes in `src/api/types/`; UI domain types in `src/lib/uiTypes.ts`.
 The barrel `src/lib/types.ts` re-exports both for legacy imports. Change Python
 handlers, JSON fixtures (`tests/fixtures/api/*.keys.json`), and TS types together;
