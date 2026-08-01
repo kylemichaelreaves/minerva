@@ -33,7 +33,6 @@ from urllib.parse import quote
 
 from _download import ParagraphExtractor, make_fetcher
 
-
 # Per-work scrape spec. A work either has a single Wikisource title
 # (the `Texte_entier` view) OR a list of sub-page (heading, title)
 # tuples that get concatenated with uppercase headings between them.
@@ -108,6 +107,16 @@ def _url(title: str) -> str:
 
 
 _fetch = make_fetcher()
+
+# Same sets as the Pascal scraper — both read fr.wikisource.org REST
+# HTML and must drop the same editorial apparatus. See
+# `perseus/download_pascal_fr.py`.
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_BREAK_END_TAGS = frozenset({"p", "li", "div"})
+_SKIP_CLASS_TOKENS = frozenset(
+    {"mw-references", "headertemplate", "ws-noexport", "navbox", "metadata"}
+)
+
 
 def _extract_paragraphs(html: bytes) -> list[str]:
     """Class-aware HTML stripper. Mirror of the Pascal scraper's

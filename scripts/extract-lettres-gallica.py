@@ -35,6 +35,7 @@ from bs4 import BeautifulSoup
 # Make the cleanup helpers importable as a sibling module.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from importlib import import_module
+
 _mod = import_module("clean-boulainvilliers-texts")
 clean_text = _mod.clean_text
 

@@ -42,32 +42,10 @@ import re
 from pathlib import Path
 
 from _download import make_fetcher
-
+from _gutenberg import strip_pg_boilerplate as _strip_pg_boilerplate
+from _gutenberg import verify_language as _verify_language
 
 _fetch = make_fetcher()
-
-def _strip_pg_boilerplate(raw: str) -> str:
-    start = _PG_START.search(raw)
-    end = _PG_END.search(raw)
-    if not start or not end or end.start() <= start.end():
-        print("  WARN: PG START/END markers not both found; returning raw text.")
-        return raw
-    return raw[start.end() : end.start()].strip() + "\n"
-
-
-def _verify_language(raw: str, expected: str) -> None:
-    """Raise if Gutenberg's `Language:` header doesn't match expected.
-
-    We bail loudly so a typoed ID can't overwrite a correct file
-    with a wrong-language transcription.
-    """
-
-    m = re.search(r"^Language:\s*(.+)$", raw[:4000], re.MULTILINE)
-    if m and m.group(1).strip().lower() != expected.lower():
-        raise RuntimeError(
-            f"Gutenberg header says Language: {m.group(1).strip()!r}; "
-            f"expected {expected!r}. Wrong PG ID?"
-        )
 
 
 def _slice_between(text: str, start_pat: str, end_pat: str | None) -> str:

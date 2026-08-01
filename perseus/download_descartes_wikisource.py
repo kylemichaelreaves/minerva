@@ -36,7 +36,6 @@ from pathlib import Path
 
 from _download import make_fetcher
 
-
 _LATIN_URL = (
     "https://la.wikisource.org/api/rest_v1/page/html/Principia_philosophiae"
 )
@@ -47,6 +46,13 @@ _FRENCH_URL = (
 
 
 _fetch = make_fetcher()
+
+# Tag-only skip sets — this scraper deliberately uses the simple
+# variant (no class-aware filtering); see the note in
+# `download_pascal_fr._extract_paragraphs`.
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_BREAK_END_TAGS = frozenset({"p", "li", "div"})
+
 
 class _ParagraphExtractor(HTMLParser):
     """HTMLParser that extracts text from `<p>` blocks in document

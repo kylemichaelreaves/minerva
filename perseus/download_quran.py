@@ -20,7 +20,6 @@ from pathlib import Path
 
 from _download import make_fetcher
 
-
 # Tanzil's parameterised download endpoint. ``quranType=uthmani`` →
 # canonical script with full tashkeel; ``outType=xml`` → the
 # <sura>/<aya> structure we parse; ``marks=true`` keeps the small

@@ -106,16 +106,21 @@ coverage: coverage-py coverage-web
 # to pass before a commit.
 
 lint-py:
-	$(RUFF) check src tests
+	$(RUFF) check src tests scripts perseus
 
 lint-web:
 	$(NPM) run lint
 
 lint: lint-py lint-web
 
+# The --fix scope matches lint-py so `make format-py && make check`
+# can't leave a lint error behind. The `ruff format` scope is
+# deliberately narrower: formatting scripts/ and perseus/ is a large
+# reflow that belongs with #136, which also has to settle the
+# codegen-owned files ruff currently reformats out of sync.
 format-py:
 	$(RUFF) format src tests
-	$(RUFF) check --fix src tests
+	$(RUFF) check --fix src tests scripts perseus
 
 format-web:
 	$(NPM) run format

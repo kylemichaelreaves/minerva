@@ -34,7 +34,6 @@ from pathlib import Path
 
 from _download import ParagraphExtractor, make_fetcher
 
-
 # Brunschvicg sections + Mémorial, in the order they should appear
 # in the concatenated output. The path component after the host is
 # `Pensées_(Pascal,_éd._Brunschvicg)/Pensées/<SUBPATH>` — slashes
@@ -72,6 +71,17 @@ def _section_url(subpath: str) -> str:
 
 
 _fetch = make_fetcher()
+
+# Tag sets are the canonical pair shared with the other HTML scrapers
+# (see `download_spinoza.py` / `download_augustine.py`). The class
+# tokens are Wikisource's editorial-apparatus markers, matching the
+# set the Wikisource scraper in `download_marcus_aurelius.py` uses.
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_BREAK_END_TAGS = frozenset({"p", "li", "div"})
+_SKIP_CLASS_TOKENS = frozenset(
+    {"mw-references", "headertemplate", "ws-noexport", "navbox", "metadata"}
+)
+
 
 def _extract_paragraphs(html: bytes) -> list[str]:
     """Extract `<p>`-bounded text from Wikisource REST HTML, dropping

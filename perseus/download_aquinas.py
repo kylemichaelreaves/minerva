@@ -66,7 +66,8 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import NamedTuple
 
-from _download import make_fetcher, render_chunks as _render
+from _download import make_fetcher
+from _download import render_chunks as _render
 
 _BASE = "https://www.corpusthomisticum.org"
 

@@ -42,7 +42,6 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
-import unicodedata
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
