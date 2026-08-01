@@ -11,6 +11,7 @@ from .handlers import (
     _handle_chat,
     _handle_chunk_context,
     _handle_chunk_references,
+    _handle_chunk_syntax,
     _handle_concordance_index,
     _handle_concordance_lemma,
     _handle_conversation_delete,
@@ -41,6 +42,7 @@ from .server_core import ServerDeps
 _CONVERSATION_PATH_RE = re.compile(r"^/api/conversations/([^/]+)$")
 _WORK_PATH_RE = re.compile(r"^/api/works/(.+)$")
 _CHUNK_CONTEXT_PATH_RE = re.compile(r"^/api/chunks/([^/]+)/context$")
+_CHUNK_SYNTAX_PATH_RE = re.compile(r"^/api/chunks/([^/]+)/syntax$")
 _TERMS_LIST_PATH = "/api/terms"
 _TERM_BY_ID_RE = re.compile(r"^/api/terms/(\d+)$")
 _TERMS_BY_CHUNK_RE = re.compile(r"^/api/terms/by_chunk/([^/]+)$")
@@ -99,6 +101,11 @@ def build_get_routes(
             _CHUNK_CONTEXT_PATH_RE,
             "chunk context",
             lambda m: _handle_chunk_context(deps, unquote(m.group(1)), qs()),
+        ),
+        (
+            _CHUNK_SYNTAX_PATH_RE,
+            "chunk syntax",
+            lambda m: _handle_chunk_syntax(deps, unquote(m.group(1))),
         ),
         (
             _CHUNK_REFERENCES_RE,
@@ -187,6 +194,7 @@ def build_delete_routes(deps: ServerDeps) -> tuple[Route, ...]:
 
 
 __all__ = [
+    "_CHUNK_SYNTAX_PATH_RE",
     "_CONVERSATION_PATH_RE",
     "_REFERENCE_BY_ID_RE",
     "Route",

@@ -282,6 +282,14 @@ class ChatHandler(BaseHTTPRequestHandler):
         matched = _match_route(path, routes)
         if matched is not None:
             label, handler, args = matched
+            # GET routes rate-limit by label, not path: theirs carry ids and
+            # would never match a fixed key. Most have no entry and sail past.
+            if not self.deps.rate_limiter.allow(label, self.client_address[0]):
+                self.log_message("rate-limited: %s from %s", label, self.client_address[0])
+                self._send_error_json(
+                    _HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded")
+                )
+                return
             try:
                 body = handler(*args)  # type: ignore[arg-type]
                 self._send_json(HTTPStatus.OK, body)

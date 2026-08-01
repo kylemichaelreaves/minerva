@@ -36,9 +36,18 @@ if TYPE_CHECKING:
 # multiple workers; for that, front the server with a real gateway.
 
 # (requests, seconds) — capacity per IP per window.
+#
+# POST routes are keyed by path. GET routes are keyed by their router *label*
+# instead, because their paths carry ids (`/api/chunks/<id>/syntax`) and would
+# never match a fixed string.
 _RATE_LIMITS: dict[str, tuple[int, float]] = {
     "/api/chat": (30, 60.0),  # 30/min — chat is the costliest
     "/api/translate": (60, 60.0),  # 60/min — translate is cache-hit-heavy
+    # A cache miss here runs a Stanza parse: CPU-bound, ~0.15s per paragraph
+    # after a ~4s one-time model load. Cache hits are cheap, but nothing in
+    # the request tells us which it will be, so the cap covers the worst case
+    # while staying far above what reading generates.
+    "chunk syntax": (60, 60.0),
 }
 
 
