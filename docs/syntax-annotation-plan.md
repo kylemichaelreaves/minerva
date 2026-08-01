@@ -652,7 +652,7 @@ single-row sentence.
 Two latent defects, both found while verifying and neither in scope for the
 phase that found them:
 
-1. **`createCorrectionStore` captures `chunkId` by value**, and `sentOrd` is
+1. **#141 — `createCorrectionStore` captures `chunkId` by value**, and `sentOrd` is
    not reset when the chunk changes. Navigating from one syntax overlay
    straight to another — editing the hash, which does not remount the
    component — leaves the store posting corrections against the previous chunk
@@ -661,11 +661,11 @@ phase that found them:
    app's own links: going via the Reader unmounts the overlay. The fix is an
    accessor rather than a string, `sentOrd` reset on change, and clearing
    `session`.
-2. **Analytic token positions drift ~8px from the DOM over a long row**,
-   because the probe is measured with integer `offsetWidth` while the flex row
-   lays out fractionally. Pre-existing since Phase 3 and shared by the arcs.
-   `getBoundingClientRect().width` on the probe would fix both, but it changes
-   row breaking and belongs with a re-check of the overflow bug.
+2. **#142 — analytic token positions drift ~8px from the DOM over a long
+   row**, because the probe is measured with integer `offsetWidth` while the
+   flex row lays out fractionally. Pre-existing since Phase 3 and shared by the
+   arcs. `getBoundingClientRect().width` on the probe would fix both, but it
+   changes row breaking and belongs with a re-check of the overflow bug.
 
 Deliberate departures from the design, all still current: no author on a
 correction (single-operator tool), no `Levels · all` or `Measure` readouts (the
