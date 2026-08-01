@@ -1,9 +1,10 @@
 # Dependency-syntax close reading — implementation plan
 
-> **Status (2026-08-01): phases 0–5 shipped; the tree is fully editable.**
+> **Status (2026-08-01): phases 0–5 shipped and merged; work stopped here.**
 > Relabel, reattach by drag or keyboard, undo, and both exports all work, and
-> both refusals are reachable and visible. The execution tracker below is the
-> resume point. **Phase 6 is next** — the topological-fields overlay.
+> both refusals are reachable and visible. **Phases 6 and 7 have not been
+> started** — see *Where we stopped* under the execution tracker, which is the
+> resume point.
 
 ## Problem
 
@@ -329,10 +330,35 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 | **1** | `measure.ts`, `arcs.ts` + golden-fixture tests. No rendering. **Stop and report.** | ✅ DONE 2026-07-31 (#131) |
 | **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | ✅ DONE 2026-07-31 (#134) |
 | **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | ✅ DONE 2026-07-31 (#135) |
-| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | ✅ DONE 2026-07-31 |
-| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | ✅ DONE 2026-08-01 |
-| **6** | Topological fields overlay, toggleable | **next** |
+| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | ✅ DONE 2026-08-01 (#137) |
+| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | ✅ DONE 2026-08-01 (#138) |
+| **6** | Topological fields overlay, toggleable | **next — nothing started** |
 | **7** | Long-sentence minimap | pending — added by the design, see below |
+
+### Where we stopped
+
+**2026-08-01, after #138 merged (`0d57235`).** Work stopped cleanly at the
+phase 5/6 boundary — nothing is half-built, no branch is open, `main` has
+everything, and `chunk_syntax_corrections` is back to 0 rows (the corrections
+made while verifying in the browser were test data and were removed).
+
+Phases 6 and 7 have **not** been started. Nothing in the working tree
+anticipates them: there is no fields module, no minimap component, and no
+scaffolding for either. A future session begins at the top of Phase 6 with no
+inherited state.
+
+Two things to pick up before Phase 6 writes any code:
+
+1. **The Rechte-Klammer rule in this document is the corrected one.** The
+   source brief's version is inverted for UD, and the correction is derived in
+   *Two corrections to the source brief* above. Do not re-derive it from the
+   brief, and do not special-case the heuristic to improve its accuracy — if
+   it is wrong on a sentence, the user corrects the tree and the fields
+   recompute. That is now a real workflow rather than a hypothetical one,
+   because phases 4 and 5 shipped.
+2. **Phase 7's placement is still open** — see *Open questions*. It depends on
+   nothing in Phase 6, so it can be taken first, folded into Phase 6, or
+   dropped.
 
 Subtree-hover dimming moved from Phase 5 into Phase 3: it needs no correction
 machinery, and it is the interaction that makes the diagram worth looking at,
