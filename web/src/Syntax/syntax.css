@@ -283,6 +283,36 @@
   opacity: 0.85;
 }
 
+/* ── topological fields (derived) ───────────────────────── */
+/* The only inferred layer in the diagram. Dashed and oxide, never the parse's
+   blue: a heuristic that will be wrong on Hegel must not look like something
+   the tool knows. It sits under the non-projective stack rather than tight
+   against the row, so an inferred bracket never crowds out a parsed arc. */
+.syn-fields {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  margin-top: 5px;
+}
+.syn-fields svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.syn-fieldbr {
+  fill: none;
+  stroke: var(--syn-oxide);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+.syn-fieldlab {
+  fill: var(--syn-oxide);
+  font-family: var(--syn-ui);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+}
+
 /* ── token inspector ────────────────────────────────────── */
 .syn-panel {
   position: fixed;
@@ -697,6 +727,12 @@
 .syn-ctl:disabled {
   opacity: 0.4;
   cursor: default;
+}
+/* A toggle rather than an action: it takes the colour of the layer it turns
+   on, so the button and the brackets are visibly the same thing. */
+.syn-ctl[aria-pressed="true"] {
+  color: var(--syn-oxide);
+  border-color: var(--syn-oxide);
 }
 
 /* The quality floor: focus must be visible everywhere, and nothing animates
