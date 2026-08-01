@@ -153,3 +153,20 @@ export function validateDeprel(deprel: string): Refusal | null {
   }
   return null;
 }
+
+/**
+ * Every head *tokId* may legally be attached to, in token order, with `0`
+ * (the sentence root) first when it is on offer.
+ *
+ * Derived by asking `validateHead` about each candidate rather than by
+ * reimplementing the rules. The set and the predicate must not drift: a
+ * candidate the user can see but not drop on, and a drop refused after it
+ * looked legal, are both worse than either failure alone.
+ *
+ * Drives the candidate rings, the keyboard target cycle, and drop-target
+ * validity — one answer for all three.
+ */
+export function legalHeads(tokens: readonly SyntaxToken[], tokId: number): number[] {
+  const candidates = [0, ...tokens.map((t) => t.id)];
+  return candidates.filter((head) => validateHead(tokens, tokId, head) === null);
+}

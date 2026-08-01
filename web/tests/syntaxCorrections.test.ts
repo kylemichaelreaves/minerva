@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SyntaxSentence, SyntaxToken } from "~/api/syntaxApi";
 import { applyCorrections, type Correction } from "~/Syntax/corrections/apply";
-import { validateDeprel, validateHead } from "~/Syntax/corrections/validate";
+import { legalHeads, validateDeprel, validateHead } from "~/Syntax/corrections/validate";
 
 // The client half of the correction machinery. Two jobs:
 //
@@ -195,6 +195,60 @@ describe("validateDeprel", () => {
     // picker cannot produce should never reach the wire.
     for (const bad of ["", "Sb", "nsubj ", "ojb", "ROOT", "a:b:c"]) {
       expect(validateDeprel(bad), bad).not.toBeNull();
+    }
+  });
+});
+
+describe("legalHeads", () => {
+  it("offers every token outside the dependent's own subtree", () => {
+    // 1 -> 2 -> 3. Token 2 governs 1, so 1 is not available to it; 3 is.
+    expect(legalHeads(chain(), 2)).toEqual([3]);
+  });
+
+  it("offers the root slot when the token is not already the root", () => {
+    // Attaching 1 to ROOT would make two roots, so 0 is not on offer.
+    expect(legalHeads(chain(), 1)).toEqual([2, 3]);
+  });
+
+  it("offers the root slot to a token in a rootless sentence", () => {
+    const rootless = [tok(1, 2, "det"), tok(2, null, "_")];
+
+    expect(legalHeads(rootless, 2)).toContain(0);
+  });
+
+  it("never offers the token itself", () => {
+    expect(legalHeads(chain(), 3)).not.toContain(3);
+  });
+
+  it("offers the only root nowhere to go but where it already is", () => {
+    // Every other token is inside its subtree, so the root slot it already
+    // occupies is all that is left. The current head stays in the list on
+    // purpose: ringing it lets a reattachment be abandoned by putting the
+    // token back, and hiding it would make the current attachment look
+    // illegal.
+    expect(legalHeads(chain(), 3)).toEqual([0]);
+  });
+
+  it("excludes a deep descendant, not just a direct child", () => {
+    // 1 -> 2 -> 3 -> 4; token 3 governs 2 and 1 transitively.
+    const deep = [tok(1, 2, "det"), tok(2, 3, "nmod"), tok(3, 4, "obj"), tok(4, 0, "root")];
+
+    expect(legalHeads(deep, 3)).toEqual([4]);
+  });
+
+  it("agrees with validateHead on every token in the sentence", () => {
+    // The set and the predicate must not drift: a ring the user can see but
+    // not drop on, or a drop that is refused after it looked legal, are both
+    // worse than either alone.
+    const deep = [tok(1, 2, "det"), tok(2, 3, "nmod"), tok(3, 4, "obj"), tok(4, 0, "root")];
+
+    for (const t of deep) {
+      const offered = legalHeads(deep, t.id);
+      for (const candidate of [0, 1, 2, 3, 4]) {
+        expect(offered.includes(candidate), `${String(t.id)} -> ${String(candidate)}`).toBe(
+          validateHead(deep, t.id, candidate) === null,
+        );
+      }
     }
   });
 });

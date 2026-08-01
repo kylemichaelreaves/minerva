@@ -1,10 +1,9 @@
 # Dependency-syntax close reading — implementation plan
 
-> **Status (2026-07-31): phases 0–4 shipped; corrections are written and undone.**
-> The execution tracker below is the resume point. **Phase 5 is next** — drag
-> reattach, the ROOT drop-zone, keyboard reattach. Everything under it
-> (validation, the optimistic queue, undo, both exports) landed in phase 4 and
-> is under test, so phase 5 is input method rather than machinery.
+> **Status (2026-08-01): phases 0–5 shipped; the tree is fully editable.**
+> Relabel, reattach by drag or keyboard, undo, and both exports all work, and
+> both refusals are reachable and visible. The execution tracker below is the
+> resume point. **Phase 6 is next** — the topological-fields overlay.
 
 ## Problem
 
@@ -331,8 +330,8 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 | **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | ✅ DONE 2026-07-31 (#134) |
 | **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | ✅ DONE 2026-07-31 (#135) |
 | **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | ✅ DONE 2026-07-31 |
-| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | **next** |
-| **6** | Topological fields overlay, toggleable | pending |
+| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | ✅ DONE 2026-08-01 |
+| **6** | Topological fields overlay, toggleable | **next** |
 | **7** | Long-sentence minimap | pending — added by the design, see below |
 
 Subtree-hover dimming moved from Phase 5 into Phase 3: it needs no correction
@@ -502,16 +501,48 @@ rejected on the merits. 5xx and dropped sockets now read "Not saved".
 
 ### Not in Phase 4
 
-Reattachment of any kind, so **the refusal panel has no user-reachable trigger
-yet** — the picker is a closed list, so `bad-deprel` cannot come from it, and
-there is no way to set a head. It is built, styled, unit-tested, and was
-verified live by taking the backend down mid-edit. It becomes reachable in
-Phase 5.
+Reattachment of any kind — both of Phase 4's gaps (no user-reachable refusal,
+no token focus) were closed by Phase 5 below.
 
-Also still open: **tokens are not focusable**, so the acceptance criterion
-"arrow keys move token focus; focus is visibly ringed" is unmet. Arrows
-currently move between sentences. Token focus is a prerequisite for keyboard
-reattach, so it belongs to Phase 5.
+## What Phase 5 actually ships
+
+Reattachment, two ways, over the machinery Phase 4 already had under test.
+
+**Keyboard first, on purpose.** The plan named this phase as the one likely to
+overrun, with keyboard reattach as the cut. Building it first meant the risky
+half was optional rather than load-bearing: `R` lifts the focused token, ←/→
+walk the legal heads, `↵` commits, `⌥R` goes straight to root, `Esc` cancels.
+
+**Tokens are `<button>`s now**, one tab stop for the diagram with arrows moving
+between them — fifty-three tab stops in a row is not navigation. This closes
+the acceptance criterion Phase 4 left open. Sentence navigation moved to ↑/↓:
+a chunk has a handful of sentences and a sentence has dozens of tokens, so the
+arrows that matter should drive the thing you use constantly.
+
+**`legalHeads` is derived from `validateHead`,** not reimplemented beside it.
+A ring the user can see but not drop on, and a drop refused after it looked
+legal, are both worse than either failure alone — so a test asserts the set
+and the predicate agree on every token of a sentence.
+
+**Drag is what makes the refusals reachable.** Keyboard aiming only ever
+offers legal heads, so no keyboard gesture can produce a cycle. A drag can be
+released anywhere, and an illegal release is passed to `store.reattach`
+deliberately rather than ignored — being told nothing happened, and why, beats
+nothing happening. The drop target is resolved with `elementFromPoint` (the
+ghost is `pointer-events: none`) so a release on empty space is
+distinguishable from one on a token, and reads as "cancelled" rather than as
+an error.
+
+Verified live at 1440×900 in both themes: `sie` dragged onto `Freistadt`
+committed and persisted; the root dragged onto `sie` was refused with
+*"gaben is the sentence root — give the root to another token first"*, the
+target struck through, nothing written. Dragging `sie` under `Freistadt` also
+produced a genuine non-projective `nsubj`, which rendered below the row — the
+tool demonstrating its own premise on live corpus text.
+
+One affordance deliberately withheld: the ROOT bar is not offered to the token
+that is already the root. `0` is a legal head for it, but only because it is
+where it already sits, and a drop zone that does nothing is worse than none.
 
 ## Open questions
 
