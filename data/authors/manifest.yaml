@@ -816,9 +816,15 @@ authors:
   x_shift: 0
   work_hint: Also sprach Zarathustra, Genealogie
 expected_chunks:
+  # Bands follow the house formula: [0.85 x expected, 1.10 x expected]
+  # for the large corpora, [0.75 x, 1.15 x] for the small ones.
   plato:
-    min: 18463
-    max: 23894
+    # Three languages since the German ingest (#78): eng 12,995 +
+    # grc 8,590 + deu 8,476 = 30,061. The old 18463/23894 band was
+    # sized for Greek + English alone and was never widened, which
+    # left `make check-authors` failing on main (#150).
+    min: 25552
+    max: 33067
   aristotle:
     min: 14529
     max: 18802
