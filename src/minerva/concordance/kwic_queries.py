@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any
 
 from ..errors import BadRequestError
-from ..query_params import parse_int_param
+from ..query_params import escape_like_substring, parse_int_param
 from ..reader.queries import _parse_morph_feats
 from ..text.snippet import build_kwic
 from ._scope import (
@@ -138,9 +138,14 @@ def lemma_detail(
     # spaCy feats stored as ``Key=Val|Key=Val``; a string-contains
     # match is faster than parsing every row in SQL. We require all
     # requested features to appear as substrings.
+    # `morph` is free-form beyond its Key=Val shape check, so the key
+    # and value are escaped — an unescaped `%` would widen the match
+    # to "any row carrying this feature" instead of narrowing it (#120).
     for k, v in morph_filters.items():
-        extra_sql += " AND cl.feats LIKE ?"
-        extra_params.append(f"%{k}={v}%")
+        extra_sql += " AND cl.feats LIKE ? ESCAPE '\\'"
+        extra_params.append(
+            f"%{escape_like_substring(k)}={escape_like_substring(v)}%"
+        )
 
 
     # Total + breakdowns. Two extra aggregate queries; both hit the

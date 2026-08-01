@@ -8,7 +8,7 @@ import unicodedata
 from typing import Any
 
 from ..errors import BadRequestError
-from ..query_params import parse_int_param
+from ..query_params import escape_like_substring, parse_int_param
 from ._scope import (
     _DEFAULT_CONTENT_POS,
     _DEFAULT_INDEX_LIMIT,
@@ -464,8 +464,11 @@ def _counts_where(
             where_parts.append("fold_initial(lemma) = ?")
             where_params.append(_fold_initial(letter))
         else:
+            # `letter` is a user-supplied prefix, so its own `%` / `_`
+            # must be escaped or they act as wildcards and match the
+            # whole index instead of nothing (#120).
             where_parts.append("lemma LIKE ? ESCAPE '\\'")
-            where_params.append(letter.replace("\\", "\\\\") + "%")
+            where_params.append(escape_like_substring(letter) + "%")
     if pos_in is not None:
         placeholders = ",".join("?" * len(pos_in))
         where_parts.append(f"pos IN ({placeholders})")
@@ -475,9 +478,8 @@ def _counts_where(
         # nice with SQLite's collation-free LIKE; we escape the user's
         # wildcard chars so a literal "%" in the search string doesn't
         # blow open the filter.
-        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
-        where_params.append(f"%{escaped}%")
+        where_params.append(f"%{escape_like_substring(q)}%")
     # Lemma-validity guard: matches the same first-char rule we apply
     # at lemmatize time / KWIC. Defense-in-depth — if a partial
     # rebuild ever leaves junk in lemma_counts, the read path skips it.
