@@ -1,9 +1,10 @@
 # Dependency-syntax close reading — implementation plan
 
-> **Status (2026-08-01): phases 0–6 shipped.** Relabel, reattach by drag or
-> keyboard, undo, both exports and the derived topological fields all work,
-> and both refusals are reachable and visible. **Phase 7 (the minimap) has not
-> been started** — see *Open questions*, which is the resume point.
+> **Status (2026-08-01): all seven phases shipped.** Every frame of
+> `syntax-wireframes/index.html` now has an implementation. Relabel, reattach
+> by drag or keyboard, undo, both exports, the derived topological fields and
+> the whole-sentence strip all work, and both refusals are reachable and
+> visible. What is left is listed under *Known gaps*.
 
 ## Problem
 
@@ -253,7 +254,7 @@ warmed chunk is simply a cache hit.
 ```
 Syntax/
   conllu/{types,parse,serialise}.ts    export + external-treebank import + test substrate
-  layout/{measure,arcs,fields}.ts      the real geometry
+  layout/{measure,arcs,fields,minimap}.ts  the real geometry
   corrections/store.ts                 optimistic queue over the API
   components/{ArcDiagram,TokenInspector,SentenceList}.tsx
   index.tsx
@@ -332,18 +333,16 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 | **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | ✅ DONE 2026-08-01 (#137) |
 | **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | ✅ DONE 2026-08-01 (#138) |
 | **6** | Topological fields overlay, toggleable | ✅ DONE 2026-08-01 |
-| **7** | Long-sentence minimap | pending — added by the design, see below |
+| **7** | Long-sentence minimap | ✅ DONE 2026-08-01 |
 
 ### Where we stopped
 
-**2026-08-01, after Phase 6.** Work stops cleanly at the phase 6/7
-boundary — nothing is half-built, and `chunk_syntax_corrections` is back to 0
-rows (the corrections made while verifying in the browser were test data and
-were removed).
-
-Phase 7 has **not** been started: there is no minimap component and no
-scaffolding for one. A future session begins at the top of Phase 7 with no
-inherited state, and its placement is still open — see *Open questions*.
+**2026-08-01, after Phase 7.** All seven phases are shipped and every frame of
+the design has an implementation. Nothing is half-built, and
+`chunk_syntax_corrections` is back to 0 rows (the corrections made while
+verifying in the browser were test data and were removed). What remains is in
+*Known gaps* — two latent defects and a handful of deliberate departures, none
+of them blocking.
 
 Subtree-hover dimming moved from Phase 5 into Phase 3: it needs no correction
 machinery, and it is the interaction that makes the diagram worth looking at,
@@ -407,7 +406,7 @@ This required geometry Phase 1 did not have — `layout/rows.ts` (`breakRows`,
 | Frame | Phase |
 |---|---|
 | 01 At rest (+ dark) | 3 ✅ |
-| 02 Long sentence, wrapped | 3 ✅ (minimap → 7) |
+| 02 Long sentence, wrapped | 3 ✅ · minimap 7 ✅ |
 | 03 Subtree on hover | 3 ✅ |
 | 04 Non-projective below the row | 3 ✅ |
 | 05 Token inspector | 3 ✅ read-only; its action buttons → 4/5 |
@@ -416,7 +415,7 @@ This required geometry Phase 1 did not have — `layout/rows.ts` (`breakRows`,
 | 08 Refused · cycle | 4 |
 | 06 Mid-reattachment | 5 |
 | Topological fields (in 01, 04) | 6 |
-| Minimap (in 02) | 7 |
+| Minimap (in 02) | 7 ✅ |
 
 ### Two rules from the design worth carrying into Phase 4
 
@@ -599,29 +598,80 @@ all five fields appear at once and the Nachfeld bridges a comma. Relabelling
 restored them — the fields recomputing from a corrected tree, which is the
 whole argument for deriving them.
 
-### Two things found while verifying, neither in scope here
+**Amended by Phase 7.** The field marks shipped here as rounded brackets
+labelled with the abbreviations `VF`/`LK`/`MF`/`RK`/`NF`. Re-reading the design
+during Phase 7 showed that is not what it specifies: `.field` is a **dashed
+rule** over the field's extent with the **full German name** centred beneath
+it, in alternating vertical slots. The stagger is the point — `RECHTE KLAMMER`
+is wider than the one participle it labels, so two adjacent names on one line
+collide, and the names are worth the trouble because `MF` means nothing to a
+reader who has not been told. Phase 7 brought the marks in line;
+`fieldRuns` and everything else about the derivation is unchanged.
 
-1. **`createCorrectionStore` captures `chunkId` by value.** Navigating from one
-   syntax overlay straight to another — editing the hash, which does not
-   remount the component — leaves the store posting corrections against the
-   previous chunk, and every edit comes back `no token N in sentence M of this
-   chunk`. Latent since Phase 4 and unreachable from the app's own links (going
-   via the Reader unmounts the overlay). The fix is an accessor rather than a
-   string, plus clearing `session` when it changes.
-2. **Analytic token positions drift ~8px from the DOM over a long row**,
-   because the probe is measured with integer `offsetWidth` while the flex row
-   lays out fractionally. Pre-existing since Phase 3 and shared by the arcs;
-   the field bands make it slightly more legible because a band ends in a hard
-   vertical tick beside a glyph edge. `getBoundingClientRect().width` on the
-   probe would fix both, but it changes row breaking and belongs with a
-   re-check of the overflow bug, not here.
+## What Phase 7 actually ships
 
-## Open questions
+The whole-sentence strip from frame 02, the last piece of the design without an
+implementation: one tick per token, its height the depth of the arc stack over
+that token, hand-corrected tokens in the corrected colour, and a frame showing
+which part of the sentence is on screen.
 
-**The minimap has no home.** It is scope the design added, it addresses the
-109-token tail, and it depends on nothing in Phases 5–6. Listed as Phase 7
-above, but it could equally be a Phase 3 follow-up — and with 6 shipped it is
-the only thing left, so the real question is whether it is worth taking at all.
+**It is for the tail.** The median German sentence measures 1328px at 20px
+type; the worst is 7824px, 5.4 screens. Wrapping is what makes that readable,
+and wrapping is also what makes it easy to lose your place in — so the strip
+answers *where am I*, *where does the structure get deep*, and *where have I
+already corrected something*, in one glance.
+
+**Shown only when the sentence wraps.** A strip over a sentence you can see
+whole is decoration, and the design agrees: it appears on exactly one of nine
+frames, the 53-token one.
+
+**Depth counts a token at both ends of an arc**, not only as the dependent. A
+root governing a level-8 arc is precisely where the sentence is deepest;
+counting dependents only would draw it as the flattest token there is.
+
+**Sticky, which the design could not show.** Frame 02 is a 1180px artboard
+holding the whole sentence at once. The live pane scrolls, and a frame saying
+where you are is worth nothing if it scrolls away with you. One wrinkle worth
+remembering: a sticky child pins below its scroll pane's *own* top padding, so
+28px of scrolled arcs showed through above the strip until a `::before` was
+put there to paint over it.
+
+**Deliberately not interactive.** Keyboard focus already scrolls a token into
+view and the sentence list already moves between sentences, so a click target
+here would be a third route to what two things already do — and an interactive
+control hidden from assistive technology, which a picture of a sentence has to
+be, is worse than none.
+
+Verified live at 1440×900 in both themes on the 53-token Nietzsche chunk: the
+frame reads 0–73.6% with rows 1–2 on screen and 37.7–100% scrolled to the
+bottom, matching the token arithmetic exactly, and it disappears on a
+single-row sentence.
+
+## Known gaps
+
+Two latent defects, both found while verifying and neither in scope for the
+phase that found them:
+
+1. **#141 — `createCorrectionStore` captures `chunkId` by value**, and `sentOrd` is
+   not reset when the chunk changes. Navigating from one syntax overlay
+   straight to another — editing the hash, which does not remount the
+   component — leaves the store posting corrections against the previous chunk
+   (`no token N in sentence M of this chunk`), and a chunk with fewer sentences
+   than the last renders *No syntax for this passage*. Unreachable from the
+   app's own links: going via the Reader unmounts the overlay. The fix is an
+   accessor rather than a string, `sentOrd` reset on change, and clearing
+   `session`.
+2. **#142 — analytic token positions drift ~8px from the DOM over a long
+   row**, because the probe is measured with integer `offsetWidth` while the
+   flex row lays out fractionally. Pre-existing since Phase 3 and shared by the
+   arcs. `getBoundingClientRect().width` on the probe would fix both, but it
+   changes row breaking and belongs with a re-check of the overflow bug.
+
+Deliberate departures from the design, all still current: no author on a
+correction (single-operator tool), no `Levels · all` or `Measure` readouts (the
+wireframe styles them `ghost`, i.e. as annotation rather than control), and
+`design-canvas.jsx` not ported — it is the artboard shell for *viewing*
+wireframes.
 
 ## Acceptance criteria
 
@@ -642,13 +692,17 @@ the only thing left, so the real question is whether it is worth taking at all.
 - Arrow keys move token focus; focus is visibly ringed
 - The topological fields are toggleable, render in the derived colour, and
   recompute from a corrected tree rather than from the machine parse
+- A wrapped sentence carries a whole-sentence strip whose viewport frame
+  tracks the rows actually on screen; a sentence that fits on one row has
+  none
 
 ## Validation
 
 **TypeScript.** `npx vitest run tests/syntax*.test.ts` — round-trip, the level
 table, both non-projective arcs, `apply()` reproducing an edited state from an
-exported patch, and both fixtures' field assignments derived by hand from the
-*corrected* Rechte-Klammer rule rather than from the implementation.
+exported patch, both fixtures' field assignments derived by hand from the
+*corrected* Rechte-Klammer rule rather than from the implementation, and the
+minimap's depth profile and viewport span.
 
 **Python.** `pytest tests/test_syntax_parse.py tests/test_syntax_queries.py` —
 parse a known German sentence and assert UD deprels not TIGER (`nsubj`, not

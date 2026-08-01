@@ -291,26 +291,108 @@
 .syn-fields {
   position: relative;
   width: 100%;
-  height: 22px;
-  margin-top: 5px;
+  height: 40px;
+  margin-top: 6px;
 }
-.syn-fields svg {
+.syn-field {
   position: absolute;
-  inset: 0;
-  overflow: visible;
+  top: 0;
+  height: 36px;
+  border-top: 1.5px dashed var(--syn-oxide);
 }
-.syn-fieldbr {
-  fill: none;
-  stroke: var(--syn-oxide);
-  stroke-width: 1.2;
-  stroke-dasharray: 3 3;
-}
-.syn-fieldlab {
-  fill: var(--syn-oxide);
-  font-family: var(--syn-ui);
+.syn-field span {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
   font-size: 9.5px;
-  letter-spacing: 0.08em;
-  text-anchor: middle;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--syn-oxide);
+  white-space: nowrap;
+}
+/* Alternating slots. The names are wider than the fields they label —
+   RECHTE KLAMMER over one participle — so every other one drops a line
+   rather than colliding with its neighbour. */
+.syn-stag span {
+  top: 22px;
+}
+
+/* ── the whole-sentence strip (phase 7) ─────────────────── */
+/* One tick per token, its height the depth of the arc stack over that token,
+   and a frame showing which rows are on screen. Orientation for the tail:
+   the worst sentence in the corpus is 5.4 screens wide, and wrapping — which
+   is what makes it readable — is also what makes it easy to lose your place
+   in. Shown only when the sentence wraps. */
+/* Sticky, which the design could not show: its artboard is 1180px tall and
+   holds the whole sentence at once. Here the pane scrolls, and a frame
+   saying where you are is worth nothing if it scrolls away with you. */
+.syn-minimap {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: 100%;
+  padding: 4px 0 14px;
+  background: var(--syn-paper);
+}
+/* A sticky child pins below its scroll pane's own top padding, so there is a
+   28px band between the header and the strip that scrolled arcs show through.
+   Paint over it here rather than restructure the pane's padding, which the
+   root drop-bar and the hint line also depend on. */
+.syn-minimap::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 30px;
+  background: var(--syn-paper);
+}
+.syn-minilab {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--syn-ink-4);
+}
+.syn-mini {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--syn-rule-soft);
+  border-radius: 6px;
+  background: var(--syn-paper-2);
+  overflow: hidden;
+}
+.syn-tick {
+  flex: 1 1 0;
+  background: var(--syn-mach);
+  opacity: 0.42;
+  border-radius: 0.5px;
+}
+.syn-tick-corr {
+  background: var(--syn-corr);
+  opacity: 0.9;
+}
+.syn-vp {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px solid var(--syn-ink-4);
+  border-radius: 5px;
+  background: rgb(0 0 0 / 2%);
+  transition: left 0.12s, right 0.12s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .syn-vp {
+    transition: none;
+  }
 }
 
 /* ── token inspector ────────────────────────────────────── */
