@@ -150,6 +150,117 @@ def test_openai_stream_wraps_midstream_error_as_llmerror(monkeypatch):
         list(backend.stream_complete([Message("user", "q")]))
 
 
+def test_ollama_complete_retries_transient_503(monkeypatch):
+    # #57 wired the shared retry into OpenAI but skipped Ollama, so a
+    # long batched run still died on the first blip. Ollama is arguably
+    # the most likely backend to drop one: a local daemon reloading a
+    # model or getting OOM-killed returns exactly this (#119).
+    backend = OllamaBackend(host="http://localhost:11434")
+    calls = {"n": 0}
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"message":{"content":"ok"}}'
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise urllib.error.HTTPError(
+                req.full_url, 503, "unavailable", {}, io.BytesIO(b"loading model")
+            )
+        return FakeResp()
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    assert backend.complete([Message("user", "q")]) == "ok"
+    assert calls["n"] == 2
+
+
+def test_ollama_complete_retries_connection_reset(monkeypatch):
+    """The mid-run reset #57 was filed for — a daemon restart."""
+
+    backend = OllamaBackend(host="http://localhost:11434")
+    calls = {"n": 0}
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"message":{"content":"ok"}}'
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise ConnectionResetError("daemon restarted")
+        return FakeResp()
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    assert backend.complete([Message("user", "q")]) == "ok"
+    assert calls["n"] == 3
+
+
+def test_ollama_connection_refused_is_fatal_and_keeps_the_hint(monkeypatch):
+    """A refused connection means the daemon isn't running. Retrying it
+    for 30s just delays the one message that actually helps, so it stays
+    fatal and keeps the `ollama serve` hint."""
+
+    backend = OllamaBackend(host="http://localhost:11434")
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        raise urllib.error.URLError(ConnectionRefusedError("refused"))
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    with pytest.raises(LLMError, match="ollama serve"):
+        backend.complete([Message("user", "q")])
+    assert calls["n"] == 1, "refused connection must not be retried"
+
+
+def test_ollama_stream_retries_transient_503(monkeypatch):
+    """The streaming path needs the same treatment — it opened the
+    connection with a bare urlopen too."""
+
+    backend = OllamaBackend(host="http://localhost:11434")
+    calls = {"n": 0}
+
+    class FakeResp:
+        def __iter__(self):
+            yield b'{"message":{"content":"A"},"done":true}\n'
+
+        def close(self):
+            pass
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise urllib.error.HTTPError(
+                req.full_url, 503, "unavailable", {}, io.BytesIO(b"loading")
+            )
+        return FakeResp()
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    assert list(backend.stream_complete([Message("user", "q")])) == ["A"]
+    assert calls["n"] == 2
+
+
 def test_ollama_stream_complete_yields_deltas(monkeypatch):
     backend = OllamaBackend(host="http://localhost:11434")
     body = (

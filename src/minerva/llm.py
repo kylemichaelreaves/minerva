@@ -77,14 +77,25 @@ def _urlopen_with_retry(
     timeout: float,
     api_key: str | None,
     provider: str,
+    fatal_errors: tuple[type[BaseException], ...] = (),
+    fatal_hint: str = "",
 ) -> HTTPResponse:
     """Open ``req`` with bounded exponential backoff for transient
     failures, returning the (still-open) response.
 
     Shared by every HTTP backend so retry behavior is consistent —
     previously only Anthropic retried, and an OpenAI/Ollama run died on
-    the first 429 or mid-run ConnectionResetError (issue #57). Five
-    tries, doubling waits from 2s to 32s, then surface as ``LLMError``.
+    the first 429 or mid-run ConnectionResetError (issues #57, #119).
+    Five tries, doubling waits from 2s to 32s, then surface as
+    ``LLMError``.
+
+    ``fatal_errors`` names connection failures that must NOT be retried
+    even though they'd otherwise look transient, with ``fatal_hint``
+    appended to the message. Ollama uses it for ``ConnectionRefused``:
+    against a local daemon that means "not running", and backing off for
+    30s only delays the one message that helps. A remote API is
+    different — a refused connection there can be a transient proxy
+    blip — so the default retries it.
     """
 
     last_exc: BaseException | None = None
@@ -99,6 +110,10 @@ def _urlopen_with_retry(
             detail = _redact(exc.read().decode("utf-8", errors="replace"), api_key)
             raise LLMError(f"{provider} HTTP {exc.code}: {detail}") from exc
         except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
+            if fatal_errors and isinstance(exc, fatal_errors):
+                raise LLMError(
+                    f"{provider} connection error{fatal_hint}: {exc}"
+                ) from exc
             if attempt + 1 < _MAX_RETRY_ATTEMPTS:
                 last_exc = exc
                 time.sleep(min(32.0, 2.0 * (2**attempt)))
@@ -109,6 +124,10 @@ def _urlopen_with_retry(
             # ones that look transient (reset / refused / DNS blip) as
             # retryable, the rest as fatal.
             reason = getattr(exc, "reason", None)
+            if fatal_errors and isinstance(reason, fatal_errors):
+                raise LLMError(
+                    f"{provider} connection error{fatal_hint}: {exc}"
+                ) from exc
             transient = isinstance(
                 reason,
                 (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),
@@ -436,6 +455,12 @@ class AnthropicBackend(LLMBackend):
             resp.close()
 
 
+# Ollama talks to a daemon on localhost, so a refused connection is a
+# definitive "not running" rather than a blip worth backing off for.
+_OLLAMA_FATAL_ERRORS: tuple[type[BaseException], ...] = (ConnectionRefusedError,)
+_OLLAMA_DOWN_HINT = " (is `ollama serve` running?)"
+
+
 class OllamaBackend(LLMBackend):
     name = "ollama"
 
@@ -465,14 +490,15 @@ class OllamaBackend(LLMBackend):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise LLMError(f"Ollama HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise LLMError(f"Ollama connection error (is `ollama serve` running?): {exc}") from exc
+        with _urlopen_with_retry(
+            req,
+            timeout=self.timeout,
+            api_key=None,
+            provider="Ollama",
+            fatal_errors=_OLLAMA_FATAL_ERRORS,
+            fatal_hint=_OLLAMA_DOWN_HINT,
+        ) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
         try:
             return payload["message"]["content"].strip()
         except KeyError as exc:
@@ -495,13 +521,14 @@ class OllamaBackend(LLMBackend):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise LLMError(f"Ollama HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise LLMError(f"Ollama connection error (is `ollama serve` running?): {exc}") from exc
+        resp = _urlopen_with_retry(
+            req,
+            timeout=self.timeout,
+            api_key=None,
+            provider="Ollama",
+            fatal_errors=_OLLAMA_FATAL_ERRORS,
+            fatal_hint=_OLLAMA_DOWN_HINT,
+        )
         try:
             for chunk in _iter_ndjson_lines(resp):
                 msg = chunk.get("message") or {}
