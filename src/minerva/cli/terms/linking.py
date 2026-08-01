@@ -9,6 +9,7 @@ import sqlite3
 import sys
 from typing import Any
 
+from ...query_params import escape_like_substring
 from ._io import _emit, _open, _read_text_input
 
 
@@ -17,8 +18,9 @@ def cmd_terms_works(args: argparse.Namespace) -> int:
     sql = "SELECT id, author, title, original_language, citation_system FROM works "
     params: list[Any] = []
     if args.like:
-        sql += "WHERE title LIKE ? OR author LIKE ? "
-        params.extend([f"%{args.like}%", f"%{args.like}%"])
+        sql += "WHERE title LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\' "
+        pattern = f"%{escape_like_substring(args.like)}%"
+        params.extend([pattern, pattern])
     sql += "ORDER BY author, title"
     rows = [tuple(r) for r in conn.execute(sql, params).fetchall()]
     _emit(rows, ("id", "author", "title", "orig_lang", "citation"), args.json)

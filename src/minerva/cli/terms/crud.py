@@ -7,6 +7,7 @@ import sqlite3
 import sys
 from typing import Any
 
+from ...query_params import escape_like_substring
 from ._io import _emit, _open, _read_text_input
 
 
@@ -24,8 +25,10 @@ def cmd_terms_list(args: argparse.Namespace) -> int:
         where.append("t.source_language = ?")
         params.append(args.lang)
     if args.like:
-        where.append("t.source_form LIKE ?")
-        params.append(f"%{args.like}%")
+        # Matches the HTTP path in terms_queries.py — without ESCAPE
+        # a `%` in --like matches every term instead of none (#120).
+        where.append("t.source_form LIKE ? ESCAPE '\\'")
+        params.append(f"%{escape_like_substring(args.like)}%")
     if where:
         sql += "WHERE " + " AND ".join(where) + " "
     sql += "GROUP BY t.id ORDER BY t.source_language, t.source_form"

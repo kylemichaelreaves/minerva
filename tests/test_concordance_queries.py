@@ -258,6 +258,83 @@ def test_greek_letter_lambda_only(
 
 
 # ──────────────────────────────────────────────────────────────────
+#  letter is a LIKE prefix — SQL wildcards must not leak through
+# ──────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("wildcard", ["%", "_"])
+def test_letter_wildcards_do_not_bypass_the_filter(
+    concordance_db: sqlite3.Connection,
+    wildcard: str,
+) -> None:
+    """``letter`` is interpolated into a ``LIKE`` pattern. An unescaped
+    ``%`` matched every lemma in the index and ``_`` every lemma of
+    length >= 1, while the response still echoed the requested letter
+    as though it had applied (#120).
+
+    No seeded lemma starts with a literal ``%`` or ``_``, so a correctly
+    escaped filter returns nothing.
+    """
+
+    out = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "letter": wildcard, "min_count": "1"},
+    )
+
+    assert out["rows"] == []
+    assert out["total_lemmas"] == 0
+
+
+def test_letter_prefix_still_matches(concordance_db: sqlite3.Connection) -> None:
+    """Guard the fix: escaping wildcards must not break ordinary
+    prefix matching."""
+
+    out = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "letter": "g", "min_count": "1"},
+    )
+
+    assert {r["lemma"] for r in out["rows"]} == {"Geist", "geistig"}
+
+
+def test_letter_backslash_is_literal(concordance_db: sqlite3.Connection) -> None:
+    """A backslash must stay a literal, not consume the next character
+    as an escape — the `ESCAPE '\\'` clause makes this load-bearing."""
+
+    out = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "letter": "\\", "min_count": "1"},
+    )
+
+    assert out["rows"] == []
+
+
+def test_morph_filter_wildcards_do_not_bypass_the_filter(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """KWIC morph filters are matched as ``feats LIKE '%Key=Val%'``.
+    ``morph`` comes off the query string with only a ``Key=Val`` shape
+    check — no value whitelist — so an unescaped ``%`` turned
+    ``Case=Nom`` into "any row with a Case feature" (#120).
+
+    ``Case=Nom`` matches 3 of the 4 Geist occurrences; ``Case=%`` must
+    match none, not all 4.
+    """
+
+    nom = concordance_queries.lemma_detail(
+        concordance_db,
+        {"lemma": "Geist", "lang": "deu", "morph": "Case=Nom"},
+    )
+    assert nom["total"] == 3
+
+    wild = concordance_queries.lemma_detail(
+        concordance_db,
+        {"lemma": "Geist", "lang": "deu", "morph": "Case=%"},
+    )
+    assert wild["total"] == 0
+
+
+# ──────────────────────────────────────────────────────────────────
 #  q (lemma substring search)
 # ──────────────────────────────────────────────────────────────────
 
