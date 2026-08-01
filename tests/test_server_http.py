@@ -78,6 +78,66 @@ def test_rate_limiter_evicts_drained_buckets(populated_db):
     assert len(rl._buckets[("chat", "1.1.1.1")]) == 1
 
 
+def test_rate_limiter_sweeps_idle_buckets(populated_db):
+    """A key whose timestamps have all aged out must be removed, not
+    left behind (#121).
+
+    The old code drained expired timestamps but only when that same IP
+    sent another request, and then re-stored the empty deque. An IP
+    that stopped sending kept its entry forever — unbounded growth
+    keyed on an attacker-chosen value under `serve --host 0.0.0.0`.
+    """
+
+    rl = server._RateLimiter()
+    rl.allow("chat", "1.1.1.1", now=0.0)
+    assert ("chat", "1.1.1.1") in rl._buckets
+
+    # A request from a different IP, far enough out that the sweep runs.
+    rl.allow("chat", "2.2.2.2", now=server._BUCKET_SWEEP_INTERVAL + 1.0)
+
+    assert ("chat", "1.1.1.1") not in rl._buckets, "idle bucket was never evicted"
+    assert ("chat", "2.2.2.2") in rl._buckets
+
+
+def test_rate_limiter_bucket_count_is_bounded(populated_db):
+    """An IP-rotating client must not be able to grow `_buckets`
+    without bound between sweeps."""
+
+    rl = server._RateLimiter()
+    for i in range(server._MAX_BUCKETS * 2):
+        rl.allow("chat", f"10.{i // 65536}.{(i // 256) % 256}.{i % 256}", now=0.0)
+
+    assert len(rl._buckets) <= server._MAX_BUCKETS
+
+
+def test_rate_limiter_active_bucket_survives_sweep(populated_db):
+    """The sweep must not drop a bucket that is still inside its own
+    window — that would hand out free capacity to a client already at
+    its cap.
+
+    The sweep interval (300s) is longer than the chat window (60s), so
+    the bucket has to be filled just *before* a sweep boundary to still
+    be live when the sweep runs.
+    """
+
+    rl = server._RateLimiter()
+    cap, window = server._RATE_LIMITS["chat"]
+    sweep = server._BUCKET_SWEEP_INTERVAL
+
+    rl.allow("chat", "9.9.9.9", now=0.0)  # first call arms the sweep clock
+
+    # Fill the cap one second before the sweep fires.
+    for _ in range(cap):
+        assert rl.allow("chat", "1.1.1.1", now=sweep - 1.0) is True
+
+    # This call triggers the sweep; 1.1.1.1 is still well inside its window.
+    assert sweep - (sweep - 1.0) < window
+    rl.allow("chat", "8.8.8.8", now=sweep)
+
+    assert ("chat", "1.1.1.1") in rl._buckets
+    assert rl.allow("chat", "1.1.1.1", now=sweep) is False
+
+
 def test_rate_limiter_unknown_route_always_allows(populated_db):
     backend = StubBackend()
     deps = _make_deps_with_limiter(populated_db, backend)
