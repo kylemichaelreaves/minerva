@@ -54,12 +54,45 @@ _RATE_LIMITS: dict[str, tuple[int, float]] = {
 }
 
 
+# Idle-bucket housekeeping. A bucket is only ever drained when that same
+# (route, ip) sends again, so without a sweep an IP that goes quiet keeps
+# its entry forever — unbounded growth keyed on a value the caller
+# chooses, which matters on the `serve --host 0.0.0.0` bind the operator
+# is warned about. The sweep is O(buckets) but runs at most once per
+# interval; `_MAX_BUCKETS` is the backstop for an IP-rotating client that
+# would otherwise grow the dict without bound *between* sweeps.
+_BUCKET_SWEEP_INTERVAL = 300.0  # seconds
+_MAX_BUCKETS = 10_000
+# Where a size-triggered eviction trims back to, so the cost amortizes
+# over the next ~1k new IPs instead of landing on every request.
+_BUCKET_TRIM_TO = 9_000
+
+
 class _RateLimiter:
     """In-process sliding-window rate limiter keyed by (route, ip)."""
 
     def __init__(self) -> None:
         self._buckets: dict[tuple[str, str], deque[float]] = {}
         self._lock = threading.Lock()
+        self._next_sweep = 0.0
+
+    def _sweep(self, t: float) -> None:
+        """Drop every bucket whose newest hit has aged out of its own
+        route's window. Caller must hold the lock.
+
+        Windows are per-route, so the cutoff is recomputed per key
+        rather than taken from the request being served.
+        """
+
+        dead = [
+            key
+            for key, q in self._buckets.items()
+            if not q
+            or key[0] not in _RATE_LIMITS
+            or q[-1] < t - _RATE_LIMITS[key[0]][1]
+        ]
+        for key in dead:
+            del self._buckets[key]
 
     def allow(self, route: str, ip: str, *, now: float | None = None) -> bool:
         limit = _RATE_LIMITS.get(route)
@@ -69,6 +102,26 @@ class _RateLimiter:
         t = _time.monotonic() if now is None else now
         cutoff = t - window
         with self._lock:
+            if t >= self._next_sweep or len(self._buckets) >= _MAX_BUCKETS:
+                self._sweep(t)
+                self._next_sweep = t + _BUCKET_SWEEP_INTERVAL
+                if len(self._buckets) >= _MAX_BUCKETS:
+                    # Still saturated after sweeping: every bucket is
+                    # live, so this is active IP rotation rather than
+                    # accumulated cruft. Evict least-recently-active
+                    # first — they're closest to expiring anyway.
+                    #
+                    # Trim well below the ceiling rather than by the one
+                    # entry we need. This sort is O(n log n) while
+                    # holding the lock; doing it per request once full
+                    # would hand an IP-rotating client a cheap way to
+                    # make every other request pay for it.
+                    victims = sorted(
+                        self._buckets, key=lambda k: self._buckets[k][-1]
+                    )[: len(self._buckets) - _BUCKET_TRIM_TO + 1]
+                    for key in victims:
+                        del self._buckets[key]
+
             key = (route, ip)
             q = self._buckets.get(key)
             if q is None:
@@ -76,13 +129,12 @@ class _RateLimiter:
             while q and q[0] < cutoff:
                 q.popleft()
             if len(q) >= cap:
-                if q:
-                    self._buckets[key] = q
-                else:
-                    self._buckets.pop(key, None)
+                # cap >= 1, so q is non-empty here by construction —
+                # the old `else: pop` branch was unreachable.
+                self._buckets[key] = q
                 return False
-            self._buckets[key] = q
             q.append(t)
+            self._buckets[key] = q
             return True
 
 

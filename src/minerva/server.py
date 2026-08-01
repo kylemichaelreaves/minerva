@@ -58,6 +58,8 @@ from .http.serve import (  # noqa: F401
     serve,
 )
 from .http.server_core import (  # noqa: F401
+    _BUCKET_SWEEP_INTERVAL,
+    _MAX_BUCKETS,
     _RATE_LIMITS,
     ServerDeps,
     _HTTPError,
