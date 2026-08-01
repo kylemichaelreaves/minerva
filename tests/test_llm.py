@@ -8,6 +8,7 @@ import urllib.error
 
 import pytest
 
+from minerva import llm as llm_mod
 from minerva.llm import (
     AnthropicBackend,
     LLMError,
@@ -230,6 +231,47 @@ def test_ollama_connection_refused_is_fatal_and_keeps_the_hint(monkeypatch):
     with pytest.raises(LLMError, match="ollama serve"):
         backend.complete([Message("user", "q")])
     assert calls["n"] == 1, "refused connection must not be retried"
+
+
+def test_ollama_bare_connection_refused_is_also_fatal(monkeypatch):
+    """`urlopen` raises ConnectionRefusedError directly as often as it
+    raises it wrapped in URLError, depending on where the connect
+    fails. Both paths run through the fatal-error check, so both are
+    pinned — the wrapped-only test would leave half the guard untested.
+    """
+
+    backend = OllamaBackend(host="http://localhost:11434")
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        raise ConnectionRefusedError("refused")
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    with pytest.raises(LLMError, match="ollama serve"):
+        backend.complete([Message("user", "q")])
+    assert calls["n"] == 1
+
+
+def test_ollama_gives_up_after_max_attempts(monkeypatch):
+    """A daemon that never comes back must surface as LLMError once the
+    retry budget is spent, not retry forever."""
+
+    backend = OllamaBackend(host="http://localhost:11434")
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        raise ConnectionResetError("still down")
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("minerva.llm.time.sleep", lambda _s: None)
+
+    with pytest.raises(LLMError, match="after retries"):
+        backend.complete([Message("user", "q")])
+    assert calls["n"] == llm_mod._MAX_RETRY_ATTEMPTS
 
 
 def test_ollama_stream_retries_transient_503(monkeypatch):
