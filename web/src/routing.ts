@@ -87,6 +87,17 @@ export type Route =
       sourceMethods?: string[];
     }
   | {
+      /** Full-screen dependency-syntax overlay for one chunk. Reached from
+       *  the Reader. Full-bleed like the network drilldowns rather than a
+       *  rail panel: a wrapped token row with its arc stack needs the
+       *  measure, and the median German sentence is already 1328px wide. */
+      kind: "syntax";
+      chunkId: string;
+      /** Work to return to, so the back link goes somewhere sensible.
+       *  String, matching the reader route it navigates back into. */
+      workId?: string;
+    }
+  | {
       /** Full-screen verification-coverage drilldown — design 6.
        *  Per-author stacked bars (verified / unverified / disputed).
        *  Same filter shape as `network`. */
@@ -181,6 +192,16 @@ export function readRoute(): Route {
       author: qs.get("author") ?? undefined,
       focusChunkId: qs.get("focus") ?? undefined,
       openTermId,
+    };
+  }
+  m = /^#\/syntax\/([^?]+)(?:\?(.*))?$/.exec(hash);
+  if (m) {
+    const qs = new URLSearchParams(m[2]);
+    const rawWork = qs.get("work");
+    return {
+      kind: "syntax",
+      chunkId: safeDecode(m[1] ?? "") ?? "",
+      workId: rawWork ? (safeDecode(rawWork) ?? undefined) : undefined,
     };
   }
   m = /^#\/network\/(arc|coverage)(?:\?(.*))?$/.exec(hash);
@@ -349,6 +370,10 @@ export function routeHash(route: Route): string {
     const qs = params.toString();
     const base = `#/concordance/${encodeURIComponent(route.lemma)}`;
     return qs ? `${base}?${qs}` : base;
+  }
+  if (route.kind === "syntax") {
+    const base = `#/syntax/${encodeURIComponent(route.chunkId)}`;
+    return route.workId ? `${base}?work=${encodeURIComponent(route.workId)}` : base;
   }
   if (route.kind === "network-arc" || route.kind === "network-coverage") {
     const sub = route.kind === "network-arc" ? "arc" : "coverage";

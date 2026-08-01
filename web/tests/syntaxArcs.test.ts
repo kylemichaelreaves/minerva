@@ -31,7 +31,7 @@ describe("arcsOf", () => {
   it("emits one arc per token, excluding the root", () => {
     const sent = fixture("fixture_projective");
 
-    const arcs = arcsOf(sent);
+    const arcs = arcsOf(sent.tokens);
 
     // 9 tokens, one of which (entwickelt) is the root and gets no arc.
     expect(arcs).toHaveLength(8);
@@ -41,7 +41,7 @@ describe("arcsOf", () => {
   it("spans the closed interval between head and dependent, either direction", () => {
     const sent = fixture("fixture_projective");
 
-    const arcs = arcsOf(sent);
+    const arcs = arcsOf(sent.tokens);
 
     // det (1 -> 2): dependent precedes its head.
     expect(arcs.find((a) => a.dep === 1)).toMatchObject({ head: 2, span: [1, 2] });
@@ -54,7 +54,7 @@ describe("isNonProjective", () => {
   it("finds no crossings in the projective fixture", () => {
     const sent = fixture("fixture_projective");
 
-    const crossing = arcsOf(sent).filter((a) => isNonProjective(a, sent));
+    const crossing = arcsOf(sent.tokens).filter((a) => isNonProjective(a, sent.tokens));
 
     expect(crossing).toEqual([]);
   });
@@ -66,8 +66,8 @@ describe("isNonProjective", () => {
   it("finds both crossing arcs in the non-projective fixture", () => {
     const sent = fixture("fixture_nonprojective");
 
-    const crossing = arcsOf(sent)
-      .filter((a) => isNonProjective(a, sent))
+    const crossing = arcsOf(sent.tokens)
+      .filter((a) => isNonProjective(a, sent.tokens))
       .map((a) => `${a.deprel}@[${a.span[0]},${a.span[1]}]`);
 
     expect(crossing.sort()).toEqual(["acl:relcl@[2,9]", "punct@[5,10]"]);
@@ -78,9 +78,9 @@ describe("isNonProjective", () => {
 
     // acl:relcl spans [2,9]; token 5 inside it is the root (head 0), and
     // 0 < 2. head(k) === 0 satisfying `< i` is the intended reading.
-    const relcl = arcsOf(sent).find((a) => a.deprel === "acl:relcl");
+    const relcl = arcsOf(sent.tokens).find((a) => a.deprel === "acl:relcl");
 
-    expect(relcl && isNonProjective(relcl, sent)).toBe(true);
+    expect(relcl && isNonProjective(relcl, sent.tokens)).toBe(true);
   });
 });
 
@@ -89,7 +89,7 @@ describe("assignLevels", () => {
   it("matches the golden level table for the projective fixture", () => {
     const sent = fixture("fixture_projective");
 
-    const levelled = assignLevels(arcsOf(sent));
+    const levelled = assignLevels(arcsOf(sent.tokens));
 
     expect(shape(levelled)).toEqual([
       "aux@[3,8]=4",
@@ -106,7 +106,7 @@ describe("assignLevels", () => {
   it("stacks the non-projective fixture's below-line arcs by containment", () => {
     const sent = fixture("fixture_nonprojective");
 
-    const below = assignLevels(arcsOf(sent).filter((a) => isNonProjective(a, sent)));
+    const below = assignLevels(arcsOf(sent.tokens).filter((a) => isNonProjective(a, sent.tokens)));
 
     // punct [5,10] is narrower, so it lands first and acl:relcl [2,9] —
     // which overlaps it without containing it — is pushed to level 2.
@@ -116,7 +116,7 @@ describe("assignLevels", () => {
   it("assigns the non-projective fixture's above-line arcs", () => {
     const sent = fixture("fixture_nonprojective");
 
-    const above = assignLevels(arcsOf(sent).filter((a) => !isNonProjective(a, sent)));
+    const above = assignLevels(arcsOf(sent.tokens).filter((a) => !isNonProjective(a, sent.tokens)));
 
     expect(shape(above)).toEqual([
       "advmod@[8,9]=1",
