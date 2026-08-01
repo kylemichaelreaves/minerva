@@ -8,6 +8,8 @@ import {
   assignLevels,
   isNonProjective,
 } from "~/Syntax/layout/arcs";
+import { FIELD_NAMES, type FieldName, fieldRuns, topologicalFields } from "~/Syntax/layout/fields";
+import { minimapTicks, visibleSpan } from "~/Syntax/layout/minimap";
 import { TOKEN_GAP } from "~/Syntax/layout/measure";
 import { type ArcSegment, breakRows, segmentArcs } from "~/Syntax/layout/rows";
 
@@ -45,6 +47,8 @@ export interface ArcDiagramProps {
   proposed?: number | null;
   /** A target that was refused, flashed until dismissed. */
   refused?: number | null;
+  /** Draw the derived topological fields under the row. */
+  showFields?: boolean;
   /** Begin a pointer drag from this token. */
   onDragStart?: (id: number, e: PointerEvent) => void;
 }
@@ -147,13 +151,17 @@ export function ArcDiagram(props: ArcDiagramProps) {
     const byId = new Map(props.tokens.map((t) => [t.id, t]));
     return rows().map((ids) => {
       const centre = new Map<number, number>();
+      // Left and right edges too: an arc lands on a centre, but a field
+      // bracket encloses whole tokens and has to reach past their glyphs.
+      const edge = new Map<number, { l: number; r: number }>();
       let x = 0;
       for (const id of ids) {
         const w = widthOf(id, byId.get(id)?.form ?? "");
         centre.set(id, x + w / 2);
+        edge.set(id, { l: x, r: x + w });
         x += w + TOKEN_GAP;
       }
-      return { centre, width: Math.max(0, x - TOKEN_GAP) };
+      return { centre, edge, width: Math.max(0, x - TOKEN_GAP) };
     });
   });
 
@@ -170,6 +178,76 @@ export function ArcDiagram(props: ArcDiagramProps) {
   });
 
   const byId = createMemo(() => new Map(props.tokens.map((t) => [t.id, t])));
+
+  // The one derived layer in the diagram. Recomputed from the live tree, so a
+  // reattachment that fixes the parse moves the brackets with it — which is
+  // the whole argument for deriving the fields rather than annotating them.
+  const fields = createMemo(() => (props.showFields ? topologicalFields(props.tokens) : []));
+
+  /** The bands to draw on one row: a field can span a wrap, and can be cut in
+   *  two by material it does not claim.
+   *
+   *  `stagger` alternates by *field*, not by run, so a field crossing a wrap
+   *  keeps the same vertical slot on both rows. The stagger is what lets the
+   *  marks carry the full German names — `RECHTE KLAMMER` is wider than the
+   *  one-token field it labels, and two of those on one line would collide. */
+  const bandsFor = (rowIdx: number): { name: FieldName; l: number; r: number; stagger: boolean }[] => {
+    const g = rowGeometry()[rowIdx];
+    const ids = rows()[rowIdx];
+    if (!g || !ids) return [];
+    const isPunct = (id: number) => byId().get(id)?.upos === "PUNCT";
+    const out: { name: FieldName; l: number; r: number; stagger: boolean }[] = [];
+    fields().forEach((f, k) => {
+      for (const run of fieldRuns(f.tokens, ids, isPunct)) {
+        const first = g.edge.get(run[0] ?? -1);
+        const last = g.edge.get(run[run.length - 1] ?? -1);
+        if (first && last) out.push({ name: f.name, l: first.l, r: last.r, stagger: k % 2 === 1 });
+      }
+    });
+    return out;
+  };
+
+  // ---- the whole-sentence strip ----
+  //
+  // Which rows are on screen, tracked with an IntersectionObserver rather
+  // than a scroll listener on the pane: the diagram does not know which
+  // ancestor scrolls it, and does not need to.
+  const [visibleRows, setVisibleRows] = createSignal<ReadonlySet<number>>(new Set());
+
+  const observeRow = (el: HTMLElement, rowIdx: number) => {
+    const io = new IntersectionObserver(
+      (entries) => {
+        const on = entries.at(-1)?.isIntersecting ?? false;
+        setVisibleRows((prev) => {
+          if (prev.has(rowIdx) === on) return prev;
+          const next = new Set(prev);
+          if (on) next.add(rowIdx);
+          else next.delete(rowIdx);
+          return next;
+        });
+      },
+      { threshold: 0 },
+    );
+    io.observe(el);
+    onCleanup(() => {
+      io.disconnect();
+    });
+  };
+
+  const ticks = createMemo(() => {
+    const l = levelled();
+    return minimapTicks(props.tokens, [...l.projective, ...l.crossing]);
+  });
+
+  /** Deepest stack in the sentence, so tick heights scale to the tallest. */
+  const maxDepth = createMemo(() => Math.max(1, ...ticks().map((t) => t.depth)));
+
+  const frame = createMemo(() => {
+    const span = visibleSpan(rows(), visibleRows());
+    const n = props.tokens.length;
+    if (!span || n === 0) return null;
+    return { left: (span[0] / n) * 100, right: 100 - (span[1] / n) * 100 };
+  });
 
   const segsFor = (rowIdx: number, below: boolean): ArcSegment[] =>
     segments().filter((s) => s.row === rowIdx && s.below === below);
@@ -192,6 +270,35 @@ export function ArcDiagram(props: ArcDiagramProps) {
           )}
         </For>
       </div>
+      {/* Only when the sentence wraps. A strip over a sentence you can already
+          see whole is decoration, and the design shows it on exactly one
+          frame: the 53-token one. */}
+      <Show when={rows().length > 1}>
+        <div class="syn-minimap" aria-hidden="true">
+          <div class="syn-minilab">
+            <span>Whole sentence · {props.tokens.length} tokens</span>
+            <span>arc depth</span>
+          </div>
+          <div class="syn-mini">
+            <For each={ticks()}>
+              {(t) => (
+                <div
+                  class={`syn-tick${t.corrected ? " syn-tick-corr" : ""}`}
+                  style={{ height: `${String(6 + (t.depth / maxDepth()) * 26)}px` }}
+                />
+              )}
+            </For>
+            <Show when={frame()}>
+              {(f) => (
+                <div
+                  class="syn-vp"
+                  style={{ left: `${String(f().left)}%`, right: `${String(f().right)}%` }}
+                />
+              )}
+            </Show>
+          </div>
+        </div>
+      </Show>
       <For each={rows()}>
         {(ids, rowIdx) => {
           const above = () => stackHeight(rowIdx(), false);
@@ -286,7 +393,12 @@ export function ArcDiagram(props: ArcDiagramProps) {
           };
 
           return (
-            <div class="syn-rowblock">
+            <div
+              class="syn-rowblock"
+              ref={(el) => {
+                observeRow(el, rowIdx());
+              }}
+            >
               <div class="syn-above" style={{ height: `${above()}px` }}>
                 {stack(false, above())}
               </div>
@@ -332,6 +444,23 @@ export function ArcDiagram(props: ArcDiagramProps) {
               <Show when={below() > 0}>
                 <div class="syn-below" style={{ height: `${below()}px` }}>
                   {stack(true, below())}
+                </div>
+              </Show>
+              {/* Under the non-projective stack rather than tight against the
+                  row: frame 04 has both, and an inferred bracket must not
+                  crowd out a parsed arc. */}
+              <Show when={bandsFor(rowIdx()).length > 0}>
+                <div class="syn-fields" aria-hidden="true">
+                  <For each={bandsFor(rowIdx())}>
+                    {(b) => (
+                      <div
+                        class={`syn-field${b.stagger ? " syn-stag" : ""}`}
+                        style={{ left: `${String(b.l - 4)}px`, width: `${String(b.r - b.l + 8)}px` }}
+                      >
+                        <span>{FIELD_NAMES[b.name]}</span>
+                      </div>
+                    )}
+                  </For>
                 </div>
               </Show>
             </div>

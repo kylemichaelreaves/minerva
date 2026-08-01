@@ -85,6 +85,16 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   const [proposed, setProposed] = createSignal<number | null>(null);
   /** A target that was just refused, so the diagram can mark it. */
   const [refused, setRefused] = createSignal<number | null>(null);
+  /**
+   * The derived topological fields, on by default.
+   *
+   * On because the fields are the reading the tool is *for* — the wireframes
+   * carry them in the at-rest frame — and toggleable because they are the one
+   * layer here that is inferred rather than parsed or hand-corrected, and a
+   * heuristic that will be wrong on complex sentences has to be dismissable
+   * without argument.
+   */
+  const [showFields, setShowFields] = createSignal(true);
 
   // The GET answers with the pristine machine parse and the correction log
   // side by side; the store replays one over the other. Seeding it with the
@@ -314,6 +324,11 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
           e.preventDefault();
           lift(id);
         }
+      } else if (e.key === "f" || e.key === "F") {
+        // Needs no selection: the fields are a property of the sentence, not
+        // of whatever token happens to be under the cursor.
+        e.preventDefault();
+        setShowFields((on) => !on);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -340,6 +355,18 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
             </span>
             <span class="syn-vr" />
           </Show>
+          <button
+            type="button"
+            class="syn-ctl"
+            aria-pressed={showFields()}
+            title="Topological fields — Vorfeld, Klammern, Mittelfeld, Nachfeld"
+            onClick={() => {
+              setShowFields((on) => !on);
+            }}
+          >
+            Fields
+          </button>
+          <span class="syn-vr" />
           <button
             type="button"
             class="syn-ctl"
@@ -428,6 +455,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
                 candidates={candidates()}
                 proposed={proposed()}
                 refused={refused()}
+                showFields={showFields()}
                 onDragStart={beginDrag}
                 onSelect={(id) => {
                   if (lifted() !== null) {
@@ -458,8 +486,9 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
                 <p class="syn-hint">
                   Hover a token to isolate the subtree it governs · click to inspect ·{" "}
                   <span class="syn-kbd">L</span> relabel · <span class="syn-kbd">R</span> reattach ·{" "}
-                  <span class="syn-kbd">←</span> <span class="syn-kbd">→</span> tokens ·{" "}
-                  <span class="syn-kbd">↑</span> <span class="syn-kbd">↓</span> sentences
+                  <span class="syn-kbd">F</span> fields · <span class="syn-kbd">←</span>{" "}
+                  <span class="syn-kbd">→</span> tokens · <span class="syn-kbd">↑</span>{" "}
+                  <span class="syn-kbd">↓</span> sentences
                 </p>
               </Show>
             </Match>
@@ -542,6 +571,12 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
               </span>
             )}
           </For>
+          <Show when={showFields()}>
+            <span class="syn-lg">
+              <Swatch kind="oxide" />
+              topological fields · derived
+            </span>
+          </Show>
           <span class="syn-lg">below the row · discontinuous</span>
         </div>
         <div class="syn-status">
