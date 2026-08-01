@@ -38,6 +38,7 @@ import argparse
 import re
 import sys
 import time
+import urllib.error
 from pathlib import Path
 
 from _download import make_fetcher

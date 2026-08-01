@@ -88,7 +88,6 @@ def _collect_sections(zf: zipfile.ZipFile) -> list[tuple[str, list[tuple[int, st
         soup = BeautifulSoup(html_text, "html.parser")
         body = soup.find("body") or soup
 
-        last_anchor_id: str | None = None
         last_note_num: int | None = None
 
         for el in body.find_all(["h6", "h2", "h3", "p"]):
@@ -97,7 +96,6 @@ def _collect_sections(zf: zipfile.ZipFile) -> list[tuple[str, list[tuple[int, st
                 _flush()
                 current_label = el.get_text(" ", strip=True)
                 current_notes = []
-                last_anchor_id = None
                 last_note_num = None
                 continue
             # <p> branch.
@@ -107,7 +105,7 @@ def _collect_sections(zf: zipfile.ZipFile) -> list[tuple[str, list[tuple[int, st
             # Anchor present? Then this <p> begins a NEW note.
             anchor = el.find(
                 "a",
-                id=lambda x: x and (x.startswith("sec") or x.startswith("preen")),
+                id=lambda x: x and x.startswith(("sec", "preen")),
             )
             text = re.sub(r"\s+", " ", el.get_text(" ", strip=True)).strip()
             if anchor is not None:
@@ -122,7 +120,6 @@ def _collect_sections(zf: zipfile.ZipFile) -> list[tuple[str, list[tuple[int, st
                     note_num = (last_note_num or 0) + 1
                     note_text = text
                 current_notes.append((note_num, note_text))
-                last_anchor_id = anchor.get("id")
                 last_note_num = note_num
             else:
                 # Continuation paragraph for the most recent note.

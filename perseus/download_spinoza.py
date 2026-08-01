@@ -49,10 +49,13 @@ from pathlib import Path
 from _download import (
     ParagraphExtractor,
     make_fetcher,
+)
+from _download import (
     render_chunks as _render,
+)
+from _download import (
     roman_to_int as _roman_to_int,
 )
-
 
 _REST = "https://la.wikisource.org/api/rest_v1/page/html"
 

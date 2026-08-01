@@ -32,10 +32,10 @@ from __future__ import annotations
 import argparse
 import re
 import time
+import urllib.error
 from pathlib import Path
 
 from _download import ParagraphExtractor, make_fetcher
-
 
 # ─────────────────────────────────────────────────────────────────
 # Internet Archive: Kapital Bd 1/2/3 djvu.txt
@@ -100,6 +100,25 @@ _WAYBACK_DI_BASE = (
 
 
 _fetch = make_fetcher()
+
+# Tag sets are the canonical pair shared with the other HTML scrapers.
+# The class tokens strip the web.archive.org wrapper's injected
+# toolbar (`wm-ipp*`, `wb-autocomplete-suggestions`) named in this
+# module's docstring, plus marxists.org's own page chrome.
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_BREAK_END_TAGS = frozenset({"p", "li", "div"})
+_SKIP_CLASS_TOKENS = frozenset(
+    {
+        "wm-ipp",
+        "wm-ipp-base",
+        "wm-ipp-print",
+        "wb-autocomplete-suggestions",
+        "donato",
+        "footer",
+        "navbar",
+    }
+)
+
 
 def _extract_paragraphs(html: bytes) -> list[str]:
     p = ParagraphExtractor(

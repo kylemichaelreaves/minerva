@@ -48,6 +48,7 @@ import argparse
 import re
 import sys
 import time
+import urllib.error
 from pathlib import Path
 
 from _download import make_fetcher
@@ -76,6 +77,22 @@ _PAGES: tuple[tuple[int, str], ...] = (
 
 
 _fetch = make_fetcher()
+
+# Wikitext cleaning patterns, in the order `clean_wikitext` applies
+# them. `_RE_TEMPLATE` deliberately matches only brace pairs with no
+# nested braces — the caller loops it so nested templates unwrap from
+# the inside out. `_RE_WIKILINK` keeps the display half of a piped
+# link (`[[Deus|Dei]]` -> `Dei`) and the whole target otherwise.
+_RE_REF = re.compile(
+    r"<ref[^>]*/>|<ref[^>]*>.*?</ref>", re.DOTALL | re.IGNORECASE
+)
+_RE_TEMPLATE = re.compile(r"\{\{[^{}]*\}\}", re.DOTALL)
+_RE_HTML_TAG = re.compile(r"<[^>]+>")
+_RE_WIKILINK = re.compile(r"\[\[(?:[^\]|]*\|)?([^\]|]+)\]\]")
+_RE_EMPHASIS = re.compile(r"'{2,5}(.*?)'{2,5}", re.DOTALL)
+_RE_TRAILING_WS = re.compile(r"[ \t]+\n")
+_RE_BLANK = re.compile(r"\n{3,}")
+
 
 def clean_wikitext(raw: str) -> str:
     """Strip refs, templates, wiki tags; keep prose + paragraph breaks."""

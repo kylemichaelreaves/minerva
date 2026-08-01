@@ -69,7 +69,12 @@ jobs:
         # the LatinCy `la_core_web_sm` model wheel from HuggingFace — a
         # dead URL (404) and unneeded here, since the suite mocks the
         # lemmatizer (the `[lemma]` extra is intentionally not installed).
-        run: uv run --no-sync ruff check src tests
+        #
+        # scripts/ and perseus/ are in scope deliberately (#117): they
+        # went unlinted for the repo's whole history and accumulated 41
+        # F821 undefined names — downloaders that imported fine and blew
+        # up with NameError the moment the code path ran (#116).
+        run: uv run --no-sync ruff check src tests scripts perseus
 
       - name: Author manifest sync
         # Mirrors `make check-authors`: generated corpus_registry /

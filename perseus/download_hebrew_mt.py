@@ -20,7 +20,6 @@ from pathlib import Path
 
 from _download import make_fetcher
 
-
 # Raw file URL pattern. master branch is stable across the OSHB
 # release cadence; pin to a specific commit if reproducibility ever
 # matters for the index (see the rights frontmatter inside each file

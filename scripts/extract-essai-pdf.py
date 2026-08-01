@@ -59,7 +59,7 @@ def _extract() -> str:
     for i in range(BODY_START_PAGE, len(doc)):
         blocks = doc[i].get_text("blocks")
         page_text: list[str] = []
-        for x0, y0, x1, y1, text, block_no, btype in blocks:
+        for *_bbox, text, _block_no, btype in blocks:
             # Skip image blocks (btype == 1); text blocks are btype 0.
             if btype != 0:
                 continue

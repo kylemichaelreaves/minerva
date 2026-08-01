@@ -132,7 +132,7 @@ _LONG_S_KNOWN_FP = frozenset(
         "afford", "affords", "afforded", "affording", "affirmation",
         "affirmative", "affirmatively", "affirmed", "affirming",
         "affirms", "office", "offices", "officer", "officers",
-        "official", "officially", "officials", "officially",
+        "official", "officially", "officials",
         "offer", "offered", "offering", "offers",
         "after", "afterward", "afterwards", "aftermath", "afterlife",
         "often", "oftentimes",
@@ -148,9 +148,10 @@ _LONG_S_KNOWN_FP = frozenset(
         "auffassen", "auffassung", "auffassungen", "aufforderung",
         "offen", "offene", "offenen", "offener", "offenes",
         "offenbar", "offenbarte", "offenbart", "offenbarung",
-        # French
-        "effet", "effets", "effectif", "effective", "effectivement",
-        "affirmation", "affirmative", "affirmé", "affirmer",
+        # French. "effective" / "affirmation" / "affirmative" are
+        # spelled identically in English and are already listed above.
+        "effet", "effets", "effectif", "effectivement",
+        "affirmé", "affirmer",
         "différent", "différente", "différents", "différentes",
         "différence", "différences", "différencier",
         "indifférent", "indifférence",
@@ -182,9 +183,7 @@ _GERMAN_FP_FFE_RE = re.compile(
 def _is_german_morphological_fp(word: str) -> bool:
     if _GERMAN_FP_SUFFIX_RE.match(word):
         return True
-    if _GERMAN_FP_FFE_RE.match(word) and len(word) >= 5:
-        return True
-    return False
+    return bool(_GERMAN_FP_FFE_RE.match(word)) and len(word) >= 5
 
 
 def _is_long_s_misread(text: str, lang: str | None = None) -> bool:
@@ -252,7 +251,7 @@ def audit(
     # Track text → list of chunk_ids for duplicate detection
     seen_texts: dict[str, list[tuple[str, str]]] = defaultdict(list)
     total_chunks = 0
-    for cid, author, work, lang, text in cursor:
+    for cid, author, _work, lang, text in cursor:
         total_chunks += 1
         if total_chunks % 50_000 == 0:
             print(f"  ... {total_chunks:,} chunks", file=sys.stderr)
@@ -261,7 +260,18 @@ def audit(
         # NFC-normalize once for codepoint checks.
         norm = unicodedata.normalize("NFC", text or "")
 
-        def _record(signal: str, snippet_seed: str | None = None) -> None:
+        # `author` / `norm` / `cid` are bound as defaults rather than
+        # captured: every call happens inside this iteration today, but
+        # default-binding means deferring one later can't silently pick
+        # up the wrong row's context.
+        def _record(
+            signal: str,
+            snippet_seed: str | None = None,
+            *,
+            author: str = author,
+            norm: str = norm,
+            cid: str = cid,
+        ) -> None:
             totals[author][signal] += 1
             entries = findings[author][signal]
             if len(entries) < sample_size:
@@ -389,7 +399,7 @@ def render_report(
             if s not in seen_sigs:
                 sig_order.append(s)
                 seen_sigs.add(s)
-    header_cells = ["Author", "Total"] + sig_order
+    header_cells = ["Author", "Total", *sig_order]
     out.append("| " + " | ".join(header_cells) + " |")
     out.append("|" + "---|" * len(header_cells))
     for au, sigs in ranked[:top_authors]:

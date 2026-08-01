@@ -33,10 +33,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import time
+import urllib.error
 from pathlib import Path
 
 from _download import ParagraphExtractor, make_fetcher
-
 
 # PG-DE work specs. Manifest is omitted from this list — the
 # Wikisource scraper handles it (cleaner text). If you want a
@@ -62,6 +62,17 @@ def _chapter_url(slug: str, n: int) -> str:
 
 
 _fetch = make_fetcher()
+
+# Tag/class skip sets for the class-aware extractor. The tag sets are
+# the canonical pair shared with the other HTML scrapers (see
+# `download_spinoza.py` / `download_augustine.py`); the class tokens
+# are PG-DE's WordPress chrome, named in this module's docstring.
+_SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
+_BREAK_END_TAGS = frozenset({"p", "li", "div"})
+_SKIP_CLASS_TOKENS = frozenset(
+    {"site-header", "menu", "post-navigation", "sidebar"}
+)
+
 
 def _extract_paragraphs(html: bytes) -> list[str]:
     p = ParagraphExtractor(
