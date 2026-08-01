@@ -89,7 +89,7 @@ def _maybe_restore_preserved_state_from_snapshot(
     backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
     if not backup.exists():
         return
-    for table in ("cross_references", "chunk_lemmas", "embeddings"):
+    for table in ("cross_references", "chunk_lemmas", "embeddings", "chunk_syntax_corrections"):
         if _count_or_zero(conn, table):
             return
     probe = sqlite3.connect(backup)
@@ -97,9 +97,14 @@ def _maybe_restore_preserved_state_from_snapshot(
         xref_count = _count_or_zero(probe, "cross_references")
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
         emb_count = _count_or_zero(probe, "embeddings")
+        # Hand corrections to dependency trees. Unlike everything else
+        # here these are not recomputable at any price — they are a
+        # scholar's judgement about a sentence. `chunk_syntax_corrections`
+        # carries no foreign key for the same reason (migration 0024).
+        syntax_count = _count_or_zero(probe, "chunk_syntax_corrections")
     finally:
         probe.close()
-    if xref_count == 0 and lemma_count == 0 and emb_count == 0:
+    if xref_count == 0 and lemma_count == 0 and emb_count == 0 and syntax_count == 0:
         return
 
     with foreign_keys_disabled(conn):
@@ -116,6 +121,9 @@ def _maybe_restore_preserved_state_from_snapshot(
                 lemma_restored = 0
                 if lemma_count:
                     lemma_restored = _restore_from_snap(conn, "chunk_lemmas")
+                syntax_restored = 0
+                if syntax_count:
+                    syntax_restored = _restore_from_snap(conn, "chunk_syntax_corrections")
                 emb_restored = 0
                 if emb_count:
                     emb_restored = _restore_from_snap(conn, "embeddings")
@@ -131,6 +139,12 @@ def _maybe_restore_preserved_state_from_snapshot(
                     f"Restored {xref_restored} cross_references + "
                     f"{target_restored} reference_targets from {backup}; "
                     f"rebind will rebind to the new chunks.",
+                    file=sys.stderr,
+                )
+            if syntax_restored:
+                print(
+                    f"Restored {syntax_restored:,} chunk_syntax_corrections "
+                    f"from {backup}.",
                     file=sys.stderr,
                 )
             if lemma_restored:
