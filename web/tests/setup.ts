@@ -39,6 +39,34 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom implements no SVG text metrics — `getComputedTextLength` is absent
+// and would be 0 anyway, since nothing is laid out. The Syntax overlay's
+// `measureTokens` needs it to exist. Approximate with a length-proportional
+// width: the layout assertions are about arc levels, projectivity and path
+// shape, none of which depend on the actual glyph advances — only on widths
+// being positive and monotonic in string length.
+if (typeof SVGElement !== "undefined" && !("getComputedTextLength" in SVGElement.prototype)) {
+  Object.defineProperty(SVGElement.prototype, "getComputedTextLength", {
+    value(this: SVGElement): number {
+      return this.textContent.length * 7;
+    },
+    writable: true,
+    configurable: true,
+  });
+}
+
+// jsdom has no FontFaceSet. `measureTokens` gates its first measurement on
+// `document.fonts.ready` — measuring before webfonts resolve makes arcs land
+// on fallback-metric positions and then snap. Resolve immediately here.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+if (typeof document !== "undefined" && !document.fonts) {
+  Object.defineProperty(document, "fonts", {
+    value: { ready: Promise.resolve() },
+    writable: true,
+    configurable: true,
+  });
+}
+
 // Solid testing library doesn't auto-cleanup like RTL does in some setups;
 // belt-and-braces.
 afterEach(() => {
