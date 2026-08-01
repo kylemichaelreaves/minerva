@@ -39,6 +39,31 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom lacks IntersectionObserver too. The Syntax diagram observes each
+// wrapped row to place the minimap's viewport frame, and the infinite-scroll
+// sentinel observes its own element — both construct one at mount, which
+// throws without this. Never intersects, which is the honest default: with
+// no layout, no row is on screen, and `visibleSpan` answers null.
+if (typeof globalThis.IntersectionObserver === "undefined") {
+  globalThis.IntersectionObserver = class IntersectionObserver {
+    observe() {
+      /* no-op: jsdom IntersectionObserver mock */
+    }
+    unobserve() {
+      /* no-op */
+    }
+    disconnect() {
+      /* no-op */
+    }
+    takeRecords() {
+      return [];
+    }
+    readonly root = null;
+    readonly rootMargin = "";
+    readonly thresholds = [];
+  } as unknown as typeof IntersectionObserver;
+}
+
 // jsdom implements no SVG text metrics — `getComputedTextLength` is absent
 // and would be 0 anyway, since nothing is laid out. The Syntax overlay's
 // `measureTokens` needs it to exist. Approximate with a length-proportional
