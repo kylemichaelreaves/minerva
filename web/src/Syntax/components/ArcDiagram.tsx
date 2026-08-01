@@ -8,6 +8,7 @@ import {
   assignLevels,
   isNonProjective,
 } from "~/Syntax/layout/arcs";
+import { FIELD_NAMES, type FieldName, fieldRuns, topologicalFields } from "~/Syntax/layout/fields";
 import { TOKEN_GAP } from "~/Syntax/layout/measure";
 import { type ArcSegment, breakRows, segmentArcs } from "~/Syntax/layout/rows";
 
@@ -27,6 +28,23 @@ const EDGE = 6;
  *  does not carry. Without it every row underestimates its own width by 8px
  *  per token and the last few overflow the measure. */
 const TOKEN_PAD_X = 8;
+/** Height of a field bracket, and of the whole band including its label. */
+const FIELD_BRACKET = 8;
+const FIELD_BAND = 22;
+
+/** A field bracket opening upward toward the tokens it encloses — the same
+ *  shape the legend swatch draws, so the two read as one thing. */
+function bracketPath(l: number, r: number): string {
+  const rad = Math.min(4, Math.max(0, (r - l) / 2));
+  return [
+    `M ${String(l)} ${String(FIELD_BRACKET)}`,
+    `L ${String(l)} ${String(1 + rad)}`,
+    `Q ${String(l)} 1 ${String(l + rad)} 1`,
+    `L ${String(r - rad)} 1`,
+    `Q ${String(r)} 1 ${String(r)} ${String(1 + rad)}`,
+    `L ${String(r)} ${String(FIELD_BRACKET)}`,
+  ].join(" ");
+}
 
 export interface ArcDiagramProps {
   tokens: SyntaxToken[];
@@ -45,6 +63,8 @@ export interface ArcDiagramProps {
   proposed?: number | null;
   /** A target that was refused, flashed until dismissed. */
   refused?: number | null;
+  /** Draw the derived topological fields under the row. */
+  showFields?: boolean;
   /** Begin a pointer drag from this token. */
   onDragStart?: (id: number, e: PointerEvent) => void;
 }
@@ -147,13 +167,17 @@ export function ArcDiagram(props: ArcDiagramProps) {
     const byId = new Map(props.tokens.map((t) => [t.id, t]));
     return rows().map((ids) => {
       const centre = new Map<number, number>();
+      // Left and right edges too: an arc lands on a centre, but a field
+      // bracket encloses whole tokens and has to reach past their glyphs.
+      const edge = new Map<number, { l: number; r: number }>();
       let x = 0;
       for (const id of ids) {
         const w = widthOf(id, byId.get(id)?.form ?? "");
         centre.set(id, x + w / 2);
+        edge.set(id, { l: x, r: x + w });
         x += w + TOKEN_GAP;
       }
-      return { centre, width: Math.max(0, x - TOKEN_GAP) };
+      return { centre, edge, width: Math.max(0, x - TOKEN_GAP) };
     });
   });
 
@@ -170,6 +194,29 @@ export function ArcDiagram(props: ArcDiagramProps) {
   });
 
   const byId = createMemo(() => new Map(props.tokens.map((t) => [t.id, t])));
+
+  // The one derived layer in the diagram. Recomputed from the live tree, so a
+  // reattachment that fixes the parse moves the brackets with it — which is
+  // the whole argument for deriving the fields rather than annotating them.
+  const fields = createMemo(() => (props.showFields ? topologicalFields(props.tokens) : []));
+
+  /** The bands to draw on one row: a field can span a wrap, and can be cut in
+   *  two by material it does not claim. */
+  const bandsFor = (rowIdx: number): { name: FieldName; l: number; r: number }[] => {
+    const g = rowGeometry()[rowIdx];
+    const ids = rows()[rowIdx];
+    if (!g || !ids) return [];
+    const isPunct = (id: number) => byId().get(id)?.upos === "PUNCT";
+    const out: { name: FieldName; l: number; r: number }[] = [];
+    for (const f of fields()) {
+      for (const run of fieldRuns(f.tokens, ids, isPunct)) {
+        const first = g.edge.get(run[0] ?? -1);
+        const last = g.edge.get(run[run.length - 1] ?? -1);
+        if (first && last) out.push({ name: f.name, l: first.l, r: last.r });
+      }
+    }
+    return out;
+  };
 
   const segsFor = (rowIdx: number, below: boolean): ArcSegment[] =>
     segments().filter((s) => s.row === rowIdx && s.below === below);
@@ -332,6 +379,26 @@ export function ArcDiagram(props: ArcDiagramProps) {
               <Show when={below() > 0}>
                 <div class="syn-below" style={{ height: `${below()}px` }}>
                   {stack(true, below())}
+                </div>
+              </Show>
+              {/* Under the non-projective stack rather than tight against the
+                  row: frame 04 has both, and an inferred bracket must not
+                  crowd out a parsed arc. */}
+              <Show when={bandsFor(rowIdx()).length > 0}>
+                <div class="syn-fields">
+                  <svg width="100%" height={FIELD_BAND} aria-hidden="true">
+                    <For each={bandsFor(rowIdx())}>
+                      {(b) => (
+                        <g class="syn-fieldg">
+                          <title>{FIELD_NAMES[b.name]}</title>
+                          <path class="syn-fieldbr" d={bracketPath(b.l, b.r)} />
+                          <text class="syn-fieldlab" x={(b.l + b.r) / 2} y={FIELD_BAND - 3}>
+                            {b.name}
+                          </text>
+                        </g>
+                      )}
+                    </For>
+                  </svg>
                 </div>
               </Show>
             </div>

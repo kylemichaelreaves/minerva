@@ -1,10 +1,9 @@
 # Dependency-syntax close reading — implementation plan
 
-> **Status (2026-08-01): phases 0–5 shipped and merged; work stopped here.**
-> Relabel, reattach by drag or keyboard, undo, and both exports all work, and
-> both refusals are reachable and visible. **Phases 6 and 7 have not been
-> started** — see *Where we stopped* under the execution tracker, which is the
-> resume point.
+> **Status (2026-08-01): phases 0–6 shipped.** Relabel, reattach by drag or
+> keyboard, undo, both exports and the derived topological fields all work,
+> and both refusals are reachable and visible. **Phase 7 (the minimap) has not
+> been started** — see *Open questions*, which is the resume point.
 
 ## Problem
 
@@ -332,33 +331,19 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 | **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | ✅ DONE 2026-07-31 (#135) |
 | **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | ✅ DONE 2026-08-01 (#137) |
 | **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | ✅ DONE 2026-08-01 (#138) |
-| **6** | Topological fields overlay, toggleable | **next — nothing started** |
+| **6** | Topological fields overlay, toggleable | ✅ DONE 2026-08-01 |
 | **7** | Long-sentence minimap | pending — added by the design, see below |
 
 ### Where we stopped
 
-**2026-08-01, after #138 merged (`0d57235`).** Work stopped cleanly at the
-phase 5/6 boundary — nothing is half-built, no branch is open, `main` has
-everything, and `chunk_syntax_corrections` is back to 0 rows (the corrections
-made while verifying in the browser were test data and were removed).
+**2026-08-01, after Phase 6.** Work stops cleanly at the phase 6/7
+boundary — nothing is half-built, and `chunk_syntax_corrections` is back to 0
+rows (the corrections made while verifying in the browser were test data and
+were removed).
 
-Phases 6 and 7 have **not** been started. Nothing in the working tree
-anticipates them: there is no fields module, no minimap component, and no
-scaffolding for either. A future session begins at the top of Phase 6 with no
-inherited state.
-
-Two things to pick up before Phase 6 writes any code:
-
-1. **The Rechte-Klammer rule in this document is the corrected one.** The
-   source brief's version is inverted for UD, and the correction is derived in
-   *Two corrections to the source brief* above. Do not re-derive it from the
-   brief, and do not special-case the heuristic to improve its accuracy — if
-   it is wrong on a sentence, the user corrects the tree and the fields
-   recompute. That is now a real workflow rather than a hypothetical one,
-   because phases 4 and 5 shipped.
-2. **Phase 7's placement is still open** — see *Open questions*. It depends on
-   nothing in Phase 6, so it can be taken first, folded into Phase 6, or
-   dropped.
+Phase 7 has **not** been started: there is no minimap component and no
+scaffolding for one. A future session begins at the top of Phase 7 with no
+inherited state, and its placement is still open — see *Open questions*.
 
 Subtree-hover dimming moved from Phase 5 into Phase 3: it needs no correction
 machinery, and it is the interaction that makes the diagram worth looking at,
@@ -570,11 +555,73 @@ One affordance deliberately withheld: the ROOT bar is not offered to the token
 that is already the root. `0` is a legal head for it, but only because it is
 where it already sits, and a drop zone that does nothing is worse than none.
 
+## What Phase 6 actually ships
+
+The topological fields, derived from the live tree and drawn as dashed oxide
+brackets under each row. `Fields` in the top bar or `F` toggles them; on by
+default, because the wireframes carry them in the at-rest frame and because a
+layer nobody turns on is a layer nobody checks.
+
+**The corrected Rechte-Klammer rule is the one implemented**, and the fixtures
+prove the correction was needed: on `Der Geist hat sich in der Geschichte
+entwickelt`, `layout/fields.ts` gives `VF=Der Geist · LK=hat · MF=sich in der
+Geschichte · RK=entwickelt`, where the brief's rule gives an empty RK and a
+Mittelfeld that swallows the clause. The non-projective fixture is the better
+demonstration: `VF=Den Mann · LK=habe · MF=ich · RK=gesehen · NF=der dort
+steht` — the crossing arc *is* the extraposition, so the arc geometry and the
+field model agree about the same fact by two different derivations.
+
+**Which finite verb holds the left bracket** is a choice the brief does not
+make. Every subordinate clause has one, and the model here describes a single
+matrix clause, so `findLeftBracket` anchors at the root: the root when it is
+finite, otherwise its finite `aux`. That picks the matrix verb without any
+clause segmentation, and falls back to the brief's literal "first finite verb"
+only when the root's own complex has none.
+
+**Two honest degenerate answers, rather than a confident wrong one.** No
+finite verb at all — a heading, a fragment — yields no fields. A right bracket
+that computes to the *left* of the left one (verb-final subordination promoted
+to root) yields no right bracket, because the fields are ordered by definition
+and an inverted pair cannot be drawn.
+
+**Bands are runs, not extents.** A field is drawn from the left edge of its
+first token to the right edge of its last, so a field with a hole in it would
+bracket words it never claimed — `hat versucht … das zu tun` claims both verbs
+and nothing between them. `fieldRuns` splits on unclaimed words but *bridges*
+punctuation, which is excluded by rule rather than by the heuristic failing;
+without that, every comma would saw the Mittelfeld in half. The same function
+is what makes a field spanning a wrap draw one band per row.
+
+Verified live at 1440×900 in both themes on a 53-token Nietzsche chunk (one MF
+spanning three rows) and on Schiller `0012c7a73206b19f4958` sentence 8, where
+all five fields appear at once and the Nachfeld bridges a comma. Relabelling
+`muß` from `aux` to `advmod` collapsed RK and NF into the Mittelfeld and Revert
+restored them — the fields recomputing from a corrected tree, which is the
+whole argument for deriving them.
+
+### Two things found while verifying, neither in scope here
+
+1. **`createCorrectionStore` captures `chunkId` by value.** Navigating from one
+   syntax overlay straight to another — editing the hash, which does not
+   remount the component — leaves the store posting corrections against the
+   previous chunk, and every edit comes back `no token N in sentence M of this
+   chunk`. Latent since Phase 4 and unreachable from the app's own links (going
+   via the Reader unmounts the overlay). The fix is an accessor rather than a
+   string, plus clearing `session` when it changes.
+2. **Analytic token positions drift ~8px from the DOM over a long row**,
+   because the probe is measured with integer `offsetWidth` while the flex row
+   lays out fractionally. Pre-existing since Phase 3 and shared by the arcs;
+   the field bands make it slightly more legible because a band ends in a hard
+   vertical tick beside a glyph edge. `getBoundingClientRect().width` on the
+   probe would fix both, but it changes row breaking and belongs with a
+   re-check of the overflow bug, not here.
+
 ## Open questions
 
 **The minimap has no home.** It is scope the design added, it addresses the
 109-token tail, and it depends on nothing in Phases 5–6. Listed as Phase 7
-above, but it could equally be a Phase 3 follow-up.
+above, but it could equally be a Phase 3 follow-up — and with 6 shipped it is
+the only thing left, so the real question is whether it is worth taking at all.
 
 ## Acceptance criteria
 
@@ -593,12 +640,15 @@ above, but it could equally be a Phase 3 follow-up.
 - Exported JSON patch, reapplied to the pristine parse, reproduces the edited state
 - Exported CoNLL-U reparses cleanly
 - Arrow keys move token focus; focus is visibly ringed
+- The topological fields are toggleable, render in the derived colour, and
+  recompute from a corrected tree rather than from the machine parse
 
 ## Validation
 
 **TypeScript.** `npx vitest run tests/syntax*.test.ts` — round-trip, the level
-table, both non-projective arcs, and `apply()` reproducing an edited state from
-an exported patch.
+table, both non-projective arcs, `apply()` reproducing an edited state from an
+exported patch, and both fixtures' field assignments derived by hand from the
+*corrected* Rechte-Klammer rule rather than from the implementation.
 
 **Python.** `pytest tests/test_syntax_parse.py tests/test_syntax_queries.py` —
 parse a known German sentence and assert UD deprels not TIGER (`nsubj`, not
