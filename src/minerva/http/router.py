@@ -25,6 +25,8 @@ from .handlers import (
     _handle_references_list,
     _handle_references_sources,
     _handle_review_queue,
+    _handle_syntax_correction_create,
+    _handle_syntax_correction_delete,
     _handle_term_by_id,
     _handle_terms_by_chunk,
     _handle_terms_list,
@@ -43,6 +45,11 @@ _CONVERSATION_PATH_RE = re.compile(r"^/api/conversations/([^/]+)$")
 _WORK_PATH_RE = re.compile(r"^/api/works/(.+)$")
 _CHUNK_CONTEXT_PATH_RE = re.compile(r"^/api/chunks/([^/]+)/context$")
 _CHUNK_SYNTAX_PATH_RE = re.compile(r"^/api/chunks/([^/]+)/syntax$")
+_CHUNK_SYNTAX_CORRECTIONS_RE = re.compile(r"^/api/chunks/([^/]+)/syntax/corrections$")
+# Corrections are addressed by their own id, not by chunk: the client holds
+# the id it got back from the POST, and undo should not have to know where the
+# row came from.
+_SYNTAX_CORRECTION_BY_ID_RE = re.compile(r"^/api/syntax/corrections/(\d+)$")
 _TERMS_LIST_PATH = "/api/terms"
 _TERM_BY_ID_RE = re.compile(r"^/api/terms/(\d+)$")
 _TERMS_BY_CHUNK_RE = re.compile(r"^/api/terms/by_chunk/([^/]+)$")
@@ -170,6 +177,13 @@ def build_post_routes(deps: ServerDeps) -> tuple[Route, ...]:
     return (
         ("/api/chat", "chat", lambda payload: _handle_chat(deps, payload)),
         ("/api/translate", "translate", lambda payload: _handle_translate(deps, payload)),
+        (
+            _CHUNK_SYNTAX_CORRECTIONS_RE,
+            "syntax correction create",
+            lambda m, payload: _handle_syntax_correction_create(
+                deps, unquote(m.group(1)), payload
+            ),
+        ),
     )
 
 
@@ -190,13 +204,20 @@ def build_delete_routes(deps: ServerDeps) -> tuple[Route, ...]:
             "conversation delete",
             lambda m: _handle_conversation_delete(deps, m.group(1)),
         ),
+        (
+            _SYNTAX_CORRECTION_BY_ID_RE,
+            "syntax correction delete",
+            lambda m: _handle_syntax_correction_delete(deps, int(m.group(1))),
+        ),
     )
 
 
 __all__ = [
+    "_CHUNK_SYNTAX_CORRECTIONS_RE",
     "_CHUNK_SYNTAX_PATH_RE",
     "_CONVERSATION_PATH_RE",
     "_REFERENCE_BY_ID_RE",
+    "_SYNTAX_CORRECTION_BY_ID_RE",
     "Route",
     "_match_route",
     "build_delete_routes",

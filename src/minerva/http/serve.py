@@ -252,7 +252,10 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"no route for {path}"))
             return
         label, handler, args = matched
-        if not self.deps.rate_limiter.allow(path, self.client_address[0]):
+        # By label, not path — see `_RATE_LIMITS`. `/api/chunks/<id>/syntax/
+        # corrections` has a different path per chunk and would otherwise get
+        # a fresh bucket for every chunk, which is no limit at all.
+        if not self.deps.rate_limiter.allow(label, self.client_address[0]):
             self.log_message("rate-limited: %s from %s", path, self.client_address[0])
             self._send_error_json(_HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded"))
             return
@@ -335,7 +338,12 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_translate_route_exception(label, exc))
             return
         if not removed:
-            self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, "conversation not found"))
+            # Name the thing the route deletes. Router labels read
+            # "<noun> delete", so dropping the verb gives "conversation",
+            # "syntax correction". This was hardcoded to "conversation" while
+            # that was the only DELETE route, and silently lied once it wasn't.
+            noun = label.removesuffix(" delete")
+            self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
             return
         self.send_response(HTTPStatus.NO_CONTENT)
         for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():

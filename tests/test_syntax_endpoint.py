@@ -72,12 +72,18 @@ def test_returns_sentences_of_tokens(deps) -> None:
 def test_token_shape_carries_what_the_diagram_needs(deps) -> None:
     tok = _handle_chunk_syntax(deps, CHUNK)["sentences"][0]["tokens"][0]
 
+    # `xpos` and `misc` are here for two reasons: the inspector shows XPOS
+    # (the German tagset says things UPOS cannot, e.g. PRF for a reflexive),
+    # and CoNLL-U export is lossy without them — a column dropped on the way
+    # out is a column the corrected tree no longer carries.
     assert tok == {
         "id": 1,
         "form": "Der",
         "lemma": "der",
         "upos": "X",
+        "xpos": None,
         "feats": None,
+        "misc": None,
         "head": 2,
         "deprel": "det",
         "start": 1,
@@ -102,7 +108,13 @@ def test_unknown_chunk_is_404_not_a_parse_attempt(deps) -> None:
     assert deps.parse_calls == []
 
 
-def test_corrections_are_replayed_into_the_response(deps) -> None:
+def test_the_tree_comes_back_pristine_not_merged(deps) -> None:
+    """The client replays the log itself, so the two travel separately.
+
+    A merged tree cannot be un-merged: undo needs to recompute the tree
+    *without* one correction, and that is only possible with the log in hand.
+    """
+
     _handle_chunk_syntax(deps, CHUNK)  # populate the cache
     q.append_correction(
         deps.conn, CHUNK, sent_ord=0, tok_id=1, kind="head", from_val="2", to_val="3"
@@ -111,9 +123,41 @@ def test_corrections_are_replayed_into_the_response(deps) -> None:
     body = _handle_chunk_syntax(deps, CHUNK)
 
     first = body["sentences"][0]["tokens"][0]
-    assert first["head"] == 3
-    assert first["corrected"] is True
-    assert body["corrections"] == 1
+    assert first["head"] == 2
+    assert first["corrected"] is False
+    assert [c["to_val"] for c in body["corrections"]] == ["3"]
+
+
+def test_the_correction_log_comes_back_with_the_tree(deps) -> None:
+    """The client needs the log itself, not just its effect.
+
+    Undo addresses a correction by id, and the inspector's "was obj" is the
+    `from_val`. With only the materialised tree, a reload leaves the Revert
+    button pointing at nothing and the provenance line unable to say what the
+    parser had originally said.
+    """
+
+    _handle_chunk_syntax(deps, CHUNK)
+    correction_id = q.append_correction(
+        deps.conn, CHUNK, sent_ord=0, tok_id=1, kind="deprel", from_val="det", to_val="nmod"
+    )
+
+    body = _handle_chunk_syntax(deps, CHUNK)
+
+    assert body["corrections"] == [
+        {
+            "id": correction_id,
+            "sent_ord": 0,
+            "tok_id": 1,
+            "kind": "deprel",
+            "from_val": "det",
+            "to_val": "nmod",
+        }
+    ]
+
+
+def test_an_uncorrected_chunk_reports_an_empty_log(deps) -> None:
+    assert _handle_chunk_syntax(deps, CHUNK)["corrections"] == []
 
 
 def test_a_correction_does_not_disturb_the_stored_parse(deps) -> None:
