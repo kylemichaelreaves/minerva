@@ -1,4 +1,11 @@
-import type { Sentence } from "../conllu/types";
+/** The minimum an arc needs from a token. Both the CoNLL-U `Token` and the
+ *  API's `SyntaxToken` satisfy it structurally, so the layout does not depend
+ *  on either module. */
+export interface ArcToken {
+  id: number;
+  head: number | null;
+  deprel?: string | null;
+}
 
 // Arc geometry for the dependency diagram: which arcs exist, which of them
 // cross, how they stack, and the path each one draws.
@@ -40,14 +47,14 @@ export interface LevelledArc {
  * to a token, so there is nothing to draw between. Unparsed tokens (`head`
  * `null`, the format's `_`) likewise get none — there is no claim to render.
  */
-export function arcsOf(sent: Sentence): Arc[] {
+export function arcsOf(tokens: readonly ArcToken[]): Arc[] {
   const arcs: Arc[] = [];
-  for (const tok of sent.tokens) {
+  for (const tok of tokens) {
     if (tok.head === null || tok.head === 0) continue;
     arcs.push({
       head: tok.head,
       dep: tok.id,
-      deprel: tok.deprel,
+      deprel: tok.deprel ?? "dep",
       span: [Math.min(tok.head, tok.id), Math.max(tok.head, tok.id)],
     });
   }
@@ -66,9 +73,9 @@ export function arcsOf(sent: Sentence): Arc[] {
  * It makes no claim about where it attaches, so reporting a discontinuity on
  * its behalf would be inventing one.
  */
-export function isNonProjective(arc: Arc, sent: Sentence): boolean {
+export function isNonProjective(arc: Arc, tokens: readonly ArcToken[]): boolean {
   const [i, j] = arc.span;
-  for (const tok of sent.tokens) {
+  for (const tok of tokens) {
     if (tok.id <= i || tok.id >= j) continue;
     if (tok.head === null) continue;
     if (tok.head < i || tok.head > j) return true;
@@ -159,14 +166,30 @@ export function arcPath(
   apex: number,
   yStart: number,
   side: Side,
+  cutHead = false,
+  cutDep = false,
 ): string {
   const dirX = xDep > xHead ? 1 : -1;
-  return [
-    `M ${xHead} ${yStart}`,
-    `L ${xHead} ${apex + side * R}`,
-    `Q ${xHead} ${apex} ${xHead + dirX * R} ${apex}`,
-    `L ${xDep - dirX * R} ${apex}`,
-    `Q ${xDep} ${apex} ${xDep} ${apex + side * R}`,
-    `L ${xDep} ${yStart}`,
-  ].join(" ");
+  // Clamp the corner so it can never exceed half the span. Defensive rather
+  // than a live fix: with TOKEN_GAP at 18 the closest two token centres can be
+  // is 19px, comfortably past 2R — but a future gap or a zoomed-out measure
+  // would otherwise fold the two corners through each other.
+  const r = Math.min(R, Math.abs(xDep - xHead) / 2 || R);
+
+  const parts: string[] = [];
+  if (cutHead) {
+    // Severed by a wrap: start flat against the measure edge, no riser.
+    parts.push(`M ${xHead} ${apex}`);
+  } else {
+    parts.push(
+      `M ${xHead} ${yStart}`,
+      `L ${xHead} ${apex + side * r}`,
+      `Q ${xHead} ${apex} ${xHead + dirX * r} ${apex}`,
+    );
+  }
+  parts.push(`L ${cutDep ? xDep : xDep - dirX * r} ${apex}`);
+  if (!cutDep) {
+    parts.push(`Q ${xDep} ${apex} ${xDep} ${apex + side * r}`, `L ${xDep} ${yStart}`);
+  }
+  return parts.join(" ");
 }

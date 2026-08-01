@@ -1,9 +1,10 @@
 # Dependency-syntax close reading — implementation plan
 
-> **Status (2026-07-31): planned, not started.** No code has landed. The
-> execution tracker below is the resume point. Phase 1 ends in a mandatory
-> stop-and-report: if level assignment or non-projectivity detection is wrong,
-> every later phase inherits the error.
+> **Status (2026-07-31): phases 0–3 shipped; the overlay renders real trees.**
+> The execution tracker below is the resume point. **Phase 4 is next**, and it
+> is the first phase that writes: corrections, the relation picker, and the two
+> refusals. Two design questions are open before it starts — see
+> *Open questions* at the end.
 
 ## Problem
 
@@ -327,11 +328,16 @@ between tokens, visible focus rings, `prefers-reduced-motion` respected.
 |---|---|---|
 | **0** | `conllu/` types + parse + serialise, both fixtures, round-trip tests | ✅ DONE 2026-07-31 (#131) |
 | **1** | `measure.ts`, `arcs.ts` + golden-fixture tests. No rendering. **Stop and report.** | ✅ DONE 2026-07-31 (#131) |
-| **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | in progress |
-| **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | pending |
-| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | pending |
-| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach, subtree-hover dimming | pending |
+| **2** | Migration 0024, `syntax/parse.py`, `queries.py`, endpoint, CLI, `preserved_state` entry, pytest | ✅ DONE 2026-07-31 (#134) |
+| **3** | Route, overlay shell, `ArcDiagram`, `SentenceList`, `TokenInspector`, fonts, CSS. Read-only. | ✅ DONE 2026-07-31 (#135) |
+| **4** | Corrections: append/undo endpoints, `store.ts`, pure `apply()` + tests, relabel picker, cycle + single-root validation, both exports | **next** |
+| **5** | Drag reattach with refusal flash, ROOT drop-zone, keyboard reattach | pending |
 | **6** | Topological fields overlay, toggleable | pending |
+| **7** | Long-sentence minimap | pending — added by the design, see below |
+
+Subtree-hover dimming moved from Phase 5 into Phase 3: it needs no correction
+machinery, and it is the interaction that makes the diagram worth looking at,
+so shipping it with the read-only view was cheaper and better.
 
 Commit at each boundary.
 
@@ -352,6 +358,109 @@ as. If it bloats, the cut is to ship keyboard reattach alone — it satisfies
 every acceptance criterion except the word "drag", and it is the faster input
 method anyway.
 
+## The wireframes, and what they settled
+
+Designed in Claude Design (project `minerva`, `syntax-wireframes/index.html`)
+and imported 2026-07-31. Nine frames. `design-canvas.jsx` is the pan/zoom
+artboard shell for *viewing* wireframes and is deliberately not ported.
+
+### Wrapping, not scrolling — the width problem's answer
+
+The brief's nine-token example hid the real constraint. Measured across 80
+sentences of German from the live corpus at 20px type:
+
+| | |
+|---|---|
+| median token-row width | 1328px |
+| wider than a 1440px viewport | **44%** |
+| wider than 1920px | 20% |
+| widest (109 tokens) | 7824px — **5.4 screens** |
+| arc stack on a 53-token sentence | 8 levels above, 2 below |
+| longest single arc | spans 47 tokens |
+
+Zoom-to-fit puts the median sentence at 22px type and the tail far below
+legibility; horizontal scroll means a 47-token arc is never visible as one
+shape. Neither lets a reader see both endpoints *and* the label at once, which
+is the entire job.
+
+So **rows wrap**. An arc crossing a boundary is cut at the measure edge and
+resumes on the next row carrying the partner token's index (`→ 53`); an arc
+spanning a row it does not touch leaves a pass-through bar at its level. Rows
+break just after punctuation in the last fifth of the measure, so cuts land at
+clause edges where fewest arcs are severed.
+
+This required geometry Phase 1 did not have — `layout/rows.ts` (`breakRows`,
+`segmentArcs`) and cut-end support in `arcPath`.
+
+### Frame → phase
+
+| Frame | Phase |
+|---|---|
+| 01 At rest (+ dark) | 3 ✅ |
+| 02 Long sentence, wrapped | 3 ✅ (minimap → 7) |
+| 03 Subtree on hover | 3 ✅ |
+| 04 Non-projective below the row | 3 ✅ |
+| 05 Token inspector | 3 ✅ read-only; its action buttons → 4/5 |
+| 09 Sentence list | 3 ✅ |
+| 07 Relation picker | 4 |
+| 08 Refused · cycle | 4 |
+| 06 Mid-reattachment | 5 |
+| Topological fields (in 01, 04) | 6 |
+| Minimap (in 02) | 7 |
+
+### Two rules from the design worth carrying into Phase 4
+
+**No free text in the relation picker.** A mistyped deprel validates, exports,
+and is wrong — silent data corruption. The field filters; it never accepts.
+
+**The inventory needs both subtype families.** Stanza's German is GSD-trained
+while the fixtures are HDT-style: the machine emits `obj` and `acl` where a
+corrector reaches for `expl:pv` and `acl:relcl`. If the picker offers only one
+family, the correction the user wants is not in the list.
+
+## What Phase 3 actually ships
+
+Verified in Chrome at 1440×900 against a real 53-token Nietzsche chunk
+(`001067f31d657a9dbcc4`): three rows at 20/19/14 tokens, none overflowing the
+1344px measure, 58 arcs with geometry, cut markers spanning boundaries, and
+hovering `Pessimismus` dimming 55 of 59 arcs so *Auch dieser Pessimismus der
+Stärke* reads as one shape.
+
+**Not in Phase 3**, and not a regression: reattachment, the relation picker,
+the refusal states, topological fields, the minimap.
+
+### One bug worth remembering
+
+The first `ArcDiagram` read token positions back from the laid-out DOM and
+produced a diagram with every arc collapsed into a vertical stack at the left
+edge. The measurement was **circular**: widths decide the row breaks, the row
+breaks decide the DOM, and measuring the DOM decided the widths — so the
+metrics were always one layout stale.
+
+Fixed by measuring each token's width once off a hidden probe and computing
+row-local positions analytically. A token's width does not depend on which row
+it lands on, which is what breaks the cycle. A second instance of the same
+class followed immediately: the probe measures `.syn-form`, but each
+`.syn-tok` adds 8px of padding, so every row underestimated itself by 8px per
+token and the last few overflowed.
+
+Neither would have failed a test written from the spec. Both were found by
+looking at the rendered page — which is why Phase 4 and 5 should also be
+checked in a browser and not only under vitest.
+
+## Open questions before Phase 4
+
+**Corrections have no author.** The design's inspector reads
+`Hand-corrected · a.reuter · 12 Mar · was obj`. `created_at` and `from_val`
+cover the date and the "was"; there is **no author column** on
+`chunk_syntax_corrections`. For a single-operator tool that may be right — but
+it is a migration, and cheaper to decide before Phase 4 starts writing rows
+than after.
+
+**The minimap has no home.** It is scope the design added, it addresses the
+109-token tail, and it depends on nothing in Phases 4–6. Listed as Phase 7
+above, but it could equally be a Phase 3 follow-up.
+
 ## Acceptance criteria
 
 - Both fixtures parse and round-trip through `writeConllu` byte-identically
@@ -359,6 +468,8 @@ method anyway.
 - Fixture 2 flags **both** `acl:relcl` [2,9] and `punct` [5,10] as
   non-projective, and both render below the row
 - No arc path crosses the bounding box of any token's text
+- No token row overflows the measure; arcs cut at a wrap resume on the next
+  row carrying the partner token's index
 - No two relation labels overlap at any zoom level
 - Reattaching re-lays out without a full remount and without a visible reflow jump
 - A cycle-creating reattachment is refused with a visible reason

@@ -2,6 +2,7 @@ import { Match, Switch, createEffect, createMemo, createSignal, onCleanup, onMou
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
 import { NetworkRoute } from "~/routes/NetworkRoute";
+import { SyntaxRoute } from "~/routes/SyntaxRoute";
 import { ReaderRoute } from "~/routes/ReaderRoute";
 import { RefsRoute } from "~/routes/RefsRoute";
 import type { RouteContextProps } from "~/routes/types";
@@ -21,6 +22,7 @@ export interface AppRoutesProps {
   conversationTitle: () => string | null;
   onRefs: () => boolean;
   onNetwork: () => boolean;
+  onSyntax: () => boolean;
   onConcordance: () => boolean;
   openSourceInReader: (workTitle: string, chunkId: string) => void;
   onScrollChange: (scrolled: boolean) => void;
@@ -97,6 +99,9 @@ export function AppRoutes(props: AppRoutesProps) {
       </Match>
       <Match when={props.onNetwork()}>
         <NetworkRoute {...ctx} />
+      </Match>
+      <Match when={props.onSyntax()}>
+        <SyntaxRoute {...ctx} />
       </Match>
       <Match when={props.onRefs()}>
         <RefsRoute {...ctx} />

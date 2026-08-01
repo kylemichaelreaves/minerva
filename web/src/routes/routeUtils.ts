@@ -20,6 +20,12 @@ export function isNetworkRoute(r: Route): r is RouteNetwork {
   return r.kind === "network";
 }
 
+export type RouteSyntax = Extract<Route, { kind: "syntax" }>;
+
+export function isSyntaxRoute(r: Route): r is RouteSyntax {
+  return r.kind === "syntax";
+}
+
 export function isNetworkArcRoute(r: Route): r is RouteNetworkArc {
   return r.kind === "network-arc";
 }
