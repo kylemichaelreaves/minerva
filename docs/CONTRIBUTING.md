@@ -52,7 +52,9 @@ minutes before you push. Three layers, in order of how often each fires:
    ESLint, Prettier, Ruff, and Pylance and turns on lint-on-save + format-on-save.
    Other editors are fine — match the same loop:
    - ESLint runs on every save in `web/`
-   - Ruff runs on every save in `src/minerva/` and `tests/`
+   - Ruff runs on every save in `src/minerva/`, `tests/`, `scripts/`, and
+     `perseus/` — the last two joined the gate in #117, after 41 undefined
+     names accumulated in the years they went unlinted
    - Prettier formats TS / JSON; Ruff formats Python
    - TypeScript uses the workspace `tsdk` so editor diagnostics match `make typecheck`.
 
@@ -94,8 +96,13 @@ make coverage-py
 **Baseline (Mar 2026):** ~**61%** line coverage on `src/minerva/` (full pytest
 suite). `refs/llm_verify.py` and `refs/rules/scripture_cite/` have dedicated
 helper tests in `tests/test_llm_verify_helpers.py` and
-`tests/test_scripture_cite_lexicon.py`. CI does not gate on coverage yet; do not
-regress modules you touch without cause.
+`tests/test_scripture_cite_lexicon.py`.
+
+**SonarCloud gates PRs at 80% coverage of the lines you changed** (new code
+only — pre-existing debt in a file you touch doesn't count against you). It is
+*not* currently a required status check, so a red gate will not block a merge —
+see #158. Check it anyway; it has caught real gaps that the required checks
+passed straight over.
 
 If you changed [`data/authors/manifest.yaml`](../data/authors/manifest.yaml),
 run `make generate-authors` and commit the regenerated blocks in
@@ -113,6 +120,44 @@ E2E tests (`make test-e2e`) run on pushes to `main` only.
 | `[lemma]` extra install | spaCy `de_core_news_sm` + `fr_core_news_sm` + `en_core_web_sm` wheels (via `pyproject.toml`) |
 
 Tests mock lemmatizer paths — `make check` does not require these models.
+
+## Record what you find
+
+**Anything you discover that isn't already in the tracker gets an issue —
+before you move on.** This is a rule, not a suggestion, and it applies to
+every kind of work: fixing a bug, adding an author, reviewing a PR,
+reading code for an unrelated reason.
+
+File it whether or not you intend to fix it. The point is that the finding
+survives the session it was found in.
+
+**What counts:** a bug you noticed but didn't cause; a fix you scoped down
+and the part you left out; a guard that turns out to be inert; a check that
+runs but validates nothing; a test whose name misdescribes it; a value you
+had to reverse-engineer because it was undocumented; anything you caught
+yourself saying "someone should look at that" about.
+
+**What doesn't:** things already tracked (link instead), and anything you
+fixed in the same change.
+
+Rules for a useful issue:
+
+- **Evidence, not impression.** Paste the command and its output, or the
+  `file:line` and the lines themselves. "Feels fragile" isn't a finding.
+- **Say how you found it**, and what you'd already ruled out. That's what
+  stops the next person re-deriving it.
+- **Link the precedent** — the PR or issue that introduced it, and the one
+  that surfaced it. `git log -S '<symbol>'` usually names the commit; verify
+  with `git show <commit>^:<path>` before blaming one, because the obvious
+  culprit is often not the origin.
+- **Label it** so it's findable: `bug` / `tech-debt` / `security` plus the
+  area (`backend`, `frontend`, `ingest`, `refs`, `cli-scripts`,
+  `github_actions`, `dependencies`).
+
+If a fix is genuinely one line, just make it. If it needs a decision, a
+different reviewer, or more scope than the change you're on, file it — and
+say in your PR description what you left out and why. Shrinking scope is
+fine; shrinking it silently isn't.
 
 ## Where to look
 
