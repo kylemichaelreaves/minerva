@@ -714,3 +714,97 @@
     transition: none;
   }
 }
+
+/* ── reattachment (frame 06) ────────────────────────────── */
+/* Tokens are real buttons now, so the browser's own styling has to go before
+   anything below has an effect. */
+.syn-tok {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+}
+/* One tab stop for the diagram; arrows move between tokens from there. The
+   ring is on :focus-visible AND on the current token, so keyboard navigation
+   stays visible even where the browser would suppress the ring. */
+.syn-tok:focus-visible,
+.syn-tok[aria-current="true"] {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+/* The word being moved: still in place, but plainly not settled. */
+.syn-lifted .syn-form,
+.syn-lifted .syn-ix {
+  opacity: 0.3;
+}
+/* Somewhere it could legally go. */
+.syn-cand {
+  box-shadow: inset 0 0 0 1px var(--syn-corr);
+  border-radius: 5px;
+}
+.syn-cand .syn-ix {
+  color: var(--syn-corr);
+}
+/* Refused: struck through, in the bad hue, until aimed somewhere else. */
+.syn-bad {
+  box-shadow: inset 0 0 0 1px var(--syn-bad);
+  border-radius: 5px;
+}
+.syn-bad .syn-form {
+  color: var(--syn-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* The root is the one target that is nowhere on the row, so it needs a place
+   of its own above the sentence. */
+.syn-rootbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 30px;
+  margin-bottom: 14px;
+  background: var(--syn-sel);
+  border: 1px dashed var(--syn-corr);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--syn-ui);
+}
+.syn-rootbar span:first-child {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--syn-corr);
+}
+.syn-rootbar.on {
+  background: var(--syn-sel-2);
+  border-style: solid;
+}
+.syn-rootbar:focus-visible {
+  outline: 2px solid var(--syn-corr);
+  outline-offset: 2px;
+}
+
+/* The word travelling with the cursor. `pointer-events: none` is load-bearing:
+   the drop target is resolved with elementFromPoint, and a ghost that could be
+   hit would always be the answer. */
+.syn-ghost {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, -140%);
+  padding: 3px 9px;
+  font-family: var(--syn-tok);
+  font-size: 20px;
+  color: var(--syn-corr);
+  background: var(--syn-paper-2);
+  border: 1px solid var(--syn-corr);
+  border-radius: 5px;
+  box-shadow: 0 10px 26px -12px var(--syn-shadow);
+  white-space: nowrap;
+  pointer-events: none;
+}

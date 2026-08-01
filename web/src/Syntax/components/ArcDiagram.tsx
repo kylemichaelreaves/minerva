@@ -35,6 +35,18 @@ export interface ArcDiagramProps {
   onHover: (id: number | null) => void;
   onSelect?: (id: number) => void;
   selected?: number | null;
+  /** Token holding keyboard focus. Arrow keys move it. */
+  focused?: number | null;
+  /** The token being reattached, while a reattachment is in progress. */
+  lifted?: number | null;
+  /** Heads the lifted token may legally take — these ring. */
+  candidates?: readonly number[];
+  /** The candidate currently proposed, which the arc previews to. */
+  proposed?: number | null;
+  /** A target that was refused, flashed until dismissed. */
+  refused?: number | null;
+  /** Begin a pointer drag from this token. */
+  onDragStart?: (id: number, e: PointerEvent) => void;
 }
 
 /** Every token governed by *root*, transitively — the constituent it heads. */
@@ -261,6 +273,18 @@ export function ArcDiagram(props: ArcDiagramProps) {
             </svg>
           );
 
+          // Frame 06's token states, in priority order: the word being moved
+          // is `lifted`, the target under consideration is `head-of cand`,
+          // a refused target is `bad`, and everything else it could legally
+          // go to merely rings.
+          const reattachState = (id: number): string => {
+            if (props.lifted == null) return "";
+            if (id === props.refused) return " syn-bad";
+            if (id === props.lifted) return " syn-lifted";
+            if (id === props.proposed) return " syn-cand syn-head-of";
+            return props.candidates?.includes(id) ? " syn-cand" : "";
+          };
+
           return (
             <div class="syn-rowblock">
               <div class="syn-above" style={{ height: `${above()}px` }}>
@@ -278,18 +302,29 @@ export function ArcDiagram(props: ArcDiagramProps) {
                       return d.has(id) ? " syn-sub" : " syn-dimtok";
                     };
                     return (
-                      <div
+                      <button
+                        type="button"
                         data-tok={id}
                         data-row={rowIdx()}
+                        // One tab stop for the whole diagram: Tab reaches the
+                        // tokens, then arrows move between them. Fifty-three
+                        // tab stops in a row is not navigation.
+                        tabindex={props.focused === id || (props.focused === null && id === ids[0]) ? 0 : -1}
+                        ref={(el) => {
+                          if (props.focused === id) queueMicrotask(() => el.focus());
+                        }}
+                        aria-label={`${t()?.form ?? ""}, token ${String(id)}`}
+                        aria-current={props.focused === id ? "true" : undefined}
                         class={`syn-tok${t()?.upos === "PUNCT" ? " syn-punct" : ""}${
                           t()?.head === 0 ? " syn-root" : ""
-                        }${t()?.corrected ? " syn-corr" : ""}${state()}`}
+                        }${t()?.corrected ? " syn-corr" : ""}${state()}${reattachState(id)}`}
                         onMouseEnter={() => props.onHover(id)}
+                        onPointerDown={(e) => props.onDragStart?.(id, e)}
                         onClick={() => props.onSelect?.(id)}
                       >
                         <div class="syn-form">{t()?.form}</div>
                         <div class="syn-ix">{id}</div>
-                      </div>
+                      </button>
                     );
                   }}
                 </For>

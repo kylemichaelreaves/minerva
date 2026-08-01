@@ -22,6 +22,8 @@ export interface TokenInspectorProps {
   onClose: () => void;
   /** Open the relation picker on this token. */
   onRelabel?: () => void;
+  /** Start reattaching this token to a new head. */
+  onReattach?: () => void;
   /** Drop the correction on this token, if it has one. */
   onRevert?: () => void;
   /** What the parser said before a human changed it — the "was obj". */
@@ -126,8 +128,13 @@ export function TokenInspector(props: TokenInspectorProps) {
 
       <Show when={props.onRelabel ?? props.onRevert}>
         <div class="syn-pact">
+          <Show when={props.onReattach}>
+            <button type="button" class="pri" onClick={() => props.onReattach?.()}>
+              Reattach <span class="syn-kbd">R</span>
+            </button>
+          </Show>
           <Show when={props.onRelabel}>
-            <button type="button" class="pri" onClick={() => props.onRelabel?.()}>
+            <button type="button" onClick={() => props.onRelabel?.()}>
               Relabel <span class="syn-kbd">L</span>
             </button>
           </Show>
