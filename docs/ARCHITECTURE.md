@@ -3,7 +3,11 @@
 How the SolidJS frontend, HTTP API, and SQLite stores fit together.
 For corpus ingest, see [INGESTION.md](INGESTION.md).
 
-Editable diagrams: [FigJam — App Flow + Ingestion](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26).
+Editable diagram: [FigJam — Application Architecture](https://www.figma.com/board/3EXl1NgThKiIs2sBeEKHOz) — the
+consolidated, ground-truth board (six lanes A–F, light and dark twins).
+Update the relevant lane when the app changes. The older split boards
+([App Flow](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26), [Author Ingest Wave](https://www.figma.com/board/uaeZ5hqmEClhmBQf4Gv0xA)) are superseded
+for a full-picture view and predate the `poietes → minerva` rename.
 
 ## Frontend routes
 

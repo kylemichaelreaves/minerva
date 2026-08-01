@@ -125,7 +125,8 @@ Tests mock lemmatizer paths — `make check` does not require these models.
 | [FRONTEND.md](FRONTEND.md) | Solid component, CSS, reactivity, testing conventions for `web/` |
 | [MEMORY.md](MEMORY.md) | Operator rules (snapshots, re-ingest) |
 | [SCRIPTS.md](SCRIPTS.md) | One-off operator scripts |
-| [FigJam — App Flow](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26) | User journeys + ingestion pipeline |
+| [FigJam — Application Architecture](https://www.figma.com/board/3EXl1NgThKiIs2sBeEKHOz) | Canonical board: corpus → pipeline → stores → API → frontend → refs |
+| [FigJam — App Flow](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26) | Superseded; user journeys + ingestion pipeline |
 | [FigJam — Ingest Wave](https://www.figma.com/board/uaeZ5hqmEClhmBQf4Gv0xA) | Author-ingest checklist visual |
 
 ## Adding a new author
