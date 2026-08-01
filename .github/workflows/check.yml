@@ -195,3 +195,43 @@ jobs:
         run: |
           source ../.venv/bin/activate
           npm run test:e2e
+
+  sonar:
+    name: sonarqube
+    runs-on: ubuntu-latest
+    # Only after both suites pass, so the scan always has real coverage
+    # to attach. `needs` also means a red build doesn't spend a scan.
+    needs: [python, web]
+    # Fork PRs cannot read secrets; the scan would fail on a missing
+    # token rather than say anything useful. Skip instead.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Sonar needs full history to attribute new code to a commit
+          # and to resolve the PR base. A shallow clone makes every line
+          # look new on the first scan of a branch.
+          fetch-depth: 0
+
+      # Coverage is produced by the two jobs above rather than
+      # regenerated here — re-running the suites would double CI time
+      # for identical numbers.
+      - name: Download python coverage
+        uses: actions/download-artifact@v7
+        with:
+          name: python-coverage
+
+      - name: Download web coverage
+        uses: actions/download-artifact@v7
+        with:
+          name: web-coverage
+          path: web/coverage
+
+      - name: SonarQube scan
+        # Config lives in sonar-project.properties at the repo root.
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
