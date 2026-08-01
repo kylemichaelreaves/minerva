@@ -52,7 +52,11 @@ from .references import (  # noqa: F401
     _handle_review_queue,
     _handle_work_references_map,
 )
-from .syntax import _handle_chunk_syntax  # noqa: F401
+from .syntax import (  # noqa: F401
+    _handle_chunk_syntax,
+    _handle_syntax_correction_create,
+    _handle_syntax_correction_delete,
+)
 from .terms import (  # noqa: F401
     _handle_term_by_id,
     _handle_terms_by_chunk,

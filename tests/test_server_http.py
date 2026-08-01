@@ -26,56 +26,56 @@ def test_rate_limiter_allows_under_cap(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
     for _ in range(5):
-        assert deps.rate_limiter.allow("/api/chat", "1.2.3.4") is True
+        assert deps.rate_limiter.allow("chat", "1.2.3.4") is True
 
 
 def test_rate_limiter_blocks_over_cap(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap, _ = server._RATE_LIMITS["/api/chat"]
+    cap, _ = server._RATE_LIMITS["chat"]
     for _ in range(cap):
-        assert deps.rate_limiter.allow("/api/chat", "1.2.3.4") is True
-    assert deps.rate_limiter.allow("/api/chat", "1.2.3.4") is False
+        assert deps.rate_limiter.allow("chat", "1.2.3.4") is True
+    assert deps.rate_limiter.allow("chat", "1.2.3.4") is False
 
 
 def test_rate_limiter_isolates_ips(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap, _ = server._RATE_LIMITS["/api/chat"]
+    cap, _ = server._RATE_LIMITS["chat"]
     for _ in range(cap):
-        deps.rate_limiter.allow("/api/chat", "1.1.1.1")
+        deps.rate_limiter.allow("chat", "1.1.1.1")
     # Different IP is unaffected.
-    assert deps.rate_limiter.allow("/api/chat", "2.2.2.2") is True
+    assert deps.rate_limiter.allow("chat", "2.2.2.2") is True
 
 
 def test_rate_limiter_isolates_routes(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap_chat, _ = server._RATE_LIMITS["/api/chat"]
+    cap_chat, _ = server._RATE_LIMITS["chat"]
     for _ in range(cap_chat):
-        deps.rate_limiter.allow("/api/chat", "1.1.1.1")
+        deps.rate_limiter.allow("chat", "1.1.1.1")
     # /api/translate has its own bucket.
-    assert deps.rate_limiter.allow("/api/translate", "1.1.1.1") is True
+    assert deps.rate_limiter.allow("translate", "1.1.1.1") is True
 
 
 def test_rate_limiter_window_expires(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap, window = server._RATE_LIMITS["/api/chat"]
+    cap, window = server._RATE_LIMITS["chat"]
     # Fill the bucket at t=0.
     for _ in range(cap):
-        assert deps.rate_limiter.allow("/api/chat", "1.1.1.1", now=0.0) is True
-    assert deps.rate_limiter.allow("/api/chat", "1.1.1.1", now=0.0) is False
+        assert deps.rate_limiter.allow("chat", "1.1.1.1", now=0.0) is True
+    assert deps.rate_limiter.allow("chat", "1.1.1.1", now=0.0) is False
     # After the window slides past, requests are allowed again.
-    assert deps.rate_limiter.allow("/api/chat", "1.1.1.1", now=window + 1.0) is True
+    assert deps.rate_limiter.allow("chat", "1.1.1.1", now=window + 1.0) is True
 
 
 def test_rate_limiter_evicts_drained_buckets(populated_db):
     deps = _make_deps(populated_db, StubBackend())
     rl = server._RateLimiter()
-    rl.allow("/api/chat", "1.1.1.1", now=0.0)
-    rl.allow("/api/chat", "1.1.1.1", now=61.0)
-    assert len(rl._buckets[("/api/chat", "1.1.1.1")]) == 1
+    rl.allow("chat", "1.1.1.1", now=0.0)
+    rl.allow("chat", "1.1.1.1", now=61.0)
+    assert len(rl._buckets[("chat", "1.1.1.1")]) == 1
 
 
 def test_rate_limiter_unknown_route_always_allows(populated_db):
