@@ -10,7 +10,13 @@ from pathlib import Path
 
 from chunk_count_validation import (
     DEFAULT_DB,
+    SNAPSHOT_PATH,
+    build_snapshot,
+    load_snapshot,
+    snapshot_drift,
     validate_chunk_counts,
+    validate_snapshot,
+    write_snapshot,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -118,7 +124,15 @@ def main() -> int:
     parser.add_argument(
         "--skip-chunk-counts",
         action="store_true",
-        help="Skip manifest expected_chunks validation even when --db exists",
+        help="Waive chunk-count validation entirely (prints that it did)",
+    )
+    parser.add_argument(
+        "--write-chunk-counts",
+        action="store_true",
+        help=(
+            "Regenerate the committed counts snapshot from the DB "
+            f"({SNAPSHOT_PATH.name}); requires the index to exist"
+        ),
     )
     args = parser.parse_args()
     if not MANIFEST_PATH.is_file():
@@ -159,20 +173,60 @@ def main() -> int:
                 print(f"  - {e}")
 
     db_path = Path(args.db) if args.db else DEFAULT_DB
-    if not args.skip_chunk_counts and db_path.is_file():
+
+    if args.write_chunk_counts:
+        if not db_path.is_file():
+            print(f"cannot write counts: no DB at {db_path}", file=sys.stderr)
+            return 1
         with sqlite3.connect(db_path) as conn:
-            count_errs = validate_chunk_counts(
-                conn,
-                manifest,
-                corpus_ids=tuple(corpus_ids),
+            write_snapshot(build_snapshot(conn, manifest))
+        print(f"wrote {SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
+        return 1 if failed else 0
+
+    if args.skip_chunk_counts:
+        # An explicit waiver, so say so — the whole point of #157 is that
+        # a silent skip is indistinguishable from a passing check.
+        print("chunk counts: skipped (--skip-chunk-counts)", file=sys.stderr)
+        return 1 if failed else 0
+
+    count_errs: list[str] = []
+    if db_path.is_file():
+        # Local: the index is authoritative. Check it against the bands,
+        # and check the committed snapshot against it so the file CI
+        # relies on can't quietly go stale.
+        with sqlite3.connect(db_path) as conn:
+            count_errs += validate_chunk_counts(
+                conn, manifest, corpus_ids=tuple(corpus_ids)
             )
-        if count_errs:
-            failed = True
-            print("chunk counts:")
-            for e in count_errs:
-                print(f"  - {e}")
-    elif not args.skip_chunk_counts and args.db:
-        print(f"chunk counts: skipped — DB not found at {db_path}", file=sys.stderr)
+            if SNAPSHOT_PATH.is_file():
+                count_errs += snapshot_drift(conn, manifest, load_snapshot())
+            else:
+                count_errs.append(
+                    f"no counts snapshot at "
+                    f"{SNAPSHOT_PATH.relative_to(REPO_ROOT)} — run "
+                    f"`make generate-authors`"
+                )
+    elif SNAPSHOT_PATH.is_file():
+        # CI: `data/index.sqlite` is gitignored and never built here, so
+        # the committed snapshot is the only thing to validate against.
+        # This used to fall through to nothing at all (#157).
+        print(f"chunk counts: no DB at {db_path}, using committed snapshot")
+        count_errs += validate_snapshot(load_snapshot(), manifest)
+    else:
+        failed = True
+        print(
+            f"chunk counts: no DB at {db_path} and no snapshot at "
+            f"{SNAPSHOT_PATH.relative_to(REPO_ROOT)} — nothing to validate "
+            f"against. Run `make generate-authors`, or pass "
+            f"--skip-chunk-counts to waive.",
+            file=sys.stderr,
+        )
+
+    if count_errs:
+        failed = True
+        print("chunk counts:")
+        for e in count_errs:
+            print(f"  - {e}")
 
     return 1 if failed else 0
 

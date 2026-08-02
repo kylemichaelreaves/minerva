@@ -130,6 +130,7 @@ format: format-py format-web
 
 generate-authors:
 	$(PYTHON) scripts/generate_author_artifacts.py --write
+	$(PYTHON) scripts/check_author_ingest.py --all --write-chunk-counts
 
 check-authors:
 	$(PYTHON) scripts/generate_author_artifacts.py --check

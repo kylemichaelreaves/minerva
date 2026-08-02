@@ -70,12 +70,27 @@ def test_rate_limiter_window_expires(populated_db):
     assert deps.rate_limiter.allow("chat", "1.1.1.1", now=window + 1.0) is True
 
 
-def test_rate_limiter_evicts_drained_buckets(populated_db):
-    deps = _make_deps(populated_db, StubBackend())
+def test_rate_limiter_drains_expired_timestamps(populated_db):
+    """A hit older than the window is popped when that same key sends
+    again, so a long-lived caller's deque stays bounded by `cap`.
+
+    This pins *draining*, not eviction: it indexes `_buckets[key]`, so
+    it requires the bucket to still be there. It was called
+    `..._evicts_drained_buckets` until #161 — a name that reads as
+    coverage of the #121 bucket leak while asserting nearly its
+    opposite. Eviction is pinned by `..._sweeps_idle_buckets` (#155);
+    disable the `_sweep` delete and that test fails while this one
+    still passes.
+    """
+
     rl = server._RateLimiter()
+    _cap, window = server._RATE_LIMITS["chat"]
+
     rl.allow("chat", "1.1.1.1", now=0.0)
-    rl.allow("chat", "1.1.1.1", now=61.0)
-    assert len(rl._buckets[("chat", "1.1.1.1")]) == 1
+    rl.allow("chat", "1.1.1.1", now=window + 1.0)
+
+    # The t=0.0 hit aged out; only the second remains.
+    assert list(rl._buckets[("chat", "1.1.1.1")]) == [window + 1.0]
 
 
 def test_rate_limiter_sweeps_idle_buckets(populated_db):

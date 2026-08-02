@@ -111,6 +111,33 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     }
   });
 
+  interface WorkRow {
+    work_id: number;
+    corpus: string;
+    author: string;
+    work: string;
+    lang: string;
+    chunks: number;
+  }
+
+  async function fetchWorks(): Promise<WorkRow[]> {
+    const r = await fetch(`${baseUrl}/api/works`);
+    expect(r.ok).toBe(true);
+    return ((await r.json()) as { works: WorkRow[] }).works;
+  }
+
+  /** The biggest work in `corpus`, as served.
+   *
+   * Corpus ids are manifest-generated and stable; work titles are not
+   * (Plato's were all renamed once already). Deriving the row at run
+   * time is what keeps these tests from going stale again — see #133.
+   */
+  async function pickLargestWork(corpus: string): Promise<WorkRow> {
+    const rows = (await fetchWorks()).filter((w) => w.corpus === corpus);
+    expect(rows.length).toBeGreaterThan(0);
+    return rows.reduce((a, b) => (b.chunks > a.chunks ? b : a));
+  }
+
   it("GET /api/health returns chunk stats", async (ctx) => {
     if (!hasCorpus) return ctx.skip();
     const r = await fetch(`${baseUrl}/api/health`);
@@ -122,22 +149,31 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(Array.isArray(json.chunks_by_corpus_lang)).toBe(true);
   });
 
-  it("POST /api/chat returns the expected shape and finds Republic 509 for the divided line", async (ctx) => {
+  it("POST /api/chat scopes retrieval to a work named in the query", async (ctx) => {
     if (!hasCorpus) return ctx.skip();
-    // The query names Plato AND the Republic so the server-side
-    // detectors (`agent.detect_corpus` + `agent.detect_work`) scope
-    // retrieval to that one work. Both levels are needed: "divided
-    // line" is too generic for BM25 alone (geometry passages in
-    // Aristotle outscore it), and even within the Plato corpus the
-    // analogy at Republic 509-511 doesn't literally contain "divided
-    // line" (Plato writes "a line divided into two unequal segments"),
-    // so as the corpus grows, dialogues like the Statesman with denser
-    // literal matches push it out of an author-scoped top-k. Naming
-    // the work pins the scope and makes 509d the top hit.
+    // Naming a work must make the server-side detectors
+    // (`agent.detect_corpus` + `agent.detect_work`) narrow retrieval to
+    // that one work. The title comes from /api/works rather than a
+    // literal: this assertion used to hardcode "Republic" and went
+    // stale the moment Plato's titles were canonicalised to
+    // Latinized-Greek, failing locally while CI skipped it (#133).
+    //
+    // Note this exercises the *canonical* title (`works.title`). The
+    // English and German names live in `title_local` and do NOT scope
+    // today — that's #164, and it is deliberately not pinned here.
+    // Both levels are needed and both come from the served row: the
+    // author name is what `detect_corpus` keys on, and only once a
+    // corpus is resolved does `detect_work` run at all. Naming the work
+    // without the author leaves retrieval corpus-wide.
+    const target = await pickLargestWork("plato");
+    const named = target.work;
     const r = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query: "the divided line in Plato's Republic", history: [] }),
+      body: JSON.stringify({
+        query: `the divided line in ${target.author}'s ${named}`,
+        history: [],
+      }),
     });
     expect(r.ok).toBe(true);
     const json = (await r.json()) as {
@@ -158,9 +194,16 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(Array.isArray(json.paragraphs)).toBe(true);
     expect(Array.isArray(json.citations)).toBe(true);
     expect(json.citations.length).toBeGreaterThan(0);
-    const sources = json.citations.map((c) => c.src);
-    expect(sources.some((s) => /Plato, Republic 509/i.test(s))).toBe(true);
-  });
+    // Every citation must come from the work that was named. This is
+    // the property the old `Republic 509` assertion was really standing
+    // in for, minus the retrieval-quality claim — 509 is no longer
+    // returned even when scoping works, which is #165 and belongs in
+    // `minerva eval` rather than a contract test.
+    const offWork = json.citations.map((c) => c.src).filter((s) => !s.includes(named));
+    expect(offWork).toEqual([]);
+    // Two round-trips (works list, then chat) against the full index —
+    // the 5s default is not enough once /api/works is in the path.
+  }, 30_000);
 
   it("POST /api/chat abstains on a nonsense query", async () => {
     const r = await fetch(`${baseUrl}/api/chat`, {
@@ -291,21 +334,32 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
 
   // ---------- Reader: /api/works, /api/works/:id, /api/translate ----------
 
-  it("GET /api/works returns a list with the known corpora", async (ctx) => {
+  it("GET /api/works returns well-formed rows for the ingested corpora", async (ctx) => {
     if (!hasCorpus) return ctx.skip();
-    const r = await fetch(`${baseUrl}/api/works`);
-    expect(r.ok).toBe(true);
-    const json = (await r.json()) as { works: { work: string; lang: string }[] };
-    expect(Array.isArray(json.works)).toBe(true);
-    expect(json.works.length).toBeGreaterThan(0);
-    // The corpus has at least one Plato work.
-    expect(json.works.some((w) => w.work === "Republic")).toBe(true);
+    // Contract, not content. This used to assert a literal
+    // `w.work === "Republic"`, which the Plato rename invalidated
+    // (#133). Corpus ids are generated from manifest.yaml and are the
+    // stable thing to assert on; titles are not.
+    const works = await fetchWorks();
+    expect(works.length).toBeGreaterThan(0);
+    for (const w of works) {
+      expect(typeof w.work).toBe("string");
+      expect(w.work.length).toBeGreaterThan(0);
+      expect(typeof w.corpus).toBe("string");
+      expect(w.lang).toMatch(/^[a-z]{3}$/);
+      expect(w.chunks).toBeGreaterThan(0);
+    }
+    // Whatever else is ingested, the corpus the reader is built around
+    // must be present.
+    expect(works.some((w) => w.corpus === "plato")).toBe(true);
   });
 
   it("GET /api/works/:work returns ordered chunks", async (ctx) => {
     if (!hasCorpus) return ctx.skip();
+    const target = (await fetchWorks()).find((w) => w.corpus === "plato" && w.lang === "eng");
+    expect(target).toBeDefined();
     const r = await fetch(
-      `${baseUrl}/api/works/${encodeURIComponent("Republic")}?lang=eng&limit=5`,
+      `${baseUrl}/api/works/${encodeURIComponent(target!.work)}?lang=eng&limit=5`,
     );
     expect(r.ok).toBe(true);
     const json = (await r.json()) as {
@@ -314,8 +368,9 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
       chunks: { ord: number }[];
       total: number;
     };
-    expect(json.work).toBe("Republic");
+    expect(json.work).toBe(target!.work);
     expect(json.lang).toBe("eng");
+    expect(json.chunks.length).toBeGreaterThan(0);
     const ords = json.chunks.map((c) => c.ord);
     expect(ords).toEqual([...ords].sort((a, b) => a - b));
   });
