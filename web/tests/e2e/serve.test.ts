@@ -1,13 +1,19 @@
-// Integration test: spawn the real Python server (`minerva serve --llm none`)
-// on an ephemeral port, drive POST /api/chat through node fetch, and assert
-// the response shape. Skipped automatically when the venv binary isn't
-// present, so this won't fail in environments without Python.
+// Integration test: build a throwaway index from the committed fixture
+// corpus, spawn the real Python server (`minerva serve --llm none`) against
+// it on an ephemeral port, drive the API through node fetch, and assert the
+// response shapes. Skipped only when the venv binary isn't present, so this
+// won't fail in environments without Python.
+//
+// The whole suite runs identically in CI and locally. It did not use to:
+// the server ran against the developer's gitignored `data/index.sqlite`, so
+// in CI every data-dependent test skipped itself and the assertions rotted
+// unnoticed until someone ran them by hand (#133).
 //
 // @vitest-environment node
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve, dirname, join } from "node:path";
@@ -17,6 +23,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");
 const MINERVA_BIN = resolve(REPO_ROOT, ".venv/bin/minerva");
 const STATIC_DIR = resolve(REPO_ROOT, "web/dist");
+// Committed slice of the real corpus. The server used to run against the
+// developer's `data/index.sqlite`, which is gitignored and absent in CI —
+// so every data-dependent test skipped there and only ever ran locally,
+// where nobody watched them (#133). Building a throwaway index from this
+// makes the suite behave identically in both places.
+const FIXTURE_JSONL = resolve(REPO_ROOT, "tests/fixtures/corpus.jsonl");
+// Gate on the venv binary ONLY. A missing Python install is a legitimate
+// environment difference; a missing fixture is not — it is committed, so
+// its absence means something is wrong and beforeAll should say so loudly
+// rather than skip. Skipping on a missing fixture would rebuild the exact
+// trap this file was fixed to escape.
 const RUN_E2E = existsSync(MINERVA_BIN);
 const describeOrSkip = RUN_E2E ? describe : describe.skip;
 
@@ -59,20 +76,38 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
   let proc: ChildProcess;
   let baseUrl: string;
   let tmpDir: string;
-  // Whether the server booted against a populated index. CI doesn't ingest
-  // the (multi-GB, gitignored) corpus, so it serves an empty DB — the
-  // server-contract tests below still run, but the data-dependent ones
-  // (chunk stats, retrieval, works list) skip rather than fail. Set from
-  // /api/health in beforeAll.
-  let hasCorpus = false;
 
   beforeAll(async () => {
     const port = await freePort();
     baseUrl = `http://127.0.0.1:${port}`;
-    // Conversations DB lives in a tmp dir for the test run so we don't
-    // pollute the developer's data/ directory.
+    // Index and conversations DB both live in a tmp dir for the run, so
+    // we neither read nor pollute the developer's data/ directory.
     tmpDir = mkdtempSync(join(tmpdir(), "minerva-e2e-"));
+    const indexDb = join(tmpDir, "index.sqlite");
     const convDb = join(tmpDir, "conversations.sqlite");
+
+    if (!existsSync(FIXTURE_JSONL)) {
+      throw new Error(
+        `fixture corpus missing at ${FIXTURE_JSONL}. It is committed — ` +
+          `see tests/fixtures/README.md. Not skipping: a silent skip here ` +
+          `is the bug this suite was fixed to avoid (#133).`,
+      );
+    }
+
+    // Build the throwaway index before booting. 120 chunks, ~1s — no
+    // embeddings, which retrieval doesn't need under `--llm none`.
+    const built = spawnSync(
+      MINERVA_BIN,
+      ["index", "--db", indexDb, "--input", FIXTURE_JSONL, "--reset"],
+      { cwd: REPO_ROOT, encoding: "utf8" },
+    );
+    if (built.status !== 0) {
+      throw new Error(
+        `fixture index build failed (exit ${String(built.status)}):\n` +
+          `${built.stdout}\n${built.stderr}`,
+      );
+    }
+
     proc = spawn(
       MINERVA_BIN,
       [
@@ -81,6 +116,8 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
         "none",
         "--port",
         String(port),
+        "--db",
+        indexDb,
         "--static",
         STATIC_DIR,
         "--conversations-db",
@@ -92,15 +129,18 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     const health = (await waitForHealth(`${baseUrl}/api/health`)) as {
       chunks_total?: number;
     };
-    hasCorpus = typeof health.chunks_total === "number" && health.chunks_total > 0;
-    if (!hasCorpus) {
-      console.warn(
-        "[e2e] server index is empty (chunks_total=0) — skipping data-dependent " +
-          "assertions. CI does not ingest the corpus; run `make reingest` locally " +
-          "to exercise these.",
-      );
-    }
-  }, 30_000);
+    // No `hasCorpus` escape hatch any more: the fixture is committed, so
+    // an empty index is a real failure rather than an environment quirk.
+    //
+    // Asserting the exact count (derived from the fixture, so it stays
+    // correct if the fixture changes) also proves we are serving the
+    // throwaway index and not some other database that happened to be
+    // lying around — which is precisely how the old setup went wrong.
+    const fixtureChunks = readFileSync(FIXTURE_JSONL, "utf8")
+      .split("\n")
+      .filter((l) => l.trim().length > 0).length;
+    expect(health.chunks_total).toBe(fixtureChunks);
+  }, 60_000);
 
   afterAll(() => {
     if (!proc.killed) {
@@ -138,8 +178,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     return rows.reduce((a, b) => (b.chunks > a.chunks ? b : a));
   }
 
-  it("GET /api/health returns chunk stats", async (ctx) => {
-    if (!hasCorpus) return ctx.skip();
+  it("GET /api/health returns chunk stats", async () => {
     const r = await fetch(`${baseUrl}/api/health`);
     expect(r.ok).toBe(true);
     const json = (await r.json()) as Record<string, unknown>;
@@ -149,8 +188,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(Array.isArray(json.chunks_by_corpus_lang)).toBe(true);
   });
 
-  it("POST /api/chat scopes retrieval to a work named in the query", async (ctx) => {
-    if (!hasCorpus) return ctx.skip();
+  it("POST /api/chat scopes retrieval to a work named in the query", async () => {
     // Naming a work must make the server-side detectors
     // (`agent.detect_corpus` + `agent.detect_work`) narrow retrieval to
     // that one work. The title comes from /api/works rather than a
@@ -334,8 +372,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
 
   // ---------- Reader: /api/works, /api/works/:id, /api/translate ----------
 
-  it("GET /api/works returns well-formed rows for the ingested corpora", async (ctx) => {
-    if (!hasCorpus) return ctx.skip();
+  it("GET /api/works returns well-formed rows for the ingested corpora", async () => {
     // Contract, not content. This used to assert a literal
     // `w.work === "Republic"`, which the Plato rename invalidated
     // (#133). Corpus ids are generated from manifest.yaml and are the
@@ -354,8 +391,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(works.some((w) => w.corpus === "plato")).toBe(true);
   });
 
-  it("GET /api/works/:work returns ordered chunks", async (ctx) => {
-    if (!hasCorpus) return ctx.skip();
+  it("GET /api/works/:work returns ordered chunks", async () => {
     const target = (await fetchWorks()).find((w) => w.corpus === "plato" && w.lang === "eng");
     expect(target).toBeDefined();
     const r = await fetch(
