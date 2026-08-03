@@ -36,12 +36,16 @@ isn't.
 + vitest + author/API/import gates. Run it and read the output before
 saying something passes.
 
-Two gates are easy to miss because they don't block a merge:
+One gate is easy to miss because it doesn't block a merge:
 
 - **SonarCloud** fails PRs under 80% coverage *of the lines you changed*.
   Not a required check (#158), so nothing stops you — check it anyway.
-- **Chunk-count validation is silently skipped in CI** because the DB is
-  gitignored (#157). It only ever runs locally.
+
+**After any ingest, run `make generate-authors` and commit the result.**
+`data/index.sqlite` is gitignored, so CI validates chunk counts against
+the committed `data/authors/chunk_counts.json` instead. Local runs have
+the real index and fail if that snapshot has drifted from it — but only
+locally, so a stale snapshot leaves CI checking a fossil.
 
 Branch protection is `strict: true`: every merge to `main` puts open PRs
 `BEHIND` and they need `git rebase origin/main` before they can merge.

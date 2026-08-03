@@ -57,7 +57,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "data" / "spinoza" / "raw_la"
 
 
-_BASE = "http://spinozaetnous.org/wiki"
+# HTTPS verified against the real raw-fetch path, not just the host root:
+#   curl -o /dev/null -w '%{http_code} %{size_download}' \
+#     'https://spinozaetnous.org/wiki/Tractatus_theologico-politicus/Praefatio?action=raw'
+#   -> 200 18966
+# The other downloaders' http:// literals are NOT upgradable: zeno.org has no
+# reachable TLS listener, and the mlwerke.de ones are snapshot keys inside
+# web.archive.org paths. See #167.
+_BASE = "https://spinozaetnous.org/wiki"
 
 
 def _caput_url(name: str) -> str:

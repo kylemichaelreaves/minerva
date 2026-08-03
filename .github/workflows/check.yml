@@ -4,11 +4,12 @@
 #
 #   * python — lint + pytest with coverage
 #   * web — lint + typecheck + vitest with coverage
-#   * web-e2e — runs only on `main` pushes (skipped on PRs). The e2e
-#     suite spawns `minerva serve --llm none` and stitches Vitest
-#     against it; stable but ~30s of warm-up, so we keep it off PR
-#     critical path. A failure on main fires an alert; PRs catch the
-#     same regressions through unit tests for the underlying paths.
+#   * web-e2e — spawns `minerva serve --llm none` against a throwaway
+#     index built from `tests/fixtures/corpus.jsonl` and stitches
+#     Vitest against it. The fixture is committed, so every assertion
+#     runs here exactly as it does locally. It did not use to: the
+#     server ran against the gitignored `data/index.sqlite`, and each
+#     data-dependent test skipped itself in CI (#133).
 #
 # Coverage is reported but not yet gated — the audit asked for
 # visibility, not a hard threshold. Once a baseline is settled, add a
@@ -80,6 +81,13 @@ jobs:
         # Mirrors `make check-authors`: generated corpus_registry /
         # author_ordering / atlasData / dominantPhil must match
         # manifest.yaml, and every author must have an ingest entry.
+        #
+        # Chunk-count bands are validated here too. `data/index.sqlite` is
+        # gitignored and never built in CI, so the check reads the committed
+        # `data/authors/chunk_counts.json` instead. Before #157 it just found
+        # no DB and validated nothing, without saying so — which is how the
+        # Plato overrun in #150 stayed green. Local runs have the real index
+        # and additionally fail if that snapshot has gone stale.
         run: |
           uv run --no-sync python scripts/generate_author_artifacts.py --check
           uv run --no-sync python scripts/check_author_ingest.py --all
@@ -152,12 +160,11 @@ jobs:
   web-e2e:
     name: web · e2e
     runs-on: ubuntu-latest
-    # Runs on PRs and main pushes. The data-dependent assertions (chunk
-    # stats, retrieval, works list) skip automatically when the runner
-    # has no ingested corpus — see web/tests/e2e/serve.test.ts — so on
-    # PRs this still exercises the server-contract paths (conversation
-    # CRUD, abstain, 400s, CORS) as a regression net, for ~30s of
-    # server warm-up.
+    # Runs on PRs and main pushes. Every assertion executes here — the
+    # data-dependent ones (chunk stats, retrieval, works list) included,
+    # because the suite builds its own index from the committed fixture
+    # rather than relying on an ingested corpus. See
+    # web/tests/e2e/serve.test.ts.
     defaults:
       run:
         working-directory: web
