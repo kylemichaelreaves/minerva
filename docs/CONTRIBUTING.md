@@ -99,10 +99,38 @@ helper tests in `tests/test_llm_verify_helpers.py` and
 `tests/test_scripture_cite_lexicon.py`.
 
 **SonarCloud gates PRs at 80% coverage of the lines you changed** (new code
-only — pre-existing debt in a file you touch doesn't count against you). It is
-*not* currently a required status check, so a red gate will not block a merge —
-see #158. Check it anyway; it has caught real gaps that the required checks
-passed straight over.
+only — pre-existing debt in a file you touch doesn't count against you), and
+since #158 it is a **required status check** — a red gate blocks the merge.
+
+`scripts/**` and `perseus/**` are in `sonar.coverage.exclusions`, so the 80%
+bar applies to `src/` and `web/src/` only. Operator tooling is still analysed
+for issues, just not held to a coverage bar.
+
+### Security findings in operator tooling
+
+The `pythonsecurity:*` rules flag developer scripts for taking a `--db` or
+`--out` path from the CLI ("LLMs running this code with faulty CLI arguments
+can…"). For `scripts/**` and `perseus/**` the invoking user *is* the operator:
+no privilege boundary is crossed, so #167 triaged the backlog to zero — 21
+Accepted, 6 False Positive — and a red security rating now means something.
+
+If you add a finding in one of these files, don't reflexively accept it. Check
+which of the three cases it is:
+
+- **False positive** — the rule's own exception list already covers it. Both
+  live examples: `http://www.tei-c.org/ns/1.0` is an XML namespace *identifier*
+  that must byte-match the documents (changing it breaks TEI parsing), and
+  `serve.py` builds `http://{host}` strings to *compare* Origin headers against
+  a loopback bind (`--host` defaults to `127.0.0.1`).
+- **Accepted** — the dataflow is real but the impact is nil, because the
+  operator chose the path and runs as themselves. The three `S2083` BLOCKERs in
+  `download_early_modern.py` are `combined.parent / "human_nature.txt"`: a
+  literal filename joined to a directory the operator named.
+- **Real** — anything where the tainted value comes from *downloaded* data
+  rather than from the operator's own argv. Fix these; don't accept them.
+
+Record the reasoning in the PR, since SonarCloud's status changes don't carry
+one.
 
 If you changed [`data/authors/manifest.yaml`](../data/authors/manifest.yaml),
 run `make generate-authors` and commit the regenerated blocks in
