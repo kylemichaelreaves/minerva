@@ -27,27 +27,54 @@ _TITLE_STOPWORDS = frozenset(
 )
 
 
+# Every name a work answers to: its canonical (for Greek authors,
+# Latinized-Greek) title plus the per-language `title_local` names that
+# migration 0023 put on editions and translations. Display used those
+# from the start; detection did not, so the English name of a
+# canonicalised work was unreachable (#164).
+_TITLES_SQL = """
+    SELECT w.id, w.title FROM works w WHERE LOWER(w.author) = ?
+    UNION
+    SELECT w.id, t.title_local FROM works w JOIN translations t ON t.work_id = w.id
+     WHERE LOWER(w.author) = ? AND t.title_local IS NOT NULL
+    UNION
+    SELECT w.id, e.title_local FROM works w JOIN editions e ON e.work_id = w.id
+     WHERE LOWER(w.author) = ? AND e.title_local IS NOT NULL
+"""
+
+
 def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None:
     """Resolve a single ``works.id`` named in ``query`` for ``corpus``.
 
-    Conservative by design: a work matches only when EVERY significant
-    (non-stopword) token of its title appears in the lowercased query.
-    When several works qualify (a query naming a long title that
-    contains a shorter one), the most specific — most significant
-    tokens — wins. Returns ``None`` when nothing matches cleanly, so a
-    passing mention never silently narrows scope.
+    A work answers to any of its names: the canonical ``works.title``
+    and the per-language ``title_local`` values on its editions and
+    translations. So both "Plato's Politeia" and "Plato's Republic"
+    resolve to the same work.
+
+    Conservative by design: a title matches only when EVERY significant
+    (non-stopword) token of it appears in the lowercased query. When
+    several titles qualify (a query naming a long title that contains a
+    shorter one), the most specific — most significant tokens — wins.
+    Two *different* works tying at that specificity is ambiguity and
+    yields ``None``; several titles of one work tying is not. Returns
+    ``None`` when nothing matches cleanly, so a passing mention never
+    silently narrows scope.
     """
 
     query_tokens = set(_WORD_RE.findall(query.lower()))
-    best_id: int | None = None
+    best_ids: set[int] = set()
     best_n = 0
-    for work_id, title in conn.execute(
-        "SELECT id, title FROM works WHERE LOWER(author) = ?", (corpus.lower(),)
-    ):
+    for work_id, title in conn.execute(_TITLES_SQL, (corpus.lower(),) * 3):
         sig = [t for t in _WORD_RE.findall(title.lower()) if t not in _TITLE_STOPWORDS]
-        if sig and all(t in query_tokens for t in sig) and len(sig) > best_n:
-            best_id, best_n = work_id, len(sig)
-    return best_id
+        if not sig or not all(t in query_tokens for t in sig):
+            continue
+        if len(sig) > best_n:
+            best_ids, best_n = {work_id}, len(sig)
+        elif len(sig) == best_n:
+            best_ids.add(work_id)
+    # A tie between two *different* works is genuine ambiguity; several
+    # titles of the same work tying is not.
+    return next(iter(best_ids)) if len(best_ids) == 1 else None
 
 
 def detect_corpus(query: str) -> str | None:
