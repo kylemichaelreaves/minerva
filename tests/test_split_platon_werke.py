@@ -76,3 +76,98 @@ def test_emit_sections_stable_chunk_ids():
     b = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
     assert [c.chunk_id for c in a] == [c.chunk_id for c in b]
     assert a[0].chunk_id != a[1].chunk_id
+
+
+# ── book stamping (#201) ───────────────────────────────────────────────
+# Only the Politeia (10 books) and the Nomoi (12) are divided into books.
+# Every German chunk of both carried `book IS NULL` while the Greek and
+# English sides were populated, so citations lost their "(Bk N)" and the
+# new book_recall metric scored a correct hit as a miss.
+
+
+def test_single_book_dialogue_has_no_book():
+    """A dialogue with no book headings must stay NULL — that is what the
+    Greek and English sides store for it too."""
+
+    body = "[2 St.1 A]\nWas hat sich ereignet? [B]\nDenn du pflegst doch."
+    chunks = list(
+        _emit_sections(body, work_title="Euthyphron", translator="S",
+                       year="1818", source_file="x.pdf")
+    )
+    assert [c.book for c in chunks] == [None, None]
+
+
+def test_book_headings_stamp_and_are_stripped_from_prose():
+    body = (
+        "Erstes Buch vom Staate.\n"
+        "[327 St.2 A]\nIch ging gestern hinab. [B]\nUnd wir gingen.\n"
+        "Zweites Buch vom Staate.\n"
+        "[357 St.2 A]\nAls ich dies gesagt hatte."
+    )
+    chunks = list(
+        _emit_sections(body, work_title="Politeia", translator="Teuffel",
+                       year="1855", source_file="x.pdf")
+    )
+    by_section = {c.section: c for c in chunks}
+    assert by_section["327a"].book == "1"
+    # The heading sits inside 327b's segment, closing book 1 — the section
+    # it interrupts belongs to the OUTGOING book, and only what follows
+    # the next marker is book 2.
+    assert by_section["327b"].book == "1"
+    assert by_section["357a"].book == "2"
+    # The heading is structure, not prose.
+    assert "Zweites Buch" not in by_section["327b"].text
+    assert "Und wir gingen" in by_section["327b"].text
+
+
+def test_table_of_contents_lines_are_not_book_boundaries():
+    """Each work's title page carries a clickable contents list of every
+    book as a bare 'Erstes Buch' … 'Zehntes Buch', and that page is inside
+    the work's own span. Matching those would stamp the entire Politeia
+    with the LAST book in the list."""
+
+    body = (
+        "POLITEIA\nDer Staat.\n"
+        "Erstes Buch\nZweites Buch\nDrittes Buch\nZehntes Buch\n"
+        "Erstes Buch vom Staate.\n"
+        "[327 St.2 A]\nIch ging gestern hinab."
+    )
+    chunks = list(
+        _emit_sections(body, work_title="Politeia", translator="Teuffel",
+                       year="1855", source_file="x.pdf")
+    )
+    assert [c.book for c in chunks] == ["1"]
+
+
+def test_repeated_heading_does_not_advance_the_book():
+    """A running header repeating the current book's heading must not be
+    read as a new boundary."""
+
+    body = (
+        "Erstes Buch vom Staate.\n"
+        "[327 St.2 A]\nIch ging gestern hinab.\n"
+        "Erstes Buch vom Staate.\n"
+        "[328 St.2 A]\nUnd wir gingen hinab."
+    )
+    chunks = list(
+        _emit_sections(body, work_title="Politeia", translator="Teuffel",
+                       year="1855", source_file="x.pdf")
+    )
+    assert [c.book for c in chunks] == ["1", "1"]
+
+
+def test_nomoi_heading_form_is_recognized():
+    """The Nomoi spells its headings differently from the Politeia —
+    uppercase, and qualified 'ÜBER DIE GESETZE' rather than 'vom Staate'."""
+
+    body = (
+        "ERSTES BUCH ÜBER DIE GESETZE\n"
+        "[624 St.2 A]\nEin Gott. \n"
+        "ZWEITES BUCH ÜBER DIE GESETZE\n"
+        "[652 St.2 A]\nWas nun folgt."
+    )
+    chunks = list(
+        _emit_sections(body, work_title="Nomoi", translator="Susemihl",
+                       year="1863", source_file="x.pdf")
+    )
+    assert [(c.section, c.book) for c in chunks] == [("624a", "1"), ("652a", "2")]
