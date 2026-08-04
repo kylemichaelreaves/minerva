@@ -7,6 +7,7 @@ import sqlite3
 import pytest
 
 from minerva.agent import detect_corpus, detect_work
+from minerva.agent.detect import work_titles
 
 
 @pytest.fixture
@@ -239,3 +240,46 @@ def test_detects_work_across_a_multi_author_corpus(conn):
 
 def test_slug_corpus_still_refuses_an_unnamed_work(conn):
     assert detect_work(conn, "a question about nothing", "marcus_aurelius") is None
+
+
+# ---------- work_titles, the shared name↔work mapping (#183) ----------
+
+
+def test_work_titles_spans_canonical_and_local_names(conn):
+    """All three sources, so one work answers to every name it has."""
+
+    politeia = {t for wid, t in work_titles(conn, "plato") if wid == 10}
+    assert politeia == {
+        "Politeia",  # works.title
+        "Republic",  # translations.title_local
+        "Der Staat",  # editions.title_local
+    }
+
+
+def test_work_titles_scopes_to_the_corpus(conn):
+    assert not [t for _wid, t in work_titles(conn, "kant") if t == "Der Antichrist"]
+
+
+def test_work_titles_unscoped_spans_every_author(conn):
+    """`corpus=None` reads as no filter, matching retrieval (`--corpus any`)."""
+
+    by_corpus = {t for _wid, t in work_titles(conn, "nietzsche")}
+    unscoped = {t for _wid, t in work_titles(conn, None)}
+    assert "Kritik der reinen Vernunft" in unscoped
+    assert "Kritik der reinen Vernunft" not in by_corpus
+    assert by_corpus < unscoped
+    assert sorted(work_titles(conn, "any")) == sorted(work_titles(conn, None))
+
+
+def test_work_titles_drops_blank_local_titles(conn):
+    """A work with a blank local title must not answer to "".
+
+    An empty name matches every query. `detect_work` skipped it via its
+    own significant-token check; `eval_runner` maps names to works, and
+    would otherwise key a whole alias set on the empty string.
+    """
+
+    conn.execute(
+        "INSERT INTO translations (work_id, language, title_local) VALUES (10, 'fra', '   ')"
+    )
+    assert all(t.strip() for _wid, t in work_titles(conn, "plato"))

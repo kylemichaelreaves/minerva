@@ -7,7 +7,15 @@ acceptable Stephanus/Bekker section locators. We measure:
 * recall@k for the section (any expected section appears in top-k)
 * MRR over correct-section hits
 
-Optional book check is matched only when the gold record specifies one.
+Gold records also carry `expected_book` and `type`, which nothing reads:
+this docstring claimed a book check that has never existed (#187).
+
+A gold record's ``expected_works`` names a *work*, not a spelling of one:
+each name is resolved to the work it belongs to and then compared against
+every name that work answers to. So a gold set written when the Republic
+was called `Republic` keeps scoring after #78 renamed it `Politeia` — a
+rename that quietly held `work_recall_at_k` at 0.1 for months, because
+nothing resolved and nothing gated on it (#183).
 """
 
 from __future__ import annotations
@@ -15,9 +23,11 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections import defaultdict
 from pathlib import Path
 
 from . import retrieve
+from .agent.detect import work_titles
 
 
 def _normalize(s: str | None) -> str:
@@ -31,6 +41,50 @@ def _work_matches(work: str, expected: str) -> bool:
     if work == expected:
         return True
     return re.search(rf"(?:^|\W){re.escape(expected)}(?:\W|$)", work) is not None
+
+
+def _work_alias_index(
+    conn: sqlite3.Connection, corpus: str | None
+) -> tuple[dict[str, set[int]], dict[int, set[str]]]:
+    """Two directions of the same name↔work mapping for *corpus*.
+
+    ``by_name`` maps a normalized name to the works answering to it (a
+    name can be shared: `Ion` is Plato's dialogue and, elsewhere, a
+    tragedy). ``by_id`` maps a work to all of its names. Together they
+    turn one gold name into the full alias set of the work it names.
+    """
+
+    by_name: dict[str, set[int]] = defaultdict(set)
+    by_id: dict[int, set[str]] = defaultdict(set)
+    for work_id, title in work_titles(conn, corpus):
+        name = _normalize(title)
+        by_name[name].add(work_id)
+        by_id[work_id].add(name)
+    return by_name, by_id
+
+
+def _expand_expected_works(
+    expected: list[str],
+    by_name: dict[str, set[int]],
+    by_id: dict[int, set[str]],
+) -> tuple[list[str], list[str]]:
+    """Every name the expected works answer to, plus the unresolvable ones.
+
+    An expected name that no work answers to is returned separately
+    rather than dropped: it can only ever score 0, so the caller raises
+    instead of reporting a number that means "the gold set is stale".
+    """
+
+    names: set[str] = set()
+    unresolved: list[str] = []
+    for raw in expected:
+        ids = by_name.get(_normalize(raw))
+        if not ids:
+            unresolved.append(raw)
+            continue
+        for work_id in ids:
+            names.update(by_id[work_id])
+    return sorted(names), unresolved
 
 
 def _hit_matches(
@@ -52,13 +106,17 @@ def run(
     lang: str | None = "eng",
     corpus: str | None = "plato",
     section_recall_threshold: float = 0.6,
+    work_recall_threshold: float = 0.6,
 ) -> dict:
     rows = _load_gold(gold_path)
+    # Positional, not keyed by `row["id"]`: ids are not validated unique,
+    # and a collision there would score one row against another's works.
+    aliases = _resolve_gold_works(conn, rows, corpus, gold_path)
     per_question: list[dict] = []
     work_hits = 0
     section_hits = 0
     mrr = 0.0
-    for row in rows:
+    for idx, row in enumerate(rows):
         hits = retrieve.search(
             conn,
             row["question"],
@@ -71,7 +129,7 @@ def run(
         sec_ok = False
         rank = None
         for i, h in enumerate(hits, 1):
-            wk, sk = _hit_matches(h, row["expected_works"], row["expected_sections"])
+            wk, sk = _hit_matches(h, aliases[idx], row["expected_sections"])
             work_ok = work_ok or wk
             if sk and rank is None:
                 rank = i
@@ -90,20 +148,66 @@ def run(
                 "rank": rank,
                 "top_hit": (retrieve.format_locator(hits[0].meta) if hits else None),
                 "expected_works": row["expected_works"],
+                # Every name the expected works answer to. Printed so a
+                # `work_ok: false` can be read without guessing which
+                # spelling the index is using today.
+                "expected_work_aliases": aliases[idx],
                 "expected_sections": row["expected_sections"],
             }
         )
     n = len(rows) or 1
+    work_recall = work_hits / n
+    section_recall = section_hits / n
     summary = {
         "n_questions": len(rows),
         "top_k": top_k,
-        "work_recall_at_k": round(work_hits / n, 3),
-        "section_recall_at_k": round(section_hits / n, 3),
+        "work_recall_at_k": round(work_recall, 3),
+        "section_recall_at_k": round(section_recall, 3),
         "section_mrr": round(mrr / n, 3),
-        "pass": (section_hits / n) >= section_recall_threshold,
+        # Both metrics gate. Work recall is the easier of the two — a hit
+        # on the right section is a hit in the right work — so a run
+        # where it falls below section recall is structurally broken, and
+        # used to pass anyway (#183).
+        "pass": (
+            section_recall >= section_recall_threshold and work_recall >= work_recall_threshold
+        ),
         "per_question": per_question,
     }
     return summary
+
+
+def _resolve_gold_works(
+    conn: sqlite3.Connection,
+    rows: list[dict],
+    corpus: str | None,
+    gold_path: Path,
+) -> list[list[str]]:
+    """Alias set of each gold row's expected works, in row order.
+
+    Raises ``ValueError`` naming every gold row whose ``expected_works``
+    no work in the index answers to. Such a row scores 0 by construction,
+    so failing here is the difference between "retrieval regressed" and
+    "the gold set is out of date" — a distinction the pre-#183 runner
+    could not make, and reported as the former for months.
+    """
+
+    by_name, by_id = _work_alias_index(conn, corpus)
+    aliases: list[list[str]] = []
+    problems: list[str] = []
+    for row in rows:
+        names, unresolved = _expand_expected_works(row["expected_works"], by_name, by_id)
+        aliases.append(names)
+        if unresolved:
+            problems.append(f"  {row['id']}: {unresolved}")
+    if problems:
+        scope = corpus or "any"
+        raise ValueError(
+            f"{gold_path}: expected_works naming no work in corpus {scope!r}:\n"
+            + "\n".join(problems)
+            + "\nEither the work is not ingested, or it was renamed and the gold "
+            "set needs the new name (or the work needs a title_local alias)."
+        )
+    return aliases
 
 
 _GOLD_REQUIRED_KEYS = ("id", "question", "expected_works", "expected_sections")
