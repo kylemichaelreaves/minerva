@@ -47,7 +47,16 @@ corpora:
   keywords:
   - plato
   - platonic
+  - platon
+  - platons
+  - platos
   comment: 'Keywords are whole-word tokens matched by ``agent.detect_corpus``.
+
+    Include the author''s name in every language a reader is likely to ask
+
+    in, plus the German genitive: "Plato''s" tokenizes to {plato, s} and
+
+    matches, but "Platons" is one token and needs its own entry (#169).
 
     Deliberately omitted: "bible", "scripture", "testament" (ambiguous
 
@@ -61,6 +70,8 @@ corpora:
   keywords:
   - aristotle
   - aristotelian
+  - aristoteles
+  - aristote
 - id: hegel
   original_lang: deu
   citation_system: paragraph
@@ -68,6 +79,7 @@ corpora:
   keywords:
   - hegel
   - hegelian
+  - hegels
 - id: kant
   original_lang: deu
   citation_system: paragraph
@@ -75,6 +87,7 @@ corpora:
   keywords:
   - kant
   - kantian
+  - kants
 - id: schiller
   original_lang: deu
   citation_system: paragraph
@@ -82,6 +95,7 @@ corpora:
   keywords:
   - schiller
   - schillerian
+  - schillers
   comment: 'Friedrich Schiller (1759-1805) — aesthetic-philosophy essays (Über die
 
     ästhetische Erziehung des Menschen, 1795, + companions). dominant_code lowercase
@@ -94,6 +108,8 @@ corpora:
   keywords:
   - homer
   - homeric
+  - homers
+  - homeros
 - id: aeschylus
   original_lang: grc
   citation_system: paragraph
@@ -101,6 +117,7 @@ corpora:
   keywords:
   - aeschylus
   - aeschylean
+  - aischylos
 - id: sophocles
   original_lang: grc
   citation_system: paragraph
@@ -108,6 +125,7 @@ corpora:
   keywords:
   - sophocles
   - sophoclean
+  - sophokles
   comment: 'Lowercase initials for the tragedians — uppercase A/S/E are
 
     already taken by Aristotle / Spinoza / Lucretius. The dominant
@@ -129,6 +147,7 @@ corpora:
   keywords:
   - descartes
   - cartesian
+  - cartesius
 - id: spinoza
   original_lang: lat
   citation_system: paragraph
@@ -137,6 +156,7 @@ corpora:
   - spinoza
   - spinozist
   - spinozistic
+  - spinozas
 - id: hobbes
   original_lang: lat
   citation_system: paragraph
@@ -151,6 +171,7 @@ corpora:
   keywords:
   - pascal
   - pascalian
+  - pascals
 - id: hume
   original_lang: eng
   citation_system: paragraph
@@ -158,6 +179,7 @@ corpora:
   keywords:
   - hume
   - humean
+  - humes
 - id: locke
   original_lang: eng
   citation_system: paragraph
@@ -165,6 +187,7 @@ corpora:
   keywords:
   - locke
   - lockean
+  - lockes
 - id: rousseau
   original_lang: fra
   citation_system: paragraph
@@ -172,6 +195,7 @@ corpora:
   keywords:
   - rousseau
   - rousseauist
+  - rousseaus
 - id: augustine
   original_lang: lat
   citation_system: augustine
@@ -179,6 +203,8 @@ corpora:
   keywords:
   - augustine
   - augustinian
+  - augustinus
+  - augustin
 - id: aquinas
   original_lang: lat
   citation_system: aquinas
@@ -187,6 +213,8 @@ corpora:
   - aquinas
   - thomist
   - thomistic
+  - aquin
+  - aquino
 - id: marx
   original_lang: deu
   citation_system: paragraph
@@ -202,6 +230,7 @@ corpora:
   keywords:
   - nietzsche
   - nietzschean
+  - nietzsches
 - id: cicero
   original_lang: lat
   citation_system: paragraph
@@ -209,6 +238,8 @@ corpora:
   keywords:
   - cicero
   - ciceronian
+  - ciceros
+  - cicéron
   comment: '''C'' — Cicero''s natural initial. (Hume claimed ''I'' first; the
 
     two collided on ''I'' until the dominant-code uniqueness check landed.)'
@@ -219,12 +250,16 @@ corpora:
   keywords:
   - lucretius
   - lucretian
+  - lukrez
+  - lucrèce
 - id: epictetus
   original_lang: grc
   citation_system: paragraph
   dominant_code: X
   keywords:
   - epictetus
+  - epiktet
+  - epiktets
 - id: marcus_aurelius
   original_lang: grc
   citation_system: paragraph
@@ -233,6 +268,8 @@ corpora:
   - marcus
   - aurelius
   - meditations
+  - aurel
+  - aurels
 - id: septuagint
   original_lang: grc
   citation_system: bcv
@@ -240,6 +277,7 @@ corpora:
   keywords:
   - septuagint
   - lxx
+  - septuaginta
 - id: new_testament
   original_lang: grc
   citation_system: bcv
@@ -255,6 +293,7 @@ corpora:
   dominant_code: V
   keywords:
   - vulgate
+  - vulgata
 - id: luther_1912
   original_lang: deu
   citation_system: bcv
@@ -378,6 +417,7 @@ corpora:
   - origenist
   - origenistic
   - contra celsum
+  - origène
   comment: 'Origen — *Contra Celsum* host-text for Celsus''s lost *Alēthēs
 
     Logos*. Celsus himself stays as an out-of-corpus reference
@@ -419,6 +459,7 @@ corpora:
   - gobineau
   - comte de gobineau
   - essai sur l'inégalité
+  - gobineaus
   comment: 'Arthur de Gobineau (1816-1882) — *Essai sur l''inégalité des
 
     races humaines* (1853-55). The racial-determinism reformulation
@@ -439,6 +480,7 @@ corpora:
   - l'antéchrist
   - antéchrist
   - histoire du peuple d'israël
+  - renans
   comment: 'Ernest Renan (1823-1892) — *Vie de Jésus* (1863), *L''Antéchrist*
 
     (1877), *Histoire du peuple d''Israël* (1887-93, 5 vols). Direct

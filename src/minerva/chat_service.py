@@ -357,7 +357,11 @@ def prepare_chat_turn(ctx: ChatContext, payload: dict[str, Any]) -> ChatPrepared
         # work's author, then auto-detection from the query text.
         resolved_corpus = ctx.corpus or scope_corpus
         if resolved_corpus is None:
-            detected = agent.detect_corpus(retrieval_query)
+            # The index is consulted only to tell a second author apart
+            # from a work titled after one (#170), so take the lock for
+            # that read the same way the retrieve step below does.
+            with ctx.corpus_lock:
+                detected = agent.detect_corpus(retrieval_query, ctx.index_conn)
             if detected:
                 resolved_corpus = detected
         # Orthographic spelling-variant folding for the BM25 query, keyed on
