@@ -166,6 +166,42 @@ def text_excluding(el: ET.Element, skip_tags: frozenset[str]) -> str:
     return " ".join(p for p in parts if p)
 
 
+# Back matter that a TEI file ships as a sibling ``<text>`` alongside the
+# real works, and which must not become a work of its own. Perseus's
+# English Epictetus does exactly this: after the Discourses, Enchiridion
+# and Fragments comes ``<text lang="en" n="index"><head>Index.</head>``,
+# 8,495 characters of "Academics, deny the evidence of the senses, i.
+# 193." — page-number apparatus, ingested and retrievable as though
+# Epictetus wrote it (#177).
+#
+# A dense list of proper names and topic words is a magnet for BM25: it
+# contains *every* topic term in the volume by construction, with no
+# prose to dilute it. That is #165's failure mode in its purest form.
+#
+# Matched on the ``n`` attribute and on the head, because neither is
+# reliably present — the Epictetus index carries both, but a file with
+# only one still needs catching.
+_APPARATUS_TEXT_IDS = frozenset(
+    {"index", "indices", "contents", "toc", "errata", "corrigenda", "addenda"}
+)
+_APPARATUS_TITLES = frozenset(
+    {
+        "index", "indices", "general index", "index of names",
+        "index of passages", "contents", "table of contents",
+        "errata", "corrigenda", "addenda",
+    }
+)
+
+
+def _is_apparatus_text(sub: ET.Element, title: str) -> bool:
+    """True when a ``<group>`` sub-text is back matter rather than a work."""
+
+    if (sub.get("n") or "").strip().lower() in _APPARATUS_TEXT_IDS:
+        return True
+    # "Index." — the trailing period is typographic, not part of the name.
+    return title.strip().rstrip(".").lower() in _APPARATUS_TITLES
+
+
 def _identify_works(root: ET.Element) -> list[TeiWork]:
     """Find each addressable work in the file."""
 
@@ -183,6 +219,16 @@ def _identify_works(root: ET.Element) -> list[TeiWork]:
             head = body.find("head")
             head_text = _norm_text(_text_excluding_notes(head)) if head is not None else None
             title = head_text or sub.get("n") or "untitled"
+            if _is_apparatus_text(sub, title):
+                # Loud, because the alternative is what happened for
+                # months: apparatus sitting in the corpus as a work, found
+                # only by auditing single-token work titles.
+                print(
+                    f"tei: skipping back matter {title!r} "
+                    f"(<text n={sub.get('n')!r}>) — not a work.",
+                    file=sys.stderr,
+                )
+                continue
             works.append(TeiWork(title=title, container_type="dialogue", body=body))
         if works:
             return works
