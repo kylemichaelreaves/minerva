@@ -24,6 +24,11 @@
 #   * `[hegel]` ingest deps (pymupdf, ebooklib, bs4). Same: tests
 #     mock the parsers. Installed only when the test suite imports
 #     them, via `[dev]` triggers if needed.
+#
+# Actions are pinned to commit SHAs, not tags: `@v7` is mutable and a
+# compromised action repo can move it. Dependabot's `github-actions`
+# ecosystem is configured and bumps the pins, keeping the trailing
+# `# v7` comment in step with the SHA (#123).
 
 name: check
 
@@ -31,6 +36,16 @@ on:
   push:
     branches: [main]
   pull_request:
+
+# Least privilege for GITHUB_TOKEN. Without this every job inherits the
+# repository default, which for a repo created before the default changed
+# is write-all — a token that can push to main, handed to three jobs that
+# only read code. The install surface is the reason it matters: `uv pip
+# install -e '.[dev,hegel,embed]'` pulls the torch stack and `npm ci` runs
+# lifecycle scripts across the web tree, all with that token in the
+# environment. Jobs needing more declare it themselves (see `sonar`).
+permissions:
+  contents: read
 
 # Cancel in-flight runs for the same branch when a new commit lands;
 # saves CI minutes on rapid pushes.
@@ -43,19 +58,19 @@ jobs:
     name: python · lint · pytest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Use the same Python the repo pins so CI matches local
       # behaviour (CLTK/Stanza hold us at <3.14 — see pyproject.toml).
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
 
       # uv is dramatically faster than pip for a multi-extra install
       # and matches the README + Makefile workflow.
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           enable-cache: true
 
@@ -111,7 +126,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: python-coverage
           path: coverage.xml
@@ -124,10 +139,10 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
           cache: npm
@@ -151,7 +166,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: web-coverage
           path: web/coverage/
@@ -169,15 +184,15 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           enable-cache: true
 
@@ -191,7 +206,7 @@ jobs:
           uv pip install -e '.[dev]'
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
           cache: npm
@@ -221,7 +236,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Sonar needs full history to attribute new code to a commit
           # and to resolve the PR base. A shallow clone makes every line
@@ -232,18 +247,18 @@ jobs:
       # regenerated here — re-running the suites would double CI time
       # for identical numbers.
       - name: Download python coverage
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: python-coverage
 
       - name: Download web coverage
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: web-coverage
           path: web/coverage
 
       - name: SonarQube scan
         # Config lives in sonar-project.properties at the repo root.
-        uses: SonarSource/sonarqube-scan-action@v8
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

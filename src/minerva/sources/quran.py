@@ -28,11 +28,12 @@ This parser yields one ``Chunk`` per ayah with:
 from __future__ import annotations
 
 import unicodedata
-import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
 from minerva.tei import Chunk, _make_chunk_id, _norm_text
+
+from ..xml_safe import parse as _parse_xml
 
 
 def _normalize_ayah_text(s: str) -> str:
@@ -54,7 +55,7 @@ def parse_file(path: Path) -> Iterator[Chunk]:
 
     from minerva.authors.quran_works import find_surah
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()  # <quran>
 
     for sura_el in root.findall("sura"):

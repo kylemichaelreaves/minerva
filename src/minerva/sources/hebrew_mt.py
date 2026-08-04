@@ -40,6 +40,8 @@ from minerva.tei import (
     text_excluding,
 )
 
+from ..xml_safe import parse as _parse_xml
+
 # OSIS XML uses a default namespace; ElementTree exposes it as a
 # Clark-notation prefix on every tag. Bind it so XPath queries stay
 # readable.
@@ -129,7 +131,7 @@ def parse_file(path: Path) -> Iterator[Chunk]:
         )
         return
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
 
     work_code = book_title.lower().replace(" ", "_")

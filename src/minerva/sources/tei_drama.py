@@ -53,6 +53,8 @@ from minerva.tei import (
     text_excluding,
 )
 
+from ..xml_safe import parse as _parse_xml
+
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 
@@ -167,7 +169,7 @@ def parse_file(
     most callers can leave this ``None`` and let the corpus map decide.
     """
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
     edition = root.find("tei:text/tei:body/tei:div", _NS)
     if edition is None:

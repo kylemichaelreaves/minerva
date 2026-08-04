@@ -46,6 +46,8 @@ from minerva.tei import (
     text_excluding,
 )
 
+from ..xml_safe import parse as _parse_xml
+
 # OSIS namespace; lookups in iter() need this prefix.
 _OSIS_NS = "{http://www.bibletechnologies.net/2003/OSIS/namespace}"
 
@@ -193,7 +195,7 @@ def parse_file(
 
     from minerva.locations import BCV_BOOK_ABBR
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
 
     for book_div in root.iter(f"{_OSIS_NS}div"):
