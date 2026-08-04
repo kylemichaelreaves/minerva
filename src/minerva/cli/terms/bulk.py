@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from ...glossary_import import ImportReport, apply_spec
-from ...glossary_spec import SpecError, load_spec, validate_against_db
+from ...glossary_spec import SpecError, load_spec, resolve_and_validate
 from ._io import _open
 
 
@@ -31,7 +31,11 @@ def cmd_terms_import(args: argparse.Namespace) -> int:
 
     conn = _open(args)
     try:
-        errors = validate_against_db(spec, conn)
+        # Resolution turns the spec's natural-key anchors (edition name,
+        # translator name) into the surrogate ids the importer writes.
+        # `apply_spec` must get the RESOLVED spec — the parsed one has
+        # `edition_id = None` wherever the curator used a name (#193).
+        spec, errors = resolve_and_validate(spec, conn)
         if errors:
             print("import: spec failed DB-level validation:", file=sys.stderr)
             for e in errors:

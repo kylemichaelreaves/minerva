@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -28,16 +28,30 @@ class SpecError(ValueError):
 
 @dataclass(frozen=True)
 class TranslationApply:
-    """One per-translator rendering attached to an `apply_to` entry."""
+    """One per-translator rendering attached to an `apply_to` entry.
 
-    translation_id: int
+    Anchored by `translator` (matching `translations.translator_name`),
+    optionally narrowed by `year` and `work` when one translator has
+    rendered several works for the same author. `translation_id` is the
+    numeric escape hatch and is also where
+    :func:`resolve_against_db` writes the resolved id.
+    """
+
     rendering: str
+    translation_id: int | None = None
+    translator_name: str | None = None
+    year: int | None = None
+    work_title: str | None = None
     note: str | None = None
 
 
 @dataclass(frozen=True)
 class WorkApply:
     """One (work, edition) target a term should be applied to.
+
+    Anchored by `work` + `edition` (matching `editions.name`), optionally
+    narrowed by `edition_year`. `edition_id` is the numeric escape hatch
+    and is also where :func:`resolve_against_db` writes the resolved id.
 
     `translations` is empty when no rendering data is supplied —
     fine for terms in works that have no English translation loaded
@@ -46,7 +60,9 @@ class WorkApply:
     """
 
     work_title: str
-    edition_id: int
+    edition_id: int | None = None
+    edition_name: str | None = None
+    edition_year: int | None = None
     translations: tuple[TranslationApply, ...] = ()
 
 
@@ -190,7 +206,22 @@ def _parse_apply(a: object, path: Path, term_idx: int, apply_idx: int) -> WorkAp
     if not isinstance(a, dict):
         raise SpecError(f"{where}: must be a mapping")
     work_title = _require_str(a, "work", path, where)
-    edition_id = _require_int(a, "edition_id", path, where)
+    # Exactly one anchor. `edition` (the edition's name) is the natural
+    # key and the one a curator should reach for; `edition_id` is a
+    # surrogate that a re-ingest reshuffles (#193), kept only as an
+    # escape hatch for genuinely ambiguous rows.
+    edition_name = a.get("edition")
+    has_id = "edition_id" in a
+    if bool(edition_name) == has_id:
+        raise SpecError(
+            f"{where}: give exactly one of `edition:` (the edition name, "
+            f"preferred) or `edition_id:` (numeric, reshuffled by "
+            f"`index --reset`)"
+        )
+    edition_id = _require_int(a, "edition_id", path, where) if has_id else None
+    if edition_name is not None and not isinstance(edition_name, str):
+        raise SpecError(f"{where}: field 'edition' must be a string")
+    edition_year = _optional_int(a, "edition_year", path, where)
     raw_translations = a.get("translations", [])
     if not isinstance(raw_translations, list):
         raise SpecError(f"{where}: translations must be a list")
@@ -201,6 +232,8 @@ def _parse_apply(a: object, path: Path, term_idx: int, apply_idx: int) -> WorkAp
     return WorkApply(
         work_title=work_title,
         edition_id=edition_id,
+        edition_name=edition_name,
+        edition_year=edition_year,
         translations=translations,
     )
 
@@ -217,12 +250,35 @@ def _parse_translation(
     )
     if not isinstance(tr, dict):
         raise SpecError(f"{where}: must be a mapping")
-    translation_id = _require_int(tr, "id", path, where)
+    translator_name = tr.get("translator")
+    has_id = "id" in tr
+    if bool(translator_name) == has_id:
+        raise SpecError(
+            f"{where}: give exactly one of `translator:` (the translator "
+            f"name, preferred) or `id:` (numeric, reshuffled by "
+            f"`index --reset`)"
+        )
+    translation_id = _require_int(tr, "id", path, where) if has_id else None
+    if translator_name is not None and not isinstance(translator_name, str):
+        raise SpecError(f"{where}: field 'translator' must be a string")
     rendering = _require_str(tr, "rendering", path, where)
     note = tr.get("note")
     if note is not None and not isinstance(note, str):
         raise SpecError(f"{where}: note must be a string or null")
-    return TranslationApply(translation_id=translation_id, rendering=rendering, note=note)
+    # `work` narrows the search when ingest filed a translation under its
+    # own works row rather than the edition's — see the note in
+    # `_resolve_translation`.
+    work_title = tr.get("work")
+    if work_title is not None and not isinstance(work_title, str):
+        raise SpecError(f"{where}: field 'work' must be a string")
+    return TranslationApply(
+        translation_id=translation_id,
+        translator_name=translator_name,
+        year=_optional_int(tr, "year", path, where),
+        work_title=work_title,
+        rendering=rendering,
+        note=note,
+    )
 
 
 def _parse_related(
@@ -255,6 +311,14 @@ def _require_str(d: dict[str, Any], key: str, path: Path, where: str = "") -> st
     return val
 
 
+def _optional_int(d: dict[str, Any], key: str, path: Path, where: str) -> int | None:
+    """``_require_int`` for keys that may be absent or explicitly null."""
+
+    if key not in d or d[key] is None:
+        return None
+    return _require_int(d, key, path, where)
+
+
 def _require_int(d: dict[str, Any], key: str, path: Path, where: str = "") -> int:
     if key not in d:
         loc = where or str(path)
@@ -272,15 +336,224 @@ def _require_int(d: dict[str, Any], key: str, path: Path, where: str = "") -> in
 # ──────────────────────────────────────────────────────────────────
 
 
+def resolve_against_db(
+    spec: GlossarySpec, conn: sqlite3.Connection
+) -> tuple[GlossarySpec, list[str]]:
+    """Turn every natural-key anchor in ``spec`` into the surrogate id it
+    names, returning the filled-in spec plus any errors.
+
+    This exists because the ids are not stable. `editions.id` and
+    `translations.id` are assigned by insertion order, so
+    ``minerva index --reset`` reshuffles them — which is how
+    ``aristotle.grc.yaml``'s edition 58 came to name Homer's Iliad
+    (#193). A spec that stores the id records where the work happened to
+    sit; a spec that stores the name records which work the curator
+    meant.
+
+    Entries that already carry an explicit id are passed through
+    untouched — the numeric form stays available for rows the natural
+    key cannot separate. :func:`validate_against_db` then cross-checks
+    those against the work they claim, which is the guard that kept the
+    rotted ids from silently importing.
+    """
+
+    errors: list[str] = []
+    resolved_terms: list[Term] = []
+    for term in spec.terms:
+        applies: list[WorkApply] = []
+        for apply in term.apply_to:
+            applies.append(_resolve_apply(conn, spec, term, apply, errors))
+        resolved_terms.append(replace(term, apply_to=tuple(applies)))
+    return replace(spec, terms=tuple(resolved_terms)), errors
+
+
+def _resolve_apply(
+    conn: sqlite3.Connection,
+    spec: GlossarySpec,
+    term: Term,
+    apply: WorkApply,
+    errors: list[str],
+) -> WorkApply:
+    """Resolve one apply_to target's edition and every rendering under it."""
+
+    edition_id = apply.edition_id
+    if edition_id is None:
+        edition_id = _resolve_edition(conn, spec, term, apply, errors)
+    translations = tuple(
+        tr
+        if tr.translation_id is not None
+        else replace(
+            tr,
+            translation_id=_resolve_translation(conn, spec, term, apply, tr, errors),
+        )
+        for tr in apply.translations
+    )
+    return replace(apply, edition_id=edition_id, translations=translations)
+
+
+def _resolve_edition(
+    conn: sqlite3.Connection,
+    spec: GlossarySpec,
+    term: Term,
+    apply: WorkApply,
+    errors: list[str],
+) -> int | None:
+    """Look up ``editions.id`` from (author, work title, language, name).
+
+    ``editions`` is UNIQUE (work_id, name, year), so a name is unique
+    within a work unless the same edition was ingested under two years —
+    which `edition_year` disambiguates.
+    """
+
+    rows = conn.execute(
+        "SELECT e.id, e.year FROM editions e JOIN works w ON w.id = e.work_id "
+        "WHERE w.author = ? AND w.title = ? AND e.language = ? AND e.name = ?",
+        (spec.author, apply.work_title, spec.language, apply.edition_name),
+    ).fetchall()
+    if apply.edition_year is not None:
+        rows = [r for r in rows if r["year"] == apply.edition_year]
+    if len(rows) == 1:
+        return int(rows[0]["id"])
+    if not rows:
+        available = conn.execute(
+            "SELECT e.name, e.year FROM editions e JOIN works w ON w.id = e.work_id "
+            "WHERE w.author = ? AND w.title = ? AND e.language = ? ORDER BY e.name",
+            (spec.author, apply.work_title, spec.language),
+        ).fetchall()
+        errors.append(
+            f"{term.lemma}: no {spec.language!r} edition named "
+            f"{apply.edition_name!r} for {spec.author} — {apply.work_title}. "
+            f"{_candidates('Editions in the DB', [(r['name'], r['year']) for r in available])}"
+        )
+        return None
+    errors.append(
+        f"{term.lemma}: {len(rows)} editions named {apply.edition_name!r} for "
+        f"{spec.author} — {apply.work_title}; add `edition_year:` to pick one "
+        f"({', '.join(str(r['year']) for r in rows)})"
+    )
+    return None
+
+
+def _resolve_translation(
+    conn: sqlite3.Connection,
+    spec: GlossarySpec,
+    term: Term,
+    apply: WorkApply,
+    tr: TranslationApply,
+    errors: list[str],
+) -> int | None:
+    """Look up ``translations.id`` from (author, translator name, …).
+
+    Searched work-first, then author-wide. The fallback is not laziness:
+    ingest predating the glossary sometimes files a translation under its
+    OWN ``works`` row rather than the edition's — work 127 "Phenomenology
+    of Spirit (Pinkard)" sits beside work 130 "Phänomenologie des
+    Geistes" — so a translation is often not under the work title its
+    edition uses. That is the same asymmetry
+    :func:`validate_against_db` documents when it declines to cross-check
+    ``translation.work_id``.
+
+    An author-wide match that finds several rows is reported rather than
+    guessed; the curator adds `work:` or `year:` to say which.
+    """
+
+    scoped_title = tr.work_title or apply.work_title
+    rows = _translation_rows(conn, spec.author, tr.translator_name, tr.year, scoped_title)
+    if not rows and tr.work_title is None:
+        rows = _translation_rows(conn, spec.author, tr.translator_name, tr.year, None)
+    if len(rows) == 1:
+        return int(rows[0]["id"])
+    if not rows:
+        available = conn.execute(
+            "SELECT DISTINCT t.translator_name AS name, t.year FROM translations t "
+            "JOIN works w ON w.id = t.work_id WHERE w.author = ? ORDER BY name",
+            (spec.author,),
+        ).fetchall()
+        errors.append(
+            f"{term.lemma}: no translation by {tr.translator_name!r} for "
+            f"{spec.author}. "
+            f"{_candidates('Translators in the DB', [(r['name'], r['year']) for r in available])}"
+        )
+        return None
+    errors.append(
+        f"{term.lemma}: {len(rows)} translations by {tr.translator_name!r} for "
+        f"{spec.author}; add `work:` or `year:` to pick one ("
+        + ", ".join(f"{r['title']} {r['year']}" for r in rows)
+        + ")"
+    )
+    return None
+
+
+def _translation_rows(
+    conn: sqlite3.Connection,
+    author: str,
+    translator_name: str | None,
+    year: int | None,
+    work_title: str | None,
+) -> list[sqlite3.Row]:
+    sql = (
+        "SELECT t.id, t.year, w.title FROM translations t "
+        "JOIN works w ON w.id = t.work_id "
+        "WHERE w.author = ? AND t.translator_name = ?"
+    )
+    params: list[object] = [author, translator_name]
+    if work_title is not None:
+        sql += " AND w.title = ?"
+        params.append(work_title)
+    if year is not None:
+        sql += " AND t.year IS ?"
+        params.append(year)
+    return list(conn.execute(sql, params).fetchall())
+
+
+def _candidates(label: str, rows: list[tuple[str, int | None]], limit: int = 8) -> str:
+    """Render the near-miss list that turns 'not found' into 'here is
+    what you probably meant' — these names are long and easy to mistype
+    ('Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham.')."""
+
+    if not rows:
+        return f"{label}: (none)."
+    shown = ", ".join(f"{name!r} ({year})" for name, year in rows[:limit])
+    more = f" … and {len(rows) - limit} more" if len(rows) > limit else ""
+    return f"{label}: {shown}{more}."
+
+
+def resolve_and_validate(
+    spec: GlossarySpec, conn: sqlite3.Connection
+) -> tuple[GlossarySpec, list[str]]:
+    """Resolve natural-key anchors, then cross-check the result.
+
+    The importer needs the resolved spec, not just the verdict — this is
+    the entry point ``minerva terms import`` uses. Returns the spec with
+    every ``edition_id`` / ``translation_id`` filled in, plus the errors
+    from both passes. A non-empty error list means some ids are ``None``
+    and the spec must not be imported.
+    """
+
+    resolved, errors = resolve_against_db(spec, conn)
+    errors.extend(_validate_resolved(resolved, conn))
+    return resolved, errors
+
+
 def validate_against_db(spec: GlossarySpec, conn: sqlite3.Connection) -> list[str]:
-    """Cross-check the spec against ``works``/``editions``/``translations``
-    rows. Returns a list of human-readable errors; empty list means the
-    spec can be imported safely. Does not raise — the caller (CLI or
-    test) decides whether to abort or proceed."""
+    """The errors from :func:`resolve_and_validate`, for callers that
+    want the verdict without the resolved spec."""
+
+    return resolve_and_validate(spec, conn)[1]
+
+
+def _validate_resolved(spec: GlossarySpec, conn: sqlite3.Connection) -> list[str]:
+    """Cross-check a RESOLVED spec against ``works``/``editions``/
+    ``translations`` rows. Returns a list of human-readable errors; empty
+    list means the spec can be imported safely. Does not raise — the
+    caller (CLI or test) decides whether to abort or proceed."""
 
     errors: list[str] = []
     for term in spec.terms:
         for apply in term.apply_to:
+            if apply.edition_id is None:
+                # Resolution already reported why, with candidates.
+                continue
             ed = conn.execute(
                 "SELECT e.id, e.language, w.title FROM editions e "
                 "JOIN works w ON w.id = e.work_id WHERE e.id = ?",
@@ -302,6 +575,8 @@ def validate_against_db(spec: GlossarySpec, conn: sqlite3.Connection) -> list[st
                     f"{ed['title']!r}, spec says {apply.work_title!r}"
                 )
             for tr in apply.translations:
+                if tr.translation_id is None:
+                    continue
                 trow = conn.execute(
                     "SELECT t.id, t.work_id, w.title FROM translations t "
                     "JOIN works w ON w.id = t.work_id WHERE t.id = ?",
@@ -321,6 +596,11 @@ def validate_against_db(spec: GlossarySpec, conn: sqlite3.Connection) -> list[st
                 # would make rendering grids unbuildable for affected
                 # German Hegel works. The curator's explicit
                 # `translation.id` carries enough intent.
+                #
+                # Note this is why a rotted `translation_id` is worse
+                # than a rotted `edition_id`: no cross-check catches it,
+                # so it imports silently as a wrong rendering. Anchoring
+                # on `translator:` is the fix — the name cannot rot.
     return errors
 
 

@@ -1,9 +1,17 @@
 # Aristotle · Ancient Greek term glossary.
 #
-# Loaded by `poietes terms import data/glossary/aristotle.grc.yaml`.
+# Loaded by `minerva terms import data/glossary/aristotle.grc.yaml`.
 # This file is the curator-authored source of truth for Aristotle's
 # Greek philosophical vocabulary as surfaced in the Reader's TermCard
 # popover.
+#
+# Anchors are NATURAL keys — `edition:` is `editions.name` and
+# `translator:` is `translations.translator_name`. Do not go back to
+# `edition_id:` / `id:`: those are surrogate keys handed out by
+# insertion order, and `minerva index --reset` reshuffles them. This
+# file used to say `edition_id: 58`, which by the time anyone tried to
+# re-import it named Homer's Iliad (#193). The numeric form is still
+# accepted, for rows a name genuinely cannot separate.
 #
 # Greek lemmatizer support is not available on Python 3.14 yet (CLTK
 # and odyCy/grc community models can't compile against 3.14's
@@ -33,9 +41,10 @@ terms:
       - ὁμώνυμα δὲ
     apply_to:
       - work: Categories
-        edition_id: 58
+        edition: Immanuel Bekker
+        edition_year: 1837
         translations:
-          - id: 58            # Edghill
+          - translator: E. M. Edghill
             rendering: things equivocally named
             note: |
               Edghill renders ὁμώνυμα as "things called by a common
@@ -57,9 +66,10 @@ terms:
       - συνώνυμον
     apply_to:
       - work: Categories
-        edition_id: 58
+        edition: Immanuel Bekker
+        edition_year: 1837
         translations:
-          - id: 58
+          - translator: E. M. Edghill
             rendering: things univocally named
 
   - lemma: οὐσία
@@ -81,9 +91,10 @@ terms:
       - οὐσίαις
     apply_to:
       - work: Categories
-        edition_id: 58
+        edition: Immanuel Bekker
+        edition_year: 1837
         translations:
-          - id: 58
+          - translator: E. M. Edghill
             rendering: substance
 
   - lemma: λόγος
@@ -106,14 +117,15 @@ terms:
       - λόγους
     apply_to:
       - work: Categories
-        edition_id: 58
+        edition: Immanuel Bekker
+        edition_year: 1837
         translations:
-          - id: 58
+          - translator: E. M. Edghill
             rendering: account
       - work: Nicomachean Ethics
-        edition_id: 53
+        edition: "ed. J. Bywater, Aristotle's Ethica Nicomachea"
         translations:
-          - id: 53            # Rackham
+          - translator: "Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham."
             rendering: principle
             note: |
               Rackham renders λόγος as "principle" through Book I;
@@ -140,9 +152,9 @@ terms:
       - ἀρετάς
     apply_to:
       - work: Nicomachean Ethics
-        edition_id: 53
+        edition: "ed. J. Bywater, Aristotle's Ethica Nicomachea"
         translations:
-          - id: 53
+          - translator: "Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham."
             rendering: virtue
 
   - lemma: εὐδαιμονία
@@ -161,9 +173,9 @@ terms:
       - εὐδαιμονίᾳ
     apply_to:
       - work: Nicomachean Ethics
-        edition_id: 53
+        edition: "ed. J. Bywater, Aristotle's Ethica Nicomachea"
         translations:
-          - id: 53
+          - translator: "Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham."
             rendering: happiness
 
   - lemma: φρόνησις
@@ -181,9 +193,9 @@ terms:
       - φρόνησιν
     apply_to:
       - work: Nicomachean Ethics
-        edition_id: 53
+        edition: "ed. J. Bywater, Aristotle's Ethica Nicomachea"
         translations:
-          - id: 53
+          - translator: "Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham."
             rendering: prudence
 
   - lemma: ἕξις
@@ -203,9 +215,9 @@ terms:
       - ἕξεων
     apply_to:
       - work: Nicomachean Ethics
-        edition_id: 53
+        edition: "ed. J. Bywater, Aristotle's Ethica Nicomachea"
         translations:
-          - id: 53
+          - translator: "Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham."
             rendering: disposition
 
   - lemma: ψυχή
@@ -226,7 +238,7 @@ terms:
       - ψυχῶν
     apply_to:
       - work: Nicomachean Ethics
-        edition_id: 53
+        edition: "ed. J. Bywater, Aristotle's Ethica Nicomachea"
         translations:
-          - id: 53
+          - translator: "Aristotle in 23 Volumes, Vol. 19, translated by H. Rackham."
             rendering: soul
