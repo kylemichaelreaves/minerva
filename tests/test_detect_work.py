@@ -24,6 +24,13 @@ def conn():
         "CREATE TABLE editions "
         "(id INTEGER PRIMARY KEY, work_id INTEGER, language TEXT, title_local TEXT)"
     )
+    # Detection-only aliases (migration 0025) — a work whose stored title
+    # is not a name anyone types, and cross-language pairs `title_local`
+    # cannot express because it holds one value per (work, language).
+    c.execute(
+        "CREATE TABLE work_aliases "
+        "(work_id INTEGER NOT NULL, alias TEXT NOT NULL, PRIMARY KEY (work_id, alias))"
+    )
     c.executemany(
         "INSERT INTO works (id, author, title) VALUES (?, ?, ?)",
         [
@@ -65,6 +72,24 @@ def conn():
             # them named by an author keyword. Genuine ambiguity.
             (34, "Plato", "Peri Tinos"),
             (35, "Kant", "Über Etwas"),
+            # Works whose stored title is not a name a reader would type:
+            # a translator surname baked in, and a work split by volume.
+            # `title_local` cannot fix either — it is what the reader
+            # displays, and it holds one value per (work, language) (#195).
+            (40, "Hegel", "Phenomenology of Spirit (Pinkard)"),
+            (41, "Hegel", "Phänomenologie des Geistes"),
+            (42, "Marx", "Das Kapital, Band I"),
+            (43, "Marx", "Das Kapital, Band II"),
+        ],
+    )
+    c.executemany(
+        "INSERT INTO work_aliases (work_id, alias) VALUES (?, ?)",
+        [
+            (40, "Phenomenology of Spirit"),
+            (40, "Phänomenologie des Geistes"),
+            (41, "Phenomenology of Spirit"),
+            (42, "Das Kapital"),
+            (43, "Das Kapital"),
         ],
     )
     c.executemany(
@@ -375,3 +400,53 @@ def test_work_title_fallback_needs_a_connection(conn):
     """Without an index there is nothing to resolve a title against."""
 
     assert detect_corpus("the divided line in the Republic") is None
+
+
+# ── detection-only aliases (#195) ──────────────────────────────────────
+
+
+def test_work_whose_title_carries_a_translator_surname_names_its_corpus(conn):
+    """The #195 miss. Hegel's `works.title` bakes the translator into the
+    name, so the bare title matched nothing — every significant token has
+    to appear in the query, and 'pinkard' never does — and #194's
+    work-title fallback had no name to resolve the corpus from."""
+
+    q = "the master-slave dialectic in the Phenomenology of Spirit"
+    assert detect_corpus(q, conn) == "hegel"
+
+
+def test_alias_carries_a_second_language_without_taking_the_display_title(conn):
+    """The cross-language case `title_local` structurally cannot serve:
+    work 40 answers to its German name too, while keeping its own."""
+
+    assert detect_corpus("was steht in der Phänomenologie des Geistes", conn) == "hegel"
+
+
+def test_volume_split_work_names_its_corpus_but_not_a_volume(conn):
+    """Both Bände answer to 'Das Kapital', and that is the right outcome
+    rather than a collision: #194 judges ambiguity at the CORPUS level, so
+    two works of one author still resolve `marx`, while `detect_work`
+    returns None and retrieval stays corpus-scoped instead of guessing a
+    volume."""
+
+    q = "commodity fetishism in Das Kapital"
+    assert detect_corpus(q, conn) == "marx"
+    assert detect_work(conn, q, "marx") is None
+
+
+def test_ambiguity_across_authors_still_refuses_to_scope(conn):
+    """An alias must not become a back door around #194's corpus-level
+    ambiguity rule — two authors sharing a name still scopes to neither."""
+
+    assert detect_corpus("in the Shared Treatise", conn) is None
+
+
+def test_aliases_are_corpus_scoped_like_every_other_name(conn):
+    assert detect_work(conn, "the Phenomenology of Spirit", "plato") is None
+
+
+def test_work_titles_includes_aliases(conn):
+    names = {name for wid, name in work_titles(conn, "hegel") if wid == 40}
+    assert "Phenomenology of Spirit (Pinkard)" in names   # canonical
+    assert "Phenomenology of Spirit" in names             # alias
+    assert "Phänomenologie des Geistes" in names          # cross-language alias

@@ -114,6 +114,11 @@ def cmd_index(args: argparse.Namespace) -> int:
         # survived.
         _sweep_orphan_chunk_lemmas(conn)
         _sweep_orphan_glossary_anchors(conn)
+        # Derived from `authors/work_aliases.py`, keyed there on
+        # (author, title) and resolved to work ids here — so it has to
+        # run after the insert has rebuilt `works`, and again after
+        # every re-ingest, because --reset reassigns those ids (#195).
+        store.sync_work_aliases(conn)
         # The glossary restore runs HERE, not next to the pre-insert
         # restore above: it rebinds `edition_id`/`translation_id`
         # through natural keys, and those rows only exist once
