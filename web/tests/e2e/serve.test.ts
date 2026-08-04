@@ -234,9 +234,11 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(json.citations.length).toBeGreaterThan(0);
     // Every citation must come from the work that was named. This is
     // the property the old `Republic 509` assertion was really standing
-    // in for, minus the retrieval-quality claim — 509 is no longer
-    // returned even when scoping works, which is #165 and belongs in
-    // `minerva eval` rather than a contract test.
+    // in for, minus the retrieval-quality claim. 509 *is* returned again
+    // since #165 capped the apparatus share, but where in the ranking it
+    // lands is a retrieval-quality question that belongs in `minerva
+    // eval`, where a score can degrade visibly, rather than in a
+    // contract test where a boolean flips.
     const offWork = json.citations.map((c) => c.src).filter((s) => !s.includes(named));
     expect(offWork).toEqual([]);
     // Two round-trips (works list, then chat) against the full index —
