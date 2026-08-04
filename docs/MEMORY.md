@@ -56,6 +56,26 @@ Snapshot discipline is still mandatory: if a splitter change alters
 `chunk_id` hashes, rebind cannot recover orphaned xrefs. See
 `transactional-preview-for-multistatement-sql` before bulk SQL fixes.
 
+## reingest-wipes-the-term-glossary
+
+`index --reset` used to destroy all five `terms*` tables outright — they
+were in neither the snapshot probe nor the restore list (#192). Since
+that fix, `cmd_index` restores them **after** `insert_chunks`, rebinding
+`edition_id` / `translation_id` through natural keys (author + title +
+edition name / translator name) rather than copying the surrogate ids,
+which a `--reset` reshuffles (#193).
+
+Two consequences for operators:
+
+- A DB carrying nothing but curated terms now triggers the pre-index
+  snapshot on its own; it no longer needs xrefs/lemmas/embeddings to be
+  backed up.
+- Occurrences are dropped when their chunk's text changed (the stored
+  character offsets no longer address anything) or when their edition
+  left the corpus. Both are reported with counts on stderr. Re-run
+  `minerva terms import data/glossary/<file>.yaml` to re-find them —
+  the terms themselves (the curator prose) survive either way.
+
 ## transactional-preview-for-multistatement-sql
 
 For any multi-statement cleanup on `index.sqlite`:

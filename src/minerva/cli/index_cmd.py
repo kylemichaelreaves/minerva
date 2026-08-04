@@ -17,6 +17,7 @@ from ..sqlite_util import sweep_orphan_chunk_ids
 from ..store.preserved_state import (
     _maybe_restore_preserved_state_from_snapshot,
     _maybe_snapshot_pre_index,
+    restore_glossary_from_snapshot,
 )
 from ._shared import (
     DEFAULT_CHUNKS,
@@ -112,6 +113,23 @@ def cmd_index(args: argparse.Namespace) -> int:
         # no-op when the lemmas table is empty or all chunk_ids
         # survived.
         _sweep_orphan_chunk_lemmas(conn)
+        _sweep_orphan_glossary_anchors(conn)
+        # The glossary restore runs HERE, not next to the pre-insert
+        # restore above: it rebinds `edition_id`/`translation_id`
+        # through natural keys, and those rows only exist once
+        # `insert_chunks` has rebuilt works/editions/translations. See
+        # the block comment in store/preserved_state.py (#192, #193).
+        #
+        # Skipped for incremental runs, and the reason is the snapshot's
+        # age rather than the restore's cost: incremental never TAKES a
+        # snapshot, so the newest `.bak.pre-index` may predate a
+        # curator's deliberate deletion, and restoring would resurrect
+        # what they removed. Full runs snapshot at the top of this same
+        # invocation, so their snapshot always reflects the current
+        # curatorial intent. Incremental needs no restore anyway — it
+        # never wipes the glossary, it only sweeps the anchors above.
+        if not incremental:
+            restore_glossary_from_snapshot(conn, args.db)
 
     print(f"Loaded {n} chunks into {args.db}")
     print(json.dumps(store.stats(conn), indent=2, default=str))
@@ -146,6 +164,40 @@ def _sweep_orphan_chunk_lemmas(conn: sqlite3.Connection) -> None:
             print(
                 f"Dropped {dropped:,} orphan {table} (chunks whose text "
                 f"changed); {remaining:,} rows preserved.",
+                file=sys.stderr,
+            )
+
+
+def _sweep_orphan_glossary_anchors(conn: sqlite3.Connection) -> None:
+    """Drop term_occurrences / occurrence_renderings whose anchor chunk
+    no longer exists.
+
+    Distinct from the ``--reset`` path, where the whole DB is rebuilt
+    and the glossary comes back through the snapshot restore. This is
+    the NON-reset case: ``insert_chunks`` deletes and reinserts chunk
+    rows with foreign keys off, so a chunk whose text changed (and thus
+    whose content-hashed id changed) leaves its occurrence behind
+    pointing at nothing. The row is not merely FK-invalid — its stored
+    character offsets address a chunk that no longer exists, so the
+    span it claims to mark is meaningless.
+
+    Occurrences are swept before renderings so the FK cascade takes the
+    dependent rows with them; the second sweep then catches renderings
+    whose own ``translation_chunk_id`` drifted while their parent
+    occurrence survived.
+    """
+
+    for table, column in (
+        ("term_occurrences", "source_chunk_id"),
+        ("occurrence_renderings", "translation_chunk_id"),
+    ):
+        dropped = sweep_orphan_chunk_ids(conn, table, column=column)
+        if dropped:
+            remaining = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            print(
+                f"Dropped {dropped:,} orphan {table} (chunks whose text "
+                f"changed); {remaining:,} rows preserved. Re-run "
+                f"`minerva terms import` to re-find them.",
                 file=sys.stderr,
             )
 

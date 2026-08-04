@@ -118,9 +118,15 @@ def sweep_orphan_chunk_ids(
     conn: sqlite3.Connection,
     table: str,
     *,
+    column: str = "chunk_id",
     commit: bool = True,
 ) -> int:
-    """Delete rows in ``table`` whose ``chunk_id`` is absent from ``chunks``.
+    """Delete rows in ``table`` whose ``column`` is absent from ``chunks``.
+
+    ``column`` names the chunk-referencing column, which is not always
+    called ``chunk_id`` — ``term_occurrences`` anchors through
+    ``source_chunk_id`` and ``occurrence_renderings`` through
+    ``translation_chunk_id``.
 
     Returns the number of rows dropped. No-op when ``table`` is missing
     or empty.
@@ -132,7 +138,7 @@ def sweep_orphan_chunk_ids(
         return 0
     before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     conn.execute(
-        f"DELETE FROM {table} WHERE chunk_id NOT IN "
+        f"DELETE FROM {table} WHERE {column} NOT IN "
         "(SELECT chunk_id FROM chunks)"
     )
     after = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
