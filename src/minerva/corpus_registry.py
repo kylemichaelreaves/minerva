@@ -26,6 +26,9 @@ class CorpusEntry:
 # BEGIN CORPORA
 CORPORA: tuple[CorpusEntry, ...] = (
     # Keywords are whole-word tokens matched by ``agent.detect_corpus``.
+    # Include the author's name in every language a reader is likely to ask
+    # in, plus the German genitive: "Plato's" tokenizes to {plato, s} and
+    # matches, but "Platons" is one token and needs its own entry (#169).
     # Deliberately omitted: "bible", "scripture", "testament" (ambiguous
     # across biblical corpora), bare "hebrew" (ambiguous), "meditations"
     # only routes to Marcus Aurelius when unqualified.
@@ -37,6 +40,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'plato',
         'platonic',
+        'platon',
+        'platons',
+        'platos',
     ),
     ),
     CorpusEntry(
@@ -47,6 +53,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'aristotle',
         'aristotelian',
+        'aristoteles',
+        'aristote',
     ),
     ),
     CorpusEntry(
@@ -57,6 +65,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'hegel',
         'hegelian',
+        'hegels',
     ),
     ),
     CorpusEntry(
@@ -67,6 +76,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'kant',
         'kantian',
+        'kants',
     ),
     ),
     # Friedrich Schiller (1759-1805) — aesthetic-philosophy essays (Über die
@@ -80,6 +90,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'schiller',
         'schillerian',
+        'schillers',
     ),
     ),
     CorpusEntry(
@@ -90,6 +101,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'homer',
         'homeric',
+        'homers',
+        'homeros',
     ),
     ),
     CorpusEntry(
@@ -100,6 +113,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'aeschylus',
         'aeschylean',
+        'aischylos',
     ),
     ),
     # Lowercase initials for the tragedians — uppercase A/S/E are
@@ -114,6 +128,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'sophocles',
         'sophoclean',
+        'sophokles',
     ),
     ),
     CorpusEntry(
@@ -134,6 +149,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'descartes',
         'cartesian',
+        'cartesius',
     ),
     ),
     CorpusEntry(
@@ -145,6 +161,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'spinoza',
         'spinozist',
         'spinozistic',
+        'spinozas',
     ),
     ),
     CorpusEntry(
@@ -165,6 +182,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'pascal',
         'pascalian',
+        'pascals',
     ),
     ),
     CorpusEntry(
@@ -175,6 +193,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'hume',
         'humean',
+        'humes',
     ),
     ),
     CorpusEntry(
@@ -185,6 +204,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'locke',
         'lockean',
+        'lockes',
     ),
     ),
     CorpusEntry(
@@ -195,6 +215,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'rousseau',
         'rousseauist',
+        'rousseaus',
     ),
     ),
     CorpusEntry(
@@ -205,6 +226,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'augustine',
         'augustinian',
+        'augustinus',
+        'augustin',
     ),
     ),
     CorpusEntry(
@@ -216,6 +239,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'aquinas',
         'thomist',
         'thomistic',
+        'aquin',
+        'aquino',
     ),
     ),
     CorpusEntry(
@@ -237,6 +262,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'nietzsche',
         'nietzschean',
+        'nietzsches',
     ),
     ),
     # 'C' — Cicero's natural initial. (Hume claimed 'I' first; the
@@ -249,6 +275,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'cicero',
         'ciceronian',
+        'ciceros',
+        'cicéron',
     ),
     ),
     CorpusEntry(
@@ -259,6 +287,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'lucretius',
         'lucretian',
+        'lukrez',
+        'lucrèce',
     ),
     ),
     CorpusEntry(
@@ -268,6 +298,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'X',
         (
         'epictetus',
+        'epiktet',
+        'epiktets',
     ),
     ),
     CorpusEntry(
@@ -279,6 +311,8 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'marcus',
         'aurelius',
         'meditations',
+        'aurel',
+        'aurels',
     ),
     ),
     CorpusEntry(
@@ -289,6 +323,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         (
         'septuagint',
         'lxx',
+        'septuaginta',
     ),
     ),
     CorpusEntry(
@@ -310,6 +345,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'V',
         (
         'vulgate',
+        'vulgata',
     ),
     ),
     CorpusEntry(
@@ -459,6 +495,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'origenist',
         'origenistic',
         'contra celsum',
+        'origène',
     ),
     ),
     # source for Nietzsche's Frankish-conquest / blond-beast material
@@ -496,6 +533,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'gobineau',
         'comte de gobineau',
         "essai sur l'inégalité",
+        'gobineaus',
     ),
     ),
     # Ernest Renan (1823-1892) — *Vie de Jésus* (1863), *L'Antéchrist*
@@ -516,6 +554,7 @@ CORPORA: tuple[CorpusEntry, ...] = (
         "l'antéchrist",
         'antéchrist',
         "histoire du peuple d'israël",
+        'renans',
     ),
     ),
 )

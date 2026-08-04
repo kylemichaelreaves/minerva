@@ -487,6 +487,31 @@ def test_detect_corpus_matches_adjective_forms():
     assert agent.detect_corpus("the Platonic forms") == "plato"
 
 
+def test_detect_corpus_matches_german_genitive_forms():
+    """The English possessive tokenizes to the bare name ("Plato's" ->
+    {plato, s}); the German genitive is one token and needs its own
+    keyword, so every German-phrased question missed its corpus (#169)."""
+
+    assert agent.detect_corpus("Wo steht das in Platons Der Staat?") == "plato"
+    assert agent.detect_corpus("Was ist Kants kategorischer Imperativ?") == "kant"
+    assert agent.detect_corpus("Hegels Phänomenologie des Geistes") == "hegel"
+    assert agent.detect_corpus("Nietzsches Umwertung aller Werte") == "nietzsche"
+    assert agent.detect_corpus("Schillers ästhetische Erziehung") == "schiller"
+
+
+def test_detect_corpus_matches_non_english_author_names():
+    """An author's name in the language a reader is likely to ask in —
+    German for the German editions, French for the French ones."""
+
+    assert agent.detect_corpus("Was sagt Platon über die Ideen?") == "plato"
+    assert agent.detect_corpus("Aristoteles über die Tugend") == "aristotle"
+    assert agent.detect_corpus("la vertu chez Aristote") == "aristotle"
+    assert agent.detect_corpus("Sophokles und das Schicksal") == "sophocles"
+    assert agent.detect_corpus("Lukrez über die Atome") == "lucretius"
+    assert agent.detect_corpus("Epiktet über das Schicksal") == "epictetus"
+    assert agent.detect_corpus("Marc Aurel an sich selbst") == "marcus_aurelius"
+
+
 def test_detect_corpus_returns_none_for_multi_author_query():
     """Comparative questions touch two corpora; routing to one would
     silently drop half the question."""

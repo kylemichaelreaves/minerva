@@ -643,21 +643,30 @@ entries already.
 
 ### 14b. Chat corpus auto-detection
 
-File: `src/minerva/agent.py` — `AUTHOR_KEYWORDS`
+File: `data/authors/manifest.yaml` — the corpus's `keywords:` list.
+`AUTHOR_KEYWORDS` in `src/minerva/corpus_registry.py` is **generated**
+from it; edit the manifest and run `make generate-authors`.
 
 Maps **single-word** query tokens to `chunks_full.corpus` for
 `detect_corpus()` (used by `/api/chat` when no corpus flag is set).
-Add the author name and common adjective forms, e.g.:
+Add, for each author:
 
-```python
-"nietzsche": "nietzsche",
-"nietzschean": "nietzsche",
-```
+- the name, and common adjective forms — `nietzsche`, `nietzschean`;
+- the name in **every language a reader is likely to ask in** —
+  `platon` (de/fr), `aristote` (fr), `lukrez` (de), `epiktet` (de);
+- the **German genitive**. English possessives need no entry, because
+  `Plato's` tokenizes to `{plato, s}` and the bare name matches — but
+  `Platons` is a single token, so without `platons` every German-phrased
+  question misses its corpus outright (#169).
 
 **Limits:** multi-word names ("Marcus Aurelius", "New Testament") are
 not auto-scoped unless you add an unambiguous single-word hook (see
-existing `gospel` → `new_testament`). Comparative queries ("Plato vs
-Aristotle") intentionally return `None` (broad retrieval).
+existing `gospel` → `new_testament`) — a keyword containing a space is
+silently dead, since `detect_corpus` only ever looks up single tokens
+(#173). Comparative queries ("Plato vs Aristotle") intentionally return
+`None` (broad retrieval); a keyword that is also the title of *another*
+corpus's work ("Plato's Phaedrus") does not, since #170 — that case is
+resolved against the index rather than refused.
 
 Add a row in `tests/test_agent.py` under `test_detect_corpus_*`.
 
@@ -787,7 +796,7 @@ Use this when onboarding an author or auditing a bulk ingest:
 | 9b | Incoming xref audit | other `refs/rules/*.py` |
 | 10–12 | xref build / YAML / verify | `minerva refs …` |
 | **14a** | Runtime corpus maps | `migrations/runtime_helpers.py` |
-| **14b** | Chat keyword routing | `agent.py` `AUTHOR_KEYWORDS` |
+| **14b** | Chat keyword routing | `data/authors/manifest.yaml` `keywords:` |
 | **14c** | Chat prompts | `agent.py` prompts |
 | **14d** | Serve `--lang` | deploy / `Makefile` |
 | 13 | Reader + refs + **chat** smoke | manual + commands above |

@@ -1,4 +1,4 @@
-"""Work auto-detection from a query (retrieval scoping)."""
+"""Work + corpus auto-detection from a query (retrieval scoping)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from minerva.agent import detect_work
+from minerva.agent import detect_corpus, detect_work
 
 
 @pytest.fixture
@@ -31,6 +31,9 @@ def conn():
             (3, "Nietzsche", "Der Antichrist"),
             (4, "Nietzsche", "Briefe"),
             (5, "Kant", "Kritik der reinen Vernunft"),
+            # A work whose title names another corpus's author — the
+            # collision runs in this direction too (#170).
+            (6, "Nietzsche", "Homer und die klassische Philologie"),
             # Plato, canonicalised to Latinized-Greek titles (migration 0023).
             (10, "Plato", "Politeia"),
             (11, "Plato", "Phaidros"),
@@ -128,3 +131,46 @@ def test_null_local_title_does_not_match(conn):
     # no tokens — otherwise they'd match every query.
     assert detect_work(conn, "a question about nothing in particular", "plato") is None
     assert detect_work(conn, "was sagt er über Moral?", "nietzsche") is None
+
+
+# ---------- detect_corpus: work titles that name another author (#170) ----------
+#
+# These use the real AUTHOR_KEYWORDS registry against the fixture's works,
+# because the collision is precisely between the two.
+
+
+def test_work_title_naming_another_author_still_scopes(conn):
+    # "phaedrus" is an Aesop author keyword (the Latin fabulist) and the
+    # English name of Plato's Phaidros. Before #170 the two-corpora guard
+    # saw two authors here and scoped to neither.
+    assert detect_corpus("Plato's Phaedrus on rhetoric", conn) == "plato"
+
+
+def test_collision_resolves_in_the_other_direction(conn):
+    # Same shape reversed: Nietzsche wrote *about* Homer, who is his own
+    # corpus. The essay's author must win over the essay's subject.
+    q = "in Nietzsches Homer und die klassische Philologie"
+    assert detect_corpus(q, conn) == "nietzsche"
+
+
+def test_two_genuine_authors_still_refuse_to_scope(conn):
+    # The guard must survive the fix: neither author's works are titled
+    # after the other, so nothing explains the second mention away.
+    assert detect_corpus("Compare Plato and Aristotle on virtue", conn) is None
+
+
+def test_unexplained_collision_returns_none(conn):
+    # Plato has no work titled "Kant"; the query names two authors.
+    assert detect_corpus("Kant reading Plato", conn) is None
+
+
+def test_collision_without_a_connection_stays_unscoped(conn):
+    # No index to consult — fall back to the conservative pre-#170
+    # behaviour rather than guessing.
+    assert detect_corpus("Plato's Phaedrus on rhetoric") is None
+
+
+def test_single_corpus_match_needs_no_connection():
+    # The common path must not require an index at all.
+    assert detect_corpus("Plato on the forms") == "plato"
+    assert detect_corpus("what does Phaedrus say about the wolf") == "aesop"

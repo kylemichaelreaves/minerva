@@ -77,15 +77,52 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
     return next(iter(best_ids)) if len(best_ids) == 1 else None
 
 
-def detect_corpus(query: str) -> str | None:
-    found: set[str] = set()
+def _title_tokens(conn: sqlite3.Connection, corpus: str) -> set[str]:
+    """Every token of every name every work of *corpus* answers to."""
+
+    toks: set[str] = set()
+    for _work_id, title in conn.execute(_TITLES_SQL, (corpus.lower(),) * 3):
+        toks.update(_WORD_RE.findall((title or "").lower()))
+    return toks
+
+
+def detect_corpus(query: str, conn: sqlite3.Connection | None = None) -> str | None:
+    """Resolve the single corpus named in *query*, or ``None``.
+
+    A query naming two authors must not be scoped to one of them — half
+    the question would be silently dropped. But a *work* title that
+    happens to equal another author's name is not a second author, and
+    keywords alone cannot tell the two apart: "Plato's Phaedrus" hits
+    ``plato`` and (via Phaedrus the Latin fabulist) ``aesop``, and used
+    to scope to neither (#170).
+
+    So when more than one corpus matches and *conn* is given, each
+    candidate is asked whether it can account for the other candidates'
+    keywords as titles of its own works. "Plato's Phaedrus" -> Plato has
+    a work called Phaedrus, Aesop has none called Plato, so Plato is the
+    author and Phaedrus the work. Exactly one candidate must survive;
+    a genuine two-author query leaves none, and stays unscoped. Without
+    *conn* the pre-#170 behaviour stands.
+    """
+
+    matched: dict[str, set[str]] = {}
     for word in _WORD_RE.findall(query.lower()):
         c = AUTHOR_KEYWORDS.get(word)
         if c:
-            found.add(c)
-            if len(found) > 1:
-                return None
-    return next(iter(found)) if found else None
+            matched.setdefault(c, set()).add(word)
+
+    if len(matched) == 1:
+        return next(iter(matched))
+    if len(matched) < 2 or conn is None:
+        return None
+
+    survivors = [
+        cand
+        for cand in matched
+        if {w for c, words in matched.items() if c != cand for w in words}
+        <= _title_tokens(conn, cand)
+    ]
+    return survivors[0] if len(survivors) == 1 else None
 
 
 def strip_author_keywords(query: str, corpus: str) -> str:
