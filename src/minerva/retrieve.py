@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import re
 import sqlite3
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -89,6 +90,22 @@ def _speaker_filter(speaker: str | None) -> tuple[str, tuple]:
 # words. See 2b in docs/block-structure-remediation-plan.md.
 _APPARATUS_TYPES = ("note", "cast")
 _APPARATUS_LABEL = {"note": "editorial note", "cast": "cast list"}
+
+# The most of a result set that may be apparatus (#165). Notes are short
+# and numerous — the Republic carries 2,767 of them against 1,355
+# English text chunks — and both halves of retrieval independently
+# prefer them: BM25 because its length normalisation rewards brevity,
+# vectors because a note *about* a passage reads like a question about
+# that passage. Measured on "the divided line": 18 of the top 20 were
+# notes, 57 of the 64 ranked candidates were notes, and Plato's own text
+# ("a line divided into two unequal sections", 509d) sat at rank 12.
+#
+# A cap rather than a score penalty: a penalty is a magic number tuned
+# to whichever query it was derived from, while a cap states the actual
+# policy — apparatus supports the text, so it may not crowd it out.
+# Notes stay reachable, and the two that genuinely discuss the divided
+# line still come back.
+_APPARATUS_MAX_SHARE = 1 / 3
 
 _TRANSLATED_BY_RE = re.compile(
     r"(?:translated by|English Translation by|Translation by|trans\.?\s*by)\s+(.+)$", re.I
@@ -327,6 +344,71 @@ def _normalize_scores(d: dict[str, float]) -> dict[str, float]:
     return {k: (v - lo) / (hi - lo) for k, v in d.items()}
 
 
+def _rank_ids(ids: Iterable[str], fused: dict[str, float]) -> list[str]:
+    """Order *ids* by fused score, breaking ties on chunk_id.
+
+    The tiebreak is what makes retrieval reproducible. Scores are fused
+    into a dict seeded from a set union, and sets of strings iterate in
+    hash-randomised order, so with a score-only key Python's stable sort
+    carried that arbitrary order straight into the results: `minerva
+    eval` swung between 0.507 and 0.557 section MRR across identical
+    invocations, which is wider than most regressions it exists to
+    catch (#165).
+    """
+
+    return sorted(ids, key=lambda c: (-fused.get(c, 0.0), c))
+
+
+def _apparatus_ids(conn: sqlite3.Connection, ids: list[str]) -> set[str]:
+    """Which of *ids* are editorial apparatus rather than primary text."""
+
+    if not ids:
+        return set()
+    placeholders = ",".join("?" * len(ids))
+    type_slots = ",".join("?" * len(_APPARATUS_TYPES))
+    rows = conn.execute(
+        f"SELECT chunk_id FROM chunks_full WHERE chunk_id IN ({placeholders}) "
+        f"AND block_type IN ({type_slots})",
+        (*ids, *_APPARATUS_TYPES),
+    )
+    return {r[0] for r in rows}
+
+
+def _cap_apparatus(conn: sqlite3.Connection, ordered: list[str], top_k: int) -> list[str]:
+    """Take the top *top_k*, letting apparatus fill at most a third.
+
+    Score order is preserved throughout: this only skips apparatus once
+    its share is spent, and backfills from the skipped ones when there
+    is not enough primary text to fill the result — a work that is
+    mostly apparatus, or a question actually about a footnote, still
+    gets a full answer rather than a short one.
+    """
+
+    # Every candidate, not a prefix: a note past the window would
+    # otherwise be miscounted as primary text and take a reserved slot.
+    # `ordered` is bounded by `fetch_pool`, so this stays one small query.
+    apparatus = _apparatus_ids(conn, ordered)
+    if not apparatus:
+        return ordered[:top_k]
+
+    cap = max(1, int(top_k * _APPARATUS_MAX_SHARE))
+    selected: list[str] = []
+    deferred: list[str] = []
+    used = 0
+    for cid in ordered:
+        if cid in apparatus:
+            if used >= cap:
+                deferred.append(cid)
+                continue
+            used += 1
+        selected.append(cid)
+        if len(selected) == top_k:
+            return selected
+    # Not enough primary text to fill the page — give the slots back.
+    selected.extend(deferred[: top_k - len(selected)])
+    return selected[:top_k]
+
+
 def search(
     conn: sqlite3.Connection,
     query: str,
@@ -394,10 +476,10 @@ def search(
     else:
         fused = bm25_n
 
-    ordered = [cid for cid, _ in sorted(fused.items(), key=lambda x: x[1], reverse=True)]
+    ordered = _rank_ids(fused, fused)
     if not ordered:
         return []
-    selected = ordered[:top_k]
+    selected = _cap_apparatus(conn, ordered, top_k)
     # Guarantee the rarest query term's passages a seat, so a key term named
     # in the question can't be displaced by thematically-similar (vector) or
     # common-word (BM25-breadth) matches. No-op for generic/conceptual queries.
@@ -414,7 +496,7 @@ def search(
     forced = [cid for cid in reserved if cid not in selected]
     if forced:
         keep = selected[: max(0, top_k - len(forced))]
-        selected = sorted({*keep, *forced}, key=lambda c: fused.get(c, 0.0), reverse=True)[:top_k]
+        selected = _rank_ids({*keep, *forced}, fused)[:top_k]
     base_ids = selected
     # One neighbor query per hit, reused for the text assembly below
     # (this used to hit `neighbor_ids` a second time per hit).

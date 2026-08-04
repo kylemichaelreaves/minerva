@@ -472,3 +472,104 @@ def test_filtered_vector_search_sees_reingested_metadata(tmp_path: Path):
     store.invalidate_embedding_cache(conn)
     hits = retrieve._vector_search(conn, qv, top_k=3, lang="eng", corpus=None, speaker=None)
     assert set(hits) == {"b", "c"}
+
+
+# ---------- apparatus share cap (#165) ----------
+
+
+def _apparatus_conn(rows: list[tuple[str, str | None]]):
+    """Minimal `chunks_full` carrying just what the cap consults."""
+
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE chunks_full (chunk_id TEXT PRIMARY KEY, block_type TEXT)")
+    conn.executemany("INSERT INTO chunks_full VALUES (?, ?)", rows)
+    return conn
+
+
+def test_apparatus_may_not_take_more_than_a_third():
+    # Six notes ahead of the text is exactly the divided-line case: the
+    # Republic's notes outnumber its English text 2:1 and are shorter,
+    # which both halves of retrieval reward.
+    ordered = [f"n{i}" for i in range(6)] + ["t0", "t1", "t2", "t3"]
+    conn = _apparatus_conn([(f"n{i}", "note") for i in range(6)] + [(f"t{i}", None) for i in range(4)])
+    got = retrieve._cap_apparatus(conn, ordered, top_k=6)
+    assert len(got) == 6
+    assert sum(1 for c in got if c.startswith("n")) == 2  # 6 // 3
+    # The primary text that was buried is now present, in score order.
+    assert got == ["n0", "n1", "t0", "t1", "t2", "t3"]
+
+
+def test_cap_keeps_the_highest_scoring_apparatus():
+    # Order is never reshuffled — the notes that survive are the two the
+    # ranking liked best, not an arbitrary pair.
+    ordered = ["n0", "t0", "n1", "n2", "t1"]
+    conn = _apparatus_conn([("n0", "note"), ("n1", "note"), ("n2", "cast"), ("t0", None), ("t1", None)])
+    assert retrieve._cap_apparatus(conn, ordered, top_k=3) == ["n0", "t0", "t1"]
+
+
+def test_cast_lists_count_as_apparatus():
+    # Dramatis-personae lists are apparatus too. top_k=3 allows one, so
+    # the text is reached, and the leftover slot is backfilled from the
+    # deferred casts rather than left empty.
+    ordered = ["c0", "c1", "c2", "t0"]
+    conn = _apparatus_conn([(f"c{i}", "cast") for i in range(3)] + [("t0", None)])
+    assert retrieve._cap_apparatus(conn, ordered, top_k=3) == ["c0", "t0", "c1"]
+
+
+def test_all_apparatus_pool_still_fills_the_page():
+    # A question genuinely about a footnote, or a work that is mostly
+    # apparatus, must not come back short — the deferred notes are given
+    # their slots back rather than dropped.
+    ordered = [f"n{i}" for i in range(5)]
+    conn = _apparatus_conn([(f"n{i}", "note") for i in range(5)])
+    assert retrieve._cap_apparatus(conn, ordered, top_k=4) == ["n0", "n1", "n2", "n3"]
+
+
+def test_no_apparatus_is_untouched():
+    ordered = ["t0", "t1", "t2"]
+    conn = _apparatus_conn([(f"t{i}", None) for i in range(3)])
+    assert retrieve._cap_apparatus(conn, ordered, top_k=2) == ["t0", "t1"]
+
+
+def test_cap_is_at_least_one_for_small_top_k():
+    # top_k=2 would floor to 0 slots; apparatus stays reachable.
+    ordered = ["n0", "t0"]
+    conn = _apparatus_conn([("n0", "note"), ("t0", None)])
+    assert retrieve._cap_apparatus(conn, ordered, top_k=2) == ["n0", "t0"]
+
+
+def test_apparatus_beyond_the_top_k_window_is_still_counted():
+    # Regression: looking up block_type for only a prefix of the
+    # candidates made a note further down read as primary text and take
+    # a slot reserved for the philosopher's own words.
+    ordered = ["t0"] + [f"n{i}" for i in range(30)]
+    conn = _apparatus_conn([("t0", None)] + [(f"n{i}", "note") for i in range(30)])
+    got = retrieve._cap_apparatus(conn, ordered, top_k=3)
+    assert got[0] == "t0"
+    assert sum(1 for c in got if c.startswith("n")) <= 2
+
+
+# ---------- deterministic ranking (#165) ----------
+
+
+def test_rank_ids_breaks_ties_on_chunk_id():
+    # Insertion order is deliberately not score order: `fused` is seeded
+    # from a set union whose iteration order is hash-randomised, so the
+    # result must not depend on it.
+    fused = {"zz": 1.0, "aa": 1.0, "mm": 2.0, "bb": 0.5}
+    assert retrieve._rank_ids(fused, fused) == ["mm", "aa", "zz", "bb"]
+
+
+def test_rank_ids_is_insertion_order_independent():
+    scores = {"a": 1.0, "b": 1.0, "c": 1.0}
+    shuffled = {"c": 1.0, "a": 1.0, "b": 1.0}
+    assert retrieve._rank_ids(scores, scores) == retrieve._rank_ids(shuffled, shuffled)
+
+
+def test_rank_ids_handles_ids_missing_from_fused():
+    # The reserved-seat path ranks a set that can include ids the fusion
+    # never scored; they sort last rather than raising.
+    fused = {"a": 2.0}
+    assert retrieve._rank_ids({"a", "b"}, fused) == ["a", "b"]
