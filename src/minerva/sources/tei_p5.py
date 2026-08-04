@@ -48,6 +48,8 @@ from minerva.tei import (
     text_excluding,
 )
 
+from ..xml_safe import parse as _parse_xml
+
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 _NOTE_TAG = f"{{{_NS['tei']}}}note"
@@ -197,7 +199,7 @@ def parse_file(
     (``_grc/_lat/_eng/_deu/_fra``); pass it explicitly to override.
     """
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
     # Two conventions in the wild:
     #

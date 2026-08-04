@@ -39,11 +39,12 @@ context.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
 from minerva.tei import Chunk, _make_chunk_id, _norm_text
+
+from ..xml_safe import parse as _parse_xml
 
 # Verse-number id is "<Book Name> <chap>:<verse>". Book names can
 # contain spaces ("1 Corinthians", "Song of Songs") — match greedily
@@ -73,7 +74,7 @@ def parse_file(
     boundaries.
     """
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
 
     current_section: str | None = None

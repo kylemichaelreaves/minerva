@@ -36,6 +36,34 @@ _BASE_CORS_HEADERS = {
     "Access-Control-Max-Age": "600",
 }
 
+# Sent on every response (#124). The threat model is the operator's own
+# browser visiting a hostile page while `minerva serve` is up — the same
+# one the cross-origin refusal above addresses — and it gets sharper on a
+# non-loopback bind.
+#
+# The policy can be this tight because the SPA is entirely self-hosted:
+# the built index.html loads one module script and one stylesheet, both
+# from /assets, and carries no inline <script>. The outbound links the
+# Reader offers (Logeion, Perseus, archive.org) are <a href> navigations,
+# which CSP does not restrict.
+#
+# `style-src` keeps 'unsafe-inline' because the components set inline
+# style attributes in ~100 places; `script-src` does not need it, which
+# is the half that matters for XSS.
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'none'"
+    ),
+}
+
 
 def _parse_content_length(raw: str | None) -> int:
     """Validate the Content-Length header and return the byte count."""
@@ -179,13 +207,30 @@ class ChatHandler(BaseHTTPRequestHandler):
         line = f"{self.address_string()} - - [{self.log_date_time_string()}] {fmt % args}"
         print(line, flush=True)
 
+    def version_string(self) -> str:
+        """Don't advertise the exact BaseHTTP/CPython build."""
+
+        return "minerva"
+
+    def _send_common_headers(self) -> None:
+        """CORS + hardening headers, shared by every response path.
+
+        One helper rather than a loop per path: the headers in #124 are
+        only worth anything if nothing can answer without them, and the
+        404/204 paths are exactly the ones an edit forgets.
+        """
+
+        for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
+            self.send_header(k, v)
+        for k, v in _SECURITY_HEADERS.items():
+            self.send_header(k, v)
+
     def _send_json(self, status: HTTPStatus, body: dict[str, Any]) -> None:
         data = json.dumps(body, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
-        for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
-            self.send_header(k, v)
+        self._send_common_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -203,8 +248,7 @@ class ChatHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "keep-alive")
-        for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
-            self.send_header(k, v)
+        self._send_common_headers()
         self.end_headers()
         it = iter(events)
         try:
@@ -239,8 +283,7 @@ class ChatHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
-        for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
-            self.send_header(k, v)
+        self._send_common_headers()
         self.end_headers()
 
     def do_POST(self) -> None:
@@ -346,8 +389,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
             return
         self.send_response(HTTPStatus.NO_CONTENT)
-        for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
-            self.send_header(k, v)
+        self._send_common_headers()
         self.end_headers()
 
     def _serve_static(self, request_path: str) -> None:
@@ -383,8 +425,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         else:
             self.send_header("Cache-Control", "no-cache")
-        for k, v in _cors_headers(self.deps, self.headers.get("Origin")).items():
-            self.send_header(k, v)
+        self._send_common_headers()
         self.end_headers()
         self.wfile.write(data)
 

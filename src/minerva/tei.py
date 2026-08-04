@@ -33,6 +33,7 @@ from .transliterate import (
 from .transliterate import (
     looks_like_betacode as _looks_like_betacode,
 )
+from .xml_safe import parse as _parse_xml
 
 WHITESPACE_RE = re.compile(r"\s+")
 
@@ -502,7 +503,7 @@ class _ChunkBuilder:
 def parse_file(path: Path, *, corpus: str, author: str) -> Iterator[Chunk]:
     """Yield chunks for every section in every work of the TEI file."""
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
     lang = _detect_lang(path.stem, root)
 

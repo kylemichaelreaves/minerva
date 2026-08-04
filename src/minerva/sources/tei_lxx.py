@@ -37,6 +37,8 @@ from minerva.tei import (
     text_excluding,
 )
 
+from ..xml_safe import parse as _parse_xml
+
 _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 # Most of Swete's apparatus is wrapped in <note> (skipped below), but a
@@ -133,7 +135,7 @@ def parse_file(
 ) -> Iterator[Chunk]:
     """Parse one Septuagint book TEI P5 file into Chunks."""
 
-    tree = ET.parse(path)
+    tree = _parse_xml(path)
     root = tree.getroot()
     edition = root.find("tei:text/tei:body/tei:div", _NS)
     if edition is None:
