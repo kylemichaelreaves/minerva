@@ -106,7 +106,12 @@ def main() -> int:
         print(f"no index at {args.db}", file=sys.stderr)
         return 1
 
-    conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+    # Plain path, not a `file:...?mode=ro` URI — interpolating a CLI
+    # argument into a connection string lets a crafted path append URI
+    # parameters and reopen the index writable. `query_only` gets the
+    # read-only guarantee without building a string to attack.
+    conn = sqlite3.connect(args.db)
+    conn.execute("PRAGMA query_only = ON")
     names = single_token_names(conn)
     ratios = propn_ratio(conn, sorted(names))
 
