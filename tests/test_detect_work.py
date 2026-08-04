@@ -56,6 +56,15 @@ def conn():
             # ambiguity case detect_work must refuse to guess at.
             (30, "Twinauthor", "Erstes Werk"),
             (31, "Twinauthor", "Zweites Werk"),
+            # Two works of ONE author sharing a title_local. `detect_work`
+            # must refuse to pick one, but the *corpus* is unambiguous —
+            # the distinction the work-title fallback turns on (#194).
+            (32, "Plato", "Diplous A"),
+            (33, "Plato", "Diplous B"),
+            # A title_local two DIFFERENT authors answer to, neither of
+            # them named by an author keyword. Genuine ambiguity.
+            (34, "Plato", "Peri Tinos"),
+            (35, "Kant", "Über Etwas"),
         ],
     )
     c.executemany(
@@ -69,6 +78,10 @@ def conn():
             (15, "eng", "Letter VII"),
             (30, "eng", "Twin Work"),
             (31, "eng", "Twin Work"),
+            (32, "eng", "Twin Dialogue"),
+            (33, "eng", "Twin Dialogue"),
+            (34, "eng", "Shared Treatise"),
+            (35, "eng", "Shared Treatise"),
             # A translation row carrying no local title must not match.
             (1, "eng", None),
         ],
@@ -283,3 +296,82 @@ def test_work_titles_drops_blank_local_titles(conn):
         "INSERT INTO translations (work_id, language, title_local) VALUES (10, 'fra', '   ')"
     )
     assert all(t.strip() for _wid, t in work_titles(conn, "plato"))
+
+
+# ---------- work-title fallback for corpus detection (#194) ----------
+
+
+def test_a_named_work_resolves_the_corpus(conn):
+    """Naming the work, not the author, scopes retrieval.
+
+    This is #194: `detect_corpus` matched author keywords only, so the
+    most natural way to refer to a text resolved to no corpus — which
+    silently switched off corpus filtering, work scoping, AND concept
+    expansion at once.
+    """
+
+    assert detect_corpus("the divided line in the Republic", conn) == "plato"
+    assert detect_corpus("where is the cave in the Politeia", conn) == "plato"
+
+
+def test_named_work_resolves_a_corpus_whose_id_is_not_the_author(conn):
+    """The author of a resolved work is not always a corpus id (#174)."""
+
+    assert detect_corpus("in the Meditations book 4", conn) == "marcus_aurelius"
+    assert detect_corpus("the Fragments (DK 22) on flux", conn) == "presocratic"
+
+
+def test_work_title_fallback_keeps_detect_work_conservatism(conn):
+    """A one-ordinary-word title still needs capitalising.
+
+    Without this the fallback would re-open #168 one level up: "the laws
+    of thought" would scope the whole query to Plato.
+    """
+
+    assert detect_corpus("what are the laws of thought", conn) is None
+    assert detect_corpus("the preludes in the Laws", conn) == "plato"
+
+
+def test_work_title_fallback_resolves_a_same_author_tie(conn):
+    """Two works of one author tying is not corpus ambiguity.
+
+    `detect_work` must refuse to pick between them; the corpus is still
+    unambiguous, so the fallback resolves it.
+    """
+
+    q = "a question about the Twin Dialogue"
+    assert detect_work(conn, q, "plato") is None
+    assert detect_corpus(q, conn) == "plato"
+
+
+def test_work_title_fallback_refuses_a_cross_author_tie(conn):
+    """Two different authors answering to one title is real ambiguity."""
+
+    assert detect_corpus("a question about the Shared Treatise", conn) is None
+
+
+def test_work_title_fallback_refuses_an_author_outside_every_corpus(conn):
+    """A resolved work whose author maps to no corpus cannot scope."""
+
+    assert detect_corpus("a question about the Twin Work", conn) is None
+
+
+def test_author_keywords_still_take_precedence(conn):
+    """The fallback runs only when NO author keyword matched.
+
+    A query naming authors is about those authors; letting a title match
+    override that would undo #170's disambiguation and re-scope genuine
+    two-author questions.
+    """
+
+    # One author named — unchanged fast path, no DB consulted.
+    assert detect_corpus("Cicero on the republic", conn) == "cicero"
+    # Two genuine authors — must stay unscoped, not fall through to a title.
+    assert detect_corpus("Compare Plato and Aristotle on virtue", conn) is None
+    assert detect_corpus("Kant reading Plato", conn) is None
+
+
+def test_work_title_fallback_needs_a_connection(conn):
+    """Without an index there is nothing to resolve a title against."""
+
+    assert detect_corpus("the divided line in the Republic") is None
