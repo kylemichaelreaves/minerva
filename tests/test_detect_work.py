@@ -38,6 +38,10 @@ def conn():
             (10, "Plato", "Politeia"),
             (11, "Plato", "Phaidros"),
             (12, "Plato", "Nomoi"),
+            # Titles whose only significant token is an ordinary word (#168).
+            (13, "Plato", "Erastai"),
+            (14, "Plato", "Epistole I"),
+            (15, "Plato", "Epistole VII"),
             # Same title_local as Plato 11, different author: only the
             # corpus filter keeps these apart.
             (20, "Aesop", "Phaedrus"),
@@ -53,6 +57,9 @@ def conn():
             (10, "eng", "Republic"),
             (11, "eng", "Phaedrus"),
             (12, "eng", "Laws"),
+            (13, "eng", "Lovers"),
+            (14, "eng", "Letter I"),
+            (15, "eng", "Letter VII"),
             (30, "eng", "Twin Work"),
             (31, "eng", "Twin Work"),
             # A translation row carrying no local title must not match.
@@ -131,6 +138,41 @@ def test_null_local_title_does_not_match(conn):
     # no tokens — otherwise they'd match every query.
     assert detect_work(conn, "a question about nothing in particular", "plato") is None
     assert detect_work(conn, "was sagt er über Moral?", "nietzsche") is None
+
+
+# ---------- common-word titles need a capital (#168) ----------
+
+
+def test_common_word_title_does_not_match_running_prose(conn):
+    # The three cases #168 reports, verbatim. None of them is a request
+    # for the dialogue whose English name they happen to contain.
+    assert detect_work(conn, "what does Plato say about lovers", "plato") is None
+    assert detect_work(conn, "I read a letter of Plato", "plato") is None
+    assert detect_work(conn, "what are the laws of thought in Plato", "plato") is None
+
+
+def test_common_word_title_matches_when_capitalised(conn):
+    # Naming the work is still naming the work.
+    assert detect_work(conn, "the argument of Plato's Laws", "plato") == 12
+    assert detect_work(conn, "in the Lovers he asks", "plato") == 13
+
+
+def test_uncommon_single_token_title_matches_in_any_casing(conn):
+    # The #164 population: a title token that is not an ordinary word
+    # carries the match by itself, capitalised or not. Only ~40 of 182
+    # single-token names need the cue; these are the other ~140.
+    assert detect_work(conn, "the divided line in Plato's Republic", "plato") == 10
+    assert detect_work(conn, "the divided line in plato's republic", "plato") == 10
+
+
+def test_roman_numeral_letters_still_resolve(conn):
+    # "i" is a stopword now, so Letter I is a one-token name and needs
+    # the capital; Letter VII keeps a numeral of its own and stays
+    # specific enough to win outright.
+    assert detect_work(conn, "in Plato's Letter VII he describes", "plato") == 15
+    assert detect_work(conn, "in Plato's Letter I he describes", "plato") == 14
+    # The pronoun alone must not reach Letter I any more.
+    assert detect_work(conn, "I asked about a letter", "plato") is None
 
 
 # ---------- detect_corpus: work titles that name another author (#170) ----------
