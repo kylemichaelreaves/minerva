@@ -107,3 +107,45 @@ def test_every_declared_author_is_claimed_once():
         for author in corpus_registry.corpus_authors(entry.id):
             assert author not in seen, f"{author!r} claimed by {seen.get(author)} and {entry.id}"
             seen[author] = entry.id
+
+
+# ---------- corpus_for_author, the inverse of corpus_authors (#194) ----------
+
+
+def test_corpus_for_author_maps_a_plain_author():
+    assert corpus_registry.corpus_for_author("Plato") == "plato"
+    assert corpus_registry.corpus_for_author("plato") == "plato"
+
+
+def test_corpus_for_author_maps_an_author_whose_corpus_id_differs():
+    """The seven corpora whose id is a slug or covers several authors (#174)."""
+
+    assert corpus_registry.corpus_for_author("Marcus Aurelius") == "marcus_aurelius"
+    assert corpus_registry.corpus_for_author("Heraclitus") == "presocratic"
+    assert corpus_registry.corpus_for_author("Zeno of Elea") == "presocratic"
+
+
+def test_corpus_for_author_ignores_surrounding_whitespace():
+    assert corpus_registry.corpus_for_author("  Plato  ") == "plato"
+
+
+def test_corpus_for_author_is_none_for_an_unclaimed_author():
+    assert corpus_registry.corpus_for_author("Some Uningested Author") is None
+
+
+def test_corpus_for_author_is_none_for_no_author():
+    assert corpus_registry.corpus_for_author(None) is None
+    assert corpus_registry.corpus_for_author("") is None
+
+
+def test_corpus_for_author_round_trips_every_corpus():
+    """Every author `corpus_authors` yields maps back to that corpus.
+
+    The work-title fallback in `detect_corpus` resolves a `works.author`
+    and needs a corpus id; a gap here would make a whole corpus
+    unreachable by work name.
+    """
+
+    for entry in corpus_registry.CORPORA:
+        for author in corpus_registry.corpus_authors(entry.id):
+            assert corpus_registry.corpus_for_author(author) == entry.id
