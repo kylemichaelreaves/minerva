@@ -36,10 +36,14 @@ isn't.
 + vitest + author/API/import gates. Run it and read the output before
 saying something passes.
 
-One gate is easy to miss because it doesn't block a merge:
+`make check` does not cover everything CI does:
 
-- **SonarCloud** fails PRs under 80% coverage *of the lines you changed*.
-  Not a required check (#158), so nothing stops you — check it anyway.
+- **SonarCloud** fails PRs under 80% coverage *of the lines you changed*,
+  and is a **required check** as of #158 — a red gate blocks the merge.
+  `scripts/**` and `perseus/**` are coverage-excluded, so the bar applies
+  to `src/` and `web/src/`. A red *security* rating on a PR that touched
+  operator tooling used to mean a moved line (#167); the backlog is now
+  triaged to zero, so treat a new one as real. See CONTRIBUTING.
 
 **After any ingest, run `make generate-authors` and commit the result.**
 `data/index.sqlite` is gitignored, so CI validates chunk counts against
