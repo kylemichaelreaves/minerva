@@ -62,6 +62,29 @@ _MARK_RE = re.compile(r"\[\s*(?:(\d+)\s*St\.\s*\d+\s*)?([A-E])\*?\s*\]")
 # A page-number / running-chrome line to drop from body text.
 _CHROME_RE = re.compile(r"^\s*\d{1,4}\s*$")
 
+# German ordinal → book number, for the two multi-book works. Only the
+# Politeia (10) and the Nomoi (12) are divided into books; every other
+# dialogue is a single unit and correctly carries no `book` at all —
+# which is what the Greek and English sides store for them too.
+_BUCH_ORDINALS = {
+    "ERSTES": 1, "ZWEITES": 2, "DRITTES": 3, "VIERTES": 4, "FÜNFTES": 5,
+    "SECHSTES": 6, "SIEBENTES": 7, "SIEBTES": 7, "ACHTES": 8, "NEUNTES": 9,
+    "ZEHNTES": 10, "ELFTES": 11, "ZWÖLFTES": 12,
+}
+
+# A body book heading — "Erstes Buch vom Staate." / "ERSTES BUCH ÜBER DIE
+# GESETZE". The trailing qualifier (group 2) is REQUIRED, and that is the
+# whole point of the pattern: each work's title page carries a
+# clickable table of contents listing every book as a bare "Erstes Buch"
+# … "Zehntes Buch", and that page falls inside the work's own span. A
+# pattern without the qualifier matches all ten TOC lines before the
+# first Stephanus marker, and every section of the Politeia comes out
+# stamped book 10.
+_BUCH_RE = re.compile(
+    r"^[ \t]*((?:" + "|".join(_BUCH_ORDINALS) + r")[ \t]+BUCH)[ \t]+(\S[^\n]*)$",
+    re.M | re.I,
+)
+
 
 def _resolve_heading(page_text: str, seen_alkibiades: int) -> str | None:
     """Return the canonical work a page starts, or None if it's not a work
@@ -85,12 +108,53 @@ def _clean_body(text: str) -> str:
     return "\n".join(ln for ln in text.splitlines() if not _CHROME_RE.match(ln))
 
 
+def _book_boundaries(body: str) -> list[tuple[int, int]]:
+    """``(offset, book_number)`` for each body book heading, in order.
+
+    Monotonic by construction: a heading is kept only when it numbers the
+    book after the last one accepted. That drops a repeat of the current
+    book's heading in a running header, and it means an OCR misread of an
+    ordinal loses one boundary rather than renumbering the rest of the
+    work.
+    """
+
+    out: list[tuple[int, int]] = []
+    for m in _BUCH_RE.finditer(body):
+        ordinal = m.group(1).split()[0].upper()
+        number = _BUCH_ORDINALS[ordinal]
+        if number != (out[-1][1] + 1 if out else 1):
+            continue
+        out.append((m.start(), number))
+    return out
+
+
+def _book_at(boundaries: list[tuple[int, int]], offset: int) -> str | None:
+    """The book covering ``offset`` — the last heading at or before it.
+
+    Note what this deliberately does NOT do: it never advances the book
+    ahead of the text it stamps. `tei.py` updates its `_cur_book` on
+    entering book N+1 *before* flushing the buffered tail of book N, so
+    the last chunk of every book is stamped N+1 there (pinned by
+    tests/test_homer_ingest.py:87). Resolving by offset at the moment a
+    section is created cannot reproduce that.
+    """
+
+    book: str | None = None
+    for pos, number in boundaries:
+        if pos > offset:
+            break
+        book = str(number)
+    return book
+
+
 def _emit_sections(
     body: str, *, work_title: str, translator: str, year: str, source_file: str
 ) -> Iterator[Chunk]:
     """Reconstruct Stephanus sections from the marker stream and yield one
     chunk per section."""
+    boundaries = _book_boundaries(body)
     sections: dict[str, list[str]] = {}
+    books: dict[str, str | None] = {}
     order: list[str] = []
     page: str | None = None
     letter: str | None = None
@@ -101,6 +165,11 @@ def _emit_sections(
             loc = f"{page}{letter.lower()}"
             if loc not in sections:
                 sections[loc] = []
+                # Resolved at the segment's START: a heading sitting
+                # inside this segment opens the NEXT section's book, not
+                # this one's. The heading is preceded by the closing
+                # prose of the outgoing book.
+                books[loc] = _book_at(boundaries, last)
                 order.append(loc)
             sections[loc].append(seg)
         if m.group(1):
@@ -111,11 +180,15 @@ def _emit_sections(
         loc = f"{page}{letter.lower()}"
         if loc not in sections:
             sections[loc] = []
+            books[loc] = _book_at(boundaries, last)
             order.append(loc)
         sections[loc].append(body[last:])
 
     for loc in order:
-        text = _norm_text(" ".join(sections[loc]))
+        # The heading is a structural marker, not prose — it would
+        # otherwise sit mid-paragraph in whichever chunk spans the
+        # boundary.
+        text = _norm_text(_BUCH_RE.sub("", " ".join(sections[loc])))
         if not text:
             continue
         yield Chunk(
@@ -125,7 +198,7 @@ def _emit_sections(
             work=work_title,
             lang="deu",
             section=loc,
-            book=None,
+            book=books[loc],
             page=None,
             speaker=None,
             text=text,
