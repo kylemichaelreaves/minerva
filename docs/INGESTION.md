@@ -659,14 +659,42 @@ Add, for each author:
   `Platons` is a single token, so without `platons` every German-phrased
   question misses its corpus outright (#169).
 
-**Limits:** multi-word names ("Marcus Aurelius", "New Testament") are
-not auto-scoped unless you add an unambiguous single-word hook (see
-existing `gospel` → `new_testament`) — a keyword containing a space is
-silently dead, since `detect_corpus` only ever looks up single tokens
-(#173). Comparative queries ("Plato vs Aristotle") intentionally return
-`None` (broad retrieval); a keyword that is also the title of *another*
-corpus's work ("Plato's Phaedrus") does not, since #170 — that case is
-resolved against the index rather than refused.
+Multi-word keywords ("contra celsum", "vie de jésus") are matched as
+phrases since #173, tolerant of case and of whatever separates the
+words. Before that they were silently dead — `detect_corpus` looks up
+one token at a time, and no token contains a space.
+
+**Limits:** comparative queries ("Plato vs Aristotle") intentionally
+return `None` (broad retrieval); a keyword that is also the title of
+*another* corpus's work ("Plato's Phaedrus") does not, since #170 —
+that case is resolved against the index rather than refused.
+
+### 14b-bis. Corpus authors (required when the id isn't the author)
+
+Retrieval filters on `LOWER(works.author)` — that is literally what the
+`chunks_full.corpus` column is — while the CLI, `detect_corpus` and this
+manifest all speak in corpus **ids**. When the two differ, declare the
+mapping:
+
+```yaml
+- id: marcus_aurelius
+  authors:
+  - Marcus Aurelius
+```
+
+Omit `authors:` and the id is used as the author name, which is correct
+for the 33 corpora named after their author. For the other seven it was
+not, and the filter matched *nothing*: naming Marcus Aurelius or the
+Torah in chat scoped retrieval to zero chunks and the agent abstained,
+across 126,480 chunks — 30% of the corpus (#174).
+
+`presocratic` shows why this is a list rather than a rename: one corpus,
+nine authors.
+
+`scripts/check_author_ingest.py` now fails when a `works.author` belongs
+to no corpus, or a declared author matches no work — so the next corpus
+whose id isn't its author name is caught at ingest instead of going
+quietly dark.
 
 Add a row in `tests/test_agent.py` under `test_detect_corpus_*`.
 

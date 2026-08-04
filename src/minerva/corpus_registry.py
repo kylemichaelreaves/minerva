@@ -17,6 +17,12 @@ class CorpusEntry:
     citation_system: str
     dominant_code: str
     keywords: tuple[str, ...] = ()
+    # The `works.author` values this corpus is made of. Empty means the
+    # corpus id *is* the author, lowercased — true for the 33
+    # single-author corpora. The other seven need it spelled out: the
+    # id is a slug (`marcus_aurelius`, `kjv`) or covers several authors
+    # (`presocratic`), and retrieval filters on `LOWER(works.author)`.
+    authors: tuple[str, ...] = ()
 
 
 # Keywords are whole-word tokens matched by ``agent.detect_corpus``.
@@ -314,6 +320,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'aurel',
         'aurels',
     ),
+        (
+        'Marcus Aurelius',
+    ),
     ),
     CorpusEntry(
         'septuagint',
@@ -337,6 +346,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'evangelist',
         'pauline',
     ),
+        (
+        'New Testament',
+    ),
     ),
     CorpusEntry(
         'vulgate',
@@ -357,6 +369,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'lutherbibel',
         'lutherbible',
     ),
+        (
+        'Luther Bibel 1912',
+    ),
     ),
     CorpusEntry(
         'luther_1545',
@@ -367,6 +382,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'luther1545',
         'lutherletztehand',
         'fruhneuhochdeutsch',
+    ),
+        (
+        'Luther Bibel 1545',
     ),
     ),
     CorpusEntry(
@@ -379,6 +397,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'authorized',
         'authorised',
         'kingjames',
+    ),
+        (
+        'King James Bible',
     ),
     ),
     CorpusEntry(
@@ -418,6 +439,17 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'pythagoras',
         'pythagorean',
     ),
+        (
+        'Anaxagoras',
+        'Anaximenes',
+        'Diogenes of Apollonia',
+        'Empedocles',
+        'Heraclitus',
+        'Melissus',
+        'Parmenides',
+        'Xenophanes',
+        'Zeno of Elea',
+    ),
     ),
     CorpusEntry(
         'hebrew_mt',
@@ -428,6 +460,9 @@ CORPORA: tuple[CorpusEntry, ...] = (
         'tanakh',
         'torah',
         'masoretic',
+    ),
+        (
+        'Hebrew Bible',
     ),
     ),
     CorpusEntry(
@@ -584,6 +619,30 @@ def original_language_for_corpus(corpus: str) -> str:
 def dominant_for_corpus(corpus: str) -> str | None:
     e = _BY_ID.get(corpus)
     return e.dominant_code if e else None
+
+
+def corpus_authors(corpus: str | None) -> tuple[str, ...]:
+    """The lowercased ``works.author`` values that make up *corpus*.
+
+    Retrieval filters on ``LOWER(works.author)`` (that is what the
+    ``chunks_full.corpus`` column is), while every other layer — CLI
+    ``--corpus``, ``detect_corpus``, the manifest — speaks in corpus
+    ids. For most corpora those coincide. For the seven where they do
+    not, filtering on the id matched nothing at all: naming Marcus
+    Aurelius or the Torah in chat scoped retrieval to zero chunks and
+    the agent abstained (#174).
+
+    Returns ``()`` for ``None``/``"any"``, i.e. no filtering.
+    """
+
+    if corpus in {None, "any"}:
+        return ()
+    e = _BY_ID.get(corpus)
+    if e is None:
+        # Unknown id — treat it as an author name, which is what a
+        # caller passing a raw `works.author` value means.
+        return (corpus.lower(),)
+    return tuple(a.lower() for a in e.authors) or (e.id,)
 
 
 def build_author_keywords() -> dict[str, str]:

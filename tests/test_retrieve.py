@@ -74,8 +74,10 @@ def test_lang_filter_for_any_or_none_returns_no_clause():
 
 
 def test_corpus_filter_for_specific_corpus():
+    # An IN list since #174: the id is resolved to the works.author
+    # values it stands for, which for seven corpora is not the id.
     sql, params = retrieve._corpus_filter("plato")
-    assert sql == " AND cf.corpus = ?"
+    assert sql == " AND cf.corpus IN (?)"
     assert params == ("plato",)
 
 
@@ -628,3 +630,26 @@ def test_reserved_seats_cannot_smuggle_apparatus_past_the_cap(tmp_path: Path):
     assert len(notes) <= 1  # max(1, 3 // 3)
     # The reservation still did its job: the rare term is represented.
     assert notes, "the rare term's only carrier must still get its seat"
+
+
+# ---------- corpus filter resolves ids to authors (#174) ----------
+
+
+def test_corpus_filter_binds_the_author_not_the_id():
+    sql, params = retrieve._corpus_filter("marcus_aurelius")
+    assert sql == " AND cf.corpus IN (?)"
+    # `chunks_full.corpus` is LOWER(works.author); the id matched nothing.
+    assert params == ("marcus aurelius",)
+
+
+def test_corpus_filter_expands_a_multi_author_corpus():
+    sql, params = retrieve._corpus_filter("presocratic")
+    assert sql.startswith(" AND cf.corpus IN (?")
+    assert sql.count("?") == len(params) > 1
+    assert "heraclitus" in params
+
+
+def test_corpus_filter_single_author_corpus_unchanged():
+    sql, params = retrieve._corpus_filter("plato")
+    assert sql == " AND cf.corpus IN (?)"
+    assert params == ("plato",)

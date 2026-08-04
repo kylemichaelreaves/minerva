@@ -5,9 +5,34 @@ from __future__ import annotations
 import re
 import sqlite3
 
-from ..corpus_registry import AUTHOR_KEYWORDS
+from ..corpus_registry import AUTHOR_KEYWORDS, corpus_authors
 
 _WORD_RE = re.compile(r"\b[\w]+\b", re.UNICODE)
+
+
+def _phrase_pattern(keyword: str) -> re.Pattern[str]:
+    """Match a multi-word keyword across whatever separates its words.
+
+    Built from the keyword's own tokens so `l'antéchrist` matches
+    "l'Antéchrist" and `contra celsum` matches "Contra  Celsum".
+    """
+
+    tokens = _WORD_RE.findall(keyword.lower())
+    return re.compile(
+        r"\b" + r"\W+".join(re.escape(t) for t in tokens) + r"\b", re.UNICODE | re.IGNORECASE
+    )
+
+
+# Keywords of more than one word, which the per-token lookup below can
+# never see: `AUTHOR_KEYWORDS.get(word)` is called once per `_WORD_RE`
+# token, and no such token contains a space or apostrophe. Eight of them
+# sat in the manifest doing nothing, including `contra celsum` — the
+# only work Origen is in the corpus for (#173).
+_PHRASE_KEYWORDS: tuple[tuple[re.Pattern[str], str, str], ...] = tuple(
+    (_phrase_pattern(kw), kw, corpus)
+    for kw, corpus in sorted(AUTHOR_KEYWORDS.items())
+    if len(_WORD_RE.findall(kw)) > 1
+)
 
 # Title words too generic to carry scoping signal — articles,
 # prepositions, conjunctions across the corpus languages. A work is
@@ -60,14 +85,27 @@ _COMMON_TITLE_TOKENS = frozenset(
 # from the start; detection did not, so the English name of a
 # canonicalised work was unreachable (#164).
 _TITLES_SQL = """
-    SELECT w.id, w.title FROM works w WHERE LOWER(w.author) = ?
+    SELECT w.id, w.title FROM works w WHERE LOWER(w.author) IN ({p})
     UNION
     SELECT w.id, t.title_local FROM works w JOIN translations t ON t.work_id = w.id
-     WHERE LOWER(w.author) = ? AND t.title_local IS NOT NULL
+     WHERE LOWER(w.author) IN ({p}) AND t.title_local IS NOT NULL
     UNION
     SELECT w.id, e.title_local FROM works w JOIN editions e ON e.work_id = w.id
-     WHERE LOWER(w.author) = ? AND e.title_local IS NOT NULL
+     WHERE LOWER(w.author) IN ({p}) AND e.title_local IS NOT NULL
 """
+
+
+def _titles_query(corpus: str) -> tuple[str, tuple[str, ...]]:
+    """The titles SQL bound to every author *corpus* is made of.
+
+    A corpus id is not always an author name — `marcus_aurelius` vs
+    "Marcus Aurelius" — and `presocratic` is nine of them. Binding the
+    id matched no rows at all for those seven (#174).
+    """
+
+    authors = corpus_authors(corpus) or (corpus.lower(),)
+    placeholders = ",".join("?" * len(authors))
+    return _TITLES_SQL.format(p=placeholders), authors * 3
 
 
 def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None:
@@ -100,7 +138,8 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
     capitalised = {t.lower() for t in _WORD_RE.findall(query) if t[:1].isupper()}
     best_ids: set[int] = set()
     best_n = 0
-    for work_id, title in conn.execute(_TITLES_SQL, (corpus.lower(),) * 3):
+    titles_sql, titles_params = _titles_query(corpus)
+    for work_id, title in conn.execute(titles_sql, titles_params):
         sig = [t for t in _WORD_RE.findall(title.lower()) if t not in _TITLE_STOPWORDS]
         if not sig or not all(t in query_tokens for t in sig):
             continue
@@ -119,7 +158,8 @@ def _title_tokens(conn: sqlite3.Connection, corpus: str) -> set[str]:
     """Every token of every name every work of *corpus* answers to."""
 
     toks: set[str] = set()
-    for _work_id, title in conn.execute(_TITLES_SQL, (corpus.lower(),) * 3):
+    titles_sql, titles_params = _titles_query(corpus)
+    for _work_id, title in conn.execute(titles_sql, titles_params):
         toks.update(_WORD_RE.findall((title or "").lower()))
     return toks
 
@@ -143,11 +183,17 @@ def detect_corpus(query: str, conn: sqlite3.Connection | None = None) -> str | N
     *conn* the pre-#170 behaviour stands.
     """
 
+    lowered = query.lower()
     matched: dict[str, set[str]] = {}
-    for word in _WORD_RE.findall(query.lower()):
+    for word in _WORD_RE.findall(lowered):
         c = AUTHOR_KEYWORDS.get(word)
         if c:
             matched.setdefault(c, set()).add(word)
+    # Multi-word keywords are matched as phrases; the token pass above
+    # cannot reach them (#173).
+    for pattern, keyword, corpus in _PHRASE_KEYWORDS:
+        if pattern.search(lowered):
+            matched.setdefault(corpus, set()).update(_WORD_RE.findall(keyword.lower()))
 
     if len(matched) == 1:
         return next(iter(matched))
@@ -166,9 +212,15 @@ def detect_corpus(query: str, conn: sqlite3.Connection | None = None) -> str | N
 def strip_author_keywords(query: str, corpus: str) -> str:
     if not query or not corpus:
         return query
+    out = query
+    # Phrases first: the per-token pass below cannot see them, so
+    # "Ernest Renan" would leave "Ernest" behind (#173).
+    for pattern, _keyword, kw_corpus in _PHRASE_KEYWORDS:
+        if kw_corpus == corpus:
+            out = pattern.sub(" ", out)
     out = _WORD_RE.sub(
         lambda m: "" if AUTHOR_KEYWORDS.get(m.group(0).lower()) == corpus else m.group(0),
-        query,
+        out,
     )
     # Removing the name out of a possessive strands its suffix:
     # "Plato's Republic" became "'s Republic", and that orphan went into

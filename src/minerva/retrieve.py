@@ -15,6 +15,7 @@ from collections.abc import Iterable
 import numpy as np
 
 from . import embed, orthography, store
+from .corpus_registry import corpus_authors
 from .store.embeddings import load_embeddings_with_meta
 
 FTS_QUERY_SAFE = re.compile(r"[^\w\s]+", re.UNICODE)
@@ -54,14 +55,21 @@ def _lang_filter(lang: str | None) -> tuple[str, tuple]:
 
 
 def _corpus_filter(corpus: str | None) -> tuple[str, tuple]:
-    # `corpus` is the lowercased author name. With the chunks-redesign
-    # of 0003, the column no longer lives on chunks; it's reconstructed
-    # by the `chunks_full` view from works.author. Joining through
+    # `chunks_full.corpus` is literally `LOWER(works.author)`. With the
+    # chunks-redesign of 0003, the column no longer lives on chunks;
+    # it's reconstructed by the view. Joining through
     # editions/translations to works would be cheaper but the view
     # keeps callers idiomatic and the planner inlines either way.
-    if corpus in {None, "any"}:
+    #
+    # Callers pass a corpus *id*, which for seven corpora is not an
+    # author name — `marcus_aurelius` vs "Marcus Aurelius", and
+    # `presocratic` covers nine authors. Matching the id directly
+    # filtered those to zero chunks (#174), so resolve it first.
+    authors = corpus_authors(corpus)
+    if not authors:
         return "", ()
-    return " AND cf.corpus = ?", (corpus,)
+    placeholders = ",".join("?" * len(authors))
+    return f" AND cf.corpus IN ({placeholders})", authors
 
 
 def _work_filter(work_id: int | None) -> tuple[str, tuple]:
@@ -318,8 +326,11 @@ def _vector_search(
     keep = np.ones(len(ids), dtype=bool)
     if lang not in {None, "any"}:
         keep &= meta.langs == lang
-    if corpus not in {None, "any"}:
-        keep &= meta.corpora == corpus
+    corpus_names = corpus_authors(corpus)
+    if corpus_names:
+        # Same id-vs-author resolution as `_corpus_filter`; `isin`
+        # because `presocratic` is nine authors, not one.
+        keep &= np.isin(meta.corpora, corpus_names)
     if speaker and speaker != "any":
         keep &= meta.speakers_lower == speaker.lower()
     if min_chunk_chars > 0:
