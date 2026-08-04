@@ -80,10 +80,15 @@ _COMMON_TITLE_TOKENS = frozenset(
 
 
 # Every name a work answers to: its canonical (for Greek authors,
-# Latinized-Greek) title plus the per-language `title_local` names that
-# migration 0023 put on editions and translations. Display used those
-# from the start; detection did not, so the English name of a
-# canonicalised work was unreachable (#164).
+# Latinized-Greek) title, the per-language `title_local` names that
+# migration 0023 put on editions and translations, and the detection-only
+# aliases of migration 0025. Display used `title_local` from the start;
+# detection did not, so the English name of a canonicalised work was
+# unreachable (#164). `work_aliases` covers what `title_local` structurally
+# cannot: a work whose stored title is not a name anyone types (Hegel's
+# Phenomenology carries its translator's surname; Marx's Kapital is split
+# by volume), and cross-language pairs, where one work needs to answer to
+# a second language's name without giving up its own display title (#195).
 _TITLES_SQL = """
     SELECT w.id, w.title FROM works w WHERE LOWER(w.author) IN ({p})
     UNION
@@ -92,6 +97,9 @@ _TITLES_SQL = """
     UNION
     SELECT w.id, e.title_local FROM works w JOIN editions e ON e.work_id = w.id
      WHERE LOWER(w.author) IN ({p}) AND e.title_local IS NOT NULL
+    UNION
+    SELECT w.id, a.alias FROM works w JOIN work_aliases a ON a.work_id = w.id
+     WHERE LOWER(w.author) IN ({p})
 """
 
 
@@ -105,7 +113,10 @@ def _titles_query(corpus: str) -> tuple[str, tuple[str, ...]]:
 
     authors = corpus_authors(corpus) or (corpus.lower(),)
     placeholders = ",".join("?" * len(authors))
-    return _TITLES_SQL.format(p=placeholders), authors * 3
+    # One bind group per `{p}` in _TITLES_SQL — four branches since
+    # migration 0025 added the alias union. Miscounting here is a
+    # ProgrammingError at query time, not a silent wrong answer.
+    return _TITLES_SQL.format(p=placeholders), authors * _TITLES_SQL.count("{p}")
 
 
 # Corpus-unscoped form of `_TITLES_SQL`, for callers that have no corpus
@@ -118,6 +129,8 @@ _ALL_TITLES_SQL = """
     UNION
     SELECT w.id, e.title_local FROM works w JOIN editions e ON e.work_id = w.id
      WHERE e.title_local IS NOT NULL
+    UNION
+    SELECT w.id, a.alias FROM works w JOIN work_aliases a ON a.work_id = w.id
 """
 
 
