@@ -108,6 +108,41 @@ def _titles_query(corpus: str) -> tuple[str, tuple[str, ...]]:
     return _TITLES_SQL.format(p=placeholders), authors * 3
 
 
+# Corpus-unscoped form of `_TITLES_SQL`, for callers that have no corpus
+# to narrow to (`minerva eval --corpus any`).
+_ALL_TITLES_SQL = """
+    SELECT w.id, w.title FROM works w
+    UNION
+    SELECT w.id, t.title_local FROM works w JOIN translations t ON t.work_id = w.id
+     WHERE t.title_local IS NOT NULL
+    UNION
+    SELECT w.id, e.title_local FROM works w JOIN editions e ON e.work_id = w.id
+     WHERE e.title_local IS NOT NULL
+"""
+
+
+def work_titles(conn: sqlite3.Connection, corpus: str | None) -> list[tuple[int, str]]:
+    """Every ``(work_id, name)`` pair a work of *corpus* answers to.
+
+    One row per name, so a work appears once per alias: its canonical
+    ``works.title`` plus each per-language ``title_local`` on its
+    editions and translations. ``corpus=None`` (or ``"any"``) spans the
+    whole index, matching how retrieval reads an absent corpus filter.
+
+    Public because work detection is not the only thing that has to map
+    a name to a work: `eval_runner` scores the gold set's
+    ``expected_works`` through the same aliases, having read 0.1 for
+    months because it compared raw strings instead (#183).
+    """
+
+    if corpus in {None, "any"}:
+        rows = conn.execute(_ALL_TITLES_SQL)
+    else:
+        titles_sql, titles_params = _titles_query(corpus)
+        rows = conn.execute(titles_sql, titles_params)
+    return [(int(wid), name) for wid, name in rows if (name or "").strip()]
+
+
 def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None:
     """Resolve a single ``works.id`` named in ``query`` for ``corpus``.
 
@@ -138,8 +173,7 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
     capitalised = {t.lower() for t in _WORD_RE.findall(query) if t[:1].isupper()}
     best_ids: set[int] = set()
     best_n = 0
-    titles_sql, titles_params = _titles_query(corpus)
-    for work_id, title in conn.execute(titles_sql, titles_params):
+    for work_id, title in work_titles(conn, corpus):
         sig = [t for t in _WORD_RE.findall(title.lower()) if t not in _TITLE_STOPWORDS]
         if not sig or not all(t in query_tokens for t in sig):
             continue
@@ -158,9 +192,8 @@ def _title_tokens(conn: sqlite3.Connection, corpus: str) -> set[str]:
     """Every token of every name every work of *corpus* answers to."""
 
     toks: set[str] = set()
-    titles_sql, titles_params = _titles_query(corpus)
-    for _work_id, title in conn.execute(titles_sql, titles_params):
-        toks.update(_WORD_RE.findall((title or "").lower()))
+    for _work_id, title in work_titles(conn, corpus):
+        toks.update(_WORD_RE.findall(title.lower()))
     return toks
 
 

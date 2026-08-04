@@ -160,6 +160,152 @@ def test_load_gold_accepts_valid_rows(tmp_path: Path):
     assert rows[0]["id"] == "g1"
 
 
+# ---------- expected_works alias resolution (#183) ----------
+
+
+def _rename_republic_to_politeia(conn) -> None:
+    """Reproduce #78's canonicalisation on the test corpus.
+
+    The work becomes `Politeia`; `Republic` survives only as the English
+    translation's `title_local`, exactly as it does in the real index.
+    """
+
+    work_id = conn.execute("SELECT id FROM works WHERE title = 'Republic'").fetchone()[0]
+    conn.execute("UPDATE works SET title = 'Politeia' WHERE id = ?", (work_id,))
+    conn.execute(
+        "UPDATE translations SET title_local = 'Republic' WHERE work_id = ?", (work_id,)
+    )
+    conn.commit()
+
+
+def test_expected_works_resolve_through_title_local(populated_db, tmp_path: Path):
+    """A gold set naming the pre-rename English title still scores.
+
+    This is #183: every Republic question read `work_ok: false` while
+    returning the right passage of the right work, because the gold file
+    says `Republic` and the work is now `Politeia`.
+    """
+
+    _rename_republic_to_politeia(populated_db)
+    gold_path = tmp_path / "gold.jsonl"
+    gold_path.write_text(
+        json.dumps(
+            {
+                "id": "g1",
+                "question": "divided line",
+                "expected_works": ["Republic"],
+                "expected_sections": ["509d", "510a"],
+            }
+        )
+    )
+
+    summary = eval_runner.run(
+        conn=populated_db,
+        gold_path=gold_path,
+        top_k=3,
+        lang="eng",
+        corpus="plato",
+        section_recall_threshold=0.5,
+    )
+
+    assert summary["per_question"][0]["top_hit"].startswith("Plato, Politeia")
+    assert summary["work_recall_at_k"] == 1.0
+    assert summary["per_question"][0]["work_ok"] is True
+
+
+def test_expected_works_still_resolve_by_canonical_title(populated_db, tmp_path: Path):
+    """The canonical name works too — resolution is by alias, not by rename."""
+
+    _rename_republic_to_politeia(populated_db)
+    gold_path = tmp_path / "gold.jsonl"
+    gold_path.write_text(
+        json.dumps(
+            {
+                "id": "g1",
+                "question": "divided line",
+                "expected_works": ["Politeia"],
+                "expected_sections": ["509d"],
+            }
+        )
+    )
+
+    summary = eval_runner.run(
+        conn=populated_db,
+        gold_path=gold_path,
+        top_k=3,
+        lang="eng",
+        corpus="plato",
+        section_recall_threshold=0.5,
+    )
+    assert summary["work_recall_at_k"] == 1.0
+
+
+def test_run_rejects_an_expected_work_no_work_answers_to(populated_db, tmp_path: Path):
+    """An unresolvable `expected_works` name is an error, not a silent 0.
+
+    The failure mode #183 documents is a metric that was wrong for
+    months without consequence. A name that matches no work in the index
+    can only ever score 0, so it fails loudly instead — which is also
+    what makes the gold set survive the *next* rename.
+    """
+
+    gold_path = tmp_path / "gold.jsonl"
+    gold_path.write_text(
+        json.dumps(
+            {
+                "id": "g1",
+                "question": "q",
+                "expected_works": ["Res Publica"],
+                "expected_sections": ["509d"],
+            }
+        )
+    )
+
+    with __import__("pytest").raises(ValueError, match="Res Publica"):
+        eval_runner.run(
+            conn=populated_db,
+            gold_path=gold_path,
+            top_k=3,
+            lang="eng",
+            corpus="plato",
+        )
+
+
+def test_work_recall_gates_the_exit_status(populated_db, tmp_path: Path):
+    """`pass` consults work recall.
+
+    Before #183 it was decided on section recall alone, so
+    `work_recall_at_k` could read 0.1 and the run still passed.
+    """
+
+    gold_path = tmp_path / "gold.jsonl"
+    gold_path.write_text(
+        json.dumps(
+            {
+                "id": "g1",
+                # Lands in the Republic's 509d, so section recall passes;
+                # the expected work is Aristotle's, so work recall is 0.
+                "question": "line divided into two unequal sections",
+                "expected_works": ["Nicomachean Ethics"],
+                "expected_sections": ["509d"],
+            }
+        )
+    )
+
+    summary = eval_runner.run(
+        conn=populated_db,
+        gold_path=gold_path,
+        top_k=3,
+        lang="eng",
+        corpus=None,
+        section_recall_threshold=0.5,
+        work_recall_threshold=0.5,
+    )
+    assert summary["section_recall_at_k"] == 1.0
+    assert summary["work_recall_at_k"] == 0.0
+    assert summary["pass"] is False
+
+
 def test_run_marks_failure_when_threshold_unmet(populated_db, tmp_path: Path):
     gold = [
         {
