@@ -21,7 +21,6 @@ nothing resolved and nothing gated on it (#183).
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
@@ -32,15 +31,6 @@ from .agent.detect import work_titles
 
 def _normalize(s: str | None) -> str:
     return (s or "").strip().lower()
-
-
-def _work_matches(work: str, expected: str) -> bool:
-    # Whole-word match so e.g. expected "ion" does not match "constitution".
-    if not work or not expected:
-        return False
-    if work == expected:
-        return True
-    return re.search(rf"(?:^|\W){re.escape(expected)}(?:\W|$)", work) is not None
 
 
 def _work_alias_index(
@@ -88,13 +78,34 @@ def _expand_expected_works(
 
 
 def _hit_matches(
-    hit: retrieve.Hit, expected_works: list[str], expected_sections: list[str]
-) -> tuple[bool, bool]:
+    hit: retrieve.Hit,
+    expected_works: list[str],
+    expected_sections: list[str],
+    expected_book: str | None = None,
+) -> tuple[bool, bool, bool | None]:
+    """``(work_ok, sec_ok, book_ok)`` for one hit.
+
+    Work matching is exact on the normalized name, not a whole-word
+    substring. Both sides are verbatim DB values — ``hit.meta["work"]``
+    is ``chunks_full.work``, i.e. ``w.title``, and the expected list is
+    the alias set built from ``works.title`` / ``title_local`` — and a
+    work's canonical title is always in its own alias set. So exact
+    match decides every true case, and the looser form could only add
+    false positives: with #195's proposed `Das Kapital` alias it would
+    have scored Band I as a hit for gold expecting Band II (#189).
+
+    ``book_ok`` is ``None`` when the gold row names no book, so a row
+    without one is not scored on it in either direction.
+    """
+
     work = _normalize(hit.meta.get("work"))
-    work_ok = any(_work_matches(work, _normalize(w)) for w in expected_works)
+    work_ok = work in {_normalize(w) for w in expected_works}
     sec = _normalize(hit.meta.get("section"))
     sec_ok = sec in {_normalize(s) for s in expected_sections}
-    return work_ok, sec_ok
+    book_ok: bool | None = None
+    if expected_book is not None:
+        book_ok = _normalize(hit.meta.get("book")) == _normalize(expected_book)
+    return work_ok, sec_ok, book_ok
 
 
 def run(
@@ -107,6 +118,7 @@ def run(
     corpus: str | None = "plato",
     section_recall_threshold: float = 0.6,
     work_recall_threshold: float = 0.6,
+    book_recall_threshold: float = 0.6,
 ) -> dict:
     rows = _load_gold(gold_path)
     # Positional, not keyed by `row["id"]`: ids are not validated unique,
@@ -115,6 +127,8 @@ def run(
     per_question: list[dict] = []
     work_hits = 0
     section_hits = 0
+    book_hits = 0
+    book_questions = 0
     mrr = 0.0
     for idx, row in enumerate(rows):
         hits = retrieve.search(
@@ -125,17 +139,27 @@ def run(
             corpus=corpus,
             embedder=embedder,
         )
+        expected_book = row.get("expected_book")
         work_ok = False
         sec_ok = False
+        book_ok: bool | None = None if expected_book is None else False
         rank = None
         for i, h in enumerate(hits, 1):
-            wk, sk = _hit_matches(h, aliases[idx], row["expected_sections"])
+            wk, sk, bk = _hit_matches(
+                h, aliases[idx], row["expected_sections"], expected_book
+            )
             work_ok = work_ok or wk
+            if bk:
+                book_ok = True
             if sk and rank is None:
                 rank = i
                 sec_ok = True
         if work_ok:
             work_hits += 1
+        if expected_book is not None:
+            book_questions += 1
+            if book_ok:
+                book_hits += 1
         if sec_ok:
             section_hits += 1
             mrr += 1.0 / rank
@@ -145,6 +169,7 @@ def run(
                 "question": row["question"],
                 "work_ok": work_ok,
                 "section_ok": sec_ok,
+                "book_ok": book_ok,
                 "rank": rank,
                 "top_hit": (retrieve.format_locator(hits[0].meta) if hits else None),
                 "expected_works": row["expected_works"],
@@ -153,23 +178,31 @@ def run(
                 # spelling the index is using today.
                 "expected_work_aliases": aliases[idx],
                 "expected_sections": row["expected_sections"],
+                "expected_book": expected_book,
             }
         )
     n = len(rows) or 1
     work_recall = work_hits / n
     section_recall = section_hits / n
+    # Denominator is the rows that name a book, not every row — a gold
+    # record without `expected_book` is not evidence either way.
+    book_recall = book_hits / book_questions if book_questions else 1.0
     summary = {
         "n_questions": len(rows),
         "top_k": top_k,
         "work_recall_at_k": round(work_recall, 3),
         "section_recall_at_k": round(section_recall, 3),
         "section_mrr": round(mrr / n, 3),
+        "book_recall_at_k": round(book_recall, 3),
+        "n_questions_with_book": book_questions,
         # Both metrics gate. Work recall is the easier of the two — a hit
         # on the right section is a hit in the right work — so a run
         # where it falls below section recall is structurally broken, and
         # used to pass anyway (#183).
         "pass": (
-            section_recall >= section_recall_threshold and work_recall >= work_recall_threshold
+            section_recall >= section_recall_threshold
+            and work_recall >= work_recall_threshold
+            and book_recall >= book_recall_threshold
         ),
         "per_question": per_question,
     }
@@ -223,6 +256,7 @@ def _load_gold(path: Path) -> list[dict]:
     """
 
     rows: list[dict] = []
+    seen_ids: set[str] = set()
     with path.open("r", encoding="utf-8") as fh:
         for line_no, line in enumerate(fh, 1):
             line = line.strip()
@@ -243,5 +277,12 @@ def _load_gold(path: Path) -> list[dict]:
                 raise ValueError(
                     f"{path}:{line_no}: 'expected_works' and 'expected_sections' must be lists"
                 )
+            # `id` is what a reader — and any future code — keys a row
+            # by; a collision silently scores one row against another's
+            # expectations. #183's first draft did exactly that (#190).
+            row_id = str(row["id"])
+            if row_id in seen_ids:
+                raise ValueError(f"{path}:{line_no}: duplicate id {row_id!r}")
+            seen_ids.add(row_id)
             rows.append(row)
     return rows
