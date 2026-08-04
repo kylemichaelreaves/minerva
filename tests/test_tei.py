@@ -278,3 +278,79 @@ def test_parse_grouped_works(tmp_path: Path):
     assert works == {"Phaidon", "Kriton"}
     local = {c.work: c.title_local for c in chunks}
     assert local == {"Phaidon": "Phaedo", "Kriton": "Crito"}
+
+
+# ── back matter is not a work (#177) ───────────────────────────────────
+
+
+def test_back_matter_text_is_not_ingested_as_a_work(tmp_path: Path, capsys):
+    """Perseus's English Epictetus ships its alphabetical index as a
+    sibling ``<text n="index">`` after the real works. It became
+    works.id=832 'Index.', one chunk of 8,495 characters of page-number
+    apparatus — retrievable as though Epictetus wrote it, and a magnet
+    for BM25 because it contains every topic term in the volume."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Bundle</title></titleStmt></fileDesc></teiHeader>
+<text><group>
+  <text lang="en" n="enc"><body>
+    <head>The Enchiridion</head>
+    <milestone unit="section" n="1"/>
+    Of things some are in our power and others are not.
+  </body></text>
+  <text lang="en" n="index"><body>
+    <head>Index.</head>
+    <milestone unit="section" n="1"/>
+    Academics, deny the evidence of the senses, i. 193. Adultery reproved, i. 118.
+  </body></text>
+</group></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "discourses_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert {c.work for c in chunks} == {"The Enchiridion"}
+    assert not any("Academics" in c.text for c in chunks)
+    # Loud, not silent — the alternative is what happened here: apparatus
+    # sitting in the corpus for months, found only by auditing titles.
+    assert "skipping back matter" in capsys.readouterr().err
+
+
+def test_back_matter_detected_by_head_when_n_is_absent(tmp_path: Path):
+    """The ``n`` attribute is not always there; the head alone must do."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Bundle</title></titleStmt></fileDesc></teiHeader>
+<text><group>
+  <text><body>
+    <head>Meditations</head>
+    <milestone unit="section" n="1"/>
+    From my grandfather Verus I learned good morals.
+  </body></text>
+  <text><body>
+    <head>General Index</head>
+    <milestone unit="section" n="1"/>
+    Antoninus, his character, i. 16. Apathy, not the Stoic doctrine, v. 20.
+  </body></text>
+</group></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "meditations_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="marcus_aurelius", author="Marcus Aurelius"))
+    assert {c.work for c in chunks} == {"Meditations"}
+
+
+def test_a_work_whose_title_merely_contains_index_is_kept(tmp_path: Path):
+    """The match is on the whole normalized title, not a substring — a
+    real work must not be dropped for having 'index' in its name."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Bundle</title></titleStmt></fileDesc></teiHeader>
+<text><group>
+  <text n="w1"><body>
+    <head>The Index Librorum Prohibitorum</head>
+    <milestone unit="section" n="1"/>
+    A real work that happens to be named for an index.
+  </body></text>
+</group></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "x_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert {c.work for c in chunks} == {"The Index Librorum Prohibitorum"}
