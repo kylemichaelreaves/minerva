@@ -645,6 +645,30 @@ def corpus_authors(corpus: str | None) -> tuple[str, ...]:
     return tuple(a.lower() for a in e.authors) or (e.id,)
 
 
+def corpus_for_author(author: str | None) -> str | None:
+    """The corpus id a ``works.author`` value belongs to, or ``None``.
+
+    The inverse of :func:`corpus_authors`. Needed by the work-title
+    fallback in ``agent.detect_corpus``: resolving a title gives a
+    ``works`` row, and a ``works.author`` is not a corpus id for the
+    seven corpora whose id is a slug or covers several authors (#174).
+    Comparison is on the lowercased author name, which is the form
+    ``corpus_authors`` returns and ``chunks_full.corpus`` stores.
+    """
+
+    if not author:
+        return None
+    return _CORPUS_BY_AUTHOR.get(author.strip().lower())
+
+
+def build_corpus_by_author() -> dict[str, str]:
+    out: dict[str, str] = {}
+    for e in CORPORA:
+        for author in e.authors or (e.id,):
+            out[author.lower()] = e.id
+    return out
+
+
 def build_author_keywords() -> dict[str, str]:
     out: dict[str, str] = {}
     for e in CORPORA:
@@ -654,6 +678,8 @@ def build_author_keywords() -> dict[str, str]:
 
 
 AUTHOR_KEYWORDS: dict[str, str] = build_author_keywords()
+
+_CORPUS_BY_AUTHOR: dict[str, str] = build_corpus_by_author()
 
 CORPUS_TO_DOMINANT: dict[str, str] = {e.id: e.dominant_code for e in CORPORA}
 

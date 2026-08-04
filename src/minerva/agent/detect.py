@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
-from ..corpus_registry import AUTHOR_KEYWORDS, corpus_authors
+from ..corpus_registry import AUTHOR_KEYWORDS, corpus_authors, corpus_for_author
 
 _WORD_RE = re.compile(r"\b[\w]+\b", re.UNICODE)
 
@@ -168,6 +168,26 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
     working for the ~140 names that are unambiguous.
     """
 
+    best_ids = _best_title_matches(conn, query, corpus)
+    # A tie between two *different* works is genuine ambiguity; several
+    # titles of the same work tying is not.
+    return next(iter(best_ids)) if len(best_ids) == 1 else None
+
+
+def _best_title_matches(
+    conn: sqlite3.Connection, query: str, corpus: str | None
+) -> set[int]:
+    """The most specific work titles of *corpus* that *query* names.
+
+    The matching rules documented on :func:`detect_work` live here, so
+    the corpus-detection fallback (#194) applies exactly the same
+    conservatism rather than a second, drifting copy of it. Returns
+    every work tying at the winning specificity — the caller decides
+    what a tie means, which differs: two works are ambiguous for work
+    detection, but two works of one *author* are not ambiguous for
+    corpus detection.
+    """
+
     query_tokens = set(_WORD_RE.findall(query.lower()))
     # Casing is read from the raw query, before lowercasing.
     capitalised = {t.lower() for t in _WORD_RE.findall(query) if t[:1].isupper()}
@@ -183,9 +203,39 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
             best_ids, best_n = {work_id}, len(sig)
         elif len(sig) == best_n:
             best_ids.add(work_id)
-    # A tie between two *different* works is genuine ambiguity; several
-    # titles of the same work tying is not.
-    return next(iter(best_ids)) if len(best_ids) == 1 else None
+    return best_ids
+
+
+def _corpus_from_work_title(conn: sqlite3.Connection, query: str) -> str | None:
+    """The corpus of the work *query* names, when no author is named.
+
+    Naming a work is the most natural way to refer to a text, and used
+    to resolve nothing: `detect_corpus` read author keywords only, so
+    "the divided line in the Republic" scoped to no corpus and thereby
+    switched off corpus filtering, work scoping, and concept expansion
+    at once (#194).
+
+    Ambiguity is judged at the *corpus* level, not the work level. Two
+    dialogues of Plato tying still means Plato; one work of Plato and
+    one of Kant means nothing, and an author belonging to no corpus
+    cannot scope at all.
+    """
+
+    ids = _best_title_matches(conn, query, None)
+    if not ids:
+        return None
+    placeholders = ",".join("?" * len(ids))
+    corpora = {
+        corpus_for_author(author)
+        for (author,) in conn.execute(
+            f"SELECT author FROM works WHERE id IN ({placeholders})", tuple(ids)
+        )
+    }
+    # A `None` in the set is an author no corpus claims — not a corpus,
+    # and not something to silently drop in favour of its co-matches.
+    if len(corpora) != 1:
+        return None
+    return next(iter(corpora))
 
 
 def _title_tokens(conn: sqlite3.Connection, corpus: str) -> set[str]:
@@ -230,8 +280,11 @@ def detect_corpus(query: str, conn: sqlite3.Connection | None = None) -> str | N
 
     if len(matched) == 1:
         return next(iter(matched))
-    if len(matched) < 2 or conn is None:
+    if conn is None:
         return None
+    if not matched:
+        # No author named — the query may still name a work (#194).
+        return _corpus_from_work_title(conn, query)
 
     survivors = [
         cand
