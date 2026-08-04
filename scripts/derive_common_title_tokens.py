@@ -86,7 +86,6 @@ def propn_ratio(conn: sqlite3.Connection, tokens: list[str]) -> dict[str, tuple[
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--db", type=Path, default=DEFAULT_DB)
     ap.add_argument(
         "--threshold",
         type=float,
@@ -102,15 +101,15 @@ def main() -> int:
     ap.add_argument("--show-all", action="store_true", help="print every token and its ratio")
     args = ap.parse_args()
 
-    if not args.db.exists():
-        print(f"no index at {args.db}", file=sys.stderr)
+    if not DEFAULT_DB.exists():
+        print(f"no index at {DEFAULT_DB}", file=sys.stderr)
         return 1
 
-    # Plain path, not a `file:...?mode=ro` URI — interpolating a CLI
-    # argument into a connection string lets a crafted path append URI
-    # parameters and reopen the index writable. `query_only` gets the
-    # read-only guarantee without building a string to attack.
-    conn = sqlite3.connect(args.db)
+    # The index path is fixed, not a CLI argument: letting one reach
+    # sqlite3.connect is what SonarCloud pythonsecurity:S8706 objects to,
+    # and this script has no reason to open anything but the repo's own
+    # index. `query_only` keeps the connection read-only besides.
+    conn = sqlite3.connect(DEFAULT_DB)
     conn.execute("PRAGMA query_only = ON")
     names = single_token_names(conn)
     ratios = propn_ratio(conn, sorted(names))
