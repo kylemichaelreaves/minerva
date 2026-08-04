@@ -599,3 +599,39 @@ def test_compose_messages_preserves_greek_passage_text(populated_db):
     block = backend.last_user_block()
     assert greek in block
     assert "language of <QUESTION>" in backend.last_system()
+
+
+def test_detect_corpus_matches_multi_word_keywords():
+    """Multi-word keywords were dead config: `detect_corpus` looks up one
+    token at a time, and no token contains a space, so eight manifest
+    entries could never fire — including `contra celsum`, the only work
+    Origen is in the corpus for (#173)."""
+
+    assert agent.detect_corpus("a passage from Contra Celsum") == "origen"
+    assert agent.detect_corpus("in the Vie de Jésus") == "renan"
+    assert agent.detect_corpus("what Ernest Renan wrote") == "renan"
+    assert agent.detect_corpus("the Comte de Gobineau on race") == "gobineau"
+    assert agent.detect_corpus("Henri Boulainvilliers on the Franks") == "boulainvilliers"
+
+
+def test_detect_corpus_phrase_match_tolerates_separators_and_case():
+    # Built from the keyword's own tokens, so punctuation and spacing
+    # between the words don't matter.
+    assert agent.detect_corpus("CONTRA  CELSUM") == "origen"
+    assert agent.detect_corpus("l'Antéchrist") == "renan"
+
+
+def test_detect_corpus_phrase_does_not_match_a_single_word():
+    # A phrase needs all its words; "celsum" alone is not a keyword.
+    assert agent.detect_corpus("what about celsum") is None
+    assert agent.detect_corpus("a book by Ernest") is None
+
+
+def test_strip_author_keywords_removes_multi_word_names():
+    # Same per-token limitation left "Ernest" behind after stripping.
+    assert agent.strip_author_keywords("what Ernest Renan wrote about Jesus", "renan") == (
+        "what wrote about Jesus"
+    )
+    assert agent.strip_author_keywords(
+        "Henri Boulainvilliers on the Franks", "boulainvilliers"
+    ) == ("on the Franks")

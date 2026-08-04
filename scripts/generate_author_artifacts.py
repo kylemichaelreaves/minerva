@@ -201,6 +201,7 @@ def bootstrap_manifest() -> dict[str, Any]:
             "citation_system": entry.citation_system,
             "dominant_code": entry.dominant_code,
             "keywords": list(entry.keywords),
+            "authors": list(entry.authors),
         }
         if entry.id in corpus_comments:
             row["comment"] = corpus_comments[entry.id]
@@ -305,6 +306,11 @@ def generate_corpora_block(corpora: list[dict[str, Any]]) -> str:
                 lines.append(f"        {dom_line},")
         kws = c.get("keywords") or []
         lines.append(f"        {_py_tuple_str(kws)},")
+        # Only the seven corpora whose id isn't its author carry this;
+        # the rest keep the shorter five-argument form.
+        auths = c.get("authors") or []
+        if auths:
+            lines.append(f"        {_py_tuple_str(auths)},")
         lines.append("    ),")
     lines.append(")")
     return "\n".join(lines)

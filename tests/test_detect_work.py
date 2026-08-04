@@ -34,6 +34,12 @@ def conn():
             # A work whose title names another corpus's author — the
             # collision runs in this direction too (#170).
             (6, "Nietzsche", "Homer und die klassische Philologie"),
+            # The corpus id is `marcus_aurelius`; the author is not.
+            # Binding the id matched no rows at all (#174).
+            (7, "Marcus Aurelius", "Meditations"),
+            # `presocratic` is nine authors, so the mapping is
+            # one-to-many and a rename could not have expressed it.
+            (8, "Heraclitus", "Fragments (DK 22)"),
             # Plato, canonicalised to Latinized-Greek titles (migration 0023).
             (10, "Plato", "Politeia"),
             (11, "Plato", "Phaidros"),
@@ -216,3 +222,20 @@ def test_single_corpus_match_needs_no_connection():
     # The common path must not require an index at all.
     assert detect_corpus("Plato on the forms") == "plato"
     assert detect_corpus("what does Phaedrus say about the wolf") == "aesop"
+
+
+# ---------- corpus ids that are not author names (#174) ----------
+
+
+def test_detects_work_for_a_slug_corpus_id(conn):
+    # `LOWER(author) = 'marcus_aurelius'` matched nothing, so work
+    # detection could never fire for this corpus however it was asked.
+    assert detect_work(conn, "in the Meditations book 4", "marcus_aurelius") == 7
+
+
+def test_detects_work_across_a_multi_author_corpus(conn):
+    assert detect_work(conn, "the Fragments (DK 22) on flux", "presocratic") == 8
+
+
+def test_slug_corpus_still_refuses_an_unnamed_work(conn):
+    assert detect_work(conn, "a question about nothing", "marcus_aurelius") is None

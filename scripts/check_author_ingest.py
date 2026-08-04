@@ -19,6 +19,8 @@ from chunk_count_validation import (
     write_snapshot,
 )
 
+from minerva import corpus_registry
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RULES_DIR = REPO_ROOT / "src" / "minerva" / "refs" / "rules"
 SPECS_DIR = RULES_DIR / "specs"
@@ -107,6 +109,43 @@ SKIP_RULES: frozenset[str] = frozenset(
         "presocratic",
     }
 )
+
+
+def validate_corpus_authors(conn: sqlite3.Connection) -> list[str]:
+    """Every `works.author` must be claimed by exactly one corpus.
+
+    Retrieval filters on `LOWER(works.author)` while every other layer
+    speaks in corpus ids. Where the two diverge and nothing declares the
+    mapping, the filter silently matches no rows: naming Marcus Aurelius
+    or the Torah in chat scoped retrieval to zero chunks and the agent
+    abstained, across 126,480 chunks of the corpus (#174).
+
+    Checks both directions, because either one alone lets a corpus go
+    dark — an author nobody claims is unreachable, and a declared author
+    that does not exist is a typo waiting to do the same.
+    """
+
+    claimed: dict[str, list[str]] = {}
+    for entry in corpus_registry.CORPORA:
+        for author in corpus_registry.corpus_authors(entry.id):
+            claimed.setdefault(author, []).append(entry.id)
+
+    errs: list[str] = []
+    for author, owners in sorted(claimed.items()):
+        if len(owners) > 1:
+            errs.append(f"author {author!r} claimed by several corpora: {sorted(owners)}")
+
+    actual = {r[0] for r in conn.execute("SELECT DISTINCT LOWER(author) FROM works")}
+    for author in sorted(actual - set(claimed)):
+        errs.append(
+            f"works.author {author!r} belongs to no corpus — retrieval scoped to "
+            f"any corpus id will never match it. Add it to a corpus's `authors:` "
+            f"in data/authors/manifest.yaml."
+        )
+    for author in sorted(set(claimed) - actual):
+        owners = ", ".join(claimed[author])
+        errs.append(f"corpus {owners} declares author {author!r}, which no work has")
+    return errs
 
 
 def main() -> int:
@@ -198,6 +237,7 @@ def main() -> int:
             count_errs += validate_chunk_counts(
                 conn, manifest, corpus_ids=tuple(corpus_ids)
             )
+            count_errs += validate_corpus_authors(conn)
             if SNAPSHOT_PATH.is_file():
                 count_errs += snapshot_drift(conn, manifest, load_snapshot())
             else:

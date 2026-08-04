@@ -65,3 +65,45 @@ def test_validate_dominant_codes_detects_synthetic_collision(monkeypatch):
 def test_corpus_to_dominant_covers_all():
     for e in corpus_registry.CORPORA:
         assert corpus_registry.CORPUS_TO_DOMINANT[e.id] == e.dominant_code
+
+
+# ---------- corpus id vs works.author (#174) ----------
+
+
+def test_corpus_authors_defaults_to_the_id():
+    # The 33 single-author corpora: the id *is* the author, lowercased.
+    assert corpus_registry.corpus_authors("plato") == ("plato",)
+    assert corpus_registry.corpus_authors("nietzsche") == ("nietzsche",)
+
+
+def test_corpus_authors_resolves_slug_ids():
+    # Retrieval filters on LOWER(works.author); binding the id here
+    # matched zero chunks and the agent abstained.
+    assert corpus_registry.corpus_authors("marcus_aurelius") == ("marcus aurelius",)
+    assert corpus_registry.corpus_authors("kjv") == ("king james bible",)
+    assert corpus_registry.corpus_authors("hebrew_mt") == ("hebrew bible",)
+
+
+def test_corpus_authors_is_one_to_many():
+    authors = corpus_registry.corpus_authors("presocratic")
+    assert "heraclitus" in authors
+    assert "zeno of elea" in authors
+    assert len(authors) > 1  # a rename could never have expressed this
+
+
+def test_corpus_authors_is_empty_for_no_filtering():
+    assert corpus_registry.corpus_authors(None) == ()
+    assert corpus_registry.corpus_authors("any") == ()
+
+
+def test_corpus_authors_passes_through_an_unknown_id():
+    # Callers that hand over a raw works.author value still filter on it.
+    assert corpus_registry.corpus_authors("Marcus Aurelius") == ("marcus aurelius",)
+
+
+def test_every_declared_author_is_claimed_once():
+    seen: dict[str, str] = {}
+    for entry in corpus_registry.CORPORA:
+        for author in corpus_registry.corpus_authors(entry.id):
+            assert author not in seen, f"{author!r} claimed by {seen.get(author)} and {entry.id}"
+            seen[author] = entry.id

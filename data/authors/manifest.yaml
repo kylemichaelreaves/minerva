@@ -264,6 +264,8 @@ corpora:
   original_lang: grc
   citation_system: paragraph
   dominant_code: Y
+  authors:
+  - Marcus Aurelius
   keywords:
   - marcus
   - aurelius
@@ -282,6 +284,8 @@ corpora:
   original_lang: grc
   citation_system: bcv
   dominant_code: W
+  authors:
+  - New Testament
   keywords:
   - gospel
   - gospels
@@ -298,6 +302,8 @@ corpora:
   original_lang: deu
   citation_system: bcv
   dominant_code: b
+  authors:
+  - Luther Bibel 1912
   keywords:
   - lutherbibel
   - lutherbible
@@ -305,6 +311,8 @@ corpora:
   original_lang: deu
   citation_system: bcv
   dominant_code: c
+  authors:
+  - Luther Bibel 1545
   keywords:
   - luther1545
   - lutherletztehand
@@ -313,6 +321,8 @@ corpora:
   original_lang: eng
   citation_system: bcv
   dominant_code: g
+  authors:
+  - King James Bible
   keywords:
   - kjv
   - authorized
@@ -330,6 +340,16 @@ corpora:
   original_lang: grc
   citation_system: diels_kranz
   dominant_code: Z
+  authors:
+  - Anaxagoras
+  - Anaximenes
+  - Diogenes of Apollonia
+  - Empedocles
+  - Heraclitus
+  - Melissus
+  - Parmenides
+  - Xenophanes
+  - Zeno of Elea
   keywords:
   - presocratic
   - presocratics
@@ -354,6 +374,8 @@ corpora:
   original_lang: heb
   citation_system: bcv
   dominant_code: J
+  authors:
+  - Hebrew Bible
   keywords:
   - tanakh
   - torah
