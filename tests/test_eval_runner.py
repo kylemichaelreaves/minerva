@@ -18,32 +18,54 @@ def test_normalize_strips_and_lowercases():
     assert eval_runner._normalize("") == ""
 
 
-# ---------- _work_matches ----------
+# ---------- work matching is exact (#189) ----------
 
 
-def test_work_matches_exact():
-    assert eval_runner._work_matches("ion", "ion") is True
+def test_work_match_is_exact_not_substring():
+    """Both sides of the comparison are verbatim DB titles.
+
+    `hit.meta["work"]` is `chunks_full.work`, defined by the view as
+    `w.title AS work`; the expected list is the alias set built from
+    `works.title` / `title_local`. A work's canonical title is always in
+    its own alias set, so exact match decides every true case and the old
+    whole-word regex could only ever add false positives (#189).
+    """
+
+    hit = make_hit(work="Politeia", section="509d")
+    assert eval_runner._hit_matches(hit, ["politeia"], ["509d"])[0] is True
+    # A title that merely *contains* an expected name is a different work.
+    assert eval_runner._hit_matches(hit, ["polite"], ["509d"])[0] is False
+    assert (
+        eval_runner._hit_matches(
+            make_hit(work="Alkibiades II"), ["alkibiades i"], []
+        )[0]
+        is False
+    )
+    assert (
+        eval_runner._hit_matches(
+            make_hit(work="Athenian Constitution"), ["ion"], []
+        )[0]
+        is False
+    )
 
 
-def test_work_matches_whole_word_inside_phrase():
-    assert eval_runner._work_matches("the republic", "republic") is True
-    assert eval_runner._work_matches("republic, book 7", "republic") is True
+def test_work_match_refuses_a_title_containing_an_alias_as_a_whole_word():
+    """The concrete false positive the old regex produced.
+
+    #195 proposes giving Marx's three volumes the alias `Das Kapital`.
+    Under whole-word substring matching, gold expecting Band II would
+    have scored a hit on Band I and Band III as well — every volume's
+    title contains the alias as a whole word.
+    """
+
+    hit = make_hit(work="Das Kapital, Band I")
+    assert eval_runner._hit_matches(hit, ["das kapital, band ii"], [])[0] is False
+    assert eval_runner._hit_matches(hit, ["das kapital"], [])[0] is False
 
 
-def test_work_matches_does_not_substring_match():
-    # The bug we fixed: 'ion' must NOT match 'constitution'.
-    assert eval_runner._work_matches("athenian constitution", "ion") is False
-    assert eval_runner._work_matches("definitions", "ion") is False
-
-
-def test_work_matches_distinguishes_phaedo_from_phaedrus():
-    assert eval_runner._work_matches("phaedo", "phaedo") is True
-    assert eval_runner._work_matches("phaedrus", "phaedo") is False
-
-
-def test_work_matches_handles_empty_inputs():
-    assert eval_runner._work_matches("", "phaedo") is False
-    assert eval_runner._work_matches("phaedo", "") is False
+def test_work_match_normalizes_case_and_padding():
+    hit = make_hit(work="  Politeia ", section="509d")
+    assert eval_runner._hit_matches(hit, ["POLITEIA"], ["509d"])[0] is True
 
 
 # ---------- _hit_matches ----------
@@ -51,19 +73,23 @@ def test_work_matches_handles_empty_inputs():
 
 def test_hit_matches_returns_work_and_section_flags():
     hit = make_hit(work="Republic", section="509d")
-    work_ok, sec_ok = eval_runner._hit_matches(hit, ["Republic"], ["509d", "510a"])
+    work_ok, sec_ok, book_ok = eval_runner._hit_matches(
+        hit, ["Republic"], ["509d", "510a"]
+    )
     assert (work_ok, sec_ok) == (True, True)
+    # No expected_book supplied, so the row is not scored on one.
+    assert book_ok is None
 
 
 def test_hit_matches_section_normalized():
     hit = make_hit(work="Republic", section="509D")
-    _work_ok, sec_ok = eval_runner._hit_matches(hit, ["Republic"], ["509d"])
+    _work_ok, sec_ok, _book_ok = eval_runner._hit_matches(hit, ["Republic"], ["509d"])
     assert sec_ok is True
 
 
 def test_hit_matches_neither_when_wrong_work():
     hit = make_hit(work="Phaedrus", section="509d")
-    work_ok, sec_ok = eval_runner._hit_matches(hit, ["Republic"], ["509d"])
+    work_ok, sec_ok, _book_ok = eval_runner._hit_matches(hit, ["Republic"], ["509d"])
     assert (work_ok, sec_ok) == (False, True)  # section coincidentally matches
 
 
@@ -327,3 +353,112 @@ def test_run_marks_failure_when_threshold_unmet(populated_db, tmp_path: Path):
     )
     assert summary["section_recall_at_k"] == 0.0
     assert summary["pass"] is False
+
+
+# ---------- expected_book is actually checked (#187) ----------
+
+
+def test_book_recall_is_reported_and_counts_only_rows_specifying_a_book(
+    populated_db, tmp_path: Path
+):
+    """`expected_book` sat on 29 of 30 gold rows, read by nothing (#187)."""
+
+    gold = [
+        {
+            "id": "with-book",
+            "question": "divided line",
+            "expected_works": ["Republic"],
+            "expected_sections": ["509d"],
+            "expected_book": "6",
+        },
+        {
+            "id": "no-book",
+            "question": "cave shadows wall",
+            "expected_works": ["Republic"],
+            "expected_sections": ["514a"],
+        },
+    ]
+    gold_path = tmp_path / "gold.jsonl"
+    gold_path.write_text("\n".join(json.dumps(g) for g in gold))
+
+    summary = eval_runner.run(
+        conn=populated_db,
+        gold_path=gold_path,
+        top_k=3,
+        lang="eng",
+        corpus="plato",
+        section_recall_threshold=0.5,
+    )
+    # The fixture stamps book="6" on the Republic chunks.
+    assert summary["book_recall_at_k"] == 1.0
+    # Denominator is the rows that specify a book, not all rows.
+    assert summary["n_questions_with_book"] == 1
+    by_id = {q["id"]: q for q in summary["per_question"]}
+    assert by_id["with-book"]["book_ok"] is True
+    # A row with no expected_book is not scored on it either way.
+    assert by_id["no-book"]["book_ok"] is None
+
+
+def test_book_recall_misses_when_the_book_column_disagrees(populated_db, tmp_path: Path):
+    """A wrong `book` is caught even when the section is right.
+
+    This is the check that can measure the TEI chunker's boundary quirk,
+    where the last chunk of book N is stamped N+1 while `section` stays
+    correct.
+    """
+
+    populated_db.execute("UPDATE chunks SET book = '7' WHERE chunk_id = 'rep-509d'")
+    populated_db.commit()
+    gold_path = tmp_path / "gold.jsonl"
+    gold_path.write_text(
+        json.dumps(
+            {
+                "id": "g1",
+                "question": "divided line",
+                "expected_works": ["Republic"],
+                "expected_sections": ["509d"],
+                "expected_book": "6",
+            }
+        )
+    )
+    summary = eval_runner.run(
+        conn=populated_db,
+        gold_path=gold_path,
+        top_k=1,
+        lang="eng",
+        corpus="plato",
+        section_recall_threshold=0.5,
+    )
+    assert summary["section_recall_at_k"] == 1.0
+    assert summary["book_recall_at_k"] == 0.0
+
+
+# ---------- duplicate gold ids (#190) ----------
+
+
+def test_load_gold_rejects_duplicate_ids(tmp_path: Path):
+    """Anything keying gold rows by `id` would score one row as another (#190)."""
+
+    gold = tmp_path / "dup.jsonl"
+    gold.write_text(
+        json.dumps(
+            {
+                "id": "g1",
+                "question": "a",
+                "expected_works": ["Republic"],
+                "expected_sections": ["509d"],
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "id": "g1",
+                "question": "b",
+                "expected_works": ["Republic"],
+                "expected_sections": ["514a"],
+            }
+        )
+        + "\n"
+    )
+    with __import__("pytest").raises(ValueError, match="duplicate id 'g1'"):
+        eval_runner._load_gold(gold)
