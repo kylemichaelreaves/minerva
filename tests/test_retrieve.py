@@ -573,3 +573,58 @@ def test_rank_ids_handles_ids_missing_from_fused():
     # never scored; they sort last rather than raising.
     fused = {"a": 2.0}
     assert retrieve._rank_ids({"a", "b"}, fused) == ["a", "b"]
+
+
+def _seed_apparatus_reservation_db(tmp_path: Path):
+    """As above, but the rare term appears only in editorial notes — the
+    shape that let reserved seats smuggle apparatus past the cap."""
+
+    def ch(cid: str, text: str, block_type: str | None = None) -> dict:
+        row = {
+            "chunk_id": cid,
+            "corpus": "test",
+            "author": "Test",
+            "work": "Work",
+            "lang": "eng",
+            "source_file": "f.txt",
+            "section": cid,
+            "text": text,
+        }
+        if block_type:
+            row["block_type"] = block_type
+        return row
+
+    # `misbegotten` is unique to n1, so it is unambiguously the rarest
+    # token and the reserved seat goes to a note. n2/n3 are dense in the
+    # query's common words, so they compete for the ranked slots too —
+    # which is what the cap has to hold back.
+    chunks = [
+        ch("t1", "good good moral moral virtue virtue order order justice justice good"),
+        ch("t2", "good good good moral moral moral virtue virtue order order justice"),
+        ch("t3", "good moral virtue order justice and the good life considered again"),
+        ch("n1", "A note on the misbegotten passage, and also the good.", "note"),
+        ch("n2", "A note: good good moral moral virtue virtue order justice good.", "note"),
+        ch("n3", "A note: good moral moral virtue virtue virtue order order good.", "note"),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "idx.sqlite")
+    store.insert_chunks(conn, jsonl)
+    return conn
+
+
+def test_reserved_seats_cannot_smuggle_apparatus_past_the_cap(tmp_path: Path):
+    """Regression: the cap ran *before* the reserved-seat merge, and the
+    rarest term in a question is often rarest precisely because only a
+    footnote uses it — so the merge reinstated the notes the cap had
+    just excluded. Measured on the real index this returned 3 notes in a
+    top-6 whose cap was 2."""
+
+    conn = _seed_apparatus_reservation_db(tmp_path)
+    hits = retrieve.search(
+        conn, "good moral virtue misbegotten", top_k=3, lang="eng", min_chunk_chars=0
+    )
+    notes = [h for h in hits if h.meta.get("block_type") == "note"]
+    assert len(notes) <= 1  # max(1, 3 // 3)
+    # The reservation still did its job: the rare term is represented.
+    assert notes, "the rare term's only carrier must still get its seat"

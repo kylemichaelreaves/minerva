@@ -196,20 +196,30 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     // stale the moment Plato's titles were canonicalised to
     // Latinized-Greek, failing locally while CI skipped it (#133).
     //
-    // Note this exercises the *canonical* title (`works.title`). The
-    // English and German names live in `title_local` and do NOT scope
-    // today — that's #164, and it is deliberately not pinned here.
+    // Note this exercises the *canonical* title (`works.title`), which
+    // is what /api/works serves. The English and German names in
+    // `title_local` scope too since #164, but they are not pinned here
+    // because this row does not carry them.
     // Both levels are needed and both come from the served row: the
     // author name is what `detect_corpus` keys on, and only once a
     // corpus is resolved does `detect_work` run at all. Naming the work
     // without the author leaves retrieval corpus-wide.
+    // The question has to be answerable *from the fixture*, which is
+    // Republic Book I (327a-330e) — Cephalus on old age and wealth. It
+    // used to ask about the divided line, which is at 509d and simply
+    // not in here; that passed only because stripping the author out of
+    // "Plato's" left a stray "'s", and the resulting "s" token matched
+    // enough to clear the abstain floor. With that fixed (#165) the
+    // honest answer to the old question is an abstention, so the
+    // assertion below would have been checking citations that no longer
+    // existed.
     const target = await pickLargestWork("plato");
     const named = target.work;
     const r = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        query: `the divided line in ${target.author}'s ${named}`,
+        query: `what does Cephalus say about old age in ${target.author}'s ${named}`,
         history: [],
       }),
     });

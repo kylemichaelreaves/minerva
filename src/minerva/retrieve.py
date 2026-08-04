@@ -374,7 +374,12 @@ def _apparatus_ids(conn: sqlite3.Connection, ids: list[str]) -> set[str]:
     return {r[0] for r in rows}
 
 
-def _cap_apparatus(conn: sqlite3.Connection, ordered: list[str], top_k: int) -> list[str]:
+def _cap_apparatus(
+    conn: sqlite3.Connection,
+    ordered: list[str],
+    top_k: int,
+    exempt: frozenset[str] = frozenset(),
+) -> list[str]:
     """Take the top *top_k*, letting apparatus fill at most a third.
 
     Score order is preserved throughout: this only skips apparatus once
@@ -382,6 +387,12 @@ def _cap_apparatus(conn: sqlite3.Connection, ordered: list[str], top_k: int) -> 
     is not enough primary text to fill the result — a work that is
     mostly apparatus, or a question actually about a footnote, still
     gets a full answer rather than a short one.
+
+    *exempt* ids are never skipped, though apparatus among them still
+    spends the allowance. That is how a reserved seat survives the cap: a
+    term rare enough to earn one is sometimes rare precisely because only
+    a footnote uses it, and dropping that note would answer a question
+    about the term with nothing about the term.
     """
 
     # Every candidate, not a prefix: a note past the window would
@@ -397,7 +408,7 @@ def _cap_apparatus(conn: sqlite3.Connection, ordered: list[str], top_k: int) -> 
     used = 0
     for cid in ordered:
         if cid in apparatus:
-            if used >= cap:
+            if cid not in exempt and used >= cap:
                 deferred.append(cid)
                 continue
             used += 1
@@ -479,7 +490,7 @@ def search(
     ordered = _rank_ids(fused, fused)
     if not ordered:
         return []
-    selected = _cap_apparatus(conn, ordered, top_k)
+    selected = ordered[:top_k]
     # Guarantee the rarest query term's passages a seat, so a key term named
     # in the question can't be displaced by thematically-similar (vector) or
     # common-word (BM25-breadth) matches. No-op for generic/conceptual queries.
@@ -495,8 +506,27 @@ def search(
     )
     forced = [cid for cid in reserved if cid not in selected]
     if forced:
+        # Represent the rare term with the author's own words where any
+        # exist. A term is often rare *because* only a footnote uses it,
+        # and those still get one seat — but three notes about a variant
+        # reading are not worth three of six slots.
+        forced_apparatus = _apparatus_ids(conn, forced)
+        forced = [c for c in forced if c not in forced_apparatus] + [
+            c for c in forced if c in forced_apparatus
+        ][:1]
         keep = selected[: max(0, top_k - len(forced))]
         selected = _rank_ids({*keep, *forced}, fused)[:top_k]
+    # The apparatus share is the last word. Applied before the reserved
+    # seats it was not: the merge above reinstated exactly the notes the
+    # cap had just excluded. Reserved seats stay exempt so the guarantee
+    # survives, and the rest of the ranking follows the selection to give
+    # the cap primary text to promote in place of what it drops.
+    selected = _cap_apparatus(
+        conn,
+        selected + [cid for cid in ordered if cid not in selected],
+        top_k,
+        exempt=frozenset(forced),
+    )
     base_ids = selected
     # One neighbor query per hit, reused for the text assembly below
     # (this used to hit `neighbor_ids` a second time per hit).
