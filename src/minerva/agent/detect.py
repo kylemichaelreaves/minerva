@@ -170,6 +170,10 @@ def strip_author_keywords(query: str, corpus: str) -> str:
         lambda m: "" if AUTHOR_KEYWORDS.get(m.group(0).lower()) == corpus else m.group(0),
         query,
     )
+    # Removing the name out of a possessive strands its suffix:
+    # "Plato's Republic" became "'s Republic", and that orphan went into
+    # the embedding query as a token of its own (#165).
+    out = re.sub(r"(^|\s)['’]s\b", r"\1", out)
     out = re.sub(r"\s+", " ", out).strip()
     out = re.sub(r"\s+([,.?!;:])", r"\1", out)
     return out if out else query

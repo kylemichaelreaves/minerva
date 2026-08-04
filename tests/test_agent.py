@@ -520,6 +520,21 @@ def test_detect_corpus_returns_none_for_multi_author_query():
     assert agent.detect_corpus("Hegel vs. Kant on freedom") is None
 
 
+def test_strip_author_keywords_takes_the_possessive_suffix_with_the_name():
+    """Removing the name out of a possessive used to strand its suffix —
+    "Plato's Republic" became "'s Republic", and that orphan went into
+    the embedding query as a token of its own (#165)."""
+
+    assert agent.strip_author_keywords("Plato's Republic", "plato") == "Republic"
+    assert agent.strip_author_keywords("Plato’s Republic", "plato") == "Republic"  # curly
+    assert (
+        agent.strip_author_keywords("the divided line in Plato's Politeia", "plato")
+        == "the divided line in Politeia"
+    )
+    # A possessive that isn't the stripped author's must survive intact.
+    assert agent.strip_author_keywords("Plato on Homer's gods", "plato") == "on Homer's gods"
+
+
 def test_detect_corpus_returns_none_for_corpus_free_query():
     assert agent.detect_corpus("What is justice?") is None
     assert agent.detect_corpus("") is None
