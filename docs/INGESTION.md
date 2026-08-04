@@ -670,6 +670,23 @@ resolved against the index rather than refused.
 
 Add a row in `tests/test_agent.py` under `test_detect_corpus_*`.
 
+**Work detection.** Once the corpus is resolved, `detect_work` narrows to a
+work named in the query, matching `works.title` and the per-language
+`title_local` values. A title whose only significant token is an ordinary
+word (`Laws`, `Lovers`, `Acts`, `Der Staat`) is trusted only when the query
+capitalises it, so that running prose does not silently scope to it (#168).
+That list is measured from the index, not hand-written — if the ingest added
+works, regenerate it:
+
+```bash
+uv run python scripts/derive_common_title_tokens.py   # paste over
+                                # _COMMON_TITLE_TOKENS in agent/detect.py
+```
+
+A token the list omits is trusted, so skipping this over-scopes rather than
+breaking detection — but do it, or the next author's *Politics* is a
+retrieval trap.
+
 **Audit:** after any bulk ingest, grep ingested `corpus=` slugs against
 `AUTHOR_KEYWORDS` values — several modern authors were added to the
 index before this map was kept in sync.

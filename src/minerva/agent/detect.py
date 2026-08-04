@@ -23,6 +23,33 @@ _TITLE_STOPWORDS = frozenset(
         "the", "a", "of", "on", "to", "and", "or",
         # Latin / French light title words
         "de", "la", "le", "les", "du",
+        # The English first-person pronoun, which is also the Roman numeral
+        # in "Letter I" — leaving it significant made any query containing
+        # "letter" and "I" scope to Epistole I (#168). The other letters
+        # still carry their own numerals ("Letter VII"), which are not
+        # words, so only this one needed excluding.
+        "i",
+    }
+)
+
+# Derived by scripts/derive_common_title_tokens.py: work-title tokens
+# whose corpus-wide PROPN share is under 30% over at least 30 tagged
+# occurrences — ordinary words that happen to name a work. 40 of 182
+# single-token names, from an index of 428,601 chunks.
+#
+# A single-token title is not by itself enough to narrow retrieval when
+# the token is one of these: "what does Plato say about lovers" is not a
+# request for the Erastai (#168). Corpus frequency cannot make this call
+# — `lovers` occurs in 170 chunks and `republic` in 371 — but part of
+# speech can, since the lemmatizer already tags every token.
+_COMMON_TITLE_TOKENS = frozenset(
+    {
+        "acts", "briefe", "categories", "dreams", "erhabene", "erhabenen", "fato",
+        "gesetze", "heavens", "interpretation", "jude", "judges", "lamentations", "laws",
+        "legibus", "letter", "lovers", "mark", "mechanics", "morgenröte", "numbers", "nur",
+        "officiis", "orator", "oratore", "pensées", "politics", "problems", "proverbs",
+        "revelation", "sad", "sophist", "soul", "staat", "staatsmann", "statesman",
+        "suppliants", "theages", "topics", "wisdom"
     }
 )
 
@@ -59,14 +86,25 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
     yields ``None``; several titles of one work tying is not. Returns
     ``None`` when nothing matches cleanly, so a passing mention never
     silently narrows scope.
+
+    A title whose one significant token is an ordinary word
+    (``_COMMON_TITLE_TOKENS``) additionally has to be capitalised in the
+    query to count. "Plato's Laws" scopes to the Nomoi; "the laws of
+    thought in Plato" does not (#168). Titles outside that set match in
+    any casing, so the all-lowercase queries #164 was fixing keep
+    working for the ~140 names that are unambiguous.
     """
 
     query_tokens = set(_WORD_RE.findall(query.lower()))
+    # Casing is read from the raw query, before lowercasing.
+    capitalised = {t.lower() for t in _WORD_RE.findall(query) if t[:1].isupper()}
     best_ids: set[int] = set()
     best_n = 0
     for work_id, title in conn.execute(_TITLES_SQL, (corpus.lower(),) * 3):
         sig = [t for t in _WORD_RE.findall(title.lower()) if t not in _TITLE_STOPWORDS]
         if not sig or not all(t in query_tokens for t in sig):
+            continue
+        if len(sig) == 1 and sig[0] in _COMMON_TITLE_TOKENS and sig[0] not in capitalised:
             continue
         if len(sig) > best_n:
             best_ids, best_n = {work_id}, len(sig)
