@@ -1,7 +1,7 @@
 # Term-glossary YAML specs
 
 One YAML file per author per language. The curator authors a file
-here; `poietes terms import` reads it and populates `terms`,
+here; `minerva terms import` reads it and populates `terms`,
 `term_renderings`, `term_relations`, and `term_occurrences` rows.
 
 ## Files
@@ -23,17 +23,17 @@ The unit of curator effort is one work. Steps:
 # 1. One-time per edition: populate the lemma cache for the work's
 #    chunks. Run once for each new edition; later runs skip chunks
 #    already cached.
-uv run poietes terms lemmatize --lang deu --edition-id 84
+uv run minerva terms lemmatize --lang deu --edition-id 84
 
 # 2. Edit the author's YAML. Add a new term entry, or extend an
 #    existing term's `apply_to:` with the new work + edition.
 
 # 3. Dry-run to see counts.
-uv run poietes terms import data/glossary/hegel.deu.yaml \
+uv run minerva terms import data/glossary/hegel.deu.yaml \
     --dry-run --only-work "Phänomenologie des Geistes"
 
 # 4. Commit.
-uv run poietes terms import data/glossary/hegel.deu.yaml
+uv run minerva terms import data/glossary/hegel.deu.yaml
 
 # 5. Open the Reader and click a marked term.
 ```
@@ -63,12 +63,13 @@ terms:
 
     apply_to:
       - work: Phänomenologie des Geistes
-        edition_id: 84
+        edition: Suhrkamp          # editions.name — the natural key
+        edition_year: 1986         # only when one name repeats across years
         translations:
-          - id: 89                # Pinkard
+          - translator: Terry Pinkard   # translations.translator_name
             rendering: spirit
             note: optional translator note (markdown)
-          - id: 90                # Inwood
+          - translator: Michael Inwood
             rendering: spirit
       # A term in multiple works repeats only the apply_to entries —
       # the term metadata above stays authoritative.
@@ -77,6 +78,38 @@ terms:
       - lemma: Bewusstsein
         relation_kind: contains   # free text
 ```
+
+## Anchoring: use names, not ids
+
+`edition:` and `translator:` are **natural keys** — they match
+`editions.name` and `translations.translator_name`, and the importer
+resolves them to ids at import time.
+
+Do not anchor on `edition_id:` / `id:`. Those are surrogate keys handed
+out by insertion order, and `minerva index --reset` reshuffles them: the
+one spec in this directory used to say `edition_id: 58`, which by the
+time anyone tried to re-import it named Homer's Iliad (#193). A rotted
+`edition_id` at least fails validation, because the importer cross-checks
+the edition against the `work:` you named. A rotted translation `id:`
+does not — nothing cross-checks it, so it imports silently as the wrong
+translator's rendering.
+
+The numeric forms are still accepted, for rows a name genuinely cannot
+separate. Give exactly one of the two per anchor; supplying both is an
+error rather than a precedence rule.
+
+Two disambiguators, needed only when a name is not unique:
+
+- `edition_year:` — `editions` is UNIQUE (work_id, name, year), so one
+  name can repeat across years.
+- `translator:`'s sibling keys `work:` and `year:` — one translator
+  often renders several works for the same author (H. Rackham covers
+  three in the Aristotle corpus). Resolution searches the apply_to
+  entry's work first, then falls back to author-wide, which is what
+  finds translations that ingest filed under their own `works` row
+  (work "Phenomenology of Spirit (Pinkard)" beside "Phänomenologie des
+  Geistes"). An ambiguous match is reported with its candidates, never
+  guessed.
 
 ## Matching strategy
 
@@ -92,8 +125,8 @@ Drop `search_forms:` to switch back to lemma-cache matching.
 Both languages require the lemmatizer cache to be populated first:
 
 ```bash
-uv run poietes terms lemmatize --lang grc           # Aristotle + Plato
-uv run poietes terms lemmatize --lang deu           # Hegel + Kant
+uv run minerva terms lemmatize --lang grc           # Aristotle + Plato
+uv run minerva terms lemmatize --lang deu           # Hegel + Kant
 ```
 
 Or scope to a single edition via `--edition-id N`.
