@@ -21,23 +21,37 @@ hegel = ["pymupdf>=1.28.0", "ebooklib>=0.20", "beautifulsoup4>=4.15.0", "lxml>=6
 # Install via `uv pip install -e '.[lemma]'`. spaCy's German model
 # `de_core_news_sm` ships as a separate wheel — pin it explicitly so
 # fresh installs don't have to remember `python -m spacy download`.
+#
+# Every model wheel below is a direct URL, which bypasses any index-level
+# integrity check, so each one carries a `#sha256=` fragment. uv verifies
+# these and refuses the install on mismatch (exit 1, "Hash mismatch",
+# expected-vs-computed) — they are enforced, not decorative. Re-pointing a
+# URL therefore means re-recording its hash.
+#
+# The two HuggingFace wheels are pinned to a **commit SHA**, not `resolve/main`.
+# `main` is a mutable branch: the bytes at a `resolve/main/<file>` URL can be
+# replaced in place, and a model wheel is a Python package, so installing it
+# executes its code. This is not hypothetical here — `la_core_web_sm-3.9.4`
+# was pinned at `resolve/main` and has since been **deleted** from the repo
+# (it now serves 404, and only 3.9.5/3.9.6 remain), which is why the version
+# below is 3.9.6. A commit-pinned URL cannot be changed out from under us.
 lemma = [
     # German: spaCy + `de_core_news_sm`. spaCy ≥3.8 needed for any
     # Python ≥3.13 (older versions pull `blis<0.8` which fails to
     # compile against 3.13's longobject API).
     "spacy>=3.8.14",
-    "de_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl",
+    "de_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl#sha256=fec69fec52b1780f2d269d5af7582a5e28028738bd3190532459aeb473bfa3e7",
     # French: spaCy + `fr_core_news_sm`. Powers the lat/fra Descartes
     # corpus — the Discours, the Luynes Méditations, and the Picot
     # Principes. Same wheel pattern as the German model.
-    "fr_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl",
+    "fr_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl#sha256=7d6ad14cd5078e53147bfbf70fb9d433c6a3865b695fda2657140bbc59a27e29",
     # English: spaCy `en_core_web_sm` for optional `eng` lemmatize.
-    "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl#sha256=1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85",
     # Ancient Greek + Latin: LatinCy spaCy wheels (primary). ~5× faster
     # and higher lemma accuracy than Stanza on UD-PROIEL dev; see
     # `src/minerva/lemmatize.py` for eval notes.
-    "grc_dep_web_sm @ https://huggingface.co/latincy/grc_dep_web_sm/resolve/main/grc_dep_web_sm-3.8.1-py3-none-any.whl",
-    "la_core_web_sm @ https://huggingface.co/latincy/la_core_web_sm/resolve/main/la_core_web_sm-3.9.4-py3-none-any.whl",
+    "grc_dep_web_sm @ https://huggingface.co/latincy/grc_dep_web_sm/resolve/0165694d960f7d664ab719db4856532cd61653a4/grc_dep_web_sm-3.8.1-py3-none-any.whl#sha256=d12f5a6b054ba759e70e0390d3a883d43df45d44417b7bf386cb605983723662",
+    "la_core_web_sm @ https://huggingface.co/latincy/la_core_web_sm/resolve/16f286d56c0201b3db8e6b6d0245e40972c94068/la_core_web_sm-3.9.6-py3-none-any.whl#sha256=4715eb0a5a4e61003116fd340c31520860cd9ecfe2133ea3685521b89a3ccf90",
     # Stanza: fallback for grc/lat when LatinCy wheels are missing;
     # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
     # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).

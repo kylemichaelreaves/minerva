@@ -18,11 +18,16 @@ Routing
   fallback. LatinCy scores 88.1% on UD lat-PROIEL dev (Stanza:
   84.9%), again ~5× faster.
 
-Both LatinCy models are HuggingFace-hosted spaCy wheels — install with::
+Both LatinCy models are HuggingFace-hosted spaCy wheels. Install them via
+the ``[lemma]`` extra rather than by hand::
 
-    uv pip install \\
-      https://huggingface.co/latincy/grc_dep_web_sm/resolve/main/grc_dep_web_sm-3.8.1-py3-none-any.whl \\
-      https://huggingface.co/latincy/la_core_web_sm/resolve/main/la_core_web_sm-3.9.0-py3-none-any.whl
+    uv pip install -e '.[lemma]'
+
+``pyproject.toml`` pins both to a **commit SHA** with a ``#sha256=`` fragment,
+so the bytes are immutable and verified. Installing from a hand-written
+``resolve/main/...`` URL gets neither, and ``main`` does move: the
+``la_core_web_sm-3.9.0`` and ``-3.9.4`` URLs this docstring and the extra
+used to name have both since 404'd.
 
 See lemmatize-perf-plan memory for the full eval methodology + numbers.
 
