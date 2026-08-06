@@ -194,6 +194,59 @@ different reviewer, or more scope than the change you're on, file it — and
 say in your PR description what you left out and why. Shrinking scope is
 fine; shrinking it silently isn't.
 
+## Close the loop: every PR links its issue
+
+Filing issues is only half a loop. If closing them is manual, the backlog
+grows monotonically no matter how much gets fixed — so **a PR that resolves
+an issue carries a closing keyword in its body, targets `main`, and is
+verified to have registered the link.**
+
+```
+Closes #160. Closes #179.
+```
+
+One keyword per issue — `Closes #160, #179` links only the first. The
+keyword must be in the **PR body**, not just the commit message or the
+title. Keep it in the commit message as well: a squash-merge or a direct
+push to `main` closes from commit text, so the two together survive either
+merge style.
+
+### Two silent failure modes
+
+GitHub will accept a `Closes #N` that does nothing, without warning:
+
+1. **The PR must target the default branch.** A stacked PR based on another
+   feature branch registers *no* link, however many closing keywords it
+   carries. Stacking is still fine — but the PR has to be retargeted to
+   `main` before merge, and see (2).
+2. **The body is parsed when written, not when the base changes.**
+   Retargeting a stacked PR to `main` does not backfill the link. The body
+   must be edited again to re-trigger the scan.
+
+Both of these were live in this repo: #213 was opened stacked, later ended
+up on `main`, and sat there with `Closes #125` in its body and no link
+registered. Merging it would have left #125 open with its fix shipped.
+
+### So verify it, don't assume it
+
+Same discipline as `make check` — read the output:
+
+```
+$ gh pr view 213 --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'
+[125]
+```
+
+An empty array on a PR that fixes something is a defect in the PR. Check it
+after opening, and again after any base change.
+
+### When not to close
+
+A PR that only partly addresses an issue, or whose fix nobody has verified
+yet, uses `Refs #N` and says why in the body. #214 is the worked example: it
+documents the fix for #197, but the fix is a repo setting whose effect
+nobody had yet observed, so closing on merge would have claimed an unproven
+result. Deliberate non-closure is fine; silent non-closure isn't.
+
 ## Correct the record
 
 The companion rule to the one above, and it works in the opposite

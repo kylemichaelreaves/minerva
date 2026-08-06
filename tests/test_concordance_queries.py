@@ -16,6 +16,7 @@ from conftest import make_chunk  # type: ignore[import-not-found]
 
 from minerva import store
 from minerva.concordance import queries as concordance_queries
+from minerva.errors import BadRequestError
 
 # ──────────────────────────────────────────────────────────────────
 #  Fixtures
@@ -332,6 +333,59 @@ def test_morph_filter_wildcards_do_not_bypass_the_filter(
         {"lemma": "Geist", "lang": "deu", "morph": "Case=%"},
     )
     assert wild["total"] == 0
+
+
+def test_unknown_morph_feature_key_is_a_400_not_zero_rows(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """A misspelt feature *key* must 400 rather than quietly return nothing.
+
+    #120 escaped the key and value, which stopped ``Case=%`` widening the
+    filter, but left every unknown key indistinguishable from a genuinely
+    absent form: ``Casee=Nom`` (typo) and ``Case=Nomm`` (no such value)
+    both returned zero rows, and so does "this lemma really has no
+    nominative". A client bug and real data looked identical (#160).
+
+    Only the key is validated. Values stay open-ended — they vary too much
+    per language to whitelist.
+    """
+
+    with pytest.raises(BadRequestError) as exc:
+        concordance_queries.lemma_detail(
+            concordance_db,
+            {"lemma": "Geist", "lang": "deu", "morph": "Casee=Nom"},
+        )
+    assert "Casee" in str(exc.value)
+
+    # An unknown *value* on a known key is still a legitimate query that
+    # happens to match nothing — it must NOT raise.
+    empty = concordance_queries.lemma_detail(
+        concordance_db,
+        {"lemma": "Geist", "lang": "deu", "morph": "Case=Nomm"},
+    )
+    assert empty["total"] == 0
+
+
+def test_morph_accepts_non_ud_keys_the_lemmatizers_actually_emit(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The whitelist is derived from the corpus, not the UD spec.
+
+    ``HebBinyan`` (Hebrew Stanza) and ``ConjType`` / ``VerbType`` /
+    ``AdpType`` (LatinCy) are absent from textbook UD feature tables but
+    account for ~555k rows of ``chunk_lemmas.feats``. Validating against
+    the spec instead of the data would 400 on real corpus features.
+
+    These match no fixture rows, so the assertion is that they are
+    *accepted* — zero results, not a BadRequestError.
+    """
+
+    for key in ("HebBinyan", "ConjType", "VerbType", "AdpType"):
+        out = concordance_queries.lemma_detail(
+            concordance_db,
+            {"lemma": "Geist", "lang": "deu", "morph": f"{key}=Xyz"},
+        )
+        assert out["total"] == 0, f"{key} should be accepted, not rejected"
 
 
 # ──────────────────────────────────────────────────────────────────
