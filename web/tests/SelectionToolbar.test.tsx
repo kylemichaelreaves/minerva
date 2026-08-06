@@ -85,7 +85,7 @@ describe("<SelectionToolbar />", () => {
     expect(container.textContent).toContain("Syntax");
 
     const btn = Array.from(container.querySelectorAll(".st-btn")).find((b) =>
-      b.textContent?.includes("Syntax"),
+      b.textContent.includes("Syntax"),
     );
     fireEvent.click(btn!);
     expect(onSyntax).toHaveBeenCalledTimes(1);
@@ -95,7 +95,7 @@ describe("<SelectionToolbar />", () => {
     const { container, onTranslate, onCopy } = renderToolbar({ onSyntax: vi.fn() });
     const byText = (s: string) =>
       Array.from(container.querySelectorAll(".st-btn")).find((b) =>
-        b.textContent?.includes(s),
+        b.textContent.includes(s),
       )!;
     fireEvent.click(byText("Translate"));
     fireEvent.click(byText("Copy"));
