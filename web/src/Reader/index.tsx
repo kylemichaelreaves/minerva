@@ -141,6 +141,12 @@ export default function Reader(props: ReaderProps) {
     onTranslateRequest: railApi.runTranslate,
   });
 
+  // The dependency parser is German-only (`syntax/parse.py:_LANG = "de"`),
+  // so the action is offered only on a German edition. The server refuses
+  // non-German independently (400) — this keeps a dead button off screen,
+  // it is not the safety property.
+  const syntaxEnabled = () => props.sourceLang === "deu";
+
   const selection = useSelectionToolbar({
     getStage: () => stageRef,
     workId: () => props.workId,
@@ -151,6 +157,15 @@ export default function Reader(props: ReaderProps) {
     onLookupRequest: (word, chunkId, offset, lineEl) => {
       hoverTranslations.registerWordClick(chunkId, offset, word);
       wordLookup.onWordClick(word, chunkId, offset, lineEl);
+    },
+    syntaxEnabled,
+    onSyntaxRequest: (chunkId: string) => {
+      // Direct hash write, matching `onOpenWorkConcordance` above: a
+      // single-purpose CTA does not justify threading the routing
+      // controller through readerCtrl.
+      window.location.hash =
+        `#/syntax/${encodeURIComponent(chunkId)}` +
+        `?work=${encodeURIComponent(props.workId)}`;
     },
   });
 
@@ -343,6 +358,9 @@ export default function Reader(props: ReaderProps) {
             singleWord={t().singleWord}
             onTranslate={() => { selection.commitTranslate(t()); }}
             onLookup={() => { selection.commitLookup(t()); }}
+            onSyntax={
+              syntaxEnabled() ? () => { selection.commitSyntax(t()); } : undefined
+            }
             onCopy={() => { selection.copySelection(t()); }}
             onDismiss={selection.dismissToolbar}
           />
