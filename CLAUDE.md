@@ -54,12 +54,40 @@ locally, so a stale snapshot leaves CI checking a fossil.
 Branch protection is `strict: true`: every merge to `main` puts open PRs
 `BEHIND` and they need `git rebase origin/main` before they can merge.
 
-## Don't trust a stated root cause
+## Don't trust a stated cause — and correct the record when it's wrong
 
-Issues and commit messages name culprits that are often wrong. Verify with
-`git log -S '<symbol>'` and `git show <commit>^:<path>` before repeating
-the attribution — in #116 both defect classes turned out to predate the
-commit the issue blamed, and the real cause was the missing lint gate.
+Issues, commit messages, and docs name culprits, flags, versions and
+counts that are often wrong. Verify — `git log -S '<symbol>'`, `git show
+<commit>^:<path>`, `--help`, or just run the thing — before repeating a
+claim. In #116 both defect classes predated the commit the issue blamed,
+and the real cause was the missing lint gate.
+
+**When what you find materially differs from what the source says, record
+the difference before you move on.** Same standing obligation as "Record
+what you find" above, with one deliberate exception: **a correction is not
+a new issue.** It goes on the thing that was wrong.
+
+- Wrong claim in an **issue** → comment on that issue.
+- Wrong claim in a **doc, comment, or commit message** → fix it in the
+  same PR.
+- Either way, say it in the PR body too.
+
+Carry four things: what the source claims, what is actually true, the
+command and its output that shows it, and — the part that stops the
+repeat — **what would have gone wrong had you trusted it**.
+
+"Material" means it changes the fix, the scope, or the risk. A flag that
+does the opposite of what the issue recommends is material: #125 proposed
+`uv sync --frozen` to fail the build on a stale lock, but `--frozen`
+*skips* that check and installs the stale lock at exit 0 — `--locked` is
+the one that fails. Shipping the issue as written would have pinned CI to
+a lock that could drift from `pyproject.toml` forever, which is the exact
+bug the issue set out to fix. A count or a status that someone would plan
+around is material (#205's grep missed 2 tracked files; #197's "three
+Dependabot PRs are stuck" was true when filed and isn't now). Typos and
+rephrasings are not.
+
+Corrections don't add to the backlog. They keep it honest.
 
 ## Destructive operations
 
