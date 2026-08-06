@@ -32,7 +32,7 @@
 
 **Modified — frontend**
 - `web/src/Reader/components/SelectionToolbar.tsx` — optional `onSyntax` prop + button. Presentational only.
-- `web/src/Reader/useSelectionToolbar.tsx` — `commitSyntax`, the `S` key, and two new props.
+- `web/src/Reader/useSelectionToolbar.tsx` — `commitSyntax`, the `S` key, two new props, plus two extractions of existing code: `closeSelection()` and the pure `toolbarKeyAction()`.
 - `web/src/Reader/index.tsx` — computes `syntaxEnabled()`, wires the hook and the button.
 
 **Modified — tests**
@@ -488,7 +488,25 @@ Copy button."
 
 **Interfaces:**
 - Consumes: `SelectionToolbar`'s `onSyntax?: () => void` from Task 3; the 400 guard from Task 2 as the server-side backstop.
-- Produces: `SelectionToolbarApi.commitSyntax(t: SelToolbar): void`; `SelectionToolbarProps.onSyntaxRequest?: (chunkId: string) => void`; `SelectionToolbarProps.syntaxEnabled?: () => boolean`.
+- Produces: `SelectionToolbarApi.commitSyntax(t: SelToolbar): void`; `SelectionToolbarProps.onSyntaxRequest?: (chunkId: string) => void`; `SelectionToolbarProps.syntaxEnabled?: () => boolean`; exported `toolbarKeyAction(e, opts): ToolbarKeyAction | null`.
+
+**Two refactors of existing code are part of this task**, decided before execution:
+
+1. **`closeSelection()`** — all three commit paths clear the toolbar and drop
+   the browser selection. `commitTranslate` does it as
+   `removeAllRanges()` then `setSelToolbar(null)`; `commitLookup` does the
+   same pair in the opposite order. Extracting one helper removes the
+   duplication `commitSyntax` would otherwise add a third copy of, and
+   normalises the inconsistent ordering. The two operations are independent
+   and synchronous, so order was never load-bearing.
+2. **`toolbarKeyAction()`** — the keydown handler currently mixes its
+   form-field guards with its dispatch, inside a `createEffect` that only
+   runs once `selToolbar()` is non-null, which requires a real DOM `Range`.
+   That is why the existing test file states it does not exercise the
+   Selection API helpers, and it would have left the `S` key untestable.
+   Extracting the decision as a pure function makes the whole key map
+   testable — `t`, `l`, `Escape` included, which are untested today — without
+   any Range scaffolding. The effect becomes a thin dispatcher.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -558,7 +576,54 @@ describe("useSelectionToolbar syntax action", () => {
 });
 ```
 
-**The `S` key is not covered here.** The keydown listener is registered inside a `createEffect` that only runs once `selToolbar()` is non-null, and `selToolbar` is set by `onMouseUp`, which needs a real DOM `Range` — the reason the file's own header says the Selection API helpers are not exercised in it. Driving the key path would mean reproducing that chain for one branch. The gate it depends on (`syntaxEnabled`) is covered by the button tests in Task 3 and by the Reader wiring, and the server refuses non-German regardless. Step 10's manual check exercises the key.
+Then append a second new `describe` block for the extracted key map. Add `toolbarKeyAction` to the existing import from `~/Reader/useSelectionToolbar`:
+
+```ts
+describe("toolbarKeyAction", () => {
+  const ev = (key: string, target?: EventTarget) => {
+    const e = new KeyboardEvent("keydown", { key });
+    if (target) Object.defineProperty(e, "target", { value: target });
+    return e;
+  };
+  const opts = (over: Partial<{ singleWord: boolean; syntaxEnabled: boolean }> = {}) => ({
+    singleWord: over.singleWord ?? false,
+    syntaxEnabled: over.syntaxEnabled ?? false,
+  });
+
+  it("maps S to syntax only when syntax is enabled", () => {
+    expect(toolbarKeyAction(ev("s"), opts({ syntaxEnabled: true }))).toBe("syntax");
+    expect(toolbarKeyAction(ev("S"), opts({ syntaxEnabled: true }))).toBe("syntax");
+    expect(toolbarKeyAction(ev("s"), opts({ syntaxEnabled: false }))).toBeNull();
+  });
+
+  it("maps L to lookup only for a single-word selection", () => {
+    expect(toolbarKeyAction(ev("l"), opts({ singleWord: true }))).toBe("lookup");
+    expect(toolbarKeyAction(ev("l"), opts({ singleWord: false }))).toBeNull();
+  });
+
+  it("maps T to translate and Escape to dismiss", () => {
+    expect(toolbarKeyAction(ev("t"), opts())).toBe("translate");
+    expect(toolbarKeyAction(ev("T"), opts())).toBe("translate");
+    expect(toolbarKeyAction(ev("Escape"), opts())).toBe("dismiss");
+  });
+
+  it("yields to form fields and editable regions", () => {
+    for (const tag of ["input", "textarea", "select"]) {
+      const el = document.createElement(tag);
+      expect(toolbarKeyAction(ev("t", el), opts())).toBeNull();
+    }
+    const editable = document.createElement("div");
+    editable.contentEditable = "true";
+    // jsdom does not derive isContentEditable from the attribute.
+    Object.defineProperty(editable, "isContentEditable", { value: true });
+    expect(toolbarKeyAction(ev("t", editable), opts())).toBeNull();
+  });
+
+  it("ignores unrelated keys", () => {
+    expect(toolbarKeyAction(ev("x"), opts({ singleWord: true, syntaxEnabled: true }))).toBeNull();
+  });
+});
+```
 
 - [ ] **Step 2: Run them to verify they fail**
 
@@ -588,17 +653,55 @@ and to `SelectionToolbarProps`:
   onSyntaxRequest?: (chunkId: string) => void;
 ```
 
-- [ ] **Step 4: Implement `commitSyntax`**
+- [ ] **Step 4: Extract `closeSelection`, and use it in the two existing commits**
 
-After `commitLookup` (around `:205`):
+Above `commitTranslate` (around `:170`):
 
 ```ts
-  function commitSyntax(t: SelToolbar) {
-    // Same derivation as commitLookup: the chunk comes off the first pinned
-    // span, which is the one the selection started in.
+  /** Close the toolbar and drop the browser selection. Every commit path
+   *  does this before handing off; the two operations are independent and
+   *  synchronous, so the order the call sites used to differ in never
+   *  mattered. */
+  function closeSelection() {
+    setSelToolbar(null);
+    window.getSelection()?.removeAllRanges();
+  }
+```
+
+In `commitTranslate`, replace:
+
+```ts
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    setSelToolbar(null);
+```
+
+with `closeSelection();`.
+
+In `commitLookup`, replace:
+
+```ts
     setSelToolbar(null);
     const sel = window.getSelection();
     sel?.removeAllRanges();
+```
+
+with `closeSelection();`.
+
+- [ ] **Step 5: Run the existing tests to prove the extraction changed nothing**
+
+Run: `npm --prefix web run test:unit -- useSelectionToolbar`
+Expected: the existing persistence tests still PASS. They drive `commitTranslate`, so they cover the extraction. The new syntax tests still fail — `commitSyntax` does not exist yet.
+
+- [ ] **Step 6: Implement `commitSyntax`**
+
+After `commitLookup`:
+
+```ts
+  function commitSyntax(t: SelToolbar) {
+    // The chunk comes off the first pinned span — the one the selection
+    // started in — same derivation as commitLookup.
+    closeSelection();
     const p = t.pinned[0];
     if (p === undefined) return;
     props.onSyntaxRequest?.(p.chunkId);
@@ -607,23 +710,74 @@ After `commitLookup` (around `:205`):
 
 Add `commitSyntax` to the object the hook returns, next to `commitLookup`.
 
-- [ ] **Step 5: Add the `S` key**
+- [ ] **Step 7: Extract the key map as a pure function**
 
-In the keydown handler, after the `l`/`L` branch:
+At module scope in `web/src/Reader/useSelectionToolbar.tsx`, above the hook:
 
 ```ts
-      if ((e.key === "s" || e.key === "S") && props.syntaxEnabled?.()) {
-        e.preventDefault();
-        commitSyntax(t);
-      }
+export type ToolbarKeyAction = "dismiss" | "translate" | "lookup" | "syntax";
+
+/** Which toolbar action a keydown should trigger, or null for none.
+ *
+ *  Pure, and exported, because the listener that consumes it lives in a
+ *  `createEffect` gated on an open toolbar — which requires a real DOM
+ *  Range to produce. Keeping the decision separate from the dispatch is
+ *  what makes the key map testable at all; it was untested before. */
+export function toolbarKeyAction(
+  e: KeyboardEvent,
+  opts: { singleWord: boolean; syntaxEnabled: boolean },
+): ToolbarKeyAction | null {
+  // Don't hijack keys while the user is typing in a form field or an
+  // editable region — let those widgets keep their keystrokes.
+  // (instanceof, not a cast: e.target can be the Document itself, which
+  // has no tagName.)
+  const el = e.target instanceof HTMLElement ? e.target : null;
+  const tag = el?.tagName.toLowerCase();
+  if (tag === "textarea" || tag === "input" || tag === "select") return null;
+  if (el?.isContentEditable) return null;
+
+  if (e.key === "Escape") return "dismiss";
+  if (e.key === "t" || e.key === "T") return "translate";
+  if ((e.key === "l" || e.key === "L") && opts.singleWord) return "lookup";
+  if ((e.key === "s" || e.key === "S") && opts.syntaxEnabled) return "syntax";
+  return null;
+}
 ```
 
-- [ ] **Step 6: Run the hook tests**
+- [ ] **Step 8: Reduce the effect to a dispatcher**
+
+Replace the body of `onKey` inside the keydown `createEffect` with:
+
+```ts
+    const onKey = (e: KeyboardEvent) => {
+      const action = toolbarKeyAction(e, {
+        singleWord: t.singleWord,
+        syntaxEnabled: props.syntaxEnabled?.() ?? false,
+      });
+      if (action === null) return;
+      if (action === "dismiss") {
+        setSelToolbar(null);
+        return;
+      }
+      e.preventDefault();
+      if (action === "translate") commitTranslate(t);
+      else if (action === "lookup") commitLookup(t);
+      else commitSyntax(t);
+    };
+```
+
+Leave the `addEventListener` / `onCleanup` pair below it untouched — the
+comment there explains why cleanup is registered that way, and this change
+does not affect it.
+
+Note `Escape` keeps its no-`preventDefault` behaviour, matching the original.
+
+- [ ] **Step 9: Run the hook tests**
 
 Run: `npm --prefix web run test:unit -- useSelectionToolbar`
 Expected: PASS.
 
-- [ ] **Step 7: Wire it in the Reader**
+- [ ] **Step 10: Wire it in the Reader**
 
 In `web/src/Reader/index.tsx`, above the `useSelectionToolbar` call at `:144`:
 
@@ -657,22 +811,22 @@ And in the `SelectionToolbar` JSX at `:340-348`, add after `onLookup`:
             }
 ```
 
-- [ ] **Step 8: Verify the hash format matches the router**
+- [ ] **Step 11: Verify the hash format matches the router**
 
 Run: `grep -n 'kind === "syntax"' -A2 web/src/routing.ts`
 Expected: `#/syntax/${encodeURIComponent(route.chunkId)}` with `?work=${encodeURIComponent(route.workId)}` — the same shape written in step 7. If they differ, the router is the authority; change step 7 to match.
 
-- [ ] **Step 9: Full gate**
+- [ ] **Step 12: Full gate**
 
 Run: `make check`
 Expected: `All checks passed!`, pytest and vitest green.
 
-- [ ] **Step 10: Manual check**
+- [ ] **Step 13: Manual check**
 
 Run: `make run`, open a German work (Hegel or Nietzsche), select a phrase.
 Expected: the toolbar shows `Syntax · S`; clicking it opens the arc diagram for that chunk; closing returns to the Reader at the same work. Then open an English or Greek work and select a phrase: no Syntax action.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 git add web/src/Reader/useSelectionToolbar.tsx web/src/Reader/index.tsx \
@@ -714,7 +868,9 @@ Out-of-scope items (per-language dispatch, `network-arc` / `network-coverage`, n
 
 **Placeholder scan.** No TBD/TODO. Every code step carries the code, written against the helpers the target files actually have (`buildToolbar` and `createRoot` in `useSelectionToolbar.test.ts`, `renderToolbar` in `SelectionToolbar.test.tsx`, the monkeypatched `deps` fixture in `test_syntax_endpoint.py`).
 
-**One deliberate coverage gap, stated not hidden.** The `S` key has no automated test. Its listener lives in a `createEffect` gated on `selToolbar()` being non-null, which is set by `onMouseUp`, which needs a real DOM `Range` — the same reason the existing test file's header says it does not exercise the Selection API helpers. Reproducing that chain for one branch costs more than it protects, given the gate it reads is covered elsewhere and the server refuses non-German regardless. Task 4 step 10 covers it by hand.
+**No coverage gaps.** An earlier revision left the `S` key untested, because its listener sits behind a `createEffect` gated on a selection that needs a real DOM `Range`. Rather than accept that, Task 4 extracts the key map as a pure `toolbarKeyAction`, which makes the whole map testable without any Range scaffolding — `t`, `l` and `Escape` included, none of which had tests before.
+
+**Two refactors of existing code, decided pre-flight rather than discovered mid-review.** `closeSelection()` deduplicates the toolbar/selection teardown that all three commit paths share (and normalises the inconsistent ordering between `commitTranslate` and `commitLookup`); `toolbarKeyAction()` separates the key decision from its dispatch. Both are in Task 4, each with a step that runs the existing tests to prove the extraction changed nothing before new behaviour is added on top.
 
 **Type consistency.** `UnsupportedSyntaxLanguage(chunk_id, lang)` is defined in Task 2 step 3 and used in step 5 with the same signature. `SUPPORTED_LANG = "deu"` is defined once and used in the guard and the message. `commitSyntax(t: SelToolbar)` is declared in Task 4 step 3 and implemented in step 4 with the same signature; `onSyntaxRequest(chunkId: string)` and `syntaxEnabled(): boolean` match across steps 3, 4, 5 and 7. `onSyntax?: () => void` is the same in Task 3 (definition) and Task 4 step 7 (supply).
 
