@@ -30,6 +30,35 @@ reviewer, or more scope than the change you're on, file it and say in the
 PR what you left out and why. Shrinking scope is fine; doing it silently
 isn't.
 
+## Close the loop: every PR links its issue
+
+**A PR that resolves an issue carries `Closes #N` in the PR body, targets
+`main`, and is verified to have registered the link.** Filing issues is
+worthless if closing them is manual — the backlog then only ever grows.
+
+Two GitHub behaviours make this fail silently, and both have bitten us:
+
+- **The link only registers for PRs targeting the default branch.** A
+  stacked PR based on another branch records nothing, however many
+  `Closes #N` lines it contains.
+- **The body is parsed when it is written, not when the base changes.**
+  Retargeting a stacked PR to `main` afterwards does *not* backfill the
+  link; the body has to be edited again.
+
+So don't assume — check, the same way you'd check `make check`:
+
+```
+gh pr view <n> --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'
+```
+
+Empty output on a PR that fixes something is a bug in the PR. Keep the
+keyword in the commit message too, so a squash-merge or a direct push
+still closes the issue if the link is missing.
+
+When a PR should deliberately *not* close its issue — a partial fix, or a
+fix nobody has verified yet — write `Refs #N` instead and say why in the
+body. Silence reads as an oversight.
+
 ## Verify before claiming
 
 `make check` — ruff (`src tests scripts perseus`) + eslint + tsc + pytest
