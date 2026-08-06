@@ -131,3 +131,24 @@ export function selectionSummary(text: string): { count: string; words: number }
   if (words <= 1) return { count: `${words} word`, words };
   return { count: `${words} words · ${chars} chars`, words };
 }
+
+/** Whether the dependency-syntax action applies to what's on screen.
+ *
+ *  Prefers `rangeLang` — the language the server actually resolved for the
+ *  loaded range (`WorkRange.lang`) — over `sourceLang`, the route/prop hint.
+ *  `sourceLang` is `undefined` on citation deep-links (`App.tsx`'s
+ *  `openAtChunk` passes it as `undefined`) and on the syntax route's own
+ *  return trip, so gating on it alone leaves German text with no Syntax
+ *  action at all in those paths. Falling back to it keeps the gate lit
+ *  before the range has loaded (first paint, `rangeLang` is `undefined`)
+ *  when the caller *does* have a lang hint.
+ *
+ *  The parser is German-only (`syntax/parse.py:_LANG = "de"`); the server
+ *  refuses non-German independently (400) — this is convenience, not the
+ *  safety property. */
+export function isSyntaxLangEnabled(
+  rangeLang: string | undefined,
+  sourceLang: string | undefined,
+): boolean {
+  return (rangeLang ?? sourceLang) === "deu";
+}

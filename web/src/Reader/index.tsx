@@ -25,6 +25,7 @@ import TermCard from "~/components/TermCard";
 import { useMobileShell } from "~/components/MobileShellContext";
 import { useEscape } from "~/hooks/useEscape";
 import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
+import { routeHash } from "~/routing";
 import { Chrome } from "~/Reader/components/Chrome";
 import { EditionBar } from "~/Reader/components/EditionBar";
 import { ReaderHead } from "~/Reader/components/ReaderHead";
@@ -35,6 +36,7 @@ import { useWordHoverTranslations } from "~/Reader/useWordHoverTranslations";
 import { useWordLookup } from "~/Reader/useWordLookup";
 import { useWorkRange } from "~/Reader/useWorkRange";
 import { useXrefCard } from "~/Reader/useXrefCard";
+import { isSyntaxLangEnabled } from "~/Reader/utils";
 import { Lines, type XrefMap } from "~/Reader/components/Lines";
 import { RailContent } from "~/Reader/components/Rail";
 import { ReaderMobileSettingsSheet } from "~/Reader/components/ReaderMobileSettingsSheet";
@@ -141,6 +143,18 @@ export default function Reader(props: ReaderProps) {
     onTranslateRequest: railApi.runTranslate,
   });
 
+  // The dependency parser is German-only (`syntax/parse.py:_LANG = "de"`),
+  // so the action is offered only on a German edition. Gated on the
+  // loaded range's own `lang` (falling back to `props.sourceLang` before
+  // the range has loaded) rather than `sourceLang` alone: `sourceLang` is
+  // `undefined` on citation deep-links (`App.tsx`'s `openAtChunk`) and on
+  // the syntax route's own return trip, which would otherwise hide the
+  // action from German text reached those ways. This also makes the gate
+  // true to the spec's claim that it's keyed on the chunk's language, not
+  // the work's. The server refuses non-German independently (400) — this
+  // keeps a dead button off screen, it is not the safety property.
+  const syntaxEnabled = () => isSyntaxLangEnabled(range()?.lang, props.sourceLang);
+
   const selection = useSelectionToolbar({
     getStage: () => stageRef,
     workId: () => props.workId,
@@ -151,6 +165,15 @@ export default function Reader(props: ReaderProps) {
     onLookupRequest: (word, chunkId, offset, lineEl) => {
       hoverTranslations.registerWordClick(chunkId, offset, word);
       wordLookup.onWordClick(word, chunkId, offset, lineEl);
+    },
+    syntaxEnabled,
+    onSyntaxRequest: (chunkId: string) => {
+      // Build the hash through the router's own serializer rather than
+      // by hand, so this link can't drift from `readRoute`'s parser in
+      // routing.ts. `routeHash` is a pure function — no need to thread
+      // the full routing controller through readerCtrl for this
+      // single-purpose CTA.
+      window.location.hash = routeHash({ kind: "syntax", chunkId, workId: props.workId });
     },
   });
 
@@ -343,6 +366,9 @@ export default function Reader(props: ReaderProps) {
             singleWord={t().singleWord}
             onTranslate={() => { selection.commitTranslate(t()); }}
             onLookup={() => { selection.commitLookup(t()); }}
+            onSyntax={
+              syntaxEnabled() ? () => { selection.commitSyntax(t()); } : undefined
+            }
             onCopy={() => { selection.copySelection(t()); }}
             onDismiss={selection.dismissToolbar}
           />

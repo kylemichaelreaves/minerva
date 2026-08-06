@@ -32,7 +32,10 @@ from minerva.syntax import queries as q
 
 ALLOWED = "http://127.0.0.1:5173"
 EVIL = "https://evil.example"
-CHUNK = "rep-509d"
+# The syntax path is German-only (`load_or_parse` in
+# `minerva.syntax.queries`, guarding #231); the correction-create handler
+# calls that same function, so an English chunk is refused here too.
+CHUNK = "hegel-p17"
 
 
 def fake_tokens() -> list[q.SyntaxToken]:

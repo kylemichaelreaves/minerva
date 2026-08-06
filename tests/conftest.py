@@ -137,6 +137,20 @@ def populated_db(tmp_path: Path, db_path: Path) -> sqlite3.Connection:
             book=None,
             text="Recollection: the soul recovers what it knew before birth.",
         ),
+        # German, for the syntax tests. The dependency parser is
+        # German-only (`syntax/parse.py:_LANG = "de"`) and `load_or_parse`
+        # refuses anything else, so a syntax fixture cannot be one of the
+        # English Plato chunks above.
+        make_chunk(
+            chunk_id="hegel-p17",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie des Geistes",
+            lang="deu",
+            section="¶17",
+            book=None,
+            text="Der Geist entwickelt sich nur in der Zeit.",
+        ),
     ]
     jsonl = tmp_path / "chunks.jsonl"
     jsonl.write_text("\n".join(json.dumps(c) for c in chunks))

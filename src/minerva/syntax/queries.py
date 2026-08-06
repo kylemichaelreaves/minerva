@@ -20,6 +20,27 @@ from collections.abc import Iterable, Sequence
 # CHECK constraint in migration 0024 too.
 CORRECTABLE = ("head", "deprel")
 
+#: The only language the dependency parser handles. `syntax/parse.py` builds a
+#: Stanza German pipeline (`_LANG = "de"`); there is no per-language dispatch,
+#: and adding one is explicitly out of scope in the annotation plan.
+SUPPORTED_LANG = "deu"
+
+
+class UnsupportedSyntaxLanguage(Exception):
+    """Raised when a chunk is not in a language the parser handles.
+
+    Its whole purpose is to stop the German model from parsing Greek or
+    Latin and `save_parse` caching the output as authoritative (#231). The
+    caller decides how to surface it; the HTTP layer answers 400.
+    """
+
+    def __init__(self, chunk_id: str, lang: str) -> None:
+        super().__init__(
+            f"syntax parsing is {SUPPORTED_LANG}-only; chunk {chunk_id!r} is {lang!r}"
+        )
+        self.chunk_id = chunk_id
+        self.lang = lang
+
 
 @dataclasses.dataclass(frozen=True)
 class SyntaxToken:
@@ -204,22 +225,40 @@ def load_or_parse(conn: sqlite3.Connection, chunk_id: str) -> list[SyntaxToken] 
     produce trees for text nobody has opened. The first call for a chunk costs
     a pipeline load (~4s, once per process) plus the parse (~0.15s for a
     paragraph); every later call is a read.
+
+    Raises :class:`UnsupportedSyntaxLanguage` for a chunk the parser cannot
+    handle — checked before the cache read and before ``parse_text()`` is
+    called.
     """
+
+    # Language first, before the cache read and before parse_text() is
+    # called.
+    #
+    # Before the cache, because a cached tree for a non-German chunk could
+    # only have come from the German model and should not be served either.
+    # Before the call, because that's what triggers the Stanza pipeline
+    # load (`parse.py:_pipeline()` / `_stanza_version()` import stanza
+    # lazily, never at module scope) — a guard placed after it would pass
+    # locally and fail in CI, which has no `[lemma]` extra.
+    row = conn.execute(
+        "SELECT text, lang FROM chunks WHERE chunk_id = ?", (chunk_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    lang = str(row["lang"])
+    if lang != SUPPORTED_LANG:
+        raise UnsupportedSyntaxLanguage(chunk_id, lang)
 
     cached = load_parse(conn, chunk_id)
     if cached is not None:
         return cached
-
-    row = conn.execute("SELECT text FROM chunks WHERE chunk_id = ?", (chunk_id,)).fetchone()
-    if row is None:
-        return None
 
     # Imported here, not at module scope: `stanza` is in the optional
     # `[lemma]` extra, and every other function in this module must keep
     # working without it.
     from .parse import parse_text, parser_id
 
-    tokens = parse_text(str(row[0]))
+    tokens = parse_text(str(row["text"]))
     save_parse(conn, chunk_id, tokens, parser=parser_id())
     return tokens
 

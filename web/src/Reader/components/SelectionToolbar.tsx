@@ -3,12 +3,10 @@
 // commit — gives the user a chance to refine the selection without
 // burning an LLM call on every intermediate pointerup.
 //
-// Two shapes, driven by the `singleWord` flag:
-//   • multi-word: [ Translate · T ] [Copy] [ <count> ]
-//   • single-word: [ Look up · L ] [ Translate · T ] [ <count> ]
-// The single-word fork exists because a drag-selected one word is
-// ambiguous — the user may want morphology (rail's word lookup) OR a
-// quick phrase translation. We surface both rather than guess.
+// Shapes, driven by `singleWord` and by which optional handlers are given:
+//   • multi-word:  [ Translate phrase · T ] [ Syntax · S ]? [Copy] [ <count> ]
+//   • single-word: [ Look up · L ] [ Translate · T ] [ Syntax · S ]? [Copy] [ <count> ]
+// `?` = rendered only when the corresponding handler is supplied.
 
 import { Show, onCleanup, onMount } from "solid-js";
 
@@ -25,6 +23,10 @@ export function SelectionToolbar(props: {
   singleWord: boolean;
   onTranslate: () => void;
   onLookup?: () => void;
+  /** Supplied only when the syntax overlay is available for this
+   *  selection — the Reader withholds it for non-German editions, since
+   *  the dependency parser is German-only. Absent means no button. */
+  onSyntax?: () => void;
   onCopy: () => void;
   onDismiss: () => void;
 }) {
@@ -102,6 +104,18 @@ export function SelectionToolbar(props: {
         <span>{props.singleWord ? "Translate" : "Translate phrase"}</span>
         <span class="kbd">T</span>
       </button>
+      <Show when={props.onSyntax}>
+        <div class="st-sep" />
+        <button
+          type="button"
+          class="st-btn"
+          onClick={() => { props.onSyntax!(); }}
+          title="Syntax (S)"
+        >
+          <span>Syntax</span>
+          <span class="kbd">S</span>
+        </button>
+      </Show>
       <div class="st-sep" />
       <button
         type="button"
