@@ -194,6 +194,68 @@ different reviewer, or more scope than the change you're on, file it — and
 say in your PR description what you left out and why. Shrinking scope is
 fine; shrinking it silently isn't.
 
+## Correct the record
+
+The companion rule to the one above, and it works in the opposite
+direction: **when what you find materially differs from what an issue, doc,
+or commit message claims, record the difference before you move on.**
+
+Sources here are frequently wrong in ways that matter. An issue names the
+wrong commit, recommends a flag that does the opposite of what it says,
+counts seven occurrences where there are nine, or describes a state that
+was true when filed and has since changed. Each one is a trap the next
+person walks into, and re-deriving the same correction is pure waste.
+
+**A correction is not a new issue.** This is the deliberate difference from
+"Record what you find" — filing a fresh issue every time a source is wrong
+would bloat the tracker with meta-commentary and bury the correction where
+nobody hitting the original will see it. Put it on the thing that was
+wrong:
+
+| Wrong claim lives in | Where the correction goes |
+|---|---|
+| An issue | A comment on that issue |
+| A doc, code comment, or workflow comment | Fixed in the same PR |
+| A commit message (immutable) | The PR body, and the issue it references |
+
+Either way it goes in your PR description too — reviewers are judging your
+change against the issue, so a silent divergence reads as a mistake.
+
+A useful correction carries four things:
+
+- **What the source claims** — quoted, so there's no ambiguity about what
+  is being corrected.
+- **What is actually true.**
+- **The evidence** — the command and its output, same bar as an issue.
+  `--help` output and a two-line experiment both count.
+- **What would have gone wrong had you trusted it.** This is the part that
+  prevents the repeat, and the part people skip.
+
+Worked example — #125 recommended switching CI to `uv sync --frozen` so a
+stale lockfile would fail the build. It does the opposite:
+
+```
+$ uv sync --help | grep -A1 -E "^\s+--(frozen|locked)"
+      --locked   Assert that the `uv.lock` will remain unchanged
+      --frozen   Sync without updating the `uv.lock` file
+```
+
+Against a deliberately stale lock:
+
+```
+$ uv sync --frozen --dry-run --extra dev   # exit 0 — installs the stale lock, ignores pyproject
+$ uv sync --locked --dry-run --extra dev   # exit 1
+The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.
+```
+
+Had we shipped the issue as written, CI would have pinned itself to a lock
+free to drift from `pyproject.toml` indefinitely — the exact failure the
+issue existed to fix, now harder to see because the fix looked applied.
+
+**Material** means it changes the fix, the scope, or the risk. Typos,
+rephrasings, and stylistic disagreements are not material — don't paper
+issues with them.
+
 ## Where to look
 
 | Doc | Purpose |
