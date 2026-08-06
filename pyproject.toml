@@ -141,6 +141,26 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
+# Codegen-owned files. `scripts/generate_author_artifacts.py` writes into
+# sentinel regions of these, and `--check` compares the on-disk region against
+# what the generator emits. `ruff format` rewrites content *inside* those
+# regions, so formatting them makes the manifest-sync gate fail — running the
+# repo's own `make format-py` broke the repo's own `make check` (#136).
+#
+# Excluded from `format` only; `ruff check` (lint) still covers them.
+#
+# The tidier fix is to make the generator emit ruff-formatted blocks so no
+# exception is needed. That's a change to the generator's write+check
+# contract and belongs in its own diff — see #136.
+#
+# Note this excludes from *directory* invocations (`ruff format src tests`,
+# which is what `make format-py` runs). Ruff still formats these when they
+# are named explicitly on the command line unless `--force-exclude` is
+# passed — worth knowing before wiring ruff into a per-file pre-commit hook.
+exclude = [
+    "src/minerva/corpus_registry.py",
+    "src/minerva/author_ordering.py",
+]
 
 [project.scripts]
 minerva = "minerva.cli:main"

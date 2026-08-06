@@ -247,6 +247,19 @@ jobs:
           source ../.venv/bin/activate
           npm run test:e2e
 
+  # TWO checks come out of this, and they mean different things:
+  #
+  #   * `sonarqube`                — THIS job. Green means the scan ran and
+  #                                  uploaded. `sonar.qualitygate.wait` is not
+  #                                  set, so it exits 0 regardless of the
+  #                                  verdict. It is NOT a required context.
+  #   * `SonarCloud Code Analysis` — posted by the SonarCloud GitHub App, and
+  #                                  carries the quality-gate verdict. This is
+  #                                  the required one.
+  #
+  # So `sonarqube` passing while `SonarCloud Code Analysis` fails is normal,
+  # not a contradiction — it means the scan succeeded and the gate said no.
+  # Read the second one for pass/fail of the code.
   sonar:
     name: sonarqube
     runs-on: ubuntu-latest
