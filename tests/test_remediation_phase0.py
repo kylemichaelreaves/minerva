@@ -61,9 +61,7 @@ def test_record_timing_writes_meta(tmp_path: Path):
     record_timing(db, "ingest", 3.14)
 
     conn = sqlite3.connect(db)
-    row = conn.execute(
-        "SELECT value FROM meta WHERE key = 'timing.ingest'"
-    ).fetchone()
+    row = conn.execute("SELECT value FROM meta WHERE key = 'timing.ingest'").fetchone()
     assert row is not None
     # Stored to millisecond precision as a string.
     assert row[0] == "3.140"

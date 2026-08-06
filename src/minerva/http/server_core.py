@@ -87,9 +87,7 @@ class _RateLimiter:
         dead = [
             key
             for key, q in self._buckets.items()
-            if not q
-            or key[0] not in _RATE_LIMITS
-            or q[-1] < t - _RATE_LIMITS[key[0]][1]
+            if not q or key[0] not in _RATE_LIMITS or q[-1] < t - _RATE_LIMITS[key[0]][1]
         ]
         for key in dead:
             del self._buckets[key]
@@ -116,9 +114,9 @@ class _RateLimiter:
                     # holding the lock; doing it per request once full
                     # would hand an IP-rotating client a cheap way to
                     # make every other request pay for it.
-                    victims = sorted(
-                        self._buckets, key=lambda k: self._buckets[k][-1]
-                    )[: len(self._buckets) - _BUCKET_TRIM_TO + 1]
+                    victims = sorted(self._buckets, key=lambda k: self._buckets[k][-1])[
+                        : len(self._buckets) - _BUCKET_TRIM_TO + 1
+                    ]
                     for key in victims:
                         del self._buckets[key]
 

@@ -43,8 +43,13 @@ def test_emit_sections_reconstructs_stephanus():
         "[3 St.1 A]\nEin ganz neuer."
     )
     chunks = list(
-        _emit_sections(body, work_title="Euthyphron", translator="Schleiermacher",
-                       year="1818", source_file="Platon_Werke.pdf")
+        _emit_sections(
+            body,
+            work_title="Euthyphron",
+            translator="Schleiermacher",
+            year="1818",
+            source_file="Platon_Werke.pdf",
+        )
     )
     locs = [c.section for c in chunks]
     assert locs == ["2a", "2b", "2c", "3a"]
@@ -64,16 +69,21 @@ def test_emit_sections_newline_split_marker():
     # markers broken across a line break (the PDF's text layer does this)
     body = "[2 \nSt.1 A]\nHallo Welt. [B]\nmehr Text."
     chunks = list(
-        _emit_sections(body, work_title="Kriton", translator="Schleiermacher",
-                       year="1818", source_file="x.pdf")
+        _emit_sections(
+            body, work_title="Kriton", translator="Schleiermacher", year="1818", source_file="x.pdf"
+        )
     )
     assert [c.section for c in chunks] == ["2a", "2b"]
 
 
 def test_emit_sections_stable_chunk_ids():
     body = "[5 St.1 A]\nText eins. [B]\nText zwei."
-    a = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
-    b = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
+    a = list(
+        _emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf")
+    )
+    b = list(
+        _emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf")
+    )
     assert [c.chunk_id for c in a] == [c.chunk_id for c in b]
     assert a[0].chunk_id != a[1].chunk_id
 
@@ -91,8 +101,9 @@ def test_single_book_dialogue_has_no_book():
 
     body = "[2 St.1 A]\nWas hat sich ereignet? [B]\nDenn du pflegst doch."
     chunks = list(
-        _emit_sections(body, work_title="Euthyphron", translator="S",
-                       year="1818", source_file="x.pdf")
+        _emit_sections(
+            body, work_title="Euthyphron", translator="S", year="1818", source_file="x.pdf"
+        )
     )
     assert [c.book for c in chunks] == [None, None]
 
@@ -105,8 +116,9 @@ def test_book_headings_stamp_and_are_stripped_from_prose():
         "[357 St.2 A]\nAls ich dies gesagt hatte."
     )
     chunks = list(
-        _emit_sections(body, work_title="Politeia", translator="Teuffel",
-                       year="1855", source_file="x.pdf")
+        _emit_sections(
+            body, work_title="Politeia", translator="Teuffel", year="1855", source_file="x.pdf"
+        )
     )
     by_section = {c.section: c for c in chunks}
     assert by_section["327a"].book == "1"
@@ -133,8 +145,9 @@ def test_table_of_contents_lines_are_not_book_boundaries():
         "[327 St.2 A]\nIch ging gestern hinab."
     )
     chunks = list(
-        _emit_sections(body, work_title="Politeia", translator="Teuffel",
-                       year="1855", source_file="x.pdf")
+        _emit_sections(
+            body, work_title="Politeia", translator="Teuffel", year="1855", source_file="x.pdf"
+        )
     )
     assert [c.book for c in chunks] == ["1"]
 
@@ -150,8 +163,9 @@ def test_repeated_heading_does_not_advance_the_book():
         "[328 St.2 A]\nUnd wir gingen hinab."
     )
     chunks = list(
-        _emit_sections(body, work_title="Politeia", translator="Teuffel",
-                       year="1855", source_file="x.pdf")
+        _emit_sections(
+            body, work_title="Politeia", translator="Teuffel", year="1855", source_file="x.pdf"
+        )
     )
     assert [c.book for c in chunks] == ["1", "1"]
 
@@ -167,7 +181,8 @@ def test_nomoi_heading_form_is_recognized():
         "[652 St.2 A]\nWas nun folgt."
     )
     chunks = list(
-        _emit_sections(body, work_title="Nomoi", translator="Susemihl",
-                       year="1863", source_file="x.pdf")
+        _emit_sections(
+            body, work_title="Nomoi", translator="Susemihl", year="1863", source_file="x.pdf"
+        )
     )
     assert [(c.section, c.book) for c in chunks] == [("624a", "1"), ("652a", "2")]

@@ -17,8 +17,12 @@ from minerva.refs.rules.marcus_aurelius import RULES as MA_RULES
 
 def _hits(rules, text, *, lang, author):
     chunk = ChunkInfo(
-        chunk_id="t1", author=author, work="Test", lang=lang,
-        section=None, text=text,
+        chunk_id="t1",
+        author=author,
+        work="Test",
+        lang=lang,
+        section=None,
+        text=text,
     )
     out = []
     for r in rules:
@@ -33,13 +37,14 @@ def _hits(rules, text, *, lang, author):
 
 
 class TestCicero:
-
     def test_plato_lat(self) -> None:
         hits = _hits(CICERO_RULES, "ut docet Platonis Republica", lang="lat", author="Cicero")
         assert any(h[1] == "Plato" for h in hits)
 
     def test_aristotle_eng(self) -> None:
-        hits = _hits(CICERO_RULES, "as Aristotle teaches in his Ethics", lang="eng", author="Cicero")
+        hits = _hits(
+            CICERO_RULES, "as Aristotle teaches in his Ethics", lang="eng", author="Cicero"
+        )
         assert any(h[1] == "Aristotle" for h in hits)
 
     def test_epicurus_polemic(self) -> None:
@@ -62,17 +67,28 @@ class TestCicero:
 
 
 class TestLucretius:
-
     def test_epicurus_strong(self) -> None:
-        hits = _hits(LUCRETIUS_RULES, "Graius homo mortales primus tollere contra", lang="lat", author="Lucretius")
+        hits = _hits(
+            LUCRETIUS_RULES,
+            "Graius homo mortales primus tollere contra",
+            lang="lat",
+            author="Lucretius",
+        )
         assert any(h[1] == "Epicurus" and "Graius homo" in h[2] for h in hits)
 
     def test_empedocles(self) -> None:
-        hits = _hits(LUCRETIUS_RULES, "as Empedocles of Acragas taught", lang="eng", author="Lucretius")
+        hits = _hits(
+            LUCRETIUS_RULES, "as Empedocles of Acragas taught", lang="eng", author="Lucretius"
+        )
         assert any(h[1] == "Empedocles" for h in hits)
 
     def test_heraclitus(self) -> None:
-        hits = _hits(LUCRETIUS_RULES, "clarus ob obscuram linguam magis inter inanes Heraclitus", lang="lat", author="Lucretius")
+        hits = _hits(
+            LUCRETIUS_RULES,
+            "clarus ob obscuram linguam magis inter inanes Heraclitus",
+            lang="lat",
+            author="Lucretius",
+        )
         assert any(h[1] == "Heraclitus" for h in hits)
 
 
@@ -82,13 +98,14 @@ class TestLucretius:
 
 
 class TestEpictetus:
-
     def test_socrates_grc(self) -> None:
         hits = _hits(EPICTETUS_RULES, "ὁ Σωκράτης ἔλεγεν", lang="grc", author="Epictetus")
         assert any(h[1] == "Socrates" for h in hits)
 
     def test_diogenes_eng(self) -> None:
-        hits = _hits(EPICTETUS_RULES, "Diogenes the Cynic refused alike", lang="eng", author="Epictetus")
+        hits = _hits(
+            EPICTETUS_RULES, "Diogenes the Cynic refused alike", lang="eng", author="Epictetus"
+        )
         assert any(h[1] == "Diogenes" for h in hits)
 
     def test_chrysippus_grc(self) -> None:
@@ -106,7 +123,6 @@ class TestEpictetus:
 
 
 class TestMarcusAurelius:
-
     def test_epictetus_strong(self) -> None:
         hits = _hits(MA_RULES, "as Epictetus teaches", lang="eng", author="Marcus Aurelius")
         assert any(h[1] == "Epictetus" for h in hits)
@@ -116,5 +132,7 @@ class TestMarcusAurelius:
         assert any(h[1] == "Socrates" for h in hits)
 
     def test_heraclitus(self) -> None:
-        hits = _hits(MA_RULES, "Heraclitus says the cosmos flows", lang="eng", author="Marcus Aurelius")
+        hits = _hits(
+            MA_RULES, "Heraclitus says the cosmos flows", lang="eng", author="Marcus Aurelius"
+        )
         assert any(h[1] == "Heraclitus" for h in hits)

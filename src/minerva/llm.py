@@ -111,9 +111,7 @@ def _urlopen_with_retry(
             raise LLMError(f"{provider} HTTP {exc.code}: {detail}") from exc
         except (ConnectionResetError, ConnectionError, TimeoutError) as exc:
             if fatal_errors and isinstance(exc, fatal_errors):
-                raise LLMError(
-                    f"{provider} connection error{fatal_hint}: {exc}"
-                ) from exc
+                raise LLMError(f"{provider} connection error{fatal_hint}: {exc}") from exc
             if attempt + 1 < _MAX_RETRY_ATTEMPTS:
                 last_exc = exc
                 time.sleep(min(32.0, 2.0 * (2**attempt)))
@@ -125,9 +123,7 @@ def _urlopen_with_retry(
             # retryable, the rest as fatal.
             reason = getattr(exc, "reason", None)
             if fatal_errors and isinstance(reason, fatal_errors):
-                raise LLMError(
-                    f"{provider} connection error{fatal_hint}: {exc}"
-                ) from exc
+                raise LLMError(f"{provider} connection error{fatal_hint}: {exc}") from exc
             transient = isinstance(
                 reason,
                 (ConnectionResetError, ConnectionError, socket.timeout, TimeoutError),

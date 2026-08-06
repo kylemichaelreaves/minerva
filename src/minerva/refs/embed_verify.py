@@ -119,9 +119,7 @@ def _load_embeddings_for_author(
     return chunk_ids, matrix
 
 
-def _load_embedding_for_chunk(
-    conn: sqlite3.Connection, chunk_id: str
-) -> np.ndarray | None:
+def _load_embedding_for_chunk(conn: sqlite3.Connection, chunk_id: str) -> np.ndarray | None:
     row = conn.execute(
         "SELECT vector FROM embeddings WHERE chunk_id = ?",
         (chunk_id,),
@@ -246,7 +244,10 @@ def verify_quoted_references(
                     (in_corpus_work_id,),
                 ).fetchall()
                 if not w_rows:
-                    target_matrix_cache[in_corpus_work_id] = ([], np.zeros((0, 0), dtype=np.float32))
+                    target_matrix_cache[in_corpus_work_id] = (
+                        [],
+                        np.zeros((0, 0), dtype=np.float32),
+                    )
                 else:
                     cids = [r[0] for r in w_rows]
                     mat = np.stack([store.blob_to_vector(r[1]) for r in w_rows])
@@ -446,8 +447,7 @@ def find_cross_author_allusions(
             continue
         if verbose:
             print(
-                f"  [pair] {source_author} ({len(src_ids)}) → "
-                f"{target_author} ({len(tgt_ids)}) ..."
+                f"  [pair] {source_author} ({len(src_ids)}) → {target_author} ({len(tgt_ids)}) ..."
             )
 
         # Full cosine matrix. Both src and tgt are L2-normalized so
@@ -549,5 +549,3 @@ __all__ = [
     "find_cross_author_allusions",
     "verify_quoted_references",
 ]
-
-

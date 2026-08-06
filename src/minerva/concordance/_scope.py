@@ -60,9 +60,7 @@ def parse_authors(query: dict[str, str]) -> list[str]:
     return _parse_multi(query, "author")
 
 
-def _scope_clause(
-    scope: str, authors: list[str], works: list[str]
-) -> tuple[str, list[Any]]:
+def _scope_clause(scope: str, authors: list[str], works: list[str]) -> tuple[str, list[Any]]:
     """Translate (scope, authors, works) into a SQL fragment + params
     that filters the JOIN to ``chunks_full``.
 

@@ -95,9 +95,7 @@ def _chunk(
     text = "\n\n".join(p for p in (_norm_text(t) for t in paragraphs) if p)
     if not text:
         return None
-    chunk_id = _make_chunk_id(
-        path.name, work.title, work.lang, book or "", section, "", text[:120]
-    )
+    chunk_id = _make_chunk_id(path.name, work.title, work.lang, book or "", section, "", text[:120])
     return Chunk(
         chunk_id=chunk_id,
         corpus=work.corpus,
@@ -161,8 +159,12 @@ def split_hegel_pr_de(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         elif cur_front is not None:
             front_idx += 1
             chunk = _chunk(
-                work, path, section=f"{cur_front}, ¶{front_idx}",
-                book=cur_front, block_type=None, paragraphs=[body],
+                work,
+                path,
+                section=f"{cur_front}, ¶{front_idx}",
+                book=cur_front,
+                block_type=None,
+                paragraphs=[body],
             )
             if chunk is not None:
                 yield chunk
@@ -171,20 +173,30 @@ def split_hegel_pr_de(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     for n in sorted(set(by_section) | set(additions)):
         paras = by_section.get(n, [])
         if paras:
-            main = _chunk(work, path, section=f"§{n}", book=None, block_type=None, paragraphs=paras[:1])
+            main = _chunk(
+                work, path, section=f"§{n}", book=None, block_type=None, paragraphs=paras[:1]
+            )
             if main is not None:
                 yield main
             if len(paras) > 1:
                 rem = _chunk(
-                    work, path, section=f"§{n} Anmerkung", book=None,
-                    block_type="remark", paragraphs=paras[1:],
+                    work,
+                    path,
+                    section=f"§{n} Anmerkung",
+                    book=None,
+                    block_type="remark",
+                    paragraphs=paras[1:],
                 )
                 if rem is not None:
                     yield rem
         if n in additions:
             add = _chunk(
-                work, path, section=f"§{n} Zusatz", book=None,
-                block_type="addition", paragraphs=[additions[n]],
+                work,
+                path,
+                section=f"§{n} Zusatz",
+                book=None,
+                block_type="addition",
+                paragraphs=[additions[n]],
             )
             if add is not None:
                 yield add

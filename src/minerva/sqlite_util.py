@@ -44,10 +44,13 @@ def open_sqlite(
 def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     """True when ``name`` exists as a table on ``conn``."""
 
-    return conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-        (name,),
-    ).fetchone() is not None
+    return (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (name,),
+        ).fetchone()
+        is not None
+    )
 
 
 @contextlib.contextmanager
@@ -137,10 +140,7 @@ def sweep_orphan_chunk_ids(
     if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is None:
         return 0
     before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    conn.execute(
-        f"DELETE FROM {table} WHERE {column} NOT IN "
-        "(SELECT chunk_id FROM chunks)"
-    )
+    conn.execute(f"DELETE FROM {table} WHERE {column} NOT IN (SELECT chunk_id FROM chunks)")
     after = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     if commit:
         conn.commit()

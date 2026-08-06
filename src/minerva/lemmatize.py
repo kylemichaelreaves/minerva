@@ -68,11 +68,11 @@ _STANZA_BULK_SIZE = 256
 
 _LEMMA_ALLOWED_PUNCT = frozenset(
     (
-        "-",   # mid-word hyphen — "black-box", "Sturm-und-Drang"
-        "'",   # ASCII apostrophe — "O'Connor", elided forms
-        "ʼ",   # MODIFIER LETTER APOSTROPHE (U+02BC) — Stanza Greek crasis
+        "-",  # mid-word hyphen — "black-box", "Sturm-und-Drang"
+        "'",  # ASCII apostrophe — "O'Connor", elided forms
+        "ʼ",  # MODIFIER LETTER APOSTROPHE (U+02BC) — Stanza Greek crasis
         "'",  # RIGHT SINGLE QUOTATION MARK (U+2019) — typeset apostrophe
-        "·",   # MIDDLE DOT (U+00B7) — Greek "ano teleia" appears in some lemmas
+        "·",  # MIDDLE DOT (U+00B7) — Greek "ano teleia" appears in some lemmas
     )
 )
 
@@ -177,9 +177,7 @@ class Lemmatizer:
         elif lang in ("heb", "ara"):
             self._init_stanza_generic(lang)
         else:
-            raise UnsupportedLanguageError(
-                f"no lemmatizer registered for language {lang!r}"
-            )
+            raise UnsupportedLanguageError(f"no lemmatizer registered for language {lang!r}")
 
     @property
     def backend(self) -> str:
@@ -202,8 +200,7 @@ class Lemmatizer:
             import spacy
         except ImportError as exc:
             raise UnsupportedLanguageError(
-                "spaCy not installed; install the lemma extras: "
-                "uv pip install -e '.[lemma]'"
+                "spaCy not installed; install the lemma extras: uv pip install -e '.[lemma]'"
             ) from exc
         try:
             # Drop `parser` and `ner` — downstream consumers only read
@@ -211,9 +208,7 @@ class Lemmatizer:
             # parse tree and entity recognition enabled was pure
             # overhead (~2-3× per-chunk cost). See lemmatize-perf-plan
             # memory for the full optimization ranking.
-            self._nlp = spacy.load(
-                "de_core_news_sm", disable=["parser", "ner"]
-            )
+            self._nlp = spacy.load("de_core_news_sm", disable=["parser", "ner"])
         except OSError as exc:
             raise UnsupportedLanguageError(
                 "spaCy model `de_core_news_sm` not installed; "
@@ -227,13 +222,10 @@ class Lemmatizer:
             import spacy
         except ImportError as exc:
             raise UnsupportedLanguageError(
-                "spaCy not installed; install the lemma extras: "
-                "uv pip install -e '.[lemma]'"
+                "spaCy not installed; install the lemma extras: uv pip install -e '.[lemma]'"
             ) from exc
         try:
-            self._nlp = spacy.load(
-                "fr_core_news_sm", disable=["parser", "ner"]
-            )
+            self._nlp = spacy.load("fr_core_news_sm", disable=["parser", "ner"])
         except OSError as exc:
             raise UnsupportedLanguageError(
                 "spaCy model `fr_core_news_sm` not installed; "
@@ -258,13 +250,10 @@ class Lemmatizer:
             import spacy
         except ImportError as exc:
             raise UnsupportedLanguageError(
-                "spaCy not installed; install the lemma extras: "
-                "uv pip install -e '.[lemma]'"
+                "spaCy not installed; install the lemma extras: uv pip install -e '.[lemma]'"
             ) from exc
         try:
-            self._nlp = spacy.load(
-                "en_core_web_sm", disable=["parser", "ner"]
-            )
+            self._nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
         except OSError as exc:
             raise UnsupportedLanguageError(
                 "spaCy model `en_core_web_sm` not installed; install via "
@@ -284,8 +273,7 @@ class Lemmatizer:
             import stanza
         except ImportError as exc:
             raise UnsupportedLanguageError(
-                "Stanza not installed; install the lemma extras: "
-                "uv pip install -e '.[lemma]'"
+                "Stanza not installed; install the lemma extras: uv pip install -e '.[lemma]'"
             ) from exc
         # ISO 639-3 → Stanza's two-letter codes. Add more entries here
         # when extending to other Stanza-only languages.
@@ -325,9 +313,7 @@ class Lemmatizer:
             # Disable `parser` (we don't use the dep tree) and
             # `senter` (we never split by sentence — chunks are the
             # unit). Keep tagger/morphologizer/lemmatizer.
-            self._nlp = spacy.load(
-                "grc_dep_web_sm", disable=["parser", "senter"]
-            )
+            self._nlp = spacy.load("grc_dep_web_sm", disable=["parser", "senter"])
         except OSError:
             return False
         self._backend = "spacy"
@@ -349,9 +335,7 @@ class Lemmatizer:
             # uses (u/v, j/i, classical/medieval spellings). Only
             # disable the parser (unused) and ner (we don't index
             # entities).
-            self._nlp = spacy.load(
-                "la_core_web_sm", disable=["parser", "ner"]
-            )
+            self._nlp = spacy.load("la_core_web_sm", disable=["parser", "ner"])
         except OSError:
             return False
         self._backend = "spacy"
@@ -362,8 +346,7 @@ class Lemmatizer:
             import stanza
         except ImportError as exc:
             raise UnsupportedLanguageError(
-                "Stanza not installed; install the lemma extras: "
-                "uv pip install -e '.[lemma]'"
+                "Stanza not installed; install the lemma extras: uv pip install -e '.[lemma]'"
             ) from exc
         # First-run: stanza.download fetches the model into
         # ~/stanza_resources/. The download_method=DownloadMethod
@@ -396,8 +379,7 @@ class Lemmatizer:
             import stanza
         except ImportError as exc:
             raise UnsupportedLanguageError(
-                "Stanza not installed; install the lemma extras: "
-                "uv pip install -e '.[lemma]'"
+                "Stanza not installed; install the lemma extras: uv pip install -e '.[lemma]'"
             ) from exc
         try:
             self._nlp = stanza.Pipeline(
@@ -480,9 +462,7 @@ class Lemmatizer:
                     contexts.append(ctx)
                 if not batch:
                     break
-                for doc, ctx in zip(
-                    self._nlp.bulk_process(batch), contexts, strict=True
-                ):
+                for doc, ctx in zip(self._nlp.bulk_process(batch), contexts, strict=True):
                     yield list(self._tokens_from_stanza_doc(doc)), ctx
         else:  # pragma: no cover — guarded by __init__
             raise UnsupportedLanguageError(self.lang)

@@ -65,6 +65,8 @@ def test_doctype_in_body_text_does_not_trip_a_large_file(tmp_path):
     # ever legitimately contains the literal.
     filler = "<p>x</p>\n" * 9000
     p = tmp_path / "big.xml"
-    p.write_text(f'<?xml version="1.0"?>\n<TEI>\n{filler}<p>&lt;!DOCTYPE lolz&gt;</p>\n</TEI>\n', "utf-8")
+    p.write_text(
+        f'<?xml version="1.0"?>\n<TEI>\n{filler}<p>&lt;!DOCTYPE lolz&gt;</p>\n</TEI>\n', "utf-8"
+    )
     assert p.stat().st_size > 64 * 1024
     assert parse(p).getroot().tag == "TEI"

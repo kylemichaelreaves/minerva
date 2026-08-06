@@ -59,8 +59,7 @@ def test_iter_sse_data_lines_parses_openai_chunks():
 
 def test_iter_ndjson_lines_parses_ollama_chunks():
     body = (
-        b'{"message":{"content":"Hi"},"done":false}\n'
-        b'{"message":{"content":" there"},"done":true}\n'
+        b'{"message":{"content":"Hi"},"done":false}\n{"message":{"content":" there"},"done":true}\n'
     )
     chunks = list(_iter_ndjson_lines(_ByteStream(body)))
     assert chunks[0]["message"]["content"] == "Hi"
@@ -119,9 +118,7 @@ def test_openai_complete_retries_transient_429(monkeypatch):
     def fake_urlopen(req, timeout=None):
         calls["n"] += 1
         if calls["n"] == 1:
-            raise urllib.error.HTTPError(
-                req.full_url, 429, "rate", {}, io.BytesIO(b"slow down")
-            )
+            raise urllib.error.HTTPError(req.full_url, 429, "rate", {}, io.BytesIO(b"slow down"))
         return FakeResp()
 
     monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
@@ -144,9 +141,7 @@ def test_openai_stream_wraps_midstream_error_as_llmerror(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(
-        "minerva.llm.urllib.request.urlopen", lambda req, timeout=None: BoomResp()
-    )
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", lambda req, timeout=None: BoomResp())
     with pytest.raises(LLMError):
         list(backend.stream_complete([Message("user", "q")]))
 
@@ -305,10 +300,7 @@ def test_ollama_stream_retries_transient_503(monkeypatch):
 
 def test_ollama_stream_complete_yields_deltas(monkeypatch):
     backend = OllamaBackend(host="http://localhost:11434")
-    body = (
-        b'{"message":{"content":"A"},"done":false}\n'
-        b'{"message":{"content":"B"},"done":true}\n'
-    )
+    body = b'{"message":{"content":"A"},"done":false}\n{"message":{"content":"B"},"done":true}\n'
 
     class FakeResp:
         def __init__(self, data: bytes) -> None:
@@ -332,7 +324,9 @@ def test_ollama_stream_complete_yields_deltas(monkeypatch):
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", lambda req, timeout=None: FakeResp(body))
+    monkeypatch.setattr(
+        "minerva.llm.urllib.request.urlopen", lambda req, timeout=None: FakeResp(body)
+    )
     out = list(backend.stream_complete([Message("user", "q")]))
     assert out == ["A", "B"]
 
@@ -340,9 +334,9 @@ def test_ollama_stream_complete_yields_deltas(monkeypatch):
 def test_anthropic_stream_complete_yields_text_deltas(monkeypatch):
     backend = AnthropicBackend(api_key="sk-ant", base_url="https://api.example.com/v1")
     body = (
-        b'event: content_block_delta\n'
+        b"event: content_block_delta\n"
         b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hi"}}\n\n'
-        b'event: content_block_delta\n'
+        b"event: content_block_delta\n"
         b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"!"}}\n\n'
     )
 
@@ -356,6 +350,8 @@ def test_anthropic_stream_complete_yields_text_deltas(monkeypatch):
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", lambda req, timeout=None: FakeResp(body))
+    monkeypatch.setattr(
+        "minerva.llm.urllib.request.urlopen", lambda req, timeout=None: FakeResp(body)
+    )
     out = list(backend.stream_complete([Message("user", "q")]))
     assert out == ["Hi", "!"]

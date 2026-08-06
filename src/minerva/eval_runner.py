@@ -145,9 +145,7 @@ def run(
         book_ok: bool | None = None if expected_book is None else False
         rank = None
         for i, h in enumerate(hits, 1):
-            wk, sk, bk = _hit_matches(
-                h, aliases[idx], row["expected_sections"], expected_book
-            )
+            wk, sk, bk = _hit_matches(h, aliases[idx], row["expected_sections"], expected_book)
             work_ok = work_ok or wk
             if bk:
                 book_ok = True

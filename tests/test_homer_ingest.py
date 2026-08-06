@@ -71,9 +71,7 @@ def _write_fixture(tmp_path: Path) -> Path:
 
 
 class TestHomerCardChunking:
-    def test_emits_one_chunk_per_card_with_book_line_section(
-        self, tmp_path: Path
-    ) -> None:
+    def test_emits_one_chunk_per_card_with_book_line_section(self, tmp_path: Path) -> None:
         path = _write_fixture(tmp_path)
         chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
 
@@ -84,9 +82,7 @@ class TestHomerCardChunking:
         sections = [c.section for c in chunks]
         assert sections == ["1.1", "1.8", "1.33", "2.1"]
 
-    def test_book_locator_carries_through_with_known_boundary_quirk(
-        self, tmp_path: Path
-    ) -> None:
+    def test_book_locator_carries_through_with_known_boundary_quirk(self, tmp_path: Path) -> None:
         path = _write_fixture(tmp_path)
         chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
         # Known chunker quirk: the LAST chunk inside book N gets its
@@ -160,10 +156,7 @@ class TestChunkBoundaryDetection:
         import xml.etree.ElementTree as ET
 
         body = ET.fromstring(
-            "<body>"
-            "<milestone unit='card' n='1'/>"
-            "<milestone unit='card' n='8'/>"
-            "</body>"
+            "<body><milestone unit='card' n='1'/><milestone unit='card' n='8'/></body>"
         )
         units = tei._detect_chunk_boundary_units(body)
         assert units == frozenset({"card"})
@@ -175,10 +168,7 @@ class TestChunkBoundaryDetection:
         import xml.etree.ElementTree as ET
 
         body = ET.fromstring(
-            "<body>"
-            "<milestone unit='section' n='327a'/>"
-            "<milestone unit='card' n='1'/>"
-            "</body>"
+            "<body><milestone unit='section' n='327a'/><milestone unit='card' n='1'/></body>"
         )
         units = tei._detect_chunk_boundary_units(body)
         assert units == frozenset({"section"})
@@ -186,7 +176,5 @@ class TestChunkBoundaryDetection:
     def test_no_boundary_units_when_neither_present(self) -> None:
         import xml.etree.ElementTree as ET
 
-        body = ET.fromstring(
-            "<body><milestone unit='page' n='12'/></body>"
-        )
+        body = ET.fromstring("<body><milestone unit='page' n='12'/></body>")
         assert tei._detect_chunk_boundary_units(body) == frozenset()

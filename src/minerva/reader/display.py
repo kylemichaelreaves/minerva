@@ -24,9 +24,7 @@ from ..authors.quran_works import find_surah_by_transliteration as _find_surah
 from ..authors.vulgate_book_names import latin_name as _vulgate_latin
 
 
-def trilingual_display(
-    author: str, work: str, fallback_title: str
-) -> tuple[str, str | None]:
+def trilingual_display(author: str, work: str, fallback_title: str) -> tuple[str, str | None]:
     """Return ``(display_title, display_subtitle)`` for a (author, work)."""
 
     if author == "Hebrew Bible":

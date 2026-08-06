@@ -128,8 +128,7 @@ def load_spec(path: Path) -> CrossRefSpec:
         import yaml
     except ImportError as exc:
         raise SpecError(
-            "PyYAML not installed; install the lemma extras: "
-            "uv pip install -e '.[lemma]'"
+            "PyYAML not installed; install the lemma extras: uv pip install -e '.[lemma]'"
         ) from exc
 
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -185,9 +184,7 @@ def _parse_reference(r: dict[str, Any], path: Path, idx: int) -> ReferenceSpec:
 
     ref_type = _require_str(r, "type", path, where)
     if ref_type not in _ALLOWED_TYPES:
-        raise SpecError(
-            f"{where}: type {ref_type!r} not in {sorted(_ALLOWED_TYPES)}"
-        )
+        raise SpecError(f"{where}: type {ref_type!r} not in {sorted(_ALLOWED_TYPES)}")
 
     quoted_phrase = _optional_str(r, "quoted_phrase", path, where)
     source_form = _optional_str(r, "source_form", path, where)
@@ -219,8 +216,7 @@ def _parse_source(d: dict[str, Any], path: Path, parent_where: str) -> SourceRef
     has_triple = bool(work and lang and section)
     if not (has_chunk or has_triple):
         raise SpecError(
-            f"{where}: must provide either `chunk_id` OR "
-            f"all of (`work`, `lang`, `section`)"
+            f"{where}: must provide either `chunk_id` OR all of (`work`, `lang`, `section`)"
         )
 
     return SourceRef(chunk_id=chunk_id, work=work, lang=lang, section=section)

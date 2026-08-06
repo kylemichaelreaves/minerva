@@ -13,8 +13,15 @@ def _corpus_bucket(author: str) -> str:
     from ..author_ordering import AUTHOR_ORDINAL, DEFAULT_AUTHOR_ORDINAL
 
     if author in (
-        "Hebrew Bible", "Septuagint", "New Testament", "Vulgate", "Quran",
-        "Luther Bibel 1545", "Luther Bibel 1912", "King James Bible", "Sacy",
+        "Hebrew Bible",
+        "Septuagint",
+        "New Testament",
+        "Vulgate",
+        "Quran",
+        "Luther Bibel 1545",
+        "Luther Bibel 1912",
+        "King James Bible",
+        "Sacy",
     ):
         return "scrip"
     ord_ = AUTHOR_ORDINAL.get(author, DEFAULT_AUTHOR_ORDINAL)
@@ -155,34 +162,26 @@ def network_summary(
     if raw_source_authors:
         names = [s for s in (n.strip() for n in raw_source_authors.split(",")) if s]
         if names:
-            extra_sql += (
-                f" AND src_work.author IN ({','.join('?' * len(names))})"
-            )
+            extra_sql += f" AND src_work.author IN ({','.join('?' * len(names))})"
             extra_params.extend(names)
 
     raw_methods = (query.get("source_method") or "").strip()
     if raw_methods:
         methods = [m for m in (s.strip() for s in raw_methods.split(",")) if m]
         if methods:
-            extra_sql += (
-                f" AND xr.source_method IN ({','.join('?' * len(methods))})"
-            )
+            extra_sql += f" AND xr.source_method IN ({','.join('?' * len(methods))})"
             extra_params.extend(methods)
 
     raw_corpora = (query.get("corpus") or "").strip()
     if raw_corpora:
         buckets = {b for b in (s.strip() for s in raw_corpora.split(",")) if b}
         if buckets:
-            authors_in_buckets = [
-                a for a in AUTHOR_ORDINAL if _corpus_bucket(a) in buckets
-            ]
+            authors_in_buckets = [a for a in AUTHOR_ORDINAL if _corpus_bucket(a) in buckets]
             if not authors_in_buckets:
                 # Bucket name didn't match any author — return zero rows
                 # rather than dropping the filter silently.
                 authors_in_buckets = ["__no_such_author__"]
-            extra_sql += (
-                f" AND src_work.author IN ({','.join('?' * len(authors_in_buckets))})"
-            )
+            extra_sql += f" AND src_work.author IN ({','.join('?' * len(authors_in_buckets))})"
             extra_params.extend(authors_in_buckets)
 
     # 1. Author × author counts (source → target).
@@ -223,9 +222,7 @@ def network_summary(
     cells: list[tuple[int, int, int]] = []
     pair_rows: list[tuple[str, str, int, bool]] = []
     for src_a, tgt_a, n in rows:
-        intra_scrip = (
-            _corpus_bucket(src_a) == "scrip" and _corpus_bucket(tgt_a) == "scrip"
-        )
+        intra_scrip = _corpus_bucket(src_a) == "scrip" and _corpus_bucket(tgt_a) == "scrip"
         pair_rows.append((src_a, tgt_a, int(n), intra_scrip))
         if src_a in author_idx and tgt_a in author_idx:
             cells.append((author_idx[src_a], author_idx[tgt_a], int(n)))
@@ -256,13 +253,10 @@ def network_summary(
     #    perspectives land on screen.
     pair_rows.sort(key=lambda r: r[2], reverse=True)
     top_pairs_all = [
-        {"src": s, "tgt": t, "n": n, "intra_scrip": isc}
-        for s, t, n, isc in pair_rows[:60]
+        {"src": s, "tgt": t, "n": n, "intra_scrip": isc} for s, t, n, isc in pair_rows[:60]
     ]
     top_pairs_non_scrip = [
-        {"src": s, "tgt": t, "n": n, "intra_scrip": isc}
-        for s, t, n, isc in pair_rows
-        if not isc
+        {"src": s, "tgt": t, "n": n, "intra_scrip": isc} for s, t, n, isc in pair_rows if not isc
     ][:50]
     # Top 5 per author (not 3) because some thinkers' canonical
     # interlocutors don't crack their own top 3 by volume — Hegel's
@@ -277,9 +271,7 @@ def network_summary(
         if _per_author_seen.get(s, 0) >= 5:
             continue
         _per_author_seen[s] = _per_author_seen.get(s, 0) + 1
-        top_pairs_per_author.append(
-            {"src": s, "tgt": t, "n": n, "intra_scrip": isc}
-        )
+        top_pairs_per_author.append({"src": s, "tgt": t, "n": n, "intra_scrip": isc})
 
     # 3. Scripture heatmap: per (source_author, target_work)
     # counts where target_work is a biblical book the heatmap
@@ -287,8 +279,7 @@ def network_summary(
     scrip_authors = [
         a
         for a in authors_sorted
-        if _corpus_bucket(a) in ("med", "em", "mod")
-        and AUTHOR_ORDINAL.get(a, 9999) >= 600
+        if _corpus_bucket(a) in ("med", "em", "mod") and AUTHOR_ORDINAL.get(a, 9999) >= 600
     ]
     book_aliases: dict[str, tuple[str, str]] = {}  # canonical_work → (label, section)
     for section_name, books in _BIBLE_SECTIONS:
@@ -340,10 +331,7 @@ def network_summary(
             {"name": section, "books": [label for label, _ in books]}
             for section, books in _BIBLE_SECTIONS
         ],
-        "cells": [
-            {"author": a, "book": b, "n": n}
-            for (a, b), n in heat_counts.items()
-        ],
+        "cells": [{"author": a, "book": b, "n": n} for (a, b), n in heat_counts.items()],
     }
 
     # 4. Verification — source_author × source_method counts, then
@@ -372,19 +360,13 @@ def network_summary(
         bucket = method if method in _SOURCE_METHOD_BUCKETS else "other"
         verif_totals[src_a] = verif_totals.get(src_a, 0) + int(n)
         verif_breakdown.setdefault(src_a, {})
-        verif_breakdown[src_a][bucket] = (
-            verif_breakdown[src_a].get(bucket, 0) + int(n)
-        )
-    top_verif = sorted(
-        verif_totals.items(), key=lambda kv: kv[1], reverse=True
-    )[:10]
+        verif_breakdown[src_a][bucket] = verif_breakdown[src_a].get(bucket, 0) + int(n)
+    top_verif = sorted(verif_totals.items(), key=lambda kv: kv[1], reverse=True)[:10]
     verification_payload = [
         {
             "author": a,
             "total": total,
-            "parts": {
-                m: verif_breakdown[a].get(m, 0) for m in _SOURCE_METHOD_BUCKETS
-            },
+            "parts": {m: verif_breakdown[a].get(m, 0) for m in _SOURCE_METHOD_BUCKETS},
             "other": verif_breakdown[a].get("other", 0),
         }
         for a, total in top_verif
@@ -416,10 +398,7 @@ def network_summary(
         """,
         (*status_params, *extra_params),
     ).fetchall()
-    top_works = [
-        {"work": work, "author": author, "n": int(n)}
-        for author, work, n in work_rows
-    ]
+    top_works = [{"work": work, "author": author, "n": int(n)} for author, work, n in work_rows]
 
     # 6. Overall totals (for the header strip). The xref count
     # honors the active filter; the works count is a static corpus
@@ -448,9 +427,7 @@ def network_summary(
         },
         "matrix": {
             "authors": authors_payload,
-            "cells": [
-                {"r": r, "c": c, "n": n} for r, c, n in cells
-            ],
+            "cells": [{"r": r, "c": c, "n": n} for r, c, n in cells],
         },
         "top_pairs": {
             "all": top_pairs_all,
@@ -461,4 +438,3 @@ def network_summary(
         "verification": verification_payload,
         "top_works": top_works,
     }
-

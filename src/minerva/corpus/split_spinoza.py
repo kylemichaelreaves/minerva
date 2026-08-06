@@ -45,10 +45,26 @@ from ..tei import Chunk, _make_chunk_id, _norm_text
 # converter for these bounded ranges; chapter numbers above XX don't
 # appear in any Spinoza work.
 _ROMAN: dict[int, str] = {
-    1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
-    6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
-    11: "XI", 12: "XII", 13: "XIII", 14: "XIV", 15: "XV",
-    16: "XVI", 17: "XVII", 18: "XVIII", 19: "XIX", 20: "XX",
+    1: "I",
+    2: "II",
+    3: "III",
+    4: "IV",
+    5: "V",
+    6: "VI",
+    7: "VII",
+    8: "VIII",
+    9: "IX",
+    10: "X",
+    11: "XI",
+    12: "XII",
+    13: "XIII",
+    14: "XIV",
+    15: "XV",
+    16: "XVI",
+    17: "XVII",
+    18: "XVIII",
+    19: "XIX",
+    20: "XX",
 }
 
 # Human-facing TYPE labels for the Ethica's section taxonomy.
@@ -57,7 +73,7 @@ _TYPE_LABEL: dict[str, str] = {
     "A": "Ax.",
     "Post": "Post.",
     "P": "P",  # Propositions get the bare "P" prefix — short and
-               # idiomatic in Spinoza scholarship ("E IIp40s2").
+    # idiomatic in Spinoza scholarship ("E IIp40s2").
 }
 
 # Single regex that matches all three marker shapes via alternation.

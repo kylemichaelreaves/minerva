@@ -13,14 +13,13 @@ from minerva.cli import embed_cmd
 
 
 def test_embed_all_lang_reports_populated_db_when_lang_missing(
-    tmp_path: Path, monkeypatch, capsys,
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
 ):
     db = tmp_path / "embed.sqlite"
     jsonl = tmp_path / "seed.jsonl"
-    jsonl.write_text(
-        json.dumps(make_chunk(chunk_id="e1", lang="eng", text="English only."))
-        + "\n"
-    )
+    jsonl.write_text(json.dumps(make_chunk(chunk_id="e1", lang="eng", text="English only.")) + "\n")
     conn = store.open_db(db)
     store.insert_chunks(conn, jsonl)
     conn.close()

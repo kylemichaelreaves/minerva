@@ -39,16 +39,14 @@ def _read_timing(conn: sqlite3.Connection) -> dict[str, float]:
     that's never been --timing'd.
     """
 
-    rows = conn.execute(
-        "SELECT key, value FROM meta WHERE key LIKE 'timing.%'"
-    ).fetchall()
+    rows = conn.execute("SELECT key, value FROM meta WHERE key LIKE 'timing.%'").fetchall()
     out: dict[str, float] = {}
     for key, value in rows:
         # Strip the ``timing.`` prefix so callers see ``ingest`` /
         # ``embed`` / ``index`` directly. Values are stored as
         # ``"%.3f"`` strings; coerce back to float so JSON consumers
         # don't have to.
-        out[key[len("timing."):]] = float(value)
+        out[key[len("timing.") :]] = float(value)
     return out
 
 

@@ -103,7 +103,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     )
 
     limit = parse_int_param(
-        query, "limit", _DEFAULT_INDEX_LIMIT, lo=1, hi=_MAX_INDEX_LIMIT, clamp=True,
+        query,
+        "limit",
+        _DEFAULT_INDEX_LIMIT,
+        lo=1,
+        hi=_MAX_INDEX_LIMIT,
+        clamp=True,
     )
     offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
     min_count = parse_int_param(query, "min_count", 2, lo=1, clamp=True)
@@ -123,7 +128,6 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     q = (query.get("q") or "").strip()
 
     _scope_clause(scope, authors, works)  # validates scope/author/work pairing
-
 
     # Polytonic Greek lemmas begin with *precomposed* diacritic forms
     # (ἀ / ἄ / Ἀ), so the ASCII ``LIKE 'Α%' NOCASE`` letter filter used
@@ -207,9 +211,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
             ORDER BY {order_clause}
             LIMIT ? OFFSET ?
         """
-        raw_rows = conn.execute(
-            sql_main, [*where_params, limit, offset]
-        ).fetchall()
+        raw_rows = conn.execute(sql_main, [*where_params, limit, offset]).fetchall()
         rows = [
             {
                 "lemma": r["lemma"],

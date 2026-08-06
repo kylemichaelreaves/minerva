@@ -471,9 +471,7 @@ def insert_chunks(
 
 
 @contextlib.contextmanager
-def _affected_id_temp_table(
-    conn: sqlite3.Connection, chunk_ids: frozenset[str]
-) -> Iterator[str]:
+def _affected_id_temp_table(conn: sqlite3.Connection, chunk_ids: frozenset[str]) -> Iterator[str]:
     """Materialize ``chunk_ids`` into a temp table and yield its name.
 
     A bare ``IN (?, ?, …)`` clause over the full affected set blows past
@@ -482,9 +480,7 @@ def _affected_id_temp_table(
     bigger corpus would simply throw ``too many SQL variables`` and roll
     back the whole transaction (issue #49). Joining against a temp table
     sidesteps the variable limit entirely and is indexed on the id."""
-    conn.execute(
-        "CREATE TEMP TABLE _affected_chunk_ids (chunk_id TEXT PRIMARY KEY)"
-    )
+    conn.execute("CREATE TEMP TABLE _affected_chunk_ids (chunk_id TEXT PRIMARY KEY)")
     try:
         ids = list(chunk_ids)
         for i in range(0, len(ids), _INSERT_BATCH):
@@ -497,9 +493,7 @@ def _affected_id_temp_table(
         conn.execute("DROP TABLE IF EXISTS _affected_chunk_ids")
 
 
-def _xref_count_for_chunks(
-    conn: sqlite3.Connection, chunk_ids: frozenset[str]
-) -> int:
+def _xref_count_for_chunks(conn: sqlite3.Connection, chunk_ids: frozenset[str]) -> int:
     if not chunk_ids:
         return 0
     with _affected_id_temp_table(conn, chunk_ids) as tbl:
@@ -548,9 +542,7 @@ def _rebind_cross_references(
     # full mode there is no scope filter at all.
     with contextlib.ExitStack() as stack:
         if affected_chunk_ids is not None:
-            tbl = stack.enter_context(
-                _affected_id_temp_table(conn, affected_chunk_ids)
-            )
+            tbl = stack.enter_context(_affected_id_temp_table(conn, affected_chunk_ids))
             source_scope = f"AND source_chunk_id IN (SELECT chunk_id FROM {tbl})"
             target_scope = f"AND target_chunk_id IN (SELECT chunk_id FROM {tbl})"
         else:
@@ -617,8 +609,7 @@ def _prune_orphan_works(conn: sqlite3.Connection) -> None:
     ).rowcount
     if wk or ed or tr:
         print(
-            f"  pruned {wk} orphan works "
-            f"({ed} editions, {tr} translations with no chunks)",
+            f"  pruned {wk} orphan works ({ed} editions, {tr} translations with no chunks)",
             flush=True,
         )
 

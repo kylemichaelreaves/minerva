@@ -253,9 +253,7 @@ def _read_ingest_only_meta(db_path: Path) -> set[str]:
 
     probe = sqlite3.connect(db_path)
     try:
-        row = probe.execute(
-            "SELECT value FROM meta WHERE key='ingest.only'"
-        ).fetchone()
+        row = probe.execute("SELECT value FROM meta WHERE key='ingest.only'").fetchone()
     except sqlite3.OperationalError:
         # Fresh DB / meta table missing.
         row = None

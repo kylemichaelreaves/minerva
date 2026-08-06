@@ -99,9 +99,7 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
             sample = conn.execute(select_sql + " LIMIT 3", params).fetchall()
             for ch in sample:
                 tokens = list(lm.tokens(ch["text"]))
-                preview = ", ".join(
-                    f"{t.surface}→{t.lemma}" for t in tokens[:8]
-                )
+                preview = ", ".join(f"{t.surface}→{t.lemma}" for t in tokens[:8])
                 print(f"  {ch['chunk_id']}: {len(tokens)} tokens · {preview}")
             return 0
 
@@ -110,10 +108,7 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         except UnsupportedLanguageError as exc:
             print(f"lemmatize: {exc}")
             return 1
-        print(
-            f"lemmatize: backend={getattr(lm, 'backend', '?')} "
-            f"model={getattr(lm, 'model', '?')}"
-        )
+        print(f"lemmatize: backend={getattr(lm, 'backend', '?')} model={getattr(lm, 'model', '?')}")
 
         # Stream the candidate chunks through `Lemmatizer.batch_pipe`
         # instead of materializing them all up front. On the full
@@ -131,17 +126,12 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         # slot was added with migration 0018 so KWIC lookups can seek
         # ``chunk_lemmas_by_fold`` instead of forcing a scan via
         # ``LOWER(lemma) = LOWER(?)``.
-        inserts: list[
-            tuple[str, int, str, int, int, str, str, str | None, str | None]
-        ] = []
+        inserts: list[tuple[str, int, str, int, int, str, str, str | None, str | None]] = []
         tokens_total = 0
         chunks_done = 0
         progress = _progress_bar(total=total, lang=lang)
         cursor = conn.execute(select_sql, params)
-        items = (
-            (unicodedata.normalize("NFC", row["text"]), row["chunk_id"])
-            for row in cursor
-        )
+        items = ((unicodedata.normalize("NFC", row["text"]), row["chunk_id"]) for row in cursor)
         for tokens, chunk_id in lm.batch_pipe(
             items, batch_size=args.batch_size, n_process=args.n_process
         ):
@@ -155,10 +145,15 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
                     continue
                 inserts.append(
                     (
-                        chunk_id, kept,
-                        tok.surface, tok.start, tok.end,
-                        tok.lemma, tok.lemma.lower(),
-                        tok.pos, tok.feats,
+                        chunk_id,
+                        kept,
+                        tok.surface,
+                        tok.start,
+                        tok.end,
+                        tok.lemma,
+                        tok.lemma.lower(),
+                        tok.pos,
+                        tok.feats,
                     )
                 )
                 kept += 1
@@ -180,10 +175,10 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         # lemmatize pass itself.
         if not getattr(args, "skip_aggregate", False):
             from ...concordance import aggregate
+
             summary = aggregate.build(conn, verbose=True)
             print(
-                f"aggregate-lemmas: {summary['total']:,} rows in "
-                f"{summary['elapsed_seconds']:.1f}s"
+                f"aggregate-lemmas: {summary['total']:,} rows in {summary['elapsed_seconds']:.1f}s"
             )
         return 0
     finally:

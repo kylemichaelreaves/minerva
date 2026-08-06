@@ -52,7 +52,6 @@ WORKS: tuple[CorpusWork, ...] = (
         author="Homer",
         citation_system="paragraph",
     ),
-
     # ─── Odyssey ───────────────────────────────────────────────────
     CorpusWork(
         code="odyssey_grc",

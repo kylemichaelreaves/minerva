@@ -186,9 +186,16 @@ _APPARATUS_TEXT_IDS = frozenset(
 )
 _APPARATUS_TITLES = frozenset(
     {
-        "index", "indices", "general index", "index of names",
-        "index of passages", "contents", "table of contents",
-        "errata", "corrigenda", "addenda",
+        "index",
+        "indices",
+        "general index",
+        "index of names",
+        "index of passages",
+        "contents",
+        "table of contents",
+        "errata",
+        "corrigenda",
+        "addenda",
     }
 )
 

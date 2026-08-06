@@ -115,7 +115,15 @@ jobs:
         # went unlinted for the repo's whole history and accumulated 41
         # F821 undefined names — downloaders that imported fine and blew
         # up with NameError the moment the code path ran (#116).
-        run: uv run --no-sync ruff check src tests scripts perseus
+        #
+        # `format --check` mirrors `make lint-py` and is what stops #136
+        # recurring: the formatter had never been enforced, so src+tests
+        # drifted to 122 unformatted files and `make format-py` broke
+        # `make check`. Scope is narrower than the lint scope on purpose —
+        # scripts/ and perseus/ are still unformatted.
+        run: |
+          uv run --no-sync ruff format --check src tests
+          uv run --no-sync ruff check src tests scripts perseus
 
       - name: Author manifest sync
         # Mirrors `make check-authors`: generated corpus_registry /

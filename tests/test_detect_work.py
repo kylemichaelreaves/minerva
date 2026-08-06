@@ -13,9 +13,7 @@ from minerva.agent.detect import work_titles
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
-    c.execute(
-        "CREATE TABLE works (id INTEGER PRIMARY KEY, author TEXT, title TEXT)"
-    )
+    c.execute("CREATE TABLE works (id INTEGER PRIMARY KEY, author TEXT, title TEXT)")
     c.execute(
         "CREATE TABLE translations "
         "(id INTEGER PRIMARY KEY, work_id INTEGER, language TEXT, title_local TEXT)"
@@ -447,6 +445,6 @@ def test_aliases_are_corpus_scoped_like_every_other_name(conn):
 
 def test_work_titles_includes_aliases(conn):
     names = {name for wid, name in work_titles(conn, "hegel") if wid == 40}
-    assert "Phenomenology of Spirit (Pinkard)" in names   # canonical
-    assert "Phenomenology of Spirit" in names             # alias
-    assert "Phänomenologie des Geistes" in names          # cross-language alias
+    assert "Phenomenology of Spirit (Pinkard)" in names  # canonical
+    assert "Phenomenology of Spirit" in names  # alias
+    assert "Phänomenologie des Geistes" in names  # cross-language alias

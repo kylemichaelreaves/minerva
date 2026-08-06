@@ -229,9 +229,7 @@ def insert_cross_reference(
     ``citation_system``; the schema doesn't enforce payload structure.
     """
 
-    src_edition_id, src_translation_id = _resolve_source_edition_translation(
-        conn, source_chunk_id
-    )
+    src_edition_id, src_translation_id = _resolve_source_edition_translation(conn, source_chunk_id)
 
     payload_json: str | None = None
     if target_locator_payload is not None:

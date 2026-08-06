@@ -32,9 +32,19 @@ from ..tei import Chunk, _make_chunk_id, _norm_text
 # German ordinal → canonical Letter (Epistole roman numeral).
 _ROMAN = ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII")
 _BRIEF_ORDINALS = {
-    "ERSTER": 1, "ZWEITER": 2, "DRITTER": 3, "VIERTER": 4, "FÜNFTER": 5,
-    "SECHSTER": 6, "SIEBENTER": 7, "ACHTER": 8, "NEUNTER": 9, "ZEHNTER": 10,
-    "ELFTER": 11, "ZWÖLFTER": 12, "DREIZEHNTER": 13,
+    "ERSTER": 1,
+    "ZWEITER": 2,
+    "DRITTER": 3,
+    "VIERTER": 4,
+    "FÜNFTER": 5,
+    "SECHSTER": 6,
+    "SIEBENTER": 7,
+    "ACHTER": 8,
+    "NEUNTER": 9,
+    "ZEHNTER": 10,
+    "ELFTER": 11,
+    "ZWÖLFTER": 12,
+    "DREIZEHNTER": 13,
 }
 
 # Per-canonical translator + edition year. Most of the edition is
@@ -45,8 +55,12 @@ _SUSEMIHL = ("Franz Susemihl", "1863")
 _GEORGII = ("Ludwig Georgii", "1853")
 _SCHLEIERMACHER = ("Friedrich Schleiermacher", "1818")
 _TRANSLATOR: dict[str, tuple[str, str]] = {
-    "Parmenides": _SUSEMIHL, "Symposion": _SUSEMIHL, "Timaios": _SUSEMIHL,
-    "Kritias": _SUSEMIHL, "Nomoi": _SUSEMIHL, "Epinomis": _SUSEMIHL,
+    "Parmenides": _SUSEMIHL,
+    "Symposion": _SUSEMIHL,
+    "Timaios": _SUSEMIHL,
+    "Kritias": _SUSEMIHL,
+    "Nomoi": _SUSEMIHL,
+    "Epinomis": _SUSEMIHL,
     "Phaidros": _GEORGII,
 }
 
@@ -67,9 +81,19 @@ _CHROME_RE = re.compile(r"^\s*\d{1,4}\s*$")
 # dialogue is a single unit and correctly carries no `book` at all —
 # which is what the Greek and English sides store for them too.
 _BUCH_ORDINALS = {
-    "ERSTES": 1, "ZWEITES": 2, "DRITTES": 3, "VIERTES": 4, "FÜNFTES": 5,
-    "SECHSTES": 6, "SIEBENTES": 7, "SIEBTES": 7, "ACHTES": 8, "NEUNTES": 9,
-    "ZEHNTES": 10, "ELFTES": 11, "ZWÖLFTES": 12,
+    "ERSTES": 1,
+    "ZWEITES": 2,
+    "DRITTES": 3,
+    "VIERTES": 4,
+    "FÜNFTES": 5,
+    "SECHSTES": 6,
+    "SIEBENTES": 7,
+    "SIEBTES": 7,
+    "ACHTES": 8,
+    "NEUNTES": 9,
+    "ZEHNTES": 10,
+    "ELFTES": 11,
+    "ZWÖLFTES": 12,
 }
 
 # A body book heading — "Erstes Buch vom Staate." / "ERSTES BUCH ÜBER DIE
@@ -160,7 +184,7 @@ def _emit_sections(
     letter: str | None = None
     last = 0
     for m in _MARK_RE.finditer(body):
-        seg = body[last:m.start()]
+        seg = body[last : m.start()]
         if page and letter and seg.strip():
             loc = f"{page}{letter.lower()}"
             if loc not in sections:

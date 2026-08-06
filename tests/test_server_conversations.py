@@ -107,9 +107,7 @@ def test_handle_chat_persists_assistant_dominant_and_citations(populated_db, con
 #      message we just added.
 
 
-def test_handle_chat_rolls_back_new_conversation_on_llm_failure(
-    populated_db, conversations_conn
-):
+def test_handle_chat_rolls_back_new_conversation_on_llm_failure(populated_db, conversations_conn):
     failing = StubBackend(reply=RuntimeError("simulated upstream"))
     deps = _make_deps(populated_db, failing, conversations_conn=conversations_conn)
 
@@ -118,19 +116,13 @@ def test_handle_chat_rolls_back_new_conversation_on_llm_failure(
 
     # The conversation should have been deleted entirely — no orphan
     # user turn left behind.
-    rows = conversations_conn.execute(
-        "SELECT COUNT(*) FROM conversations"
-    ).fetchone()
+    rows = conversations_conn.execute("SELECT COUNT(*) FROM conversations").fetchone()
     assert rows[0] == 0
-    msg_rows = conversations_conn.execute(
-        "SELECT COUNT(*) FROM messages"
-    ).fetchone()
+    msg_rows = conversations_conn.execute("SELECT COUNT(*) FROM messages").fetchone()
     assert msg_rows[0] == 0
 
 
-def test_handle_chat_rolls_back_appended_turn_on_llm_failure(
-    populated_db, conversations_conn
-):
+def test_handle_chat_rolls_back_appended_turn_on_llm_failure(populated_db, conversations_conn):
     # First call succeeds and creates a conversation with [user,
     # assistant] turns. Then a second call against the same
     # conversation fails — we should be left with just the original
@@ -163,9 +155,7 @@ def test_handle_chat_rolls_back_appended_turn_on_llm_failure(
     assert all("cave allegory" not in r[1] for r in rows)
 
 
-def test_handle_chat_rolls_back_on_retrieval_failure(
-    populated_db, conversations_conn, monkeypatch
-):
+def test_handle_chat_rolls_back_on_retrieval_failure(populated_db, conversations_conn, monkeypatch):
     from minerva import agent
 
     def _boom(*_args, **_kwargs):

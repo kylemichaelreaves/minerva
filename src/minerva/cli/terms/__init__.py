@@ -62,10 +62,7 @@ def _cmd_aggregate_lemmas(args: argparse.Namespace) -> int:
         summary = aggregate.build(conn, verbose=True)
     finally:
         conn.close()
-    print(
-        f"aggregate-lemmas: {summary['total']:,} rows in "
-        f"{summary['elapsed_seconds']:.1f}s"
-    )
+    print(f"aggregate-lemmas: {summary['total']:,} rows in {summary['elapsed_seconds']:.1f}s")
     return 0
 
 

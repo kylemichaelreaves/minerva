@@ -138,9 +138,9 @@ class _ProgressBar:
         eta = (self.total - self.n) / rate if rate > 0 and self.n < self.total else 0.0
         line = (
             f"  {self.label} [{bar}] "
-            f"{self.n:>5d}/{self.total} ({frac*100:5.1f}%)  "
+            f"{self.n:>5d}/{self.total} ({frac * 100:5.1f}%)  "
             f"+{self.n_promoted} −{self.n_rejected} err={self.n_errors}  "
-            f"{rate*60:.1f}/min  ETA {_format_eta(eta)}"
+            f"{rate * 60:.1f}/min  ETA {_format_eta(eta)}"
         )
         # On tty: overwrite the same line via \r; no newline.
         # On piped: write a complete line with a newline so log files
@@ -415,7 +415,6 @@ def verify_rows_with_llm(
     only re-does at most one batch's worth of rows.
     """
 
-
     resume_from_id: int | None = None
     if resume:
         resume_from_id = _read_checkpoint(conn)
@@ -498,7 +497,7 @@ def verify_rows_with_llm(
                 # Print on its own line so the in-place progress bar
                 # isn't clobbered. `print` to a tty after a `\r` write
                 # would overlap; emit a newline first.
-                print(f"\n  [error] batch {batch_start//batch_size}: {exc}", flush=True)
+                print(f"\n  [error] batch {batch_start // batch_size}: {exc}", flush=True)
             n_calls += 1
             n_parse_errors += 1
             bid = batch[0]["id"]
@@ -514,7 +513,7 @@ def verify_rows_with_llm(
         if verdicts is None:
             if verbose:
                 print(
-                    f"\n  [parse_error] batch {batch_start//batch_size}: "
+                    f"\n  [parse_error] batch {batch_start // batch_size}: "
                     f"could not extract JSON array; first 200 chars: "
                     f"{response[:200]!r}",
                     flush=True,

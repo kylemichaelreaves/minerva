@@ -64,8 +64,19 @@ _UNIFIED: tuple[tuple[str, str, str], ...] = (
 )
 
 _ROMAN = (
-    "I", "II", "III", "IV", "V", "VI", "VII", "VIII",
-    "IX", "X", "XI", "XII", "XIII",
+    "I",
+    "II",
+    "III",
+    "IV",
+    "V",
+    "VI",
+    "VII",
+    "VIII",
+    "IX",
+    "X",
+    "XI",
+    "XII",
+    "XIII",
 )
 # The 13 Letters: canonical "Epistole VII" ↔ current/English "Letter 7".
 _LETTERS: tuple[tuple[str, str, str], ...] = tuple(
@@ -74,9 +85,7 @@ _LETTERS: tuple[tuple[str, str, str], ...] = tuple(
 
 
 # ── derived lookups ────────────────────────────────────────────────────
-CANONICAL: tuple[str, ...] = tuple(
-    c for c, *_ in (*_SPLIT, *_UNIFIED, *_LETTERS)
-)
+CANONICAL: tuple[str, ...] = tuple(c for c, *_ in (*_SPLIT, *_UNIFIED, *_LETTERS))
 
 # every raw stored title (beta-code grc OR anglicized/current eng) → canonical
 ALIASES: dict[str, str] = {}

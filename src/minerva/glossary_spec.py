@@ -125,8 +125,7 @@ def load_spec(path: Path) -> GlossarySpec:
         import yaml
     except ImportError as exc:
         raise SpecError(
-            "PyYAML not installed; install the lemma extras: "
-            "uv pip install -e '.[lemma]'"
+            "PyYAML not installed; install the lemma extras: uv pip install -e '.[lemma]'"
         ) from exc
 
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -245,9 +244,7 @@ def _parse_translation(
     apply_idx: int,
     tr_idx: int,
 ) -> TranslationApply:
-    where = (
-        f"{path}: terms[{term_idx}].apply_to[{apply_idx}].translations[{tr_idx}]"
-    )
+    where = f"{path}: terms[{term_idx}].apply_to[{apply_idx}].translations[{tr_idx}]"
     if not isinstance(tr, dict):
         raise SpecError(f"{where}: must be a mapping")
     translator_name = tr.get("translator")
@@ -560,9 +557,7 @@ def _validate_resolved(spec: GlossarySpec, conn: sqlite3.Connection) -> list[str
                 (apply.edition_id,),
             ).fetchone()
             if ed is None:
-                errors.append(
-                    f"{term.lemma}: edition_id {apply.edition_id} does not exist"
-                )
+                errors.append(f"{term.lemma}: edition_id {apply.edition_id} does not exist")
                 continue
             if ed["language"] != spec.language:
                 errors.append(

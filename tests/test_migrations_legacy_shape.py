@@ -80,11 +80,33 @@ def _build_legacy_db(path: Path) -> None:
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             # Greek original (legacy 2-letter lang for 0002 to convert).
-            ("g1", "plato", "Plato", "Republic", "gr", "509d",
-             "rep.xml", "ἀγαθόν original", 0, "(Original)", None),
+            (
+                "g1",
+                "plato",
+                "Plato",
+                "Republic",
+                "gr",
+                "509d",
+                "rep.xml",
+                "ἀγαθόν original",
+                0,
+                "(Original)",
+                None,
+            ),
             # English translation of the same work.
-            ("e1", "plato", "Plato", "Republic", "en", "509d",
-             "rep_en.xml", "the good translated", 1, "Jowett", "1892"),
+            (
+                "e1",
+                "plato",
+                "Plato",
+                "Republic",
+                "en",
+                "509d",
+                "rep_en.xml",
+                "the good translated",
+                1,
+                "Jowett",
+                "1892",
+            ),
         ],
     )
     conn.commit()
@@ -109,14 +131,10 @@ def test_legacy_db_converges_through_full_migration_chain(tmp_path: Path):
     assert {"edition_id", "translation_id"} <= cols
 
     # ...and split the rows into one Work + one Edition + one Translation.
-    works = conn.execute(
-        "SELECT author, title, original_language FROM works"
-    ).fetchall()
+    works = conn.execute("SELECT author, title, original_language FROM works").fetchall()
     assert [tuple(w) for w in works] == [("Plato", "Republic", "grc")]
     assert conn.execute("SELECT COUNT(*) FROM editions").fetchone()[0] == 1
-    tr = conn.execute(
-        "SELECT translator_name, language FROM translations"
-    ).fetchone()
+    tr = conn.execute("SELECT translator_name, language FROM translations").fetchone()
     assert (tr[0], tr[1]) == ("Jowett", "eng")
 
     # Chunk rows survived with correct FK classification and 0002's
@@ -144,9 +162,7 @@ def test_legacy_db_converges_through_full_migration_chain(tmp_path: Path):
     ).fetchall()
     assert len(hit) == 1
     assert table_exists(conn, "cross_references")  # 0012/0013 applied
-    norm = conn.execute(
-        "SELECT COUNT(*) FROM chunks WHERE text_norm IS NOT NULL"
-    ).fetchone()[0]
+    norm = conn.execute("SELECT COUNT(*) FROM chunks WHERE text_norm IS NOT NULL").fetchone()[0]
     assert norm == 2
 
     # Whole-DB FK integrity after the rebuild dance.

@@ -40,10 +40,10 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
     """
 
     rows = conn.execute(
-            "SELECT cf.work_id, cf.corpus, cf.author, cf.work, cf.lang, COUNT(*) AS n "
-            "FROM chunks_full cf "
-            "GROUP BY cf.work_id, cf.corpus, cf.author, cf.work, cf.lang"
-        ).fetchall()
+        "SELECT cf.work_id, cf.corpus, cf.author, cf.work, cf.lang, COUNT(*) AS n "
+        "FROM chunks_full cf "
+        "GROUP BY cf.work_id, cf.corpus, cf.author, cf.work, cf.lang"
+    ).fetchall()
 
     # Per-edition/translation local title, keyed on (work_id, lang). This is
     # the language's own name for the work — "Republic"/"Laws" on the English
@@ -87,7 +87,7 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
     rows_sorted = sorted(rows, key=sort_key)
 
     out_works = []
-    for (work_id, c, a, w, lang, n) in rows_sorted:
+    for work_id, c, a, w, lang, n in rows_sorted:
         local = local_titles.get((work_id, lang))
         if local:
             # This language has its own name for the work (English
@@ -472,12 +472,11 @@ def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     try:
         offset = int(offset_raw)
     except ValueError:
-        raise BadRequestError( "'offset' must be an integer") from None
+        raise BadRequestError("'offset' must be an integer") from None
     try:
         samples_limit = int(query.get("samples_limit", "5"))
     except ValueError:
-        raise BadRequestError( "'samples_limit' must be an integer"
-        ) from None
+        raise BadRequestError("'samples_limit' must be an integer") from None
     # Cap at 100 so a Show-more click can fetch a meaningful next
     # batch but the response stays bounded for very-common lemmas
     # (e.g. German `der` has ~24 k sites — we don't want one click
@@ -486,10 +485,9 @@ def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     try:
         samples_offset = int(query.get("samples_offset", "0"))
     except ValueError:
-        raise BadRequestError( "'samples_offset' must be an integer"
-        ) from None
+        raise BadRequestError("'samples_offset' must be an integer") from None
     if samples_offset < 0:
-        raise BadRequestError( "'samples_offset' must be >= 0")
+        raise BadRequestError("'samples_offset' must be >= 0")
 
     # Resolve the click into a (chunk, edition) + the lemma at
     # that offset. The chunk_lemmas row is keyed by chunk_id +
@@ -546,9 +544,7 @@ def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
             (edition_id, translation_id, lemma, samples_limit, samples_offset),
         ).fetchall()
 
-    def _snippet(
-        text: str, start: int, end: int, radius: int = 40
-    ) -> dict[str, Any]:
+    def _snippet(text: str, start: int, end: int, radius: int = 40) -> dict[str, Any]:
         return build_mark_snippet(text, start, end, radius=radius)
 
     feats_dict = _parse_morph_feats(focus["feats"])
@@ -613,10 +609,14 @@ def lemma_highlights(
 
     lemma = query.get("lemma")
     if not lemma:
-        raise BadRequestError( "lemma query param required")
+        raise BadRequestError("lemma query param required")
     window = parse_window_params(query)
     chunk_ids = fetch_chunk_ids_in_window(
-        conn, work_id, window.lang, window.from_ord, window.limit,
+        conn,
+        work_id,
+        window.lang,
+        window.from_ord,
+        window.limit,
     )
     if not chunk_ids:
         return empty_window_response(work_id, window, extra={"lemma": lemma})
@@ -656,15 +656,13 @@ def chunk_context(
     try:
         radius = int(query.get("radius", "1"))
     except ValueError:
-        raise BadRequestError( "invalid 'radius' query param") from None
+        raise BadRequestError("invalid 'radius' query param") from None
     if radius < 0 or radius > 5:
-        raise BadRequestError( "'radius' must be in 0..5")
+        raise BadRequestError("'radius' must be in 0..5")
 
-    focus, before_rows, after_rows = store.fetch_chunk_context(
-        conn, chunk_id, radius=radius
-    )
+    focus, before_rows, after_rows = store.fetch_chunk_context(conn, chunk_id, radius=radius)
     if focus is None:
-        raise NotFoundError( "unknown chunk_id")
+        raise NotFoundError("unknown chunk_id")
 
     focus_lang = focus["lang"]
 
@@ -694,9 +692,7 @@ def chunk_context(
 def landing_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     """Small payload for the landing page totals strip."""
 
-    authors = conn.execute(
-        "SELECT COUNT(DISTINCT author) FROM works"
-    ).fetchone()[0]
+    authors = conn.execute("SELECT COUNT(DISTINCT author) FROM works").fetchone()[0]
     works = conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
     xrefs = conn.execute(
         "SELECT COUNT(*) FROM cross_references "

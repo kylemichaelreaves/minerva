@@ -110,9 +110,7 @@ class TestChunkReferences:
         out = _handle_chunk_references(deps, "rep-509d", {"min_confidence": "0.9"})
         assert out["outgoing"] == []
 
-    def test_unknown_chunk_returns_empty(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_unknown_chunk_returns_empty(self, populated_db: sqlite3.Connection) -> None:
         deps = make_deps(populated_db, StubBackend())
         out = _handle_chunk_references(deps, "nonexistent", {})
         assert out["outgoing"] == []
@@ -129,9 +127,7 @@ class TestWorkReferencesMap:
         _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         # Look up Plato Republic's work_id from the DB
-        work_id = populated_db.execute(
-            "SELECT id FROM works WHERE title='Republic'"
-        ).fetchone()[0]
+        work_id = populated_db.execute("SELECT id FROM works WHERE title='Republic'").fetchone()[0]
         # populated_db seeds Plato chunks with lang='eng'; the
         # endpoint defaults to 'grc' for the production reader.
         out = _handle_work_references_map(deps, work_id, {"lang": "eng"})
@@ -148,18 +144,14 @@ class TestWorkReferencesMap:
 
 
 class TestReferencesByAuthor:
-    def test_filter_by_source_author(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_filter_by_source_author(self, populated_db: sqlite3.Connection) -> None:
         _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         out = _handle_references_list(deps, {"source_author": "Plato"})
         ids = {r["source_chunk_id"] for r in out["references"]}
         assert ids == {"rep-509d"}
 
-    def test_filter_by_target_author(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_filter_by_target_author(self, populated_db: sqlite3.Connection) -> None:
         _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         out = _handle_references_list(deps, {"target_author": "Cicero"})
@@ -172,9 +164,7 @@ class TestReferencesByAuthor:
         out = _handle_references_list(deps, {"limit": "1"})
         assert len(out["references"]) == 1
 
-    def test_filter_by_reference_type(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_filter_by_reference_type(self, populated_db: sqlite3.Connection) -> None:
         # Seed two "cites" rows, then add one "quotes" row so the filter
         # is selective (not just matching everything).
         _seed_two_refs(populated_db)
@@ -214,9 +204,7 @@ class TestReferencesByAuthor:
 
 
 class TestReviewQueue:
-    def test_returns_only_auto_rows(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_returns_only_auto_rows(self, populated_db: sqlite3.Connection) -> None:
         _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         out = _handle_review_queue(deps, {})
@@ -225,9 +213,7 @@ class TestReviewQueue:
         assert all(r["curator_status"] == "auto" for r in out["references"])
         assert len(out["references"]) == 1
 
-    def test_source_author_filter(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_source_author_filter(self, populated_db: sqlite3.Connection) -> None:
         _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         out = _handle_review_queue(deps, {"source_author": "Aristotle"})
@@ -275,9 +261,7 @@ class TestReferenceUpdate:
         ).fetchone()
         assert row[0] == "false positive"
 
-    def test_invalid_status_rejected(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_invalid_status_rejected(self, populated_db: sqlite3.Connection) -> None:
         ids = _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         with pytest.raises(_HTTPError) as exc_info:
@@ -288,18 +272,14 @@ class TestReferenceUpdate:
             )
         assert exc_info.value.status == 400
 
-    def test_missing_status_rejected(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_missing_status_rejected(self, populated_db: sqlite3.Connection) -> None:
         ids = _seed_two_refs(populated_db)
         deps = make_deps(populated_db, StubBackend())
         with pytest.raises(_HTTPError) as exc_info:
             _handle_reference_update(deps, ids["plato_to_aristotle"], {})
         assert exc_info.value.status == 400
 
-    def test_unknown_id_returns_404(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_unknown_id_returns_404(self, populated_db: sqlite3.Connection) -> None:
         deps = make_deps(populated_db, StubBackend())
         with pytest.raises(_HTTPError) as exc_info:
             _handle_reference_update(

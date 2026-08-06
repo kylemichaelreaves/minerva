@@ -114,10 +114,21 @@ def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             return None
         chunk_id = _make_chunk_id(path.name, work.title, work.lang, book, section, "", text[:120])
         return Chunk(
-            chunk_id=chunk_id, corpus=work.corpus, author=work.author, work=work.title,
-            lang=work.lang, section=section, book=book, page=None, speaker=None, text=text,
-            source_file=path.name, translator=work.translator, edition_year=work.edition_year,
-            citation_system=work.citation_system, block_type=block_type,
+            chunk_id=chunk_id,
+            corpus=work.corpus,
+            author=work.author,
+            work=work.title,
+            lang=work.lang,
+            section=section,
+            book=book,
+            page=None,
+            speaker=None,
+            text=text,
+            source_file=path.name,
+            translator=work.translator,
+            edition_year=work.edition_year,
+            citation_system=work.citation_system,
+            block_type=block_type,
         )
 
     def flush() -> Chunk | None:
@@ -169,7 +180,7 @@ def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             if ch:
                 yield ch
             mode = "appendix"
-            body = t[len("APPENDIX"):].lstrip(" .:")
+            body = t[len("APPENDIX") :].lstrip(" .:")
             pending = (f"E {roman}, App.", None, [body]) if body else (f"E {roman}, App.", None, [])
             continue
         if _PRAEF_RE.match(t):  # PRÆFATIO / PRAEFATIO

@@ -134,8 +134,7 @@ def test_natural_keys_resolve_to_the_right_ids(catalog, tmp_path: Path):
     apply = resolved.terms[0].apply_to[0]
     expected_edition = _ids(
         catalog,
-        "SELECT e.id FROM editions e JOIN works w ON w.id = e.work_id "
-        "WHERE w.title = 'Categories'",
+        "SELECT e.id FROM editions e JOIN works w ON w.id = e.work_id WHERE w.title = 'Categories'",
     )
     expected_translation = _ids(
         catalog,
@@ -153,8 +152,7 @@ def test_numeric_ids_still_accepted_as_an_override(catalog, tmp_path: Path):
 
     edition_id = _ids(
         catalog,
-        "SELECT e.id FROM editions e JOIN works w ON w.id = e.work_id "
-        "WHERE w.title = 'Categories'",
+        "SELECT e.id FROM editions e JOIN works w ON w.id = e.work_id WHERE w.title = 'Categories'",
     )
     translation_id = _ids(
         catalog, "SELECT id FROM translations WHERE translator_name = 'E. M. Edghill'"
@@ -181,8 +179,7 @@ def test_rotted_numeric_edition_id_is_still_caught(catalog, tmp_path: Path):
 
     homer_edition = _ids(
         catalog,
-        "SELECT e.id FROM editions e JOIN works w ON w.id = e.work_id "
-        "WHERE w.title = 'Iliad'",
+        "SELECT e.id FROM editions e JOIN works w ON w.id = e.work_id WHERE w.title = 'Iliad'",
     )
     spec = _spec(
         tmp_path,
@@ -285,9 +282,7 @@ def test_translator_under_a_sibling_works_row_resolves(catalog, tmp_path: Path):
     )
     resolved, errors = resolve_and_validate(spec, catalog)
     assert errors == []
-    expected = _ids(
-        catalog, "SELECT id FROM translations WHERE translator_name = 'Terry Pinkard'"
-    )
+    expected = _ids(catalog, "SELECT id FROM translations WHERE translator_name = 'Terry Pinkard'")
     assert resolved.terms[0].apply_to[0].translations[0].translation_id == expected
 
 
@@ -308,9 +303,7 @@ def test_unknown_translator_lists_the_candidates(catalog, tmp_path: Path):
     assert "'E. M. Edghill'" in errors[0]
 
 
-def test_unresolved_anchor_leaves_id_none_and_is_not_double_reported(
-    catalog, tmp_path: Path
-):
+def test_unresolved_anchor_leaves_id_none_and_is_not_double_reported(catalog, tmp_path: Path):
     """A failed resolution must not then trip the id-existence check —
     one clear error, not two, and never a bare `edition_id None does not
     exist`."""

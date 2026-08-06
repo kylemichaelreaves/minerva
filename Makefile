@@ -105,7 +105,13 @@ coverage: coverage-py coverage-web
 # eslint + prettier handle TypeScript. `check` runs everything that has
 # to pass before a commit.
 
+# `format --check` is the gate that stops #136 recurring. The formatter
+# had never been enforced anywhere, so `src` + `tests` drifted to 122
+# unformatted files — and it kept growing (109 when #136 was filed, a
+# month earlier). Same shape as #116: the defect wasn't the drift, it was
+# the missing gate. Scope matches `format-py` so the two can't disagree.
 lint-py:
+	$(RUFF) format --check src tests
 	$(RUFF) check src tests scripts perseus
 
 lint-web:
@@ -114,10 +120,14 @@ lint-web:
 lint: lint-py lint-web
 
 # The --fix scope matches lint-py so `make format-py && make check`
-# can't leave a lint error behind. The `ruff format` scope is
-# deliberately narrower: formatting scripts/ and perseus/ is a large
-# reflow that belongs with #136, which also has to settle the
-# codegen-owned files ruff currently reformats out of sync.
+# can't leave a lint error behind. The `ruff format` scope stays
+# narrower than the lint scope: `scripts/` and `perseus/` are still
+# unformatted, and reflowing them is a separate diff from #136's
+# `src`+`tests` pass — deliberately not bundled, so the two can be
+# reviewed and reverted independently.
+#
+# The codegen-owned files ruff used to reformat out of sync are now
+# excluded in `[tool.ruff.format]`; see the comment there.
 format-py:
 	$(RUFF) format src tests
 	$(RUFF) check --fix src tests scripts perseus

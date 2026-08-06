@@ -49,14 +49,16 @@ def review_queue(
             params.append(float(query["min_confidence"]))
             clauses.append("xr.confidence >= ?")
         except ValueError:
-            raise BadRequestError("invalid 'min_confidence' query param",
+            raise BadRequestError(
+                "invalid 'min_confidence' query param",
             ) from None
     if query.get("max_confidence"):
         try:
             params.append(float(query["max_confidence"]))
             clauses.append("xr.confidence <= ?")
         except ValueError:
-            raise BadRequestError("invalid 'max_confidence' query param",
+            raise BadRequestError(
+                "invalid 'max_confidence' query param",
             ) from None
 
     where = "WHERE " + " AND ".join(clauses)

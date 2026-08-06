@@ -63,23 +63,17 @@ def de_cive_chunks() -> list:
 
 
 class TestLeviathanChapters:
-
     def test_all_47_chapters_present(self, leviathan_chunks: list) -> None:
-        sections = {
-            int(c.section.split()[1]) for c in leviathan_chunks
-        }
+        sections = {int(c.section.split()[1]) for c in leviathan_chunks}
         assert sections == set(range(1, 48)), (
-            f"missing chapters: "
-            f"{sorted(set(range(1, 48)) - sections)}"
+            f"missing chapters: {sorted(set(range(1, 48)) - sections)}"
         )
 
     def test_chapter_count(self, leviathan_chunks: list) -> None:
         unique_sections = {c.section for c in leviathan_chunks}
         assert len(unique_sections) == 47
 
-    def test_cap_iv_recovered_via_gap_fill(
-        self, leviathan_chunks: list
-    ) -> None:
+    def test_cap_iv_recovered_via_gap_fill(self, leviathan_chunks: list) -> None:
         # Cap IV has no surviving CAPVT line in the OCR; the
         # post-pass should recover it from the "Cap. 4. De Homine."
         # page running heads. Verify the chunk exists with
@@ -89,12 +83,9 @@ class TestLeviathanChapters:
             None,
         )
         assert c4 is not None, "Cap 4 not recovered"
-        assert len(c4.text) > 500, (
-            f"Cap 4 too short: {len(c4.text)} chars"
-        )
+        assert len(c4.text) > 500, f"Cap 4 too short: {len(c4.text)} chars"
         assert "Homine" in c4.text, (
-            "Cap 4 should be 'De Homine' but doesn't contain "
-            "'Homine' in its body"
+            "Cap 4 should be 'De Homine' but doesn't contain 'Homine' in its body"
         )
 
     def test_cap_xi_recovered(self, leviathan_chunks: list) -> None:
@@ -118,9 +109,7 @@ class TestLeviathanChapters:
         assert c25 is not None, "Cap 25 not recovered"
         assert len(c25.text) > 500
 
-    def test_cap_xxxi_recovered(
-        self, leviathan_chunks: list
-    ) -> None:
+    def test_cap_xxxi_recovered(self, leviathan_chunks: list) -> None:
         # Cap XXXI's CAPVT line at L1326 reads "CAPVT  XXX  L"
         # (trailing I OCR'd as L). Recovered by the
         # trailing-L → I prefix in `_roman_to_int`.
@@ -138,21 +127,13 @@ class TestLeviathanChapters:
 
 
 class TestDeCiveRegression:
-
-    def test_de_cive_still_18_chapters(
-        self, de_cive_chunks: list
-    ) -> None:
-        sections = {
-            int(c.section.split()[1]) for c in de_cive_chunks
-        }
+    def test_de_cive_still_18_chapters(self, de_cive_chunks: list) -> None:
+        sections = {int(c.section.split()[1]) for c in de_cive_chunks}
         assert sections == set(range(1, 19)), (
-            f"De Cive regressed; missing: "
-            f"{sorted(set(range(1, 19)) - sections)}"
+            f"De Cive regressed; missing: {sorted(set(range(1, 19)) - sections)}"
         )
 
-    def test_de_cive_chunk_count(
-        self, de_cive_chunks: list
-    ) -> None:
+    def test_de_cive_chunk_count(self, de_cive_chunks: list) -> None:
         assert len(de_cive_chunks) == 18
 
 
@@ -162,17 +143,16 @@ class TestDeCiveRegression:
 
 
 class TestRomanToInt:
-
     @pytest.mark.parametrize(
         "raw,expected",
         [
             # OCR substitutions we ACTUALLY rely on
-            ("XXXL", 31),       # trailing I OCR'd as L (Cap XXXI)
-            ("XXX  L", 31),     # same, with internal whitespace
-            ("XIL", 12),        # II final stroke as L (Cap XII)
-            ("I L", 2),         # spaced "II" mis-OCR'd
-            ("VIIL", 8),        # Cap VIII spaced form
-            ("XXVIIL", 28),     # Cap XXVIII spaced form
+            ("XXXL", 31),  # trailing I OCR'd as L (Cap XXXI)
+            ("XXX  L", 31),  # same, with internal whitespace
+            ("XIL", 12),  # II final stroke as L (Cap XII)
+            ("I L", 2),  # spaced "II" mis-OCR'd
+            ("VIIL", 8),  # Cap VIII spaced form
+            ("XXVIIL", 28),  # Cap XXVIII spaced form
             # Legitimate Roman forms that MUST NOT be corrupted
             ("XL", 40),
             ("XLI", 41),

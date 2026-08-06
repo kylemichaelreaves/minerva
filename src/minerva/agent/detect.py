@@ -42,12 +42,40 @@ _PHRASE_KEYWORDS: tuple[tuple[re.Pattern[str], str, str], ...] = tuple(
 _TITLE_STOPWORDS = frozenset(
     {
         # German
-        "der", "die", "das", "den", "dem", "des", "ein", "eine", "zur", "zum",
-        "von", "vom", "und", "im", "in", "an", "am", "aus", "über", "uber",
+        "der",
+        "die",
+        "das",
+        "den",
+        "dem",
+        "des",
+        "ein",
+        "eine",
+        "zur",
+        "zum",
+        "von",
+        "vom",
+        "und",
+        "im",
+        "in",
+        "an",
+        "am",
+        "aus",
+        "über",
+        "uber",
         # English
-        "the", "a", "of", "on", "to", "and", "or",
+        "the",
+        "a",
+        "of",
+        "on",
+        "to",
+        "and",
+        "or",
         # Latin / French light title words
-        "de", "la", "le", "les", "du",
+        "de",
+        "la",
+        "le",
+        "les",
+        "du",
         # The English first-person pronoun, which is also the Roman numeral
         # in "Letter I" — leaving it significant made any query containing
         # "letter" and "I" scope to Epistole I (#168). The other letters
@@ -69,12 +97,46 @@ _TITLE_STOPWORDS = frozenset(
 # speech can, since the lemmatizer already tags every token.
 _COMMON_TITLE_TOKENS = frozenset(
     {
-        "acts", "briefe", "categories", "dreams", "erhabene", "erhabenen", "fato",
-        "gesetze", "heavens", "interpretation", "jude", "judges", "lamentations", "laws",
-        "legibus", "letter", "lovers", "mark", "mechanics", "morgenröte", "numbers", "nur",
-        "officiis", "orator", "oratore", "pensées", "politics", "problems", "proverbs",
-        "revelation", "sad", "sophist", "soul", "staat", "staatsmann", "statesman",
-        "suppliants", "theages", "topics", "wisdom"
+        "acts",
+        "briefe",
+        "categories",
+        "dreams",
+        "erhabene",
+        "erhabenen",
+        "fato",
+        "gesetze",
+        "heavens",
+        "interpretation",
+        "jude",
+        "judges",
+        "lamentations",
+        "laws",
+        "legibus",
+        "letter",
+        "lovers",
+        "mark",
+        "mechanics",
+        "morgenröte",
+        "numbers",
+        "nur",
+        "officiis",
+        "orator",
+        "oratore",
+        "pensées",
+        "politics",
+        "problems",
+        "proverbs",
+        "revelation",
+        "sad",
+        "sophist",
+        "soul",
+        "staat",
+        "staatsmann",
+        "statesman",
+        "suppliants",
+        "theages",
+        "topics",
+        "wisdom",
     }
 )
 
@@ -187,9 +249,7 @@ def detect_work(conn: sqlite3.Connection, query: str, corpus: str) -> int | None
     return next(iter(best_ids)) if len(best_ids) == 1 else None
 
 
-def _best_title_matches(
-    conn: sqlite3.Connection, query: str, corpus: str | None
-) -> set[int]:
+def _best_title_matches(conn: sqlite3.Connection, query: str, corpus: str | None) -> set[int]:
     """The most specific work titles of *corpus* that *query* names.
 
     The matching rules documented on :func:`detect_work` live here, so

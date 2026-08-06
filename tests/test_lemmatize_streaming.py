@@ -66,17 +66,17 @@ def test_streaming_cursor_survives_commit_boundaries(tmp_path: Path):
         batch_size=4,
         n_process=1,
     )
-    with patch.object(lemmatize_mod, "_COMMIT_BATCH", 3), \
-         patch.object(lemmatize_mod, "Lemmatizer", _StubLemmatizer), \
-         patch.object(lemmatize_mod, "is_supported", lambda lang: True):
+    with (
+        patch.object(lemmatize_mod, "_COMMIT_BATCH", 3),
+        patch.object(lemmatize_mod, "Lemmatizer", _StubLemmatizer),
+        patch.object(lemmatize_mod, "is_supported", lambda lang: True),
+    ):
         rc = lemmatize_mod.cmd_terms_lemmatize(args)
     assert rc == 0
 
     conn = store.open_db(db)
     try:
-        rows = conn.execute(
-            "SELECT chunk_id, lemma FROM chunk_lemmas ORDER BY chunk_id"
-        ).fetchall()
+        rows = conn.execute("SELECT chunk_id, lemma FROM chunk_lemmas ORDER BY chunk_id").fetchall()
     finally:
         conn.close()
     # One token per chunk, all 10 chunks reached — i.e. the cursor
@@ -117,8 +117,10 @@ def test_streaming_skips_already_lemmatized_chunks(tmp_path: Path):
         batch_size=4,
         n_process=1,
     )
-    with patch.object(lemmatize_mod, "Lemmatizer", _StubLemmatizer), \
-         patch.object(lemmatize_mod, "is_supported", lambda lang: True):
+    with (
+        patch.object(lemmatize_mod, "Lemmatizer", _StubLemmatizer),
+        patch.object(lemmatize_mod, "is_supported", lambda lang: True),
+    ):
         rc = lemmatize_mod.cmd_terms_lemmatize(args)
     assert rc == 0
 

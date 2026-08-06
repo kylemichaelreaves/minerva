@@ -18,9 +18,9 @@ def conn(tmp_path: Path):
 
 
 def test_lookup_miss_returns_none(conn):
-    assert concept_cache.lookup(
-        conn, query="anything", corpus="nietzsche", target_lang="deu"
-    ) is None
+    assert (
+        concept_cache.lookup(conn, query="anything", corpus="nietzsche", target_lang="deu") is None
+    )
 
 
 def test_round_trip_stores_and_returns_terms(conn):
@@ -58,9 +58,9 @@ def test_normalization_collapses_trivial_variants(conn):
         "  WHO ARE THE FAILURES?  ",
         "Who   are\tthe   failures???",
     ):
-        assert concept_cache.lookup(
-            conn, query=variant, corpus="nietzsche", target_lang="deu"
-        ) == ["Mißratenen"], f"variant {variant!r} missed"
+        assert concept_cache.lookup(conn, query=variant, corpus="nietzsche", target_lang="deu") == [
+            "Mißratenen"
+        ], f"variant {variant!r} missed"
 
 
 def test_distinct_corpora_dont_collide(conn):
@@ -83,12 +83,12 @@ def test_distinct_corpora_dont_collide(conn):
         terms=["das Misslungene"],
         model="anthropic",
     )
-    assert concept_cache.lookup(
-        conn, query="failures", corpus="nietzsche", target_lang="deu"
-    ) == ["Mißratenen"]
-    assert concept_cache.lookup(
-        conn, query="failures", corpus="hegel", target_lang="deu"
-    ) == ["das Misslungene"]
+    assert concept_cache.lookup(conn, query="failures", corpus="nietzsche", target_lang="deu") == [
+        "Mißratenen"
+    ]
+    assert concept_cache.lookup(conn, query="failures", corpus="hegel", target_lang="deu") == [
+        "das Misslungene"
+    ]
 
 
 def test_distinct_target_langs_dont_collide(conn):
@@ -110,12 +110,12 @@ def test_distinct_target_langs_dont_collide(conn):
         terms=["substantia"],
         model="anthropic",
     )
-    assert concept_cache.lookup(
-        conn, query="substance", corpus="aristotle", target_lang="grc"
-    ) == ["οὐσία"]
-    assert concept_cache.lookup(
-        conn, query="substance", corpus="aristotle", target_lang="lat"
-    ) == ["substantia"]
+    assert concept_cache.lookup(conn, query="substance", corpus="aristotle", target_lang="grc") == [
+        "οὐσία"
+    ]
+    assert concept_cache.lookup(conn, query="substance", corpus="aristotle", target_lang="lat") == [
+        "substantia"
+    ]
 
 
 def test_first_insert_wins(conn):
@@ -138,9 +138,7 @@ def test_first_insert_wins(conn):
         terms=["replacement"],
         model="anthropic",
     )
-    out = concept_cache.lookup(
-        conn, query="q", corpus="nietzsche", target_lang="deu"
-    )
+    out = concept_cache.lookup(conn, query="q", corpus="nietzsche", target_lang="deu")
     assert out == ["original"]
 
 
@@ -154,9 +152,7 @@ def test_hit_count_increments_on_lookup(conn):
         model="anthropic",
     )
     for _ in range(3):
-        concept_cache.lookup(
-            conn, query="hot concept", corpus="nietzsche", target_lang="deu"
-        )
+        concept_cache.lookup(conn, query="hot concept", corpus="nietzsche", target_lang="deu")
     top = concept_cache.stats_top(conn, limit=5)
     assert top[0]["query_norm"] == "hot concept"
     assert top[0]["hit_count"] == 3
@@ -186,9 +182,7 @@ def test_delete_all_wipes_cache(conn):
         model="anthropic",
     )
     assert concept_cache.delete_all(conn) == 1
-    assert concept_cache.lookup(
-        conn, query="q", corpus="nietzsche", target_lang="deu"
-    ) is None
+    assert concept_cache.lookup(conn, query="q", corpus="nietzsche", target_lang="deu") is None
 
 
 def test_empty_query_is_not_cached(conn):
@@ -205,6 +199,4 @@ def test_empty_query_is_not_cached(conn):
         )
         is False
     )
-    assert concept_cache.lookup(
-        conn, query="   ", corpus="nietzsche", target_lang="deu"
-    ) is None
+    assert concept_cache.lookup(conn, query="   ", corpus="nietzsche", target_lang="deu") is None

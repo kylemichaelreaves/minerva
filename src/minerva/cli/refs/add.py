@@ -57,8 +57,7 @@ def cmd_refs_add(args: argparse.Namespace) -> int:
             )
         else:
             print(
-                f"target: {target.canonical_author} / {target.canonical_work} "
-                f"(out-of-corpus)",
+                f"target: {target.canonical_author} / {target.canonical_work} (out-of-corpus)",
                 file=sys.stderr,
             )
 

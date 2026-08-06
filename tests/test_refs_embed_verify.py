@@ -45,9 +45,7 @@ class FakeEmbedder:
         phrases = list(phrases)
         if not phrases:
             return np.zeros((0, 4), dtype=np.float32)
-        out = np.stack(
-            [self._table.get(p, np.zeros(4, dtype=np.float32)) for p in phrases]
-        )
+        out = np.stack([self._table.get(p, np.zeros(4, dtype=np.float32)) for p in phrases])
         return out.astype(np.float32)
 
 
@@ -57,16 +55,13 @@ def _norm(v: list[float]) -> np.ndarray:
     return arr / n if n else arr
 
 
-def _seed_embeddings(
-    conn: sqlite3.Connection, chunk_vectors: dict[str, np.ndarray]
-) -> None:
+def _seed_embeddings(conn: sqlite3.Connection, chunk_vectors: dict[str, np.ndarray]) -> None:
     """Write embeddings directly to the embeddings table. Bypasses
     `store.upsert_embeddings` because we want bespoke vectors and the
     upsert helper would coerce the dim through model metadata."""
 
     conn.executemany(
-        "INSERT OR REPLACE INTO embeddings(chunk_id, model, dim, vector) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO embeddings(chunk_id, model, dim, vector) VALUES (?, ?, ?, ?)",
         [
             (cid, "fake", int(v.shape[0]), v.astype(np.float32).tobytes())
             for cid, v in chunk_vectors.items()
@@ -88,9 +83,7 @@ V_MID = _norm([0.7, 0.7, 0, 0])  # cosine 0.7 with V_X — sits in mid band
 
 
 class TestVerifyQuotedReferences:
-    def test_promote_when_cosine_above_threshold(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_promote_when_cosine_above_threshold(self, populated_db: sqlite3.Connection) -> None:
         # Seed: target chunk ne-1097b's embedding == V_X; phrase
         # embedding also V_X → cosine 1.0 → promote.
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
@@ -130,9 +123,7 @@ class TestVerifyQuotedReferences:
         assert row[2] == "ne-1097b"  # already set; preserved
         assert row[3] == "auto"  # promote does NOT touch curator_status
 
-    def test_reject_when_cosine_below_threshold(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_reject_when_cosine_below_threshold(self, populated_db: sqlite3.Connection) -> None:
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
         target = refs_schema.ensure_target(
             populated_db,
@@ -165,9 +156,7 @@ class TestVerifyQuotedReferences:
         assert row[0] == "rejected"
         assert row[1] == "rule+embed"
 
-    def test_mid_band_left_untouched(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_mid_band_left_untouched(self, populated_db: sqlite3.Connection) -> None:
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
         target = refs_schema.ensure_target(
             populated_db,
@@ -196,16 +185,13 @@ class TestVerifyQuotedReferences:
         assert stats.promoted == 0
         assert stats.rejected == 0
         row = populated_db.execute(
-            "SELECT confidence, source_method, curator_status "
-            "FROM cross_references WHERE id = ?",
+            "SELECT confidence, source_method, curator_status FROM cross_references WHERE id = ?",
             (xref_id,),
         ).fetchone()
         assert row[1] == "rule_weak"  # unchanged
         assert row[2] == "auto"
 
-    def test_skip_no_target_when_out_of_corpus(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_skip_no_target_when_out_of_corpus(self, populated_db: sqlite3.Connection) -> None:
         # Out-of-corpus target: ensure_target with an author/work that
         # doesn't match a `works` row leaves in_corpus_work_id NULL.
         target = refs_schema.ensure_target(
@@ -235,9 +221,7 @@ class TestVerifyQuotedReferences:
         assert stats.promoted == 0
         assert stats.rejected == 0
 
-    def test_skip_no_embedding_for_pinned_target(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_skip_no_embedding_for_pinned_target(self, populated_db: sqlite3.Connection) -> None:
         # target_chunk_id is set but the target has no embedding row.
         target = refs_schema.ensure_target(
             populated_db,
@@ -265,9 +249,7 @@ class TestVerifyQuotedReferences:
         assert stats.skipped_no_embedding == 1
         assert stats.promoted == 0
 
-    def test_manual_rows_not_examined(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_manual_rows_not_examined(self, populated_db: sqlite3.Connection) -> None:
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
         target = refs_schema.ensure_target(
             populated_db,
@@ -341,9 +323,7 @@ class TestFindCrossAuthorAllusions:
         assert rows[0][2] == "alludes"
         assert rows[0][4] == "auto"
 
-    def test_no_emit_when_all_below_threshold(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_no_emit_when_all_below_threshold(self, populated_db: sqlite3.Connection) -> None:
         # All Plato chunks orthogonal to the Aristotle chunk → no emits.
         _seed_embeddings(
             populated_db,
@@ -366,9 +346,7 @@ class TestFindCrossAuthorAllusions:
         assert stats.candidates_inserted == 0
         assert stats.candidates_emitted == 0
 
-    def test_missing_embeddings_skips_pair_silently(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_missing_embeddings_skips_pair_silently(self, populated_db: sqlite3.Connection) -> None:
         # No embeddings at all → both author matrices are empty → pair
         # silently skipped (pairs_examined still ticks).
         stats = embed_verify.find_cross_author_allusions(
@@ -437,9 +415,7 @@ class TestPassASkipsAlreadyProcessedRows:
         assert stats.examined == 0
         methods = {
             r[0]
-            for r in populated_db.execute(
-                "SELECT source_method FROM cross_references"
-            ).fetchall()
+            for r in populated_db.execute("SELECT source_method FROM cross_references").fetchall()
         }
         assert "rule+embed+llm" in methods  # provenance preserved
         assert "rule+embed" in methods
@@ -472,9 +448,7 @@ class TestInsertCandidateAllusionDedup:
             target_chunk_id=target_chunk_id,
         )
 
-    def test_distinct_target_chunks_each_insert(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_distinct_target_chunks_each_insert(self, populated_db: sqlite3.Connection) -> None:
         id1 = refs_rules.insert_candidate(populated_db, self._allusion("ne-1097b"))
         id2 = refs_rules.insert_candidate(populated_db, self._allusion("phaedo-72e"))
         assert id1 is not None

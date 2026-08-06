@@ -242,9 +242,7 @@ def delete_message(conn: sqlite3.Connection, message_id: int) -> bool:
     # Look up the parent conversation before deleting so we can fix
     # the updated_at; if the row's already gone (concurrent delete),
     # short-circuit cleanly.
-    row = conn.execute(
-        "SELECT conversation_id FROM messages WHERE id=?", (message_id,)
-    ).fetchone()
+    row = conn.execute("SELECT conversation_id FROM messages WHERE id=?", (message_id,)).fetchone()
     if row is None:
         return False
     cid = row[0]

@@ -70,7 +70,6 @@ WORKS: tuple[CorpusWork, ...] = (
         author="Aesop",
         citation_system="paragraph",
     ),
-
     # ─── Babrius (Greek verse + English) ──────────────────────────
     # Sourced 2026-06-01 from archive.org OCR — Crusius 1897 critical
     # edition (``babriifabvlaeaes00babruoft``) for the Greek and

@@ -222,8 +222,7 @@ def test_glossary_survives_reset_and_rebinds_to_new_ids(tmp_path: Path):
 
     # Curator prose survived verbatim.
     row = conn.execute(
-        "SELECT short_gloss, long_description, transliteration FROM terms "
-        "WHERE source_form = ?",
+        "SELECT short_gloss, long_description, transliteration FROM terms WHERE source_form = ?",
         ("ὁμώνυμα",),
     ).fetchone()
     assert row["short_gloss"] == "homonyms; things sharing only a name"
@@ -272,8 +271,13 @@ def test_glossary_survives_reset_and_rebinds_to_new_ids(tmp_path: Path):
         "contrast",
     )
 
-    for table in ("terms", "term_relations", "term_renderings", "term_occurrences",
-                  "occurrence_renderings"):
+    for table in (
+        "terms",
+        "term_relations",
+        "term_renderings",
+        "term_occurrences",
+        "occurrence_renderings",
+    ):
         bad = conn.execute(f"PRAGMA foreign_key_check({table})").fetchall()
         assert bad == [], f"FK violations in {table} after reset: {bad}"
 
@@ -345,9 +349,7 @@ def test_occurrences_whose_chunk_text_changed_are_dropped_loudly(tmp_path: Path,
     assert bad == [], f"FK violations after drop: {bad}"
 
 
-def test_occurrences_whose_work_left_the_corpus_are_reported_separately(
-    tmp_path: Path, capsys
-):
+def test_occurrences_whose_work_left_the_corpus_are_reported_separately(tmp_path: Path, capsys):
     """A dropped or renamed work is a different failure from an edited
     chunk, and the operator should be able to tell them apart — the
     first is a corpus change worth a second look, the second is routine.

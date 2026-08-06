@@ -197,6 +197,4 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             continue
         if find_book(entry.name) is None:
             continue
-        yield from guarded_parse_file(
-            "hebrew_mt", entry, lambda e=entry: parse_file(e)
-        )
+        yield from guarded_parse_file("hebrew_mt", entry, lambda e=entry: parse_file(e))

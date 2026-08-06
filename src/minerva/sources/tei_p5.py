@@ -341,9 +341,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
         yield from guarded_parse_file(
             corpus,
             xml_file,
-            lambda f=xml_file, w=work_title: parse_file(
-                f, work=w, corpus=corpus, author=author
-            ),
+            lambda f=xml_file, w=work_title: parse_file(f, work=w, corpus=corpus, author=author),
         )
 
 

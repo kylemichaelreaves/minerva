@@ -41,9 +41,7 @@ def sync_work_aliases(conn: sqlite3.Connection) -> int:
         rows.extend((int(found[0]), name) for name in names)
 
     conn.execute("DELETE FROM work_aliases")
-    conn.executemany(
-        "INSERT OR IGNORE INTO work_aliases (work_id, alias) VALUES (?, ?)", rows
-    )
+    conn.executemany("INSERT OR IGNORE INTO work_aliases (work_id, alias) VALUES (?, ?)", rows)
     conn.commit()
 
     # Worth a line, because the usual cause of a work not resolving is
@@ -53,8 +51,7 @@ def sync_work_aliases(conn: sqlite3.Connection) -> int:
         shown = ", ".join(f"{a} — {t!r}" for a, t in unresolved[:5])
         more = f" (+{len(unresolved) - 5} more)" if len(unresolved) > 5 else ""
         print(
-            f"work_aliases: {len(unresolved)} entries name a work not in this "
-            f"index: {shown}{more}",
+            f"work_aliases: {len(unresolved)} entries name a work not in this index: {shown}{more}",
             file=sys.stderr,
         )
     return len(rows)

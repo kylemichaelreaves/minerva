@@ -166,9 +166,7 @@ def count(conn: sqlite3.Connection) -> int:
     ).fetchone()[0]
 
 
-def stats_top(
-    conn: sqlite3.Connection, *, limit: int = 20
-) -> list[dict[str, Any]]:
+def stats_top(conn: sqlite3.Connection, *, limit: int = 20) -> list[dict[str, Any]]:
     """Inspect the highest-traffic concept entries. Lightweight admin
     helper; not used in hot paths."""
 

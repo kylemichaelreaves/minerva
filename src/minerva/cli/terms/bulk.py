@@ -72,11 +72,15 @@ def _report_to_dict(r: ImportReport, *, dry_run: bool) -> dict[str, object]:
 
 def _print_text_report(r: ImportReport, *, dry_run: bool, spec_path: Path) -> None:
     prefix = "would " if dry_run else ""
-    print(f"{spec_path}: {prefix}upsert {r.terms_upserted} terms, "
-          f"{r.renderings_upserted} renderings, {r.relations_upserted} relations")
+    print(
+        f"{spec_path}: {prefix}upsert {r.terms_upserted} terms, "
+        f"{r.renderings_upserted} renderings, {r.relations_upserted} relations"
+    )
     for work, stats in sorted(r.per_work_counts.items()):
-        print(f"  {work}: {prefix}insert {stats['ins']} occurrences "
-              f"(skipped {stats['skip']} existing)")
+        print(
+            f"  {work}: {prefix}insert {stats['ins']} occurrences "
+            f"(skipped {stats['skip']} existing)"
+        )
     if r.occurrences_unparseable_locator:
         print(
             f"  {r.occurrences_unparseable_locator} chunks had unparseable section locators "
