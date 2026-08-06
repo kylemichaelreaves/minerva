@@ -60,7 +60,12 @@ def _correction_json(c: syntax_queries.Correction) -> dict[str, Any]:
 
 @with_corpus_lock
 def _handle_chunk_syntax(deps: ServerDeps, chunk_id: str) -> dict[str, Any]:
-    tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+    try:
+        tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+    except syntax_queries.UnsupportedSyntaxLanguage as exc:
+        # 400, not 404: the chunk exists, the request is the problem. A 404
+        # here would send the caller looking for a missing chunk.
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
     if tokens is None:
         raise _HTTPError(HTTPStatus.NOT_FOUND, "chunk not found")
 

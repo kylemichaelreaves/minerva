@@ -190,3 +190,58 @@ def test_multi_sentence_chunks_group_by_sentence(deps, monkeypatch: pytest.Monke
 
     assert [s["sent_ord"] for s in body["sentences"]] == [0, 1]
     assert [len(s["tokens"]) for s in body["sentences"]] == [3, 2]
+
+
+def test_non_german_chunk_is_refused_with_400(deps) -> None:
+    """The parser is German-only (`syntax/parse.py:_LANG = "de"`). Without
+    this guard the German model parses Greek or English and the result is
+    cached as authoritative (#231)."""
+
+    with pytest.raises(_HTTPError) as exc:
+        _handle_chunk_syntax(deps, "rep-509d")  # English
+
+    assert exc.value.status == 400
+    assert "eng" in exc.value.message
+
+
+def test_refusing_writes_nothing(deps) -> None:
+    """Asserted against the table, not the return value. A guard placed
+    after `save_parse` would pass a return-value test and still write the
+    row this issue is about."""
+
+    with pytest.raises(_HTTPError):
+        _handle_chunk_syntax(deps, "rep-509d")
+
+    for table in ("chunk_syntax", "chunk_syntax_state"):
+        n = deps.conn.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE chunk_id = ?", ("rep-509d",)
+        ).fetchone()[0]
+        assert n == 0, f"{table} was written for a refused chunk"
+
+
+def test_refusal_does_not_call_the_parser(deps) -> None:
+    """The refusal must return before `from .parse import ...`. CI does not
+    install the `[lemma]` extra, so a guard after the import would pass
+    locally and fail in CI."""
+
+    with pytest.raises(_HTTPError):
+        _handle_chunk_syntax(deps, "rep-509d")
+
+    assert deps.parse_calls == []
+
+
+def test_unknown_chunk_is_still_404(deps) -> None:
+    """400 and 404 must stay distinguishable — 'wrong language' and 'no such
+    chunk' are different problems with different fixes."""
+
+    with pytest.raises(_HTTPError) as exc:
+        _handle_chunk_syntax(deps, "no-such-chunk")
+
+    assert exc.value.status == 404
+
+
+def test_german_chunk_still_parses(deps) -> None:
+    """The guard must not break the supported path."""
+
+    body = _handle_chunk_syntax(deps, CHUNK)
+    assert len(body["sentences"]) == 1
