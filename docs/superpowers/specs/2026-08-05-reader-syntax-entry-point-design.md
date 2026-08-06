@@ -1,0 +1,168 @@
+# Reader → Syntax entry point
+
+**Status:** approved 2026-08-05
+**Issue:** the syntax overlay is unreachable from the app
+**Related:** `docs/syntax-annotation-plan.md` (the overlay's own spec, all 7 phases ✅ DONE)
+
+## Problem
+
+The dependency-syntax overlay is built end to end and cannot be opened.
+
+- Backend: `/api/chunks/<id>/syntax`, corrections create/delete, CLI `minerva syntax parse` — live.
+- Frontend: `ArcDiagram`, `SentenceList`, `TokenInspector`, `RelationPicker`, `RefusalPanel`, corrections store with drag-reattach, topological fields, minimap — all built.
+- Route: `#/syntax/<chunkId>` parses and renders.
+- **Navigation into it: none.**
+
+Counting references to each route kind outside the routing plumbing
+(`routing.ts`, `routeUtils.ts`):
+
+```
+concordance          3      network-arc          0
+concordance-lemma    2      network-coverage     0
+conversation         3      syntax               0
+landing              6      reader               5
+network              2      refs                 5
+                            refs-review          3
+```
+
+Three routes have no door. The syntax overlay is reachable only by hand-typing
+`#/syntax/<chunkId>` with a chunk id taken from the database.
+
+### How a seven-phase feature shipped without an entry point
+
+`docs/syntax-annotation-plan.md:43` says:
+
+> The UI is a **full-bleed overlay** off the Reader, following the existing
+> `#/network/arc` drilldown pattern.
+
+No phase in the execution tracker owns building that link, and every phase is
+marked ✅ DONE. The plan describes where the overlay *sits* and never assigns
+the work of getting there.
+
+The pattern it points at — `#/network/arc` — is itself doorless. The gap was
+inherited from the thing being copied, which is why nobody caught it: the
+overlay does follow the existing pattern, faithfully, including its defect.
+
+## Design
+
+### The change
+
+One button in `SelectionToolbar`, alongside the existing actions. The toolbar
+has two shapes today; the button joins both:
+
+```
+single-word:  [ Look up  L ] | [ Translate  T ] | [ Syntax  S ] | [ Copy ] | 1
+multi-word:                    [ Translate phrase  T ] | [ Syntax  S ] | [ Copy ] | 5
+```
+
+**Shortcut `S`.** Verified free — the single-letter keys bound anywhere in
+`web/src` are `f/F`, `j/k`, `l/L`, `r/R`, `t/T`.
+
+**Prop shape.** `SelectionToolbar` does not receive the chunk id, and this
+change does not give it one. It takes `onSyntax?: () => void`, mirroring the
+existing optional `onLookup?`. The parent resolves the target, exactly as it
+already does for the other actions (`Reader/index.tsx:344-345`):
+
+```tsx
+onTranslate={() => { selection.commitTranslate(t()); }}
+onLookup={() => { selection.commitLookup(t()); }}
+onSyntax={() => { selection.commitSyntax(); }}      // new
+```
+
+so `chunkId`, `workId` and the language check live in the Reader's selection
+controller, where the selection state already is. The toolbar stays
+presentational.
+
+Clicking navigates to `{ kind: "syntax", chunkId, workId }`. The route already
+exists and renders; `SyntaxRoute.onClose` already navigates back to
+`{ kind: "reader", workId }`, so the return path needs no work.
+
+### Why the selection toolbar
+
+- It is where the user already is when asking a question about a passage.
+- It adds no new chrome to the reading pane.
+- The selection state already resolves to a chunk, so the controller can
+  supply the target without new plumbing.
+
+### Language gate
+
+**The button renders only when the chunk's language is `deu`.**
+
+Two independent reasons:
+
+1. **Scope.** `syntax-annotation-plan.md:38` — "German only. Not in scope, and
+   no scaffolding for them: multi-language comparison, parallel text, word
+   alignment, RTL, constituency trees, an in-app parser, or a theming layer."
+2. **Correctness.** `syntax/parse.py:30` hardcodes `_LANG = "de"`, and nothing
+   between the HTTP handler and the parser inspects the chunk's language.
+   `load_or_parse` parses on demand and `save_parse` **caches the result**. An
+   ungated button would therefore run the German model over Greek, Latin,
+   French or English text and persist the output into `chunk_syntax` as
+   authoritative. Today that is latent only because the route is unreachable;
+   adding the door makes it live on 99.5% of the corpus.
+
+The gate is on the chunk's language, not the work's — a work can carry chunks
+in more than one language.
+
+### Data flow
+
+```
+selection in Reader
+  → SelectionToolbar (already knows the selection's chunk)
+  → onSyntax()
+  → routing.navigate({ kind: "syntax", chunkId, workId })
+  → SyntaxRoute → SyntaxOverlay
+  → GET /api/chunks/<id>/syntax  (load_or_parse: cached, else parse + cache)
+  → close → navigate({ kind: "reader", workId })
+```
+
+Nothing new server-side. Nothing new in the overlay.
+
+### Error handling
+
+The overlay owns its own states already — it renders *No syntax for this
+passage* for an empty parse, and `RefusalPanel` covers correction failures. The
+first parse of an unseen chunk costs a Stanza pipeline load (~4s once per
+process) plus ~0.15s for the paragraph; the overlay's existing loading state
+covers it. No new error surface is introduced.
+
+## Out of scope
+
+Recorded here so the omissions are deliberate rather than silent:
+
+1. **The API stays ungated.** `/api/chunks/<id>/syntax` will still parse any
+   language with the German model when called directly. The UI gate closes the
+   reachable path; a server-side guard is a separate fix with its own decision
+   (reject with 4xx, or dispatch per language) and gets its own issue.
+2. **`network-arc` and `network-coverage` stay unreachable.** Same class of
+   defect, different features. Bundling three entry points into one change
+   would make the diff harder to review and the revert coarser. Own issue.
+3. **No new morphology view.** The Reader's existing word card already shows
+   per-word POS and features from `chunk_lemmas`, corpus-wide. This change adds
+   a door to the sentence-structure overlay, not a second morphology surface.
+
+## Testing
+
+Two levels, because the gate and the button live in different places.
+
+**`SelectionToolbar`** (presentational): renders the Syntax button when
+`onSyntax` is supplied, omits it when the prop is absent, and calls it on
+click. No language logic here.
+
+**The selection controller** (where the gate lives): supplies `onSyntax` for a
+`deu` chunk and withholds it otherwise, and navigates with the correct
+`chunkId` and `workId`.
+
+The gate is the assertion that matters most — it is what prevents garbage
+writes into `chunk_syntax` — so it gets an explicit negative case for `grc`,
+`lat`, `eng` and `fra` rather than one representative non-German case. A
+single representative would pass even if the check were written against the
+wrong field.
+
+## Acceptance criteria
+
+- A German chunk selected in the Reader offers a Syntax action.
+- The action opens the existing overlay on that chunk.
+- Closing returns to the Reader at the work it came from.
+- No Syntax action appears on a non-German chunk.
+- `make check` green.
