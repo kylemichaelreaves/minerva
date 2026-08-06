@@ -255,6 +255,21 @@ jobs:
     needs: [python, web]
     # Fork PRs cannot read secrets; the scan would fail on a missing
     # token rather than say anything useful. Skip instead.
+    #
+    # Dependabot PRs are NOT forks — they come from a branch in this repo,
+    # so they pass this condition and the job runs. They still used to fail,
+    # for a different reason: a `pull_request` event raised by Dependabot
+    # reads from the **Dependabot** secrets store, not the Actions one, so
+    # `secrets.SONAR_TOKEN` resolved to empty and the scan died before
+    # SonarCloud could post its `SonarCloud Code Analysis` check. That
+    # context is required by branch protection, so no Dependabot PR could
+    # ever merge — #197, which is why #181 was closed instead of landed.
+    #
+    # Fixed by adding SONAR_TOKEN to Settings -> Secrets and variables ->
+    # Dependabot, alongside the Actions copy. **The token must exist in
+    # both stores.** Rotating it in one place only will silently
+    # reintroduce #197, and the symptom will be a missing check rather
+    # than a failing one — much harder to read.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read

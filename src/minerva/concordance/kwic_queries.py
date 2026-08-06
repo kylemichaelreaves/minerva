@@ -19,6 +19,34 @@ from ._scope import (
 )
 from .index_queries import _corpus_label
 
+# Feature keys the `morph=` filter will accept.
+#
+# Derived from the corpus, NOT from the UD spec — the two differ, and the
+# spec is the wrong authority here. The lemmatizers write language-specific
+# keys that no UD feature table lists (`HebBinyan` from the Hebrew Stanza
+# model; `ConjType`, `VerbType`, `AdpType` from the LatinCy/spaCy models),
+# so validating against textbook UD would reject 80k+ rows of real data.
+#
+# Regenerate after adding a language or changing lemmatizer models:
+#
+#     sqlite3 data/index.sqlite "
+#       SELECT DISTINCT substr(x.value, 1, instr(x.value,'=')-1)
+#       FROM chunk_lemmas, json_each('[\"' || replace(feats,'|','\",\"') || '\"]') x
+#       WHERE feats IS NOT NULL AND feats <> ''"
+#
+# A key present in the data but missing here becomes a 400, which is loud
+# and easy to spot — the failure mode this replaces (silent zero rows) was
+# not. Ordered by corpus frequency.
+_MORPH_FEATURE_KEYS = frozenset(
+    {
+        "Number", "Gender", "Case", "VerbForm", "PronType", "Person",
+        "Tense", "Mood", "Definite", "Voice", "Aspect", "Degree",
+        "ConjType", "Poss", "Polarity", "Reflex", "NumType", "HebBinyan",
+        "VerbType", "Foreign", "AdpType", "PunctType", "Abbr", "Hyph",
+        "PunctSide", "ExtPos", "Prefix",
+    }
+)
+
 
 def lemma_detail(
     conn: sqlite3.Connection, query: dict[str, str]
@@ -109,7 +137,19 @@ def lemma_detail(
                 f"morph filter must be Key=Val, got {part!r}",
             )
         k, _, v = part.partition("=")
-        morph_filters[k.strip()] = v.strip()
+        k, v = k.strip(), v.strip()
+        # Reject unknown feature keys. Without this a typo (`Casee=Nom`)
+        # and a genuinely-absent form (`Case=Nomm`) both return zero rows,
+        # indistinguishable from "this lemma has no such forms" — which
+        # makes client bugs invisible. #120 escaped the key and value so
+        # `?morph=Case=%` no longer widens the filter; this is the
+        # separate validation half that escaping doesn't provide.
+        if k not in _MORPH_FEATURE_KEYS:
+            raise BadRequestError(
+                f"unknown morph feature {k!r}; expected one of: "
+                + ", ".join(sorted(_MORPH_FEATURE_KEYS))
+            )
+        morph_filters[k] = v
 
     scope_sql, scope_params = _scope_clause(scope, authors, works)
     work_label = works[0] if len(works) == 1 else f"{len(works)} works"
