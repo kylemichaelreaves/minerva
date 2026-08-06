@@ -1,8 +1,11 @@
 # Reader → Syntax entry point
 
 **Status:** approved 2026-08-05
-**Issue:** the syntax overlay is unreachable from the app
+**Issues:** the syntax overlay is unreachable from the app; #231 (ungated parser)
 **Related:** `docs/syntax-annotation-plan.md` (the overlay's own spec, all 7 phases ✅ DONE)
+
+Two changes, deliberately together: the entry point, and the German-only guard
+that must exist before the entry point makes the ungated path reachable.
 
 ## Problem
 
@@ -104,6 +107,32 @@ Two independent reasons:
 The gate is on the chunk's language, not the work's — a work can carry chunks
 in more than one language.
 
+### Server-side guard (#231)
+
+The UI gate is not the only gate. `load_or_parse` reads the chunk's `lang` and
+refuses anything but `deu`.
+
+**The guard lives in `load_or_parse`, not in the handler.** That is the
+function which parses and then calls `save_parse`, so putting the check there
+means no caller can reach the write — the HTTP handler, the CLI, a future
+second entry point, or a hand-rolled request all inherit it. A handler-level
+check would protect only the path it sits on, which is the mistake this whole
+issue is an instance of.
+
+Behaviour for a non-German chunk:
+
+- **No parse, and no write.** This is the point: today the request is the
+  trigger and the write is silent.
+- The endpoint answers **400** with an explicit reason naming the chunk's
+  language, distinct from the existing 404 "chunk not found" so the two
+  failures stay tellable apart.
+
+Rejecting rather than dispatching per language matches the plan's stated
+scope — `syntax-annotation-plan.md:38`, "German only. Not in scope, and no
+scaffolding for them: multi-language comparison, parallel text, word
+alignment, RTL, constituency trees, an in-app parser, or a theming layer."
+This makes that scope true in code instead of true by accident.
+
 ### Data flow
 
 ```
@@ -130,10 +159,11 @@ covers it. No new error surface is introduced.
 
 Recorded here so the omissions are deliberate rather than silent:
 
-1. **The API stays ungated.** `/api/chunks/<id>/syntax` will still parse any
-   language with the German model when called directly. The UI gate closes the
-   reachable path; a server-side guard is a separate fix with its own decision
-   (reject with 4xx, or dispatch per language) and gets its own issue.
+1. **Per-language parsing.** The guard rejects non-German rather than
+   dispatching a model per language. Dispatching is explicitly out of scope in
+   `syntax-annotation-plan.md` and would be a much larger change (a model per
+   language, coverage and accuracy claims for each, and the arc-direction
+   heuristic re-checked against non-UD outputs).
 2. **`network-arc` and `network-coverage` stay unreachable.** Same class of
    defect, different features. Bundling three entry points into one change
    would make the diff harder to review and the revert coarser. Own issue.
@@ -159,10 +189,27 @@ writes into `chunk_syntax` — so it gets an explicit negative case for `grc`,
 single representative would pass even if the check were written against the
 wrong field.
 
+**`load_or_parse`** (pytest, the guard that actually protects the data):
+
+- A `deu` chunk parses and caches as before.
+- A non-German chunk is refused, and — asserted directly against the table —
+  **writes no `chunk_syntax` row**. Testing only the return value would pass
+  against an implementation that rejects after saving.
+- The endpoint answers 400 for a non-German chunk and 404 for a chunk that
+  does not exist, so the two stay distinguishable.
+
+These run without the `[lemma]` extra, which CI does not install: the refusal
+path must return before importing Stanza, so a test for it needs no parser.
+That is worth asserting deliberately — a guard placed after the import would
+still pass a return-value test locally and fail in CI.
+
 ## Acceptance criteria
 
 - A German chunk selected in the Reader offers a Syntax action.
 - The action opens the existing overlay on that chunk.
 - Closing returns to the Reader at the work it came from.
 - No Syntax action appears on a non-German chunk.
+- `GET /api/chunks/<non-german-id>/syntax` returns 400 and leaves
+  `chunk_syntax` unchanged.
+- `GET /api/chunks/<unknown-id>/syntax` still returns 404.
 - `make check` green.
