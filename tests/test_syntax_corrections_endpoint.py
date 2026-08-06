@@ -181,6 +181,21 @@ def test_unknown_chunk_is_404(deps) -> None:
     assert exc.value.status == 404
 
 
+def test_non_german_chunk_is_refused_with_400(deps) -> None:
+    """`load_or_parse`'s language guard (#231) applies here too: this handler
+    calls it directly, the same as the GET path. 400, not 404 — kept
+    distinguishable from `test_unknown_chunk_is_404` above — because the
+    chunk exists and the request is the problem."""
+
+    with pytest.raises(_HTTPError) as exc:
+        _handle_syntax_correction_create(
+            deps, "rep-509d", {"sent_ord": 0, "tok_id": 1, "kind": "head", "to_val": "3"}
+        )
+
+    assert exc.value.status == 400
+    assert "eng" in exc.value.message
+
+
 def test_unknown_token_is_refused(deps) -> None:
     # 404, not 400: the payload is well-formed, the token it addresses is not
     # there. Same reading as an unknown chunk.

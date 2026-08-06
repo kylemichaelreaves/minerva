@@ -44,7 +44,7 @@
 
 ### Why Task 1 exists
 
-`make_chunk` in `tests/conftest.py:32` defaults to `lang="eng"`, and `rep-509d` — the chunk every syntax test uses — is English prose from the *Republic*. The moment the guard lands, every test that reaches `load_or_parse` through an English chunk starts failing. Three files do:
+`make_chunk` in `tests/conftest.py:32` defaults to `lang="eng"`, and `rep-509d` — the chunk every syntax test uses — is English prose from the *Republic*. The moment the guard lands, every test that reaches `load_or_parse` through an English chunk starts failing. Three files do so directly:
 
 ```
 $ grep -rln "load_or_parse\|_handle_chunk_syntax" tests/
@@ -53,9 +53,11 @@ tests/test_syntax_corrections_endpoint.py
 tests/test_api_contract.py
 ```
 
-`tests/test_syntax_queries.py` and `tests/test_server_syntax_transport.py` are **not** affected — they call `load_parse` / `save_parse` directly, or only the corrections endpoints, none of which are guarded.
+`tests/test_syntax_queries.py` is genuinely unaffected — it calls `load_parse` / `save_parse` directly, neither of which is guarded.
 
-Task 1 does that migration on its own, with no behaviour change, so the guard in Task 2 lands against a suite that is already green for the right reason.
+**`tests/test_server_syntax_transport.py` is affected, and an earlier revision of this section wrongly claimed otherwise.** That file never mentions `load_or_parse` or `_handle_chunk_syntax` by name, so the grep above misses it — but its correction-route tests drive `_handle_syntax_correction_create` over a real socket, and that handler calls `load_or_parse` too (`src/minerva/http/handlers/syntax.py`). The guard reaches it transitively. Task 2 found this the hard way: `make check` failed with five failures in that file until its `CHUNK` fixture was repointed at the German chunk, the same fix Task 1 makes here to the other three files. The lesson generalises — a grep for a function's name finds its direct callers, not its transitive ones, and a language-agnostic guard on a shared function reaches every caller whether or not the caller's tests advertise that dependency.
+
+Task 1 does that migration for the three direct-caller files; Task 2 additionally repoints `tests/test_server_syntax_transport.py` when it lands the guard, so the whole suite is green for the right reason by the time Task 2 is done.
 
 ---
 

@@ -144,7 +144,12 @@ def _handle_syntax_correction_create(
             f"kind must be one of {', '.join(syntax_queries.CORRECTABLE)}",
         )
 
-    tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+    try:
+        tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+    except syntax_queries.UnsupportedSyntaxLanguage as exc:
+        # 400, not 404: the chunk exists, the request is the problem. A 404
+        # here would send the caller looking for a missing chunk.
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
     if tokens is None:
         raise _HTTPError(HTTPStatus.NOT_FOUND, "chunk not found")
 
