@@ -227,15 +227,19 @@ def load_or_parse(conn: sqlite3.Connection, chunk_id: str) -> list[SyntaxToken] 
     paragraph); every later call is a read.
 
     Raises :class:`UnsupportedSyntaxLanguage` for a chunk the parser cannot
-    handle — checked before the cache read and before Stanza is imported.
+    handle — checked before the cache read and before ``parse_text()`` is
+    called.
     """
 
-    # Language first, before the cache read and before the Stanza import.
+    # Language first, before the cache read and before parse_text() is
+    # called.
     #
     # Before the cache, because a cached tree for a non-German chunk could
     # only have come from the German model and should not be served either.
-    # Before the import, because CI has no `[lemma]` extra — a guard placed
-    # after it would pass locally and fail there.
+    # Before the call, because that's what triggers the Stanza pipeline
+    # load (`parse.py:_pipeline()` / `_stanza_version()` import stanza
+    # lazily, never at module scope) — a guard placed after it would pass
+    # locally and fail in CI, which has no `[lemma]` extra.
     row = conn.execute(
         "SELECT text, lang FROM chunks WHERE chunk_id = ?", (chunk_id,)
     ).fetchone()
