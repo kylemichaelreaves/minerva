@@ -200,7 +200,7 @@ def syntax_deps(populated_db, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_chunk_syntax_contract(syntax_deps):
-    body = _handle_chunk_syntax(syntax_deps, "rep-509d")
+    body = _handle_chunk_syntax(syntax_deps, "hegel-p17")
     _assert_has_keys(body, _load_keys("chunk_syntax.keys.json"))
     assert isinstance(body["sentences"], list)
     # Pristine and log, side by side — a merged tree would make undo impossible.
@@ -208,10 +208,10 @@ def test_chunk_syntax_contract(syntax_deps):
 
 
 def test_syntax_correction_contract(syntax_deps):
-    _handle_chunk_syntax(syntax_deps, "rep-509d")  # parse must exist first
+    _handle_chunk_syntax(syntax_deps, "hegel-p17")  # parse must exist first
     body = _handle_syntax_correction_create(
         syntax_deps,
-        "rep-509d",
+        "hegel-p17",
         {"sent_ord": 0, "tok_id": 1, "kind": "deprel", "to_val": "amod"},
     )
     _assert_has_keys(body, _load_keys("syntax_correction.keys.json"))
