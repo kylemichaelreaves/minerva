@@ -24,6 +24,30 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      # eslint majors only. eslint 9 patches/minors still flow.
+      #
+      # `eslint-plugin-solid` caps its peer range at eslint ^9, so any v10
+      # bump fails `npm ci` in ~10s with ERESOLVE, before a single lint rule
+      # runs. 0.14.5 is its latest release and no published version has ever
+      # allowed eslint 10 — there is no plugin bump that unblocks it (#222,
+      # PR #219).
+      #
+      # Without this, Dependabot re-opens an unmergeable PR every week. The
+      # cost isn't the CI minutes; it's that a permanently-red Dependabot PR
+      # trains everyone to read red as normal, which is how a real failure
+      # gets waved through.
+      #
+      # REMOVE THIS when `eslint-plugin-solid` ships eslint 10 support:
+      #   curl -sS https://registry.npmjs.org/eslint-plugin-solid \
+      #     | jq -r '.versions[.["dist-tags"].latest].peerDependencies.eslint'
+      # If that prints a range including ^10, delete this ignore block.
+      #
+      # Dropping the plugin instead is the wrong trade — it is the source of
+      # the `solid/reactivity` rule, and reactivity bugs are a live category
+      # here (#141 is one).
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch:
         update-types:
