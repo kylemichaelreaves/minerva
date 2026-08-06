@@ -65,19 +65,73 @@ def test_handle_chat_stream_rolls_back_on_llm_failure(populated_db, conversation
 
 
 def test_handle_chat_stream_persists_same_as_blocking(populated_db, conversations_conn):
-    backend = StubBackend(reply="Same reply [1].")
-    deps = _make_deps(populated_db, backend, conversations_conn=conversations_conn)
-    blocking = server._handle_chat(deps, {"query": "divided line"})
-    events = _collect_stream(deps, {"query": "divided line follow-up", "conversation_id": blocking["conversation_id"]})
+    """The streamed path must return and persist what the blocking path does.
+
+    This test previously asserted neither half of its own name (#163): it
+    bound the terminal ``done`` payload to a local and never read it, so no
+    stream-vs-blocking comparison happened at all. It also ran the two paths
+    against *different* queries in one conversation, so they were not
+    comparable even in principle, and closed on
+    ``"Same reply" in s or "reply" in s`` — a disjunction whose first operand
+    implies its second, leaving only "the word 'reply' appears somewhere".
+    Nothing here would have failed had the two paths diverged completely.
+
+    Now: same query, one conversation each, and every field the two paths
+    share is compared for equality.
+    """
+
+    query = "What is the divided line?"
+    # Two paragraphs, deliberately. With a single-paragraph reply the
+    # persisted-content assertion below is vacuous — `"\n\n".join([p])` and
+    # `" ".join([p])` are the same string, so a regression in the paragraph
+    # separator would pass unnoticed. Verified by mutating the separator in
+    # `_persist_assistant_turn`: with one paragraph the test stayed green,
+    # with two it fails.
+    reply = "Same reply [1].\n\nSecond paragraph [1]."
+
+    blocking_backend = StubBackend(reply=reply)
+    blocking = server._handle_chat(
+        _make_deps(populated_db, blocking_backend, conversations_conn=conversations_conn),
+        {"query": query},
+    )
+    assert len(blocking["paragraphs"]) > 1, "fixture must produce >1 paragraph"
+
+    stream_backend = StubBackend(reply=reply)
+    events = _collect_stream(
+        _make_deps(populated_db, stream_backend, conversations_conn=conversations_conn),
+        {"query": query},
+    )
+    meta = events[0][1]
     done = events[-1][1]
-    cid = blocking["conversation_id"]
-    rows = conversations_conn.execute(
-        "SELECT role, content FROM messages WHERE conversation_id=? ORDER BY id",
-        (cid,),
-    ).fetchall()
-    assert len(rows) == 4
-    assert rows[-1][0] == "assistant"
-    assert "Same reply" in rows[-1][1] or "reply" in rows[-1][1]
+
+    # Distinct conversations, so the persisted rows can be compared without
+    # one path's turns being read as the other's.
+    assert meta["conversation_id"] != blocking["conversation_id"]
+
+    # The `done` event carries the answer body; compare every key it shares
+    # with the blocking response.
+    for key in ("response", "paragraphs", "dominant"):
+        assert done[key] == blocking[key], f"{key} differs between stream and blocking"
+
+    # `meta` carries what the blocking body returns alongside the answer.
+    assert meta["citations"] == blocking["citations"]
+    assert meta["abstained"] == blocking["abstained"]
+
+    # And both must persist the same assistant content, since that is what a
+    # reloaded conversation replays.
+    def _rows(cid):
+        return conversations_conn.execute(
+            "SELECT role, content FROM messages WHERE conversation_id=? ORDER BY id",
+            (cid,),
+        ).fetchall()
+
+    blocking_rows = _rows(blocking["conversation_id"])
+    stream_rows = _rows(meta["conversation_id"])
+
+    assert [r[0] for r in blocking_rows] == ["user", "assistant"]
+    assert [r[0] for r in stream_rows] == ["user", "assistant"]
+    assert stream_rows[-1][1] == blocking_rows[-1][1]
+    assert blocking_rows[-1][1] == "\n\n".join(blocking["paragraphs"])
 
 
 def test_handle_chat_stream_keeps_turn_on_client_disconnect(populated_db, conversations_conn):
