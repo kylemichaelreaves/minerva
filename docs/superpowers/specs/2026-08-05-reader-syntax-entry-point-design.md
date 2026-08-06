@@ -199,9 +199,20 @@ wrong field.
   does not exist, so the two stay distinguishable.
 
 These run without the `[lemma]` extra, which CI does not install: the refusal
-path must return before importing Stanza, so a test for it needs no parser.
-That is worth asserting deliberately — a guard placed after the import would
-still pass a return-value test locally and fail in CI.
+path must return before `parse_text(...)` is called, so a test for it needs
+no parser. That is worth asserting deliberately — a guard placed after that
+call would still pass a return-value test locally and fail in CI.
+
+*(Corrected during Task 2 review. The two sentences above originally said the
+refusal must return "before importing Stanza" / "before the import," on the
+premise that a module-level `import stanza` was the boundary CI's missing
+`[lemma]` extra would trip over. That premise was false: `syntax/parse.py`
+has no module-level Stanza import — it's lazy inside `_pipeline()` and
+`_stanza_version()`, reached only from `parse_text()`/`parser_id()`. `from
+.parse import parse_text, parser_id` alone succeeds in CI regardless of the
+extra. The call to `parse_text` is what actually triggers the import and the
+~4s pipeline load, so that call, not the import statement, is the boundary a
+guard and its tests must respect.)*
 
 ## Acceptance criteria
 

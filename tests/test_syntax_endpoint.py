@@ -220,9 +220,12 @@ def test_refusing_writes_nothing(deps) -> None:
 
 
 def test_refusal_does_not_call_the_parser(deps) -> None:
-    """The refusal must return before `from .parse import ...`. CI does not
-    install the `[lemma]` extra, so a guard after the import would pass
-    locally and fail in CI."""
+    """The refused chunk never reaches `parse_text`, so nothing downstream of
+    it runs either: no `stanza` import, no ~4s pipeline load. (An earlier
+    version of this docstring claimed the guard must return before
+    `from .parse import ...` — false, `syntax/parse.py` has no module-level
+    `import stanza`; it's lazy inside `_pipeline()`/`_stanza_version()`, so
+    that import line was never the boundary. `parse_text` is.)"""
 
     with pytest.raises(_HTTPError):
         _handle_chunk_syntax(deps, "rep-509d")
