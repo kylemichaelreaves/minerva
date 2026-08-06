@@ -143,9 +143,16 @@ E2E tests (`make test-e2e`) run on pushes to `main` only.
 
 | When | What |
 |------|------|
-| First `minerva terms lemmatize --lang grc/lat` | LatinCy spaCy wheels (`grc_dep_web_sm`, `la_core_web_sm`) from HuggingFace — install via `uv pip install <wheel-url>` (see `lemmatize.py` docstring). Stanza fallback only when LatinCy isn't installed. |
+| First `minerva terms lemmatize --lang grc/lat` | LatinCy spaCy wheels (`grc_dep_web_sm`, `la_core_web_sm`) from HuggingFace. Stanza fallback only when LatinCy isn't installed. |
 | First `minerva embed` | `sentence-transformers` model download |
-| `[lemma]` extra install | spaCy `de_core_news_sm` + `fr_core_news_sm` + `en_core_web_sm` wheels (via `pyproject.toml`) |
+| `[lemma]` extra install | All five spaCy model wheels — `de_core_news_sm`, `fr_core_news_sm`, `en_core_web_sm`, and the two LatinCy ones above (via `pyproject.toml`) |
+
+Install the models with `uv pip install -e '.[lemma]'`, **not** by pasting a
+wheel URL. `pyproject.toml` pins each one to an immutable URL (a commit SHA
+for the two HuggingFace wheels) plus a `#sha256=` fragment that uv verifies;
+a hand-written URL gets neither. HuggingFace `main` is a mutable branch and
+does move — `la_core_web_sm-3.9.4` was pinned that way and has since been
+deleted upstream (#122).
 
 Tests mock lemmatizer paths — `make check` does not require these models.
 
