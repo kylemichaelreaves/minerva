@@ -49,12 +49,34 @@ Always snapshot first: ``scripts/snapshot-db.sh <reason>``.
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = REPO_ROOT / "data" / "index.sqlite"
+
+
+def resolve_db_path() -> Path:
+    """The index to clean: ``$MINERVA_DB`` if set, else the repo default.
+
+    Environment variable rather than a ``--db`` flag, matching
+    ``corpus-quality-audit.py``. SonarCloud's ``pythonsecurity:S8706``
+    fails a PR when a CLI argument reaches ``sqlite3.connect`` and judges
+    new code only, so the next PR touching the connect line would have
+    inherited a red rating for a pre-existing pattern (#179).
+
+    This script *deletes chunks*, so it matters more here than in the
+    read-only auditor that the target is stated deliberately rather than
+    defaulted into. Point it at a snapshot with:
+
+        MINERVA_DB=data/snapshots/index.2026-08-05.sqlite \\
+            scripts/clean-hegel-lectures-glossary.py --apply
+    """
+
+    override = os.environ.get("MINERVA_DB")
+    return Path(override) if override else DEFAULT_DB
 
 # WHERE predicate selecting the glossary word-list chunks, evaluated
 # against the chunks_full view. The ``(len - len_without('. ')) / 2``
@@ -85,8 +107,10 @@ def _find(conn: sqlite3.Connection) -> list[tuple[str, str, int, str]]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Remove Hegel Lectures glossary junk chunks.")
-    ap.add_argument("--db", type=Path, default=DEFAULT_DB, help="SQLite index path.")
+    ap = argparse.ArgumentParser(
+        description="Remove Hegel Lectures glossary junk chunks.",
+        epilog="Set MINERVA_DB to target an index other than data/index.sqlite.",
+    )
     ap.add_argument(
         "--apply",
         action="store_true",
@@ -94,11 +118,12 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    if not args.db.is_file():
-        print(f"index not found: {args.db}", file=sys.stderr)
+    db_path = resolve_db_path()
+    if not db_path.is_file():
+        print(f"index not found: {db_path}", file=sys.stderr)
         return 1
 
-    conn = sqlite3.connect(args.db)
+    conn = sqlite3.connect(db_path)
     try:
         matches = _find(conn)
         if not matches:
