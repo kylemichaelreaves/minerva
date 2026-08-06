@@ -1,7 +1,13 @@
 version: 2
 updates:
-  # Python (uv / pyproject.toml at repo root)
-  - package-ecosystem: "pip"
+  # Python (uv / pyproject.toml + uv.lock at repo root).
+  #
+  # `uv`, not `pip`. Dependabot treats them as separate ecosystems, and only
+  # the `uv` one maintains `uv.lock`. That was cosmetic while nothing
+  # installed from the lock, but CI now runs `uv sync --locked` (#125), which
+  # fails the build when the lock and pyproject disagree — so a bot that
+  # edited pyproject alone would open PRs that cannot go green.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
