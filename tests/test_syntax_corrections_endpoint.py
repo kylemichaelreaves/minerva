@@ -22,7 +22,9 @@ from minerva.http.handlers.syntax import (
 from minerva.http.server_core import _HTTPError
 from minerva.syntax import queries as q
 
-CHUNK = "rep-509d"
+# The syntax path is German-only (see `load_or_parse`); an English chunk
+# is refused, so this cannot be one of the Plato fixtures.
+CHUNK = "hegel-p17"
 
 
 def fake_tokens() -> list[q.SyntaxToken]:

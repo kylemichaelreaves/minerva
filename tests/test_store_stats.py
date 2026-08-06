@@ -15,7 +15,8 @@ from minerva.cli.stats_cmd import cmd_stats
 def test_store_stats_shape(populated_db):
     out = store.stats(populated_db)
 
-    assert out["chunks_total"] == 5
+    # 6 = the five original fixtures + the German syntax chunk (hegel-p17).
+    assert out["chunks_total"] == 6
     assert out["embeddings_present"] is False
     assert isinstance(out["chunks_by_corpus_lang"], list)
     assert len(out["chunks_by_corpus_lang"]) >= 1
@@ -49,7 +50,7 @@ def test_cmd_stats_json(populated_db, db_path):
 
     assert rc == 0
     payload = json.loads(buf.getvalue())
-    assert payload["chunks_total"] == 5
+    assert payload["chunks_total"] == 6
 
 
 def test_cmd_db_inspect_json(populated_db, db_path):
