@@ -16,7 +16,7 @@ export interface MobileSurfaceActions {
   openThreadSearch?: () => void;
 }
 
-interface MobileShellContextValue {
+export interface MobileShellContextValue {
   isMobile: Accessor<boolean>;
   openMobilePanel: (panel: MobilePanel) => void;
   registerSurfaceActions: (actions: MobileSurfaceActions) => void;
@@ -35,25 +35,49 @@ export function MobileShellProvider(props: { children: JSX.Element }) {
   const [filtersSheetOpen, setFiltersSheetOpen] = createSignal(false);
   const [readerSettingsOpen, setReaderSettingsOpen] = createSignal(false);
   const [threadSearchOpen, setThreadSearchOpen] = createSignal(false);
-  let surfaceActions: MobileSurfaceActions = {};
+  // A STACK of registrations, not one slot. With a single slot (#200):
+  // a surface supplying only `openFilters` erased a live surface's
+  // `openReaderSettings`, and the cleanup reset the slot to `{}`
+  // unconditionally, so an unmounting surface could wipe a
+  // still-mounted one's handlers.
+  //
+  // Innermost-last, and resolution walks from the end, so the
+  // most-recently-registered surface still wins a genuine conflict —
+  // the previous behaviour for two surfaces claiming the same panel —
+  // while a surface that says nothing about a panel no longer hides
+  // whoever does. Cleanup removes only that surface's own entry, so
+  // unmounting reveals the one beneath rather than the fallback.
+  const registrations: MobileSurfaceActions[] = [];
 
   function registerSurfaceActions(actions: MobileSurfaceActions) {
-    surfaceActions = actions;
+    registrations.push(actions);
     onCleanup(() => {
-      surfaceActions = {};
+      const at = registrations.lastIndexOf(actions);
+      if (at !== -1) registrations.splice(at, 1);
     });
+  }
+
+  function handlerFor(key: keyof MobileSurfaceActions): (() => void) | undefined {
+    for (let i = registrations.length - 1; i >= 0; i--) {
+      const handler = registrations[i]?.[key];
+      if (handler) return handler;
+    }
+    return undefined;
   }
 
   function openMobilePanel(panel: MobilePanel) {
     if (panel === "filters") {
-      if (surfaceActions.openFilters) surfaceActions.openFilters();
+      const open = handlerFor("openFilters");
+      if (open) open();
       else setFiltersSheetOpen(true);
     } else if (panel === "reader-settings") {
-      if (surfaceActions.openReaderSettings) surfaceActions.openReaderSettings();
+      const open = handlerFor("openReaderSettings");
+      if (open) open();
       else setReaderSettingsOpen(true);
     } else {
       // panel === "thread-search" — exhaustive after the union narrowing.
-      if (surfaceActions.openThreadSearch) surfaceActions.openThreadSearch();
+      const open = handlerFor("openThreadSearch");
+      if (open) open();
       else setThreadSearchOpen(true);
     }
   }
