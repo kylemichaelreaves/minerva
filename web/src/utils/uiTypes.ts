@@ -34,12 +34,6 @@ export interface HistoryItem {
   dominant: Dominant;
 }
 
-export interface StarterPrompt {
-  topic: string;
-  paraphrase: string;
-  text: string;
-}
-
 export interface AccentPalette {
   accent: string;
   soft: string;

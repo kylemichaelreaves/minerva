@@ -5,7 +5,7 @@
 //   4. Mode entry row — explicit doors to Read / Refs / Network
 //   5. Atlas — chronological strip of every author in the corpus
 
-import { For, Show, createSignal, onMount } from "solid-js";
+import { Show, createSignal, onMount } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/ComposeField";
@@ -14,42 +14,11 @@ import { useMobileShellOptional } from "~/components/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
 import { Atlas } from "~/Landing/components/Atlas";
 import "~/Landing/landing.css";
-import type { StarterPrompt } from "~/utils/types";
 
 export type { LandingStats } from "~/api/landingApi";
 
-// Starter prompts. Ethics + Ontology carried over from the prior
-// product line (the canonical "what is virtue?" and "essence vs.
-// existence" framings); Method + Reception adopted from the design 1a
-// wireframe to broaden the doorway into modern epistemology and
-// reception history. Each topic pairs with a serif-italic paraphrase
-// rendered alongside the topic label inside the pill.
-const STARTER_PROMPTS: StarterPrompt[] = [
-  {
-    topic: "Ethics",
-    paraphrase: "virtue & the soul",
-    text: "Is virtue a kind of knowledge, or a habit of the soul?",
-  },
-  {
-    topic: "Ontology",
-    paraphrase: "essence & existence",
-    text: "What is the difference between essence and existence?",
-  },
-  {
-    topic: "Method",
-    paraphrase: "clear & distinct",
-    text: "What does it mean for an idea to be clear and distinct?",
-  },
-  {
-    topic: "Reception",
-    paraphrase: "Marx reads Hegel",
-    text: "How does Marx's dialectic invert Hegel's idealism?",
-  },
-];
-
 interface LandingProps {
   onSubmit: (text: string) => void;
-  onPickPrompt: (text: string) => void;
   onOpenRead: () => void;
   onOpenRefs: (sourceAuthor?: string) => void;
   onOpenNetwork: () => void;
@@ -168,22 +137,6 @@ export default function Landing(props: LandingProps) {
                   <span class="kbd">⇧ ↵</span> new line
                 </>
               )
-            }
-            accessory={
-              <div class="landing-pills">
-                <For each={STARTER_PROMPTS}>
-                  {(p) => (
-                    <button
-                      class="landing-pill"
-                      onClick={() => props.onPickPrompt(p.text)}
-                      title={p.text}
-                    >
-                      <span class="landing-pill-topic">{p.topic}</span>
-                      <span class="landing-pill-q">{p.paraphrase}</span>
-                    </button>
-                  )}
-                </For>
-              </div>
             }
           />
         </div>

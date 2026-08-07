@@ -50,7 +50,6 @@ export type {
   CiteFragment,
   HistoryItem,
   MinervaTurn,
-  StarterPrompt,
   Theme,
   Turn,
   UserTurn,
