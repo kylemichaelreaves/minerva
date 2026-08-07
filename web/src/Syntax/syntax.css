@@ -637,6 +637,22 @@
   display: flex;
   flex-direction: column;
 }
+/* The pickers are real <dialog> elements (accessibility: `role="dialog"` on a
+   bare <aside> is not honoured on every device). A <dialog> arrives with UA
+   styles `.syn-panel` never had to override, and two of them are not cosmetic:
+   `margin: auto` resolved to 614px and unpinned the panel from `right: 32px`,
+   and `padding: 1em` inset the whole list. `color: canvastext` also replaced
+   the inherited ink token — it happened to look right in dark mode, which is
+   the kind of accident worth removing rather than relying on. */
+dialog.syn-panel {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  /* The UA also sets `inset-inline-start: 0`. With `right: 32px` and a fixed
+     width that is over-constrained, and `left` wins — which pinned the picker
+     to the left edge (x=0) instead of the right (x=1228). */
+  inset-inline-start: auto;
+}
 .syn-pickq {
   display: flex;
   align-items: center;

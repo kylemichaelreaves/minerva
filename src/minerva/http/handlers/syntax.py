@@ -18,6 +18,7 @@ never touched, so "what did the parser originally say" stays answerable.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from http import HTTPStatus
 from typing import Any
 
@@ -128,6 +129,49 @@ def _refuse(refusal: syntax_validate.Refusal, status: HTTPStatus) -> None:
     raise _HTTPError(status, refusal.message)
 
 
+def _check_and_prior_value(
+    current: Sequence[syntax_queries.SyntaxToken],
+    *,
+    kind: str,
+    to_val: str,
+    sent_ord: int,
+    tok_id: int,
+    target: syntax_queries.SyntaxToken,
+) -> str | None:
+    """Validate one edit and return the value it replaces.
+
+    Split out of the handler so each kind's rule sits on its own, and so the
+    handler stays under the cognitive-complexity bar it crossed when `upos`
+    became the third kind (#253). Raises `_HTTPError` on a refusal; returns
+    `from_val` otherwise, which the caller records as provenance.
+    """
+
+    if kind == "head":
+        try:
+            new_head = int(to_val)
+        except ValueError:
+            raise _HTTPError(HTTPStatus.BAD_REQUEST, "a head must be an integer") from None
+        refusal = syntax_validate.validate_head(
+            current, sent_ord=sent_ord, tok_id=tok_id, new_head=new_head
+        )
+        if refusal is not None:
+            _refuse(refusal, HTTPStatus.CONFLICT)
+        return None if target.head is None else str(target.head)
+
+    if kind == "upos":
+        # Membership, not shape: the realistic mistake is a TIGER tag in the
+        # UD column, and `NN` is shaped exactly like `NOUN` (#253).
+        refusal = syntax_validate.validate_upos(to_val)
+        if refusal is not None:
+            _refuse(refusal, HTTPStatus.BAD_REQUEST)
+        return target.upos
+
+    refusal = syntax_validate.validate_deprel(to_val)
+    if refusal is not None:
+        _refuse(refusal, HTTPStatus.BAD_REQUEST)
+    return target.deprel
+
+
 @with_corpus_lock
 def _handle_syntax_correction_create(
     deps: ServerDeps,
@@ -171,29 +215,9 @@ def _handle_syntax_correction_create(
             f"no token {tok_id} in sentence {sent_ord} of this chunk",
         )
 
-    if kind == "head":
-        try:
-            new_head = int(to_val)
-        except ValueError:
-            raise _HTTPError(HTTPStatus.BAD_REQUEST, "a head must be an integer") from None
-        refusal = syntax_validate.validate_head(
-            current, sent_ord=sent_ord, tok_id=tok_id, new_head=new_head
-        )
-        if refusal is not None:
-            _refuse(refusal, HTTPStatus.CONFLICT)
-        from_val = None if target.head is None else str(target.head)
-    elif kind == "upos":
-        # Membership, not shape: the realistic mistake is a TIGER tag in the
-        # UD column, and `NN` is shaped exactly like `NOUN` (#253).
-        refusal = syntax_validate.validate_upos(to_val)
-        if refusal is not None:
-            _refuse(refusal, HTTPStatus.BAD_REQUEST)
-        from_val = target.upos
-    else:
-        refusal = syntax_validate.validate_deprel(to_val)
-        if refusal is not None:
-            _refuse(refusal, HTTPStatus.BAD_REQUEST)
-        from_val = target.deprel
+    from_val = _check_and_prior_value(
+        current, kind=kind, to_val=to_val, sent_ord=sent_ord, tok_id=tok_id, target=target
+    )
 
     correction_id = syntax_queries.append_correction(
         deps.conn,

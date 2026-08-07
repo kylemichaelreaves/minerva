@@ -162,8 +162,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
     if (id === null) return undefined;
     return store
       .corrections()
-      .filter((c) => c.sentOrd === sentOrd() && c.tokId === id && c.kind === "upos")
-      .at(-1);
+      .findLast((c) => c.sentOrd === sentOrd() && c.tokId === id && c.kind === "upos");
   });
 
   const correctedCount = createMemo(() => tokens().filter((t) => t.corrected).length);
