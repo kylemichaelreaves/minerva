@@ -1,4 +1,4 @@
-# Storybook for poietes-web
+# Storybook for minerva-web
 
 Component dev sandbox for the SolidJS frontend. Run with:
 
