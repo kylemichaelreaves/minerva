@@ -59,6 +59,10 @@ web/.vite/
 .screenshots/
 # Transient working screenshots (one-off captures during dev review).
 .screenshots-tmp/
+# Playwright MCP scratch: accessibility snapshots, console logs and
+# screenshots it writes while driving the app for a manual verification.
+# Pure run artifacts — regenerated on every session, never reviewed.
+.playwright-mcp/
 
 # ── OS noise ───────────────────────────────────────────────────────
 .DS_Store
