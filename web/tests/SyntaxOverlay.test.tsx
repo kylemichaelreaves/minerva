@@ -108,6 +108,42 @@ describe("<SyntaxOverlay /> across a chunk change", () => {
     expect(screen.queryByLabelText("Filter relations")).toBeNull();
   });
 
+  it("closes the part-of-speech picker left open on the previous chunk", async () => {
+    // Same hazard as the relation picker: `picker` is chunk-scoped, and one
+    // signal holds both modes, so this is the other half of that guard (#253).
+    const { goTo } = mount();
+    await screen.findAllByText("erste");
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "p" });
+    expect(screen.queryByLabelText("Filter parts of speech")).not.toBeNull();
+
+    goTo("short");
+    await screen.findAllByText("allein");
+
+    expect(screen.queryByLabelText("Filter parts of speech")).toBeNull();
+  });
+
+  it("opens only one picker at a time", async () => {
+    // `picker` is a single mode rather than a boolean per picker, so the two
+    // cannot both be mounted over the same token.
+    mount();
+    await screen.findAllByText("erste");
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "l" });
+    expect(screen.queryByLabelText("Filter relations")).not.toBeNull();
+    expect(screen.queryByLabelText("Filter parts of speech")).toBeNull();
+
+    // The overlay ignores shortcuts while a picker is open, so close it first —
+    // which is itself the behaviour that keeps the two from stacking.
+    fireEvent.keyDown(screen.getByLabelText("Filter relations"), { key: "Escape" });
+    fireEvent.keyDown(window, { key: "p" });
+
+    expect(screen.queryByLabelText("Filter parts of speech")).not.toBeNull();
+    expect(screen.queryByLabelText("Filter relations")).toBeNull();
+  });
+
   it("shows the server's own reason when it refuses the chunk", async () => {
     // The 400 `load_or_parse` raises for a non-German chunk (#231, #235).
     const { fetchChunkSyntax } = await import("~/api/syntaxApi");

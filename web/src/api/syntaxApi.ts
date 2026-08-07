@@ -37,7 +37,7 @@ export interface CorrectionRow {
   id: number;
   sent_ord: number;
   tok_id: number;
-  kind: "head" | "deprel";
+  kind: "head" | "deprel" | "upos";
   from_val: string | null;
   to_val: string;
 }
@@ -81,7 +81,7 @@ export interface CorrectionAccepted {
 export interface CorrectionRequest {
   sentOrd: number;
   tokId: number;
-  kind: "head" | "deprel";
+  kind: "head" | "deprel" | "upos";
   /** A head is sent as its decimal string; the column is TEXT for both kinds. */
   toVal: string;
 }

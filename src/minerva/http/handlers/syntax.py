@@ -182,6 +182,13 @@ def _handle_syntax_correction_create(
         if refusal is not None:
             _refuse(refusal, HTTPStatus.CONFLICT)
         from_val = None if target.head is None else str(target.head)
+    elif kind == "upos":
+        # Membership, not shape: the realistic mistake is a TIGER tag in the
+        # UD column, and `NN` is shaped exactly like `NOUN` (#253).
+        refusal = syntax_validate.validate_upos(to_val)
+        if refusal is not None:
+            _refuse(refusal, HTTPStatus.BAD_REQUEST)
+        from_val = target.upos
     else:
         refusal = syntax_validate.validate_deprel(to_val)
         if refusal is not None:

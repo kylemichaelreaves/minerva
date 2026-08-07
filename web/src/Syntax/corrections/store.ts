@@ -9,7 +9,7 @@ import {
 } from "~/api/syntaxApi";
 import { createScopedSignal } from "~/Syntax/chunkScoped";
 import { applyCorrections, type Correction } from "./apply";
-import { validateDeprel, validateHead, type Refusal } from "./validate";
+import { validateDeprel, validateHead, validateUpos, type Refusal } from "./validate";
 
 // The optimistic correction queue.
 //
@@ -195,6 +195,29 @@ export function createCorrectionStore(
         kind: "deprel",
         toVal: deprel,
         fromVal: before?.deprel ?? null,
+      });
+    },
+
+    /**
+     * Retag one token's part of speech. Returns whether the edit stuck.
+     *
+     * Refuses before the round trip on anything outside UD's 17, because the
+     * realistic mistake is a TIGER tag from the adjacent column and those are
+     * shaped exactly like UD tags (#253).
+     */
+    async retag(sentOrd: number, tokId: number, upos: string): Promise<boolean> {
+      const bad = validateUpos(upos);
+      if (bad !== null) {
+        refuse({ ...bad, tokens: [tokId] });
+        return false;
+      }
+      const before = tokensOf(sentOrd).find((t) => t.id === tokId);
+      return commit({
+        sentOrd,
+        tokId,
+        kind: "upos",
+        toVal: upos,
+        fromVal: before?.upos ?? null,
       });
     },
 

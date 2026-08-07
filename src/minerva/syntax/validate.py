@@ -35,6 +35,39 @@ from .queries import SyntaxToken
 # what stops a TIGER label, a paste, or a stray capital from reaching storage.
 _DEPREL_RE = re.compile(r"^[a-z]+(:[a-z]+)?$")
 
+#: UD's part-of-speech inventory. Checked by *membership*, not shape — unlike
+#: deprels, whose subtypes are open-ended, this list is closed and has 17
+#: entries across every UD release. Membership is also the only check that
+#: catches the realistic mistake: pasting the TIGER/STTS tag the German parser
+#: also carries (`NN`, `PRELS`, `ADJA`) into the UD column, which is
+#: shaped identically to a real tag (#253).
+#:
+#: `PUNCT` earns its place in the picker despite looking cosmetic: row
+#: wrapping breaks after punctuation and the topological-field bands split
+#: around it, so mis-tagging punctuation is the one POS error that visibly
+#: moves the diagram.
+UPOS_TAGS: frozenset[str] = frozenset(
+    {
+        "ADJ",
+        "ADP",
+        "ADV",
+        "AUX",
+        "CCONJ",
+        "DET",
+        "INTJ",
+        "NOUN",
+        "NUM",
+        "PART",
+        "PRON",
+        "PROPN",
+        "PUNCT",
+        "SCONJ",
+        "SYM",
+        "VERB",
+        "X",
+    }
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class Refusal:
@@ -150,5 +183,21 @@ def validate_deprel(deprel: str) -> Refusal | None:
         return Refusal(
             "bad-deprel",
             f"{deprel!r} is not a Universal Dependencies relation.",
+        )
+    return None
+
+
+def validate_upos(upos: str) -> Refusal | None:
+    """Whether *upos* is one of UD's 17 tags. None means yes.
+
+    Deliberately not case-insensitive. A lower-case tag is a sign the value
+    came from somewhere other than the picker, and coercing it would leave the
+    log saying something the curator was never shown.
+    """
+
+    if upos not in UPOS_TAGS:
+        return Refusal(
+            "bad-upos",
+            f"{upos!r} is not a Universal Dependencies part of speech.",
         )
     return None

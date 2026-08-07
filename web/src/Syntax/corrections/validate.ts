@@ -1,4 +1,5 @@
 import type { SyntaxToken } from "~/api/syntaxApi";
+import { isKnownPos } from "./pos";
 import { isKnownRelation } from "./relations";
 
 // The two refusals, client-side — the mirror of `src/minerva/syntax/validate.py`.
@@ -20,6 +21,7 @@ export type RefusalCode =
   | "unknown-head"
   | "unknown-token"
   | "bad-deprel"
+  | "bad-upos"
   // The server said no. It sees writes from other tabs and from scripts, so
   // it can refuse an edit this copy thought was fine. The reason is whatever
   // it sent back.
@@ -44,6 +46,7 @@ export const REFUSAL_TITLE: Record<RefusalCode, string> = {
   "unknown-head": "Refused · no such token",
   "unknown-token": "Refused · no such token",
   "bad-deprel": "Refused · unknown relation",
+  "bad-upos": "Refused · unknown part of speech",
   conflict: "Refused",
   network: "Not saved",
 };
@@ -148,6 +151,25 @@ export function validateDeprel(deprel: string): Refusal | null {
     return {
       code: "bad-deprel",
       message: `"${deprel}" is not a Universal Dependencies relation.`,
+      tokens: [],
+    };
+  }
+  return null;
+}
+
+/**
+ * Whether *upos* is one of UD's 17 tags. Null means yes.
+ *
+ * Membership, not shape — the German parser's TIGER column is full of values
+ * (`NN`, `PRELS`, `ADJA`) that a shape check would wave through. Mirrors
+ * `syntax/validate.py::validate_upos`; case-sensitive there and here, so a
+ * value that did not come from the picker is refused rather than coerced.
+ */
+export function validateUpos(upos: string): Refusal | null {
+  if (!isKnownPos(upos)) {
+    return {
+      code: "bad-upos",
+      message: `"${upos}" is not a Universal Dependencies part of speech.`,
       tokens: [],
     };
   }

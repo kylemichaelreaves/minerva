@@ -22,12 +22,16 @@ export interface TokenInspectorProps {
   onClose: () => void;
   /** Open the relation picker on this token. */
   onRelabel?: () => void;
+  /** Open the part-of-speech picker on this token. */
+  onRetag?: () => void;
   /** Start reattaching this token to a new head. */
   onReattach?: () => void;
   /** Drop the correction on this token, if it has one. */
   onRevert?: () => void;
   /** What the parser said before a human changed it — the "was obj". */
   wasDeprel?: string | null;
+  /** The tag the parser assigned before a human retagged it (#253). */
+  wasUpos?: string | null;
 }
 
 export function TokenInspector(props: TokenInspectorProps) {
@@ -124,9 +128,19 @@ export function TokenInspector(props: TokenInspectorProps) {
             </>
           )}
         </Show>
+        {/* The two edits are independent, so a token can carry both and both
+            provenance values are worth showing — "was obj · was DET". */}
+        <Show when={props.token.corrected && props.wasUpos}>
+          {(was) => (
+            <>
+              {" · was "}
+              <span class="syn-was">{was()}</span>
+            </>
+          )}
+        </Show>
       </div>
 
-      <Show when={props.onRelabel ?? props.onRevert}>
+      <Show when={props.onRelabel ?? props.onRetag ?? props.onRevert}>
         <div class="syn-pact">
           <Show when={props.onReattach}>
             <button type="button" class="pri" onClick={() => props.onReattach?.()}>
@@ -136,6 +150,11 @@ export function TokenInspector(props: TokenInspectorProps) {
           <Show when={props.onRelabel}>
             <button type="button" onClick={() => props.onRelabel?.()}>
               Relabel <span class="syn-kbd">L</span>
+            </button>
+          </Show>
+          <Show when={props.onRetag}>
+            <button type="button" onClick={() => props.onRetag?.()}>
+              Retag <span class="syn-kbd">P</span>
             </button>
           </Show>
           <Show when={props.token.corrected && props.onRevert}>
