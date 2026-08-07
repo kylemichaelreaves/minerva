@@ -339,20 +339,27 @@ export default function Reader(props: ReaderProps) {
           onDismiss={dismiss}
           onLoadMoreSamples={wordLookup.loadMoreSamples}
           onOpenConcordance={(lemma, lang) => {
-            // Navigate via hash — routing.ts's hashchange listener
-            // picks it up and renders the concordance route. We don't
-            // need to thread the routing controller through readerCtrl
-            // for this single-purpose CTA.
-            const enc = encodeURIComponent(lemma);
-            window.location.hash =
-              `#/concordance/${enc}?lang=${encodeURIComponent(lang)}`;
+            // Through the router's own serializer, like the syntax CTA above
+            // and for the same reason: routing.ts owns this format at both
+            // ends, and a second hand-written copy of it drifts silently.
+            // `routeHash` is pure, so this still needs no routing controller
+            // threaded through readerCtrl.
+            window.location.hash = routeHash({ kind: "concordance-lemma", lemma, lang });
           }}
           workTitle={props.workId}
           onOpenWorkConcordance={() => {
-            const lang = props.sourceLang ?? "deu";
-            window.location.hash =
-              `#/concordance?lang=${encodeURIComponent(lang)}` +
-              `&scope=work&work=${encodeURIComponent(props.workId)}`;
+            // The hand-built version of this one had already drifted. It
+            // single-encoded the title into `&work=`, so `URLSearchParams.get`
+            // handed a literal comma to `decodeCsv` and "Das Kapital, Band I"
+            // arrived as two scope entries — 26 of 866 work titles contain a
+            // comma. `routeHash` goes through `encodeCsv`, which survives the
+            // extra decode (#236).
+            window.location.hash = routeHash({
+              kind: "concordance",
+              lang: props.sourceLang ?? "deu",
+              scope: "work",
+              scopeWorks: [props.workId],
+            });
           }}
           sourceLang={props.sourceLang}
         />
