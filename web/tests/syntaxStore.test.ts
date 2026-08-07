@@ -1,7 +1,8 @@
-import { createRoot } from "solid-js";
+import { createRoot, createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/api/client";
 import type { CorrectionAccepted, SyntaxSentence, SyntaxToken } from "~/api/syntaxApi";
+import type { Correction } from "~/Syntax/corrections/apply";
 import { createCorrectionStore, type CorrectionTransport } from "~/Syntax/corrections/store";
 
 // The optimistic queue. Correcting a tree is hand labour done at speed —
@@ -81,7 +82,7 @@ async function withStore(
   };
   const store = createRoot((d) => {
     dispose = d;
-    return createCorrectionStore("abc", () => doc(), transport);
+    return createCorrectionStore(() => "abc", () => doc(), transport);
   });
   try {
     await body(store);
@@ -327,7 +328,7 @@ describe("corrections from an earlier session", () => {
     };
     const store = createRoot((d) => {
       dispose = d;
-      return createCorrectionStore("abc", () => doc(), transport, () => saved);
+      return createCorrectionStore(() => "abc", () => doc(), transport, () => saved);
     });
     try {
       await body(store);
@@ -394,5 +395,144 @@ describe("corrections from an earlier session", () => {
     await withSeeded(okTransport(), (store) => {
       expect(at(store.corrections(), 0).fromVal).toBe("det");
     });
+  });
+});
+
+describe("a navigation between chunks", () => {
+  // `SyntaxRoute` deliberately re-fetches rather than re-mounting when the
+  // chunk changes, so the store outlives the chunk it was created on. Every
+  // test here drives that transition: the store has to follow the chunk, and
+  // nothing from the old one may survive into the new tree (#141).
+
+  /** Two chunks of different shapes, so a leak between them is visible. */
+  const chunkDocs: Record<string, SyntaxSentence[]> = {
+    abc: doc(),
+    xyz: [{ sent_ord: 0, tokens: [tok(1, 0, "root")] }],
+  };
+
+  /** Run *body* with a store whose chunk can be changed mid-test. */
+  async function withNavigation(
+    transport: CorrectionTransport,
+    body: (
+      store: ReturnType<typeof createCorrectionStore>,
+      goTo: (id: string) => void,
+    ) => Promise<void> | void,
+    savedFor: (chunkId: string) => readonly Correction[] = () => [],
+  ): Promise<void> {
+    let dispose = () => {
+      /* replaced below */
+    };
+    const [chunkId, setChunkId] = createSignal("abc");
+    const store = createRoot((d) => {
+      dispose = d;
+      return createCorrectionStore(
+        chunkId,
+        () => chunkDocs[chunkId()] ?? [],
+        transport,
+        () => savedFor(chunkId()),
+      );
+    });
+    try {
+      await body(store, (id) => {
+        setChunkId(id);
+      });
+    } finally {
+      dispose();
+    }
+  }
+
+  it("posts to the chunk it is on now, not the one it was created with", async () => {
+    const transport = okTransport();
+
+    await withNavigation(transport, async (store, goTo) => {
+      goTo("xyz");
+      await store.relabel(0, 1, "nmod");
+
+      // Posting to `abc` is what produces "no token 1 in sentence 0 of this
+      // chunk" — the server correctly refusing a coherent edit to the wrong
+      // passage, which reads to the user as a judgement on the edit.
+      expect(transport.post).toHaveBeenCalledWith("xyz", expect.anything());
+    });
+  });
+
+  it("drops the previous chunk's corrections instead of replaying them", async () => {
+    await withNavigation(okTransport(), async (store, goTo) => {
+      await store.relabel(0, 1, "nmod");
+      expect(store.corrections()).toHaveLength(1);
+
+      goTo("xyz");
+
+      expect(store.corrections()).toHaveLength(0);
+      // Token 1 of `xyz` is a different word that happens to share an id.
+      expect(at(at(store.sentences(), 0).tokens, 0).deprel).toBe("root");
+      expect(at(at(store.sentences(), 0).tokens, 0).corrected).toBe(false);
+    });
+  });
+
+  it("does not land an in-flight edit from the previous chunk on the new one", async () => {
+    let release = () => {
+      /* replaced below */
+    };
+    const answered = new Promise<CorrectionAccepted>((resolve) => {
+      release = () => {
+        resolve(accepted(100, { ...tok(1, 2, "nmod"), corrected: true }));
+      };
+    });
+    const transport: CorrectionTransport = {
+      post: vi.fn(() => answered),
+      remove: vi.fn(() => Promise.resolve()),
+    };
+
+    await withNavigation(transport, async (store, goTo) => {
+      const inFlight = store.relabel(0, 1, "nmod");
+      goTo("xyz");
+      release();
+      await inFlight;
+
+      // The reconcile that swaps the optimistic id for the server's must not
+      // write the row into a chunk it was never about.
+      expect(store.corrections()).toHaveLength(0);
+      expect(at(at(store.sentences(), 0).tokens, 0).deprel).toBe("root");
+    });
+  });
+
+  it("does not carry a refusal across to the new chunk", async () => {
+    const transport: CorrectionTransport = {
+      post: vi.fn(() => Promise.reject(new ApiError("would make a cycle", 409))),
+      remove: vi.fn(() => Promise.resolve()),
+    };
+
+    await withNavigation(transport, async (store, goTo) => {
+      await store.relabel(0, 1, "nmod");
+      expect(store.refusal()).not.toBeNull();
+
+      goTo("xyz");
+
+      // The panel names tokens by id, and id 1 is a different word here.
+      expect(store.refusal()).toBeNull();
+    });
+  });
+
+  it("does not double the log when the reader navigates back", async () => {
+    // The edit made on `abc` comes back from the server on the return visit,
+    // in `saved`. If the session copy also survives, the same correction is
+    // in the log twice and Revert points at one of two identical rows.
+    const savedOnReturn: Correction[] = [
+      { id: 100, sentOrd: 0, tokId: 1, kind: "deprel", toVal: "nmod", fromVal: "det" },
+    ];
+    let visited = false;
+
+    await withNavigation(
+      okTransport(),
+      async (store, goTo) => {
+        await store.relabel(0, 1, "nmod");
+        goTo("xyz");
+        visited = true;
+        goTo("abc");
+
+        expect(store.corrections()).toHaveLength(1);
+      },
+      (chunkId) => (visited && chunkId === "abc" ? savedOnReturn : []),
+    );
   });
 });
