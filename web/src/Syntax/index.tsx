@@ -10,6 +10,8 @@ import {
   onMount,
 } from "solid-js";
 import { fetchChunkSyntax } from "~/api/syntaxApi";
+import { createScopedSignal } from "~/Syntax/chunkScoped";
+import { loadErrorMessage } from "~/Syntax/loadError";
 import { ArcDiagram } from "~/Syntax/components/ArcDiagram";
 import { RefusalPanel } from "~/Syntax/components/RefusalPanel";
 import { RelationPicker } from "~/Syntax/components/RelationPicker";
@@ -74,17 +76,23 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
     () => props.chunkId,
     (id: string) => fetchChunkSyntax(id),
   );
-  const [sentOrd, setSentOrd] = createSignal(0);
-  const [hovered, setHovered] = createSignal<number | null>(null);
-  const [selected, setSelected] = createSignal<number | null>(null);
-  const [picking, setPicking] = createSignal(false);
-  const [focused, setFocused] = createSignal<number | null>(null);
+  // Everything below that names a sentence or a token is scoped to the chunk
+  // it was set on. The route re-fetches instead of re-mounting, so none of it
+  // is reinitialised by a navigation — and a sentence index kept from a longer
+  // chunk matches nothing in a shorter one, which rendered "No syntax for this
+  // passage" over a chunk that had parsed fine (#141).
+  const chunk = (): string => props.chunkId;
+  const [sentOrd, setSentOrd] = createScopedSignal(chunk, 0);
+  const [hovered, setHovered] = createScopedSignal<number | null>(chunk, null);
+  const [selected, setSelected] = createScopedSignal<number | null>(chunk, null);
+  const [picking, setPicking] = createScopedSignal(chunk, false);
+  const [focused, setFocused] = createScopedSignal<number | null>(chunk, null);
   /** The token being reattached, or null when not in reattach mode. */
-  const [lifted, setLifted] = createSignal<number | null>(null);
+  const [lifted, setLifted] = createScopedSignal<number | null>(chunk, null);
   /** Which legal head the reattachment is currently aimed at. */
-  const [proposed, setProposed] = createSignal<number | null>(null);
+  const [proposed, setProposed] = createScopedSignal<number | null>(chunk, null);
   /** A target that was just refused, so the diagram can mark it. */
-  const [refused, setRefused] = createSignal<number | null>(null);
+  const [refused, setRefused] = createScopedSignal<number | null>(chunk, null);
   /**
    * The derived topological fields, on by default.
    *
@@ -100,11 +108,19 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   // side by side; the store replays one over the other. Seeding it with the
   // saved log is what makes Revert work on a correction from an earlier
   // session — otherwise the button is there and points at nothing.
+  // `doc()` *throws* on an errored resource, and the header and footer read
+  // the tree unconditionally — so on a failed GET the throw escaped the
+  // Switch, the update that would have settled the resource was abandoned,
+  // and the overlay sat on "Parsing…" forever. Neither the server's reason
+  // nor the generic line ever reached the screen. Read through the failure
+  // instead: an empty tree is what the error branch is already rendering
+  // over (#235).
+  const loaded = () => (doc.error === undefined ? doc() : undefined);
   const store = createCorrectionStore(
-    props.chunkId,
-    () => doc()?.sentences ?? [],
+    () => props.chunkId,
+    () => loaded()?.sentences ?? [],
     httpTransport,
-    () => (doc()?.corrections ?? []).map(fromApi),
+    () => (loaded()?.corrections ?? []).map(fromApi),
   );
 
   const sentences = () => store.sentences();
@@ -419,7 +435,10 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
               <div class="syn-empty">Parsing…</div>
             </Match>
             <Match when={doc.error !== undefined}>
-              <div class="syn-empty">Could not load syntax for this passage.</div>
+              {/* The server's own words when it has judged this chunk — since
+                  #231 a non-German one is refused with the language it found,
+                  and that is the only part that says what to do (#235). */}
+              <div class="syn-empty">{loadErrorMessage(doc.error)}</div>
             </Match>
             <Match when={tokens().length > 0}>
               {/* Frame 06's drop bar. The root is the one target that is

@@ -7,6 +7,7 @@ import {
   type CorrectionRequest,
   type SyntaxSentence,
 } from "~/api/syntaxApi";
+import { createScopedSignal } from "~/Syntax/chunkScoped";
 import { applyCorrections, type Correction } from "./apply";
 import { validateDeprel, validateHead, type Refusal } from "./validate";
 
@@ -64,7 +65,14 @@ function classify(err: unknown): { code: "conflict" | "network"; message: string
 }
 
 export function createCorrectionStore(
-  chunkId: string,
+  /**
+   * An accessor, not a value: read at post time, so an edit made after a
+   * navigation addresses the chunk on screen. Held by value it froze at the
+   * first chunk the overlay ever saw, and every later edit came back refused
+   * — the server correctly rejecting a coherent request about a different
+   * passage (#141).
+   */
+  chunkId: () => string,
   pristine: () => readonly SyntaxSentence[],
   transport: CorrectionTransport = httpTransport,
   /**
@@ -75,9 +83,11 @@ export function createCorrectionStore(
    */
   saved: () => readonly Correction[] = () => [],
 ) {
-  const [session, setSession] = createSignal<Correction[]>([]);
-  const [dropped, setDropped] = createSignal<number[]>([]);
-  const [refusal, setRefusal] = createSignal<Refusal | null>(null);
+  const [session, setSession] = createScopedSignal<Correction[]>(chunkId, []);
+  const [dropped, setDropped] = createScopedSignal<number[]>(chunkId, []);
+  const [refusal, setRefusal] = createScopedSignal<Refusal | null>(chunkId, null);
+  // Not scoped: the in-flight count has to fall back to zero on whichever
+  // chunk the `finally` runs on, or the saving indicator never clears.
   const [pending, setPending] = createSignal(0);
 
   /**
@@ -88,7 +98,13 @@ export function createCorrectionStore(
    */
   const corrections = createMemo(() => {
     const gone = new Set(dropped());
-    return [...saved().filter((c) => !gone.has(c.id)), ...session()].sort((a, b) => a.id - b.id);
+    const kept = saved().filter((c) => !gone.has(c.id));
+    // Navigating away and back re-reads the same edit from the server while
+    // the session copy is still here. Same row, same id, twice in the log —
+    // and Revert then points at one of two identical entries. The server's
+    // copy wins: it is the one that survived the round trip.
+    const fromServer = new Set(kept.map((c) => c.id));
+    return [...kept, ...session().filter((c) => !fromServer.has(c.id))].sort((a, b) => a.id - b.id);
   });
 
   const setCorrections = (fn: (cur: Correction[]) => Correction[]): void => {
@@ -116,18 +132,23 @@ export function createCorrectionStore(
   async function commit(entry: Omit<Correction, "id">): Promise<boolean> {
     const optimisticId = nextOptimisticId--;
     const optimistic: Correction = { ...entry, id: optimisticId };
+    // The chunk this edit is about, fixed at the moment it was made. The
+    // answer can arrive after a navigation, and neither the reconcile nor the
+    // rollback below means anything on a different tree.
+    const onChunk = chunkId();
 
     setRefusal(null);
     setCorrections((cur) => [...cur, optimistic]);
     setPending((n) => n + 1);
 
     try {
-      const saved = await transport.post(chunkId, {
+      const saved = await transport.post(onChunk, {
         sentOrd: entry.sentOrd,
         tokId: entry.tokId,
         kind: entry.kind,
         toVal: entry.toVal,
       });
+      if (chunkId() !== onChunk) return true;
       // Swap the temporary id for the real one in place, so replay order is
       // unchanged and undo has a row it can actually delete.
       setCorrections((cur) =>
@@ -135,6 +156,7 @@ export function createCorrectionStore(
       );
       return true;
     } catch (err: unknown) {
+      if (chunkId() !== onChunk) return false;
       setCorrections((cur) => cur.filter((c) => c.id !== optimisticId));
       refuse({ ...classify(err), tokens: [entry.tokId] });
       return false;
@@ -200,6 +222,7 @@ export function createCorrectionStore(
     async undo(correctionId: number): Promise<boolean> {
       const removed = corrections().find((c) => c.id === correctionId);
       if (removed === undefined) return false;
+      const onChunk = chunkId();
 
       setRefusal(null);
       setCorrections((cur) => cur.filter((c) => c.id !== correctionId));
@@ -211,6 +234,9 @@ export function createCorrectionStore(
         // A 404 means the row is already gone, which is what undo wanted.
         // Restoring it would resurrect something that does not exist.
         if (err instanceof ApiError && err.status === 404) return true;
+        // Restoring it onto a chunk it was never part of would be worse than
+        // losing the rollback: the row would be attributed to the wrong text.
+        if (chunkId() !== onChunk) return false;
         setCorrections((cur) => [...cur, removed].sort((a, b) => a.id - b.id));
         refuse({
           code: classify(err).code,

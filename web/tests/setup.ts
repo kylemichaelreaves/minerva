@@ -108,7 +108,16 @@ afterEach(() => {
 if (typeof process !== "undefined") {
   process.on("unhandledRejection", (reason) => {
     const msg = reason instanceof Error ? reason.message : String(reason);
-    if (msg.startsWith("fetch returned no response for ") || /^\d{3}\b/.test(msg)) {
+    // `ApiError` by name, not by message shape. The message is whatever
+    // `readErrorDetail` pulled out of the body, which for a deliberate refusal
+    // is prose — "syntax parsing is deu-only; chunk 'rep-509d' is 'eng'" — and
+    // matches neither pattern below. Those two stay for the errors that are
+    // not ApiErrors at all.
+    if (
+      (reason instanceof Error && reason.name === "ApiError") ||
+      msg.startsWith("fetch returned no response for ") ||
+      /^\d{3}\b/.test(msg)
+    ) {
       // Expected: a test didn't mock a parallel-mount API call.
       // The component already shows the error state; consume here.
       return;

@@ -10,7 +10,7 @@ import {
 } from "~/Syntax/layout/arcs";
 import { FIELD_NAMES, type FieldName, fieldRuns, topologicalFields } from "~/Syntax/layout/fields";
 import { minimapTicks, visibleSpan } from "~/Syntax/layout/minimap";
-import { TOKEN_GAP } from "~/Syntax/layout/measure";
+import { TOKEN_GAP, TOKEN_PAD_X, probeWidths } from "~/Syntax/layout/measure";
 import { type ArcSegment, breakRows, segmentArcs } from "~/Syntax/layout/rows";
 
 // The diagram: a wrapped row of tokens with dependency arcs bracketing above,
@@ -25,10 +25,6 @@ import { type ArcSegment, breakRows, segmentArcs } from "~/Syntax/layout/rows";
 const HEAD_ROOM = 26;
 /** How far a cut segment stops short of the measure edge. */
 const EDGE = 6;
-/** Horizontal padding on `.syn-tok`, which the probe (a bare `.syn-form`)
- *  does not carry. Without it every row underestimates its own width by 8px
- *  per token and the last few overflow the measure. */
-const TOKEN_PAD_X = 8;
 
 export interface ArcDiagramProps {
   tokens: SyntaxToken[];
@@ -96,11 +92,7 @@ export function ArcDiagram(props: ArcDiagramProps) {
     setMeasure(host.clientWidth || 1200);
     const probe = host.querySelector<HTMLElement>(".syn-probe");
     if (!probe) return;
-    const next = new Map<number, number>();
-    for (const cell of Array.from(probe.querySelectorAll<HTMLElement>("[data-probe]"))) {
-      next.set(Number(cell.dataset.probe), cell.offsetWidth);
-    }
-    setWidths(next);
+    setWidths(probeWidths(probe));
   };
 
   onMount(() => {
