@@ -144,4 +144,93 @@ describe("useAbortableFetch", () => {
       expect(capturedSignal?.aborted).toBe(true);
     });
   });
+
+  describe("resetOnChange", () => {
+    // Whether the previous args' answer stays readable while the next one
+    // is in flight. Keeping it is right for a filter change on a list — the
+    // rows flicker otherwise — and wrong when the identity of the thing on
+    // screen changed: the Concordance's lemma detail would render the old
+    // lemma's occurrences under the new lemma's heading (#65).
+    //
+    // Default is to keep, because every existing caller was written against
+    // that.
+
+    it("keeps the previous data across an args change by default", async () => {
+      let setId!: Setter<number>;
+      const d2 = deferred<{ echo: number }>();
+      const fetcher = vi.fn((args: { id: number }) =>
+        args.id === 1 ? Promise.resolve({ echo: 1 }) : d2.promise,
+      );
+      await createRoot(async (dispose) => {
+        const [id, set] = createSignal(1);
+        setId = set;
+        const { data, loading } = useAbortableFetch(() => ({ id: id() }), fetcher);
+        await flush();
+        await flush();
+        expect(data()).toEqual({ echo: 1 });
+
+        setId(2);
+        await flush();
+
+        expect(loading()).toBe(true);
+        expect(data()).toEqual({ echo: 1 });
+        dispose();
+      });
+    });
+
+    it("drops the previous data as soon as the args change when asked", async () => {
+      let setId!: Setter<number>;
+      const d2 = deferred<{ echo: number }>();
+      const fetcher = vi.fn((args: { id: number }) =>
+        args.id === 1 ? Promise.resolve({ echo: 1 }) : d2.promise,
+      );
+      await createRoot(async (dispose) => {
+        const [id, set] = createSignal(1);
+        setId = set;
+        const { data, loading } = useAbortableFetch(() => ({ id: id() }), fetcher, {
+          resetOnChange: true,
+        });
+        await flush();
+        await flush();
+        expect(data()).toEqual({ echo: 1 });
+
+        setId(2);
+        await flush();
+
+        // The point: nothing on screen claims to be about id 2 until the
+        // answer for id 2 arrives.
+        expect(loading()).toBe(true);
+        expect(data()).toBeNull();
+
+        d2.resolve({ echo: 2 });
+        await flush();
+        await flush();
+        expect(data()).toEqual({ echo: 2 });
+        dispose();
+      });
+    });
+
+    it("clears a stale error along with the stale data", async () => {
+      let setId!: Setter<number>;
+      const d2 = deferred<{ echo: number }>();
+      const fetcher = vi.fn((args: { id: number }) =>
+        args.id === 1 ? Promise.reject(new Error("boom")) : d2.promise,
+      );
+      await createRoot(async (dispose) => {
+        const [id, set] = createSignal(1);
+        setId = set;
+        const { error } = useAbortableFetch(() => ({ id: id() }), fetcher, {
+          resetOnChange: true,
+        });
+        await flush();
+        await flush();
+        expect(error()).toBe("boom");
+
+        setId(2);
+        await flush();
+        expect(error()).toBeNull();
+        dispose();
+      });
+    });
+  });
 });
