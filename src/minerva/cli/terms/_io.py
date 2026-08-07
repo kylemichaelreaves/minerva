@@ -1,6 +1,7 @@
 """Shared I/O helpers for the `terms` CLI subcommands.
 
-`_open` opens the curator DB; `_read_text_input` resolves long-form
+`_open` opens the curator DB and `_with_db` wraps a subcommand so the
+connection it opens is closed again; `_read_text_input` resolves long-form
 text from one of three inputs (inline string, file path, stdin);
 `_print_table` / `_emit` handle the curator-facing output shape.
 `_add_common_db_arg` is a thin shim over the canonical
@@ -11,10 +12,12 @@ text from one of three inputs (inline string, file path, stdin);
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import sqlite3
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +27,32 @@ from ... import store
 def _open(args: argparse.Namespace) -> sqlite3.Connection:
     conn = store.open_db(args.db)
     return conn
+
+
+def _with_db(
+    fn: Callable[[argparse.Namespace, sqlite3.Connection], int],
+) -> Callable[[argparse.Namespace], int]:
+    """Open the curator DB for the duration of one subcommand, and close
+    it on the way out — including on the early `return 1` paths, which is
+    why this is a wrapper rather than a `close()` at the end of each body.
+
+    The handlers are plain functions taking a `Namespace`, which is what
+    makes them testable and equally what invites calling them in a loop;
+    without this, every such call would strand a connection (#227).
+
+    The wrapped handler keeps its one-argument call shape, so callers and
+    the argparse `set_defaults(func=...)` wiring are unaffected."""
+
+    @functools.wraps(fn)
+    def wrapper(args: argparse.Namespace) -> int:
+        with closing(_open(args)) as conn:
+            return fn(args, conn)
+
+    # Read by the lifecycle test, which asserts every `cmd_terms_*`
+    # handler either carries this decorator or closes its own
+    # connection — so a handler added later can't quietly leak again.
+    wrapper._closes_db = True  # type: ignore[attr-defined]
+    return wrapper
 
 
 def _read_text_input(value: str | None, file_path: Path | None) -> str | None:
