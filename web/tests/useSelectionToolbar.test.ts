@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, createSignal } from "solid-js";
 import {
   useSelectionToolbar,
+  toolbarKeyAction,
   type SelToolbar,
 } from "~/Reader/useSelectionToolbar";
 
@@ -322,5 +323,112 @@ describe("useSelectionToolbar persistence", () => {
       expect(ids).toEqual(["rep-509d", "rep-514a"]);
       dispose();
     });
+  });
+});
+
+describe("useSelectionToolbar syntax action", () => {
+  it("commitSyntax reports the chunk of the first pinned span", () => {
+    createRoot((dispose) => {
+      const onSyntaxRequest = vi.fn();
+      const api = useSelectionToolbar({
+        getStage: () => undefined,
+        workId: () => "Phänomenologie des Geistes",
+        onTranslateRequest: vi.fn(),
+        onLookupRequest: vi.fn(),
+        syntaxEnabled: () => true,
+        onSyntaxRequest,
+      });
+      const toolbar = buildToolbar("Der Geist", "¶17", [
+        { chunkId: "hegel-p17", start: 0, end: 9 },
+      ]);
+
+      api.commitSyntax(toolbar);
+
+      expect(onSyntaxRequest).toHaveBeenCalledWith("hegel-p17");
+      dispose();
+    });
+  });
+
+  it("commitSyntax is inert when the selection has no pinned span", () => {
+    createRoot((dispose) => {
+      const onSyntaxRequest = vi.fn();
+      const api = useSelectionToolbar({
+        getStage: () => undefined,
+        workId: () => "Phänomenologie des Geistes",
+        onTranslateRequest: vi.fn(),
+        onLookupRequest: vi.fn(),
+        syntaxEnabled: () => true,
+        onSyntaxRequest,
+      });
+      const toolbar = buildToolbar("Der Geist", "¶17", []);
+
+      api.commitSyntax(toolbar);
+
+      expect(onSyntaxRequest).not.toHaveBeenCalled();
+      dispose();
+    });
+  });
+
+  it("commitSyntax does nothing when no handler is supplied", () => {
+    createRoot((dispose) => {
+      const api = useSelectionToolbar({
+        getStage: () => undefined,
+        workId: () => "Phänomenologie des Geistes",
+        onTranslateRequest: vi.fn(),
+        onLookupRequest: vi.fn(),
+      });
+      const toolbar = buildToolbar("Der Geist", "¶17", [
+        { chunkId: "hegel-p17", start: 0, end: 9 },
+      ]);
+
+      // Must not throw — `onSyntaxRequest` is optional.
+      expect(() => { api.commitSyntax(toolbar); }).not.toThrow();
+      dispose();
+    });
+  });
+});
+
+describe("toolbarKeyAction", () => {
+  const ev = (key: string, target?: EventTarget) => {
+    const e = new KeyboardEvent("keydown", { key });
+    if (target) Object.defineProperty(e, "target", { value: target });
+    return e;
+  };
+  const opts = (over: Partial<{ singleWord: boolean; syntaxEnabled: boolean }> = {}) => ({
+    singleWord: over.singleWord ?? false,
+    syntaxEnabled: over.syntaxEnabled ?? false,
+  });
+
+  it("maps S to syntax only when syntax is enabled", () => {
+    expect(toolbarKeyAction(ev("s"), opts({ syntaxEnabled: true }))).toBe("syntax");
+    expect(toolbarKeyAction(ev("S"), opts({ syntaxEnabled: true }))).toBe("syntax");
+    expect(toolbarKeyAction(ev("s"), opts({ syntaxEnabled: false }))).toBeNull();
+  });
+
+  it("maps L to lookup only for a single-word selection", () => {
+    expect(toolbarKeyAction(ev("l"), opts({ singleWord: true }))).toBe("lookup");
+    expect(toolbarKeyAction(ev("l"), opts({ singleWord: false }))).toBeNull();
+  });
+
+  it("maps T to translate and Escape to dismiss", () => {
+    expect(toolbarKeyAction(ev("t"), opts())).toBe("translate");
+    expect(toolbarKeyAction(ev("T"), opts())).toBe("translate");
+    expect(toolbarKeyAction(ev("Escape"), opts())).toBe("dismiss");
+  });
+
+  it("yields to form fields and editable regions", () => {
+    for (const tag of ["input", "textarea", "select"]) {
+      const el = document.createElement(tag);
+      expect(toolbarKeyAction(ev("t", el), opts())).toBeNull();
+    }
+    const editable = document.createElement("div");
+    editable.contentEditable = "true";
+    // jsdom does not derive isContentEditable from the attribute.
+    Object.defineProperty(editable, "isContentEditable", { value: true });
+    expect(toolbarKeyAction(ev("t", editable), opts())).toBeNull();
+  });
+
+  it("ignores unrelated keys", () => {
+    expect(toolbarKeyAction(ev("x"), opts({ singleWord: true, syntaxEnabled: true }))).toBeNull();
   });
 });

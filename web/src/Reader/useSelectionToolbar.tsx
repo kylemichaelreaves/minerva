@@ -42,6 +42,9 @@ export interface SelectionToolbarApi {
   onMouseUp: (e: MouseEvent) => void;
   commitTranslate: (t: SelToolbar) => void;
   commitLookup: (t: SelToolbar) => void;
+  /** Open the dependency-syntax overlay for the selection's chunk.
+   *  No-op when the selection has no pinned span. */
+  commitSyntax: (t: SelToolbar) => void;
   copySelection: (t: SelToolbar) => void;
   onPinnedClick: (chunkId: string, start: number, end: number) => void;
   /** Convert any active pinned highlight to a saved underline marker.
@@ -72,6 +75,42 @@ export interface SelectionToolbarProps {
     offset: number,
     lineEl: Element | null,
   ) => void;
+  /** Whether the syntax overlay applies to what is on screen. The parser is
+   *  German-only, so the Reader passes `() => sourceLang === "deu"`. Gates
+   *  the `S` key; the button is gated by the caller withholding `onSyntax`.
+   *  The server refuses non-German independently — this is convenience, not
+   *  the guarantee. */
+  syntaxEnabled?: () => boolean;
+  /** Navigate to the syntax overlay for `chunkId`. */
+  onSyntaxRequest?: (chunkId: string) => void;
+}
+
+export type ToolbarKeyAction = "dismiss" | "translate" | "lookup" | "syntax";
+
+/** Which toolbar action a keydown should trigger, or null for none.
+ *
+ *  Pure, and exported, because the listener that consumes it lives in a
+ *  `createEffect` gated on an open toolbar — which requires a real DOM
+ *  Range to produce. Keeping the decision separate from the dispatch is
+ *  what makes the key map testable at all; it was untested before. */
+export function toolbarKeyAction(
+  e: KeyboardEvent,
+  opts: { singleWord: boolean; syntaxEnabled: boolean },
+): ToolbarKeyAction | null {
+  // Don't hijack keys while the user is typing in a form field or an
+  // editable region — let those widgets keep their keystrokes.
+  // (instanceof, not a cast: e.target can be the Document itself, which
+  // has no tagName.)
+  const el = e.target instanceof HTMLElement ? e.target : null;
+  const tag = el?.tagName.toLowerCase();
+  if (tag === "textarea" || tag === "input" || tag === "select") return null;
+  if (el?.isContentEditable) return null;
+
+  if (e.key === "Escape") return "dismiss";
+  if (e.key === "t" || e.key === "T") return "translate";
+  if ((e.key === "l" || e.key === "L") && opts.singleWord) return "lookup";
+  if ((e.key === "s" || e.key === "S") && opts.syntaxEnabled) return "syntax";
+  return null;
 }
 
 export function useSelectionToolbar(
@@ -169,6 +208,15 @@ export function useSelectionToolbar(
     });
   }
 
+  /** Close the toolbar and drop the browser selection. Every commit path
+   *  does this before handing off; the two operations are independent and
+   *  synchronous, so the order the call sites used to differ in never
+   *  mattered. */
+  function closeSelection() {
+    setSelToolbar(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
   function commitTranslate(t: SelToolbar) {
     setPinnedHighlights((prev) => {
       // Drop any prior active highlights — only one translation is
@@ -177,9 +225,7 @@ export function useSelectionToolbar(
       const survivors = prev.filter((p) => p.saved);
       return [...survivors, ...t.pinned.map((p) => ({ ...p, saved: false }))];
     });
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    setSelToolbar(null);
+    closeSelection();
     for (const p of t.pinned) {
       savedTranslations.set(savedKey(p.chunkId, p.start, p.end), {
         source: t.text,
@@ -192,9 +238,7 @@ export function useSelectionToolbar(
   function commitLookup(t: SelToolbar) {
     // Single-word fork: route to the supplied word-click handler.
     // We re-derive (chunk_id, offset) from the first pinned span.
-    setSelToolbar(null);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
+    closeSelection();
     const p = t.pinned[0];
     if (p === undefined) return;
     const line =
@@ -202,6 +246,15 @@ export function useSelectionToolbar(
         .getStage()
         ?.querySelector(`[data-chunk-id="${CSS.escape(p.chunkId)}"]`) ?? null;
     props.onLookupRequest(t.text, p.chunkId, p.start, line);
+  }
+
+  function commitSyntax(t: SelToolbar) {
+    // The chunk comes off the first pinned span — the one the selection
+    // started in — same derivation as commitLookup.
+    closeSelection();
+    const p = t.pinned[0];
+    if (p === undefined) return;
+    props.onSyntaxRequest?.(p.chunkId);
   }
 
   function copySelection(t: SelToolbar) {
@@ -255,27 +308,19 @@ export function useSelectionToolbar(
     const t = selToolbar();
     if (!t) return;
     const onKey = (e: KeyboardEvent) => {
-      // Don't hijack keys while the user is typing in a form field or
-      // an editable region — let those widgets keep their keystrokes.
-      // (instanceof, not a cast: e.target can be the Document itself,
-      // which has no tagName.)
-      const el = e.target instanceof HTMLElement ? e.target : null;
-      const tag = el?.tagName.toLowerCase();
-      if (tag === "textarea" || tag === "input" || tag === "select") return;
-      if (el?.isContentEditable) return;
-      if (e.key === "Escape") {
+      const action = toolbarKeyAction(e, {
+        singleWord: t.singleWord,
+        syntaxEnabled: props.syntaxEnabled?.() ?? false,
+      });
+      if (action === null) return;
+      if (action === "dismiss") {
         setSelToolbar(null);
         return;
       }
-      if (e.key === "t" || e.key === "T") {
-        e.preventDefault();
-        commitTranslate(t);
-        return;
-      }
-      if ((e.key === "l" || e.key === "L") && t.singleWord) {
-        e.preventDefault();
-        commitLookup(t);
-      }
+      e.preventDefault();
+      if (action === "translate") commitTranslate(t);
+      else if (action === "lookup") commitLookup(t);
+      else commitSyntax(t);
     };
     document.addEventListener("keydown", onKey);
     // Solid ignores values returned from createEffect — a returned
@@ -302,6 +347,7 @@ export function useSelectionToolbar(
     onMouseUp,
     commitTranslate,
     commitLookup,
+    commitSyntax,
     copySelection,
     onPinnedClick,
     markAllPinnedSaved,

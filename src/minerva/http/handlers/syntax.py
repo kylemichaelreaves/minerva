@@ -58,11 +58,28 @@ def _correction_json(c: syntax_queries.Correction) -> dict[str, Any]:
     }
 
 
-@with_corpus_lock
-def _handle_chunk_syntax(deps: ServerDeps, chunk_id: str) -> dict[str, Any]:
-    tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+def _load_or_parse_or_400(deps: ServerDeps, chunk_id: str) -> list[syntax_queries.SyntaxToken]:
+    """`load_or_parse`, with its language refusal mapped to an HTTP status.
+
+    Shared by both handlers that reach the parser: the GET path and the
+    correction-create path. 400, not 404, for a wrong-language chunk — the
+    chunk exists, the request is the problem, and a 404 here would send the
+    caller looking for a missing chunk instead. A missing chunk still 404s,
+    via the `None` return `load_or_parse` documents for that case.
+    """
+
+    try:
+        tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+    except syntax_queries.UnsupportedSyntaxLanguage as exc:
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
     if tokens is None:
         raise _HTTPError(HTTPStatus.NOT_FOUND, "chunk not found")
+    return tokens
+
+
+@with_corpus_lock
+def _handle_chunk_syntax(deps: ServerDeps, chunk_id: str) -> dict[str, Any]:
+    tokens = _load_or_parse_or_400(deps, chunk_id)
 
     corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
 
@@ -139,9 +156,7 @@ def _handle_syntax_correction_create(
             f"kind must be one of {', '.join(syntax_queries.CORRECTABLE)}",
         )
 
-    tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
-    if tokens is None:
-        raise _HTTPError(HTTPStatus.NOT_FOUND, "chunk not found")
+    tokens = _load_or_parse_or_400(deps, chunk_id)
 
     corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
     current = syntax_queries.materialise(tokens, corrections)

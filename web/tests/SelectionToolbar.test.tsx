@@ -6,6 +6,7 @@ function renderToolbar(
   overrides: Partial<{
     singleWord: boolean;
     onLookup: () => void;
+    onSyntax: () => void;
   }> = {},
 ) {
   const onTranslate = vi.fn();
@@ -19,6 +20,7 @@ function renderToolbar(
       singleWord={overrides.singleWord ?? false}
       onTranslate={onTranslate}
       onLookup={onLookup}
+      onSyntax={overrides.onSyntax}
       onCopy={onCopy}
       onDismiss={onDismiss}
     />
@@ -70,5 +72,34 @@ describe("<SelectionToolbar />", () => {
       />
     ));
     expect(container.querySelector(".selection-toolbar.below")).not.toBeNull();
+  });
+
+  it("omits the syntax action when no handler is supplied", () => {
+    const { container } = renderToolbar();
+    expect(container.textContent).not.toContain("Syntax");
+  });
+
+  it("renders the syntax action and calls it on click", () => {
+    const onSyntax = vi.fn();
+    const { container } = renderToolbar({ onSyntax });
+    expect(container.textContent).toContain("Syntax");
+
+    const btn = Array.from(container.querySelectorAll(".st-btn")).find((b) =>
+      b.textContent.includes("Syntax"),
+    );
+    fireEvent.click(btn!);
+    expect(onSyntax).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the other actions working when syntax is present", () => {
+    const { container, onTranslate, onCopy } = renderToolbar({ onSyntax: vi.fn() });
+    const byText = (s: string) =>
+      Array.from(container.querySelectorAll(".st-btn")).find((b) =>
+        b.textContent.includes(s),
+      )!;
+    fireEvent.click(byText("Translate"));
+    fireEvent.click(byText("Copy"));
+    expect(onTranslate).toHaveBeenCalledTimes(1);
+    expect(onCopy).toHaveBeenCalledTimes(1);
   });
 });

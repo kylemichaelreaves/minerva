@@ -22,7 +22,9 @@ from minerva.http.handlers.syntax import (
 from minerva.http.server_core import _HTTPError
 from minerva.syntax import queries as q
 
-CHUNK = "rep-509d"
+# The syntax path is German-only (see `load_or_parse`); an English chunk
+# is refused, so this cannot be one of the Plato fixtures.
+CHUNK = "hegel-p17"
 
 
 def fake_tokens() -> list[q.SyntaxToken]:
@@ -177,6 +179,21 @@ def test_unknown_chunk_is_404(deps) -> None:
         )
 
     assert exc.value.status == 404
+
+
+def test_non_german_chunk_is_refused_with_400(deps) -> None:
+    """`load_or_parse`'s language guard (#231) applies here too: this handler
+    calls it directly, the same as the GET path. 400, not 404 — kept
+    distinguishable from `test_unknown_chunk_is_404` above — because the
+    chunk exists and the request is the problem."""
+
+    with pytest.raises(_HTTPError) as exc:
+        _handle_syntax_correction_create(
+            deps, "rep-509d", {"sent_ord": 0, "tok_id": 1, "kind": "head", "to_val": "3"}
+        )
+
+    assert exc.value.status == 400
+    assert "eng" in exc.value.message
 
 
 def test_unknown_token_is_refused(deps) -> None:
