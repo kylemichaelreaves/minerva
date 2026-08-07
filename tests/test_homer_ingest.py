@@ -177,6 +177,35 @@ class TestHomerCardChunking:
         for chunk in chunks:
             assert chunk.section.startswith(f"{chunk.book}.")
 
+    def test_re_entering_the_same_book_number_does_not_split_a_chunk(
+        self, tmp_path: Path
+    ) -> None:
+        """The `n != _cur_book` guard on the #207 flush, which real data
+        needs: `data/epictetus/raw/discourses_en.xml` has two consecutive
+        `<div1 n="0">` siblings. Without the guard, entering the second
+        one flushes mid-book and splits a chunk that has no boundary
+        there — the fix would introduce the opposite of the defect it
+        removes.
+        """
+
+        xml = _TAIL_FIXTURE_XML.replace(
+            '<div1 type="Book" n="2">', '<div1 type="Book" n="1">'
+        )
+        path = tmp_path / "hom_repeat_gr.xml"
+        path.write_text(xml, encoding="utf-8")
+
+        chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
+
+        # Both div1s are book 1, so the second one's `<milestone card 1>`
+        # is the only boundary: sections 1.1, 1.33, then 1.1 again.
+        assert [c.book for c in chunks] == ["1", "1", "1"]
+        # The tail stays attached to card 1.33 rather than being flushed
+        # early by a spurious book-change.
+        tail = [c for c in chunks if "tail line" in c.text]
+        assert len(tail) == 1
+        assert tail[0].section == "1.33"
+        assert "thirty-three" in tail[0].text
+
     def test_metadata_propagated_from_args_and_header(self, tmp_path: Path) -> None:
         path = _write_fixture(tmp_path)
         chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
