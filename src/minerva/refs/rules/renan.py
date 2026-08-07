@@ -9,6 +9,11 @@ below are LIKE-matches over the ingested chunks (2026-07 audit):
   comma after the book, chapter in lowercase Roman). The dedicated
   ``ScriptureCiteRuleFrRoman`` handles that shape; the plain FR rule
   is included too for the Arabic-numeral cites of the Psalms etc.
+* **Quran** — 3 chunks carry surah locators in the same convention
+  ("Coran, sur. xv, 80" / "Coran, xviir, 94 et suiv.; xxi, 96"), 4
+  citations in all. ``QuranCiteRuleFrRoman`` handles them; Renan is the
+  only author in the corpus who cites the Quran by locator at all, and
+  accounts for 17 of the 37 chunks that name it (#223).
 * **Josephus (200)** and **Philo (133)** — his two constant ancient
   sources for Second-Temple history. Out-of-corpus targets: the rows
   land in ``reference_targets`` for the ReferenceCard, not chunks.
@@ -22,12 +27,19 @@ below are LIKE-matches over the ingested chunks (2026-07 audit):
 from __future__ import annotations
 
 from . import AuthorMentionRule, StrongMentionRule, _figures
+from .quran_cite_fr import QuranCiteRuleFrRoman
 from .scripture_cite import ScriptureCiteRuleFr, ScriptureCiteRuleFrRoman
 
 RULES = (
     # ── Scripture → Sacy. Renan's dominant citation target by far.
     ScriptureCiteRuleFrRoman(name="renan_scripture_cite_fr_roman"),
     ScriptureCiteRuleFr(name="renan_scripture_cite_fr"),
+    # ── Quran → the ingested Arabic text. Same century, same numeral
+    # convention as the scripture rule above, different book and
+    # lexicon. Four citations across three sites — small, but it closes
+    # a loop the corpus was assembled for: Renan writing on the origins
+    # of Islam, with the Quran sitting in the index unreferenced (#223).
+    QuranCiteRuleFrRoman(name="renan_quran_cite_fr_roman"),
     # Josephus — Renan's constant source for the Herodian / Roman
     # period; cited by name on nearly every other page of the later
     # Histoire volumes and L'Antéchrist. Out-of-corpus target.
