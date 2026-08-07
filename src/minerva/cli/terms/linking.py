@@ -10,11 +10,11 @@ import sys
 from typing import Any
 
 from ...query_params import escape_like_substring
-from ._io import _emit, _open, _read_text_input
+from ._io import _emit, _read_text_input, _with_db
 
 
-def cmd_terms_works(args: argparse.Namespace) -> int:
-    conn = _open(args)
+@_with_db
+def cmd_terms_works(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     sql = "SELECT id, author, title, original_language, citation_system FROM works "
     params: list[Any] = []
     if args.like:
@@ -27,8 +27,8 @@ def cmd_terms_works(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_editions(args: argparse.Namespace) -> int:
-    conn = _open(args)
+@_with_db
+def cmd_terms_editions(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     sql = (
         "SELECT e.id, w.title AS work, e.name, e.language, e.year, e.is_canonical "
         "FROM editions e JOIN works w ON w.id = e.work_id "
@@ -43,8 +43,8 @@ def cmd_terms_editions(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_translations(args: argparse.Namespace) -> int:
-    conn = _open(args)
+@_with_db
+def cmd_terms_translations(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     sql = (
         "SELECT t.id, w.title AS work, t.translator_name, t.year, t.language "
         "FROM translations t JOIN works w ON w.id = t.work_id "
@@ -59,9 +59,9 @@ def cmd_terms_translations(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_render(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_render(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     note = _read_text_input(args.note, args.note_file)
-    conn = _open(args)
     existing = conn.execute(
         "SELECT id FROM term_renderings WHERE term_id = ? AND translation_id = ?",
         (args.term_id, args.translation_id),
@@ -87,12 +87,12 @@ def cmd_terms_render(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_relate(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_relate(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     if args.a == args.b:
         print("cannot relate a term to itself", file=sys.stderr)
         return 1
     note = _read_text_input(args.note, args.note_file)
-    conn = _open(args)
     try:
         conn.execute(
             "INSERT INTO term_relations (term_id, related_term_id, relation_kind, notes) "

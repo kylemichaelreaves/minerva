@@ -8,11 +8,11 @@ import sys
 from typing import Any
 
 from ...query_params import escape_like_substring
-from ._io import _emit, _open, _read_text_input
+from ._io import _emit, _read_text_input, _with_db
 
 
-def cmd_terms_list(args: argparse.Namespace) -> int:
-    conn = _open(args)
+@_with_db
+def cmd_terms_list(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     sql = (
         "SELECT t.id, t.source_form, t.source_language, t.short_gloss, "
         "       COUNT(o.id) AS occurrences "
@@ -37,8 +37,8 @@ def cmd_terms_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_show(args: argparse.Namespace) -> int:
-    conn = _open(args)
+@_with_db
+def cmd_terms_show(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     if args.term_id_or_form.isdigit():
         term = conn.execute(
             "SELECT * FROM terms WHERE id = ?", (int(args.term_id_or_form),)
@@ -103,11 +103,11 @@ def cmd_terms_show(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_add(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_add(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     description = _read_text_input(args.description, args.description_file)
     if description is None:
         description = ""
-    conn = _open(args)
     try:
         cur = conn.execute(
             "INSERT INTO terms (source_form, source_language, transliteration, "
@@ -143,13 +143,13 @@ def cmd_terms_add(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_canonical(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_canonical(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     """Mark / unmark an edition as the canonical one for its
     (work_id, language) pair. The UNIQUE index from migration 0004
     enforces at most one canonical edition per pair, so setting a new
     one is a two-step: clear the old, set the new."""
 
-    conn = _open(args)
     ed = conn.execute(
         "SELECT id, work_id, language FROM editions WHERE id = ?",
         (args.edition,),

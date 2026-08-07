@@ -11,20 +11,21 @@ from __future__ import annotations
 
 import argparse
 import re
+import sqlite3
 import sys
 from typing import Any
 
 from ... import locations, terms
 from ...text.snippet import find_occurrences, plain_window
-from ._io import _emit, _open
+from ._io import _emit, _with_db
 
 
-def cmd_terms_find(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_find(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     """Resolve a (work, lang, section) locator to a chunk_id. Used as
     a precursor to ``terms tag``: the curator names a passage, this
     command emits the chunk_id to feed into ``--chunk``."""
 
-    conn = _open(args)
     sql = "SELECT chunk_id, section, text FROM chunks_full WHERE work = ? AND lang = ?"
     params: list[Any] = [args.work, args.lang]
     if args.section:
@@ -44,7 +45,8 @@ def cmd_terms_find(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_terms_tag(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_tag(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     """Mark an occurrence of a term in a specific chunk.
 
     Workflow: the curator runs ``terms find ...`` to identify the
@@ -54,8 +56,6 @@ def cmd_terms_tag(args: argparse.Namespace) -> int:
     citation_system, locates the term's source_form in the chunk
     text, and inserts an occurrence at the requested instance.
     """
-
-    conn = _open(args)
 
     # Resolve term. The match-form is what we search for inside the
     # chunk text; for Greek terms the curator stores the polytonic
@@ -194,7 +194,8 @@ def cmd_terms_tag(args: argparse.Namespace) -> int:
 _AA_PAGE_RE = re.compile(r"\[(\d{1,4})\]")
 
 
-def cmd_terms_suggest_locator(args: argparse.Namespace) -> int:
+@_with_db
+def cmd_terms_suggest_locator(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
     """Suggest an A/B (or other) locator for a chunk whose section
     doesn't carry one. Useful for German KrV chunks: the zeno source
     doesn't preserve Kant's original A/B pagination, so chunks land
@@ -210,7 +211,6 @@ def cmd_terms_suggest_locator(args: argparse.Namespace) -> int:
     second anchor the curator can cross-walk by hand.
     """
 
-    conn = _open(args)
     src = conn.execute(
         "SELECT c.chunk_id, c.edition_id, c.translation_id, c.lang, "
         "       c.section, c.ord, c.text "
