@@ -62,17 +62,32 @@ body. Silence reads as an oversight.
 ## Verify before claiming
 
 `make check` — ruff (`src tests scripts perseus`) + eslint + tsc + pytest
-+ vitest + author/API/import gates. Run it and read the output before
-saying something passes.
++ vitest + changed-line coverage + author/API/import gates. Run it and read
+the output before saying something passes. **Re-run it after any edit you
+make while fixing its output** — two pushes on #254 failed CI on a lint
+error and a tsc arity error introduced *after* the last local run.
 
-`make check` does not cover everything CI does:
+**SonarCloud** fails PRs under 80% coverage *of the lines you changed*, and
+is a **required check** as of #158 — a red gate blocks the merge. `make check`
+evaluates the same thing locally as of #255 (`check-diff-coverage`), counting
+**branches as well as statements** because Sonar does: a one-line guard whose
+false branch is untested scores 3/4, not 100% (#250).
 
-- **SonarCloud** fails PRs under 80% coverage *of the lines you changed*,
-  and is a **required check** as of #158 — a red gate blocks the merge.
-  `scripts/**` and `perseus/**` are coverage-excluded, so the bar applies
-  to `src/` and `web/src/`. A red *security* rating on a PR that touched
-  operator tooling used to mean a moved line (#167); the backlog is now
-  triaged to zero, so treat a new one as real. See CONTRIBUTING.
+Do not substitute `make coverage` for it. That reports *whole-project*
+coverage — a different number, which can be green while the gate is red. On
+#254 the project sat at 75% while the PR's new code was at 58.5%.
+`scripts/**` and `perseus/**` are coverage-excluded, so the bar applies to
+`src/minerva/` and `web/src/`. Comparing against something other than main:
+`make check DIFF_BASE=origin/other`.
+
+`make check` still does not cover everything CI does:
+
+- **Duplication** (≤3% on new code) and the **reliability** rating are Sonar
+  gates with no local equivalent. Copying a component wholesale fails them at
+  any coverage — #254 duplicated a picker and had to extract the shared shell.
+- A red **security** rating on a PR that touched operator tooling used to mean
+  a moved line (#167); the backlog is now triaged to zero, so treat a new one
+  as real. See CONTRIBUTING.
 
 **After any ingest, run `make generate-authors` and commit the result.**
 `data/index.sqlite` is gitignored, so CI validates chunk counts against

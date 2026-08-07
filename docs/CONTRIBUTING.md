@@ -106,6 +106,37 @@ since #158 it is a **required status check** — a red gate blocks the merge.
 bar applies to `src/` and `web/src/` only. Operator tooling is still analysed
 for issues, just not held to a coverage bar.
 
+### Checking it before you push
+
+`make check` runs the same measurement locally (`scripts/check_diff_coverage.py`,
+added in #255). It reads `coverage.xml` and `web/coverage/lcov.info`, takes the
+changed-line set from `git diff origin/main`, and fails below 80%:
+
+```
+$ make check
+  web/src/Syntax/components/PosPicker.tsx   45/86    52.3%  << under
+                                        uncovered: [60, 62, 66, 67, 68, ...]
+                                        line 67: only 0/2 branches taken
+diff coverage vs origin/main: 56.2% (122/217), gate >= 80%
+check-diff-coverage: FAILED — SonarCloud will block this PR.
+```
+
+Three things about it are worth knowing, because each one is a way to get a
+confident wrong answer:
+
+- **It counts branches, not just statements.** Sonar does. A one-line
+  `if x != y:` guard whose false branch has no test scores 3/4, and #250
+  failed the gate at 75% with 100% *line* coverage.
+- **`make coverage` is not a substitute.** That is whole-project coverage. On
+  #254 it read 75% while new code was at 58.5% — the number that gates.
+- **It trusts that the reports match the working tree.** `make check`
+  regenerates both immediately before running it. Invoking the script by hand
+  after an edit measures stale line numbers and tells you nothing.
+
+Duplication (≤3% on new code) and the reliability rating are also gates, with
+no local equivalent — #254 failed both by copying a component wholesale, and
+the fix was to extract the shared part rather than to test the copy harder.
+
 ### Security findings in operator tooling
 
 The `pythonsecurity:*` rules flag developer scripts for taking a `--db` or
