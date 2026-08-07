@@ -55,6 +55,16 @@ vi.mock("~/api/syntaxApi", async (importOriginal) => ({
       ? Promise.resolve(doc)
       : Promise.reject(new Error(`no fixture for ${id}`));
   }),
+  postCorrection: vi.fn((chunkId: string, req: { sentOrd: number; tokId: number; kind: string; toVal: string }) =>
+    Promise.resolve({
+      id: 7,
+      chunk_id: chunkId,
+      sent_ord: req.sentOrd,
+      token: { ...tok(req.tokId, 0, "root"), upos: req.toVal, corrected: true },
+      corrections: 1,
+    }),
+  ),
+  deleteCorrection: vi.fn(() => Promise.resolve()),
 }));
 
 /** Mount the overlay on a chunk the test can change under it. */
@@ -142,6 +152,71 @@ describe("<SyntaxOverlay /> across a chunk change", () => {
 
     expect(screen.queryByLabelText("Filter parts of speech")).not.toBeNull();
     expect(screen.queryByLabelText("Filter relations")).toBeNull();
+  });
+
+  it("retags a token end to end and shows the new tag with its provenance", async () => {
+    // The wiring the unit tests cannot see: P opens the picker, commit calls
+    // the store, the store's replay updates the tree, and the inspector reads
+    // the retag's `fromVal` back out as "was ADV" (#253).
+    mount();
+    await screen.findAllByText("erste");
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "p" });
+    const filter = screen.getByLabelText("Filter parts of speech");
+    fireEvent.input(filter, { target: { value: "propn" } });
+    fireEvent.keyDown(filter, { key: "Enter" });
+
+    // The picker closes and the inspector comes back with the new tag. The
+    // tag and its gloss live in sibling spans, so match on the panel's text.
+    await vi.waitFor(() => {
+      const panel = document.querySelector("aside.syn-panel");
+      expect(panel?.textContent).toContain("PROPN");
+      expect(panel?.textContent).toContain("proper noun");
+    });
+    expect(screen.queryByLabelText("Filter parts of speech")).toBeNull();
+
+    const { postCorrection } = await import("~/api/syntaxApi");
+    expect(postCorrection).toHaveBeenCalledWith("long", {
+      sentOrd: 0,
+      tokId: 1,
+      kind: "upos",
+      toVal: "PROPN",
+    });
+  });
+
+  it("opens the part-of-speech picker from the inspector's Retag button", async () => {
+    mount();
+    await screen.findAllByText("erste");
+
+    // Clicking a token selects it, which is what opens the inspector. Target
+    // `.syn-tok` rather than the text: the form also appears in the hidden
+    // measurement probe, which is not clickable.
+    const token = document.querySelector(".syn-tok");
+    fireEvent.click(token!);
+    const retag = await vi.waitFor(() => {
+      const btn = [...document.querySelectorAll("aside.syn-panel button")].find((b) =>
+        (b.textContent ?? "").includes("Retag"),
+      );
+      expect(btn).toBeTruthy();
+      return btn as HTMLButtonElement;
+    });
+    fireEvent.click(retag);
+
+    expect(screen.queryByLabelText("Filter parts of speech")).not.toBeNull();
+  });
+
+  it("cancels a retag on Escape without touching the tree", async () => {
+    mount();
+    await screen.findAllByText("erste");
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "p" });
+    fireEvent.keyDown(screen.getByLabelText("Filter parts of speech"), { key: "Escape" });
+
+    expect(screen.queryByLabelText("Filter parts of speech")).toBeNull();
+    const { postCorrection } = await import("~/api/syntaxApi");
+    expect(postCorrection).not.toHaveBeenCalled();
   });
 
   it("shows the server's own reason when it refuses the chunk", async () => {
