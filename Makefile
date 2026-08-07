@@ -68,6 +68,15 @@ test:
 test-unit:
 	$(NPM) run test:unit
 
+# Same suites, instrumented, so `check-diff-coverage` has something to read.
+# `check` uses these rather than the bare ones above: running each suite twice
+# would cost ~50s, while the instrumentation alone costs ~6s (#255).
+test-py-cov:
+	$(PYTEST) --cov --cov-report=xml --cov-report=term:skip-covered
+
+test-unit-cov:
+	$(NPM) run test:coverage
+
 test-e2e:
 	$(NPM) run test:e2e
 
@@ -142,7 +151,20 @@ check-api-types:
 check-author-imports:
 	$(PYTHON) scripts/check_author_imports.py
 
-check: lint typecheck test-py test-unit check-authors check-api-types check-author-imports
+# SonarCloud gates PRs at 80% coverage OF THE LINES THE DIFF CHANGED and is a
+# required check, so this is the local equivalent (#255). Note the suites here
+# are the instrumented ones: `make coverage` reports whole-project coverage,
+# which is a different number and can be green while the gate is red — on #254
+# the project sat at 75% while the PR's new code was at 58.5%.
+#
+# Override the comparison point when working off something other than main:
+#   make check DIFF_BASE=origin/some-branch
+DIFF_BASE ?= origin/main
+
+check-diff-coverage:
+	$(PYTHON) scripts/check_diff_coverage.py --base $(DIFF_BASE)
+
+check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.
