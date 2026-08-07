@@ -1,7 +1,7 @@
 // F1 — Lemma frequency index. Orchestrator composes useConcordanceIndex;
 // presentational pieces live in ./components.
 
-import { For, Show, createEffect, createMemo, createResource, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import {
   fetchLemmaIndex,
@@ -64,7 +64,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
   const sort = (): ConcSort => props.sort ?? "freq";
   const letter = () => props.letter;
 
-  const { data, setRetryKey, lettersWithHits, grouped } = useConcordanceIndex({
+  const { data, loading, error, setRetryKey, lettersWithHits, grouped } = useConcordanceIndex({
     lang,
     scope,
     sort,
@@ -386,26 +386,43 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       <Show
         when={!scopeIncomplete()}
         fallback={
-          <ConcEmpty
-            icon="◎"
-            title={scope() === "work" ? "Choose a work" : "Choose an author"}
+          // The pickers this prompt points at are filled from /api/works.
+          // When that call failed they are empty, and telling the user to
+          // pick something from them is a dead end — so say what happened
+          // instead. The hook had the reason all along; nothing read it.
+          <Show
+            when={worksData.error() === null}
+            fallback={
+              <ConcEmpty icon="!" title="Couldn't load the works list">
+                <div>{worksData.error()}</div>
+                <div>
+                  The author and work pickers stay empty until it loads, so the
+                  concordance cannot be narrowed. Corpus scope still works.
+                </div>
+              </ConcEmpty>
+            }
           >
-            <div>
-              Pick {scope() === "work" ? "a work" : "an author"} in the filter bar above to
-              narrow the {lang().toUpperCase()} concordance
-              {scope() === "work" ? " to a single work" : ""}.
-            </div>
-          </ConcEmpty>
+            <ConcEmpty
+              icon="◎"
+              title={scope() === "work" ? "Choose a work" : "Choose an author"}
+            >
+              <div>
+                Pick {scope() === "work" ? "a work" : "an author"} in the filter bar above to
+                narrow the {lang().toUpperCase()} concordance
+                {scope() === "work" ? " to a single work" : ""}.
+              </div>
+            </ConcEmpty>
+          </Show>
         }
       >
       <Show
-        when={!data.error}
+        when={!error()}
         fallback={
           <Show
-            when={String(data.error).toLowerCase().includes("lemma cache")}
+            when={(error() ?? "").toLowerCase().includes("lemma cache")}
             fallback={
               <ConcEmpty icon="!" title="Couldn't load the lemma index">
-                <div>{String(data.error)}</div>
+                <div>{error()}</div>
                 <div style={{ "margin-top": "10px" }}>
                   <span
                     style={{ color: "var(--accent)", cursor: "pointer" }}
@@ -437,7 +454,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
         }
       >
         <Show
-          when={data() && (data()!.rows.length > 0 || !data.loading)}
+          when={data() && (data()!.rows.length > 0 || !loading())}
           fallback={<LoadingSkeleton />}
         >
           <Show
@@ -524,14 +541,20 @@ interface UseConcordanceIndexArgs {
 export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
   const [retryKey, setRetryKey] = createSignal(0);
 
-  const [data] = createResource(
+  // `resetOnChange` keeps the behaviour the raw `createResource` had: its
+  // `data()` read `undefined` while a new source was in flight, so the
+  // skeleton showed on every filter change. What changes is that the
+  // superseded request is now actually cancelled — a fast typist in the
+  // search box used to leave one uncancelled 200-row index query per
+  // keystroke running against the server (#65).
+  const { data, loading, error } = useAbortableFetch(
     () => {
       // Don't fetch an incomplete scope — scope=author without an
       // author (or scope=work without a work) is a backend 400. The
-      // page renders a picker prompt instead; a falsy source skips
-      // the fetcher entirely.
-      if (args.scope() === "author" && !args.scopeAuthors()?.length) return false as const;
-      if (args.scope() === "work" && !args.scopeWorks()?.length) return false as const;
+      // page renders a picker prompt instead; a null args object skips
+      // the request.
+      if (args.scope() === "author" && !args.scopeAuthors()?.length) return null;
+      if (args.scope() === "work" && !args.scopeWorks()?.length) return null;
       return {
         lang: args.lang(),
         scope: args.scope(),
@@ -546,20 +569,26 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
         _retry: retryKey(),
       };
     },
-    async (p) =>
-      fetchLemmaIndex({
-        lang: p.lang,
-        scope: p.scope,
-        authors: p.authors,
-        works: p.works,
-        letter: p.letter,
-        sort: p.sort,
-        pos_in: p.pos,
-        min_count: p.freqMin,
-        max_count: p.freqMax,
-        q: p.q,
-        limit: 200,
-      }),
+    async (p, signal) =>
+      p === null
+        ? null
+        : fetchLemmaIndex(
+            {
+              lang: p.lang,
+              scope: p.scope,
+              authors: p.authors,
+              works: p.works,
+              letter: p.letter,
+              sort: p.sort,
+              pos_in: p.pos,
+              min_count: p.freqMin,
+              max_count: p.freqMax,
+              q: p.q,
+              limit: 200,
+            },
+            signal,
+          ),
+    { resetOnChange: true },
   );
 
   const lettersWithHits = createMemo<Set<string>>(() => {
@@ -592,5 +621,5 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
       .map(([letter, rows]) => ({ letter, rows }));
   });
 
-  return { data, retryKey, setRetryKey, lettersWithHits, grouped };
+  return { data, loading, error, retryKey, setRetryKey, lettersWithHits, grouped };
 }

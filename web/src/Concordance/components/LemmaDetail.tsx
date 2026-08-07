@@ -1,14 +1,8 @@
 // F2 — Lemma detail / KWIC grid. Orchestrator composes useLemmaDetail;
 // presentational pieces live in ./components.
 
-import {
-  For,
-  Show,
-  createEffect,
-  createMemo,
-  createResource,
-  createSignal,
-} from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { fetchLemmaDetail, type ConcScope, type KwicRow } from "~/api/concordanceApi";
 import { useListKeyboardNav } from "~/hooks/useListKeyboardNav";
 import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
@@ -45,7 +39,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
   const lang = () => props.lang ?? "deu";
   const scope = (): ConcScope => props.scope ?? "corpus";
 
-  const { data, cursor, setCursor, morph } = useLemmaDetail({
+  const { data, loading, error, cursor, setCursor, morph } = useLemmaDetail({
     lemma: () => props.lemma,
     lang,
     scope,
@@ -198,14 +192,15 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         </div>
       </Show>
 
-      <Show when={!!data.error}>
+      <Show when={!!error()}>
         <Show
-          when={String(data.error as unknown)
-            .toLowerCase()
-            .includes("lemma cache")}
+          // `error()` is already a string — `useAbortableFetch` runs it
+          // through `errorMessage`. The `String(… as unknown)` this replaces
+          // was working around `createResource.error` being `unknown`.
+          when={(error() ?? "").toLowerCase().includes("lemma cache")}
           fallback={
             <ConcEmpty icon="!" title="Couldn't load occurrences">
-              <div>{String(data.error)}</div>
+              <div>{error()}</div>
             </ConcEmpty>
           }
         >
@@ -223,11 +218,11 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         </Show>
       </Show>
 
-      <Show when={data.loading && !data()}>
+      <Show when={loading() && !data()}>
         <KwicSkeleton />
       </Show>
 
-      <Show when={data() && !data.error}>
+      <Show when={data() && !error()}>
         <Show
           when={data()!.total > 0}
           fallback={
@@ -277,7 +272,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         >
           <div class="kwic-stage">
             <Show when={!isMobile()}>{filterRail()}</Show>
-            <div class="kwic-pane" classList={{ "kwic-refetching": data.loading }}>
+            <div class="kwic-pane" classList={{ "kwic-refetching": loading() }}>
               <div class="kwic-toolbar">
                 <span class="ct">
                   Showing <b>{data()!.rows.length}</b> of <b>{data()!.total.toLocaleString()}</b>
@@ -315,7 +310,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
 
       {/* Mobile FAB + sheet. Renders the same FilterRail inside the
           sheet body — content drives the design, not duplicated layout. */}
-      <Show when={isMobile() && data() && !data.error && data()!.total > 0}>
+      <Show when={isMobile() && data() && !error() && data()!.total > 0}>
         <button type="button" class="conc-fab" onClick={() => setSheetOpen(true)}>
           ≡ Filters
           <Show when={filterCount() > 0}>
@@ -371,7 +366,17 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
     return m;
   });
 
-  const [data] = createResource(
+  // `resetOnChange` because the args carry the *lemma*: without it the
+  // previous lemma's occurrences stay on screen under the new lemma's
+  // heading and counts until the new answer lands, which is a wrong answer
+  // rather than a flicker. The signal is what the raw `createResource` here
+  // could not thread — a superseded lemma's request used to run to
+  // completion against the server (#65).
+  const {
+    data,
+    loading,
+    error,
+  } = useAbortableFetch(
     () => ({
       lemma: args.lemma(),
       lang: args.lang(),
@@ -381,17 +386,21 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
       surface: args.surface(),
       morph: morph(),
     }),
-    async (p) =>
-      fetchLemmaDetail({
-        lemma: p.lemma,
-        lang: p.lang,
-        scope: p.scope,
-        authors: p.authors,
-        works: p.works,
-        surface: p.surface,
-        morph: Object.keys(p.morph).length > 0 ? p.morph : undefined,
-        limit: 100,
-      }),
+    async (p, signal) =>
+      fetchLemmaDetail(
+        {
+          lemma: p.lemma,
+          lang: p.lang,
+          scope: p.scope,
+          authors: p.authors,
+          works: p.works,
+          surface: p.surface,
+          morph: Object.keys(p.morph).length > 0 ? p.morph : undefined,
+          limit: 100,
+        },
+        signal,
+      ),
+  { resetOnChange: true },
   );
 
   createEffect(() => {
@@ -409,7 +418,7 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
     setCursor(0);
   });
 
-  return { data, cursor, setCursor, morph };
+  return { data, loading, error, cursor, setCursor, morph };
 }
 
 /** Keep the KWIC cursor row visible as j/k navigation moves it. */

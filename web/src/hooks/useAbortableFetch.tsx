@@ -37,9 +37,25 @@ export interface AbortableFetchApi<T> {
   error: () => string | null;
 }
 
+export interface AbortableFetchOptions {
+  /**
+   * Drop the previous answer the moment the args change, instead of leaving
+   * it readable until the next one lands.
+   *
+   * Off by default, because every caller predates the option and a list that
+   * blanks on each filter change flickers for no reason. Turn it on when the
+   * *identity* of the thing on screen changes with the args rather than just
+   * its filtering — the Concordance's lemma detail otherwise renders the
+   * previous lemma's occurrences under the new lemma's heading, which is not
+   * a flicker but a wrong answer (#65).
+   */
+  resetOnChange?: boolean;
+}
+
 export function useAbortableFetch<Args, T>(
   argsAccessor: () => Args,
   fetcher: (args: Args, signal: AbortSignal) => Promise<T>,
+  options: AbortableFetchOptions = {},
 ): AbortableFetchApi<T> {
   const [data, setData] = createSignal<T | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -54,6 +70,7 @@ export function useAbortableFetch<Args, T>(
     inflight?.abort();
     const controller = new AbortController();
     inflight = controller;
+    if (options.resetOnChange) setData(null);
     setLoading(true);
     setError(null);
     void (async () => {

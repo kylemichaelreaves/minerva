@@ -7,37 +7,19 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@solidjs/testing-library";
 
 const fetchLemmaIndex = vi.fn();
+const listWorks = vi.fn();
+
+const WORKS = [
+  { work_id: 1, corpus: "kant", author: "Kant", work: "Kritik der reinen Vernunft",
+    display_title: "Kritik der reinen Vernunft", lang: "deu", chunks: 1560 },
+  { work_id: 2, corpus: "hegel", author: "Hegel", work: "Phänomenologie des Geistes",
+    display_title: "Phänomenologie des Geistes", lang: "deu", chunks: 808 },
+  { work_id: 3, corpus: "plato", author: "Plato", work: "Republic",
+    display_title: "Republic", lang: "grc", chunks: 500 },
+];
 
 vi.mock("~/api/readerApi", () => ({
-  listWorks: vi.fn(() => Promise.resolve([
-    {
-      work_id: 1,
-      corpus: "kant",
-      author: "Kant",
-      work: "Kritik der reinen Vernunft",
-      display_title: "Kritik der reinen Vernunft",
-      lang: "deu",
-      chunks: 1560,
-    },
-    {
-      work_id: 2,
-      corpus: "hegel",
-      author: "Hegel",
-      work: "Phänomenologie des Geistes",
-      display_title: "Phänomenologie des Geistes",
-      lang: "deu",
-      chunks: 808,
-    },
-    {
-      work_id: 3,
-      corpus: "plato",
-      author: "Plato",
-      work: "Republic",
-      display_title: "Republic",
-      lang: "grc",
-      chunks: 500,
-    },
-  ])),
+  listWorks: (...args: unknown[]) => listWorks(...args) as never,
 }));
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
@@ -74,6 +56,8 @@ const emptyIndex = {
 beforeEach(() => {
   fetchLemmaIndex.mockReset();
   fetchLemmaIndex.mockResolvedValue(emptyIndex);
+  listWorks.mockReset();
+  listWorks.mockResolvedValue(WORKS);
 });
 
 describe("ConcordanceIndexPage scope narrowing", () => {
@@ -231,5 +215,41 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     ));
     expect(await screen.findByText("Choose an author")).toBeInTheDocument();
     expect(fetchLemmaIndex).not.toHaveBeenCalled();
+  });
+});
+
+describe("when the works manifest cannot be loaded", () => {
+  // `/api/works` fills the author and work pickers. When it fails, the
+  // pickers are simply empty and the page still says "pick an author in the
+  // filter bar above" — pointing at a control that cannot offer one. The
+  // hook has captured the reason all along; nothing rendered it (#65).
+  it("says so instead of pointing at an empty picker", async () => {
+    listWorks.mockRejectedValue(new Error("Failed to fetch"));
+
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="author"
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+
+    expect(await screen.findByText("Couldn't load the works list")).toBeInTheDocument();
+    expect(screen.queryByText("Choose an author")).toBeNull();
+  });
+
+  it("still prompts for an author when the manifest loads fine", async () => {
+    render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="author"
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+
+    expect(await screen.findByText("Choose an author")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load the works list")).toBeNull();
   });
 });
