@@ -60,7 +60,7 @@ vi.mock("~/api/syntaxApi", async (importOriginal) => ({
       id: 7,
       chunk_id: chunkId,
       sent_ord: req.sentOrd,
-      token: { ...tok(req.tokId, 0, "root"), upos: req.toVal, corrected: true },
+      token: { ...tok(req.tokId, "erste", 0, "root"), upos: req.toVal, corrected: true },
       corrections: 1,
     }),
   ),
@@ -193,15 +193,10 @@ describe("<SyntaxOverlay /> across a chunk change", () => {
     // `.syn-tok` rather than the text: the form also appears in the hidden
     // measurement probe, which is not clickable.
     const token = document.querySelector(".syn-tok");
-    fireEvent.click(token!);
-    const retag = await vi.waitFor(() => {
-      const btn = [...document.querySelectorAll("aside.syn-panel button")].find((b) =>
-        (b.textContent ?? "").includes("Retag"),
-      );
-      expect(btn).toBeTruthy();
-      return btn as HTMLButtonElement;
-    });
-    fireEvent.click(retag);
+    if (token === null) throw new Error("no token rendered");
+    fireEvent.click(token);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Retag/ }));
 
     expect(screen.queryByLabelText("Filter parts of speech")).not.toBeNull();
   });
