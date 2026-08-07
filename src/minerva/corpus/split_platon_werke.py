@@ -20,6 +20,7 @@ as the Greek original and the English translation.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -37,18 +38,146 @@ _BRIEF_ORDINALS = {
     "ELFTER": 11, "ZWÖLFTER": 12, "DREIZEHNTER": 13,
 }
 
-# Per-canonical translator + edition year. Most of the edition is
-# Schleiermacher (Platons Werke, 2. Aufl. Berlin 1818); a handful of
-# dialogues were supplied by Susemihl / Georgii (see the PDF's
-# per-dialogue "Nach der Übersetzung von …" attributions).
-_SUSEMIHL = ("Franz Susemihl", "1863")
-_GEORGII = ("Ludwig Georgii", "1853")
-_SCHLEIERMACHER = ("Friedrich Schleiermacher", "1818")
-_TRANSLATOR: dict[str, tuple[str, str]] = {
-    "Parmenides": _SUSEMIHL, "Symposion": _SUSEMIHL, "Timaios": _SUSEMIHL,
-    "Kritias": _SUSEMIHL, "Nomoi": _SUSEMIHL, "Epinomis": _SUSEMIHL,
-    "Phaidros": _GEORGII,
+# ── Title-page attributions (#206) ───────────────────────────────────
+#
+# This table used to be seven overrides plus a silent fallback to
+# ("Friedrich Schleiermacher", "1818"). The fallback covered 41 of the 48
+# works and was wrong far more often than right: only Euthyphron and Apologia
+# are actually the 1818 second edition, the other Schleiermacher dialogues
+# come from later Auflagen (1826, 1855-1861), Susemihl's volumes are each a
+# different year, and the thirteen Letters are not Schleiermacher at all.
+#
+# The volume states every attribution itself, once per work, in a fixed
+# formula on the work's own title page:
+#
+#     Nach der Übersetzung von <translator> in: <edition>, <city> <year>,
+#     bearbeitet.
+#
+# Every entry below is transcribed from one of those, and carries the PDF page
+# it was read from so the claim is checkable rather than merely asserted. The
+# front matter (p2) confirms the closed set of five translators: Schleiermacher
+# "vor allem", with Georgii, Susemihl, Teuffel and Wiegand "zur Ergänzung".
+#
+# THERE IS NO DEFAULT. An unlisted work raises — see `attribution_for`.
+
+
+@dataclasses.dataclass(frozen=True)
+class Attribution:
+    """Who translated a work, in which year, and where that was read."""
+
+    translator: str
+    year: str
+    #: PDF page (0-based, as `fitz` numbers them) carrying the formula.
+    source_page: int = 0
+
+
+def _a(translator: str, year: str, page: int) -> Attribution:
+    return Attribution(translator, year, page)
+
+
+_SCHL = "Friedrich Schleiermacher"
+_SUSE = "Franz Susemihl"
+_GEOR = "Ludwig Georgii"
+_TEUF = "Wilhelm Siegmund Teuffel"
+_WIEG = "Wilhelm Wiegand"
+
+#: The thirteen Letters share one title page (p1342), hence one attribution.
+_LETTERS = {
+    f"Epistole {n}": _a(_WIEG, "1859", 1342)
+    for n in (
+        "I", "II", "III", "IV", "V", "VI", "VII",
+        "VIII", "IX", "X", "XI", "XII", "XIII",
+    )
 }
+
+_ATTRIBUTION: dict[str, Attribution] = {
+    "Euthyphron": _a(_SCHL, "1818", 3),
+    "Apologia": _a(_SCHL, "1818", 16),
+    "Kriton": _a(_SCHL, "1855", 32),
+    "Phaidon": _a(_SCHL, "1861", 41),
+    "Kratylos": _a(_SCHL, "1857", 86),
+    "Theaitetos": _a(_SCHL, "1856", 130),
+    "Sophistes": _a(_SCHL, "1857", 187),
+    "Politikos": _a(_SCHL, "1857", 234),
+    "Parmenides": _a(_SUSE, "1865", 278),
+    "Philebos": _a(_SCHL, "1861", 326),
+    "Symposion": _a(_SUSE, "1855", 376),
+    "Phaidros": _a(_GEOR, "1853", 412),
+    # p450 "Erster Dialog", p483 "Zweiter Dialog" — different Auflagen.
+    "Alkibiades I": _a(_SCHL, "1826", 450),
+    "Alkibiades II": _a(_SCHL, "1855", 483),
+    "Hipparchos": _a(_SCHL, "1855", 494),
+    "Erastai": _a(_SCHL, "1861", 501),
+    "Theages": _a(_SCHL, "1861", 508),
+    "Charmides": _a(_SCHL, "1855", 517),
+    "Laches": _a(_SCHL, "1855", 536),
+    "Lysis": _a(_SCHL, "1855", 553),
+    "Euthydemos": _a(_SCHL, "1856", 571),
+    "Protagoras": _a(_SCHL, "1855", 601),
+    "Gorgias": _a(_SCHL, "1856", 637),
+    "Menon": _a(_SCHL, "1856", 698),
+    "Hippias Meizon": _a(_SCHL, "1861", 724),
+    "Hippias Elatton": _a(_SCHL, "1855", 744),
+    "Ion": _a(_SCHL, "1855", 755),
+    "Menexenos": _a(_SCHL, "1861", 765),
+    "Kleitophon": _a(_SCHL, "1861", 775),
+    # Politeia is handled by `attribution_for` — two translators, split by
+    # book. Recorded here as well so the "every work is present" check covers
+    # it; the value is the Teuffel half.
+    "Politeia": _a(_TEUF, "1855", 779),
+    "Timaios": _a(_SUSE, "1856", 1015),
+    "Kritias": _a(_SUSE, "1857", 1065),
+    "Minos": _a(_SCHL, "1855", 1076),
+    # p1085 cites "Stuttgart 1862, 1863" — a multi-volume run across two
+    # years. The later one is the completed edition.
+    "Nomoi": _a(_SUSE, "1863", 1085),
+    "Epinomis": _a(_SUSE, "1863", 1328),
+    **_LETTERS,
+}
+
+#: Politeia is the only work in the volume with two translators, split at the
+#: book boundary (p779). Representable because German Politeia chunks carry
+#: `book` (#201) and `chunks.translation_id` is per-chunk, so the two land as
+#: two `translations` rows with their chunks routed between them.
+_POLITEIA_SPLIT: dict[int, Attribution] = {
+    **{b: _a(_TEUF, "1855", 779) for b in range(1, 6)},
+    **{b: _a(_WIEG, "1855", 779) for b in range(6, 11)},
+}
+
+
+def attribution_for(canon: str, book: str | None = None) -> Attribution:
+    """The title-page attribution for *canon*, or raise.
+
+    Deliberately total-or-fatal. The defect this replaces was a silent
+    default: an unlisted work received a confident wrong translator and year,
+    and nothing downstream could tell that from a checked one. Stopping the
+    ingest costs one title-page reading; the alternative cost 41 wrong rows
+    that sat unnoticed for a release (#206).
+    """
+
+    if canon == "Politeia":
+        if book is None:
+            raise ValueError(
+                "Politeia's translator depends on the book (Teuffel I-V, "
+                "Wiegand VI-X) and this chunk carries no book — the "
+                "book-boundary scan failed; fix that rather than picking one"
+            )
+        try:
+            return _POLITEIA_SPLIT[int(book)]
+        except (KeyError, ValueError):
+            raise ValueError(
+                f"Politeia book {book!r} is outside I-X; the book-boundary "
+                "scan produced something the split cannot route"
+            ) from None
+
+    try:
+        return _ATTRIBUTION[canon]
+    except KeyError:
+        raise ValueError(
+            f"no title-page attribution recorded for {canon!r} — read its "
+            "title page in the PDF and add it to `_ATTRIBUTION` with the page "
+            "number. There is deliberately no default (#206)."
+        ) from None
 
 # A candidate work-heading line: an UPPERCASE Greek/Latin/German name near
 # the top of a page. We only treat it as a boundary if it resolves to a
@@ -147,9 +276,7 @@ def _book_at(boundaries: list[tuple[int, int]], offset: int) -> str | None:
     return book
 
 
-def _emit_sections(
-    body: str, *, work_title: str, translator: str, year: str, source_file: str
-) -> Iterator[Chunk]:
+def _emit_sections(body: str, *, work_title: str, source_file: str) -> Iterator[Chunk]:
     """Reconstruct Stephanus sections from the marker stream and yield one
     chunk per section."""
     boundaries = _book_boundaries(body)
@@ -191,6 +318,9 @@ def _emit_sections(
         text = _norm_text(_BUCH_RE.sub("", " ".join(sections[loc])))
         if not text:
             continue
+        # Resolved per section, not per work: Politeia's translator changes at
+        # the book boundary, and `books[loc]` is already computed above (#206).
+        attribution = attribution_for(work_title, books[loc])
         yield Chunk(
             chunk_id=_make_chunk_id(source_file, work_title, "deu", loc, text[:120]),
             corpus="plato",
@@ -203,8 +333,8 @@ def _emit_sections(
             speaker=None,
             text=text,
             source_file=source_file,
-            translator=translator,
-            edition_year=year,
+            translator=attribution.translator,
+            edition_year=attribution.year,
             citation_system="stephanus",
             block_type=None,
             # Conventional German title where one differs from the Greek
@@ -245,7 +375,6 @@ def split_platon_werke(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     for idx, (start, canon) in enumerate(starts):
         end = starts[idx + 1][0] if idx + 1 < len(starts) else len(page_texts)
         body = _clean_body("\n".join(page_texts[start:end]))
-        translator, year = _TRANSLATOR.get(canon, _SCHLEIERMACHER)
-        yield from _emit_sections(
-            body, work_title=canon, translator=translator, year=year, source_file=source_file
-        )
+        # No attribution resolved here any more: `_emit_sections` asks per
+        # section, because Politeia's changes at the book boundary (#206).
+        yield from _emit_sections(body, work_title=canon, source_file=source_file)

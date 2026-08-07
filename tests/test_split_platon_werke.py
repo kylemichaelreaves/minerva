@@ -3,6 +3,8 @@ helpers are exercised directly)."""
 
 from __future__ import annotations
 
+import pytest
+
 from minerva.corpus.split_platon_werke import _emit_sections, _resolve_heading
 
 
@@ -43,15 +45,17 @@ def test_emit_sections_reconstructs_stephanus():
         "[3 St.1 A]\nEin ganz neuer."
     )
     chunks = list(
-        _emit_sections(body, work_title="Euthyphron", translator="Schleiermacher",
-                       year="1818", source_file="Platon_Werke.pdf")
+        _emit_sections(body, work_title="Euthyphron", source_file="Platon_Werke.pdf")
     )
     locs = [c.section for c in chunks]
     assert locs == ["2a", "2b", "2c", "3a"]
     first = chunks[0]
     assert first.work == "Euthyphron"
     assert first.lang == "deu"
-    assert first.translator == "Schleiermacher"
+    # Read from the title-page table now rather than injected, so this also
+    # pins that Euthyphron really is the 1818 second edition (#206).
+    assert first.translator == "Friedrich Schleiermacher"
+    assert first.edition_year == "1818"
     assert first.citation_system == "stephanus"
     assert first.title_local is None
     assert "Was hat sich ereignet" in first.text
@@ -64,16 +68,15 @@ def test_emit_sections_newline_split_marker():
     # markers broken across a line break (the PDF's text layer does this)
     body = "[2 \nSt.1 A]\nHallo Welt. [B]\nmehr Text."
     chunks = list(
-        _emit_sections(body, work_title="Kriton", translator="Schleiermacher",
-                       year="1818", source_file="x.pdf")
+        _emit_sections(body, work_title="Kriton", source_file="x.pdf")
     )
     assert [c.section for c in chunks] == ["2a", "2b"]
 
 
 def test_emit_sections_stable_chunk_ids():
     body = "[5 St.1 A]\nText eins. [B]\nText zwei."
-    a = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
-    b = list(_emit_sections(body, work_title="Ion", translator="S", year="1818", source_file="x.pdf"))
+    a = list(_emit_sections(body, work_title="Ion", source_file="x.pdf"))
+    b = list(_emit_sections(body, work_title="Ion", source_file="x.pdf"))
     assert [c.chunk_id for c in a] == [c.chunk_id for c in b]
     assert a[0].chunk_id != a[1].chunk_id
 
@@ -91,8 +94,7 @@ def test_single_book_dialogue_has_no_book():
 
     body = "[2 St.1 A]\nWas hat sich ereignet? [B]\nDenn du pflegst doch."
     chunks = list(
-        _emit_sections(body, work_title="Euthyphron", translator="S",
-                       year="1818", source_file="x.pdf")
+        _emit_sections(body, work_title="Euthyphron", source_file="x.pdf")
     )
     assert [c.book for c in chunks] == [None, None]
 
@@ -105,8 +107,7 @@ def test_book_headings_stamp_and_are_stripped_from_prose():
         "[357 St.2 A]\nAls ich dies gesagt hatte."
     )
     chunks = list(
-        _emit_sections(body, work_title="Politeia", translator="Teuffel",
-                       year="1855", source_file="x.pdf")
+        _emit_sections(body, work_title="Politeia", source_file="x.pdf")
     )
     by_section = {c.section: c for c in chunks}
     assert by_section["327a"].book == "1"
@@ -118,6 +119,46 @@ def test_book_headings_stamp_and_are_stripped_from_prose():
     # The heading is structure, not prose.
     assert "Zweites Buch" not in by_section["327b"].text
     assert "Und wir gingen" in by_section["327b"].text
+
+
+def test_politeia_chunks_carry_the_translator_of_their_own_book():
+    """The two-translator split, through the real emit path (#206).
+
+    Teuffel for I-V and Wiegand for VI-X, per the work's title page. This is
+    what makes two `translations` rows correct rather than one naming both:
+    the chunks themselves know which half they belong to, and
+    `chunks.translation_id` is per-chunk.
+    """
+    # The whole chain from book 1: `_book_boundaries` accepts a heading only
+    # when it numbers the book after the last accepted one, so a body starting
+    # mid-work yields no boundaries at all. A real Politeia body always runs
+    # from Erstes Buch, and the fixture has to as well.
+    ordinals = ["Erstes", "Zweites", "Drittes", "Viertes", "Fünftes", "Sechstes"]
+    pages = [327, 357, 392, 419, 449, 484]
+    body = "".join(
+        f"{ordinal} Buch vom Staate.\n[{page} St.2 A]\nText von Buch {i + 1}.\n"
+        for i, (ordinal, page) in enumerate(zip(ordinals, pages, strict=True))
+    )
+    by_section = {
+        c.section: c
+        for c in _emit_sections(body, work_title="Politeia", source_file="x.pdf")
+    }
+
+    assert by_section["449a"].book == "5"
+    assert by_section["449a"].translator == "Wilhelm Siegmund Teuffel"
+    assert by_section["484a"].book == "6"
+    assert by_section["484a"].translator == "Wilhelm Wiegand"
+    # One edition, so one year on both sides of the seam.
+    assert by_section["449a"].edition_year == "1855"
+    assert by_section["484a"].edition_year == "1855"
+
+
+def test_a_work_with_no_recorded_attribution_stops_the_ingest():
+    """The silent fallback is gone. A new dialogue must have its title page
+    read before it can be ingested, rather than inheriting a wrong one."""
+    body = "[1 St.1 A]\nIrgendein Text ohne Zuschreibung."
+    with pytest.raises(ValueError, match="no title-page attribution"):
+        list(_emit_sections(body, work_title="Definitiones", source_file="x.pdf"))
 
 
 def test_table_of_contents_lines_are_not_book_boundaries():
@@ -133,8 +174,7 @@ def test_table_of_contents_lines_are_not_book_boundaries():
         "[327 St.2 A]\nIch ging gestern hinab."
     )
     chunks = list(
-        _emit_sections(body, work_title="Politeia", translator="Teuffel",
-                       year="1855", source_file="x.pdf")
+        _emit_sections(body, work_title="Politeia", source_file="x.pdf")
     )
     assert [c.book for c in chunks] == ["1"]
 
@@ -150,8 +190,7 @@ def test_repeated_heading_does_not_advance_the_book():
         "[328 St.2 A]\nUnd wir gingen hinab."
     )
     chunks = list(
-        _emit_sections(body, work_title="Politeia", translator="Teuffel",
-                       year="1855", source_file="x.pdf")
+        _emit_sections(body, work_title="Politeia", source_file="x.pdf")
     )
     assert [c.book for c in chunks] == ["1", "1"]
 
@@ -167,7 +206,6 @@ def test_nomoi_heading_form_is_recognized():
         "[652 St.2 A]\nWas nun folgt."
     )
     chunks = list(
-        _emit_sections(body, work_title="Nomoi", translator="Susemihl",
-                       year="1863", source_file="x.pdf")
+        _emit_sections(body, work_title="Nomoi", source_file="x.pdf")
     )
     assert [(c.section, c.book) for c in chunks] == [("624a", "1"), ("652a", "2")]
