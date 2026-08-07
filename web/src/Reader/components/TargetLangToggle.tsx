@@ -9,6 +9,14 @@ export const TARGET_CHIP_LABEL: Record<TargetLang, string> = {
   deu: "DE",
 };
 
+/** Spelled out for the chip tooltips. `EN` alone does not say what pressing
+ *  it will do, and in the chrome variant that was the whole problem (#257). */
+const TARGET_FULL_NAME: Record<TargetLang, string> = {
+  eng: "English",
+  fra: "French",
+  deu: "German",
+};
+
 export function TargetLangToggle(props: {
   target: TargetLang;
   onTarget: (t: TargetLang) => void;
@@ -51,26 +59,39 @@ export function TargetLangToggle(props: {
     );
   }
 
+  // The chrome variant, with a visible "Translate" label.
+  //
+  // Without it this control sat immediately after the crumb naming the source
+  // language (`454 chunks · lat`), as a segmented control with one member
+  // active — the idiom for "current choice among alternatives". It was read as
+  // an edition switcher, and pressing it changes no language: it opens the
+  // translate rail. The only statement of intent was the non-visual
+  // `aria-label`. See #257.
   return (
-    <span class="lang" role="tablist" aria-label="Translation language">
-      <For each={TARGET_LANGS}>
-        {(t) => (
-          <button
-            class={props.target === t ? "on" : ""}
-            disabled={isDisabled(t)}
-            aria-disabled={isDisabled(t)}
-            title={
-              isDisabled(t) ? "Source text is already in this language" : undefined
-            }
-            onClick={() => {
-              if (isDisabled(t)) return;
-              props.onTarget(t);
-            }}
-          >
-            {TARGET_CHIP_LABEL[t]}
-          </button>
-        )}
-      </For>
+    <span class="lang-group">
+      <span class="lang-label">Translate</span>
+      <span class="lang" role="tablist" aria-label="Translation language">
+        <For each={TARGET_LANGS}>
+          {(t) => (
+            <button
+              class={props.target === t ? "on" : ""}
+              disabled={isDisabled(t)}
+              aria-disabled={isDisabled(t)}
+              title={
+                isDisabled(t)
+                  ? "Source text is already in this language"
+                  : `Translate selected text into ${TARGET_FULL_NAME[t]}`
+              }
+              onClick={() => {
+                if (isDisabled(t)) return;
+                props.onTarget(t);
+              }}
+            >
+              {TARGET_CHIP_LABEL[t]}
+            </button>
+          )}
+        </For>
+      </span>
     </span>
   );
 }
