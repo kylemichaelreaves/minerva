@@ -174,11 +174,14 @@ def read_web_lcov(path: Path) -> dict[str, dict[int, tuple[int, str | None]]]:
         if raw.startswith("SF:"):
             sf = raw[3:]
             # Absolute in some vitest versions, relative to web/ in others.
+            #
+            # String handling, not `Path(sf).resolve()`: `sf` is content read
+            # out of a file, and resolving it would touch the filesystem on a
+            # path this script never opens — it only ever becomes a dict key.
+            # Constructing no path at all is both safer and simpler.
             if sf.startswith("/"):
-                try:
-                    cur = str(Path(sf).resolve().relative_to(REPO))
-                except ValueError:
-                    cur = sf
+                prefix = f"{REPO}/"
+                cur = sf[len(prefix) :] if sf.startswith(prefix) else sf
             else:
                 cur = f"web/{sf}"
         elif raw.startswith("DA:") and cur:
@@ -213,6 +216,28 @@ def read_web_lcov(path: Path) -> dict[str, dict[int, tuple[int, str | None]]]:
 
 _HUNK = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")
 
+#: A conservative superset of what `git check-ref-format` accepts, covering
+#: real usage (`origin/main`, `HEAD~3`, `main^2`, `HEAD@{1}`, a bare sha).
+#:
+#: The leading character must be alphanumeric, and that is the point rather
+#: than tidiness: `base` reaches `git diff` as an argv element, and git reads a
+#: leading-dash value as an OPTION, not a ref. `--base=--output=/tmp/x` would
+#: have git write a file. No shell is involved anywhere here, so this is the
+#: whole attack surface — and it is worth closing rather than accepting,
+#: because the operator invoking this is increasingly an agent passing along a
+#: value it was handed.
+_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@{}^~-]*$")
+
+
+def _validate_ref(base: str) -> None:
+    """Refuse a base that git could read as an option rather than a ref."""
+
+    if not _REF_RE.match(base):
+        raise Problem(
+            f"base ref {base!r} is not a plausible git ref — refusing to pass it "
+            "to git, which would read a leading '-' as an option"
+        )
+
 
 def changed_lines(base: str) -> dict[str, list[int]]:
     """`{repo-relative path: [added or modified line numbers]}`.
@@ -223,9 +248,10 @@ def changed_lines(base: str) -> dict[str, list[int]]:
     most likely to be untested.
     """
 
+    _validate_ref(base)
     try:
         subprocess.run(
-            ["git", "rev-parse", "--verify", base],
+            ["git", "rev-parse", "--verify", "--end-of-options", base],
             cwd=REPO,
             check=True,
             capture_output=True,
@@ -235,8 +261,10 @@ def changed_lines(base: str) -> dict[str, list[int]]:
             f"base ref {base!r} does not resolve — `git fetch` it, or pass --base"
         ) from None
 
+    # `--end-of-options` before the ref, and `--` before the pathspecs, so
+    # neither can be reinterpreted as an option even if validation ever slips.
     diff = subprocess.run(
-        ["git", "diff", base, "-U0", "--", *GATED_PREFIXES],
+        ["git", "diff", "-U0", "--end-of-options", base, "--", *GATED_PREFIXES],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -262,8 +290,14 @@ def changed_lines(base: str) -> dict[str, list[int]]:
         check=True,
     ).stdout.split()
     for path in untracked:
-        n = len((REPO / path).read_text().splitlines())
-        out[path].extend(range(1, n + 1))
+        # git listed these and the pathspec already restricted them to the
+        # gated trees, but the containment check is explicit rather than
+        # inferred: this is the one place the script opens a file whose name
+        # came from a subprocess.
+        candidate = (REPO / path).resolve()
+        if not candidate.is_relative_to(REPO) or not candidate.is_file():
+            continue
+        out[path].extend(range(1, len(candidate.read_text().splitlines()) + 1))
 
     return out
 

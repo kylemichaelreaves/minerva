@@ -163,6 +163,45 @@ class TestChangedLines:
             cdc.changed_lines("no/such/ref/at/all")
 
 
+class TestRefValidation:
+    """`base` reaches `git diff` as an argv element, and git reads a
+    leading-dash value as an OPTION rather than a ref — so
+    `--base=--output=/tmp/x` would have git write a file. No shell is involved,
+    so this is the entire attack surface, and it is closed rather than
+    accepted because the caller passing the value is increasingly an agent."""
+
+    @pytest.mark.parametrize(
+        "ref",
+        ["origin/main", "main", "HEAD~3", "main^2", "HEAD@{1}", "3ed2df1", "v1.2.3-rc1"],
+    )
+    def test_accepts_the_refs_people_actually_pass(self, ref):
+        assert cdc._validate_ref(ref) is None
+
+    @pytest.mark.parametrize(
+        "ref",
+        [
+            "--output=/tmp/pwned",   # the actual vector: git reads it as an option
+            "-U9",
+            "--exec=sh",
+            "main;rm -rf /",         # no shell is used, but shape-refuse anyway
+            "main branch",
+            "$(whoami)",
+            "`id`",
+            "main|tee",
+            "",
+        ],
+    )
+    def test_refuses_anything_git_could_read_as_an_option_or_shell_syntax(self, ref):
+        with pytest.raises(cdc.Problem, match="not a plausible git ref"):
+            cdc._validate_ref(ref)
+
+    def test_validation_runs_before_git_is_invoked(self):
+        # The refusal must be the shape error, not "does not resolve" — i.e.
+        # the value never reached a subprocess.
+        with pytest.raises(cdc.Problem, match="not a plausible git ref"):
+            cdc.changed_lines("--output=/tmp/pwned")
+
+
 class TestGatedPrefixes:
     def test_holds_src_and_web_src_to_the_bar(self):
         assert cdc.GATED_PREFIXES == ("src/minerva/", "web/src/")
