@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TOKEN_GAP,
@@ -139,5 +141,22 @@ describe("layoutRow", () => {
     const last = boxes[boxes.length - 1];
 
     expect(last && last.left + last.width).toBe(20 + TOKEN_GAP);
+  });
+});
+
+// The cache key joins `fontKey(font)` and the token with a NUL, chosen because
+// it cannot occur in a CSS font family or in a token form. That is sound, but
+// writing it as a literal byte made git classify the whole module as binary:
+// `git diff` printed "Binary files differ", so changes to a layout module were
+// invisible to review (#240). The escape `\0` compiles to the identical
+// string, so this pins the property that broke — the file must stay text —
+// rather than the separator's identity, which is deliberately unchanged.
+describe("measure.ts source", () => {
+  it("contains no literal NUL byte, so git diffs it as text", () => {
+    // Resolved from the vitest root (`web/`) — `import.meta.url` is not a
+    // file: URL under the jsdom transform.
+    const bytes = readFileSync(resolve(process.cwd(), "src/Syntax/layout/measure.ts"));
+
+    expect(bytes.includes(0)).toBe(false);
   });
 });

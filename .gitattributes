@@ -1,0 +1,5 @@
+# `measure.ts` used to carry literal NUL bytes in its cache keys (#240),
+# which made git classify it as binary and refuse to diff it. The bytes are
+# gone — they are written as `\0` escapes now — but the pre-fix blob is still
+# binary, so without this the fixing commit itself would be unreviewable.
+web/src/Syntax/layout/measure.ts diff
