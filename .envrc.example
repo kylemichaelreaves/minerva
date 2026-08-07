@@ -6,7 +6,7 @@
 #   direnv allow
 
 # Anthropic Messages API. Used when `make run LLM=anthropic ...` or
-# `poietes ... --llm anthropic`. Get one from
+# `minerva ... --llm anthropic`. Get one from
 # https://console.anthropic.com/settings/keys
 export ANTHROPIC_API_KEY=sk-ant-api03-replace-me
 

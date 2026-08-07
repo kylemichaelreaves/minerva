@@ -1,7 +1,7 @@
 version: 1
 
 # Aquinas's canonical references to Aristotle (and other authors).
-# Loaded by `poietes refs load-spec`. Insert is idempotent via
+# Loaded by `minerva refs load-spec`. Insert is idempotent via
 # content-key (source_chunk_id, target_id, type, source_form, quoted_phrase),
 # so re-running this file does not duplicate rows.
 #
@@ -9,7 +9,7 @@ version: 1
 # Aquinas chunks are content-hashed; the readable (author, work,
 # section) triples are noted as comments above each block. Run
 #
-#     poietes refs list --source-author Aquinas
+#     minerva refs list --source-author Aquinas
 #
 # after loading to verify the rows landed at the expected source
 # anchors.

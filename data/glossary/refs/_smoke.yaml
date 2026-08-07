@@ -1,6 +1,6 @@
 version: 1
 
-# Smoke-test seed for `poietes refs load-spec`. Two references — one
+# Smoke-test seed for `minerva refs load-spec`. Two references — one
 # Augustine → Cicero (out-of-corpus target via the seeded
 # reference_targets row), one Spinoza → Descartes (in-corpus target).
 #
