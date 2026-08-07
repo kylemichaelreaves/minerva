@@ -12,9 +12,6 @@ const meta: Meta<typeof Landing> = {
     onSubmit: (text: string) => {
       console.debug("Landing onSubmit", text);
     },
-    onPickPrompt: (text: string) => {
-      console.debug("Landing onPickPrompt", text);
-    },
   },
 };
 export default meta;

@@ -65,7 +65,6 @@ export function ChatRoute(props: RouteContextProps) {
       >
         <Landing
           onSubmit={props.conversations.startFromLanding}
-          onPickPrompt={props.conversations.startFromLanding}
           onOpenRead={() => {
             void props.reader.switchMode("reader");
           }}
