@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import closing
 
 from .. import embed, store
 from ._shared import (
@@ -42,98 +43,114 @@ def cmd_embed(args: argparse.Namespace) -> int:
         )
     t_overall = Timer()
     t_overall.__enter__()
-    conn = store.open_db(args.db)
-    # `--lang any` is the CLI sentinel for "embed every language".
-    # The store helpers expect None to mean unrestricted, so translate
-    # at this boundary.
-    lang_filter = None if args.lang == "any" else args.lang
+    # `closing` so the four early `return` paths below can't strand the
+    # handle — the same defect #227 fixed in the `terms` CLI (#246).
+    with closing(store.open_db(args.db)) as conn:
+        # `--lang any` is the CLI sentinel for "embed every language".
+        # The store helpers expect None to mean unrestricted, so translate
+        # at this boundary.
+        lang_filter = None if args.lang == "any" else args.lang
 
-    # Pick the row source. Incremental (default) skips chunks already
-    # embedded under the same model; ``--all`` re-encodes everything,
-    # which is what you want after switching models or rebuilding a
-    # corrupted embeddings table.
-    if args.all:
-        total = store.chunk_count(conn, lang=lang_filter)
-        row_source = store.iter_chunks(conn, lang=lang_filter)
-        mode_label = "all chunks"
-    else:
-        total = store.count_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
-        row_source = store.iter_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
-        mode_label = "missing chunks"
-
-    if total == 0:
-        t_overall.__exit__(None, None, None)
+        # Pick the row source. Incremental (default) skips chunks already
+        # embedded under the same model; ``--all`` re-encodes everything,
+        # which is what you want after switching models or rebuilding a
+        # corrupted embeddings table.
         if args.all:
-            total_any = store.chunk_count(conn)
-            if total_any == 0:
-                print("No chunks present. Run `minerva index` first.", file=sys.stderr)
-            else:
-                print(
-                    f"No {args.lang} chunks in the index "
-                    f"({total_any:,} chunks of other languages present).",
-                    file=sys.stderr,
-                )
-            return 2
-        print(
-            f"All chunks already embedded with {args.model}. "
-            f"Pass `--all` to force a full re-encode.",
-        )
+            total = store.chunk_count(conn, lang=lang_filter)
+            row_source = store.iter_chunks(conn, lang=lang_filter)
+            mode_label = "all chunks"
+        else:
+            total = store.count_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
+            row_source = store.iter_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
+            mode_label = "missing chunks"
+
+        if total == 0:
+            t_overall.__exit__(None, None, None)
+            if args.all:
+                total_any = store.chunk_count(conn)
+                if total_any == 0:
+                    print("No chunks present. Run `minerva index` first.", file=sys.stderr)
+                else:
+                    print(
+                        f"No {args.lang} chunks in the index "
+                        f"({total_any:,} chunks of other languages present).",
+                        file=sys.stderr,
+                    )
+                return 2
+            print(
+                f"All chunks already embedded with {args.model}. "
+                f"Pass `--all` to force a full re-encode.",
+            )
+            if args.timing:
+                print(f"timing: embed  {fmt_elapsed(t_overall.elapsed)}", file=sys.stderr)
+            record_timing(args.db, "embed", t_overall.elapsed)
+            return 0
+
+        print(f"Embedding {total} {mode_label} with {args.model} (dim={embedder.dim})...")
+        batch = args.batch_size
+        written = 0
+        pending: list[dict] = []
+        # We commit every ~10 batches rather than every batch — the
+        # transactional grouping cuts WAL fsync overhead without risking
+        # much rework on a mid-run crash (worst case: ~640 chunks re-encoded
+        # at batch=64 × 10). Cache invalidation happens once at the end
+        # rather than per batch (the prior code dropped the cached
+        # embedding matrix on every upsert, which a long retrieval-serving
+        # process would have to rebuild from scratch each time).
+        commit_every = 10
+
+        def flush(slab: list[dict], *, final: bool) -> int:
+            if not slab:
+                if final:
+                    # The drain is empty whenever `total` is an exact
+                    # multiple of `batch` — every row was flushed inside
+                    # the loop. Returning here without committing loses
+                    # every row written since the last periodic commit,
+                    # because nothing else commits and the connection
+                    # closes on a rolled-back transaction. At batch=64
+                    # that silently discards up to 9 batches (576
+                    # chunks); at total==batch it discards the entire
+                    # run. The cache invalidation `upsert_embeddings`
+                    # defers to "once at the end" is skipped on the same
+                    # path, leaving retrieval on a stale matrix.
+                    conn.commit()
+                    store.invalidate_embedding_cache(conn)
+                return 0
+            vectors = embedder.encode(
+                [r["text"] for r in slab],
+                batch_size=args.encode_batch_size,
+            )
+            items = list(zip([r["chunk_id"] for r in slab], vectors, strict=True))
+            n = store.upsert_embeddings(
+                conn,
+                model=args.model,
+                dim=embedder.dim,
+                items=items,
+                commit=final,
+                invalidate_cache=final,
+            )
+            return n
+
+        for row in row_source:
+            pending.append(row)
+            if len(pending) >= batch:
+                written += flush(pending, final=False)
+                pending = []
+                # Periodic commit + progress print so a long run shows
+                # forward motion and recovers gracefully from interruption.
+                if (written // batch) % commit_every == 0:
+                    conn.commit()
+                    print(f"  ... {written}/{total}")
+        # Drain anything left in the buffer with a final commit + cache
+        # invalidation so the next vector-search request sees the new rows.
+        written += flush(pending, final=True)
+        print(f"  ... {written}/{total}")
+        print("Done.")
+        t_overall.__exit__(None, None, None)
         if args.timing:
             print(f"timing: embed  {fmt_elapsed(t_overall.elapsed)}", file=sys.stderr)
         record_timing(args.db, "embed", t_overall.elapsed)
         return 0
-
-    print(f"Embedding {total} {mode_label} with {args.model} (dim={embedder.dim})...")
-    batch = args.batch_size
-    written = 0
-    pending: list[dict] = []
-    # We commit every ~10 batches rather than every batch — the
-    # transactional grouping cuts WAL fsync overhead without risking
-    # much rework on a mid-run crash (worst case: ~640 chunks re-encoded
-    # at batch=64 × 10). Cache invalidation happens once at the end
-    # rather than per batch (the prior code dropped the cached
-    # embedding matrix on every upsert, which a long retrieval-serving
-    # process would have to rebuild from scratch each time).
-    commit_every = 10
-
-    def flush(slab: list[dict], *, final: bool) -> int:
-        if not slab:
-            return 0
-        vectors = embedder.encode(
-            [r["text"] for r in slab],
-            batch_size=args.encode_batch_size,
-        )
-        items = list(zip([r["chunk_id"] for r in slab], vectors, strict=True))
-        n = store.upsert_embeddings(
-            conn,
-            model=args.model,
-            dim=embedder.dim,
-            items=items,
-            commit=final,
-            invalidate_cache=final,
-        )
-        return n
-
-    for row in row_source:
-        pending.append(row)
-        if len(pending) >= batch:
-            written += flush(pending, final=False)
-            pending = []
-            # Periodic commit + progress print so a long run shows
-            # forward motion and recovers gracefully from interruption.
-            if (written // batch) % commit_every == 0:
-                conn.commit()
-                print(f"  ... {written}/{total}")
-    # Drain anything left in the buffer with a final commit + cache
-    # invalidation so the next vector-search request sees the new rows.
-    written += flush(pending, final=True)
-    print(f"  ... {written}/{total}")
-    print("Done.")
-    t_overall.__exit__(None, None, None)
-    if args.timing:
-        print(f"timing: embed  {fmt_elapsed(t_overall.elapsed)}", file=sys.stderr)
-    record_timing(args.db, "embed", t_overall.elapsed)
-    return 0
 
 
 def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]

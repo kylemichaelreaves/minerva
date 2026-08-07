@@ -4,19 +4,24 @@ from __future__ import annotations
 
 import argparse
 import json
+from contextlib import closing
 
 from .. import store
 from ._shared import add_common_db_arg
 
 
 def cmd_stats(args: argparse.Namespace) -> int:
-    conn = store.open_db(args.db)
-    out = store.stats(conn)
-    if args.tables:
-        # Per-table row counts — one COUNT(*) per table, fast but not
-        # free. Kept behind a flag because the default stats payload
-        # is meant to be cheap enough to print on every re-index.
-        out["tables"] = store.tables_summary(conn)
+    # `closing`, not a bare open: the handler is a plain function, so
+    # anything calling it in a loop (the test suite, `make reingest`)
+    # would otherwise strand one connection per call — #227's bug in a
+    # different command (#246).
+    with closing(store.open_db(args.db)) as conn:
+        out = store.stats(conn)
+        if args.tables:
+            # Per-table row counts — one COUNT(*) per table, fast but not
+            # free. Kept behind a flag because the default stats payload
+            # is meant to be cheap enough to print on every re-index.
+            out["tables"] = store.tables_summary(conn)
     print(json.dumps(out, indent=2, default=str))
     return 0
 

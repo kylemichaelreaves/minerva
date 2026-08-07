@@ -15,6 +15,8 @@ import json
 import sqlite3
 import tempfile
 import threading
+import traceback
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -49,17 +51,23 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def conversations_conn(tmp_path: Path) -> sqlite3.Connection:
-    return conversations.open_db(tmp_path / "conv.sqlite")
+def conversations_conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    # `yield`, not `return`, so the connection is closed rather than left
+    # to `__del__` — see the `_OPEN_THROWAWAY_CONNS` note below (#246).
+    conn = conversations.open_db(tmp_path / "conv.sqlite")
+    yield conn
+    conn.close()
 
 
 @pytest.fixture
-def translations_conn(tmp_path: Path) -> sqlite3.Connection:
-    return translations.open_db(tmp_path / "trans.sqlite")
+def translations_conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    conn = translations.open_db(tmp_path / "trans.sqlite")
+    yield conn
+    conn.close()
 
 
 @pytest.fixture
-def speaker_db(tmp_path: Path) -> sqlite3.Connection:
+def speaker_db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
     """Small corpus with multiple speakers, for `--speaker` filter tests."""
 
     chunks = [
@@ -97,11 +105,12 @@ def speaker_db(tmp_path: Path) -> sqlite3.Connection:
     db_path = tmp_path / "speakers.sqlite"
     conn = store.open_db(db_path)
     store.insert_chunks(conn, jsonl)
-    return conn
+    yield conn
+    conn.close()
 
 
 @pytest.fixture
-def populated_db(tmp_path: Path, db_path: Path) -> sqlite3.Connection:
+def populated_db(tmp_path: Path, db_path: Path) -> Iterator[sqlite3.Connection]:
     """In-temp-dir SQLite store seeded with a small mixed corpus."""
 
     chunks = [
@@ -156,7 +165,8 @@ def populated_db(tmp_path: Path, db_path: Path) -> sqlite3.Connection:
     jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
     conn = store.open_db(db_path)
     store.insert_chunks(conn, jsonl)
-    return conn
+    yield conn
+    conn.close()
 
 
 def make_hit(
@@ -204,6 +214,72 @@ def make_hit(
 # suite leaked hundreds of orphaned temp files per run.
 _THROWAWAY_DB_PATHS: list[Path] = []
 
+# ─────────────────────────────────────────────────────────────────────
+# Connection ownership (#246)
+#
+# A full run used to emit 900 `ResourceWarning: unclosed database`, which
+# is what kept `-W error::ResourceWarning` — a cheap, broad hygiene gate
+# — switched off even after #227 fixed the `terms` CLI's share of them.
+# The remaining 900 split two ways:
+#
+#   * 64 from six *production* CLI handlers that opened a store and never
+#     closed it (`cmd_index` alone was 54). Those were real bugs of #227's
+#     class and are fixed in the handlers themselves; see
+#     `test_cli_conn_lifecycle.py`.
+#   * the rest from ~95 places in the tests where a connection is opened
+#     and nothing ever owns it — `make_deps`'s conversations/translations
+#     pair, and a long tail of `store.open_db(...)` / `sqlite3.connect(
+#     ":memory:")` inside test bodies.
+#
+# This registry owns the second group: every connection *test code* opens
+# is closed at the end of the test that opened it.
+#
+# Deliberately NOT everything. A connection opened by production code is
+# left alone, so a leak there still trips the gate — which is the whole
+# reason the gate is worth having, and how the six handlers above were
+# found in the first place. `_owner_is_test_code` draws that line.
+_OPEN_THROWAWAY_CONNS: list[sqlite3.Connection] = []
+
+# Frames that only ever open a connection *on behalf of* a caller, so they
+# are never the owner. Attribution walks inward past these to whoever
+# actually asked for the connection.
+_CONN_PLUMBING = (
+    "minerva/sqlite_util.py",
+    "minerva/store/schema.py",
+    "minerva/store/__init__.py",
+    "minerva/conversations.py",
+    "minerva/translations.py",
+    # `terms._io._open` hands its connection to `_with_db` / to the refs
+    # handlers, which close it; the owner is one frame further in.
+    "minerva/cli/terms/_io.py",
+)
+
+_TESTS_DIR = str(Path(__file__).parent)
+
+
+#: This module's own frames, skipped during attribution. Named rather
+#: than counted (`stack[:-2]`) so the walk is correct whether it is
+#: reached through `tracking_connect` or called directly.
+_ATTRIBUTION_INTERNALS = frozenset({"_owner_is_test_code", "tracking_connect"})
+
+
+def _owner_is_test_code() -> bool:
+    """True when the innermost non-plumbing frame belongs to a test.
+
+    Walks the stack from the inside out for the first frame that isn't
+    connection-opening plumbing. For `store.open_db(p)` called from a
+    test that frame is the test itself; for `cmd_index`'s open it is
+    `index_cmd.py`, and the connection is left for the gate to catch.
+    """
+
+    for frame in reversed(traceback.extract_stack()):
+        if frame.filename == __file__ and frame.name in _ATTRIBUTION_INTERNALS:
+            continue
+        if any(part in frame.filename for part in _CONN_PLUMBING):
+            continue
+        return frame.filename.startswith(_TESTS_DIR)
+    return False
+
 
 def _throwaway_db_path() -> Path:
     # NamedTemporaryFile must survive its close() so sqlite can open the
@@ -226,17 +302,78 @@ def _cleanup_throwaway_dbs():
             Path(f"{path}{suffix}").unlink(missing_ok=True)
 
 
+def _register_throwaway_conn(conn: sqlite3.Connection) -> sqlite3.Connection:
+    _OPEN_THROWAWAY_CONNS.append(conn)
+    return conn
+
+
+def _close_throwaway_conns() -> None:
+    """Close every connection handed out since the last sweep.
+
+    Idempotent: pops as it goes, and `sqlite3.Connection.close()` on an
+    already-closed connection is a no-op.
+    """
+
+    while _OPEN_THROWAWAY_CONNS:
+        _OPEN_THROWAWAY_CONNS.pop().close()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _track_test_owned_connections():
+    """Register every connection test code opens, for per-test closing.
+
+    Patched at `sqlite3.connect` rather than at `store.open_db` because
+    the leaking shapes are not all routed through the store: 42 of the
+    suite's warnings came from a bare `sqlite3.connect(":memory:")`.
+    One patch point covers `store.open_db`, `conversations.open_db`,
+    `translations.open_db` and the bare form alike.
+
+    `_owner_is_test_code` keeps this from swallowing production leaks —
+    see the note on `_OPEN_THROWAWAY_CONNS`.
+    """
+
+    real_connect = sqlite3.connect
+
+    def tracking_connect(*args, **kwargs):  # type: ignore[no-untyped-def]
+        conn = real_connect(*args, **kwargs)
+        if _owner_is_test_code():
+            _OPEN_THROWAWAY_CONNS.append(conn)
+        return conn
+
+    sqlite3.connect = tracking_connect  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        sqlite3.connect = real_connect  # type: ignore[assignment]
+
+
+@pytest.fixture(autouse=True)
+def _close_throwaway_conns_after_each_test(_track_test_owned_connections):
+    """Close test-owned connections at the end of the test that opened them.
+
+    Function-scoped so a connection cannot outlive its test. This is the
+    whole reason `-W error::ResourceWarning` can be in `addopts` (#246).
+    """
+
+    yield
+    _close_throwaway_conns()
+
+
 def _conv_conn() -> sqlite3.Connection:
     """Throwaway conversations DB for handler tests that don't care about
-    cross-test persistence — each call returns a fresh in-temp-dir SQLite."""
+    cross-test persistence — each call returns a fresh in-temp-dir SQLite.
 
-    return conversations.open_db(_throwaway_db_path())
+    Closed at the end of the current test by
+    `_close_throwaway_conns_after_each_test`.
+    """
+
+    return _register_throwaway_conn(conversations.open_db(_throwaway_db_path()))
 
 
 def _trans_conn() -> sqlite3.Connection:
     """Throwaway translations DB; same pattern as `_conv_conn`."""
 
-    return translations.open_db(_throwaway_db_path())
+    return _register_throwaway_conn(translations.open_db(_throwaway_db_path()))
 
 
 @pytest.fixture
