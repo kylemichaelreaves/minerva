@@ -3,6 +3,7 @@ import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Reader from "~/Reader";
 import { MobileShellProvider } from "~/components/MobileShellContext";
 import type { JSX } from "solid-js";
+import { readRoute, routeHash } from "~/routing";
 
 function renderReader(ui: () => JSX.Element) {
   return render(() => <MobileShellProvider>{ui()}</MobileShellProvider>);
@@ -862,6 +863,110 @@ describe("<Reader />", () => {
     await waitFor(() => {
       const tip = geist.closest(".hovertip-wrap")?.querySelector(".hovertip-text");
       expect(tip?.textContent).toBe("spirit");
+    });
+  });
+
+  describe("concordance links", () => {
+    // Both CTAs write `window.location.hash` directly. They used to build it
+    // by hand, and the work-scoped one had drifted from `readRoute` — a
+    // comma in the title came back as two scope entries, which is 26 of the
+    // corpus's 866 works (#236).
+    //
+    // A title with a comma is the whole point of the fixture.
+    const WORK = "Das Kapital, Band I";
+
+    const range = {
+      ...SAMPLE_RANGE,
+      work_id: 130,
+      lang: "deu",
+      work: WORK,
+      author: "Marx",
+      corpus: "marx",
+      chunks: [
+        { chunk_id: "k-1", section: "¶1", book: null, page: null,
+          speaker: null, text: "Der Reichtum erscheint.", ord: 0 },
+      ],
+      total: 1,
+    };
+
+    function mockReader(): void {
+      fetchMock.mockImplementation((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL ? input.href : input.url;
+        if (url.includes("/occurrence_map")) {
+          return Promise.resolve(okResponse({
+            work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
+          }));
+        }
+        if (url.startsWith("/api/concordance/index")) {
+          return Promise.resolve(okResponse({
+            rows: [{ lemma: "Reichtum", pos: "NOUN", count: 42 }],
+            total: 1, offset: 0, limit: 12,
+          }));
+        }
+        if (url === "/api/translate") {
+          return Promise.resolve(okResponse({
+            translated_text: "wealth", literal_text: "wealth (lit)",
+            model: "test", cached: false,
+          }));
+        }
+        return Promise.resolve(okResponse(range));
+      });
+    }
+
+    /** Render, click a word to open the rail, and hand back the container. */
+    async function openRail(): Promise<HTMLElement> {
+      mockReader();
+      const { container } = renderReader(() => (
+        <Reader workId={WORK} sourceLang="deu" />
+      ));
+      await waitFor(() => {
+        expect(container.querySelectorAll(".gw").length).toBe(3);
+      });
+      fireEvent.click(container.querySelectorAll(".gw")[1]!);
+      await waitFor(() => {
+        expect(container.querySelector(".rail")).not.toBeNull();
+      });
+      return container;
+    }
+
+    it("keeps a comma in the work title out of the concordance scope", async () => {
+      const container = await openRail();
+      const cta = await waitFor(() => {
+        const el = container.querySelector<HTMLButtonElement>(".rail-concord-cta");
+        if (!el) throw new Error("no work-scope CTA");
+        return el;
+      });
+
+      fireEvent.click(cta);
+
+      // Hand-built, this read `work=Das%20Kapital%2C%20Band%20I`;
+      // `URLSearchParams.get` decoded the `%2C` and `decodeCsv` split it into
+      // ["Das Kapital", " Band I"] — a scope matching nothing.
+      expect(window.location.hash).toBe(
+        routeHash({ kind: "concordance", lang: "deu", scope: "work", scopeWorks: [WORK] }),
+      );
+      const parsed = readRoute();
+      expect(parsed.kind).toBe("concordance");
+      if (parsed.kind !== "concordance") return;
+      expect(parsed.scopeWorks).toEqual([WORK]);
+    });
+
+    it("opens a lemma from the rail's mini-leaderboard", async () => {
+      const container = await openRail();
+      const row = await waitFor(() => {
+        const el = container.querySelector<HTMLElement>(".rail-concord-row");
+        if (!el) throw new Error("no lemma row");
+        return el;
+      });
+
+      fireEvent.click(row);
+
+      expect(window.location.hash).toBe(
+        routeHash({ kind: "concordance-lemma", lemma: "Reichtum", lang: "deu" }),
+      );
     });
   });
 });
