@@ -574,10 +574,11 @@
   .composer-foot .left {
     display: none;
   }
-  /* Landing composer: hint row stays, but its content swaps to a
-     quiet "tap a prompt · or type" line per design 1a (the kbd
-     children are gone — they're replaced by .landing-mobile-hint
-     in Landing.tsx). */
+  /* Landing composer: hint row stays, but its content swaps to one
+     quiet line (the kbd children are gone — they're replaced by
+     .landing-mobile-hint in Landing.tsx). The line used to read "tap a
+     prompt · or type", which outlived the prompts it referred to by the
+     length of one commit; #258 removed them and reworded it. */
   .landing-input-foot {
     align-items: center;
   }

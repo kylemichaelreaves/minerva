@@ -46,6 +46,28 @@ describe("<Landing />", () => {
     expect(container.querySelector(".landing-pill")).toBeNull();
   });
 
+  it("does not tell a mobile user to tap a prompt (#258)", () => {
+    // The mobile hint read "tap a prompt · or type" and would have outlived
+    // the prompts it referred to — an instruction pointing at nothing, on the
+    // one viewport where the pills were the primary affordance.
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("max-width: 768px"),
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }));
+
+    const { container } = renderLanding();
+    const hint = container.querySelector(".landing-mobile-hint");
+
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).not.toMatch(/prompt/i);
+  });
+
   it("names none of the removed prompts", () => {
     // The shapes #258 is about: un-anchored thematic questions, which the
     // retrieval contract is least able to answer well.

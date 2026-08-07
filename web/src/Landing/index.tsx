@@ -1,9 +1,12 @@
-// Landing — the corpus's frontispiece. Five elements stacked:
+// Landing — the corpus's frontispiece. Four elements stacked:
 //   1. Π monogram + "Minerva" wordmark + tagline
 //   2. Composer (Chat entry — the primary affordance)
-//   3. Starter prompts grid (4 questions spanning the corpus)
-//   4. Mode entry row — explicit doors to Read / Refs / Network
-//   5. Atlas — chronological strip of every author in the corpus
+//   3. Mode entry row — explicit doors to Read / Refs / Network
+//   4. Atlas — chronological strip of every author in the corpus
+//
+// There was a starter-prompts grid between 2 and 3. It offered four
+// un-anchored thematic questions — the shape this corpus answers worst,
+// since there is no locus to retrieve — and was removed in #258.
 
 import { Show, createSignal, onMount } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
@@ -130,7 +133,7 @@ export default function Landing(props: LandingProps) {
             sendLabel="Begin"
             hint={
               isMobile() ? (
-                <span class="landing-mobile-hint">tap a prompt · or type</span>
+                <span class="landing-mobile-hint">ask about a passage, a work, an author</span>
               ) : (
                 <>
                   <span class="kbd">↵</span> begin&nbsp;&nbsp;
