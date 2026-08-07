@@ -1,4 +1,5 @@
 import { Show } from "solid-js";
+import { MoonIcon, SunIcon } from "~/components/Icons";
 import type { Theme } from "~/utils/types";
 
 export type ThemeToggleVariant = "icon" | "text" | "cog";
@@ -21,18 +22,16 @@ export function ThemeToggle(props: {
         title="Toggle theme"
         onClick={() => props.onToggle()}
       >
+        {/* The shared glyphs from `Icons.tsx` — this button used to
+            hand-roll its own sun/moon copies, leaving the exported pair
+            dead outside Storybook and the same glyph defined twice
+            (#200). Sizing and stroke come from
+            `.reader .ico-btn svg` either way. */}
         <Show
           when={props.theme === "dark"}
-          fallback={
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-            </svg>
-          }
+          fallback={<SunIcon aria-hidden="true" />}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
+          <MoonIcon aria-hidden="true" />
         </Show>
       </button>
     );
