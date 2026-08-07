@@ -356,25 +356,36 @@ def tally(
         t = Tally()
         for n in line_numbers:
             entry = measured.get(n)
-            if entry is None:
-                continue
-            hits, cond = entry
-            t.lines_total += 1
-            if hits > 0:
-                t.lines_covered += 1
-            else:
-                t.uncovered_lines.append(n)
-            if cond:
-                m = re.match(r"\d+% \((\d+)/(\d+)\)", cond)
-                if m:
-                    covered, total = int(m.group(1)), int(m.group(2))
-                    t.branches_total += total
-                    t.branches_covered += covered
-                    if covered != total:
-                        t.partial_branches.append((n, covered, total))
+            if entry is not None:
+                _accumulate(t, n, entry)
         if t.total:
             per_file[path] = t
     return per_file
+
+
+_COND_RE = re.compile(r"\d+% \((\d+)/(\d+)\)")
+
+
+def _accumulate(t: Tally, line: int, entry: tuple[int, str | None]) -> None:
+    """Fold one measured line's hits and branch outcomes into *t*."""
+
+    hits, cond = entry
+    t.lines_total += 1
+    if hits > 0:
+        t.lines_covered += 1
+    else:
+        t.uncovered_lines.append(line)
+
+    if not cond:
+        return
+    m = _COND_RE.match(cond)
+    if m is None:
+        return
+    covered, total = int(m.group(1)), int(m.group(2))
+    t.branches_total += total
+    t.branches_covered += covered
+    if covered != total:
+        t.partial_branches.append((line, covered, total))
 
 
 def _report(per_file: dict[str, Tally], threshold: float) -> None:
