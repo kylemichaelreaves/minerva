@@ -1,0 +1,69 @@
+# Enables GitHub's auto-merge on Dependabot's patch and minor PRs, so they
+# land when the required checks go green instead of waiting on a human to
+# babysit an update-branch → wait → merge cycle. Nothing merges that the
+# branch protection on `main` would not already have allowed: auto-merge
+# waits for every required context, it does not bypass any of them.
+#
+# Scope is deliberately narrow on three axes.
+#
+#   * Dependabot only. `allow_auto_merge` is a repo-wide capability, but
+#     enabling auto-merge is per-PR, and only this workflow does it. Every
+#     human PR still merges by hand.
+#   * Patch and minor only. Majors are held back because they have needed
+#     judgment every time: #219 (eslint 9→10) is permanently unmergeable,
+#     blocked upstream by `eslint-plugin-solid`'s peer range; #216 and #217
+#     were safe only after checking that the jobs consuming those actions
+#     actually exercise them — `setup-uv` is what runs `uv sync --locked`,
+#     so a breaking change there lands on the install path. None of that is
+#     a question a patch bump raises.
+#   * Security updates are NOT auto-merged either, even at patch level — a
+#     security bump is exactly the change worth a human read.
+#
+# SECURITY — `pull_request_target` runs with write permissions against the
+# base repo. This workflow MUST NOT check out the pull request's code. Doing
+# so would execute PR-authored code with those permissions, which is a
+# privilege-escalation hole. It only calls the API, which is the safe use.
+# If you add a step here, keep it that way.
+#
+# `pull_request_target` is required rather than preferred: a `pull_request`
+# event raised by Dependabot gets a read-only GITHUB_TOKEN, so it cannot
+# enable auto-merge at all. Same class of trap as #197, where the Dependabot
+# secrets store was the thing nobody expected to differ.
+#
+# Actions are pinned to commit SHAs, not tags — `@v3` is mutable and a
+# compromised action repo can move it (#123).
+
+name: dependabot auto-merge
+
+on: pull_request_target
+
+# Least privilege. `contents: write` is what `gh pr merge --auto` needs to
+# arm the merge; `pull-requests: write` is what it needs to set the flag.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: enable auto-merge
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch update metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge (patch and minor, non-security)
+        if: |
+          steps.meta.outputs.update-type != 'version-update:semver-major'
+          && steps.meta.outputs.alert-state == ''
+        # PR_URL goes through the environment rather than being interpolated
+        # into the command line. `html_url` is GitHub-generated and safe
+        # today, but interpolating event data into a shell string is the
+        # habit that gets a workflow owned; keep the safe form.
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "$PR_URL"
