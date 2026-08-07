@@ -476,6 +476,33 @@ class _ChunkBuilder:
             if (type_attr in {"book"} and n) or (
                 type_attr in {"section"} and n and self._cur_book is None
             ):
+                # Flush BEFORE reassigning, or the still-buffered tail of
+                # the previous book gets stamped with this one's number
+                # (#207). Chunking is driven by section/card milestones,
+                # not by `div1`, so at a boundary the previous book's last
+                # milestone-chunk is sitting in `_buf` waiting for the
+                # next milestone to flush it — by which time `_cur_book`
+                # has already moved on. `section` was unaffected because
+                # it is captured at the milestone itself.
+                #
+                # Usually the next milestone's `_flush()` then finds an
+                # empty buffer and emits nothing, so only the `book` value
+                # changes — 293 chunks across the five tei.py corpora, one
+                # per boundary where the tail spilled. In 7 places the
+                # buffer holds text that no later milestone would have
+                # flushed separately, so a chunk that used to be merged
+                # into the *next* book is now emitted under its own: 3 in
+                # Aristotle (Metaphysics/grc, NE/grc) and 4 in Epictetus
+                # (Discourses/eng). That is the correct division — the text
+                # belongs to the book it was written in — but it does mean
+                # this is not a pure re-stamp.
+                #
+                # Either way `book` is an input to `_make_chunk_id`, so
+                # every corrected chunk gets a new id and loses its
+                # embedding / lemma / cross-reference rows on the next
+                # ingest. 293 of 35,241 (0.83%).
+                if n != self._cur_book:
+                    self._flush()
                 self._cur_book = n
             self._add_text(el.text)
             for child in el:

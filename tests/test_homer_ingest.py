@@ -62,6 +62,37 @@ _HOMER_FIXTURE_XML = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+# Same shape, except book 1's last line comes AFTER its final card
+# milestone — the one arrangement where #207's fix moves a chunk boundary
+# rather than only correcting a `book` value. See the test that uses it.
+_TAIL_FIXTURE_XML = """<?xml version="1.0" encoding="utf-8"?>
+<TEI.2>
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Iliad, Machine readable text</title>
+      </titleStmt>
+    </fileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div1 type="Book" n="1">
+        <milestone unit="card" n="1"/>
+        <l>first line of book one</l>
+        <milestone unit="card" n="33"/>
+        <l>the card thirty-three line of book one</l>
+        <l>tail line of book one, after its last card</l>
+      </div1>
+      <div1 type="Book" n="2">
+        <milestone unit="card" n="1"/>
+        <l>first line of book two</l>
+      </div1>
+    </body>
+  </text>
+</TEI.2>
+"""
+
+
 def _write_fixture(tmp_path: Path) -> Path:
     # Filename matters: `_detect_lang` reads the stem suffix. `_gr`
     # forces lang='grc' regardless of header.
@@ -84,30 +115,67 @@ class TestHomerCardChunking:
         sections = [c.section for c in chunks]
         assert sections == ["1.1", "1.8", "1.33", "2.1"]
 
-    def test_book_locator_carries_through_with_known_boundary_quirk(
+    def test_book_locator_agrees_with_the_section_prefix_at_a_boundary(
         self, tmp_path: Path
     ) -> None:
+        """`book` must name the book the text is actually in (#207).
+
+        This test used to pin the opposite: the last chunk of book N came
+        back stamped `N+1`, because `_cur_book` was reassigned on
+        `<div1 type="Book" n="N+1">` entry while the tail of book N was
+        still buffered, and the next card's `_flush()` then stamped that
+        tail with the new value. `section` was right all along, since it
+        is captured at the card milestone before the book switch — so the
+        two columns disagreed, and `section`'s own prefix was the evidence.
+
+        Confirmed in production data before being fixed: the German Plato
+        stamps `book` from the edition's own headings, and disagreed with
+        the Greek at 8 of the Politeia's 9 book boundaries and 9 of the
+        Nomoi's, the German being right every time.
+        """
+
         path = _write_fixture(tmp_path)
         chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
-        # Known chunker quirk: the LAST chunk inside book N gets its
-        # `book` column re-stamped to N+1 because `_cur_book` updates
-        # on `<div1 type="Book" n="N+1">` entry BEFORE the next card's
-        # `_flush()` flushes the still-buffered tail of book N. The
-        # `section` column is set correctly ("1.33") because section
-        # is captured at the card milestone, before the book switch.
-        # This is a pre-existing inconsistency; the test pins current
-        # behavior so a future fix is recognized rather than silently
-        # changing the contract.
+
         sections = [c.section for c in chunks]
         books = [c.book for c in chunks]
         assert sections == ["1.1", "1.8", "1.33", "2.1"]
-        assert books == ["1", "1", "2", "2"]
-        # The mismatch is the third chunk: section says book 1, book
-        # column says book 2. Note that downstream consumers should
-        # prefer `section` (which has the book prefix anyway) when the
-        # two disagree.
+        assert books == ["1", "1", "1", "2"]
+        # The formerly-mis-stamped chunk: the tail of book 1, flushed
+        # when `<div1 type="Book" n="2">` is entered rather than after.
         assert chunks[2].section == "1.33"
-        assert chunks[2].book == "2"
+        assert chunks[2].book == "1"
+        # `section` carries the book as its own prefix, so the two
+        # columns must never contradict each other.
+        for chunk in chunks:
+            assert chunk.section.startswith(f"{chunk.book}.")
+
+    def test_trailing_text_with_no_further_milestone_stays_in_its_own_book(
+        self, tmp_path: Path
+    ) -> None:
+        """The one shape where #207's fix moves a chunk boundary.
+
+        When a book's last lines come after its final card milestone and
+        the next book opens with a card, the old flush order merged that
+        tail into the *next* book's first chunk. It is now emitted under
+        the book it belongs to — 7 chunks corpus-wide (3 in Aristotle, 4
+        in Epictetus's English Discourses), against 293 that only change
+        `book`.
+        """
+
+        path = tmp_path / "hom_tail_gr.xml"
+        path.write_text(_TAIL_FIXTURE_XML, encoding="utf-8")
+
+        chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
+
+        # The tail rides with card 1.33 — book 1, not book 2.
+        tail = [c for c in chunks if "tail line" in c.text]
+        assert len(tail) == 1
+        assert tail[0].book == "1"
+        assert tail[0].section == "1.33"
+        # And no chunk's `book` contradicts its `section` prefix.
+        for chunk in chunks:
+            assert chunk.section.startswith(f"{chunk.book}.")
 
     def test_metadata_propagated_from_args_and_header(self, tmp_path: Path) -> None:
         path = _write_fixture(tmp_path)
