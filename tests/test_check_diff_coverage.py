@@ -24,7 +24,8 @@ REPO = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location(
     "check_diff_coverage", REPO / "scripts" / "check_diff_coverage.py"
 )
-assert _spec and _spec.loader
+assert _spec is not None
+assert _spec.loader is not None
 cdc = importlib.util.module_from_spec(_spec)
 sys.modules["check_diff_coverage"] = cdc
 _spec.loader.exec_module(cdc)

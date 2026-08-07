@@ -156,59 +156,79 @@ def read_python_xml(path: Path) -> dict[str, dict[int, tuple[int, str | None]]]:
 _BRDA = re.compile(r"^BRDA:(\d+),[^,]*,[^,]*,(.+)$")
 
 
+def _lcov_path(sf: str) -> str:
+    """An `SF:` value as a repo-relative path.
+
+    Absolute in some vitest versions, relative to `web/` in others. String
+    handling, not `Path(sf).resolve()`: `sf` is content read out of a file, and
+    resolving it would touch the filesystem for a path this script never opens
+    — the value only ever becomes a dict key.
+    """
+
+    if not sf.startswith("/"):
+        return f"web/{sf}"
+    prefix = f"{REPO}/"
+    return sf[len(prefix) :] if sf.startswith(prefix) else sf
+
+
+def _cond(taken: list[int]) -> str | None:
+    """Branch outcomes as the `50% (1/2)` string the Cobertura side uses, so
+    both readers hand `tally` one shape."""
+
+    if not taken:
+        return None
+    hit = sum(1 for t in taken if t > 0)
+    return f"{100 * hit // len(taken)}% ({hit}/{len(taken)})"
+
+
+def _parse_lcov(text: str) -> tuple[
+    dict[str, dict[int, int]],
+    dict[str, dict[int, list[int]]],
+]:
+    """`(hits per line, branch outcomes per line)`, both keyed by path."""
+
+    lines: dict[str, dict[int, int]] = collections.defaultdict(dict)
+    branches: dict[str, dict[int, list[int]]] = collections.defaultdict(
+        lambda: collections.defaultdict(list)
+    )
+    cur: str | None = None
+    for raw in text.splitlines():
+        raw = raw.strip()
+        if raw.startswith("SF:"):
+            cur = _lcov_path(raw[3:])
+        elif cur is None:
+            continue
+        elif raw.startswith("DA:"):
+            n, hits = raw[3:].split(",")[:2]
+            lines[cur][int(n)] = int(hits)
+        elif raw.startswith("BRDA:"):
+            m = _BRDA.match(raw)
+            if m:
+                taken = m.group(2).split(",")[0]
+                branches[cur][int(m.group(1))].append(0 if taken == "-" else int(taken))
+    return lines, branches
+
+
 def read_web_lcov(path: Path) -> dict[str, dict[int, tuple[int, str | None]]]:
-    """Same shape, from lcov. `SF:` paths are relative to `web/`."""
+    """Same shape as `read_python_xml`, from lcov."""
 
     if not path.is_file():
         raise Problem(
             f"no web coverage at {_rel(path)} — "
             "run `npm --prefix web run test:coverage` (make check does this)"
         )
-    lines: dict[str, dict[int, int]] = collections.defaultdict(dict)
-    branches: dict[str, dict[int, list[int]]] = collections.defaultdict(
-        lambda: collections.defaultdict(list)
-    )
-    cur: str | None = None
-    for raw in path.read_text().splitlines():
-        raw = raw.strip()
-        if raw.startswith("SF:"):
-            sf = raw[3:]
-            # Absolute in some vitest versions, relative to web/ in others.
-            #
-            # String handling, not `Path(sf).resolve()`: `sf` is content read
-            # out of a file, and resolving it would touch the filesystem on a
-            # path this script never opens — it only ever becomes a dict key.
-            # Constructing no path at all is both safer and simpler.
-            if sf.startswith("/"):
-                prefix = f"{REPO}/"
-                cur = sf[len(prefix) :] if sf.startswith(prefix) else sf
-            else:
-                cur = f"web/{sf}"
-        elif raw.startswith("DA:") and cur:
-            n, hits = raw[3:].split(",")[:2]
-            lines[cur][int(n)] = int(hits)
-        elif raw.startswith("BRDA:") and cur:
-            m = _BRDA.match(raw)
-            if m:
-                taken = m.group(2).split(",")[0]
-                branches[cur][int(m.group(1))].append(0 if taken == "-" else int(taken))
-
+    lines, branches = _parse_lcov(path.read_text())
     if not lines:
         raise Problem(f"{_rel(path)} contained no measured files")
 
     out: dict[str, dict[int, tuple[int, str | None]]] = collections.defaultdict(dict)
     for f, per_line in lines.items():
         for n, hits in per_line.items():
-            taken = branches[f].get(n, [])
-            cond = None
-            if taken:
-                cond = f"{100 * sum(1 for t in taken if t > 0) // len(taken)}% ({sum(1 for t in taken if t > 0)}/{len(taken)})"
-            out[f][n] = (hits, cond)
-        # Branch data can sit on a line lcov did not emit a DA for.
+            out[f][n] = (hits, _cond(branches[f].get(n, [])))
+        # Branch data can sit on a line lcov emitted no DA for.
         for n, taken in branches[f].items():
             if n not in out[f] and taken:
-                hit = sum(1 for t in taken if t > 0)
-                out[f][n] = (1 if hit else 0, f"{100 * hit // len(taken)}% ({hit}/{len(taken)})")
+                out[f][n] = (1 if any(t > 0 for t in taken) else 0, _cond(taken))
     return out
 
 
@@ -227,6 +247,10 @@ _HUNK = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")
 #: because the operator invoking this is increasingly an agent passing along a
 #: value it was handed.
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@{}^~-]*$")
+
+#: What `git rev-parse --verify` must hand back. Anything else means the ref
+#: resolved to something unexpected, and diffing against it is not meaningful.
+_SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
 def _validate_ref(base: str) -> None:
@@ -250,21 +274,29 @@ def changed_lines(base: str) -> dict[str, list[int]]:
 
     _validate_ref(base)
     try:
-        subprocess.run(
+        resolved = subprocess.run(
             ["git", "rev-parse", "--verify", "--end-of-options", base],
             cwd=REPO,
             check=True,
             capture_output=True,
-        )
+            text=True,
+        ).stdout.strip()
     except subprocess.CalledProcessError:
         raise Problem(
             f"base ref {base!r} does not resolve — `git fetch` it, or pass --base"
         ) from None
 
-    # `--end-of-options` before the ref, and `--` before the pathspecs, so
+    # Everything downstream compares against the resolved SHA, not the name.
+    # Two reasons, and only one of them is Sonar: a ref can move between the
+    # two git calls, and re-resolving it would silently diff against a
+    # different commit than the one just verified.
+    if not _SHA_RE.match(resolved):
+        raise Problem(f"git resolved {base!r} to something that is not a sha: {resolved!r}")
+
+    # `--end-of-options` before the sha and `--` before the pathspecs, so
     # neither can be reinterpreted as an option even if validation ever slips.
     diff = subprocess.run(
-        ["git", "diff", "-U0", "--end-of-options", base, "--", *GATED_PREFIXES],
+        ["git", "diff", "-U0", "--end-of-options", resolved, "--", *GATED_PREFIXES],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -345,6 +377,21 @@ def tally(
     return per_file
 
 
+def _report(per_file: dict[str, Tally], threshold: float) -> None:
+    """One line per file, with the uncovered lines and partial branches under
+    it. Names line numbers because the point is to be actionable — "58.5%" from
+    CI is a number, "PosPicker.tsx lines 60-83" is a task."""
+
+    width = max(len(p) for p in per_file)
+    for path, t in per_file.items():
+        flag = "  << under" if t.percent < threshold else ""
+        print(f"  {path:<{width}}  {t.covered:>4}/{t.total:<4} {t.percent:>5.1f}%{flag}")
+        if t.uncovered_lines:
+            print(f"  {'':<{width}}  uncovered: {t.uncovered_lines}")
+        for n, covered, total in t.partial_branches:
+            print(f"  {'':<{width}}  line {n}: only {covered}/{total} branches taken")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--base", default="origin/main", help="ref to diff against")
@@ -376,17 +423,7 @@ def main() -> int:
     for t in per_file.values():
         overall.add(t)
 
-    width = max(len(p) for p in per_file)
-    for path, t in per_file.items():
-        flag = "  << under" if t.percent < args.threshold else ""
-        print(
-            f"  {path:<{width}}  {t.covered:>4}/{t.total:<4} {t.percent:>5.1f}%{flag}"
-        )
-        if t.uncovered_lines:
-            print(f"  {'':<{width}}  uncovered: {t.uncovered_lines}")
-        for n, c, tot in t.partial_branches:
-            print(f"  {'':<{width}}  line {n}: only {c}/{tot} branches taken")
-
+    _report(per_file, args.threshold)
     print(
         f"\ndiff coverage vs {args.base}: {overall.percent:.1f}% "
         f"({overall.covered}/{overall.total} — {overall.lines_covered}/{overall.lines_total} lines, "
