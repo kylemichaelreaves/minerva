@@ -18,7 +18,15 @@ from collections.abc import Iterable, Sequence
 
 # Only these two columns are correctable. Widening this means widening the
 # CHECK constraint in migration 0024 too.
-CORRECTABLE = ("head", "deprel")
+#: What a hand correction may change. `upos` joined the pair in #253: it was
+#: displayed by the inspector and read by three layout consumers (row
+#: wrapping, the field bands, and `isFiniteVerb`, which places LINKE KLAMMER)
+#: while being the one part of the parse a curator could not fix.
+#:
+#: `xpos` and `feats` are still read-only, and that is a known gap rather than
+#: a decision: `isFiniteVerb` tests `feats` for `VerbForm=Fin`, so the
+#: bracket-placement class of error needs `feats` too. See #253.
+CORRECTABLE = ("head", "deprel", "upos")
 
 #: The only language the dependency parser handles. `syntax/parse.py` builds a
 #: Stanza German pipeline (`_LANG = "de"`); there is no per-language dispatch,
@@ -102,6 +110,8 @@ def materialise(
             out[i] = dataclasses.replace(out[i], head=int(c.to_val), corrected=True)
         elif c.kind == "deprel":
             out[i] = dataclasses.replace(out[i], deprel=c.to_val, corrected=True)
+        elif c.kind == "upos":
+            out[i] = dataclasses.replace(out[i], upos=c.to_val, corrected=True)
 
     return out
 

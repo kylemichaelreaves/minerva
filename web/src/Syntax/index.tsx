@@ -14,6 +14,7 @@ import { createScopedSignal } from "~/Syntax/chunkScoped";
 import { loadErrorMessage } from "~/Syntax/loadError";
 import { ArcDiagram } from "~/Syntax/components/ArcDiagram";
 import { RefusalPanel } from "~/Syntax/components/RefusalPanel";
+import { PosPicker } from "~/Syntax/components/PosPicker";
 import { RelationPicker } from "~/Syntax/components/RelationPicker";
 import { SentenceList } from "~/Syntax/components/SentenceList";
 import { TokenInspector } from "~/Syntax/components/TokenInspector";
@@ -32,6 +33,9 @@ import "~/Syntax/syntax.css";
 // adds the relabel loop: pick a token, press L, filter a closed inventory,
 // commit. Reattachment by drag is the next one; the machinery underneath it
 // (validation, the optimistic queue, undo) is already here and under test.
+
+/** Which modal picker is open over the selected token, if any. */
+type PickerMode = null | "relation" | "pos";
 
 /** A bracket in the legend, drawn the same way the arcs are. */
 function Swatch(props: { kind: "corr" | "mach" | "oxide" }) {
@@ -85,7 +89,10 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   const [sentOrd, setSentOrd] = createScopedSignal(chunk, 0);
   const [hovered, setHovered] = createScopedSignal<number | null>(chunk, null);
   const [selected, setSelected] = createScopedSignal<number | null>(chunk, null);
-  const [picking, setPicking] = createScopedSignal(chunk, false);
+  // Which picker is open, if any. One signal rather than a boolean per picker
+  // so "relation and part-of-speech open at once" is not a representable
+  // state — both are modal over the same selected token (#253).
+  const [picker, setPicker] = createScopedSignal<PickerMode>(chunk, null);
   const [focused, setFocused] = createScopedSignal<number | null>(chunk, null);
   /** The token being reattached, or null when not in reattach mode. */
   const [lifted, setLifted] = createScopedSignal<number | null>(chunk, null);
@@ -147,10 +154,25 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
       .at(-1);
   });
 
+  /** The retag on the selected token, if this session made one. Separate from
+   *  `correctionOnSelected` because the two are independent edits and the
+   *  inspector shows both provenance lines (#253). */
+  const posCorrectionOnSelected = createMemo(() => {
+    const id = selected();
+    if (id === null) return undefined;
+    return store
+      .corrections()
+      .findLast((c) => c.sentOrd === sentOrd() && c.tokId === id && c.kind === "upos");
+  });
+
   const correctedCount = createMemo(() => tokens().filter((t) => t.corrected).length);
 
   const openPicker = () => {
-    if (selected() !== null) setPicking(true);
+    if (selected() !== null) setPicker("relation");
+  };
+
+  const openPosPicker = () => {
+    if (selected() !== null) setPicker("pos");
   };
 
   /** The heads the lifted token may take, root slot included. */
@@ -227,7 +249,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
 
   const beginDrag = (id: number, e: PointerEvent): void => {
     // Only the primary button, and never over the picker.
-    if (e.button !== 0 || picking()) return;
+    if (e.button !== 0 || picker() !== null) return;
     const form = tokens().find((t) => t.id === id)?.form ?? "";
     let dragging = false;
     const startX = e.clientX;
@@ -285,7 +307,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   // gesture is modal, and the status bar says so.
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (picking()) return;
+      if (picker() !== null) return;
 
       if (e.key === "Escape") {
         if (lifted() !== null) cancelReattach();
@@ -332,13 +354,20 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
         if (id !== null) {
           e.preventDefault();
           setSelected(id);
-          setPicking(true);
+          setPicker("relation");
         }
       } else if (e.key === "r" || e.key === "R") {
         const id = selected() ?? focused();
         if (id !== null) {
           e.preventDefault();
           lift(id);
+        }
+      } else if (e.key === "p" || e.key === "P") {
+        const id = selected() ?? focused();
+        if (id !== null) {
+          e.preventDefault();
+          setSelected(id);
+          setPicker("pos");
         }
       } else if (e.key === "f" || e.key === "F") {
         // Needs no selection: the fields are a property of the sentence, not
@@ -424,7 +453,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
             onPick={(n) => {
               setSentOrd(n);
               setSelected(null);
-              setPicking(false);
+              setPicker(null);
             }}
           />
         </Show>
@@ -487,7 +516,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
                   }
                   setFocused(id);
                   setSelected((cur) => (cur === id ? null : id));
-                  setPicking(false);
+                  setPicker(null);
                 }}
               />
 
@@ -505,7 +534,8 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
                 <p class="syn-hint">
                   Hover a token to isolate the subtree it governs · click to inspect ·{" "}
                   <span class="syn-kbd">L</span> relabel · <span class="syn-kbd">R</span> reattach ·{" "}
-                  <span class="syn-kbd">F</span> fields · <span class="syn-kbd">←</span>{" "}
+                  <span class="syn-kbd">P</span> part of speech · <span class="syn-kbd">F</span>{" "}
+                  fields · <span class="syn-kbd">←</span>{" "}
                   <span class="syn-kbd">→</span> tokens · <span class="syn-kbd">↑</span>{" "}
                   <span class="syn-kbd">↓</span> sentences
                 </p>
@@ -538,38 +568,53 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
 
       <Show when={selectedToken()}>
         {(tok) => (
-          <Show
-            when={picking()}
+          <Switch
             fallback={
               <TokenInspector
                 token={tok()}
                 head={headOfSelected()}
                 wasDeprel={correctionOnSelected()?.fromVal}
+                wasUpos={posCorrectionOnSelected()?.fromVal}
                 onClose={() => setSelected(null)}
                 onRelabel={openPicker}
+                onRetag={openPosPicker}
                 onReattach={() => {
                   lift(tok().id);
                 }}
                 onRevert={() => {
-                  const c = correctionOnSelected();
+                  const c = correctionOnSelected() ?? posCorrectionOnSelected();
                   if (c !== undefined) void store.undo(c.id);
                 }}
               />
             }
           >
-            <RelationPicker
-              form={tok().form}
-              tokenId={tok().id}
-              headForm={headOfSelected()?.form}
-              headId={headOfSelected()?.id}
-              current={tok().deprel}
-              onCancel={() => setPicking(false)}
-              onCommit={(relation) => {
-                setPicking(false);
-                void store.relabel(sentOrd(), tok().id, relation);
-              }}
-            />
-          </Show>
+            <Match when={picker() === "relation"}>
+              <RelationPicker
+                form={tok().form}
+                tokenId={tok().id}
+                headForm={headOfSelected()?.form}
+                headId={headOfSelected()?.id}
+                current={tok().deprel}
+                onCancel={() => setPicker(null)}
+                onCommit={(relation) => {
+                  setPicker(null);
+                  void store.relabel(sentOrd(), tok().id, relation);
+                }}
+              />
+            </Match>
+            <Match when={picker() === "pos"}>
+              <PosPicker
+                form={tok().form}
+                tokenId={tok().id}
+                current={tok().upos}
+                onCancel={() => setPicker(null)}
+                onCommit={(upos) => {
+                  setPicker(null);
+                  void store.retag(sentOrd(), tok().id, upos);
+                }}
+              />
+            </Match>
+          </Switch>
         )}
       </Show>
 

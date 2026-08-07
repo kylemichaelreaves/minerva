@@ -16,7 +16,7 @@ export interface Correction {
   id: number;
   sentOrd: number;
   tokId: number;
-  kind: "head" | "deprel";
+  kind: "head" | "deprel" | "upos";
   /** Always a string on the wire; `head` round-trips through `Number`. */
   toVal: string;
   /** The value at the time of the edit. Provenance — the inspector's "was obj". */
@@ -70,10 +70,14 @@ export function applyCorrections(
     tokens: sentence.tokens.map((token) => {
       const head = latest.get(`${key(sentence.sent_ord, token.id)}:head`);
       const deprel = latest.get(`${key(sentence.sent_ord, token.id)}:deprel`);
-      if (head === undefined && deprel === undefined) return token;
+      const upos = latest.get(`${key(sentence.sent_ord, token.id)}:upos`);
+      if (head === undefined && deprel === undefined && upos === undefined) return token;
       const next: SyntaxToken = { ...token, corrected: true };
       if (head !== undefined) next.head = Number(head.toVal);
       if (deprel !== undefined) next.deprel = deprel.toVal;
+      // A retag returns a NEW token object, which is what makes the row packer
+      // and the field model recompute — `upos` feeds both (#253).
+      if (upos !== undefined) next.upos = upos.toVal;
       return next;
     }),
   }));
