@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+from contextlib import closing
 from typing import Any
 
 from ..terms._io import _open
@@ -182,59 +183,61 @@ def _prompt() -> str:
 
 
 def cmd_refs_review(args: argparse.Namespace) -> int:
-    conn = _open(args)
-    conn.execute("PRAGMA foreign_keys = ON")
+    # `closing` so an interactive session left via `q` — or an EOF out
+    # of `_prompt` — still releases the handle (#246).
+    with closing(_open(args)) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
 
-    n_approved = 0
-    n_rejected = 0
-    n_skipped = 0
-    n_seen = 0
-    after_id = 0
-    limit = args.limit
+        n_approved = 0
+        n_rejected = 0
+        n_skipped = 0
+        n_seen = 0
+        after_id = 0
+        limit = args.limit
 
-    while n_seen < limit:
-        row = _fetch_one_row(
-            conn,
-            source_author=args.source_author,
-            target_author=args.target_author,
-            after_id=after_id,
+        while n_seen < limit:
+            row = _fetch_one_row(
+                conn,
+                source_author=args.source_author,
+                target_author=args.target_author,
+                after_id=after_id,
+            )
+            if row is None:
+                print(_dim("\n(no more auto rows match the current filter)"))
+                break
+            n_seen += 1
+            _print_row(row, ordinal=n_seen)
+            key = _prompt()
+
+            if key == "q":
+                break
+            if key == "a":
+                conn.execute(
+                    "UPDATE cross_references SET curator_status='approved' WHERE id = ?",
+                    (row["id"],),
+                )
+                conn.commit()
+                n_approved += 1
+                print(_accent("→ approved."))
+            elif key == "r":
+                conn.execute(
+                    "UPDATE cross_references SET curator_status='rejected' WHERE id = ?",
+                    (row["id"],),
+                )
+                conn.commit()
+                n_rejected += 1
+                print(_dim("→ rejected."))
+            else:
+                n_skipped += 1
+                print(_dim("→ skipped."))
+
+            # Advance past this row so the next iteration of the loop
+            # fetches the next-higher id rather than re-fetching the same
+            # row we just decided on.
+            after_id = int(row["id"])
+
+        print(
+            f"\nreview session: seen={n_seen}, approved={n_approved}, "
+            f"rejected={n_rejected}, skipped={n_skipped}"
         )
-        if row is None:
-            print(_dim("\n(no more auto rows match the current filter)"))
-            break
-        n_seen += 1
-        _print_row(row, ordinal=n_seen)
-        key = _prompt()
-
-        if key == "q":
-            break
-        if key == "a":
-            conn.execute(
-                "UPDATE cross_references SET curator_status='approved' WHERE id = ?",
-                (row["id"],),
-            )
-            conn.commit()
-            n_approved += 1
-            print(_accent("→ approved."))
-        elif key == "r":
-            conn.execute(
-                "UPDATE cross_references SET curator_status='rejected' WHERE id = ?",
-                (row["id"],),
-            )
-            conn.commit()
-            n_rejected += 1
-            print(_dim("→ rejected."))
-        else:
-            n_skipped += 1
-            print(_dim("→ skipped."))
-
-        # Advance past this row so the next iteration of the loop
-        # fetches the next-higher id rather than re-fetching the same
-        # row we just decided on.
-        after_id = int(row["id"])
-
-    print(
-        f"\nreview session: seen={n_seen}, approved={n_approved}, "
-        f"rejected={n_rejected}, skipped={n_skipped}"
-    )
-    return 0
+        return 0

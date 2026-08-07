@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from contextlib import closing
 
 from .. import store
 from ._shared import add_common_db_arg
@@ -33,8 +34,9 @@ def cmd_db(args: argparse.Namespace) -> int:
 
 
 def _cmd_db_inspect(args: argparse.Namespace) -> int:
-    conn = store.open_db(args.db)
-    print(json.dumps(store.db_inspect(conn, args.db), indent=2, default=str))
+    with closing(store.open_db(args.db)) as conn:
+        payload = store.db_inspect(conn, args.db)
+    print(json.dumps(payload, indent=2, default=str))
     return 0
 
 

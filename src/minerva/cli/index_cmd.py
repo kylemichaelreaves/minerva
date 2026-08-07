@@ -10,6 +10,7 @@ import argparse
 import json
 import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 from .. import serve_lock, store
@@ -81,73 +82,78 @@ def cmd_index(args: argparse.Namespace) -> int:
         # reset_db also unlinks the -wal/-shm siblings — a stale WAL
         # next to a freshly-created file is a corruption vector.
         store.reset_db(args.db)
-    conn = store.open_db(args.db)
-    # If `--reset` just deleted the DB, the fresh schema has no
-    # cross_references / chunk_lemmas rows — meaning the rebind step
-    # in ``insert_chunks`` (xrefs) and the lemmatize ``NOT EXISTS``
-    # skip (lemmas) would both have nothing to work with. Pre-seed
-    # both tables from the ``.bak.pre-index`` snapshot so the
-    # downstream paths reconnect to the rows naturally. Idempotent /
-    # no-op when the snapshot is missing or already-empty.
-    with Timer() as overall:
-        _maybe_restore_preserved_state_from_snapshot(conn, args.db)
-        with Timer() as t_insert:
-            if incremental:
-                print(
-                    f"Incremental index: corpora={sorted(scope)!r}",
-                    file=sys.stderr,
-                )
-                n = store.insert_chunks(
-                    conn,
-                    args.input,
-                    mode="incremental",
-                    corpora=scope,
-                )
-            else:
-                n = store.insert_chunks(conn, args.input)
-        # Post-insert orphan sweep for chunk_lemmas. Chunks whose text
-        # genuinely changed get a fresh chunk_id (content-hashed);
-        # their pre-restored lemma rows now point at a non-existent
-        # chunk. With FK enforcement re-enabled by ``insert_chunks``,
-        # leaving orphans would block subsequent writes. Idempotent —
-        # no-op when the lemmas table is empty or all chunk_ids
-        # survived.
-        _sweep_orphan_chunk_lemmas(conn)
-        _sweep_orphan_glossary_anchors(conn)
-        # Derived from `authors/work_aliases.py`, keyed there on
-        # (author, title) and resolved to work ids here — so it has to
-        # run after the insert has rebuilt `works`, and again after
-        # every re-ingest, because --reset reassigns those ids (#195).
-        store.sync_work_aliases(conn)
-        # The glossary restore runs HERE, not next to the pre-insert
-        # restore above: it rebinds `edition_id`/`translation_id`
-        # through natural keys, and those rows only exist once
-        # `insert_chunks` has rebuilt works/editions/translations. See
-        # the block comment in store/preserved_state.py (#192, #193).
-        #
-        # Skipped for incremental runs, and the reason is the snapshot's
-        # age rather than the restore's cost: incremental never TAKES a
-        # snapshot, so the newest `.bak.pre-index` may predate a
-        # curator's deliberate deletion, and restoring would resurrect
-        # what they removed. Full runs snapshot at the top of this same
-        # invocation, so their snapshot always reflects the current
-        # curatorial intent. Incremental needs no restore anyway — it
-        # never wipes the glossary, it only sweeps the anchors above.
-        if not incremental:
-            restore_glossary_from_snapshot(conn, args.db)
+    # `closing`, not a bare open: `cmd_index` is a plain function and
+    # `make reingest` / the test suite call it repeatedly in one process,
+    # so a bare open strands a handle per call — #227's bug in a
+    # different command. It was 54 of the suite's `unclosed database`
+    # warnings, the single largest source (#246).
+    with closing(store.open_db(args.db)) as conn:
+        # If `--reset` just deleted the DB, the fresh schema has no
+        # cross_references / chunk_lemmas rows — meaning the rebind step
+        # in ``insert_chunks`` (xrefs) and the lemmatize ``NOT EXISTS``
+        # skip (lemmas) would both have nothing to work with. Pre-seed
+        # both tables from the ``.bak.pre-index`` snapshot so the
+        # downstream paths reconnect to the rows naturally. Idempotent /
+        # no-op when the snapshot is missing or already-empty.
+        with Timer() as overall:
+            _maybe_restore_preserved_state_from_snapshot(conn, args.db)
+            with Timer() as t_insert:
+                if incremental:
+                    print(
+                        f"Incremental index: corpora={sorted(scope)!r}",
+                        file=sys.stderr,
+                    )
+                    n = store.insert_chunks(
+                        conn,
+                        args.input,
+                        mode="incremental",
+                        corpora=scope,
+                    )
+                else:
+                    n = store.insert_chunks(conn, args.input)
+            # Post-insert orphan sweep for chunk_lemmas. Chunks whose text
+            # genuinely changed get a fresh chunk_id (content-hashed);
+            # their pre-restored lemma rows now point at a non-existent
+            # chunk. With FK enforcement re-enabled by ``insert_chunks``,
+            # leaving orphans would block subsequent writes. Idempotent —
+            # no-op when the lemmas table is empty or all chunk_ids
+            # survived.
+            _sweep_orphan_chunk_lemmas(conn)
+            _sweep_orphan_glossary_anchors(conn)
+            # Derived from `authors/work_aliases.py`, keyed there on
+            # (author, title) and resolved to work ids here — so it has to
+            # run after the insert has rebuilt `works`, and again after
+            # every re-ingest, because --reset reassigns those ids (#195).
+            store.sync_work_aliases(conn)
+            # The glossary restore runs HERE, not next to the pre-insert
+            # restore above: it rebinds `edition_id`/`translation_id`
+            # through natural keys, and those rows only exist once
+            # `insert_chunks` has rebuilt works/editions/translations. See
+            # the block comment in store/preserved_state.py (#192, #193).
+            #
+            # Skipped for incremental runs, and the reason is the snapshot's
+            # age rather than the restore's cost: incremental never TAKES a
+            # snapshot, so the newest `.bak.pre-index` may predate a
+            # curator's deliberate deletion, and restoring would resurrect
+            # what they removed. Full runs snapshot at the top of this same
+            # invocation, so their snapshot always reflects the current
+            # curatorial intent. Incremental needs no restore anyway — it
+            # never wipes the glossary, it only sweeps the anchors above.
+            if not incremental:
+                restore_glossary_from_snapshot(conn, args.db)
 
-    print(f"Loaded {n} chunks into {args.db}")
-    print(json.dumps(store.stats(conn), indent=2, default=str))
-    # ``getattr`` so library-style callers building their own Namespace
-    # (tests, scripted reindex helpers) don't have to set --timing.
-    if getattr(args, "timing", False):
-        print(
-            f"timing: index:insert  {fmt_elapsed(t_insert.elapsed)}",
-            file=sys.stderr,
-        )
-        print(f"timing: index  {fmt_elapsed(overall.elapsed)}", file=sys.stderr)
-    record_timing(args.db, "index", overall.elapsed)
-    return 0
+        print(f"Loaded {n} chunks into {args.db}")
+        print(json.dumps(store.stats(conn), indent=2, default=str))
+        # ``getattr`` so library-style callers building their own Namespace
+        # (tests, scripted reindex helpers) don't have to set --timing.
+        if getattr(args, "timing", False):
+            print(
+                f"timing: index:insert  {fmt_elapsed(t_insert.elapsed)}",
+                file=sys.stderr,
+            )
+            print(f"timing: index  {fmt_elapsed(overall.elapsed)}", file=sys.stderr)
+        record_timing(args.db, "index", overall.elapsed)
+        return 0
 
 
 def _sweep_orphan_chunk_lemmas(conn: sqlite3.Connection) -> None:

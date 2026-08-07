@@ -69,7 +69,15 @@ dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.16.1", "pyyaml>=6.0.3"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-q"
+# `-W error::ResourceWarning` promotes an unclosed file/socket/DB handle
+# to a test failure. It is a cheap, broad gate on a real class of bug:
+# turning it on for #246 surfaced six production CLI handlers that opened
+# a store and never closed it (`cmd_index` was 54 of the 900 warnings),
+# the same defect #227 fixed in the `terms` CLI. It could not be adopted
+# until those — and the test-side connections `tests/conftest.py` now
+# owns — were fixed. Run with `-X tracemalloc=20` to get the allocation
+# site when it fires.
+addopts = "-q -W error::ResourceWarning"
 
 # Coverage config — `pytest --cov` reads this when pytest-cov is
 # installed (in [dev]). Plain `pytest` still works without coverage

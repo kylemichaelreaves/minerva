@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import closing
 from pathlib import Path
 
 from ...refs import schema as refs_schema
@@ -27,75 +28,77 @@ from ..terms._io import _open
 
 
 def cmd_refs_load_spec(args: argparse.Namespace) -> int:
-    conn = _open(args)
-    conn.execute("PRAGMA foreign_keys = ON")
+    # `closing` because the two `return 2` guards below sit after the
+    # open — a `close()` at the end of the body would miss them (#246).
+    with closing(_open(args)) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
 
-    # Expand each input path: a directory becomes its *.yaml children.
-    spec_files: list[Path] = []
-    for raw in args.paths:
-        p = Path(raw)
-        if not p.exists():
-            print(f"error: path does not exist: {p}", file=sys.stderr)
+        # Expand each input path: a directory becomes its *.yaml children.
+        spec_files: list[Path] = []
+        for raw in args.paths:
+            p = Path(raw)
+            if not p.exists():
+                print(f"error: path does not exist: {p}", file=sys.stderr)
+                return 2
+            if p.is_dir():
+                spec_files.extend(sorted(p.glob("*.yaml")))
+                spec_files.extend(sorted(p.glob("*.yml")))
+            else:
+                spec_files.append(p)
+
+        if not spec_files:
+            print("error: no YAML files found in the given paths", file=sys.stderr)
             return 2
-        if p.is_dir():
-            spec_files.extend(sorted(p.glob("*.yaml")))
-            spec_files.extend(sorted(p.glob("*.yml")))
-        else:
-            spec_files.append(p)
 
-    if not spec_files:
-        print("error: no YAML files found in the given paths", file=sys.stderr)
-        return 2
+        total_parsed = 0
+        total_inserted = 0
+        total_skipped = 0
+        total_errors = 0
 
-    total_parsed = 0
-    total_inserted = 0
-    total_skipped = 0
-    total_errors = 0
-
-    for path in spec_files:
-        try:
-            spec = refs_spec.load_spec(path)
-        except refs_spec.SpecError as exc:
-            print(f"parse error in {path}: {exc}", file=sys.stderr)
-            total_errors += 1
-            continue
-
-        print(f"\n{path} — {len(spec.references)} references")
-        for ref_idx, ref in enumerate(spec.references):
-            total_parsed += 1
+        for path in spec_files:
             try:
-                inserted, row_id = _insert_one_reference(conn, ref, dry_run=args.dry_run)
-            except _LoadError as exc:
-                print(f"  references[{ref_idx}] error: {exc}", file=sys.stderr)
+                spec = refs_spec.load_spec(path)
+            except refs_spec.SpecError as exc:
+                print(f"parse error in {path}: {exc}", file=sys.stderr)
                 total_errors += 1
                 continue
 
-            if not inserted:
-                total_skipped += 1
-                continue
-            total_inserted += 1
-            label = "would insert" if row_id is None else f"→ id={row_id}"
-            print(
-                f"  references[{ref_idx}] {label} "
-                f"({ref.target.author} / {ref.target.work}, type={ref.type})"
-            )
+            print(f"\n{path} — {len(spec.references)} references")
+            for ref_idx, ref in enumerate(spec.references):
+                total_parsed += 1
+                try:
+                    inserted, row_id = _insert_one_reference(conn, ref, dry_run=args.dry_run)
+                except _LoadError as exc:
+                    print(f"  references[{ref_idx}] error: {exc}", file=sys.stderr)
+                    total_errors += 1
+                    continue
 
-    if args.dry_run:
-        # `ensure_target` may have created reference_targets rows while
-        # resolving targets above; a dry-run must not persist them.
-        # Roll back explicitly instead of relying on the connection
-        # closing without a commit.
-        conn.rollback()
-    elif total_inserted > 0:
-        conn.commit()
+                if not inserted:
+                    total_skipped += 1
+                    continue
+                total_inserted += 1
+                label = "would insert" if row_id is None else f"→ id={row_id}"
+                print(
+                    f"  references[{ref_idx}] {label} "
+                    f"({ref.target.author} / {ref.target.work}, type={ref.type})"
+                )
 
-    mode = "dry-run" if args.dry_run else "committed"
-    print(
-        f"\n{mode}: parsed={total_parsed}, inserted={total_inserted}, "
-        f"skipped={total_skipped}, errors={total_errors}",
-        file=sys.stderr,
-    )
-    return 0 if total_errors == 0 else 1
+        if args.dry_run:
+            # `ensure_target` may have created reference_targets rows while
+            # resolving targets above; a dry-run must not persist them.
+            # Roll back explicitly instead of relying on the connection
+            # closing without a commit.
+            conn.rollback()
+        elif total_inserted > 0:
+            conn.commit()
+
+        mode = "dry-run" if args.dry_run else "committed"
+        print(
+            f"\n{mode}: parsed={total_parsed}, inserted={total_inserted}, "
+            f"skipped={total_skipped}, errors={total_errors}",
+            file=sys.stderr,
+        )
+        return 0 if total_errors == 0 else 1
 
 
 class _LoadError(Exception):
