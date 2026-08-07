@@ -175,8 +175,10 @@ class TestRefValidation:
         "ref",
         ["origin/main", "main", "HEAD~3", "main^2", "HEAD@{1}", "3ed2df1", "v1.2.3-rc1"],
     )
-    def test_accepts_the_refs_people_actually_pass(self, ref):
-        assert cdc._validate_ref(ref) is None
+    def test_the_pattern_accepts_the_refs_people_actually_pass(self, ref):
+        # Asserted against the pattern rather than through `changed_lines`,
+        # which would additionally require each of these to exist in the repo.
+        assert cdc._REF_RE.match(ref) is not None
 
     @pytest.mark.parametrize(
         "ref",
@@ -193,14 +195,19 @@ class TestRefValidation:
         ],
     )
     def test_refuses_anything_git_could_read_as_an_option_or_shell_syntax(self, ref):
+        # Through the real entry point, so what is under test is the guard as
+        # it actually runs — and that it runs *before* git does. A "does not
+        # resolve" message here would mean the value reached a subprocess.
         with pytest.raises(cdc.Problem, match="not a plausible git ref"):
-            cdc._validate_ref(ref)
+            cdc.changed_lines(ref)
 
-    def test_validation_runs_before_git_is_invoked(self):
-        # The refusal must be the shape error, not "does not resolve" — i.e.
-        # the value never reached a subprocess.
+    def test_the_injection_vector_writes_no_file(self, tmp_path):
+        """`git diff --output=X` would create X. It must not get that far."""
+
+        target = tmp_path / "pwned"
         with pytest.raises(cdc.Problem, match="not a plausible git ref"):
-            cdc.changed_lines("--output=/tmp/pwned")
+            cdc.changed_lines(f"--output={target}")
+        assert not target.exists()
 
 
 class TestGatedPrefixes:

@@ -253,16 +253,6 @@ _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@{}^~-]*$")
 _SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
-def _validate_ref(base: str) -> None:
-    """Refuse a base that git could read as an option rather than a ref."""
-
-    if not _REF_RE.match(base):
-        raise Problem(
-            f"base ref {base!r} is not a plausible git ref — refusing to pass it "
-            "to git, which would read a leading '-' as an option"
-        )
-
-
 def changed_lines(base: str) -> dict[str, list[int]]:
     """`{repo-relative path: [added or modified line numbers]}`.
 
@@ -272,7 +262,20 @@ def changed_lines(base: str) -> dict[str, list[int]]:
     most likely to be untested.
     """
 
-    _validate_ref(base)
+    # Validated HERE, inline, rather than in a helper — deliberately.
+    #
+    # The check itself is the same either way, but a taint analyser cannot see
+    # that a called function constrains its argument, so behind a boundary the
+    # value still reads as untrusted where it meets `subprocess`. Keeping the
+    # guard adjacent to the call it guards is also what S8705's own compliant
+    # example does, and it means the reader sees the constraint at the point of
+    # risk instead of having to go looking for it.
+    if not _REF_RE.match(base):
+        raise Problem(
+            f"base ref {base!r} is not a plausible git ref — refusing to pass it "
+            "to git, which would read a leading '-' as an option"
+        )
+
     try:
         resolved = subprocess.run(
             ["git", "rev-parse", "--verify", "--end-of-options", base],
