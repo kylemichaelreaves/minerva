@@ -121,7 +121,23 @@
   stroke: currentColor;
 }
 
-/* Language toggle */
+/* Translation-target toggle.
+   The visible "Translate" label is load-bearing, not decoration: the pill
+   sits next to the `N chunks · lang` crumb, and a bare segmented EN/FR/DE
+   beside a language name reads as an edition switcher (#257). */
+.reader .lang-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.reader .lang-label {
+  font-family: var(--r-sans);
+  font-size: 9.5px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--r-ink-faint);
+  white-space: nowrap;
+}
 .reader .lang {
   display: inline-flex;
   align-items: center;
