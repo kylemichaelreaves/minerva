@@ -297,7 +297,7 @@ def _eligible_rows_sql(
 ) -> tuple[str, list[Any]]:
     """Build the SELECT that pulls Phase-4-eligible rows. The default
     matches the user-confirmed scope: skip the boilerplate-tied
-    embed_only rows (chunks under 80 chars on either side) and skip
+    embed_only rows (source chunks under 80 chars) and skip
     rule_strong rows (already 0.92+ from a definitional convention).
 
     ``resume_from_id`` shifts the lower bound on ``xr.id`` for the
@@ -313,10 +313,18 @@ def _eligible_rows_sql(
     if skip_strong:
         clauses.append("xr.source_method != 'rule_strong'")
     if skip_short_chunks:
-        # Filter rows whose source OR target chunk is too short (the
-        # section-banner pattern that produces cosine=1 noise).
+        # Filter rows whose SOURCE chunk is too short (the section-banner
+        # pattern that produces cosine=1 noise) — there is too little
+        # context there to judge a citation from.
+        #
+        # The floor deliberately does not apply to the target. A short
+        # target means the cited passage is short, which for scripture is
+        # the norm and says nothing about whether the citation is real:
+        # 42.6% of Quran verses and 26% of the Hebrew Bible are under 80
+        # chars, and every row the target clause used to exclude was a
+        # genuine verse — down to Exod 20:13, "Non occides." (12 chars).
+        # See issue #265.
         clauses.append("length(c.text) >= 80")
-        clauses.append("(xr.target_chunk_id IS NULL OR length(tc.text) >= 80)")
     if min_confidence is not None:
         clauses.append("xr.confidence >= ?")
         params.append(min_confidence)
