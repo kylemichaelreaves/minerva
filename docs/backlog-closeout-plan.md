@@ -459,7 +459,16 @@ only the issue list would suggest the gate still needs building. Nothing
 else here is tracked twice.
 
 Part 1 carried `Refs #176`, so the issue is still open by design. Part 2's
-PR is the one that carries `Closes #176`.
+PR is the one that should carry the closing keyword for it.
+
+**Written that way on purpose, and the reason is worth reading.** An
+earlier revision of this line spelled the keyword out next to the issue
+number. That sentence went into a squash-merge commit message, GitHub's
+parser read the keyword out of the surrounding prose — backticks are no
+protection — and closed #176 on the spot, three minutes after the same
+paragraph explained that it must stay open. Reopened by hand. Never put a
+closing keyword adjacent to an open issue's number in any text that can
+reach a commit message, including this document.
 
 ---
 

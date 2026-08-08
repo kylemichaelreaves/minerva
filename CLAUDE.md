@@ -36,7 +36,8 @@ isn't.
 `main`, and is verified to have registered the link.** Filing issues is
 worthless if closing them is manual — the backlog then only ever grows.
 
-Two GitHub behaviours make this fail silently, and both have bitten us:
+Three GitHub behaviours make this fail silently, and all three have bitten
+us:
 
 - **The link only registers for PRs targeting the default branch.** A
   stacked PR based on another branch records nothing, however many
@@ -44,6 +45,15 @@ Two GitHub behaviours make this fail silently, and both have bitten us:
 - **The body is parsed when it is written, not when the base changes.**
   Retargeting a stacked PR to `main` afterwards does *not* backfill the
   link; the body has to be edited again.
+- **The parser reads prose, and code formatting is no defence.** It scans
+  the merge commit message for a closing keyword next to any issue
+  number, with no notion of whether the sentence is *using* the keyword or
+  *talking about* it, and backticks do not exempt it. PR #293 was a
+  doc-only change carrying `Refs #176`, whose `closingIssuesReferences`
+  was correctly empty — and it still closed #176, because a sentence in
+  the body read "part 2's PR is the one carrying `Closes #176`". The line
+  explaining that the issue must stay open is what closed it. When writing
+  *about* the convention, keep the keyword away from a live issue number.
 
 So don't assume — check, the same way you'd check `make check`:
 
