@@ -432,16 +432,34 @@ Part 2 is an operator job needing its own session:
    before/after on `section` — it repeats per book and inflated a previous
    measurement 20×.
 3. `minerva index --incremental --corpora <those>`
-4. `minerva embed` (incremental by default), then `terms lemmatize`
-   (`--n-process 1` for `lat` until batch 2 lands)
+4. `minerva embed` (incremental by default), then `terms lemmatize`.
+   **Corrected 2026-08-08: this step used to read "`--n-process 1` for
+   `lat` until batch 2 lands".** Batch 2 has landed (PR #286), so the
+   default `--n-process 4` is now correct for every language —
+   `Lemmatizer._safe_n_process` (`src/minerva/lemmatize.py:560`) probes
+   the payload before entering the pipe and downgrades to 1 with a notice
+   on stderr where spawn cannot pickle it. Passing `--n-process 1` by
+   hand now just makes the pass slower for no reason.
 5. Full refs rebuild: rules, then `--strategy embed-verify`, then
    `--strategy llm-verify`. Source-side chunk churn invalidates anchors;
    `refs build` alone is not enough.
-6. `make generate-authors` and commit, including the new granularity
-   snapshot.
+6. **Remove each re-chunked pair from `granularity.known_coarse` in
+   `data/authors/manifest.yaml`.** The gate fails on a stale baseline
+   entry as loudly as on a new violation, so a work that has been fixed
+   but left on the allowlist breaks `make check-authors` — which is
+   deliberate, and is what keeps the list shrinking. Keys are
+   `author|title|lang`.
+7. `make generate-authors` and commit, including the regenerated
+   `data/authors/chunk_granularity.json`.
 
-Land part 1 with `Refs #176`; close #176 only when part 2's re-ingest is
-committed.
+**Status, 2026-08-08: part 1 landed in PR #292; part 2 has not.** This is
+the one place the document records state, against its own rule at the top,
+because the open-issue list cannot express it: #176 is open, and reading
+only the issue list would suggest the gate still needs building. Nothing
+else here is tracked twice.
+
+Part 1 carried `Refs #176`, so the issue is still open by design. Part 2's
+PR is the one that carries `Closes #176`.
 
 ---
 
