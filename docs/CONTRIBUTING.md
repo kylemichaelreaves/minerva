@@ -245,6 +245,58 @@ different reviewer, or more scope than the change you're on, file it — and
 say in your PR description what you left out and why. Shrinking scope is
 fine; shrinking it silently isn't.
 
+### Separate what you measured from what you think
+
+**Use two headings — `## Measured` and `## Hypothesis` — and put the cause
+and the proposed fix under the second one.** Not cosmetic: the two halves of
+an issue have very different shelf lives, and writing them in one voice has
+repeatedly cost a day.
+
+The backlog close-out gives four batches' worth of evidence. All twelve open
+issues were re-verified against `main` before work started; **eleven of
+twelve measured numbers still reproduced, and none of the twelve defects
+turned out to be imaginary.** Then three of the four batches worked so far
+hit a material correction anyway — and in every case what broke was the
+explanation, never the existence of the defect:
+
+| Issue | Held up | Did not |
+|---|---|---|
+| #262 | the hang, 18m47s wall for 1.62s CPU | the stated cause, **and the proposed fix, which would not have stopped the hang at all** |
+| #125 | the stale-lock problem | the recommended flag — `--frozen` *skips* the check that `--locked` enforces, the exact opposite |
+| #274 | the defect | the scope: fixing only the restore gate left the bug in place |
+| #176 | Agamemnon at 82,256 chars | `max=560,187`, which exceeds the whole corpus's maximum of 151,427 |
+| #116 | both defect classes | the commit it blamed — they predated it |
+
+So: a pointer to a defect is close to permanently reliable, because it comes
+from someone actually hitting the thing. A diagnosis is about a coin flip,
+because it is written *before* anyone tried the fix. An issue that presents
+both in the same register invites the next person to inherit the coin flip
+as though it were the measurement — which is what happened on #262 and #274,
+where the plan copied the proposed fix forward and both had to be corrected
+mid-implementation.
+
+Concretely:
+
+- **`## Measured`** — the command and its exact output, counts, `file:line`
+  and the lines themselves, and how you found it. Anything a reader can
+  re-run to get the same answer. Numbers go here **only** with the query
+  that produced them; a bare figure cannot be re-checked, and #176's wrong
+  one was catchable precisely because its query was printed beside it.
+- **`## Hypothesis`** — the cause, the suggested fix, the blamed commit,
+  the guess at scope. Say it is a guess. Everything here is what
+  [Correct the record](#correct-the-record) tells the implementer to verify
+  before relying on, and this is what gives that rule a target instead of
+  applying uniformly to every sentence.
+
+This does not lower the evidence bar; it is what makes the bar useful.
+"Feels fragile" still isn't a finding under either heading.
+
+One thing deliberately **not** done: a `.github/ISSUE_TEMPLATE/`. Issues
+here are filed with `gh issue create --body-file`, which bypasses templates
+entirely, so one would look like enforcement while enforcing nothing — a
+check that runs but validates nothing, which is on the list of things worth
+filing an issue about.
+
 ## Close the loop: every PR links its issue
 
 Filing issues is only half a loop. If closing them is manual, the backlog
