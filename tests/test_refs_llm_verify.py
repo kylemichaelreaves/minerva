@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 
@@ -64,6 +66,22 @@ def _verdict_json(*, row_id: int, references: bool, **extra: object) -> str:
     return json.dumps([body])
 
 
+def _verdicts_json(row_ids: Sequence[int], *, references: bool = True) -> str:
+    """One verdict object per id — the multi-row reply shape."""
+    return json.dumps(
+        [
+            {
+                "id": rid,
+                "references": references,
+                "type": "cites",
+                "confidence": 0.9,
+                "notes": "stub note",
+            }
+            for rid in row_ids
+        ]
+    )
+
+
 # ════════════════════════════════════════════════════════════════════
 # Helpers to seed cross-references
 # ════════════════════════════════════════════════════════════════════
@@ -96,6 +114,33 @@ def _seed_auto_row(
     )
     conn.commit()
     return rid
+
+
+def _seed_rows(conn: sqlite3.Connection, n: int) -> list[int]:
+    """Seed `n` eligible auto rows, each on a distinct source chunk so
+    the UNIQUE (source, target, form) dedup doesn't collapse them."""
+    sources = ("rep-509d", "rep-510a", "rep-514a", "phaedo-72e", "ne-1097b", "hegel-p17")
+    assert n <= len(sources), "populated_db has only 6 chunks"
+    target = refs_schema.ensure_target(
+        conn,
+        canonical_author="Aristotle",
+        canonical_work="Nicomachean Ethics",
+    )
+    ids = [
+        refs_schema.insert_cross_reference(
+            conn,
+            source_chunk_id=src,
+            target_id=target.id,
+            reference_type="cites",
+            source_form_snapshot=f"surface_{i}",
+            confidence=0.6,
+            source_method="rule_weak",
+            curator_status="auto",
+        )
+        for i, src in enumerate(sources[:n])
+    ]
+    conn.commit()
+    return ids
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -204,6 +249,28 @@ class TestVerifyRowsPromote:
             "SELECT confidence FROM cross_references WHERE id = ?", (rid,)
         ).fetchone()
         assert row[0] == pytest.approx(0.95)
+
+
+    def test_non_numeric_confidence_keeps_the_row_value(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        # The model occasionally answers with a word instead of a
+        # number. That must not abort the batch — the verdict still
+        # counts, the row just keeps its own confidence.
+        rid = _seed_auto_row(populated_db, confidence=0.6)
+        backend = SequenceStubBackend(
+            [_verdict_json(row_id=rid, references=True, confidence="high")]
+        )
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, max_llm_calls=5, skip_short_chunks=False
+        )
+
+        assert stats.promoted == 1
+        row = populated_db.execute(
+            "SELECT confidence FROM cross_references WHERE id = ?", (rid,)
+        ).fetchone()
+        assert row[0] == pytest.approx(0.6)
 
 
 class TestVerifyRowsReject:
@@ -464,3 +531,267 @@ class TestShortChunkFilter:
         sql, _params = llm_verify._eligible_rows_sql(skip_short_chunks=True)
         assert "length(c.text) >= 80" in sql
         assert "tc.text" not in sql.split("WHERE", 1)[1]
+
+
+# ════════════════════════════════════════════════════════════════════
+# Parse-failure recovery — split-and-retry (#270)
+# ════════════════════════════════════════════════════════════════════
+
+
+class TestParseFailureRetry:
+    """An unparseable response used to cost the whole batch: no retry,
+    and the only record was a 200-char excerpt behind --verbose. A bad
+    response is a property of the response, not of the rows — the #270
+    batch re-ran clean at a smaller batch size — so a failed batch is
+    re-issued as halves, and whatever still fails is named by row id.
+    """
+
+    def test_failed_batch_is_re_issued_as_halves(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 4)
+        backend = SequenceStubBackend(
+            [
+                "unparseable slop",
+                _verdicts_json(ids[:2]),
+                _verdicts_json(ids[2:]),
+            ]
+        )
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=4,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+        )
+
+        # All four rows recovered by the two half-batch calls.
+        assert stats.examined == 4
+        assert stats.promoted == 4
+        assert stats.lost_rows == 0
+        assert backend.call_count == 3
+
+    def test_halves_split_again_until_single_rows(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        # Depth-first, left to right: [a,b,c,d] → [a,b] → [a], [b] → [c,d].
+        ids = _seed_rows(populated_db, 4)
+        backend = SequenceStubBackend(
+            [
+                "slop",  # [a,b,c,d]
+                "slop",  # [a,b]
+                _verdicts_json([ids[0]]),  # [a]
+                _verdicts_json([ids[1]]),  # [b]
+                _verdicts_json(ids[2:]),  # [c,d]
+            ]
+        )
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=4,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+        )
+
+        assert stats.examined == 4
+        assert stats.lost_rows == 0
+        assert backend.call_count == 5
+
+    def test_single_row_that_cannot_parse_is_lost_and_named(
+        self, populated_db: sqlite3.Connection, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        ids = _seed_rows(populated_db, 2)
+        # Every attempt fails: [a,b] → [a] → [b]. Nothing left to split.
+        backend = SequenceStubBackend(["slop", "slop", "slop"])
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=2,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+        )
+
+        assert stats.examined == 0
+        assert stats.lost_rows == 2
+        out = capsys.readouterr().out
+        # The ids must be recoverable from the log without --verbose;
+        # otherwise re-running the lost rows means re-deriving the
+        # eligible set by hand.
+        assert str(ids[0]) in out
+        assert str(ids[1]) in out
+
+    def test_recovered_batch_leaves_no_rows_lost_but_records_the_error(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 2)
+        backend = SequenceStubBackend(
+            ["slop", _verdicts_json([ids[0]]), _verdicts_json([ids[1]])]
+        )
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=2,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+        )
+
+        # The bad response still shows in parse_errors — the run saw one
+        # — but it cost nothing.
+        assert stats.parse_errors == 1
+        assert stats.lost_rows == 0
+        assert stats.examined == 2
+
+    def test_retries_consume_the_call_budget(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 4)
+        # Budget of 2: the failed full batch, then one half. The second
+        # half never gets a call.
+        backend = SequenceStubBackend(["slop", _verdicts_json(ids[:2])])
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=4,
+            max_llm_calls=2,
+            skip_short_chunks=False,
+        )
+
+        assert stats.llm_calls == 2
+        assert backend.call_count == 2
+        assert stats.examined == 2
+        # Budget-stopped rows are not lost — the checkpoint stays behind
+        # the failed batch so a --resume run re-reads them.
+        assert llm_verify._read_checkpoint(populated_db) is None
+
+    def test_checkpoint_advances_when_a_split_recovers_the_batch(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 2)
+        backend = SequenceStubBackend(
+            ["slop", _verdicts_json([ids[0]]), _verdicts_json([ids[1]])]
+        )
+
+        llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=2,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+        )
+
+        # Every row was examined, so resume may skip past them.
+        assert llm_verify._read_checkpoint(populated_db) == ids[-1]
+
+    def test_verbose_logs_the_whole_response_not_a_200_char_prefix(
+        self, populated_db: sqlite3.Connection, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _seed_rows(populated_db, 1)
+        # The part that explains the failure is past the old 200-char
+        # cutoff — that is exactly what made the #270 response
+        # undiagnosable after the run.
+        response = "[" + ("x" * 400) + "TAIL_MARKER"
+        backend = SequenceStubBackend([response])
+
+        llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=1,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+            verbose=True,
+        )
+
+        assert "TAIL_MARKER" in capsys.readouterr().out
+
+
+class TestCallPacing:
+    def test_sleep_between_calls_paces_every_call_including_retries(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        # The pacing knob is what keeps long runs under the provider's
+        # rate limit, so it has to count retry calls too — they are
+        # ordinary API calls. Three calls here: the failed batch, the
+        # first half (backend error), the second half (verdict).
+        ids = _seed_rows(populated_db, 2)
+        backend = SequenceStubBackend(
+            ["slop", llm.LLMError("transient 503"), _verdicts_json([ids[1]])]
+        )
+        pause = 0.02
+
+        started = time.monotonic()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=2,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+            sleep_between_calls=pause,
+        )
+        elapsed = time.monotonic() - started
+
+        assert stats.llm_calls == 3
+        assert elapsed >= 3 * pause
+
+
+class TestVerdictDurability:
+    """The per-batch `conn.commit()` used to live inside the checkpoint
+    guard, so one failed batch stopped every *later* batch from
+    committing. Since the CLI never commits after the run, the tail of
+    a run that hit a single parse error was rolled back at process
+    exit — verdicts reported as promoted, then silently discarded.
+    Durability of the verdicts and the resume checkpoint are separate
+    concerns; only the checkpoint may be held back.
+    """
+
+    def test_verdicts_after_a_failed_batch_are_committed(
+        self, populated_db: sqlite3.Connection, db_path: Path
+    ) -> None:
+        ids = _seed_rows(populated_db, 2)
+        backend = SequenceStubBackend(
+            [llm.LLMError("transient 503"), _verdict_json(row_id=ids[1], references=True)]
+        )
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=1,
+            max_llm_calls=5,
+            skip_short_chunks=False,
+        )
+        assert stats.promoted == 1
+
+        # Read through a second connection: only committed rows are
+        # visible there.
+        other = sqlite3.connect(db_path)
+        try:
+            method = other.execute(
+                "SELECT source_method FROM cross_references WHERE id = ?", (ids[1],)
+            ).fetchone()[0]
+        finally:
+            other.close()
+        assert method == "rule+embed+llm"
+
+    def test_checkpoint_still_held_back_by_the_failed_batch(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 2)
+        backend = SequenceStubBackend(
+            [llm.LLMError("transient 503"), _verdict_json(row_id=ids[1], references=True)]
+        )
+
+        llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=1,
+            max_llm_calls=5,
+            skip_short_chunks=False,
+        )
+
+        # Committing the verdicts must not advance resume past the row
+        # the failed batch never examined.
+        assert llm_verify._read_checkpoint(populated_db) is None

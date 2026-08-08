@@ -29,6 +29,13 @@ overhead. The LLM returns one JSON array per call; we match each
 verdict back to its source row by ``id``. Out-of-order or missing
 verdicts are tolerated — a missing id leaves the row untouched.
 
+A response that won't parse is re-issued as two half-batches rather
+than written off, recursively down to single rows. The failure is a
+property of the response, not of the rows: the batch that broke the
+#265 backfill re-ran clean at a smaller batch size, well inside
+``max_tokens``. Whatever still fails at size 1 is reported by row id
+so it can be re-run without re-deriving the eligible set. See #270.
+
 Cost guard: ``max_llm_calls`` caps total API calls. Once the budget
 is exhausted the verifier stops; remaining rows stay at their prior
 state and a subsequent run will pick up where this one left off (the
@@ -162,6 +169,11 @@ class LLMVerifyStats:
     llm_calls: int = 0
     parse_errors: int = 0
     missing_verdicts: int = 0
+    # Rows no call ever produced a verdict for. `parse_errors` counts bad
+    # responses, which the split retry can absorb at no cost to the rows;
+    # this counts what the retry could not save. A run with
+    # parse_errors > 0 and lost_rows == 0 lost nothing.
+    lost_rows: int = 0
 
 
 _SYSTEM_PROMPT = """You verify cross-references between texts in a corpus of \
@@ -371,6 +383,107 @@ def _eligible_rows_sql(
 _LLM_VERIFY_CHECKPOINT_KEY = "refs.llm_verify.last_row_id"
 
 
+def _apply_verdicts(
+    conn: sqlite3.Connection,
+    unit: list[dict[str, Any]],
+    verdicts: list[dict[str, Any]],
+) -> tuple[int, int, int]:
+    """Write one call's verdicts back to ``cross_references``. Returns
+    ``(promoted, rejected, missing)``; every row in ``unit`` counts as
+    examined whether or not a verdict named it.
+
+    Verdicts are matched to rows by ``id``, so out-of-order replies are
+    fine and an id the model never returned leaves its row untouched."""
+
+    n_promoted = 0
+    n_rejected = 0
+    n_missing = 0
+    verdict_by_id = {v.get("id"): v for v in verdicts if isinstance(v, dict)}
+
+    for row in unit:
+        v = verdict_by_id.get(row["id"])
+        if v is None:
+            n_missing += 1
+            continue
+
+        references = bool(v.get("references"))
+        llm_type = str(v.get("type", row["reference_type"]))
+        if llm_type not in _ALLOWED_TYPES:
+            llm_type = row["reference_type"]
+        llm_conf = v.get("confidence")
+        try:
+            llm_conf_f = float(llm_conf) if llm_conf is not None else None
+        except (TypeError, ValueError):
+            llm_conf_f = None
+        if llm_conf_f is not None:
+            llm_conf_f = max(0.0, min(1.0, llm_conf_f))
+        llm_notes = str(v.get("notes", "")).strip() or None
+
+        # The LLM observation is per-row and genuinely informative
+        # (e.g. "Aquinas attributes the gloss on 1 Tim. 2 to Augustine
+        # by name"). Curator_note used to be the rule's template
+        # string with this observation appended — that produced
+        # thousands of duplicate boilerplate prefixes. Now we replace
+        # rather than append: the LLM observation IS the row's note.
+        # Manual rows (curator-written notes from YAML specs) are
+        # filtered out of the verifier upstream so we never overwrite
+        # those.
+        if not references:
+            conn.execute(
+                "UPDATE cross_references "
+                "SET curator_status = 'rejected', "
+                "    source_method = 'rule+embed+llm', "
+                "    curator_note = ? "
+                "WHERE id = ?",
+                (llm_notes, row["id"]),
+            )
+            n_rejected += 1
+            continue
+
+        # Promote: keep curator_status='auto' (so the curator still
+        # signs off via the review walker), but mark provenance + bump
+        # confidence + adopt the LLM's type if it differs.
+        new_conf = max(row["confidence"], llm_conf_f or row["confidence"])
+        conn.execute(
+            "UPDATE cross_references "
+            "SET confidence = ?, "
+            "    reference_type = ?, "
+            "    source_method = 'rule+embed+llm', "
+            "    curator_note = ? "
+            "WHERE id = ?",
+            (new_conf, llm_type, llm_notes, row["id"]),
+        )
+        n_promoted += 1
+
+    return n_promoted, n_rejected, n_missing
+
+
+def _hold_back(first_failed_id: int | None, unit: list[dict[str, Any]]) -> int:
+    """Lower-bound the resume checkpoint to this unit's first row. Rows
+    arrive ordered by ``xr.id``, so ``unit[0]`` is its smallest. A later
+    successful batch must not push the checkpoint past a row nothing
+    examined — ``--resume`` would then skip it forever."""
+
+    bid = int(unit[0]["id"])
+    return bid if first_failed_id is None else min(first_failed_id, bid)
+
+
+def _row_ids(unit: list[dict[str, Any]]) -> str:
+    return ", ".join(str(r["id"]) for r in unit)
+
+
+def _report_lost(reason: str, unit: list[dict[str, Any]]) -> None:
+    """Name the rows a failed call gave up on. Unconditional — not
+    gated on ``verbose`` — because without the ids the only way to
+    re-run them is to re-derive the eligible set by hand (#270). The
+    leading newline keeps the in-place progress bar intact on a tty."""
+
+    print(
+        f"\n  [lost] {reason}: {len(unit)} row(s) unexamined — xr ids: {_row_ids(unit)}",
+        flush=True,
+    )
+
+
 def _read_checkpoint(conn: sqlite3.Connection) -> int | None:
     row = conn.execute(
         "SELECT value FROM meta WHERE key = ?", (_LLM_VERIFY_CHECKPOINT_KEY,)
@@ -414,6 +527,13 @@ def verify_rows_with_llm(
     stops and remaining rows stay at their prior state. Re-running
     the verifier picks up where this one left off (the filter
     excludes already-LLM-verified rows).
+
+    A batch whose response won't parse is re-issued as two halves,
+    recursively down to single rows, so one malformed response costs at
+    most one row instead of the whole batch (#270). Retries draw on the
+    same ``max_llm_calls`` budget, so a pathological batch of N can cost
+    up to 2N-1 calls before the budget stops it; every unit given up on
+    is printed with its row ids.
 
     ``resume=True`` (Phase 6b) reads ``meta.refs.llm_verify.last_row_id``
     and skips rows ``<=`` that id, so a budget-exhausted run can
@@ -463,6 +583,7 @@ def verify_rows_with_llm(
     n_calls = 0
     n_parse_errors = 0
     n_missing = 0
+    n_lost = 0
 
     # Materialize rows into a list-of-dicts so we can slice into
     # batches without holding the sqlite cursor open across calls.
@@ -491,118 +612,104 @@ def verify_rows_with_llm(
             break
 
         batch = row_dicts[batch_start : batch_start + batch_size]
-        user_payload = _build_user_message(batch)
+        batch_no = batch_start // batch_size
 
-        try:
-            response = backend.complete(
-                [
-                    llm_mod.Message(role="system", content=_SYSTEM_PROMPT),
-                    llm_mod.Message(role="user", content=user_payload),
-                ],
-                temperature=0.1,
-            )
-        except llm_mod.LLMError as exc:
-            if verbose:
-                # Print on its own line so the in-place progress bar
-                # isn't clobbered. `print` to a tty after a `\r` write
-                # would overlap; emit a newline first.
-                print(f"\n  [error] batch {batch_start//batch_size}: {exc}", flush=True)
-            n_calls += 1
-            n_parse_errors += 1
-            bid = batch[0]["id"]
-            first_failed_id = bid if first_failed_id is None else min(first_failed_id, bid)
-            progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)
-            progress.update()
-            if sleep_between_calls:
-                time.sleep(sleep_between_calls)
-            continue
+        # Work list for this batch, processed depth-first: a unit whose
+        # response won't parse is replaced at the front of the queue by
+        # its two halves, so [a,b,c,d] retries as [a,b] then [c,d] and
+        # a failing [a,b] retries as [a] then [b] (#270).
+        pending: list[list[dict[str, Any]]] = [batch]
+        out_of_budget = False
+        n_deferred = 0
 
-        n_calls += 1
-        verdicts = _parse_verdicts(response)
-        if verdicts is None:
-            if verbose:
-                print(
-                    f"\n  [parse_error] batch {batch_start//batch_size}: "
-                    f"could not extract JSON array; first 200 chars: "
-                    f"{response[:200]!r}",
-                    flush=True,
-                )
-            n_parse_errors += 1
-            bid = batch[0]["id"]
-            first_failed_id = bid if first_failed_id is None else min(first_failed_id, bid)
-            progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)
-            progress.update()
-            if sleep_between_calls:
-                time.sleep(sleep_between_calls)
-            continue
+        while pending:
+            unit = pending.pop(0)
 
-        # Match each input row to its verdict by id; apply.
-        verdict_by_id = {v.get("id"): v for v in verdicts if isinstance(v, dict)}
-        for row in batch:
-            n_examined += 1
-            v = verdict_by_id.get(row["id"])
-            if v is None:
-                n_missing += 1
-                continue
+            if n_calls >= max_llm_calls:
+                # Budget ran out mid-retry. Hold this unit and whatever
+                # is queued behind it: the checkpoint guard below keeps
+                # them reachable by a `--resume` run, so they are
+                # deferred rather than lost.
+                for held in (unit, *pending):
+                    first_failed_id = _hold_back(first_failed_id, held)
+                    n_deferred += len(held)
+                out_of_budget = True
+                break
 
-            references = bool(v.get("references"))
-            llm_type = str(v.get("type", row["reference_type"]))
-            if llm_type not in _ALLOWED_TYPES:
-                llm_type = row["reference_type"]
-            llm_conf = v.get("confidence")
+            user_payload = _build_user_message(unit)
+
             try:
-                llm_conf_f = float(llm_conf) if llm_conf is not None else None
-            except (TypeError, ValueError):
-                llm_conf_f = None
-            if llm_conf_f is not None:
-                llm_conf_f = max(0.0, min(1.0, llm_conf_f))
-            llm_notes = str(v.get("notes", "")).strip() or None
-
-            # The LLM observation is per-row and genuinely informative
-            # (e.g. "Aquinas attributes the gloss on 1 Tim. 2 to Augustine
-            # by name"). Curator_note used to be the rule's template
-            # string with this observation appended — that produced
-            # thousands of duplicate boilerplate prefixes. Now we replace
-            # rather than append: the LLM observation IS the row's note.
-            # Manual rows (curator-written notes from YAML specs) are
-            # filtered out of the verifier upstream so we never overwrite
-            # those.
-            if not references:
-                conn.execute(
-                    "UPDATE cross_references "
-                    "SET curator_status = 'rejected', "
-                    "    source_method = 'rule+embed+llm', "
-                    "    curator_note = ? "
-                    "WHERE id = ?",
-                    (llm_notes, row["id"]),
+                response = backend.complete(
+                    [
+                        llm_mod.Message(role="system", content=_SYSTEM_PROMPT),
+                        llm_mod.Message(role="user", content=user_payload),
+                    ],
+                    temperature=0.1,
                 )
-                n_rejected += 1
+            except llm_mod.LLMError as exc:
+                # A backend error says nothing about the payload, so
+                # halving it would not change the outcome — unlike a
+                # parse failure, this unit is given up on directly.
+                n_calls += 1
+                n_parse_errors += 1
+                n_lost += len(unit)
+                first_failed_id = _hold_back(first_failed_id, unit)
+                _report_lost(f"batch {batch_no}: {exc}", unit)
+                if sleep_between_calls:
+                    time.sleep(sleep_between_calls)
                 continue
 
-            # Promote: keep curator_status='auto' (so the curator still
-            # signs off via the review walker), but mark provenance + bump
-            # confidence + adopt the LLM's type if it differs.
-            new_conf = max(row["confidence"], llm_conf_f or row["confidence"])
-            conn.execute(
-                "UPDATE cross_references "
-                "SET confidence = ?, "
-                "    reference_type = ?, "
-                "    source_method = 'rule+embed+llm', "
-                "    curator_note = ? "
-                "WHERE id = ?",
-                (new_conf, llm_type, llm_notes, row["id"]),
-            )
-            n_promoted += 1
+            n_calls += 1
+            verdicts = _parse_verdicts(response)
+            if verdicts is None:
+                n_parse_errors += 1
+                if verbose:
+                    # The whole response, not a prefix: the #270 reply
+                    # read as well-formed JSON for its first 200 chars
+                    # and whatever broke the parse was past the cutoff,
+                    # unrecoverable once the run ended.
+                    print(
+                        f"\n  [parse_error] batch {batch_no} "
+                        f"({len(unit)} row(s)): could not extract JSON array; "
+                        f"response was:\n{response!r}",
+                        flush=True,
+                    )
+                if len(unit) > 1:
+                    mid = len(unit) // 2
+                    pending[:0] = [unit[:mid], unit[mid:]]
+                else:
+                    n_lost += 1
+                    first_failed_id = _hold_back(first_failed_id, unit)
+                    _report_lost(f"batch {batch_no}: unparseable response", unit)
+                if sleep_between_calls:
+                    time.sleep(sleep_between_calls)
+                continue
 
-        # Persist the last processed xr.id so a follow-up `--resume`
-        # picks up at exactly the next row. Never advance past a batch
-        # that errored earlier in the run — that would skip those rows
-        # on resume.
+            promoted, rejected, missing = _apply_verdicts(conn, unit, verdicts)
+            n_examined += len(unit)
+            n_promoted += promoted
+            n_rejected += rejected
+            n_missing += missing
+
+            if sleep_between_calls:
+                time.sleep(sleep_between_calls)
+
+        # Persist this batch's verdicts. The commit is unconditional:
+        # how durable the verdicts are and how far `--resume` may skip
+        # are separate questions, and tying them together meant one
+        # failed batch left every *later* batch uncommitted — the CLI
+        # never commits after the run, so the tail was rolled back at
+        # process exit.
+        #
+        # Only the checkpoint is held back. It records the last row id
+        # a follow-up `--resume` may skip past, so it must never reach
+        # a row an earlier failure left unexamined.
         if first_failed_id is None or batch[-1]["id"] < first_failed_id:
             _write_checkpoint(conn, batch[-1]["id"])
-            conn.commit()
+        conn.commit()
 
-        # Tick the progress bar once per successful call.
+        # Tick the progress bar once per batch, however many calls the
+        # batch cost — the bar's total is a batch count.
         progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)
         progress.update()
 
@@ -617,8 +724,16 @@ def verify_rows_with_llm(
                 flush=True,
             )
 
-        if sleep_between_calls:
-            time.sleep(sleep_between_calls)
+        if out_of_budget:
+            progress.close(
+                final_note=(
+                    f"[budget] reached --max-llm-calls={max_llm_calls}; "
+                    f"{n_deferred + len(row_dicts) - batch_start - len(batch)} "
+                    f"rows unprocessed "
+                    f"(re-run will resume from id > last_seen)"
+                )
+            )
+            break
     else:
         # The `else` clause on `for` runs when the loop exits without
         # `break` — i.e. we processed every batch within budget. Close
@@ -635,6 +750,7 @@ def verify_rows_with_llm(
         llm_calls=n_calls,
         parse_errors=n_parse_errors,
         missing_verdicts=n_missing,
+        lost_rows=n_lost,
     )
 
 

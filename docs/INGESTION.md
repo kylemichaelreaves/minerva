@@ -301,16 +301,43 @@ candidate query excludes `source_method LIKE '%llm%'`, so already-
 verified rows are skipped on a plain re-run.
 
 For a faster resume after `--max-llm-calls` is exhausted, pass
-`--resume`: it reads `meta.refs.llm_verify.last_row_id` (written
-after every committed batch) and adds `WHERE xr.id > <last>` to
-the eligible-rows query, so the verifier skips straight to the
-tail instead of re-scanning the filtered candidate set. An
-interrupted run wastes at most one batch's worth of rows.
+`--resume`: it reads `meta.refs.llm_verify.last_row_id` and adds
+`WHERE xr.id > <last>` to the eligible-rows query, so the verifier
+skips straight to the tail instead of re-scanning the filtered
+candidate set. An interrupted run wastes at most one batch's worth
+of rows.
+
+Every batch commits its verdicts. The checkpoint is the part that
+gets held back: once any batch fails, it stops advancing, so a
+`--resume` run re-reads the failed rows rather than skipping them
+forever. Do not read a stalled checkpoint as lost work — the
+verdicts either side of it are on disk.
 
 ```sh
 .venv/bin/minerva refs build --strategy llm-verify --resume \
     --llm-backend anthropic --max-llm-calls 700
 ```
+
+### When a batch's response won't parse
+
+A reply the verifier can't read is re-issued as two half-batches,
+recursively down to single rows, because the failure is a property
+of the response and not of the rows (#270). Read the two counters
+in the summary line together:
+
+- `parse_errors` — bad responses seen, including ones the retry
+  went on to absorb.
+- `lost_rows` — rows no call ever returned a verdict for. Each is
+  printed with its `xr` id as it happens (`[lost] …`). A plain
+  re-run picks them up regardless (their `source_method` is still
+  un-verified, and the checkpoint never passed them); the ids are
+  there so you can inspect what the model choked on without
+  re-deriving the eligible set by hand.
+
+`parse_errors=3 lost_rows=0` is a clean run that hit some noise.
+Any non-zero `lost_rows` is work to redo. Retries draw on the same
+`--max-llm-calls` budget, so a pathological batch of N can cost up
+to 2N-1 calls.
 
 **Indexing alone does not make the author chat-ready.** Before you
 treat the ingest as done, complete **§14 (Chat & retrieval
