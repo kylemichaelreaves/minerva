@@ -112,6 +112,56 @@ def test_cross_references_survive_index_reset(tmp_path: Path):
     assert bad == [], f"FK violations after reset: {bad}"
 
 
+def test_reference_targets_survive_reset_with_zero_xrefs(tmp_path: Path):
+    """A curated ``reference_targets`` row with no ``cross_references``
+    hanging off it must survive ``index --reset`` (#274).
+
+    ``reference_targets`` is an independent table: ``citation_system``
+    and ``notes`` are curator prose, and migration 0012's seeds carry
+    hand-written notes for nine out-of-corpus authors. Nothing
+    regenerates those. Before the fix both the snapshot probe and the
+    restore gate keyed on ``cross_references`` alone, so a targets-only
+    DB was never snapshotted at all — ``store.reset_db`` unlinked the
+    file and the curator's rows came back as whatever 0012 seeds.
+    """
+
+    db = tmp_path / "targets_only.sqlite"
+    jsonl = tmp_path / "seed.jsonl"
+    jsonl.write_text(json.dumps(make_chunk(chunk_id="src", text="a chunk")))
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    conn.execute(
+        "INSERT INTO reference_targets "
+        "  (canonical_author, canonical_work, citation_system, notes) "
+        "VALUES ('Celsus', 'Alethes Logos', 'book_section', "
+        "        'Lost; survives only as quoted by Origen.')"
+    )
+    conn.commit()
+    # The precondition that makes this the #274 path rather than the
+    # already-covered one: not a single xref exists.
+    assert conn.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0] == 0
+    seeded = conn.execute("SELECT COUNT(*) FROM reference_targets").fetchone()[0]
+    conn.close()
+
+    _run_index(db, jsonl, reset=True)
+
+    conn = store.open_db(db)
+    row = conn.execute(
+        "SELECT citation_system, notes FROM reference_targets "
+        "WHERE canonical_author = 'Celsus' AND canonical_work = 'Alethes Logos'"
+    ).fetchone()
+    assert row is not None, "the curated target did not survive --reset"
+    assert tuple(row) == ("book_section", "Lost; survives only as quoted by Origen.")
+    # The 0012 seeds come back alongside it rather than being doubled or
+    # displaced: the snapshot's version of the table replaces the freshly
+    # migrated one wholesale.
+    assert conn.execute(
+        "SELECT COUNT(*) FROM reference_targets"
+    ).fetchone()[0] == seeded
+    conn.close()
+
+
 def test_in_corpus_work_id_survives_works_id_reassignment(tmp_path: Path):
     """``index --reset`` does ``DELETE FROM works`` and re-INSERTs, so
     ``works.id`` is reassigned in JSONL order. ``reference_targets``
@@ -154,12 +204,13 @@ def test_in_corpus_work_id_survives_works_id_reassignment(tmp_path: Path):
     )
     conn.commit()
     assert target.in_corpus_work_id == republic_id
-    # Hang an xref off it. Required for the target to survive at all:
-    # the snapshot restore only replays reference_targets when the
-    # snapshot holds at least one cross_references row
-    # (store/preserved_state.py:124) — that gate is its own bug, filed
-    # as #274. Production targets all have xrefs, so seeding one here
-    # keeps this test on the real path instead of blocking on #274.
+    # Hang an xref off it, so this stays the production shape — targets
+    # reached by a real reference. It is no longer load-bearing: until
+    # #274 was fixed the restore replayed reference_targets only when the
+    # snapshot held at least one cross_references row, and without this
+    # xref the test failed on that gate rather than on the stale
+    # `in_corpus_work_id` it is about. The targets-only path now has its
+    # own test above.
     ed_id = conn.execute(
         "SELECT edition_id FROM chunks WHERE chunk_id = 'law'"
     ).fetchone()[0]

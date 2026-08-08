@@ -12,20 +12,35 @@ from ..sqlite_util import foreign_keys_disabled, table_exists
 
 def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> None:
     """Back up ``db_path`` to ``<db_path>.bak.pre-index`` when the DB
-    carries cross_references, chunk_lemmas, embeddings, OR curated
-    ``terms`` rows.
+    carries cross_references, reference_targets, chunk_lemmas,
+    embeddings, OR curated ``terms`` rows.
 
-    Four pieces of state need to survive a ``--reset``: LLM-verified
+    Five pieces of state need to survive a ``--reset``: LLM-verified
     cross_references (hours to regenerate), chunk_lemmas (~10 min via
     LatinCy across grc+lat), embeddings (~20 min to re-encode the full
-    corpus), and the term glossary — which, unlike the other three, is
-    not regenerable at any price, because it is curator prose (#192).
+    corpus), the term glossary — which, unlike the other three, is
+    not regenerable at any price, because it is curator prose (#192) —
+    and ``reference_targets``, which is the same kind of prose: its
+    ``citation_system`` and ``notes`` are hand-written, and migration
+    0012 seeds nine out-of-corpus authors with them.
     ``terms`` is the probe for the whole glossary: the other four
     tables all reach it by foreign key, so a non-empty glossary always
     has a non-empty ``terms``. The snapshot is
     overwritten on each subsequent re-index — one snapshot, not a tower
-    of them. No-op for fresh DBs (where neither table exists yet) and
-    for fully-empty DBs.
+    of them. No-op for fresh DBs, where the file does not exist yet.
+
+    It is NOT a no-op for an otherwise-empty DB any more, and that is a
+    deliberate consequence of counting ``reference_targets`` (#274):
+    migration 0012 seeds 21 rows into every migrated DB, so any DB the
+    migrations have touched now trips the probe. The alternative — a
+    predicate that tries to tell curated targets from the seeds — cannot
+    be made sound, because the case #274 names is a curator editing a
+    seed row's ``notes`` in place, which changes neither the row count
+    nor which ``(author, work)`` pairs are present. The cost is one
+    extra whole-file copy in the single window where nothing else is
+    populated: a mid-build DB holding chunks but no embeddings, lemmas,
+    xrefs or glossary. Any DB large enough for that copy to hurt has
+    left that window.
 
     The copy goes through SQLite's backup API, NOT a filesystem copy:
     the DB runs in WAL mode, and a plain ``cp``/``copy2`` grabs the
@@ -50,6 +65,13 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
     probe = sqlite3.connect(db_path)
     try:
         xref_count = _count_or_zero(probe, "cross_references")
+        # Counted separately from cross_references, not inferred from it:
+        # targets exist before the first `refs build` and outlive a refs
+        # clear-out, and inferring one from the other is exactly the #274
+        # defect. Without this, a targets-only DB is never snapshotted,
+        # `store.reset_db` unlinks it, and the curator's citation_system
+        # and notes come back as whatever migration 0012 seeds.
+        target_count = _count_or_zero(probe, "reference_targets")
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
         emb_count = _count_or_zero(probe, "embeddings")
         term_count = _count_or_zero(probe, "terms")
@@ -57,10 +79,11 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
         # chunk attempted and found barren has a state row and no lemma
         # rows, so a corpus that produced nothing anywhere would score
         # zero on all four counts above and never be snapshotted (#263).
-        # That inference is the shape of the #274 defect.
+        # Same reasoning as reference_targets above.
         state_count = _count_or_zero(probe, "chunk_lemma_state")
         if (
             xref_count == 0
+            and target_count == 0
             and lemma_count == 0
             and emb_count == 0
             and term_count == 0
@@ -81,6 +104,8 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
     bits = []
     if xref_count:
         bits.append(f"{xref_count} cross_references")
+    if target_count:
+        bits.append(f"{target_count} reference_targets")
     if lemma_count:
         bits.append(f"{lemma_count:,} chunk_lemmas")
     if emb_count:
@@ -120,9 +145,19 @@ def _maybe_restore_preserved_state_from_snapshot(
     ):
         if _count_or_zero(conn, table):
             return
+    # `reference_targets` is deliberately absent from that "live table is
+    # already populated, leave it alone" guard: migration 0012 seeds it,
+    # so it is NEVER empty on a migrated DB and including it would make
+    # this an unconditional early return.
     probe = sqlite3.connect(backup)
     try:
         xref_count = _count_or_zero(probe, "cross_references")
+        # Its own count, and its own restore below. A snapshot can hold
+        # targets and zero xrefs — before the first `refs build`, or
+        # after a refs clear-out — and gating the targets on the xrefs
+        # dropped the curator's `citation_system` and `notes` back to the
+        # 0012 seeds without a word (#274).
+        target_count = _count_or_zero(probe, "reference_targets")
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
         # The lemmatize attempt markers (#263). Counted separately from
         # chunk_lemmas because a barren chunk has one of these and no
@@ -138,6 +173,7 @@ def _maybe_restore_preserved_state_from_snapshot(
         probe.close()
     if (
         xref_count == 0
+        and target_count == 0
         and lemma_count == 0
         and state_count == 0
         and emb_count == 0
@@ -149,12 +185,20 @@ def _maybe_restore_preserved_state_from_snapshot(
         conn.execute("ATTACH DATABASE ? AS snap", (str(backup),))
         try:
             try:
+                # Children first on the way out, parents first on the way
+                # back in: `cross_references.target_id` points at
+                # `reference_targets`, so the DELETE order is xrefs →
+                # targets and the restore order is targets → xrefs. The
+                # two pairs are otherwise independent — a targets-only
+                # snapshot round-trips without an xref in sight (#274).
                 xref_restored = 0
                 target_restored = 0
                 if xref_count:
                     conn.execute("DELETE FROM cross_references")
+                if target_count:
                     conn.execute("DELETE FROM reference_targets")
                     target_restored = _restore_from_snap(conn, "reference_targets")
+                if xref_count:
                     xref_restored = _restore_from_snap(conn, "cross_references")
                 lemma_restored = 0
                 if lemma_count:

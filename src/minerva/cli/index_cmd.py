@@ -120,6 +120,7 @@ def cmd_index(args: argparse.Namespace) -> int:
             # survived.
             _sweep_orphan_chunk_lemmas(conn)
             _sweep_orphan_glossary_anchors(conn)
+            _sweep_orphan_refs_scan_state(conn)
             # Derived from `authors/work_aliases.py`, keyed there on
             # (author, title) and resolved to work ids here — so it has to
             # run after the insert has rebuilt `works`, and again after
@@ -185,6 +186,45 @@ def _sweep_orphan_chunk_lemmas(conn: sqlite3.Connection) -> None:
                 f"changed); {remaining:,} rows preserved.",
                 file=sys.stderr,
             )
+
+
+def _sweep_orphan_refs_scan_state(conn: sqlite3.Connection) -> None:
+    """Drop ``refs_scan_state`` rows whose chunk is no longer in the
+    corpus (#264).
+
+    The table is the ``refs build --strategy rules`` skip cache. It
+    carries no foreign key to ``chunks`` — 31,629 of its 460,235 rows
+    (6.9%) in the live DB pointed at chunk_ids that had not existed for
+    several re-ingests. Reaping here rather than adding ``ON DELETE
+    CASCADE`` is deliberate: the FK needs a table rebuild, which means
+    the PRAGMA/view dance, and that is separate risk for no extra
+    benefit — this sweep already runs after every index in both modes.
+
+    Accumulated rows are the smaller half. ``chunk_id`` is derived from
+    content, so a chunk deleted and later re-created with the same text
+    gets *the same id back* and inherits the stale "already scanned"
+    marker. The skip predicate is keyed on chunk identity, not on which
+    rules have run, so a rules module edited in between never fires for
+    that chunk and the run exits 0 having emitted nothing — which is
+    also what a correctly-skipped run looks like. That is why the Renan
+    half of the #223 operator step needed ``--rescan-all``.
+
+    Unscoped in incremental mode too, and correctly so: a row whose
+    chunk_id is absent from ``chunks`` is stale whatever corpus it came
+    from. Rows for chunks that survived are untouched, so the cache
+    keeps working.
+    """
+
+    dropped = sweep_orphan_chunk_ids(conn, "refs_scan_state")
+    if dropped:
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM refs_scan_state"
+        ).fetchone()[0]
+        print(
+            f"Dropped {dropped:,} orphan refs_scan_state rows (chunks no "
+            f"longer in the corpus); {remaining:,} scan markers preserved.",
+            file=sys.stderr,
+        )
 
 
 def _sweep_orphan_glossary_anchors(conn: sqlite3.Connection) -> None:
