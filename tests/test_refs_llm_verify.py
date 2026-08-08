@@ -392,3 +392,75 @@ class TestBudgetAndErrorHandling:
             "SELECT source_method FROM cross_references WHERE id = ?", (rid,)
         ).fetchone()
         assert row[0] == "rule_weak"
+
+
+# ════════════════════════════════════════════════════════════════════
+# skip_short_chunks — source-only floor (#265)
+# ════════════════════════════════════════════════════════════════════
+
+
+class TestShortChunkFilter:
+    """The 80-char floor exists to drop section banners, whose
+    embeddings collide at cosine≈1. That reasoning applies to the
+    *source* chunk — the side the verifier reads context from. It does
+    not apply to the *target*: a short cited passage is normal (42.6%
+    of Quran verses and 26% of the Hebrew Bible are under 80 chars),
+    and excluding them meant the most-cited corpora could never be
+    verified as citation targets. See issue #265.
+    """
+
+    def test_short_target_is_eligible(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        # ne-1097b is 69 chars — a plausible verse-length target.
+        assert (
+            populated_db.execute(
+                "SELECT length(text) FROM chunks WHERE chunk_id = 'ne-1097b'"
+            ).fetchone()[0]
+            < 80
+        )
+        rid = _seed_auto_row(populated_db, target_chunk_id="ne-1097b")
+        backend = SequenceStubBackend([_verdict_json(row_id=rid, references=True)])
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, max_llm_calls=5, skip_short_chunks=True
+        )
+
+        assert stats.examined == 1
+
+    def test_short_source_is_still_skipped(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        # hegel-p17 is 41 chars — too little context to judge a citation.
+        assert (
+            populated_db.execute(
+                "SELECT length(text) FROM chunks WHERE chunk_id = 'hegel-p17'"
+            ).fetchone()[0]
+            < 80
+        )
+        _seed_auto_row(populated_db, source_chunk_id="hegel-p17")
+        backend = SequenceStubBackend([])
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, max_llm_calls=5, skip_short_chunks=True
+        )
+
+        assert stats.examined == 0
+        assert backend.call_count == 0
+
+    def test_short_source_included_with_flag_off(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        rid = _seed_auto_row(populated_db, source_chunk_id="hegel-p17")
+        backend = SequenceStubBackend([_verdict_json(row_id=rid, references=True)])
+
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, max_llm_calls=5, skip_short_chunks=False
+        )
+
+        assert stats.examined == 1
+
+    def test_sql_carries_no_target_length_clause(self) -> None:
+        sql, _params = llm_verify._eligible_rows_sql(skip_short_chunks=True)
+        assert "length(c.text) >= 80" in sql
+        assert "tc.text" not in sql.split("WHERE", 1)[1]

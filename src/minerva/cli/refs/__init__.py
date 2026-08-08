@@ -340,9 +340,11 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
         "--include-short-chunks",
         action="store_true",
         help=(
-            "Don't skip rows attached to chunks under 80 chars (the boilerplate-"
-            "tied embed_only false-positives). Default is to skip — these "
-            "almost always come back rejected and waste tokens."
+            "Don't skip rows whose SOURCE chunk is under 80 chars (the "
+            "boilerplate-tied embed_only false-positives). Default is to "
+            "skip — these almost always come back rejected and waste tokens. "
+            "Target length is never a filter: short cited passages are normal "
+            "for scripture (#265)."
         ),
     )
     pb.add_argument(
