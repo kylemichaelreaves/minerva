@@ -168,6 +168,12 @@ class LLMVerifyStats:
     unchanged: int = 0
     llm_calls: int = 0
     parse_errors: int = 0
+    # Calls the backend refused or dropped — a 503, a rate limit, a
+    # timeout. Kept apart from `parse_errors` because the two call for
+    # opposite operator responses: a malformed response is worth
+    # re-rolling at a smaller batch size, an outage is worth waiting out
+    # (#272). One counter could not tell the operator which they hit.
+    backend_errors: int = 0
     missing_verdicts: int = 0
     # Rows no call ever produced a verdict for. `parse_errors` counts bad
     # responses, which the split retry can absorb at no cost to the rows;
@@ -518,6 +524,8 @@ def verify_rows_with_llm(
     verbose: bool = False,
     sleep_between_calls: float = 0.0,
     resume: bool = False,
+    max_backend_retries: int = 2,
+    backend_retry_backoff: float = 2.0,
 ) -> LLMVerifyStats:
     """Drive the Phase 4 verifier. Batches eligible rows, calls the
     backend per batch, parses verdicts, updates the database. Returns
@@ -534,6 +542,14 @@ def verify_rows_with_llm(
     same ``max_llm_calls`` budget, so a pathological batch of N can cost
     up to 2N-1 calls before the budget stops it; every unit given up on
     is printed with its row ids.
+
+    A backend error is the other failure and is handled the opposite way
+    (#272): a 503 says nothing about the payload, so halving it would not
+    help and the unit is re-sent **unchanged** up to
+    ``max_backend_retries`` times, pausing ``backend_retry_backoff``
+    seconds and doubling each attempt. Retries are ordinary API calls and
+    are billed against ``max_llm_calls`` like any other. Past the bound
+    the unit is given up on, exactly as before.
 
     ``resume=True`` (Phase 6b) reads ``meta.refs.llm_verify.last_row_id``
     and skips rows ``<=`` that id, so a budget-exhausted run can
@@ -582,6 +598,7 @@ def verify_rows_with_llm(
     n_unchanged = 0
     n_calls = 0
     n_parse_errors = 0
+    n_backend_errors = 0
     n_missing = 0
     n_lost = 0
 
@@ -617,20 +634,23 @@ def verify_rows_with_llm(
         # Work list for this batch, processed depth-first: a unit whose
         # response won't parse is replaced at the front of the queue by
         # its two halves, so [a,b,c,d] retries as [a,b] then [c,d] and
-        # a failing [a,b] retries as [a] then [b] (#270).
-        pending: list[list[dict[str, Any]]] = [batch]
+        # a failing [a,b] retries as [a] then [b] (#270). The int is the
+        # count of *backend* retries already spent on that unit, which is
+        # a separate budget from the halving above (#272) — halves start
+        # a fresh one because they are a different payload.
+        pending: list[tuple[list[dict[str, Any]], int]] = [(batch, 0)]
         out_of_budget = False
         n_deferred = 0
 
         while pending:
-            unit = pending.pop(0)
+            unit, attempt = pending.pop(0)
 
             if n_calls >= max_llm_calls:
                 # Budget ran out mid-retry. Hold this unit and whatever
                 # is queued behind it: the checkpoint guard below keeps
                 # them reachable by a `--resume` run, so they are
                 # deferred rather than lost.
-                for held in (unit, *pending):
+                for held in (unit, *(queued for queued, _ in pending)):
                     first_failed_id = _hold_back(first_failed_id, held)
                     n_deferred += len(held)
                 out_of_budget = True
@@ -649,9 +669,23 @@ def verify_rows_with_llm(
             except llm_mod.LLMError as exc:
                 # A backend error says nothing about the payload, so
                 # halving it would not change the outcome — unlike a
-                # parse failure, this unit is given up on directly.
+                # parse failure, the same unit is re-sent unchanged after
+                # a widening pause (#272).
                 n_calls += 1
-                n_parse_errors += 1
+                n_backend_errors += 1
+                if attempt < max_backend_retries:
+                    if verbose:
+                        print(
+                            f"\n  [backend_error] batch {batch_no} "
+                            f"({len(unit)} row(s)), attempt {attempt + 1} of "
+                            f"{max_backend_retries + 1}: {exc}",
+                            flush=True,
+                        )
+                    pending.insert(0, (unit, attempt + 1))
+                    if backend_retry_backoff:
+                        time.sleep(backend_retry_backoff * (2**attempt))
+                    continue
+                # Out of retries: give the unit up, exactly as before.
                 n_lost += len(unit)
                 first_failed_id = _hold_back(first_failed_id, unit)
                 _report_lost(f"batch {batch_no}: {exc}", unit)
@@ -676,7 +710,7 @@ def verify_rows_with_llm(
                     )
                 if len(unit) > 1:
                     mid = len(unit) // 2
-                    pending[:0] = [unit[:mid], unit[mid:]]
+                    pending[:0] = [(unit[:mid], 0), (unit[mid:], 0)]
                 else:
                     n_lost += 1
                     first_failed_id = _hold_back(first_failed_id, unit)
@@ -710,7 +744,11 @@ def verify_rows_with_llm(
 
         # Tick the progress bar once per batch, however many calls the
         # batch cost — the bar's total is a batch count.
-        progress.set_stats(promoted=n_promoted, rejected=n_rejected, errors=n_parse_errors)
+        progress.set_stats(
+            promoted=n_promoted,
+            rejected=n_rejected,
+            errors=n_parse_errors + n_backend_errors,
+        )
         progress.update()
 
         if verbose and n_calls % 50 == 0 and not progress.is_tty:
@@ -749,6 +787,7 @@ def verify_rows_with_llm(
         unchanged=n_unchanged,
         llm_calls=n_calls,
         parse_errors=n_parse_errors,
+        backend_errors=n_backend_errors,
         missing_verdicts=n_missing,
         lost_rows=n_lost,
     )

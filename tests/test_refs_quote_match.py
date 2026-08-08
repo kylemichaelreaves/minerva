@@ -7,7 +7,11 @@ they were bound against.
 
 from __future__ import annotations
 
-from minerva.refs.quote_match import best_lexical_match, normalize_latin
+from minerva.refs.quote_match import (
+    all_lexical_matches,
+    best_lexical_match,
+    normalize_latin,
+)
 
 # Verbatim from data/index.sqlite — Vulgate / Psalms chunks.
 PS_7_10 = "Consumetur nequitia peccatorum, et diriges justum, scrutans corda et renes, Deus."
@@ -33,6 +37,18 @@ PSALTER = [
     ("ps-135-7", PS_135_7),
     ("ps-135-18", PS_135_18),
 ]
+
+# The genuine ambiguity from #276: the two idol-polemic Psalms share the
+# clause verbatim, so a string match cannot say which one was quoted.
+PS_113_12 = (
+    "Simulacra gentium argentum et aurum, opera manuum hominum. "
+    "Os habent, et non loquentur ; oculos habent, et non videbunt."
+)
+PS_134_15 = (
+    "Simulacra gentium argentum et aurum, opera manuum hominum. "
+    "Os habent, et non loquentur ; oculos habent, et non videbunt."
+)
+IDOL_PSALMS = [("ps-113-12", PS_113_12), ("ps-134-15", PS_134_15)]
 
 
 class TestNormalizeLatin:
@@ -151,6 +167,66 @@ class TestBestLexicalMatch:
         assert best_lexical_match(
             "omnia in sapientia fecisti", list(reversed(dupes))
         ).chunk_id == "aaa"
+
+    def test_returns_only_the_winner_when_the_match_is_unique(self):
+        assert [m.chunk_id for m in all_lexical_matches(
+            "omnia in sapientia fecisti", PSALTER
+        )] == ["ps-103-24"]
+
+    def test_returns_every_candidate_tied_at_the_winning_strength(self):
+        """#276: the quotation really does occur in two verses, so the
+        caller must see both rather than a coin flip."""
+
+        tied = all_lexical_matches(
+            "simulacra gentium argentum et aurum, opera manuum hominum",
+            IDOL_PSALMS,
+        )
+        assert [m.chunk_id for m in tied] == ["ps-113-12", "ps-134-15"]
+        assert all(m.exact for m in tied)
+
+    def test_ties_are_ordered_by_chunk_id_whatever_the_input_order(self):
+        """The caller's fallback tie-break is "take the first", so the
+        order has to be stable independent of candidate iteration."""
+
+        tied = all_lexical_matches(
+            "simulacra gentium argentum et aurum, opera manuum hominum",
+            list(reversed(IDOL_PSALMS)),
+        )
+        assert [m.chunk_id for m in tied] == ["ps-113-12", "ps-134-15"]
+
+    def test_a_weaker_match_is_not_reported_as_tied(self):
+        """Only equally-strong candidates tie. A verse that clears the
+        bar on a spelling variant is a worse answer, not an alternative
+        — so it must be dropped, not offered to the adjudicator."""
+
+        # Same clause, one word in a different orthography: clears the
+        # bar by coverage but is not a verbatim containment. Listed last
+        # so it is compared against an already-established exact winner.
+        variant = (
+            "Simulachra gentium argentum et aurum, opera manuum hominum."
+        )
+        mixed = [*IDOL_PSALMS, ("ps-999-9", variant)]
+        tied = all_lexical_matches(
+            "simulacra gentium argentum et aurum, opera manuum hominum", mixed
+        )
+        assert [m.chunk_id for m in tied] == ["ps-113-12", "ps-134-15"]
+        # Sanity: on its own the variant does clear the bar, so it really
+        # was dropped for being weaker rather than for not matching.
+        assert all_lexical_matches(
+            "simulacra gentium argentum et aurum, opera manuum hominum",
+            [("ps-999-9", variant)],
+        )[0].exact is False
+
+    def test_returns_empty_when_nothing_clears_the_bar(self):
+        assert all_lexical_matches("de rerum natura lucretius", PSALTER) == []
+
+    def test_best_lexical_match_is_the_first_of_the_tied_set(self):
+        """The single-winner API stays, so its callers and its stable
+        lowest-chunk_id pick are unchanged."""
+
+        phrase = "simulacra gentium argentum et aurum, opera manuum hominum"
+        best = best_lexical_match(phrase, IDOL_PSALMS)
+        assert best == all_lexical_matches(phrase, IDOL_PSALMS)[0]
 
     def test_thresholds_are_tunable(self):
         """The Ps 33:9 recension case binds if the caller insists on a
