@@ -165,7 +165,27 @@ one.
 
 If you changed [`data/authors/manifest.yaml`](../data/authors/manifest.yaml),
 run `make generate-authors` and commit the regenerated blocks in
-`corpus_registry.py`, `author_ordering.py`, and `atlasData.ts`.
+`corpus_registry.py`, `author_ordering.py`, and `atlasData.ts`, plus the two
+committed snapshots it refreshes: `data/authors/chunk_counts.json` and
+`data/authors/chunk_granularity.json`.
+
+The second one gates chunk **granularity** (#176) — per work/lang maximum and
+mean chunk length — and is worth understanding before an ingest, because it is
+the one check that can fail on data you did not knowingly change:
+
+- Thresholds and the reviewed baseline (`granularity.known_coarse`) are
+  **policy** and live in `manifest.yaml`. They are hand-edited, never
+  regenerated. The measurements in `chunk_granularity.json` *are*
+  regenerated. That split is the whole gate: were the baseline generated too,
+  `make generate-authors` would silently bless every new violation.
+- So a newly-coarse work fails `make check-authors` until you either fix the
+  chunking or add it to `known_coarse` with a note saying why its coarseness
+  is a real structural level. Adding an entry is a visible line in the PR
+  diff, which is the review step.
+- A **stale** entry fails the same way. When a work is re-chunked, remove its
+  `author|title|lang` key from `known_coarse`, or the list only ever grows.
+- 94 pairs are on the baseline today; `tolerance_pct: 5` keeps an ordinary
+  text edit from failing CI.
 
 This mirrors [`.github/workflows/check.yml`](../.github/workflows/check.yml).
 E2E tests (`make test-e2e`) run on pushes to `main` only.
