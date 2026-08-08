@@ -45,6 +45,7 @@ import numpy as np
 
 from .. import embed as embed_mod
 from .. import store
+from . import quote_match
 from . import rules as refs_rules
 from . import schema as refs_schema
 
@@ -64,6 +65,13 @@ class VerifyStats:
     skipped_no_target: int = 0
     skipped_no_embedding: int = 0
     examined: int = 0
+    #: Rows whose target chunk was pinned by locating the quotation in
+    #: the text rather than by cosine (issue #269).
+    bound_lexically: int = 0
+    #: Rows promoted without a chunk binding because the quotation could
+    #: not be located in the target work. The reference is verified at
+    #: work level; which verse it is stays honestly unresolved.
+    promoted_unbound: int = 0
 
 
 @dataclass(frozen=True)
@@ -117,6 +125,60 @@ def _load_embeddings_for_author(
     chunk_ids = [r[0] for r in rows]
     matrix = np.stack([store.blob_to_vector(r[1]) for r in rows])
     return chunk_ids, matrix
+
+
+_UNLOCATED_NOTE = (
+    "embed-verify: the quoted phrase could not be located in this work's "
+    "text, so no verse is pinned. The reference is verified at work level "
+    "only — see issue #269."
+)
+
+
+def _lexical_note(match: quote_match.LexicalMatch) -> str:
+    """Per-row provenance for a lexically-bound target.
+
+    Worth spelling out because ``source_method`` cannot: its CHECK
+    constraint has no value for "located by string match", so these rows
+    are stamped ``rule+embed`` like any other row this pass adjudicates.
+    The note is what distinguishes them.
+    """
+
+    if match.exact:
+        return (
+            "embed-verify: bound by locating the quoted phrase verbatim in "
+            "this chunk (normalized for diacritics, æ/œ, u~v and i~j)."
+        )
+    return (
+        f"embed-verify: bound by lexical match — longest run {match.run} "
+        f"tokens, {match.coverage:.0%} of the phrase in order. Edition "
+        f"spelling differs from the quoting author's."
+    )
+
+
+def _work_texts(
+    conn: sqlite3.Connection,
+    work_id: int,
+    cache: dict[int, list[tuple[str, str]]],
+) -> list[tuple[str, str]]:
+    """``(chunk_id, text)`` for every chunk of ``work_id``, memoized.
+
+    Editions only, matching the embedding query below it — a translation
+    of the target work is not the text the author quoted.
+    """
+
+    cached = cache.get(work_id)
+    if cached is None:
+        cached = [
+            (r[0], r[1])
+            for r in conn.execute(
+                "SELECT c.chunk_id, c.text FROM chunks c "
+                "JOIN editions e ON e.id = c.edition_id "
+                "WHERE e.work_id = ?",
+                (work_id,),
+            ).fetchall()
+        ]
+        cache[work_id] = cached
+    return cached
 
 
 def _load_embedding_for_chunk(
@@ -206,6 +268,8 @@ def verify_quoted_references(
     n_rejected = 0
     n_skipped_no_target = 0
     n_skipped_no_embedding = 0
+    n_bound_lexically = 0
+    n_promoted_unbound = 0
 
     # Encode all phrases at once for batched-throughput. Bookkeeping
     # arrays line up by index with `rows`.
@@ -217,12 +281,20 @@ def verify_quoted_references(
     # Cache target chunk-matrix per (target_author, work_id) so we
     # don't reload the same matrix for sibling rows.
     target_matrix_cache: dict[int, tuple[list[str], np.ndarray]] = {}
+    # Same idea for the work's chunk texts, which the lexical binder
+    # scans. Sibling rows share a work almost always (the whole
+    # quoted-Psalm population is one work), so this loads once.
+    work_text_cache: dict[int, list[tuple[str, str]]] = {}
 
     for i, row in enumerate(rows):
         xr_id = row[0]
         target_chunk_id = row[3]
         in_corpus_work_id = row[5]
         n_examined += 1
+        # Cosine may pin a chunk only when it is the sole signal we have.
+        # The work-level branch clears this when the quotation could not
+        # be located lexically (issue #269).
+        may_bind_chunk = True
 
         # Pick the comparison surface.
         if target_chunk_id is not None:
@@ -234,7 +306,47 @@ def verify_quoted_references(
             score = float(phrase_vecs[i] @ target_vec)
             best_chunk_id = target_chunk_id
         elif in_corpus_work_id is not None:
-            # Work-level target — find best matching chunk in that work.
+            # Work-level target. Try to LOCATE the quotation in the work
+            # before asking cosine to guess at it.
+            #
+            # These rows come from FormulaicQuoteRule, which fires on
+            # "in Psalmo: <verse text>." — an exact quotation with the
+            # chapter:verse omitted. Cosine over five words of liturgical
+            # Latin picks the wrong verse about a third of the time,
+            # because the litany Psalms act as an attractor for any short
+            # devotional phrase (issue #269): "omnia in sapientia
+            # fecisti" is Ps 103:24 and went to Ps 135:7. A quotation is
+            # a string, so match it as one; see refs/quote_match.py.
+            lex = quote_match.best_lexical_match(
+                phrases[i], _work_texts(conn, in_corpus_work_id, work_text_cache)
+            )
+            if lex is not None:
+                # Locating the phrase in a specific verse is near
+                # definitional — much stronger evidence than any cosine
+                # score, so it does not go through the threshold ladder.
+                conn.execute(
+                    "UPDATE cross_references "
+                    "SET confidence = ?, "
+                    "    source_method = 'rule+embed', "
+                    "    target_chunk_id = ?, "
+                    "    curator_note = ? "
+                    "WHERE id = ?",
+                    (
+                        0.98 if lex.exact else 0.90,
+                        lex.chunk_id,
+                        _lexical_note(lex),
+                        xr_id,
+                    ),
+                )
+                n_promoted += 1
+                n_bound_lexically += 1
+                continue
+
+            # Not locatable. Fall through to cosine for the promote /
+            # reject decision, but do NOT let it pin a verse — a NULL
+            # target is visibly unresolved, a wrong one reads as
+            # verified.
+            may_bind_chunk = False
             cached = target_matrix_cache.get(in_corpus_work_id)
             if cached is None:
                 w_rows = conn.execute(
@@ -270,7 +382,19 @@ def verify_quoted_references(
             # best-matching chunk if not already attached. Clamp to
             # [0, 1] — float32 matmul can produce 1.0000001 etc.
             new_conf = max(row[4], 0.85, max(0.0, min(1.0, score)))
-            if target_chunk_id is None:
+            if target_chunk_id is None and not may_bind_chunk:
+                # Verified as a reference to the work; which chunk stays
+                # unresolved on purpose.
+                conn.execute(
+                    "UPDATE cross_references "
+                    "SET confidence = ?, source_method = 'rule+embed', "
+                    "    curator_note = ? "
+                    "WHERE id = ?",
+                    (new_conf, _UNLOCATED_NOTE, xr_id),
+                )
+                # n_promoted is incremented once for the whole block below.
+                n_promoted_unbound += 1
+            elif target_chunk_id is None:
                 conn.execute(
                     "UPDATE cross_references "
                     "SET confidence = ?, "
@@ -306,6 +430,8 @@ def verify_quoted_references(
         rejected=n_rejected,
         skipped_no_target=n_skipped_no_target,
         skipped_no_embedding=n_skipped_no_embedding,
+        bound_lexically=n_bound_lexically,
+        promoted_unbound=n_promoted_unbound,
     )
 
 

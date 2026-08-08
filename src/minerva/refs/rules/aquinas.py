@@ -133,8 +133,10 @@ RULES = (
     # ── formulaic-quote rule: introducer-phrase + colon + quoted
     # verse text, no chapter:verse locator. The Psalm number is
     # implicit in the quoted text; embed-verify Pass A binds the
-    # quoted_phrase to the matching Vulgate Psalm chunk by cosine
-    # similarity. Survey showed ~59 such cites in Aquinas; Apostolus
+    # quoted_phrase to the matching Vulgate Psalm chunk by locating the
+    # quotation in the text — NOT by cosine, which picked the wrong
+    # verse about a third of the time (issue #269).
+    # Survey showed ~59 such cites in Aquinas; Apostolus
     # / Augustinus formulae are out of scope today (Aquinas's
     # "Apostolus" target spans 13 Pauline epistles which would
     # require a cross-work cosine search beyond Pass A's single-work
