@@ -30,6 +30,23 @@ _LEXICAL_RESERVE = 3  # max seats reserved for the rarest term's hits
 _RARE_DF_MAX = 400  # only reserve for a token appearing in <= this many chunks
 _MIN_TERM_LEN = 4  # ignore very short tokens when picking the rarest term
 
+# Works addressed by verse rather than by page, section or paragraph. Their
+# chunks are *legitimately* a sentence long, so the `min_chunk_chars` floor
+# below — written against scraper boilerplate — made them unreachable rather
+# than merely down-ranked: 1,937 Quran chunks (31% of that corpus), plus
+# `Non occides.` (Exod 20:13, 12 chars) and `Ego et Pater unum sumus.`
+# (John 10:30, 24 chars), two of the most-quoted sentences in the corpus
+# (#268).
+#
+# `works.citation_system` rather than a corpus list or `block_type`: it is
+# already the column that records how a work is addressed, so a new
+# scripture edition is exempt the day it is ingested with no second list to
+# remember. `block_type` cannot carry this — it is NULL on 49,728 of the
+# 53,774 chunks under the floor. The 31,610 short `paragraph` chunks stay
+# filtered, and sampling confirms those are what the floor is for: Renan
+# footnote markers (`2. Zach., I, 1-6.`), French OCR residue, running heads.
+_VERSE_CITATION_SYSTEMS = ("bcv", "surah_ayah")
+
 
 @dataclasses.dataclass
 class Hit:
@@ -89,6 +106,50 @@ def _speaker_filter(speaker: str | None) -> tuple[str, tuple]:
     if not speaker or speaker == "any":
         return "", ()
     return " AND chunks.speaker = ? COLLATE NOCASE", (speaker,)
+
+
+def _min_chars_filter(min_chunk_chars: int) -> tuple[str, tuple]:
+    """The length floor, with verse-addressed works exempted.
+
+    Both halves of the disjunct are needed. `chunks` carries the work only
+    indirectly, through exactly one of `edition_id` or `translation_id` (a
+    CHECK constraint enforces the exclusivity), and scripture arrives on
+    either side depending on the source: the Vulgate, the KJV and Luther are
+    all `editions` rows today, while nothing stops the next scripture ingest
+    from landing as a `translations` row. A predicate on one column alone
+    silently exempts half the corpus it was written for.
+    """
+
+    if min_chunk_chars <= 0:
+        return "", ()
+    slots = ",".join("?" * len(_VERSE_CITATION_SYSTEMS))
+    exempt = (
+        f" OR chunks.edition_id IN (SELECT e.id FROM editions e"
+        f" JOIN works w ON w.id = e.work_id WHERE w.citation_system IN ({slots}))"
+        f" OR chunks.translation_id IN (SELECT t.id FROM translations t"
+        f" JOIN works w ON w.id = t.work_id WHERE w.citation_system IN ({slots}))"
+    )
+    return (
+        f" AND (length(chunks.text) >= ?{exempt})",
+        (min_chunk_chars, *_VERSE_CITATION_SYSTEMS, *_VERSE_CITATION_SYSTEMS),
+    )
+
+
+def _verse_work_ids(conn: sqlite3.Connection) -> np.ndarray:
+    """`works.id` of the verse-addressed works, for the numpy vector filter.
+
+    The SQL form above cannot be reused there: vector filtering runs over
+    `EmbeddingChunkMeta`'s fixed-width arrays, not over a query. `work_ids`
+    is already one of those columns, so this needs no change to the cached
+    metadata (`store/embeddings.py`) — only the id set to test against.
+    """
+
+    slots = ",".join("?" * len(_VERSE_CITATION_SYSTEMS))
+    rows = conn.execute(
+        f"SELECT id FROM works WHERE citation_system IN ({slots})",
+        _VERSE_CITATION_SYSTEMS,
+    ).fetchall()
+    return np.array([int(r[0]) for r in rows], dtype=np.int64)
 
 
 # Editorial apparatus — translator/editor footnotes (<note>) and dramatis-
@@ -166,12 +227,9 @@ def _fts_match(
     speaker_sql, speaker_params = _speaker_filter(speaker)
     # Floor on chunk length filters out scraper boilerplate, navigation
     # breadcrumbs, single-letter signatures, and section banners that
-    # otherwise dominate retrieval on author-named queries.
-    min_chars_sql = ""
-    min_chars_params: tuple = ()
-    if min_chunk_chars > 0:
-        min_chars_sql = " AND length(chunks.text) >= ?"
-        min_chars_params = (min_chunk_chars,)
+    # otherwise dominate retrieval on author-named queries — but not in
+    # verse-addressed works, where a short chunk is a whole verse.
+    min_chars_sql, min_chars_params = _min_chars_filter(min_chunk_chars)
     # Join through `chunks_full` only when we need an author/work field.
     needs_full = bool(corpus_sql or work_sql)
     full_join = " JOIN chunks_full cf ON cf.chunk_id = chunks.chunk_id" if needs_full else ""
@@ -334,7 +392,13 @@ def _vector_search(
     if speaker and speaker != "any":
         keep &= meta.speakers_lower == speaker.lower()
     if min_chunk_chars > 0:
-        keep &= meta.text_lens >= min_chunk_chars
+        # Same exemption as `_min_chars_filter`, expressed over the cached
+        # metadata arrays. Without it the two halves of hybrid retrieval
+        # disagree about which chunks exist, which is worse than either
+        # policy alone.
+        keep &= (meta.text_lens >= min_chunk_chars) | np.isin(
+            meta.work_ids, _verse_work_ids(conn)
+        )
     if work_id is not None:
         keep &= meta.work_ids == work_id
     if not keep.any():
@@ -459,6 +523,12 @@ def search(
     passages on queries containing the name "Nietzsche". Pass 0 to
     disable when you specifically want to see those chunks (e.g.,
     a curation pass surfacing scrape garbage to delete).
+
+    Works addressed by verse (``works.citation_system`` in
+    ``_VERSE_CITATION_SYSTEMS``) are exempt from the floor: their short
+    chunks are whole verses, not boilerplate, and the filter made 17,905
+    of them — including all 1,937 Quran chunks — unreachable rather than
+    down-ranked (#268).
     """
 
     bm25_raw = _bm25_search(

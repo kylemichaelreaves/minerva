@@ -90,10 +90,21 @@ coverage — a different number, which can be green while the gate is red. On
   as real. See CONTRIBUTING.
 
 **After any ingest, run `make generate-authors` and commit the result.**
-`data/index.sqlite` is gitignored, so CI validates chunk counts against
-the committed `data/authors/chunk_counts.json` instead. Local runs have
-the real index and fail if that snapshot has drifted from it — but only
-locally, so a stale snapshot leaves CI checking a fossil.
+`data/index.sqlite` is gitignored, so CI validates against the two
+committed snapshots instead: `data/authors/chunk_counts.json` for the
+per-corpus count bands, and `data/authors/chunk_granularity.json` for
+per-work/lang chunk length (#176). Local runs have the real index and fail
+if either snapshot has drifted from it — but only locally, so a stale
+snapshot leaves CI checking a fossil.
+
+The granularity gate is **baseline-pinned**: 94 work/lang pairs already
+exceed its thresholds, and they are excused by `granularity.known_coarse`
+in `data/authors/manifest.yaml`. A newly-coarse work appears in the
+generated snapshot and fails `make check-authors` until it is either
+re-chunked or added to that baseline by hand — the manifest is policy and
+is not regenerated, which is what keeps the gate from blessing its own
+violations. Removing a fixed entry is enforced too; a stale one fails the
+same way.
 
 Branch protection is `strict: true`: every merge to `main` puts open PRs
 `BEHIND` and they need `git rebase origin/main` before they can merge.
