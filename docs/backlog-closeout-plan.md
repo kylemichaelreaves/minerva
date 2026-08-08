@@ -568,6 +568,57 @@ comment and 109 at filing. Draft PR #229 carries the full reformat and
 fails Sonar at `new_coverage 64.9%` and
 `new_duplicated_lines_density 3.7%`.
 
+### Do not merge #229 as it stands
+
+Re-checked 2026-08-08 after batch 4, because "BLOCKED" in a PR title is a
+claim like any other. It holds — the gate is genuinely red, not stale:
+
+```
+$ gh pr checks 229
+SonarCloud Code Analysis   fail   ...      # every other check passes
+```
+
+| condition | threshold | actual |
+|---|---|---|
+| `new_coverage` | ≥ 80 | **64.9** |
+| `new_duplicated_lines_density` | ≤ 3 | **3.7** |
+
+SonarCloud is a **required** check (#158), so merging this would mean an
+admin bypass of a red gate — `enforce_admins` is false, so it is possible,
+and it is still the wrong move. Two reasons:
+
+1. **It is superseded by this batch's own plan.** #229 is the single
+   130-file reformat; the tranche cut below exists precisely because that
+   shape cannot pass. Merging it whole would land the version the plan was
+   written to replace, and forfeit the one thing the tranches buy —
+   knowing which files are safe.
+2. **Its numbers predate batches 1–4** (last analysed 2026-08-06). Those
+   batches added tests to several of the below-80% files, so 64.9% is
+   stale in the *favourable* direction. Re-measure before deciding
+   anything, including whether to close #229 in favour of tranche PRs.
+
+**The drift keeps growing while this waits**, which is the argument
+against deferring it forever. Measured on `main` at `38554e1`, after
+batch 4:
+
+```
+$ ./.venv/bin/ruff format --check src tests | tail -1
+136 files would be reformatted, 245 files already formatted
+$ ./.venv/bin/ruff format --check src | grep -c '^Would reformat'
+70
+```
+
+136 files / 70 under `src/`, against the 130 / 69 recorded above the same
+day — every batch that adds a file adds to it.
+
+**First move for whoever picks this up**, before writing any code:
+`git rebase origin/main` on `fix/136-enforce-ruff-format`, then
+`make check DIFF_BASE=origin/main` and read `check-diff-coverage`. That
+evaluates the same thing Sonar does (#255), so the current coverage
+position is knowable locally without burning a CI run — and the tranche-1
+file list should be cut from *that* measurement, not from the 48/21 split
+recorded below, which is itself from 2026-08-08.
+
 **Separate PRs do work, but the cut is by file coverage, not by
 directory.** Splitting by directory was already tested and cannot help:
 `sonar.tests=tests` means the test files never counted toward coverage, so
