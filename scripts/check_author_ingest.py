@@ -8,6 +8,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import chunk_granularity
 from chunk_count_validation import (
     DEFAULT_DB,
     SNAPSHOT_PATH,
@@ -148,6 +149,53 @@ def validate_corpus_authors(conn: sqlite3.Connection) -> list[str]:
     return errs
 
 
+def _display_path(path: Path) -> str:
+    """Repo-relative where possible, absolute otherwise.
+
+    `Path.relative_to` raises on anything outside the repo, which turns an
+    error message into a traceback exactly when something is misconfigured.
+    """
+
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _granularity_errors(
+    conn: sqlite3.Connection | None,
+    manifest: dict,
+) -> list[str]:
+    """Granularity gate (#176), in both environments.
+
+    With a DB the live measurement is authoritative and the committed
+    snapshot is additionally checked for staleness — without that, a
+    fossilised file would let CI validate a state that no longer exists,
+    which is exactly what #157 fixed for the count bands.
+
+    ``conn`` is None in CI, where `data/index.sqlite` is gitignored and
+    never built. Then the committed snapshot is all there is; it can
+    still catch a new violation, because the operator's `make
+    generate-authors` writes the new key into it while the reviewed
+    ``known_coarse`` baseline in manifest.yaml stays untouched.
+    """
+
+    # Read the module attribute rather than relying on `load_snapshot`'s
+    # default argument, which binds the path at definition time and so
+    # cannot be redirected.
+    snapshot_path = chunk_granularity.SNAPSHOT_PATH
+    if not snapshot_path.is_file():
+        return [
+            f"no granularity snapshot at {_display_path(snapshot_path)} — "
+            f"run `make generate-authors`"
+        ]
+    snapshot = chunk_granularity.load_snapshot(snapshot_path)
+    errs = chunk_granularity.validate_snapshot(snapshot, manifest)
+    if conn is not None:
+        errs += chunk_granularity.snapshot_drift(conn, manifest, snapshot)
+    return errs
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", help="Check one corpus id")
@@ -219,16 +267,24 @@ def main() -> int:
             return 1
         with sqlite3.connect(db_path) as conn:
             write_snapshot(build_snapshot(conn, manifest))
+            chunk_granularity.write_snapshot(
+                chunk_granularity.build_snapshot(conn, manifest)
+            )
         print(f"wrote {SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
+        print(f"wrote {chunk_granularity.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         return 1 if failed else 0
 
     if args.skip_chunk_counts:
         # An explicit waiver, so say so — the whole point of #157 is that
         # a silent skip is indistinguishable from a passing check.
-        print("chunk counts: skipped (--skip-chunk-counts)", file=sys.stderr)
+        print(
+            "chunk counts + granularity: skipped (--skip-chunk-counts)",
+            file=sys.stderr,
+        )
         return 1 if failed else 0
 
     count_errs: list[str] = []
+    gran_errs: list[str] = []
     if db_path.is_file():
         # Local: the index is authoritative. Check it against the bands,
         # and check the committed snapshot against it so the file CI
@@ -246,12 +302,14 @@ def main() -> int:
                     f"{SNAPSHOT_PATH.relative_to(REPO_ROOT)} — run "
                     f"`make generate-authors`"
                 )
+            gran_errs += _granularity_errors(conn, manifest)
     elif SNAPSHOT_PATH.is_file():
         # CI: `data/index.sqlite` is gitignored and never built here, so
         # the committed snapshot is the only thing to validate against.
         # This used to fall through to nothing at all (#157).
         print(f"chunk counts: no DB at {db_path}, using committed snapshot")
         count_errs += validate_snapshot(load_snapshot(), manifest)
+        gran_errs += _granularity_errors(None, manifest)
     else:
         failed = True
         print(
@@ -266,6 +324,12 @@ def main() -> int:
         failed = True
         print("chunk counts:")
         for e in count_errs:
+            print(f"  - {e}")
+
+    if gran_errs:
+        failed = True
+        print("chunk granularity:")
+        for e in gran_errs:
             print(f"  - {e}")
 
     return 1 if failed else 0

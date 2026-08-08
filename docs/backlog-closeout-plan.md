@@ -330,9 +330,30 @@ this — it is NULL on 49,728 of the 53,774 short chunks.
 - BM25 (`retrieve.py:145-185`): widen `AND length(chunks.text) >= ?` to
   `AND (length(chunks.text) >= ? OR <exempt>)`. The work's citation system
   is **not** in `chunks_full`, and `<exempt>` must cover **both**
-  `chunks.edition_id` and `chunks.translation_id` — scripture is present
-  as editions (Vulgate, SBLGNT) *and* as translations (KJV, Luther), so a
-  predicate on one silently misses half.
+  `chunks.edition_id` and `chunks.translation_id`.
+
+  **Corrected 2026-08-08 while implementing.** The reason given above —
+  "scripture is present as editions (Vulgate, SBLGNT) *and* as translations
+  (KJV, Luther), so a predicate on one silently misses half" — is false.
+  Every short scripture chunk is on the **edition** side; the verse-addressed
+  works have no `translations` rows at all, and the KJV and Luther are
+  `editions.name` values, not translators:
+
+  ```
+  $ sqlite3 data/index.sqlite "SELECT count(*) FROM translations t
+      JOIN works w ON w.id=t.work_id
+      WHERE w.citation_system IN ('bcv','surah_ayah')"
+  0
+  ```
+
+  17,905 short chunks on the edition side, 0 on the translation side. Both
+  halves are still worth writing — a chunk reaches its work through exactly
+  one of the two columns, and the next scripture ingest could land either
+  way — but the *verification* changes: the translation half cannot be
+  exercised against the live index and needs a fixture, which is what
+  `_seed_verse_db` in `tests/test_retrieve.py` is for. Had the claim been
+  trusted, "confirmed on both paths" would have been reported on the
+  strength of a path that has no data in it.
 - Vector (`retrieve.py:330-340`): filtering is numpy over
   `meta.text_lens`. Do **not** extend `EmbeddingMeta`
   (`src/minerva/store/embeddings.py:179`) — `meta.work_ids` is already
@@ -361,11 +382,48 @@ called from `scripts/check_author_ingest.py::main` beside
 bare "no chunk over N characters" assertion fails immediately on all 753
 existing ones and is unlandable — the same trap that has #229 stuck.
 
+**Built 2026-08-08, with one addition the plan did not specify.** The
+policy and the measurement had to go in *different* files, because the
+counts pattern this copies regenerates its snapshot from the DB — and a
+gate whose baseline is regenerated the same way blesses every new
+violation and checks nothing. So: thresholds and the reviewed
+`known_coarse` baseline live in `manifest.yaml` (hand-edited),
+measurements in the generated `data/authors/chunk_granularity.json`. Both
+dimensions the issue names are gated — per-pair `max` (8,000) and `mean`
+(3,000) — because a max-only gate misses a uniformly coarse work, which is
+the Epictetus asymmetry. 94 pairs are on the baseline; `tolerance_pct: 5`
+keeps an ordinary text edit from failing CI, and a stale entry fails as
+loudly as a new violation so the list shrinks as part 2 lands.
+
 **Part 2, re-chunk the clear parser failures only**: Aeschylus
 *Agamemnon* (eng), Hobbes *De Cive* and *Leviathan* (lat), Epictetus
-*Discourses* (eng, where one chunk holds 97% of the text). The Aquinas
-commentaries are **out of scope** — their coarseness is a real structural
-level, and changing it is a chunking-design decision, not a bug fix.
+*Discourses* (eng, where **four** chunks hold 97% of the text — see the
+correction below). The Aquinas commentaries are **out of scope** — their
+coarseness is a real structural level, and changing it is a
+chunking-design decision, not a bug fix.
+
+**Corrected 2026-08-08 while implementing #176's baseline.** This plan and
+#176 both say "one chunk holds 97% of the English *Discourses*", from the
+issue's `max=560,187`. No chunk that large exists, anywhere in the corpus:
+
+```
+$ sqlite3 data/index.sqlite "SELECT max(length(text)) FROM chunks"
+151427
+```
+
+The work has 85 chunks (not 81) and its four largest are 151,427 /
+146,461 / 131,035 / 129,821 = 558,744 characters, 97% of its 573,263 — so
+the *proportion* holds and the *singular* does not. The earliest snapshot
+on disk, `data/snapshots/20260808T013610Z-…`, already reads 85 / 151,427,
+so this is not recent drift. Consequences, both material:
+
+1. A part-2 fix verified by "the mega-chunk is gone" would have declared
+   success with three 130,000-character chunks still in place.
+2. The granularity baseline would have been pinned at 560,187 — a ceiling
+   3.7× the real maximum, so a genuine regression up to half a million
+   characters would have passed the gate silently. It is pinned at 151,427.
+
+Corrected on the issue as well.
 
 Part 2 is an operator job needing its own session:
 

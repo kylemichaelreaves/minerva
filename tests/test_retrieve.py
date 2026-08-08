@@ -653,3 +653,156 @@ def test_corpus_filter_single_author_corpus_unchanged():
     sql, params = retrieve._corpus_filter("plato")
     assert sql == " AND cf.corpus IN (?)"
     assert params == ("plato",)
+
+
+# ---------- the length floor exempts verse-addressed works (#268) ----------
+
+
+def _seed_verse_db(tmp_path: Path):
+    """Short chunks on both sides of the exemption.
+
+    `citation_system` rides the JSONL row (`store.chunks` honors it as a
+    `citation_system_override` when the works row is created), so the two
+    works differ in exactly the field the exemption reads. The German verse
+    lands as a `translations` row rather than an `editions` one — corpus
+    `test` has original_language `eng`, and `_resolve_work_refs` classifies
+    on `lang == works.original_language` — which is what makes the
+    translation half of `_min_chars_filter` load-bearing here.
+    """
+
+    def ch(cid: str, work: str, lang: str, text: str, citation_system: str) -> dict:
+        return {
+            "chunk_id": cid,
+            "corpus": "test",
+            "author": "Scripture" if citation_system == "bcv" else "Prose",
+            "work": work,
+            "lang": lang,
+            "source_file": "f.txt",
+            "section": cid,
+            "text": text,
+            "citation_system": citation_system,
+        }
+
+    chunks = [
+        # 24 chars: John 10:30 in the Vulgate, one of the two verses #268
+        # names as unreachable.
+        ch("verse_ed", "Gospel", "eng", "Ego et Pater unum sumus.", "bcv"),
+        ch("verse_tr", "Gospel", "deu", "Ich und der Vater sind eins.", "bcv"),
+        # 30 chars of paragraph-addressed correspondence: the signature
+        # class the floor was written against. Must stay filtered.
+        ch("sig", "Letters", "eng", "Ever yours, Ego Pater sumus.", "paragraph"),
+        ch(
+            "body",
+            "Letters",
+            "eng",
+            "A long paragraph of prose that comfortably clears the sixty-character "
+            "floor and mentions Ego and Pater and sumus so BM25 can match it.",
+            "paragraph",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "idx.sqlite")
+    store.insert_chunks(conn, jsonl)
+    return conn
+
+
+def test_min_chars_filter_disabled_returns_no_clause():
+    assert retrieve._min_chars_filter(0) == ("", ())
+    assert retrieve._min_chars_filter(-1) == ("", ())
+
+
+def test_min_chars_filter_exempts_both_edition_and_translation_columns():
+    """A predicate on one column alone exempts only half the scripture:
+    the Vulgate, KJV and Luther are `editions` rows today, while nothing
+    stops the next scripture ingest from landing as a `translations` one."""
+
+    sql, params = retrieve._min_chars_filter(60)
+    assert sql.startswith(" AND (length(chunks.text) >= ?")
+    assert "chunks.edition_id IN" in sql
+    assert "chunks.translation_id IN" in sql
+    assert params == (60, "bcv", "surah_ayah", "bcv", "surah_ayah")
+
+
+def test_verse_work_ids_lists_only_verse_addressed_works(tmp_path: Path):
+    conn = _seed_verse_db(tmp_path)
+    ids = set(retrieve._verse_work_ids(conn).tolist())
+    titles = {
+        r[0]
+        for r in conn.execute(
+            f"SELECT title FROM works WHERE id IN ({','.join('?' * len(ids))})", tuple(ids)
+        )
+    }
+    assert titles == {"Gospel"}
+
+
+def test_short_verse_is_retrievable_despite_the_floor(tmp_path: Path):
+    """#268: at the default floor the verse was not merely down-ranked,
+    it was absent — no query could reach it."""
+
+    conn = _seed_verse_db(tmp_path)
+    hits = retrieve.search(conn, "Ego et Pater unum sumus", lang="eng", top_k=8)
+    assert "verse_ed" in {h.chunk_id for h in hits}
+
+
+def test_short_verse_on_the_translation_side_is_retrievable(tmp_path: Path):
+    conn = _seed_verse_db(tmp_path)
+    hits = retrieve.search(conn, "Ich und der Vater sind eins", lang="deu", top_k=8)
+    assert "verse_tr" in {h.chunk_id for h in hits}
+
+
+def test_short_paragraph_chunk_stays_filtered(tmp_path: Path):
+    """The floor's own rationale survives: a 30-character signature in a
+    paragraph-addressed work is still excluded, and only reachable with
+    the floor explicitly disabled."""
+
+    conn = _seed_verse_db(tmp_path)
+    hits = retrieve.search(conn, "Ever yours Ego Pater sumus", lang="eng", top_k=8)
+    assert "sig" not in {h.chunk_id for h in hits}
+    unfiltered = retrieve.search(
+        conn, "Ever yours Ego Pater sumus", lang="eng", top_k=8, min_chunk_chars=0
+    )
+    assert "sig" in {h.chunk_id for h in unfiltered}
+
+
+def test_reserved_seats_can_reserve_a_short_verse(tmp_path: Path):
+    """The reservation path passes the floor through to `_fts_match`, so it
+    inherits the exemption — confirmed rather than assumed, since a term
+    rare enough to earn a seat is often carried only by a short verse."""
+
+    conn = _seed_verse_db(tmp_path)
+    ids = retrieve._reserved_term_ids(
+        conn,
+        "unum",
+        lang="eng",
+        corpus=None,
+        speaker=None,
+        work_id=None,
+        min_chunk_chars=60,
+        fold_lang=None,
+    )
+    assert "verse_ed" in ids
+
+
+def test_vector_search_exempts_verse_works_from_the_floor(tmp_path: Path):
+    """Both halves of hybrid retrieval must agree about which chunks
+    exist; the numpy filter reads the same citation systems as the SQL."""
+
+    conn = _seed_verse_db(tmp_path)
+    store.upsert_embeddings(
+        conn,
+        model="t",
+        dim=2,
+        items=[
+            ("verse_ed", np.array([1.0, 0.0], dtype=np.float32)),
+            ("sig", np.array([1.0, 0.0], dtype=np.float32)),
+            ("body", np.array([0.0, 1.0], dtype=np.float32)),
+        ],
+    )
+    store.invalidate_embedding_cache()
+    qv = np.array([1.0, 0.0], dtype=np.float32)
+    hits = retrieve._vector_search(
+        conn, qv, top_k=3, lang="eng", corpus=None, speaker=None, min_chunk_chars=60
+    )
+    assert "verse_ed" in hits  # 24 chars, exempt
+    assert "sig" not in hits  # 28 chars, paragraph-addressed
