@@ -262,9 +262,10 @@ title. Keep it in the commit message as well: a squash-merge or a direct
 push to `main` closes from commit text, so the two together survive either
 merge style.
 
-### Two silent failure modes
+### Three silent failure modes
 
-GitHub will accept a `Closes #N` that does nothing, without warning:
+GitHub will accept a `Closes #N` that does nothing, without warning — and
+will also act on one you never meant to write:
 
 1. **The PR must target the default branch.** A stacked PR based on another
    feature branch registers *no* link, however many closing keywords it
@@ -273,10 +274,26 @@ GitHub will accept a `Closes #N` that does nothing, without warning:
 2. **The body is parsed when written, not when the base changes.**
    Retargeting a stacked PR to `main` does not backfill the link. The body
    must be edited again to re-trigger the scan.
+3. **The parser cannot tell a keyword being used from one being discussed,
+   and backticks are not an escape.** It scans the merge commit message for
+   a closing keyword adjacent to any issue number, prose or not.
 
-Both of these were live in this repo: #213 was opened stacked, later ended
+The first two were live in this repo: #213 was opened stacked, later ended
 up on `main`, and sat there with `Closes #125` in its body and no link
 registered. Merging it would have left #125 open with its fix shipped.
+
+The third bit on PR #293, a doc-only change that deliberately carried
+`Refs #176` because it completed no part of the issue. Its
+`closingIssuesReferences` was empty, exactly as intended. It closed #176
+anyway, because one sentence in the body described what part 2's PR should
+carry, with the keyword spelled out beside the number. The paragraph
+explaining that #176 had to stay open is what closed it, three minutes
+after it was written.
+
+So when documenting this convention — in a plan, a PR body, or this file —
+keep a closing keyword away from the number of any **open** issue. The
+examples above are safe only because #125, #160 and #179 are long closed;
+re-closing a closed issue is a no-op.
 
 ### So verify it, don't assume it
 
