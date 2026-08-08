@@ -41,6 +41,12 @@ Decisions taken 2026-08-08 by the repo owner:
 From [CLAUDE.md](../CLAUDE.md) — not optional, and each has failed a PR
 before:
 
+- **Every round ends with a PR.** A batch is not finished when the code
+  works locally; it is finished when there is a pushed branch and an open
+  PR against `main` carrying its `Closes`/`Refs` lines. Work that stops at
+  a local commit is invisible to CI, to Sonar, and to the next session —
+  the same failure mode this document exists to prevent. This applies to
+  every round, including doc-only ones like the one that added this file.
 - `make check` before every push, and **again after any edit made while
   fixing its output**.
 - `check-diff-coverage` ≥80% **including branches** — Sonar scores a
