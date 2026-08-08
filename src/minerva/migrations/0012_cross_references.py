@@ -32,13 +32,24 @@ Seed data:
   drafts auto-seeded from the ``works`` table, but ``insert_chunks``
   (the ``minerva index`` write path) does a wholesale DELETE of
   ``works`` / ``editions`` / ``translations`` / ``chunks`` before
-  re-inserting, and the ``ON DELETE SET NULL`` cascade on
-  ``reference_targets.in_corpus_work_id`` strips the link to the
-  newly-created works rows on the very next index run. In-corpus
-  targets are instead created lazily by
-  :func:`refs.schema.ensure_target` (which auto-links to a ``works``
-  row by matching author + title) the first time a curator or
-  detection rule references the work.
+  re-inserting, which reassigns every ``works.id``. In-corpus targets
+  are instead created lazily by :func:`refs.schema.ensure_target`
+  (which auto-links to a ``works`` row by matching author + title) the
+  first time a curator or detection rule references the work.
+
+  ⚠ This paragraph used to say the ``ON DELETE SET NULL`` cascade on
+  ``in_corpus_work_id`` "strips the link ... on the very next index
+  run", i.e. that the wipe degrades safely to NULL. **It does not
+  fire.** ``insert_chunks`` runs the whole delete/re-insert block
+  inside ``foreign_keys_off_for_transaction``, so no cascade executes
+  and the stale integer survives, now pointing at whichever work
+  inherited that id. That left 104 of 160 targets (65%) aimed at an
+  unrelated work, 47 at a different author's, and mis-scoped
+  embed-verify Pass A into binding Aquinas's Psalm quotations to Ezra
+  (issue #273). ``store.chunks._rebind_reference_targets`` now
+  re-resolves the column explicitly after every ingest, and
+  ``_assert_reference_targets_resolve`` fails the transaction if it
+  ever drifts again. Do not rely on the cascade below.
 * **Out-of-corpus authors**: nine canonical authors × their most-
   cited works, hand-listed below. The seed lets the curator attach
   references to these authors without typo drift on day one.
@@ -65,11 +76,17 @@ CREATE TABLE reference_targets (
     citation_system     TEXT,
     -- Non-NULL when the target work is indexed locally — lets the
     -- ReferenceCard's "Open in reader →" affordance resolve.
-    -- ON DELETE SET NULL preserves the reference_targets row if the
-    -- works row goes away (e.g. corpus is rebuilt from a different
-    -- ingest); the references attached to it still point at a stable
-    -- canonical_author / canonical_work even when their preview link
-    -- briefly breaks.
+    -- ON DELETE SET NULL is meant to preserve the reference_targets row
+    -- if the works row goes away (e.g. corpus is rebuilt from a
+    -- different ingest); the references attached to it still point at a
+    -- stable canonical_author / canonical_work even when their preview
+    -- link briefly breaks.
+    -- ⚠ But this cascade does NOT fire on the path that matters:
+    -- insert_chunks wipes works inside
+    -- foreign_keys_off_for_transaction, so the id is left stale rather
+    -- than NULL'd. store.chunks._rebind_reference_targets re-resolves
+    -- it after every ingest instead. See the ⚠ note in the module
+    -- docstring and issue #273.
     in_corpus_work_id   INTEGER REFERENCES works(id) ON DELETE SET NULL,
     notes               TEXT,
     UNIQUE (canonical_author, canonical_work)
@@ -199,9 +216,10 @@ def apply(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
     # DO NOT auto-seed in-corpus targets from `works`. The DELETE that
-    # `insert_chunks` does on every `minerva index` run would cascade
-    # SET NULL the `in_corpus_work_id` and leave stranded rows. The
-    # curator-driven `refs.schema.ensure_target` (auto-links to a
+    # `insert_chunks` does on every `minerva index` run reassigns every
+    # `works.id`, so a seeded `in_corpus_work_id` goes stale immediately
+    # (it does NOT cascade to NULL — see the ⚠ note in the module
+    # docstring). The curator-driven `refs.schema.ensure_target` (auto-links to a
     # works row on first reference) is the correct path.
 
     # Seed out-of-corpus canonical targets.
