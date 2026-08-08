@@ -49,9 +49,17 @@ class ScriptureCiteRule(BaseScriptureCiteRule):
 #
 # These can't be resolved at rule time (we don't know which Psalm
 # without reading the verse). The rule captures `quoted_phrase` and
-# leaves chunk-binding to embed-verify Pass A, which compares the
-# quoted text's embedding against every Vulgate Psalm chunk and pins
-# the best cosine match.
+# leaves chunk-binding to embed-verify Pass A.
+#
+# ⚠ This used to say Pass A "compares the quoted text's embedding
+# against every Vulgate Psalm chunk and pins the best cosine match",
+# stated as though that resolves. It resolved to the wrong verse about a
+# third of the time (issue #269) — the litany Psalms, Ps 135 above all,
+# act as a cosine attractor for any short liturgical phrase, so "omnia
+# in sapientia fecisti" (Ps 103:24) was pinned to Ps 135:7. Pass A now
+# LOCATES the quotation as a string first (`refs/quote_match.py`) and
+# only falls back to cosine for the promote/reject decision — and in
+# that case deliberately binds no verse at all.
 
 _FORMULAIC_QUOTE_END_RE = r"[.;?!]"  # Latin sentences end at . ; ? or !
 _FORMULAIC_MIN_QUOTE_CHARS = 15  # below this is noise (false intros)
@@ -80,8 +88,10 @@ class FormulaicQuoteRule:
 
     The rule emits a :class:`Candidate` whose ``target_work`` is
     known (Psalms, Romans, etc.) but ``target_locator`` is left
-    NULL — embed-verify Pass A handles chunk binding by cosine
-    similarity against the target work's verse embeddings.
+    NULL — embed-verify Pass A handles chunk binding, by locating the
+    quotation in the target work's text (see the ⚠ note above; it used
+    to bind by cosine and got the verse wrong about a third of the
+    time).
 
     Confidence starts low (0.55) because the introducer alone isn't
     proof; Pass A promotes high-cosine matches to 0.85+ and rejects

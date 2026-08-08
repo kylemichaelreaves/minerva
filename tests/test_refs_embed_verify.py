@@ -14,12 +14,16 @@ hand-seeded embeddings, so cosine outcomes are deterministic.
 
 from __future__ import annotations
 
+import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import make_chunk
 
+from minerva import store
 from minerva.refs import embed_verify
 from minerva.refs import rules as refs_rules
 from minerva.refs import schema as refs_schema
@@ -489,3 +493,210 @@ class TestInsertCandidateAllusionDedup:
             "SELECT COUNT(*) FROM cross_references WHERE reference_type = 'alludes'"
         ).fetchone()[0]
         assert n == 2
+
+
+# ════════════════════════════════════════════════════════════════════
+# Pass A work-level binding: locate the quotation, don't guess (#269)
+# ════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def psalter_db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    """Aquinas quoting the Vulgate Psalms — the population from #269.
+
+    Deliberately not ``populated_db``: its Plato and Aristotle chunks are
+    English against Greek originals, so they land in ``translations``,
+    and Pass A's work-level branch joins ``editions`` only. A Latin
+    corpus is stored as an edition and therefore actually reaches the
+    branch under test.
+
+    Verse texts are verbatim from the Clementine Vulgate as ingested.
+    """
+
+    chunks = [
+        make_chunk(
+            chunk_id="st-q1",
+            corpus="aquinas",
+            author="Aquinas",
+            work="Summa Theologiae",
+            lang="lat",
+            section="I q1 a1 co.",
+            book=None,
+            text="Respondeo dicendum quod, sicut dicitur in Psalmo: omnia in "
+            "sapientia fecisti.",
+        ),
+        make_chunk(
+            chunk_id="ps-103-24",
+            corpus="vulgate",
+            author="Vulgate",
+            work="Psalms",
+            lang="lat",
+            section="Ps 103:24",
+            book=None,
+            text="Quam magnificata sunt opera tua, Domine ! omnia in sapientia "
+            "fecisti ; impleta est terra possessione tua.",
+        ),
+        # The cosine attractor: a litany verse of Ps 135, which is what
+        # the embedding search actually picked for this quotation.
+        make_chunk(
+            chunk_id="ps-135-7",
+            corpus="vulgate",
+            author="Vulgate",
+            work="Psalms",
+            lang="lat",
+            section="Ps 135:7",
+            book=None,
+            text="Qui fecit luminaria magna : quoniam in æternum misericordia ejus.",
+        ),
+    ]
+    jsonl = tmp_path / "psalter.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "psalter.sqlite")
+    store.insert_chunks(conn, jsonl)
+    yield conn
+    conn.close()
+
+
+def _work_level_quote(
+    conn: sqlite3.Connection, phrase: str
+) -> int:
+    """Insert the row FormulaicQuoteRule produces: work-level Psalms
+    target, quoted phrase, no locator and no bound chunk."""
+
+    target = refs_schema.ensure_target(
+        conn, canonical_author="Vulgate", canonical_work="Psalms"
+    )
+    assert target.in_corpus_work_id is not None, (
+        "the Psalms target must resolve to an in-corpus work or the "
+        "work-level branch is never reached"
+    )
+    xref_id = refs_schema.insert_cross_reference(
+        conn,
+        source_chunk_id="st-q1",
+        target_id=target.id,
+        target_chunk_id=None,
+        reference_type="quotes",
+        source_form_snapshot="in Psalmo: omnia in sapientia fecisti",
+        quoted_phrase=phrase,
+        confidence=0.55,
+        source_method="rule_weak",
+        curator_status="auto",
+    )
+    conn.commit()
+    return xref_id
+
+
+class TestWorkLevelLexicalBinding:
+    def test_lexical_match_beats_the_cosine_attractor(
+        self, psalter_db: sqlite3.Connection
+    ) -> None:
+        """The headline regression for #269.
+
+        Embeddings are rigged so cosine prefers Ps 135:7 — exactly what
+        happened in production. The quotation is verbatim in Ps 103:24,
+        so that is what must be bound.
+        """
+
+        _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
+        xref_id = _work_level_quote(psalter_db, "omnia in sapientia fecisti")
+
+        # Phrase embeds identical to the WRONG verse.
+        embedder = FakeEmbedder({"omnia in sapientia fecisti": V_X})
+        stats = embed_verify.verify_quoted_references(psalter_db, embedder)
+
+        assert stats.examined == 1
+        assert stats.promoted == 1
+        assert stats.bound_lexically == 1
+        assert stats.promoted_unbound == 0
+
+        row = psalter_db.execute(
+            "SELECT target_chunk_id, confidence, source_method, curator_note "
+            "FROM cross_references WHERE id = ?",
+            (xref_id,),
+        ).fetchone()
+        assert row[0] == "ps-103-24", (
+            "bound the cosine attractor instead of the verse that "
+            "contains the quotation"
+        )
+        assert row[1] == pytest.approx(0.98)
+        assert row[2] == "rule+embed"
+        assert "verbatim" in (row[3] or "")
+
+    def test_unlocatable_quote_is_promoted_but_left_unbound(
+        self, psalter_db: sqlite3.Connection
+    ) -> None:
+        """When the wording genuinely differs from every verse, cosine
+        still decides promote/reject but must not pin a verse — a NULL
+        target is visibly unresolved, a wrong one reads as verified."""
+
+        _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
+        # Not in either verse: a different Psalter recension's wording.
+        xref_id = _work_level_quote(
+            psalter_db, "Gustate et uidete quam dulcis est Dominus"
+        )
+
+        embedder = FakeEmbedder(
+            {"Gustate et uidete quam dulcis est Dominus": V_X}  # cosine 1.0
+        )
+        stats = embed_verify.verify_quoted_references(psalter_db, embedder)
+
+        assert stats.promoted == 1
+        assert stats.bound_lexically == 0
+        assert stats.promoted_unbound == 1
+
+        row = psalter_db.execute(
+            "SELECT target_chunk_id, source_method, curator_note "
+            "FROM cross_references WHERE id = ?",
+            (xref_id,),
+        ).fetchone()
+        assert row[0] is None, "cosine pinned a verse it had no business pinning"
+        assert row[1] == "rule+embed"
+        assert "could not be located" in (row[2] or "")
+
+    def test_unlocatable_and_low_cosine_still_rejects(
+        self, psalter_db: sqlite3.Connection
+    ) -> None:
+        """The reject band is unchanged: no lexical match AND no cosine
+        signal means the rule fired on something that isn't a quotation
+        of this work at all."""
+
+        _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_X})
+        xref_id = _work_level_quote(psalter_db, "de rerum natura lucretiana")
+
+        embedder = FakeEmbedder({"de rerum natura lucretiana": V_Z})
+        stats = embed_verify.verify_quoted_references(psalter_db, embedder)
+
+        assert stats.rejected == 1
+        assert stats.bound_lexically == 0
+        row = psalter_db.execute(
+            "SELECT curator_status, target_chunk_id FROM cross_references "
+            "WHERE id = ?",
+            (xref_id,),
+        ).fetchone()
+        assert row[0] == "rejected"
+        assert row[1] is None
+
+    def test_variant_spelling_binds_with_a_partial_match_note(
+        self, psalter_db: sqlite3.Connection
+    ) -> None:
+        """A one-letter edition variant still binds, at lower confidence
+        than a verbatim hit, and says so in the note."""
+
+        _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
+        # 'magnificata' → 'magnifica': same verse, differing token.
+        xref_id = _work_level_quote(
+            psalter_db, "Quam magnifica sunt opera tua Domine"
+        )
+
+        embedder = FakeEmbedder({"Quam magnifica sunt opera tua Domine": V_X})
+        stats = embed_verify.verify_quoted_references(psalter_db, embedder)
+
+        assert stats.bound_lexically == 1
+        row = psalter_db.execute(
+            "SELECT target_chunk_id, confidence, curator_note "
+            "FROM cross_references WHERE id = ?",
+            (xref_id,),
+        ).fetchone()
+        assert row[0] == "ps-103-24"
+        assert row[1] == pytest.approx(0.90)
+        assert "lexical match" in (row[2] or "")
