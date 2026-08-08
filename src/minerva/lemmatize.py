@@ -41,6 +41,8 @@ touches the heavy deps.
 
 from __future__ import annotations
 
+import pickle
+import sys
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -64,6 +66,59 @@ class UnsupportedLanguageError(RuntimeError):
 # more parallelism — Stanza's own intra-document batching is
 # orthogonal and already at sane defaults.
 _STANZA_BULK_SIZE = 256
+
+
+class _NullSink:
+    """Write-only file stand-in that discards everything.
+
+    Lets the spawn probe below walk the whole pickle graph without
+    materialising the serialized model — ``de_core_news_sm`` is ~80 MB
+    resident and ``la_core_web_sm`` more, and we only care whether the
+    walk raises.
+    """
+
+    def write(self, _b: object) -> None:
+        return None
+
+
+def _unpicklable_reason(*payloads: object) -> Exception | None:
+    """Return the exception raised trying to pickle ``payloads``, or
+    ``None`` when all of them pickle cleanly.
+
+    Uses ``multiprocessing``'s own ``ForkingPickler`` rather than plain
+    ``pickle`` so the verdict matches what ``Process.start()`` will do:
+    the forking pickler registers extra reducers (connections, some
+    locks) and therefore accepts payloads plain ``pickle`` rejects.
+    """
+
+    from multiprocessing.reduction import ForkingPickler
+
+    for payload in payloads:
+        try:
+            ForkingPickler(_NullSink()).dump(payload)
+        except (pickle.PicklingError, TypeError, AttributeError) as exc:
+            return exc
+    return None
+
+
+def _spacy_extension_state() -> object | None:
+    """spaCy's process-global ``Doc``/``Span``/``Token`` extension
+    registry, or ``None`` if spaCy isn't importable.
+
+    This is a payload ``Language._multiprocessing_pipe`` hands to each
+    spawned worker, and — unlike the pipeline itself — it is **global to
+    the process**, not owned by the model that filled it. Importing
+    ``la_core_web_sm`` registers a lambda getter here, after which
+    *every* model in the process is unpicklable, ``en_core_web_sm``
+    included. So it has to be probed alongside the pipeline; probing
+    the pipeline alone reports "picklable" and prevents nothing.
+    """
+
+    try:
+        from spacy.tokens.underscore import Underscore
+    except ImportError:  # pragma: no cover — spaCy is present wherever
+        return None      # a spaCy backend was constructed
+    return Underscore.get_state()
 
 
 _LEMMA_ALLOWED_PUNCT = frozenset(
@@ -189,10 +244,20 @@ class Lemmatizer:
 
     @property
     def model(self) -> str:
-        """Installed spaCy model name, or ISO 639-3 code for Stanza."""
+        """Installed spaCy model name, or ISO 639-3 code for Stanza.
+
+        Qualified with the model's language, because spaCy's ``meta``
+        splits the two: ``la_core_web_sm`` and ``en_core_web_sm`` both
+        report ``name='core_web_sm'``, which made the two indis-
+        tinguishable in a log line — including the spawn-fallback notice
+        below, where knowing *which* model refused to pickle is the
+        whole point.
+        """
 
         if self._backend == "spacy" and self._nlp is not None:
-            return str(self._nlp.meta.get("name", "?"))
+            lang = str(self._nlp.meta.get("lang", "")).strip()
+            name = str(self._nlp.meta.get("name", "?"))
+            return f"{lang}_{name}" if lang else name
         if self._backend == "stanza":
             return self.lang
         return "?"
@@ -449,9 +514,14 @@ class Lemmatizer:
         so we fall back to per-text calls. (Future work: switch grc
         to spaCy if accuracy is acceptable — see the
         lemmatize-perf-plan memory.)
+
+        ``n_process > 1`` is downgraded to 1 when the payload spaCy
+        would hand its workers cannot be pickled — see
+        :meth:`_safe_n_process` and #262.
         """
 
         if self._backend == "spacy":
+            n_process = self._safe_n_process(n_process)
             for doc, context in self._nlp.pipe(
                 items, batch_size=batch_size, n_process=n_process, as_tuples=True
             ):
@@ -486,6 +556,45 @@ class Lemmatizer:
                     yield list(self._tokens_from_stanza_doc(doc)), ctx
         else:  # pragma: no cover — guarded by __init__
             raise UnsupportedLanguageError(self.lang)
+
+    def _safe_n_process(self, n_process: int) -> int:
+        """``n_process``, downgraded to 1 when spaCy's spawn payload
+        would fail to pickle (#262).
+
+        Checked BEFORE the pipe rather than recovered from afterwards,
+        because there is nothing to recover to.
+        ``Language._multiprocessing_pipe`` primes its worker queues
+        (``sender.send()`` twice — up to ``2 × n_process × batch_size``
+        texts) *before* ``for proc in procs: proc.start()``, and its
+        cleanup ``try/finally`` starts only after that loop. A spawn that
+        raises therefore leaks the ``mp.Queue`` objects with their
+        feeder threads still holding megabytes destined for a child that
+        was never created. ``multiprocessing.util._exit_function`` joins
+        those threads at interpreter shutdown, and they block forever in
+        ``os_write`` on a pipe nobody drains: the operator sees a command
+        that "finished" and never exits (18m47s of wall clock for 1.62s
+        of CPU on #262's run, ended by ``kill -9``). Catching the
+        ``PicklingError`` does not help — verified: a script that caught
+        it, printed, and fell off the end still had to be killed.
+
+        Cost when the payload IS picklable: one throwaway serialization
+        of the pipeline (~0.03-0.4 s for the ``_sm`` models we ship,
+        against a pass measured in minutes), paid once per run and only
+        when parallelism was actually requested.
+        """
+
+        if n_process == 1:
+            return 1
+        reason = _unpicklable_reason(self._nlp, _spacy_extension_state())
+        if reason is None:
+            return n_process
+        print(
+            f"lemmatize: {self.model} cannot be handed to spaCy's spawn "
+            f"workers ({type(reason).__name__}: {reason}); "
+            f"running with n_process=1 instead of {n_process}.",
+            file=sys.stderr,
+        )
+        return 1
 
     def _tokens_spacy(self, text: str) -> Iterable[Token]:
         yield from self._tokens_from_spacy_doc(self._nlp(text))

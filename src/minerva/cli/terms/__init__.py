@@ -307,8 +307,12 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
         default=4,
         help=(
             "spaCy `nlp.pipe` worker count for parallel tokenization. "
-            "Each worker loads its own model copy (~80–250 MB). 4 is a "
-            "safe default; -1 uses all cores. Ignored on Stanza backends."
+            "Each worker loads its own model copy (~80–250 MB); -1 uses "
+            "all cores. Ignored on Stanza backends. Silently downgraded "
+            "to 1, with a notice on stderr, when the pipeline cannot be "
+            "pickled for spaCy's spawn workers — which is the case for "
+            "`lat`, and for any language run in a process that has "
+            "already loaded LatinCy's `la_core_web_sm` (#262)."
         ),
     )
     plm.set_defaults(func=cmd_terms_lemmatize)

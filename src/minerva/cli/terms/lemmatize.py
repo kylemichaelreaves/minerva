@@ -28,6 +28,7 @@ from ...lemmatize import (
     is_supported,
     is_valid_lemma,
 )
+from ...sqlite_util import register_text_hash, text_hash
 from ._io import _open
 
 # Commit every N chunk-batches. Bigger = fewer fsyncs; smaller = less
@@ -65,11 +66,19 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
             where.append("cf.edition_id = ?")
             params.append(args.edition_id)
         if not args.all:
-            # Skip chunks already in chunk_lemmas. The subquery EXISTS
-            # is cheaper than LEFT JOIN here because chunk_lemmas has
-            # a leading-column index on chunk_id (the PK).
+            # Skip chunks already ATTEMPTED at their current text —
+            # not merely chunks that produced output. Keying this on
+            # chunk_lemmas (as it was until #263) meant a chunk yielding
+            # no valid lemma wrote no row, was never recorded, and came
+            # back as a candidate on every subsequent pass forever: 859
+            # of them across eng/fra/deu/grc. The hash comparison is
+            # what catches a chunk whose text changed under a stable
+            # chunk_id — see `sqlite_util.text_hash`.
+            register_text_hash(conn)
             where.append(
-                "NOT EXISTS (SELECT 1 FROM chunk_lemmas cl WHERE cl.chunk_id = cf.chunk_id)"
+                "NOT EXISTS (SELECT 1 FROM chunk_lemma_state s "
+                " WHERE s.chunk_id = cf.chunk_id "
+                "   AND s.text_hash = text_hash(cf.text))"
             )
         where_clause = " AND ".join(where)
         count_sql = "SELECT COUNT(*) FROM chunks_full cf WHERE " + where_clause
@@ -134,16 +143,31 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         inserts: list[
             tuple[str, int, str, int, int, str, str, str | None, str | None]
         ] = []
+        # One row per chunk the lemmatizer was run over, written in the
+        # same transaction as that chunk's lemmas so an interrupt can
+        # never record an attempt whose output was rolled back (#263).
+        attempts: list[tuple[str, str, int]] = []
         tokens_total = 0
         chunks_done = 0
+        chunks_productive = 0
         progress = _progress_bar(total=total, lang=lang)
         cursor = conn.execute(select_sql, params)
-        items = (
-            (unicodedata.normalize("NFC", row["text"]), row["chunk_id"])
-            for row in cursor
-        )
+        # The state row hashes the text as STORED, not the NFC form fed
+        # to the lemmatizer, so the stored hash and the `text_hash(cf.text)`
+        # in the candidate query above are computed over the same bytes.
+        # Hashed on the way in and popped on the way out, so this holds
+        # only the chunks currently inside the spaCy pipe — keeping the
+        # text itself would restore the ~200 MB the streaming cursor was
+        # introduced to avoid.
+        pending_hash: dict[str, str] = {}
+
+        def _items():
+            for row in cursor:
+                pending_hash[row["chunk_id"]] = text_hash(row["text"])
+                yield unicodedata.normalize("NFC", row["text"]), row["chunk_id"]
+
         for tokens, chunk_id in lm.batch_pipe(
-            items, batch_size=args.batch_size, n_process=args.n_process
+            _items(), batch_size=args.batch_size, n_process=args.n_process
         ):
             # token_index is 0-based within the chunk and survives
             # filtering — we increment only on valid lemmas so the
@@ -163,15 +187,24 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
                 )
                 kept += 1
                 tokens_total += 1
+            attempts.append((chunk_id, pending_hash.pop(chunk_id), kept))
             chunks_done += 1
+            chunks_productive += bool(kept)
             progress.update(1)
             progress.set_postfix_str(f"{tokens_total} tokens", refresh=False)
             if chunks_done % _COMMIT_BATCH == 0:
-                _flush(conn, inserts)
+                _flush(conn, inserts, attempts)
                 inserts.clear()
-        _flush(conn, inserts)
+                attempts.clear()
+        _flush(conn, inserts, attempts)
         progress.close()
-        print(f"lemmatize: done · {chunks_done} chunks · {tokens_total} tokens")
+        # Attempted and productive reported separately: "done · 679
+        # chunks" read as 679 chunks lemmatized when it meant 679 tried,
+        # 260 of which produced anything (#263).
+        print(
+            f"lemmatize: done · {chunks_done} chunks "
+            f"({chunks_productive} productive) · {tokens_total} tokens"
+        )
 
         # Rebuild the concordance aggregate table — the only consumer
         # of chunk_lemmas at read time. Skipping this would leave the
@@ -244,6 +277,7 @@ class _NoOpProgress:
 def _flush(
     conn: sqlite3.Connection,
     rows: list[tuple[str, int, str, int, int, str, str, str | None, str | None]],
+    attempts: list[tuple[str, str, int]],
 ) -> None:
     """Bulk-insert the accumulated rows in one transaction.
 
@@ -251,21 +285,47 @@ def _flush(
     re-pass overwrite legacy rows that lack the pos/feats columns
     added by migration 0008. Without REPLACE the conflicting
     (chunk_id, token_index) keys would silently drop and the
-    backfill would be a no-op. Trade-off: a partial earlier run
-    isn't preserved across a re-pass, but `--all` is opt-in.
+    backfill would be a no-op.
+
+    The docstring here used to claim the trade-off was that "a partial
+    earlier run isn't preserved across a re-pass". It is the opposite,
+    and it is a bug rather than a trade-off: REPLACE is keyed on
+    (chunk_id, token_index) and nothing deletes first, so a re-pass
+    yielding FEWER tokens than its predecessor leaves the surplus
+    high-index rows behind with their old offsets. Filed separately;
+    ``chunk_lemma_state.token_count`` now makes it detectable, since it
+    records what the latest pass actually produced.
 
     Each tuple carries ``lemma_fold`` (added in migration 0018) after
     ``lemma`` so the KWIC index can seek by case-folded value instead
     of a runtime ``LOWER(lemma)`` that disables the index.
+
+    ``attempts`` carries the ``chunk_lemma_state`` markers for the same
+    chunks and is written in the SAME transaction. A chunk recorded as
+    attempted whose lemmas were rolled back by an interrupt would be
+    skipped forever, which is the bug in the other direction.
     """
 
-    if not rows:
+    if not rows and not attempts:
         return
+    # No `if rows:` / `if attempts:` guards — `executemany` over an empty
+    # sequence is already a no-op, and a wholly barren commit batch
+    # (markers, no lemma rows) is the normal case for an OCR-damaged
+    # corpus rather than an exception to branch on.
     conn.executemany(
         "INSERT OR REPLACE INTO chunk_lemmas "
         "(chunk_id, token_index, surface_form, surface_start, "
         " surface_end, lemma, lemma_fold, pos, feats) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         rows,
+    )
+    conn.executemany(
+        "INSERT INTO chunk_lemma_state (chunk_id, text_hash, token_count) "
+        "VALUES (?, ?, ?) "
+        "ON CONFLICT(chunk_id) DO UPDATE SET "
+        "  text_hash = excluded.text_hash, "
+        "  token_count = excluded.token_count, "
+        "  lemmatized_at = CURRENT_TIMESTAMP",
+        attempts,
     )
     conn.commit()

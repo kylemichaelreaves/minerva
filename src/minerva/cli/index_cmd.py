@@ -157,18 +157,26 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 
 def _sweep_orphan_chunk_lemmas(conn: sqlite3.Connection) -> None:
-    """Delete chunk_lemmas + embeddings rows whose chunk_id no longer
-    exists in ``chunks``. Required after a snapshot-restore because
-    chunks whose text genuinely changed get a fresh content-hashed
-    chunk_id — the restored rows now point at the OLD id, leaving
-    FK-orphans that would block subsequent writes once FK enforcement
-    re-engages.
+    """Delete chunk_lemmas + chunk_lemma_state + embeddings rows whose
+    chunk_id no longer exists in ``chunks``. Required after a
+    snapshot-restore because chunks whose text genuinely changed get a
+    fresh content-hashed chunk_id — the restored rows now point at the
+    OLD id, leaving FK-orphans that would block subsequent writes once
+    FK enforcement re-engages. ``chunk_lemma_state``'s ON DELETE CASCADE
+    cannot cover this: the restore runs with foreign keys disabled.
+
+    NOT a general "drop rows whose chunk text changed", though it was
+    described that way here and in ``store/preserved_state.py`` before
+    2026-08-08. ``tei._make_chunk_id`` hashes only ``text[:120]``, so a
+    chunk edited past character 120 keeps its id, joins fine, and keeps
+    its now-misaligned lemma offsets and stale embedding. Only
+    ``chunk_lemma_state`` catches that case, via its ``text_hash``.
 
     Cheap when the tables are empty (typical fresh-ingest case) or
     when every chunk_id survived (typical content-stable reingest).
     """
 
-    for table in ("chunk_lemmas", "embeddings"):
+    for table in ("chunk_lemmas", "chunk_lemma_state", "embeddings"):
         dropped = sweep_orphan_chunk_ids(conn, table)
         if dropped:
             remaining = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]

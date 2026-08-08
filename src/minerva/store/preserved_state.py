@@ -53,7 +53,19 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
         emb_count = _count_or_zero(probe, "embeddings")
         term_count = _count_or_zero(probe, "terms")
-        if xref_count == 0 and lemma_count == 0 and emb_count == 0 and term_count == 0:
+        # Probed in its own right, not inferred from chunk_lemmas: a
+        # chunk attempted and found barren has a state row and no lemma
+        # rows, so a corpus that produced nothing anywhere would score
+        # zero on all four counts above and never be snapshotted (#263).
+        # That inference is the shape of the #274 defect.
+        state_count = _count_or_zero(probe, "chunk_lemma_state")
+        if (
+            xref_count == 0
+            and lemma_count == 0
+            and emb_count == 0
+            and term_count == 0
+            and state_count == 0
+        ):
             return
         backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
         # Clear any prior snapshot (and its own WAL siblings) so the
@@ -75,6 +87,8 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
         bits.append(f"{emb_count:,} embeddings")
     if term_count:
         bits.append(f"{term_count:,} terms")
+    if state_count:
+        bits.append(f"{state_count:,} chunk_lemma_state")
     print(
         f"Snapshotted {' + '.join(bits)} to {backup} before re-index.",
         file=sys.stderr,
@@ -97,13 +111,23 @@ def _maybe_restore_preserved_state_from_snapshot(
     backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
     if not backup.exists():
         return
-    for table in ("cross_references", "chunk_lemmas", "embeddings", "chunk_syntax_corrections"):
+    for table in (
+        "cross_references",
+        "chunk_lemmas",
+        "chunk_lemma_state",
+        "embeddings",
+        "chunk_syntax_corrections",
+    ):
         if _count_or_zero(conn, table):
             return
     probe = sqlite3.connect(backup)
     try:
         xref_count = _count_or_zero(probe, "cross_references")
         lemma_count = _count_or_zero(probe, "chunk_lemmas")
+        # The lemmatize attempt markers (#263). Counted separately from
+        # chunk_lemmas because a barren chunk has one of these and no
+        # lemma rows at all — that is the whole point of the table.
+        state_count = _count_or_zero(probe, "chunk_lemma_state")
         emb_count = _count_or_zero(probe, "embeddings")
         # Hand corrections to dependency trees. Unlike everything else
         # here these are not recomputable at any price — they are a
@@ -112,7 +136,13 @@ def _maybe_restore_preserved_state_from_snapshot(
         syntax_count = _count_or_zero(probe, "chunk_syntax_corrections")
     finally:
         probe.close()
-    if xref_count == 0 and lemma_count == 0 and emb_count == 0 and syntax_count == 0:
+    if (
+        xref_count == 0
+        and lemma_count == 0
+        and state_count == 0
+        and emb_count == 0
+        and syntax_count == 0
+    ):
         return
 
     with foreign_keys_disabled(conn):
@@ -129,6 +159,9 @@ def _maybe_restore_preserved_state_from_snapshot(
                 lemma_restored = 0
                 if lemma_count:
                     lemma_restored = _restore_from_snap(conn, "chunk_lemmas")
+                state_restored = 0
+                if state_count:
+                    state_restored = _restore_from_snap(conn, "chunk_lemma_state")
                 syntax_restored = 0
                 if syntax_count:
                     syntax_restored = _restore_from_snap(conn, "chunk_syntax_corrections")
@@ -158,13 +191,19 @@ def _maybe_restore_preserved_state_from_snapshot(
             if lemma_restored:
                 print(
                     f"Restored {lemma_restored:,} chunk_lemmas from {backup}; "
-                    f"orphan sweep will drop rows whose chunk text changed.",
+                    f"orphan sweep will drop rows whose chunk_id changed.",
+                    file=sys.stderr,
+                )
+            if state_restored:
+                print(
+                    f"Restored {state_restored:,} chunk_lemma_state from {backup}; "
+                    f"chunks whose text changed will be re-lemmatized.",
                     file=sys.stderr,
                 )
             if emb_restored:
                 print(
                     f"Restored {emb_restored:,} embeddings from {backup}; "
-                    f"orphan sweep will drop rows whose chunk text changed.",
+                    f"orphan sweep will drop rows whose chunk_id changed.",
                     file=sys.stderr,
                 )
         finally:
