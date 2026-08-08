@@ -248,6 +248,24 @@ inside `if xref_count:`. A targets-only snapshot therefore keeps migration
   Remove that workaround as part of this fix so it cannot become the
   expected behaviour.
 
+**Corrected 2026-08-08 while implementing. The plan above names only the
+restore gate, and fixing only that leaves the bug in place.** The
+snapshot gate has to change too. `cmd_index` calls
+`_maybe_snapshot_pre_index` and then `store.reset_db`, which *unlinks
+the DB file* — so on a targets-only DB the probe's early return fires
+(all five counts zero), no `.bak.pre-index` is written, and there is
+nothing for the restore to replay however well-gated it is. Measured:
+with only the restore fixed, the new regression test still failed
+`the curated target did not survive --reset`. `reference_targets` must
+be counted in **both** functions.
+
+Consequence, accepted and filed as #289: migration 0012 seeds 20 targets
+into every migrated DB, so the snapshot probe is now effectively
+unconditional and its "no-op for fully-empty DBs" property is gone. A
+narrower predicate cannot be made sound by row count or by which
+`(author, work)` pairs are present — the case #274 names is a curator
+editing a seed row's `notes` in place, which changes neither.
+
 ### #264 — `refs_scan_state` orphans (part 1 only)
 
 31,629 of 460,235 rows point at deleted chunks. Because `chunk_id` is
@@ -270,6 +288,13 @@ loaded rules modules, so `refs build` rescans affected chunks itself
 instead of relying on the operator remembering `--rescan-all`. That is a
 design change. Either use `Refs #264` and state that part 1 landed and
 part 2 did not, or file part 2 separately and close #264.
+
+**Done 2026-08-08: filed separately as #287, so #264 closes.** Also
+found while reaping: `refs_scan_state` is *not* on the `--reset`
+preservation path, so a single `index --reset` discards all 428,606
+markers and the next rules build is a full-corpus pass (#288). The two
+defects are opposite — the cache is over-kept in the non-reset path and
+under-kept in the reset path — and neither was visible from the other.
 
 ---
 
