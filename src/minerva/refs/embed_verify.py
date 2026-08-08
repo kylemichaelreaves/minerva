@@ -155,6 +155,89 @@ def _lexical_note(match: quote_match.LexicalMatch) -> str:
     )
 
 
+def _tie_note(
+    conn: sqlite3.Connection,
+    runners_up: Sequence[quote_match.LexicalMatch],
+    *,
+    by_cosine: bool,
+) -> str:
+    """Names the verses passed over, so the pick is visible as a pick.
+
+    A tie means the quotation occurs identically in more than one verse
+    and the string is exhausted (issue #276). Whichever way it is then
+    settled, the alternative belongs on the row: the reader is not
+    misled — the quotation reads correctly in either — but they cannot
+    otherwise tell a determined binding from an adjudicated one.
+    """
+
+    labels = ", ".join(
+        f"{section} ({m.chunk_id})" if section else m.chunk_id
+        for m, section in zip(
+            runners_up,
+            _chunk_sections(conn, [m.chunk_id for m in runners_up]),
+            strict=True,
+        )
+    )
+    how = (
+        "this one scored higher by cosine among the tied verses"
+        if by_cosine
+        else "this one picked by stable chunk_id order — no two tied verses "
+        "had embeddings to compare"
+    )
+    return f" {labels} also contain the phrase; {how}."
+
+
+def _chunk_sections(
+    conn: sqlite3.Connection, chunk_ids: Sequence[str]
+) -> list[str | None]:
+    """Section locators for ``chunk_ids``, in the order given.
+
+    ``chunk_ids`` must be non-empty — the sole caller only builds a note
+    when there is a runner-up to name, and an empty ``IN ()`` is not
+    valid SQL.
+    """
+
+    placeholders = ",".join("?" * len(chunk_ids))
+    found = dict(
+        conn.execute(
+            f"SELECT chunk_id, section FROM chunks WHERE chunk_id IN ({placeholders})",
+            tuple(chunk_ids),
+        ).fetchall()
+    )
+    return [found.get(cid) for cid in chunk_ids]
+
+
+def _adjudicate_tie(
+    conn: sqlite3.Connection,
+    phrase_vec: np.ndarray,
+    tied: Sequence[quote_match.LexicalMatch],
+) -> tuple[quote_match.LexicalMatch, list[quote_match.LexicalMatch], bool]:
+    """Pick one of several verses that carry the quotation identically.
+
+    Cosine is legitimate here, and only here: the choice is between two
+    known-correct texts rather than a search over the whole Psalter,
+    which is the distinction #269 turned on.
+
+    Falls back to ``tied[0]`` — the lowest ``chunk_id`` — unless at least
+    two candidates have embeddings. A single score is not a comparison,
+    and dressing the stable pick up as cosine evidence would be worse
+    than admitting it is arbitrary. Returns the winner, the verses passed
+    over, and whether cosine actually decided.
+    """
+
+    scoreable: list[tuple[quote_match.LexicalMatch, np.ndarray]] = []
+    for m in tied:
+        vec = _load_embedding_for_chunk(conn, m.chunk_id)
+        if vec is not None:
+            scoreable.append((m, vec))
+
+    if len(scoreable) < 2:
+        return tied[0], list(tied[1:]), False
+
+    winner = max(scoreable, key=lambda mv: float(phrase_vec @ mv[1]))[0]
+    return winner, [m for m in tied if m.chunk_id != winner.chunk_id], True
+
+
 def _work_texts(
     conn: sqlite3.Connection,
     work_id: int,
@@ -317,10 +400,20 @@ def verify_quoted_references(
             # devotional phrase (issue #269): "omnia in sapientia
             # fecisti" is Ps 103:24 and went to Ps 135:7. A quotation is
             # a string, so match it as one; see refs/quote_match.py.
-            lex = quote_match.best_lexical_match(
+            tied = quote_match.all_lexical_matches(
                 phrases[i], _work_texts(conn, in_corpus_work_id, work_text_cache)
             )
-            if lex is not None:
+            if tied:
+                # More than one verse can carry the quotation word for
+                # word — Ps 113:12 and Ps 134:15 do. The string has
+                # nothing left to say at that point, so cosine settles it
+                # among those verses only (issue #276).
+                lex, runners_up, by_cosine = _adjudicate_tie(
+                    conn, phrase_vecs[i], tied
+                )
+                note = _lexical_note(lex)
+                if runners_up:
+                    note += _tie_note(conn, runners_up, by_cosine=by_cosine)
                 # Locating the phrase in a specific verse is near
                 # definitional — much stronger evidence than any cosine
                 # score, so it does not go through the threshold ladder.
@@ -334,7 +427,7 @@ def verify_quoted_references(
                     (
                         0.98 if lex.exact else 0.90,
                         lex.chunk_id,
-                        _lexical_note(lex),
+                        note,
                         xr_id,
                     ),
                 )

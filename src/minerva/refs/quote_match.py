@@ -175,33 +175,41 @@ class LexicalMatch:
     coverage: float
 
 
-def best_lexical_match(
+def all_lexical_matches(
     phrase: str,
     candidates: Iterable[tuple[str, str]],
     *,
     min_token_run: int = _MIN_TOKEN_RUN,
     min_coverage: float = _MIN_COVERAGE,
-) -> LexicalMatch | None:
-    """Best chunk among ``candidates`` that contains ``phrase``.
+) -> list[LexicalMatch]:
+    """Every chunk among ``candidates`` tied at the best strength.
 
-    ``candidates`` is an iterable of ``(chunk_id, text)``. Returns None
-    when nothing clears the bar — which is the point: an unbound target
-    is visibly unresolved, whereas a wrong one reads as verified.
+    ``candidates`` is an iterable of ``(chunk_id, text)``. Returns an
+    empty list when nothing clears the bar — which is the point: an
+    unbound target is visibly unresolved, whereas a wrong one reads as
+    verified.
 
     Three acceptance paths, in descending strength: whole-phrase
     containment; a long contiguous anchor with decent coverage; and
     near-total coverage with a shorter anchor, which is what admits a
     one-word edition variant. See the constants above for why the last
     two need different bars.
+
+    Weaker matches are dropped, so a list longer than one element means a
+    genuine ambiguity: the quotation occurs identically in more than one
+    verse and the string says nothing about which was meant (issue #276).
+    The result is ordered by ``chunk_id`` so a caller that just takes the
+    first gets the same answer on every run.
     """
 
     norm_phrase = normalize_latin(phrase)
     phrase_tokens = _tokens(norm_phrase)
     if not phrase_tokens:
-        return None
+        return []
     n = len(phrase_tokens)
 
     best: LexicalMatch | None = None
+    tied: list[LexicalMatch] = []
     for chunk_id, text in candidates:
         norm_text = normalize_latin(text)
         if not norm_text:
@@ -230,25 +238,56 @@ def best_lexical_match(
             found = LexicalMatch(
                 chunk_id=chunk_id, exact=False, run=run, coverage=coverage
             )
-        # Strongest wins; ties break on the lowest chunk_id so repeated
-        # runs bind the same chunk and don't grow parallel rows through
-        # ``insert_candidate``'s dedup key. When a quotation really does
-        # occur in two verses the pick is therefore arbitrary rather than
-        # correct — mild (both verses read the same) but tracked as #276.
-        if best is None or _sort_key(found) < _sort_key(best):
+        # Strongest wins. Equal strength is kept rather than discarded:
+        # the string alone cannot choose between two verses that contain
+        # the quotation identically, and pretending otherwise is what
+        # #276 is about. Weaker candidates are dropped outright — merely
+        # clearing the bar does not make a verse an alternative.
+        if best is None or _strength_key(found) < _strength_key(best):
             best = found
-    return best
+            tied = [found]
+        elif _strength_key(found) == _strength_key(best):
+            tied.append(found)
+    return sorted(tied, key=lambda m: m.chunk_id)
 
 
-def _sort_key(m: LexicalMatch) -> tuple[int, int, float, str]:
-    """Ascending sort key — smaller is better, so the numeric components
-    are negated and ``chunk_id`` sorts naturally for the tie-break."""
+def best_lexical_match(
+    phrase: str,
+    candidates: Iterable[tuple[str, str]],
+    *,
+    min_token_run: int = _MIN_TOKEN_RUN,
+    min_coverage: float = _MIN_COVERAGE,
+) -> LexicalMatch | None:
+    """Single strongest match, or None when nothing clears the bar.
 
-    return (0 if m.exact else 1, -m.run, -m.coverage, m.chunk_id)
+    Ties break on the lowest ``chunk_id`` so repeated runs bind the same
+    chunk and don't grow parallel rows through ``insert_candidate``'s
+    dedup key. That pick is stable but arbitrary when a quotation really
+    does occur in two verses, so a caller that can adjudicate — as
+    ``embed_verify`` does, by cosine among the tied pair — should call
+    :func:`all_lexical_matches` instead.
+    """
+
+    matches = all_lexical_matches(
+        phrase,
+        candidates,
+        min_token_run=min_token_run,
+        min_coverage=min_coverage,
+    )
+    return matches[0] if matches else None
+
+
+def _strength_key(m: LexicalMatch) -> tuple[int, int, float]:
+    """Ascending strength — smaller is better, so the numeric components
+    are negated. Excludes ``chunk_id``: two candidates equal on this key
+    are genuinely indistinguishable, which is what makes them a tie."""
+
+    return (0 if m.exact else 1, -m.run, -m.coverage)
 
 
 __all__ = [
     "LexicalMatch",
+    "all_lexical_matches",
     "best_lexical_match",
     "normalize_latin",
 ]

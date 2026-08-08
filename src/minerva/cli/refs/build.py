@@ -321,6 +321,7 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
         f"unchanged={stats.unchanged}  "
         f"calls={stats.llm_calls}  "
         f"parse_errors={stats.parse_errors}  "
+        f"backend_errors={stats.backend_errors}  "
         f"lost_rows={stats.lost_rows}  "
         f"missing_verdicts={stats.missing_verdicts}"
     )

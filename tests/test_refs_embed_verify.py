@@ -653,6 +653,164 @@ class TestWorkLevelLexicalBinding:
         assert row[1] == "rule+embed"
         assert "could not be located" in (row[2] or "")
 
+
+# ════════════════════════════════════════════════════════════════════
+# Pass A ties: two verses carry the quotation verbatim (#276)
+# ════════════════════════════════════════════════════════════════════
+
+# Verbatim from the Clementine Vulgate. The two idol-polemic Psalms
+# share this clause word for word, so no string match can separate them.
+_IDOL_CLAUSE = (
+    "Simulacra gentium argentum et aurum, opera manuum hominum. "
+    "Os habent, et non loquentur ; oculos habent, et non videbunt."
+)
+_IDOL_QUOTE = "simulacra gentium argentum et aurum, opera manuum hominum"
+
+
+@pytest.fixture
+def tied_psalms_db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    """The real ambiguity from #276 — Ps 113:12 and Ps 134:15."""
+
+    chunks = [
+        make_chunk(
+            chunk_id="st-q1",
+            corpus="aquinas",
+            author="Aquinas",
+            work="Summa Theologiae",
+            lang="lat",
+            section="I q1 a1 co.",
+            book=None,
+            text="Respondeo dicendum quod, sicut dicitur in Psalmo: "
+            "simulacra gentium argentum et aurum, opera manuum hominum.",
+        ),
+        make_chunk(
+            chunk_id="ps-113-12",
+            corpus="vulgate",
+            author="Vulgate",
+            work="Psalms",
+            lang="lat",
+            section="Ps 113:12",
+            book=None,
+            text=_IDOL_CLAUSE,
+        ),
+        make_chunk(
+            chunk_id="ps-134-15",
+            corpus="vulgate",
+            author="Vulgate",
+            work="Psalms",
+            lang="lat",
+            section="Ps 134:15",
+            book=None,
+            text=_IDOL_CLAUSE,
+        ),
+    ]
+    jsonl = tmp_path / "tied.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "tied.sqlite")
+    store.insert_chunks(conn, jsonl)
+    yield conn
+    conn.close()
+
+
+class TestWorkLevelTieAdjudication:
+    def test_cosine_among_the_tied_pair_beats_the_lowest_chunk_id(
+        self, tied_psalms_db: sqlite3.Connection
+    ) -> None:
+        """#276: both verses contain the quotation, so the string is
+        exhausted and cosine is legitimate — the choice is between two
+        known-correct texts, not a search over the whole Psalter."""
+
+        _seed_embeddings(
+            tied_psalms_db, {"ps-113-12": V_X, "ps-134-15": V_Y}
+        )
+        xref_id = _work_level_quote(tied_psalms_db, _IDOL_QUOTE)
+        # Source context embeds onto the HIGHER chunk_id, which the
+        # stable tie-break would never have picked.
+        embedder = FakeEmbedder({_IDOL_QUOTE: V_Y})
+
+        stats = embed_verify.verify_quoted_references(tied_psalms_db, embedder)
+
+        assert stats.bound_lexically == 1
+        row = tied_psalms_db.execute(
+            "SELECT target_chunk_id, confidence FROM cross_references WHERE id = ?",
+            (xref_id,),
+        ).fetchone()
+        assert row[0] == "ps-134-15", "fell back to the arbitrary lowest chunk_id"
+        assert row[1] == pytest.approx(0.98)
+
+    def test_the_runner_up_is_named_in_the_curator_note(
+        self, tied_psalms_db: sqlite3.Connection
+    ) -> None:
+        """A pick made by cosine must be visible as one, or the reader
+        has no way to know an equally-good verse was passed over."""
+
+        _seed_embeddings(
+            tied_psalms_db, {"ps-113-12": V_X, "ps-134-15": V_Y}
+        )
+        xref_id = _work_level_quote(tied_psalms_db, _IDOL_QUOTE)
+        embedder = FakeEmbedder({_IDOL_QUOTE: V_Y})
+
+        embed_verify.verify_quoted_references(tied_psalms_db, embedder)
+
+        note = tied_psalms_db.execute(
+            "SELECT curator_note FROM cross_references WHERE id = ?", (xref_id,)
+        ).fetchone()[0]
+        assert "ps-113-12" in note
+        assert "Ps 113:12" in note
+
+    def test_a_unique_match_carries_no_tie_note(
+        self, psalter_db: sqlite3.Connection
+    ) -> None:
+        """The note only widens when there was actually a choice."""
+
+        _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
+        xref_id = _work_level_quote(psalter_db, "omnia in sapientia fecisti")
+        embedder = FakeEmbedder({"omnia in sapientia fecisti": V_X})
+
+        embed_verify.verify_quoted_references(psalter_db, embedder)
+
+        note = psalter_db.execute(
+            "SELECT curator_note FROM cross_references WHERE id = ?", (xref_id,)
+        ).fetchone()[0]
+        assert "also contain" not in note
+
+    def test_tie_falls_back_to_lowest_chunk_id_without_embeddings(
+        self, tied_psalms_db: sqlite3.Connection
+    ) -> None:
+        """Cosine can only *compare*. With nothing to compare, the
+        stable pick is what keeps re-runs from growing parallel rows."""
+
+        xref_id = _work_level_quote(tied_psalms_db, _IDOL_QUOTE)
+        embedder = FakeEmbedder({_IDOL_QUOTE: V_Y})
+
+        stats = embed_verify.verify_quoted_references(tied_psalms_db, embedder)
+
+        assert stats.bound_lexically == 1
+        row = tied_psalms_db.execute(
+            "SELECT target_chunk_id, curator_note FROM cross_references WHERE id = ?",
+            (xref_id,),
+        ).fetchone()
+        assert row[0] == "ps-113-12"
+        assert "ps-134-15" in row[1], "the passed-over verse must still be recorded"
+
+    def test_one_scoreable_candidate_is_not_an_adjudication(
+        self, tied_psalms_db: sqlite3.Connection
+    ) -> None:
+        """A single cosine score is not a comparison. Scoring the one
+        embedded verse against itself would dress the stable fallback up
+        as evidence, so it stays the stable fallback."""
+
+        _seed_embeddings(tied_psalms_db, {"ps-134-15": V_Y})
+        xref_id = _work_level_quote(tied_psalms_db, _IDOL_QUOTE)
+        embedder = FakeEmbedder({_IDOL_QUOTE: V_Y})
+
+        embed_verify.verify_quoted_references(tied_psalms_db, embedder)
+
+        target = tied_psalms_db.execute(
+            "SELECT target_chunk_id FROM cross_references WHERE id = ?", (xref_id,)
+        ).fetchone()[0]
+        assert target == "ps-113-12"
+
     def test_unlocatable_and_low_cosine_still_rejects(
         self, psalter_db: sqlite3.Connection
     ) -> None:

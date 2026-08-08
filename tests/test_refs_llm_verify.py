@@ -423,12 +423,144 @@ class TestBudgetAndErrorHandling:
             batch_size=1,
             max_llm_calls=5,
             skip_short_chunks=False,
+            max_backend_retries=0,
         )
-        assert stats.parse_errors == 1
+        # A transport failure is not a malformed response (#272). The two
+        # call for opposite operator responses, so they cannot share a
+        # counter — this used to assert `parse_errors == 1`.
+        assert stats.backend_errors == 1
+        assert stats.parse_errors == 0
         assert stats.promoted == 1
         # Checkpoint must not leap past the first (failed) row — resume
         # would otherwise skip ids[0] forever.
         assert llm_verify._read_checkpoint(populated_db) is None
+
+    def test_unparseable_response_is_not_counted_as_a_backend_error(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        """The other half of the split: a reply that arrived and would
+        not parse must not inflate `backend_errors`."""
+
+        _seed_auto_row(populated_db)
+        backend = SequenceStubBackend(["garbage from the model"])
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, max_llm_calls=5, skip_short_chunks=False
+        )
+        assert stats.parse_errors == 1
+        assert stats.backend_errors == 0
+
+    def test_backend_error_is_retried_with_the_same_payload(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        """A 503 says nothing about the payload, so the unit is re-sent
+        unchanged — unlike a parse failure, which is halved (#270)."""
+
+        rid = _seed_auto_row(populated_db)
+        backend = SequenceStubBackend(
+            [
+                llm.LLMError("transient 503"),
+                _verdict_json(row_id=rid, references=True),
+            ]
+        )
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            max_llm_calls=5,
+            skip_short_chunks=False,
+            backend_retry_backoff=0.0,
+        )
+        assert stats.promoted == 1
+        assert stats.lost_rows == 0, "the retry should have saved the row"
+        assert stats.backend_errors == 1
+        assert stats.llm_calls == 2
+
+    def test_backend_retries_are_bounded_and_the_unit_is_then_lost(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        """An outage must not spin. After the bound, the unit is given up
+        on and held back from the checkpoint so a re-run finds it."""
+
+        _seed_auto_row(populated_db)
+        backend = SequenceStubBackend([llm.LLMError("down") for _ in range(10)])
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            max_llm_calls=20,
+            skip_short_chunks=False,
+            max_backend_retries=2,
+            backend_retry_backoff=0.0,
+        )
+        # One initial attempt plus two retries.
+        assert stats.llm_calls == 3
+        assert stats.backend_errors == 3
+        assert stats.lost_rows == 1
+        assert llm_verify._read_checkpoint(populated_db) is None
+
+    def test_backend_retries_back_off_between_attempts(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        """`sleep_between_calls` is fixed pacing, not backoff. Re-sending
+        into a rate limit at the same cadence is what backoff exists to
+        avoid, so the pause has to widen."""
+
+        _seed_auto_row(populated_db)
+        backend = SequenceStubBackend([llm.LLMError("down") for _ in range(10)])
+        base = 0.02
+
+        started = time.monotonic()
+        llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            max_llm_calls=20,
+            skip_short_chunks=False,
+            max_backend_retries=2,
+            backend_retry_backoff=base,
+        )
+        elapsed = time.monotonic() - started
+
+        # Doubling: base before retry 1, 2*base before retry 2.
+        assert elapsed >= 3 * base
+
+    def test_verbose_names_the_backend_error_and_the_attempt(
+        self, populated_db: sqlite3.Connection, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A retry that is silent looks like a stall. The operator needs
+        to see the reason and how many attempts remain."""
+
+        _seed_auto_row(populated_db)
+        backend = SequenceStubBackend([llm.LLMError("transient 503") for _ in range(3)])
+        llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            max_llm_calls=10,
+            skip_short_chunks=False,
+            max_backend_retries=1,
+            backend_retry_backoff=0.0,
+            verbose=True,
+        )
+
+        out = capsys.readouterr().out
+        assert "[backend_error]" in out
+        assert "transient 503" in out
+        assert "attempt 1 of 2" in out
+
+    def test_retries_respect_the_call_budget(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        """Retries are ordinary API calls and are billed as such, or
+        `--max-llm-calls` stops bounding what a run costs."""
+
+        _seed_auto_row(populated_db)
+        backend = SequenceStubBackend([llm.LLMError("down") for _ in range(10)])
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            max_llm_calls=2,
+            skip_short_chunks=False,
+            max_backend_retries=5,
+            backend_retry_backoff=0.0,
+        )
+        assert stats.llm_calls == 2
 
     def test_unparseable_response_counted_as_parse_error(
         self, populated_db: sqlite3.Connection
@@ -717,6 +849,8 @@ class TestCallPacing:
         # rate limit, so it has to count retry calls too — they are
         # ordinary API calls. Three calls here: the failed batch, the
         # first half (backend error), the second half (verdict).
+        # Backend retries are off so the subject stays the split retry;
+        # their own backoff is paced separately (#272).
         ids = _seed_rows(populated_db, 2)
         backend = SequenceStubBackend(
             ["slop", llm.LLMError("transient 503"), _verdicts_json([ids[1]])]
@@ -731,6 +865,7 @@ class TestCallPacing:
             max_llm_calls=10,
             skip_short_chunks=False,
             sleep_between_calls=pause,
+            max_backend_retries=0,
         )
         elapsed = time.monotonic() - started
 
@@ -762,6 +897,7 @@ class TestVerdictDurability:
             batch_size=1,
             max_llm_calls=5,
             skip_short_chunks=False,
+            max_backend_retries=0,
         )
         assert stats.promoted == 1
 
@@ -790,6 +926,7 @@ class TestVerdictDurability:
             batch_size=1,
             max_llm_calls=5,
             skip_short_chunks=False,
+            max_backend_retries=0,
         )
 
         # Committing the verdicts must not advance resume past the row
