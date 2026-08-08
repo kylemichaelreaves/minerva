@@ -3,10 +3,43 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import re
 import sqlite3
 from collections.abc import Callable, Iterator
 from pathlib import Path
+
+
+def text_hash(text: str) -> str:
+    """Content hash of a chunk's text, for the scan-state tables.
+
+    ``sha1`` and hex, matching what ``refs/rules`` already stores in
+    ``refs_scan_state.text_hash`` — one convention across the skip
+    caches rather than two.
+
+    Why the tables carry a text hash at all, when ``chunk_id`` is itself
+    content-derived: ``tei._make_chunk_id`` hashes only ``text[:120]``,
+    so a chunk edited past that point keeps its id. Its marker would
+    otherwise say "already done at this text" about text that has since
+    changed — the same class of stale-marker bug as #264.
+    """
+
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def register_text_hash(conn: sqlite3.Connection) -> None:
+    """Expose :func:`text_hash` to SQL as ``text_hash(text)``.
+
+    Lets a skip predicate compare stored against current hashes inside
+    the candidate query, instead of pulling every hash into Python
+    first — which for the lemmatize pass would mean materializing a dict
+    over the whole corpus, the exact thing its streaming cursor exists
+    to avoid.
+    """
+
+    conn.create_function(
+        "text_hash", 1, lambda t: text_hash(t or ""), deterministic=True
+    )
 
 
 def open_sqlite(

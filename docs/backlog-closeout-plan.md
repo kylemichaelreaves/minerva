@@ -140,14 +140,41 @@ LatinCy's `la_core_web_sm` holds a module-level lambda and `spawn` cannot
 pickle it. The traceback prints and the process then **hangs** — 18m47s
 wall for 1.62s CPU, requiring `kill -9`.
 
-- In `Lemmatizer.batch_pipe` (`src/minerva/lemmatize.py:431-457`), wrap
-  the `nlp.pipe(..., n_process=n_process)` call so `PicklingError` falls
-  back to `n_process=1` with a warning. This is the part that turns a
-  silent stall into a one-line notice, and it covers any future model with
-  the same defect rather than just `lat`.
+**Corrected 2026-08-08 while implementing, on two counts. Both were
+measured; the plan as written above would not have fixed the bug.**
+
+1. *"Wrap the `nlp.pipe` call so `PicklingError` falls back."* This does
+   not stop the hang. spaCy primes its worker queues (`sender.send()`
+   twice) **before** `for proc in procs: proc.start()`, and its cleanup
+   `try/finally` begins only after that loop — so a failed spawn leaks
+   `mp.Queue` objects whose feeder threads
+   `multiprocessing.util._exit_function` joins at interpreter shutdown,
+   blocked forever in `os_write` on a pipe no child will drain.
+   Demonstrated: a script that *caught* the `PicklingError`, printed, and
+   ran off the end was still alive at 45 s and had to be killed. Had the
+   plan been followed, the operator would have got a friendlier message
+   and the same `kill -9`. The payload has to be checked **before** the
+   pipe is entered — `Lemmatizer._safe_n_process`.
+2. *"`la_core_web_sm` … cannot be parallelised"* / #262's "Latin only …
+   it is `la_core_web_sm` that will not pickle". The **model** pickles
+   fine. What does not is spaCy's process-global `Underscore.get_state()`
+   extension registry, which importing `la_core_web_sm` poisons with a
+   `Token.set_extension(..., getter=lambda …)` at
+   `la_core_web_sm/functions.py:121-126`. Measured in one process, after
+   that import, `en_core_web_sm`, `de_core_news_sm`, `fr_core_news_sm`
+   and `grc_dep_web_sm` are *all* unpicklable, each reporting the
+   *Latin* lambda; each is picklable in a fresh process. So a probe of
+   the pipeline object alone — the natural reading of the plan — reports
+   "picklable" and prevents nothing, and the defect is not confined to
+   `lat`: any language lemmatized in a process that has already loaded
+   LatinCy hangs the same way.
+
 - Correct the help text at `src/minerva/cli/terms/__init__.py:303-313` —
   "4 is a safe default" is false. Changing the default to 1 is defensible
-  but is the lesser fix alone: it leaves `--n-process 4` a trap.
+  but is the lesser fix alone: it leaves `--n-process 4` a trap. With the
+  pre-flight probe in place the default stays at 4, since it is now
+  honoured wherever it is safe and downgraded with a notice where it is
+  not.
 
 ### #263 — zero-lemma chunks reprocessed forever, and miscounted
 
@@ -162,7 +189,19 @@ recorded as attempted.
   `chunk_lemma_state(chunk_id PK REFERENCES chunks(chunk_id) ON DELETE
   CASCADE, text_hash, token_count, lemmatized_at)` gets orphan reaping for
   free.
-- Migration `0027_chunk_lemma_state.sql`.
+- Migration `0027_chunk_lemma_state.sql` — **corrected while
+  implementing: it must be `.py`.** The table cannot ship empty. Moving
+  the skip predicate off `chunk_lemmas` while no state rows exist means
+  the next incremental pass sees the whole corpus as unattempted and
+  re-lemmatizes 26M tokens. So the migration backfills a marker for every
+  chunk that already has lemma rows, which needs `sha1` over
+  `chunks.text` — and SQLite has no builtin for it. `.py` plus
+  `sqlite_util.register_text_hash`, the same shape as 0021's
+  canonicalizer.
+- `text_hash` is not redundant with the content-derived `chunk_id`, which
+  is the obvious objection to it: `tei._make_chunk_id` hashes only
+  `text[:120]`, so a chunk edited past that point keeps its id and would
+  inherit its stale marker.
 - Add the new table to the preservation path in
   `src/minerva/store/preserved_state.py`. Otherwise the first
   `index --reset` annihilates it and the bug returns silently — the #192
@@ -177,6 +216,16 @@ chunks (`KLEINIAS: Das ist recht von euch…`) produce zero lemmas. #263
 records the observation without diagnosing it, and the caching fix is what
 makes it visible. File the diagnosis as its own issue if this batch does
 not answer it.
+
+**Answered 2026-08-08 — no issue needed.** They were never attempted, not
+attempted-and-failed; the deu pass had simply not been run over them, which
+is the ambiguity the whole batch exists to remove. `KLEINIAS: Das ist recht
+von euch…` yields 19 lemmas on its first actual pass. Of the 126 deu
+candidates, 2 are productive and the other 124 are Marx footnote citations
+(`(131) l.c.p. 35 u. p. 455, 456.`). The remaining residue is Cicero
+apparatus (eng) and Renan/Gobineau OCR garbage (fra) — 857 chunks that are
+legitimately unlemmatizable and now recorded as such. Correction filed on
+the issue.
 
 ---
 
