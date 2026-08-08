@@ -14,10 +14,13 @@ import argparse
 import json
 from pathlib import Path
 
+import pytest
 from conftest import make_chunk
 
 from minerva import store
 from minerva.cli.index_cmd import cmd_index
+from minerva.refs import schema as refs_schema
+from minerva.store import chunks as store_chunks
 
 
 def _run_index(db: Path, jsonl: Path, *, reset: bool) -> None:
@@ -107,6 +110,210 @@ def test_cross_references_survive_index_reset(tmp_path: Path):
     ).fetchone()[0] == 1
     bad = conn.execute("PRAGMA foreign_key_check(cross_references)").fetchall()
     assert bad == [], f"FK violations after reset: {bad}"
+
+
+def test_in_corpus_work_id_survives_works_id_reassignment(tmp_path: Path):
+    """``index --reset`` does ``DELETE FROM works`` and re-INSERTs, so
+    ``works.id`` is reassigned in JSONL order. ``reference_targets``
+    stores that id in ``in_corpus_work_id`` and nothing re-resolved it,
+    so a target silently came to point at a *different work* — 104 of
+    160 targets (65%) in the live DB, 47 at another author's work
+    (issue #273).
+
+    Not catchable by ``PRAGMA foreign_key_check``: the stale id points
+    at a real ``works`` row, so it is referentially valid and merely
+    wrong. The assertion has to compare (author, title).
+    """
+
+    db = tmp_path / "targets.sqlite"
+    # Two works of the same author. On the first ingest Republic is
+    # inserted first and gets the lower surrogate id.
+    first = tmp_path / "seed.jsonl"
+    first.write_text(
+        "\n".join(
+            json.dumps(c)
+            for c in [
+                make_chunk(chunk_id="rep", work="Republic", text="the sun analogy"),
+                make_chunk(chunk_id="law", work="Laws", text="on the nomoi"),
+            ]
+        )
+    )
+    _run_index(db, first, reset=False)
+
+    conn = store.open_db(db)
+    republic_id = conn.execute(
+        "SELECT id FROM works WHERE author = 'Plato' AND title = 'Republic'"
+    ).fetchone()[0]
+    laws_id = conn.execute(
+        "SELECT id FROM works WHERE author = 'Plato' AND title = 'Laws'"
+    ).fetchone()[0]
+    # Create the target the way the refs builder does — ensure_target
+    # snapshots the current works.id into in_corpus_work_id.
+    target = refs_schema.ensure_target(
+        conn, canonical_author="Plato", canonical_work="Republic"
+    )
+    conn.commit()
+    assert target.in_corpus_work_id == republic_id
+    # Hang an xref off it. Required for the target to survive at all:
+    # the snapshot restore only replays reference_targets when the
+    # snapshot holds at least one cross_references row
+    # (store/preserved_state.py:124) — that gate is its own bug, filed
+    # as #274. Production targets all have xrefs, so seeding one here
+    # keeps this test on the real path instead of blocking on #274.
+    ed_id = conn.execute(
+        "SELECT edition_id FROM chunks WHERE chunk_id = 'law'"
+    ).fetchone()[0]
+    conn.execute(
+        "INSERT INTO cross_references ("
+        "  source_chunk_id, target_id, reference_type, confidence, "
+        "  source_method, curator_status, source_edition_id, "
+        "  source_sort_key, source_form_snapshot, source_instance_index"
+        ") VALUES ('law', ?, 'cites', 0.9, 'rule_strong', 'auto', ?, "
+        "  'S001', 'Rep. 509d', 1)",
+        (target.id, ed_id),
+    )
+    conn.commit()
+    conn.close()
+
+    # Re-ingest with the two works in the OPPOSITE order. Same content,
+    # same chunk_ids — only the insertion order differs, which is enough
+    # to swap the surrogate ids.
+    second = tmp_path / "seed2.jsonl"
+    second.write_text(
+        "\n".join(
+            json.dumps(c)
+            for c in [
+                make_chunk(chunk_id="law", work="Laws", text="on the nomoi"),
+                make_chunk(chunk_id="rep", work="Republic", text="the sun analogy"),
+            ]
+        )
+    )
+    _run_index(db, second, reset=True)
+
+    conn = store.open_db(db)
+    # Precondition for the test to be meaningful: the ids really did move.
+    new_republic_id = conn.execute(
+        "SELECT id FROM works WHERE author = 'Plato' AND title = 'Republic'"
+    ).fetchone()[0]
+    assert new_republic_id != republic_id, (
+        "works.id did not get reassigned, so this test would pass "
+        f"vacuously (Republic still {republic_id}, Laws was {laws_id})"
+    )
+
+    row = conn.execute(
+        "SELECT rt.in_corpus_work_id, w.author, w.title "
+        "FROM reference_targets rt "
+        "LEFT JOIN works w ON w.id = rt.in_corpus_work_id "
+        "WHERE rt.canonical_author = 'Plato' "
+        "  AND rt.canonical_work = 'Republic'"
+    ).fetchone()
+    assert row is not None, "the Plato/Republic target did not survive --reset"
+    work_id, author, title = row
+    assert (author, title) == ("Plato", "Republic"), (
+        f"in_corpus_work_id={work_id} points at {author}/{title}, "
+        "not the Plato/Republic the target declares"
+    )
+    assert work_id == new_republic_id
+    conn.close()
+
+
+def test_rebind_reference_targets_is_a_noop_when_already_correct(tmp_path: Path):
+    """The re-resolve must report 0 changes on a consistent DB, so the
+    line it prints stays a signal rather than noise on every index run."""
+
+    db = tmp_path / "noop.sqlite"
+    jsonl = tmp_path / "seed.jsonl"
+    jsonl.write_text(json.dumps(make_chunk(chunk_id="rep", work="Republic")))
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    refs_schema.ensure_target(
+        conn, canonical_author="Plato", canonical_work="Republic"
+    )
+    # An out-of-corpus target: canonical_work matches no works row, so it
+    # must stay NULL rather than being churned to a value or back.
+    refs_schema.ensure_target(
+        conn, canonical_author="Plotinus", canonical_work="Enneads"
+    )
+    conn.commit()
+
+    assert store_chunks._rebind_reference_targets(conn) == 0
+
+    stayed_null = conn.execute(
+        "SELECT in_corpus_work_id FROM reference_targets "
+        "WHERE canonical_author = 'Plotinus'"
+    ).fetchone()[0]
+    assert stayed_null is None
+    conn.close()
+
+
+def test_rebind_reference_targets_nulls_a_work_that_left_the_corpus(tmp_path: Path):
+    """When the declared work is no longer in the corpus the pointer must
+    become NULL — visibly unresolved beats pointing somewhere wrong."""
+
+    db = tmp_path / "gone.sqlite"
+    jsonl = tmp_path / "seed.jsonl"
+    jsonl.write_text(json.dumps(make_chunk(chunk_id="rep", work="Republic")))
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    target = refs_schema.ensure_target(
+        conn, canonical_author="Plato", canonical_work="Republic"
+    )
+    conn.commit()
+    assert target.in_corpus_work_id is not None
+
+    # Rename the work out from under the target, the way a title
+    # canonicalization does.
+    conn.execute("UPDATE works SET title = 'Politeia' WHERE title = 'Republic'")
+    assert store_chunks._rebind_reference_targets(conn) == 1
+    assert conn.execute(
+        "SELECT in_corpus_work_id FROM reference_targets "
+        "WHERE canonical_work = 'Republic'"
+    ).fetchone()[0] is None
+    conn.close()
+
+
+def test_assert_reference_targets_resolve_raises_on_wrong_work(tmp_path: Path):
+    """The integrity guard must fire on a pointer that is referentially
+    valid but wrong — the exact shape ``PRAGMA foreign_key_check`` misses."""
+
+    db = tmp_path / "guard.sqlite"
+    jsonl = tmp_path / "seed.jsonl"
+    jsonl.write_text(
+        "\n".join(
+            json.dumps(c)
+            for c in [
+                make_chunk(chunk_id="rep", work="Republic"),
+                make_chunk(chunk_id="law", work="Laws", text="on the nomoi"),
+            ]
+        )
+    )
+    _run_index(db, jsonl, reset=False)
+
+    conn = store.open_db(db)
+    refs_schema.ensure_target(
+        conn, canonical_author="Plato", canonical_work="Republic"
+    )
+    laws_id = conn.execute(
+        "SELECT id FROM works WHERE title = 'Laws'"
+    ).fetchone()[0]
+    # Consistent state passes.
+    store_chunks._assert_reference_targets_resolve(conn)
+
+    # Point the Republic target at Laws — a real works row, so
+    # foreign_key_check still sees nothing wrong.
+    conn.execute(
+        "UPDATE reference_targets SET in_corpus_work_id = ? "
+        "WHERE canonical_work = 'Republic'",
+        (laws_id,),
+    )
+    conn.commit()
+    assert conn.execute("PRAGMA foreign_key_check(reference_targets)").fetchall() == []
+
+    with pytest.raises(RuntimeError, match="pointing at the wrong work"):
+        store_chunks._assert_reference_targets_resolve(conn)
+    conn.close()
 
 
 def test_xref_source_orphans_dropped_target_orphans_nulled(tmp_path: Path):

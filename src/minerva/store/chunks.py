@@ -435,6 +435,13 @@ def insert_chunks(
             # mode (works are only ever created for inserted chunks).
             _prune_orphan_works(conn)
 
+            # AFTER the prune, so a work that genuinely left the corpus
+            # resolves to NULL rather than to a row about to be deleted.
+            # Runs in both modes: incremental re-homes chunks under new
+            # work titles (the Plato canonicalization did this for ~73
+            # works) and prunes the stranded rows, which moves ids too.
+            _rebind_reference_targets(conn)
+
             _set_meta(conn, "ingest.source", str(jsonl_path))
             _set_meta(conn, "ingest.count", str(inserted))
 
@@ -453,6 +460,8 @@ def insert_chunks(
                         f"insert_chunks left {len(bad)} FK violations in "
                         f"cross_references after rebind; first 3: {bad[:3]!r}"
                     )
+                # A pointer-validity check foreign_key_check cannot make.
+                _assert_reference_targets_resolve(conn)
 
             conn.commit()
         except BaseException:
@@ -595,6 +604,78 @@ def _rebind_cross_references(
         f"{orphans_target} target-orphans NULL'd)",
         flush=True,
     )
+
+
+def _rebind_reference_targets(conn: sqlite3.Connection) -> int:
+    """Re-resolve every ``reference_targets.in_corpus_work_id`` from the
+    target's own ``(canonical_author, canonical_work)``.
+
+    ``in_corpus_work_id`` is a denormalized cache of a ``works`` surrogate
+    id, and full mode reassigns those ids (``DELETE FROM works`` above,
+    then re-INSERT in JSONL order). Nothing used to re-resolve it, so a
+    target silently came to point at an unrelated work — 104 of 160
+    (65%) in the live DB, 47 of them at a *different author's* work, e.g.
+    Aristotle/Physics → a Quran surah (issue #273).
+
+    The column's ``ON DELETE SET NULL`` (migration 0012) was meant to
+    make the wipe degrade to a benign NULL, but the delete runs under
+    ``foreign_keys_off_for_transaction``, so the cascade never fires and
+    the stale integer survives instead.
+
+    Resolution is by exact ``(author, title)`` — the same lookup
+    :func:`refs.schema.ensure_target` uses, which is the only other
+    writer of this column. ``works`` is ``UNIQUE (author, title)`` so the
+    subquery is scalar. A target whose work is not (or no longer) in the
+    corpus resolves to NULL, which is the honest answer: out-of-corpus
+    targets are NULL by design (migration 0012 seeds them that way).
+
+    Returns the number of rows whose value actually changed.
+    """
+
+    resolve = (
+        "SELECT w.id FROM works w "
+        "WHERE w.author = reference_targets.canonical_author "
+        "  AND w.title  = reference_targets.canonical_work"
+    )
+    # ``IS NOT`` rather than ``<>`` so the NULL cases compare correctly
+    # and the rowcount reflects real changes only.
+    cur = conn.execute(
+        f"UPDATE reference_targets "
+        f"SET in_corpus_work_id = ({resolve}) "
+        f"WHERE in_corpus_work_id IS NOT ({resolve})"
+    )
+    changed = cur.rowcount
+    if changed:
+        print(
+            f"  reference_targets: re-resolved {changed} in_corpus_work_id "
+            f"pointer(s) to the rebuilt works ids",
+            flush=True,
+        )
+    return changed
+
+
+def _assert_reference_targets_resolve(conn: sqlite3.Connection) -> None:
+    """Raise when any ``in_corpus_work_id`` points at a work whose
+    ``(author, title)`` disagrees with the target's declared pair.
+
+    Deliberately not ``PRAGMA foreign_key_check``: the stale ids this
+    guards against point at rows that really exist, so they are
+    referentially *valid* and a FK check passes on them by construction.
+    That is precisely why the drift in #273 went undetected for so long.
+    """
+
+    bad = conn.execute(
+        "SELECT rt.id, rt.canonical_author, rt.canonical_work, w.author, w.title "
+        "FROM reference_targets rt "
+        "JOIN works w ON w.id = rt.in_corpus_work_id "
+        "WHERE w.author <> rt.canonical_author OR w.title <> rt.canonical_work "
+        "LIMIT 3"
+    ).fetchall()
+    if bad:
+        raise RuntimeError(
+            f"insert_chunks left reference_targets pointing at the wrong "
+            f"work; first {len(bad)}: {bad!r}"
+        )
 
 
 def _prune_orphan_works(conn: sqlite3.Connection) -> None:
