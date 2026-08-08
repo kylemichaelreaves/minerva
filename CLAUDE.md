@@ -25,6 +25,18 @@ the lines themselves — plus how you found it, the precedent PR/issue, and
 labels. See the "Record what you find" section of CONTRIBUTING for the
 full shape.
 
+**Split the body under `## Measured` and `## Hypothesis`, with the cause
+and the proposed fix under the second.** The two halves keep very
+different: across the twelve close-out issues, eleven of twelve measured
+numbers still reproduced and not one defect was imaginary — while three of
+the four batches worked so far had to correct the *explanation*
+mid-implementation. #262's proposed fix would not have stopped the hang,
+and #125's recommended flag did the opposite of what the issue wanted. A
+pointer to a defect is durable because someone hit it; a diagnosis is a
+guess written before anyone tried the fix. Writing both in one voice is
+how the guess gets inherited as fact — and it is what gives "Don't trust a
+stated cause" below something specific to check.
+
 If a fix is genuinely one line, make it. If it needs a decision, another
 reviewer, or more scope than the change you're on, file it and say in the
 PR what you left out and why. Shrinking scope is fine; doing it silently
