@@ -36,6 +36,18 @@ Decisions taken 2026-08-08 by the repo owner:
 - **Delivery** — one PR per batch, each carrying both issues' `Closes`
   lines.
 
+Still owed by the repo owner as of 2026-08-09, and neither belongs to a
+batch:
+
+- **#299** — accept the projekt-gutenberg block, ask the operator to
+  allowlist a research UA, or re-source the six works elsewhere. Its
+  premise was corrected in batch 5-bis and the recommendation there is to
+  accept; whichever way it goes, it must not be resolved by rotating the
+  User-Agent.
+- **The Marx chrome audit** — whether it happens at all, and it is
+  timing-sensitive rather than urgent. See the note above 4-op's step
+  list; if it happens, it happens *before* that window.
+
 ### Scope check, measured 2026-08-09
 
 Two days in, the open-issue count had gone from twelve to thirteen, which
@@ -1054,6 +1066,31 @@ so this is not recent drift. Consequences, both material:
    characters would have passed the gate silently. It is pinned at 151,427.
 
 Corrected on the issue as well.
+
+**Two things to settle *before* this window opens, added 2026-08-09.
+Both are cheap now and expensive afterwards, which is the whole reason
+they are written here rather than left to whoever runs it.**
+
+- **#314 must land first.** This window re-lemmatizes, and #314 is a
+  defect in the lemma *writer* — run the window first and its output is
+  baked in, so the fix afterwards needs a second pass over the same
+  corpus. Out of scope by the 2026-08-09 cap and mandatory anyway; treat
+  it as setup, not as a batch.
+- **Decide whether the Marx corpus gets a chrome audit, and decide it
+  now.** #298 audited one string, `Seitenzahlen verweisen auf:`. The
+  2026-05-31 quality round found Marx carried **three distinct chrome
+  layers** (site chrome, the Wayback wrapper, and intra-file duplicate
+  paragraphs), and that sweep has not been re-run since. Anything still
+  there is nearly free to fix inside this window — it rides the same
+  re-ingest and the same refs rebuild — and buys its own window if found
+  afterwards. The audit itself is read-only measurement over
+  `data/marx/**` and the live index, so it costs a session rather than an
+  operator slot. **Deliberately not filed as an issue** — nothing has
+  been found, so there is nothing to record; it is an unexamined area
+  with a deadline, not a defect.
+
+#298's own corpus repair rides here too — 745 Marx `chunk_id`s, for the
+reason recorded in batch 5-bis.
 
 Part 2 is an operator job needing its own session:
 
