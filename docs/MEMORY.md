@@ -76,6 +76,35 @@ Two consequences for operators:
   `minerva terms import data/glossary/<file>.yaml` to re-find them —
   the terms themselves (the curator prose) survive either way.
 
+## reingest-wipes-the-rules-scan-cache
+
+`refs_scan_state` is the skip cache for `refs build --strategy rules`:
+one row per chunk already scanned, with the `text_hash` it was scanned
+at. `index --reset` used to discard all of it — 428,606 markers — for
+the same reason the glossary was lost, absence from the snapshot probe
+and the restore list (#288). Since that fix it is snapshotted and
+restored like `chunk_lemmas`, and stderr reports how many markers came
+back.
+
+What this means in practice: after a **content-stable** `--reset`, the
+next `refs build --strategy rules` skips the corpus instead of
+re-scanning it. That is a cost saving only — rescanning was always
+idempotent — but the pass it saves is a full-corpus one.
+
+Two things still invalidate a marker, both deliberately:
+
+- Its chunk did not come back (the text changed enough to change the
+  content-hashed `chunk_id`). The end-of-index orphan sweep drops it and
+  says so (#264).
+- Its chunk came back with the same id but different text — possible
+  because `chunk_id` hashes only `text[:120]` (#285). The `text_hash`
+  comparison in the skip predicate catches this one, so the chunk is
+  re-scanned.
+
+Neither covers a change to the **rules** rather than the text: an edited
+rules module does not invalidate the cache, so pass `--rescan-all` after
+editing `refs/rules/*` until #287 lands.
+
 ## transactional-preview-for-multistatement-sql
 
 For any multi-statement cleanup on `index.sqlite`:
