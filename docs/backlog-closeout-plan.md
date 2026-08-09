@@ -1266,3 +1266,61 @@ Before any DB-mutating step in batches 3, 4 (part 2) or 6:
 `scripts/snapshot-db.sh <reason>`. For any cleanup running more than one
 `UPDATE`/`DELETE`, preview inside `BEGIN; … ROLLBACK;` with verifying
 `SELECT`s first. See [MEMORY.md](MEMORY.md) for the operator rules.
+
+### Operator step run 2026-08-09 — batches 2-bis and 3-ter
+
+After `scripts/snapshot-db.sh 284-304-operator`
+(`data/snapshots/20260809T142513Z-284-304-operator`), and after PR #306
+merged so the repair matched the code that would now produce it.
+
+**2-bis — the 906 stale rows.** Previewed inside `BEGIN; … ROLLBACK;`
+first; the rollback restored both counts exactly, then the same statement
+was committed.
+
+| | before | after |
+|---|---|---|
+| `chunk_lemmas` | 26,156,875 | 26,155,969 |
+| chunks where `token_count != COUNT(rows)` | 18 | **0** |
+| *De Cive* (lat) lemma rows | 66,723 | 65,817 |
+| `lemma_counts` | — | rebuilt, 4,575,612 rows in 142.2s |
+
+**A larger defect surfaced while verifying, and it is not this one.** The
+preview checked that surviving rows still address text that exists. They
+do not: 241,736 rows across 32,842 chunks have `surface_end` past the end
+of their own chunk, and every one of those chunks has a `text_hash`
+matching its current text — so the offsets were wrong when written rather
+than stale. Sampling 400 chunks per language, `lat` offsets reproduce the
+stored text **40.0%** of the time, `grc` 95.2%, and deu/eng/fra 100%.
+Filed as #307; the hypothesis is LatinCy's deliberately-enabled
+`normer/harmonizer/uv_normalizer/remorpher` rewriting the doc that
+`t.idx` indexes.
+
+This is worth reading as a process result, not just a bug. #284's
+detection query cannot see it — those chunks' `token_count` agrees with
+their row count, because the pass wrote a consistent number of rows at
+wrong offsets. It was only found because the repair preview asserted
+something the issue never claimed.
+
+**3-ter — the rules-hash rescan.**
+
+| | before | after |
+|---|---|---|
+| authors rescanned | — | **27**, as predicted; 196,460 chunks |
+| candidates emitted | — | 30,222 |
+| **new `cross_references` rows** | — | **0** |
+| `cross_references` | 65,899 | 65,899 |
+| markers carrying `rules_hash` | 428,606 | 428,606 (28 distinct) |
+| a second `refs build --strategy rules` | — | `scanned 0 chunks` |
+
+**The zero is the result worth keeping.** #287's landing surfaced 158
+references the rules already knew how to find and had never emitted,
+because the cache had been hiding genuine rule changes. This rescan
+emitted 30,222 candidates and inserted none of them: every one deduped
+against a row already present. That is the correct outcome and it was the
+prediction — no rule's *behaviour* changed here, only what the digest is
+computed from — but it is worth having measured, because "the digest now
+covers more" and "the digest now finds more" are different claims and
+only the first is true.
+
+Every author's stored hash equals a freshly computed
+`rules_fingerprint(author)` for all 27; 0 disagree.
