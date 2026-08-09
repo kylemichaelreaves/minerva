@@ -116,6 +116,7 @@ the batch above them, and inherit its context.
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
 | 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
+| 5-ter | perseus follow-ups, second round | #316, #317 | todo | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
 | 6-bis | content-derived `chunk_id` | #285 | todo | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
@@ -1184,8 +1185,14 @@ Two things the issue did not have, both found by writing the tests:
   ```
 
   Material because a fix "verified across eight scrapers" would have
-  been verified across three that cannot reach the code. The three
-  private copies are a separate duplication problem, untouched here.
+  been verified across three that cannot reach the code.
+
+  **Corrected while filing 5-ter: it is *two* private copies, not
+  three.** `download_spinoza.py` imports the shared class and defines
+  none — the grep that found "three" hit its call site. The two real
+  ones are `download_descartes_wikisource.py` and
+  `download_augustine.py`, and neither carries #297's bug; they are
+  tech-debt, filed as #317.
 
 Verified on live pages: a two-work Cicero re-fetch to a scratch tree
 differs from the committed files by trailing newline only, plus one
@@ -1328,6 +1335,60 @@ Topica and the `De re publica/Liber I` sub-page, on both the space and
 underscore spellings. So `_rest_url` points at the target directly,
 which honours the redirect rather than masking it and removes the class
 of failure instead of retrying it.
+
+---
+
+## Batch 5-ter — perseus follow-ups, second round (#316, #317)
+
+**Todo.** Both filed 2026-08-09 while working 5-bis, both in files it
+edited, and both are the *un-generalized* half of a 5-bis fix rather than
+a new defect class.
+
+### #316 — #300's accounting fix reached one script of fourteen
+
+PR #315 taught `download_cicero_wikisource.py` to collect what it
+dropped, print a summary and return non-zero. An AST walk over every
+`main()` in `perseus/` says thirteen other downloaders swallow per-item
+failures inside a loop, and **twelve cannot signal failure to their
+caller at all** — no value-returning `return`, no `sys.exit`:
+
+```
+downloaders whose main() swallows per-item failures in a loop: 14
+…of those, unable to signal failure to the caller: 12
+```
+
+Worse here than in the Cicero case, because several feed scripture and
+Perseus corpora where a missing book does not show up in a file count.
+The fix wants a small collector in `perseus/_download.py` rather than
+twelve copies of #315's inline block — and #315's own copy retrofitted
+onto it, so it does not become a thirteenth variant.
+
+### #317 — the two private extractor copies, and what they are *not*
+
+The part of #297 that PR #315 scoped out.
+`download_descartes_wikisource.py` and `download_augustine.py` each carry
+a private `_ParagraphExtractor` predating the shared class, so none of
+its fixes — the void-tag guard, the tag stack, attribute skipping —
+reach them.
+
+**Filed with no demonstrated defect, deliberately.** They skip by tag
+name only, so a stray end tag cannot desynchronise their counter, and on
+unbalanced markup they behave exactly as the fixed shared class does:
+
+```
+html = "<p>FIRST</p><table><tr><td>junk<p>SECOND</p><p>THIRD</p>"
+
+download_descartes_wikisource    -> ['FIRST']
+download_augustine               -> ['FIRST']
+shared, after PR #315            -> ['FIRST']
+```
+
+Two corrections to what this round first assumed, both caught by running
+it rather than reading it. The plan and #297's comment said *three*
+private copies: `download_spinoza.py` imports the shared class and has
+none — the grep hit its call site. And the copies were assumed to carry
+#297's bug; they do not, which is why this is tech-debt rather than a
+second instance of it.
 
 ---
 
