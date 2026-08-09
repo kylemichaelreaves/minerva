@@ -51,6 +51,7 @@ touches the heavy deps.
 from __future__ import annotations
 
 import pickle
+import re
 import sys
 import unicodedata
 from collections.abc import Iterable
@@ -128,6 +129,141 @@ def _spacy_extension_state() -> object | None:
     except ImportError:  # pragma: no cover — spaCy is present wherever
         return None      # a spaCy backend was constructed
     return Underscore.get_state()
+
+
+_WORD_RE = re.compile(r"\S+")
+
+
+class _SourceOffsets:
+    """Maps a span of the text a spaCy pipeline *tokenized* back onto the
+    span of the text we *handed it* (#307).
+
+    ``spacy.Token.idx`` indexes ``doc.text``, which is only the caller's
+    string while nothing between the two rewrote it. ``la_core_web_sm``
+    does rewrite it — and in the tokenizer, not in a pipeline component:
+    ``LatinTokenizer.__call__`` runs ``preprocess()`` over the raw string
+    *before* ``Tokenizer.__call__`` ever sees it, applying
+    ``separate_ligatures`` (``Æ``→``Ae``, +1 char), ``remove_macrons``,
+    ``remove_accents`` (NFD, then drop every ``Mn`` — −1 char per
+    combining mark), ``norm_v_j``, ``lowercase_line_initials`` and
+    ``norm_spacing`` (**every whitespace run collapsed to one space, and
+    the ends stripped**). The last of those alone puts every token after
+    the chunk's first line break at the wrong offset.
+
+    So the offsets are recovered rather than computed. The load-bearing
+    invariant is that none of those steps merges or splits a word:
+    ``processed.split()`` and ``source.split()` stay index-aligned
+    one-to-one, whatever happens to the whitespace between them or to
+    the characters inside them. That makes the map a word-by-word
+    correspondence, with a short character alignment inside each word
+    (common prefix, common suffix, and whatever is left over
+    interpolated between them) so that a token which is only *part* of a
+    word — LatinCy's ``enclitic_splitter`` cuts ``uirumque`` into
+    ``uirum`` + ``que`` — still lands on its own slice of the source.
+
+    When the invariant does not hold, :attr:`usable` is false and every
+    :meth:`span` refuses. Refusing costs a lemma row; guessing writes a
+    plausible wrong offset, which is the defect this class exists to
+    fix, so it is not a close call.
+
+    Measured against ``data/index.sqlite`` on 2026-08-09: over 1,205 lat
+    chunks (including the five longest in the corpus, up to 127,001
+    chars) the live ``la_core_web_sm`` produced 127,539 non-punctuation
+    tokens. Zero of their raw ``t.idx`` spans matched the source text;
+    127,539 of 127,539 matched after this map, with no chunk failing the
+    word-count invariant.
+    """
+
+    __slots__ = ("_cache", "_processed", "_pwords", "_source", "_swords", "usable")
+
+    def __init__(self, processed: str, source: str) -> None:
+        self._processed = processed
+        self._source = source
+        self._pwords = _word_spans(processed)
+        self._swords = _word_spans(source)
+        self.usable = len(self._pwords) == len(self._swords)
+        self._cache: dict[int, list[int]] = {}
+
+    def span(self, start: int, end: int) -> tuple[int, int] | None:
+        """The ``(start, end)`` in the source text for a ``doc.text``
+        span, or ``None`` when it cannot be placed."""
+
+        if not self.usable:
+            return None
+        index = _word_index_at(self._pwords, start)
+        if index is None:
+            return None
+        p_start, p_end = self._pwords[index]
+        if end > p_end:
+            # A token that straddles a word boundary would mean the
+            # tokenizer joined across whitespace; nothing in `preprocess`
+            # can produce that, so treat it as the invariant breaking.
+            return None
+        s_start, s_end = self._swords[index]
+        offsets = self._cache.get(index)
+        if offsets is None:
+            offsets = _char_offsets(
+                self._processed[p_start:p_end], self._source[s_start:s_end]
+            )
+            self._cache[index] = offsets
+        return s_start + offsets[start - p_start], s_start + offsets[end - p_start]
+
+
+def _word_spans(text: str) -> list[tuple[int, int]]:
+    """``(start, end)`` of every whitespace-delimited run in ``text``."""
+
+    return [(m.start(), m.end()) for m in _WORD_RE.finditer(text)]
+
+
+def _word_index_at(words: list[tuple[int, int]], pos: int) -> int | None:
+    """Index of the word span containing ``pos``, or ``None`` when
+    ``pos`` falls in whitespace or past the end."""
+
+    low, high = 0, len(words) - 1
+    while low <= high:
+        mid = (low + high) // 2
+        start, end = words[mid]
+        if pos < start:
+            high = mid - 1
+        elif pos >= end:
+            low = mid + 1
+        else:
+            return mid
+    return None
+
+
+def _char_offsets(processed: str, source: str) -> list[int]:
+    """``map[i]`` = offset into ``source`` for ``processed[i]``, with an
+    end sentinel at ``map[len(processed)]``.
+
+    Equal lengths — the overwhelming majority, since ``v``→``u``,
+    ``j``→``i``, macron removal and case folding are all one-for-one —
+    map through unchanged. Otherwise the shared prefix and shared suffix
+    pin both ends and the differing middle is interpolated: the middle is
+    at most a couple of characters (a ligature expanding, a combining
+    mark dropping), and the whole point of pinning the suffix is that
+    everything after it is exact regardless.
+    """
+
+    if len(processed) == len(source):
+        return list(range(len(source) + 1))
+    head = 0
+    while head < len(processed) and head < len(source) and processed[head] == source[head]:
+        head += 1
+    tail = 0
+    while (
+        tail < len(processed) - head
+        and tail < len(source) - head
+        and processed[-1 - tail] == source[-1 - tail]
+    ):
+        tail += 1
+    offsets = list(range(head))
+    p_middle = len(processed) - head - tail
+    s_middle = len(source) - head - tail
+    for i in range(p_middle):
+        offsets.append(head + min(s_middle, (i * s_middle) // p_middle))
+    offsets.extend(range(len(source) - tail, len(source) + 1))
+    return offsets
 
 
 _LEMMA_ALLOWED_PUNCT = frozenset(
@@ -423,6 +559,14 @@ class Lemmatizer:
             # uses (u/v, j/i, classical/medieval spellings). Only
             # disable the parser (unused) and ner (we don't index
             # entities).
+            #
+            # Those four components are NOT what rewrites the text under
+            # the surface offsets (#307 guessed they were). `normer`
+            # assigns ``token.norm_`` and leaves ``token.text`` alone;
+            # the rewriting is in ``LatinTokenizer.preprocess()``, which
+            # runs before tokenization and cannot be disabled from here
+            # at all. Turning these off would forfeit the lemma quality
+            # and fix nothing — `_SourceOffsets` is what fixes it.
             self._nlp = spacy.load(
                 "la_core_web_sm", disable=["parser", "ner"]
             )
@@ -531,10 +675,17 @@ class Lemmatizer:
 
         if self._backend == "spacy":
             n_process = self._safe_n_process(n_process)
-            for doc, context in self._nlp.pipe(
-                items, batch_size=batch_size, n_process=n_process, as_tuples=True
+            # The input text rides along in the context so the token
+            # builder can map offsets back onto it (#307). `nlp.pipe`
+            # zips contexts back on in THIS process — spaCy tees the
+            # (text, context) stream and only the text half crosses to a
+            # worker — so widening the context costs no extra pickling
+            # even at `n_process > 1`.
+            paired = ((text, (context, text)) for text, context in items)
+            for doc, (context, source) in self._nlp.pipe(
+                paired, batch_size=batch_size, n_process=n_process, as_tuples=True
             ):
-                yield list(self._tokens_from_spacy_doc(doc)), context
+                yield list(self._tokens_from_spacy_doc(doc, source)), context
         elif self._backend == "stanza":
             # Stanza's `Pipeline.bulk_process` accepts a list of
             # Documents and processes them in one go, amortizing the
@@ -606,14 +757,45 @@ class Lemmatizer:
         return 1
 
     def _tokens_spacy(self, text: str) -> Iterable[Token]:
-        yield from self._tokens_from_spacy_doc(self._nlp(text))
+        yield from self._tokens_from_spacy_doc(self._nlp(text), text)
 
-    def _tokens_from_spacy_doc(self, doc) -> Iterable[Token]:
+    def _tokens_from_spacy_doc(self, doc, source: str) -> Iterable[Token]:
+        """Tokens whose ``start``/``end`` index ``source`` — the string
+        the caller passed in — not ``doc.text`` (#307).
+
+        The two are the same object for ``deu``/``eng``/``fra``/``grc``,
+        which is the fast path: an equality test on the whole string,
+        then plain ``t.idx`` arithmetic as before. They differ on
+        essentially every ``lat`` chunk, because ``la_core_web_sm``'s
+        tokenizer rewrites its input before tokenizing — see
+        :class:`_SourceOffsets`.
+
+        ``surface`` follows the offsets. It is the slice of the corpus
+        text, so ``chunk_lemmas`` stores what the edition prints
+        (``Jacob``, ``Ægypto``) rather than the pipeline's
+        classicised respelling (``Iacob``, ``Aegypto``), and
+        ``text[surface_start:surface_end] == surface_form`` holds as an
+        invariant a consumer can rely on. The *lemma* is untouched: it
+        still comes from the pipeline, where the normalization earns its
+        keep.
+        """
+
+        offsets = None if doc.text == source else _SourceOffsets(doc.text, source)
         for t in doc:
             if t.is_space or t.is_punct:
                 continue
             start = t.idx
             end = start + len(t.text)
+            surface = t.text
+            if offsets is not None:
+                mapped = offsets.span(start, end)
+                if mapped is None:
+                    # Nothing sound to write. A row here would carry an
+                    # offset into a string that is not the one the
+                    # Reader renders — which is the bug, not a fallback.
+                    continue
+                start, end = mapped
+                surface = source[start:end]
             # NFC-normalise so equality with `terms.lemma` (also NFC
             # at write time) is exact. Do NOT lowercase — German
             # capitalises nouns and the lemmatizer's case carries
@@ -624,7 +806,7 @@ class Lemmatizer:
             # Stanza emits natively. None when empty.
             morph_str = str(t.morph) if str(t.morph) else None
             yield Token(
-                surface=t.text,
+                surface=surface,
                 start=start,
                 end=end,
                 lemma=lemma,
