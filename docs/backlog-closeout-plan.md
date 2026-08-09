@@ -107,6 +107,7 @@ the batch above them, and inherit its context.
 | 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
 | 2-ter | surface offsets | ~~#307~~, ~~#309~~ | **landed** | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both, which is what happened: PR #310 fixed the writer and the operator step below ran the pass. #311 is its residue. |
 | 2-quater | NFC-layer offsets | ~~#311~~ | **landed** | Found verifying 2-ter. `terms lemmatize` fed `NFC(text)` and stored offsets against `chunks.text`; 16,032 non-NFC chunks. Same defect class as #307 one layer up, in the file batch 2 rewrote, and the last thing between `chunk_lemmas` and the invariant #310 established. The issue's "1,866 rows" is one of two failure modes; the real figure is 203,610 — see batch 2-quater. |
+| 2-quinquies | Stanza's rewritten surface | #314 | todo | Found verifying 2-quater, one function away from it. `ara`'s `surface_form` holds Stanza's rewrite of the word rather than the corpus slice — 214 rows whose span is right and whose text is not. Not the same defect: these offsets never moved, so a fix churns stored text instead. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
@@ -487,7 +488,35 @@ and kept: a multi-word-token sub-word borrows its parent's span, so its
 `surface` stays `w.text` rather than a slice that would hand every clitic
 the whole parent word.
 
-Operator step: see Verification.
+Operator step: see Verification. It found #314, which is batch 2-quinquies
+below.
+
+---
+
+## Batch 2-quinquies — Stanza's rewritten surface (#314)
+
+**Todo.** Found verifying 2-quater's operator pass, in the function this
+batch gave a `source` argument to. Every language came back at 100.00%
+except `ara` at 82.51%, and #311's "Not a defect, for the record" section
+accounts for most of that gap and not all of it: 13,871 of the 15,300
+mismatching rows share their span with a sibling (the documented
+multi-word-token expansion), 1,215 more are the same case with the
+sibling dropped by `is_valid_lemma`, and **214 in 210 chunks are neither**
+— the span is right and the stored `surface_form` is Stanza's rewrite of
+the word at it.
+
+```
+e6c65fb06d06331dc5fb[22:31]   stored 'تققوا۟'  span 'ٱتَّقُوا۟'
+c2d883df3f1072926ee5[76:85]   stored 'مَرؤض'   span 'مَرْضَاتَ'
+```
+
+Grouped here because it is one function away from 2-quater and the whole
+audit is already loaded, but it is **not** the same defect: `ara`'s
+offsets were correct before this batch and still are. What is wrong is
+the text stored beside them, so a fix churns `surface_form` for a
+language whose spans never moved — which is why it was not folded into
+PR #313. `heb` is clean, so it is `ara`'s pipeline rather than the Stanza
+backend as such.
 
 ---
 
@@ -1539,6 +1568,67 @@ Before this pass every one of the 428,606 state rows carried migration
 0027's timestamp, which is what made #307's "not staleness" reading
 possible. All 428,606 now carry a real pass, so the next time that column
 is consulted it means what it says.
+
+### Operator step run 2026-08-09 — batch 2-quater
+
+After `scripts/snapshot-db.sh 311-nfc-offsets`
+(`data/snapshots/20260809T204241Z-311-nfc-offsets`), from the #313 branch
+so the pass wrote offsets the fixed code produces.
+
+**`--all` was the wrong tool here, and the targeted alternative is worth
+keeping.** `chunks.text` never changed, so `chunk_lemma_state.text_hash`
+still matched for every affected chunk and an incremental pass would have
+skipped all 16,032 — the same trap 2-ter hit. But `--all` re-lemmatizes
+258,091 chunks across three languages to repair 16,032. Deleting just
+those chunks' state rows makes exactly them candidates, and the
+incremental pass then does the rest:
+
+```
+non-NFC chunks: 16032
+chunk_lemma_state : 428606 -> 412574 (-16032)
+chunk_lemmas      : 26005053 -> 26005053 (must be unchanged)
+ROLLED BACK (preview)
+```
+
+Previewed under `BEGIN … ROLLBACK` with the `chunk_lemmas` count asserted
+unchanged — the delete must not cascade — then committed. Then
+`minerva terms lemmatize --lang grc|eng|deu --skip-aggregate`, one
+process each, then one `terms aggregate-lemmas`. grc 16,010 chunks /
+837,850 tokens, eng 5 / 4,818, deu 17 / 4,654; ≈9 min end to end against
+2-ter's 50.
+
+| | before | after |
+|---|---|---|
+| `chunk_lemmas` | 26,005,053 | 26,005,053 |
+| `lemma_counts` | 4,527,497 | 4,527,497 |
+| rows failing `text[start:end] == surface_form` | 203,610 | **0** |
+
+**Nothing churned, which is the confirmation.** The token counts come
+back identical to the row counts the audit found in those same chunks
+(grc 837,850, eng 4,818, deu 4,654), and both aggregates are unmoved —
+the pipeline saw the same input it saw before, so only the offsets and
+the surfaces were rewritten. That is what separates this fix from the one
+#311 proposed, which would have moved 4.5% of the grc lemmas.
+
+Whole-population verification, every row rather than 400 per language —
+the sampling is what made 2-ter report grc at 99.67%:
+
+| lang | rows | wrong | ok |
+|---|---:|---:|---:|
+| lat | 4,608,336 | 0 | **100.00%** |
+| grc | 2,942,344 | 0 | **100.00%** (was 93.09%) |
+| eng | 8,715,850 | 0 | **100.00%** |
+| deu | 6,185,648 | 0 | **100.00%** |
+| fra | 3,108,629 | 0 | **100.00%** |
+| heb | 356,768 | 0 | **100.00%** |
+| ara | 87,478 | 15,300 | 82.51% |
+
+**`ara` is the only language short of 100%, and it is not all the MWT
+case #311 says it is.** 13,871 of the 15,300 share their span with a
+sibling and 1,215 more are that case with the sibling dropped by
+`is_valid_lemma` — both intended. The remaining **214 in 210 chunks** are
+a third class: the span is right and the stored `surface_form` is
+Stanza's rewrite of the word at it. Filed as #314, batch 2-quinquies.
 
 One operational note for the next round: `--n-process 1` was silently
 dropped from the `grc` invocation because **zsh does not word-split an
