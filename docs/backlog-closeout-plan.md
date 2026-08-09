@@ -73,19 +73,46 @@ why #297 cost one session rather than two — but it quietly converts
 "close the twelve open on 2026-08-08" into "close everything this work
 ever finds", and nothing above says the effort cannot finish before that.
 
-**Decision owed, and deliberately not taken here:** whether this
-document's finish line is the original twelve, or every issue it spawns.
-If it is the twelve, the spawned ten graduate to ordinary backlog and are
-prioritised on their own merits, with exactly one constraint carried
-over — **anything that writes to the corpus must land before the 4-op +
-6-bis operator window**, because that window re-derives every `chunk_id`
-and re-lemmatizes, so a writer that is still wrong when it opens gets its
-output baked in. That covers #314 and #298's corpus half. #316, #317,
-#291 and #299 carry no such constraint and need not hold anything open.
+### Decision taken 2026-08-09 by the repo owner: the scope is capped at the original twelve
 
-On the first reading the remaining path is four rounds — #314, then 6,
-then the single operator window, then 7. On the second it is open-ended
-by construction. Recorded as a question, not answered.
+**This document finishes when the twelve issues open on 2026-08-08 are
+resolved. Everything it spawned is filed and graduates to ordinary
+backlog, prioritised on its own merits.** Three remain: #182, #176 and
+#136 — batches 6, 4-op and 7.
+
+What does *not* change: findings still get filed the moment they are
+found, and still get placed in a batch row. Grouping is what made #297
+cost one session instead of two, and it costs nothing to keep. What
+changes is that a spawned issue no longer holds this document open.
+
+Two consequences, and the second is a real cost rather than bookkeeping.
+
+**1. One prerequisite is pulled back in, on correctness grounds.** #314
+is out of scope by the cap and must still land before 4-op. That window
+re-lemmatizes, and #314 is a defect in the lemma *writer*, so running the
+window first bakes its output in and the fix afterwards needs a second
+pass over the same corpus. It is two lines plus a measurement. Treat it
+as part of 4-op's setup, not as a batch of its own.
+
+**2. 4-op loses its free ride, and that is a bill.** The sequencing note
+below pairs 4-op with 6-bis (#285) because #285 re-derives every
+`chunk_id`, so #176's re-chunk churn is subsumed and one rebuild covers
+both. #285 is spawned, so the cap puts it out of scope — which leaves
+#176 part 2 to pay a full refs rebuild plus the llm-verify tail on its
+own, and #285 to pay it again whenever it is scheduled. The coupling was
+always an optimisation, never a correctness requirement, so this is
+affordable; it is simply paid twice.
+
+Recommended, and reversible: run 4-op alone unless #285 is going to be
+scheduled inside the same effort. If it is, run them together as the note
+below describes and take the saving. Whoever picks up #285 should check
+this first — it is the one place where an out-of-scope issue changes what
+an in-scope one costs.
+
+**Everything else is genuinely free of this document.** #298's corpus
+half, #291, #299, #316 and #317 hold nothing open. #298 in particular is
+now an ordinary backlog item whose repair happens to be cheapest inside
+whatever operator window runs next; it does not need one of its own.
 
 ## Standing gates
 
@@ -150,6 +177,14 @@ express.
 Batches 1–5 have landed. `-bis` rows are follow-ups found while working
 the batch above them, and inherit its context.
 
+**Status `backlog` means the scope cap of 2026-08-09 moved that row out
+of this document.** The row stays — the grouping is the expensive part
+and is worth keeping — but the issue is now ordinary backlog and holds
+nothing open here. Only three rows are still in scope: **6, 4-op and 7**.
+The one exception is 2-quinquies, which is out of scope and is still a
+hard prerequisite for 4-op, because 4-op re-lemmatizes and #314 is a
+defect in the lemma writer.
+
 | # | Batch | Issues | Status | Why here |
 |---|---|---|---|---|
 | 0 | CI unblock | #282 | **landed** | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. Merged 2026-08-09 as PR #302; the row said `todo` until 2026-08-09. |
@@ -158,18 +193,18 @@ the batch above them, and inherit its context.
 | 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
 | 2-ter | surface offsets | ~~#307~~, ~~#309~~ | **landed** | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both, which is what happened: PR #310 fixed the writer and the operator step below ran the pass. #311 is its residue. |
 | 2-quater | NFC-layer offsets | ~~#311~~ | **landed** | Found verifying 2-ter. `terms lemmatize` fed `NFC(text)` and stored offsets against `chunks.text`; 16,032 non-NFC chunks. Same defect class as #307 one layer up, in the file batch 2 rewrote, and the last thing between `chunk_lemmas` and the invariant #310 established. The issue's "1,866 rows" is one of two failure modes; the real figure is 203,610 — see batch 2-quater. |
-| 2-quinquies | Stanza's rewritten surface | #314 | todo | Found verifying 2-quater, one function away from it. `ara`'s `surface_form` holds Stanza's rewrite of the word rather than the corpus slice — 214 rows whose span is right and whose text is not. Not the same defect: these offsets never moved, so a fix churns stored text instead. |
+| 2-quinquies | Stanza's rewritten surface | #314 | **backlog — 4-op prereq** | Found verifying 2-quater, one function away from it. `ara`'s `surface_form` holds Stanza's rewrite of the word rather than the corpus slice — 214 rows whose span is right and whose text is not. Not the same defect: these offsets never moved, so a fix churns stored text instead. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
-| 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
+| 4-bis | the length floor's own rationale | #291 | **backlog** | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
-| 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
-| 5-ter | perseus follow-ups, second round | #316, #317 | todo | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
+| 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed; rest backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
+| 5-ter | perseus follow-ups, second round | #316, #317 | **backlog** | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
-| 6-bis | content-derived `chunk_id` | #285 | todo | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
+| 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
@@ -188,6 +223,14 @@ context is freshest" no longer discriminates. Nothing above is superseded;
 this only says which row goes next and why.
 
 **Run order: 2-bis + 3-ter → 5-bis → 4-bis → 6 → (4-op + 6-bis) → 7.**
+
+> **Superseded 2026-08-09 by the scope cap.** Everything left of `6` has
+> landed, and `4-bis` and `6-bis` are spawned rows that the cap moves out
+> of scope. **The remaining order is: 6 → (#314 as 4-op's setup) → 4-op →
+> 7.** The `(4-op + 6-bis)` pairing below is the one thing the cap
+> changes rather than merely reorders — see "Decision taken" above. The
+> rest of this section still explains *why* the order is what it is, and
+> is left standing for that.
 
 Three measurements set it, and two of them correct claims made higher up
 this page:
