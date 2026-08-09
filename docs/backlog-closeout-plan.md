@@ -36,6 +36,57 @@ Decisions taken 2026-08-08 by the repo owner:
 - **Delivery** — one PR per batch, each carrying both issues' `Closes`
   lines.
 
+### Scope check, measured 2026-08-09
+
+Two days in, the open-issue count had gone from twelve to thirteen, which
+reads as a treadmill: **26 issues filed, 22 resolved**. Split by *which
+backlog they belong to*, it is not one, and the difference is worth
+having written down because the raw count will keep suggesting otherwise.
+
+**Of the original twelve, nine are done.** The three still open are
+#176, #182 and #136 — which are, in that order, the last three this
+document has scheduled since it was written. Nothing is behind; the
+remainder is the tail it always had. Every other open issue was filed
+*by* this work.
+
+**And the filed-along-the-way ones are decaying fast.** Today's chain,
+each found verifying the fix above it, measured by corpus rows affected:
+
+| issue | rows affected |
+|---|---:|
+| #307 | 241,736 |
+| #311 | 203,610 |
+| #314 | 214 |
+| #316 | 0 — tech-debt |
+| #317 | 0 — tech-debt, and no defect demonstrated |
+
+Three orders of magnitude in a day, ending at two that touch no data at
+all. That is what convergence looks like from inside a
+verification-driven round: each fix's verification finds the next layer
+and the layers thin out. `chunk_lemmas` now satisfies
+`text[surface_start:surface_end] == surface_form` on every language
+except `ara`, which is #314.
+
+**So the risk is not the discovery rate. It is absorption.** "A found
+issue joins a batch" is the right rule for keeping findings cheap — it is
+why #297 cost one session rather than two — but it quietly converts
+"close the twelve open on 2026-08-08" into "close everything this work
+ever finds", and nothing above says the effort cannot finish before that.
+
+**Decision owed, and deliberately not taken here:** whether this
+document's finish line is the original twelve, or every issue it spawns.
+If it is the twelve, the spawned ten graduate to ordinary backlog and are
+prioritised on their own merits, with exactly one constraint carried
+over — **anything that writes to the corpus must land before the 4-op +
+6-bis operator window**, because that window re-derives every `chunk_id`
+and re-lemmatizes, so a writer that is still wrong when it opens gets its
+output baked in. That covers #314 and #298's corpus half. #316, #317,
+#291 and #299 carry no such constraint and need not hold anything open.
+
+On the first reading the remaining path is four rounds — #314, then 6,
+then the single operator window, then 7. On the second it is open-ended
+by construction. Recorded as a question, not answered.
+
 ## Standing gates
 
 From [CLAUDE.md](../CLAUDE.md) — not optional, and each has failed a PR
@@ -1001,10 +1052,23 @@ PR is the one that should carry the closing keyword for it.
 earlier revision of this line spelled the keyword out next to the issue
 number. That sentence went into a squash-merge commit message, GitHub's
 parser read the keyword out of the surrounding prose — backticks are no
-protection — and closed #176 on the spot, three minutes after the same
+protection — and shut the issue on the spot, three minutes after the same
 paragraph explained that it must stay open. Reopened by hand. Never put a
 closing keyword adjacent to an open issue's number in any text that can
 reach a commit message, including this document.
+
+**And this paragraph broke its own rule until 2026-08-09**, which is the
+best evidence that the rule is easy to break: the sentence above read
+"…and clos&#101;d #176 on the spot", a closing keyword directly against an
+open issue's number, sitting inside the warning against exactly that. It
+never fired only because GitHub parses commit messages and PR bodies, not
+file contents — so it was one quotation away from repeating the incident
+it describes. Found by grepping this file for
+`(close|fix|resolve)\w*\s+#\d+` before a commit; worth doing again
+whenever this page gains a paragraph. Two hits survive that grep today
+and both are benign, so do not spend the check on them again: one names
+#264, which is closed and cannot be re-closed, and one names #229, which
+is a **pull request** — closing keywords act on issues only.
 
 ---
 
