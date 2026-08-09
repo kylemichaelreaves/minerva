@@ -57,27 +57,71 @@ before:
 - Duplication ≤3% on new code. Copying a component wholesale fails at any
   coverage (#254).
 - Anything found along the way that isn't tracked gets its own issue
-  before moving on. A correction to a wrong claim goes **on the source** —
-  a comment on the issue, or a fix to the doc in the same PR — never into
-  a new issue.
+  before moving on, **and is slotted into a batch in the same round** —
+  see "A found issue joins a batch" below. A correction to a wrong claim
+  goes **on the source** — a comment on the issue, or a fix to the doc in
+  the same PR — never into a new issue. That includes correcting your own
+  earlier comment when a later measurement overturns it.
+
+## A found issue joins a batch; it does not join a queue
+
+**Every issue filed during this work gets slotted into a batch in the
+table below, at the time it is filed — grouped with the batch that shares
+its files or its theme wherever one exists.** Decided by the repo owner
+2026-08-08, after batches 1–5 produced eleven issues that sat outside the
+plan entirely.
+
+The reason is context, which is the same reason that sets the original
+ordering. Batches 1–5 each found defects a few lines from the code they
+were already reading: #297 is in the file batch 5 edited, #288 is the
+mirror image of the bug batch 3 fixed, #291 is the floor batch 4 moved. A
+list of unslotted issues loses exactly what made them cheap — whoever
+picks up #297 cold pays again for everything batch 5 learned.
+
+So a found issue is never merely filed. It is filed **and** placed, and
+placing it is part of the same round. Three rules:
+
+- **Group by file or theme, not by severity.** A defect in a file an
+  existing batch owns belongs to that batch's follow-up, even if it is
+  less urgent than something in another.
+- **A landed batch takes an `N-bis` follow-up** rather than a new number
+  at the end, so the grouping stays legible after the fact — batch 5's
+  four findings are batch 5-bis, not batch 8.
+- **If nothing groups, say so explicitly** and give it its own row with a
+  reason. #282 and #285 are like that; both rows below say why.
+
+The open issue list is still the progress bar. This table is not a second
+tracker of *state* — it records *grouping*, which the issue list cannot
+express.
 
 ## Order
 
-| # | Batch | Issues | Why here |
-|---|---|---|---|
-| 1 | refs verify follow-ups | #272, #276 | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
-| 2 | `terms lemmatize` | #262, #263 | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
-| 3 | reset preservation | #274, #264 | Same file as each other; low risk, no data migration. |
-| 4 | chunk-length gates | #268, #176 | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
-| 5 | perseus verification | #151, #152 | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
-| 6 | named-passage index | #182 | Largest design surface; nothing depends on it. |
-| 7 | ruff reformat tranches | #136 | Last, deliberately — see batch 7. |
+Batches 1–5 have landed. `-bis` rows are follow-ups found while working
+the batch above them, and inherit its context.
+
+| # | Batch | Issues | Status | Why here |
+|---|---|---|---|---|
+| 0 | CI unblock | #282 | todo | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. |
+| 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
+| 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
+| 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
+| 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
+| 3-bis | refs scan cache | #287, #288, #289 | todo | All three are the `refs_scan_state` / pre-index-snapshot pair batch 3 opened: the cache is over-kept outside `--reset` (#287) and under-kept inside it (#288), and the snapshot probe is now near-unconditional (#289). One batch because fixing either half alone re-opens the other. |
+| 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
+| 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
+| 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
+| 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
+| 5-bis | perseus follow-ups | #297, #298, #299, #300 | todo | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is the same chrome in 18 live chunks from a sibling scraper; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code. |
+| 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
+| 6-bis | content-derived `chunk_id` | #285 | todo | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
+| 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
 un-reformattable, so running them first shrinks batch 7's blocked tranche
 instead of fighting it — and batches 1–6 never rebase across a 130-file
-diff.
+diff. The `-bis` batches add tests to the same files, so they shrink it
+further; run 2-bis, 3-bis and 4-bis before re-cutting tranche 1.
 
 ---
 
@@ -640,6 +684,62 @@ index run, so it cannot rot and cannot be wiped.
   (work-scoped queries already rank the divided line at 3), in which case
   the table's remaining value is semantic honesty plus section ranges for
   citation, not retrieval. Decide against that number, not in advance.
+
+  **Measured 2026-08-08, and the answer is: build it. Work resolution is
+  necessary and sufficient; the rank estimate above is optimistic.**
+  Measured through `prepare_chat_turn`'s own sequence — `detect_corpus` →
+  `strip_author_keywords` → `detect_work` → `retrieve_passages` — at
+  `top_k=6`, `lang=eng`:
+
+  | query | corpus | work_id | rank |
+  |---|---|---|---:|
+  | `the divided line` | None | None | absent |
+  | `the divided line in the Republic` | plato | 941 | **6** |
+  | `Where does Plato set out the divided line?` | plato | None | absent |
+  | `Plato's divided line` | plato | None | absent |
+  | `the slave boy` | None | None | absent |
+  | `Meno's slave boy` | plato | 919 | **2** |
+  | `Where does Socrates question the slave boy?` | None | None | **2** |
+  | `the Copernican revolution` | None | None | absent |
+  | `Kant's Copernican revolution` | kant | None | 5 |
+
+  The failure tracks work resolution and nothing else: every query that
+  resolved a `work_id` returned the passage, every one that did not is
+  absent bar the Socrates phrasing, which is discriminating on its own.
+  So Phase 1 as designed — a label consulted where `_best_title_matches`
+  runs — is the fix, and **keeping the section range out of the retrieval
+  filter stands**.
+
+  Two corrections to the paragraph above. **Rank 6, not 3.** Inside
+  `top_k` but at its edge; one more competing chunk pushes it out. That
+  argues for having the range available as a tiebreak — an enhancement,
+  not the fix. **And one of #182's two instances is already fixed:**
+  `Meno's slave boy` resolves `work_id=919` today and returns the passage
+  at rank 2 with zero apparatus in the top 6, and `the divided line in the
+  Republic` — listed in #182 as absent — is now rank 6. Presumably #164's
+  `title_local` work. So the live failing set is the queries naming
+  *neither* author nor work, plus `Where does Plato set out the divided
+  line?`, where the author is named and stripped but no work is.
+
+  **Do not curate "the divided line" as a `work_aliases` entry**, which is
+  the shortcut Phase 0 invites. `detect_work` requires every significant
+  token, so it would scope *any* divided-and-line query to the Republic,
+  and the alias file's own docstring rules this out: aliases are "names a
+  reader would actually type" for the work. "The divided line" is not a
+  name for the Republic. That is the semantic-honesty argument for a
+  separate table, and it is load-bearing rather than decorative.
+
+  **Method warning, learned the expensive way.** Three successive
+  harnesses gave three different answers here. Calling
+  `retrieve_passages` directly bypasses `strip_author_keywords`, which
+  lives in the *caller* — and with it disabled the divided-line query
+  returns 6/6 Shorey footnotes, which reads exactly like a real apparatus
+  defect and is not one. A second harness compared every case's hits
+  against one case's target set. Both produced confident, wrong
+  conclusions that were briefly written into #182. Any measurement here
+  must go through `prepare_chat_turn`'s sequence, print the resolved
+  `corpus`/`work_id` beside every rank, and assert the target set is
+  non-empty.
 - **Phase 1** — `named_passages`: migration `0028_named_passages.sql`
   (0027 is taken by batch 2), source of truth
   `src/minerva/authors/named_passages.py` keyed on `(author, title)` →
