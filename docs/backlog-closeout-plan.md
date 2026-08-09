@@ -105,7 +105,8 @@ the batch above them, and inherit its context.
 | 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
-| 2-ter | surface offsets | #307, #309 | in progress | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both. |
+| 2-ter | surface offsets | ~~#307~~, ~~#309~~ | **landed** | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both, which is what happened: PR #310 fixed the writer and the operator step below ran the pass. #311 is its residue. |
+| 2-quater | NFC-layer offsets | #311 | todo | Found verifying 2-ter. `terms lemmatize` feeds `NFC(text)` and stores offsets against `chunks.text`; 1,866 rows across 16,032 non-NFC chunks. Same defect class as #307 one layer up, in the file batch 2 rewrote, and the last thing between `chunk_lemmas` and the invariant #310 established. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
@@ -1365,3 +1366,77 @@ only the first is true.
 
 Every author's stored hash equals a freshly computed
 `rules_fingerprint(author)` for all 27; 0 disagree.
+
+### Operator step run 2026-08-09 — batch 2-ter
+
+After `scripts/snapshot-db.sh 307-309-surface-offsets`
+(`data/snapshots/20260809T153108Z-307-309-surface-offsets`), and after PR
+#310 merged so the pass wrote offsets the fixed code produces.
+
+`minerva terms lemmatize --lang <l> --all` for all seven languages, one
+process each, then one `terms aggregate-lemmas`. **`--all` was not
+optional**: `chunk_lemma_state.text_hash` matched the current text for
+every affected chunk, so an incremental pass would have skipped all of
+them. One language per process, because loading LatinCy's
+`la_core_web_sm` poisons the spawn payload for every later model in the
+same process (#262).
+
+| | before | after |
+|---|---|---|
+| `chunk_lemmas` | 26,155,969 | 26,005,053 |
+| `lemma_counts` | 4,575,612 | 4,527,497 |
+| **rows with `surface_end` past their chunk** | **241,736** | **0** |
+| `chunk_lemma_state` rows written by a real pass | 0 | 428,606 |
+
+`text[surface_start:surface_end] == surface_form`, 400 chunks per
+language:
+
+| lang | before | after |
+|---|---|---|
+| lat | 27.69% | **100.00%** |
+| grc | 95.85% | 99.67% |
+| heb | 98.87% | **100.00%** |
+| deu / eng / fra | 100% | 100% |
+| ara | 81.99% | 81.99% |
+
+Chunks and tokens: lat 67,370 / 4,608,336 · deu 115,078 / 6,185,648 ·
+eng 86,300 / 8,715,850 · fra 73,696 / 3,108,629 · grc 56,713 · heb
+23,213 / 356,768 · ara 6,236 / 87,478. Wall clock ≈ 50 min end to end,
+`lat` about 15 of it.
+
+**The 150,916-row drop is the point, not a loss.** Almost all of it is
+#309's residue: rows written against a pre-split, longer text that
+survived because `chunk_id` hashes only `text[:120]` and nothing deleted
+them. #284's delete-before-insert, landed the day before, is what let a
+re-pass reclaim them.
+
+**Neither of the two languages short of 100% is this defect, and both are
+explained.**
+
+- **`grc` 99.67% is #311**, filed from this verification. `terms
+  lemmatize` feeds the model `NFC(text)` but stores the offsets against
+  `chunks.text`, and 16,010 of 56,713 grc chunks are not NFC. Every one
+  of the 1,497 mismatching rows reproduces against the NFC form —
+  1,497/1,497 — so the accounting is exact rather than approximate.
+  Corpus-wide the same defect costs 369 eng rows and 0 deu rows.
+- **`ara` 81.99% is intended behaviour.** Stanza's multi-word-token
+  expansion gives a clitic sub-word the parent token's span, because
+  `w.start_char` is `None` for the expansion;
+  `_tokens_from_stanza_doc` documents the fallback. 234 of 246 sampled
+  mismatches share their span with another row, and the other 12 are the
+  same thing with the sibling dropped by `is_valid_lemma`. Nothing to
+  fix; recorded so the number is not re-investigated.
+
+A second point worth keeping: **`lemmatized_at` is now evidence again.**
+Before this pass every one of the 428,606 state rows carried migration
+0027's timestamp, which is what made #307's "not staleness" reading
+possible. All 428,606 now carry a real pass, so the next time that column
+is consulted it means what it says.
+
+One operational note for the next round: `--n-process 1` was silently
+dropped from the `grc` invocation because **zsh does not word-split an
+unquoted parameter**, so `$N` holding `"--n-process 1"` reached argparse
+as a single token and the language was skipped with
+`unrecognized arguments`. It failed loudly and was re-run, but a loop
+that built flags in a variable and piped through `tail` also hid the
+failure from `set -e`. Write the flags literally.
