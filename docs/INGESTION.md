@@ -511,9 +511,16 @@ looking exactly like a correctly-skipped one. Since #287 the
 `rules_hash` half catches it: the affected author's chunks re-scan
 by themselves, and nobody else's do.
 
-`--rescan-all` remains for the case the fingerprint cannot see —
-a rule whose *logic* changed without any of its configuration
-changing (see `refs/rules/fingerprint.py` for the boundary):
+#287 fingerprinted a rule's *configuration* — its fields, its
+class-level config and the module constants its methods read. A
+rewritten `scan` body that touched none of those was still
+invisible, which is what #304 closed: the digest now also covers the
+logic of every method the rule can reach, taken from its AST so that
+reformatting, re-wrapping and revised docstrings move nothing.
+
+So no rules edit needs `--rescan-all` today. It remains as the
+escape hatch for a fingerprint that is itself wrong (see
+`refs/rules/fingerprint.py` for what the digest is built from):
 
 ```sh
 .venv/bin/minerva refs build --strategy rules --rescan-all

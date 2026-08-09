@@ -11,9 +11,12 @@ has to actually invalidate on it, per author rather than corpus-wide.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
+import linecache
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -308,6 +311,199 @@ class _RecursiveRule:
     def scan(self, chunk: ChunkInfo):  # pragma: no cover - never run
         _ping(1)
         return ()
+
+
+# ── rule logic, not just rule configuration (#304) ──────────────────
+#
+# Everything above is configuration. #304 is the other half: a `scan`
+# body rewritten without touching a field, a ClassVar or a constant used
+# to leave the digest unmoved, so every already-scanned chunk stayed
+# skipped. These tests edit a module on disk and reimport it, because
+# that is the thing being detected — an edit to `refs/rules/<author>.py`.
+
+_PROBE_MODULE = '''\
+"""A stand-in rules module, rewritten between imports."""
+
+from dataclasses import dataclass
+
+
+def _helper(text):
+{helper}
+
+
+@dataclass(frozen=True)
+class R:
+    name: str = "r"
+    forms: tuple = ("Sokrates",)
+
+    def scan(self, chunk):
+{body}
+'''
+
+_PROBE_NAME = "fp_logic_probe"
+_DEFAULT_BODY = """\
+        hits = [f for f in self.forms if f in _helper(chunk.text)]
+        return tuple(hits)"""
+
+
+@pytest.fixture
+def probe_rules(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Write a rules module, import it, return its fingerprint. Call it
+    again with different source to get the fingerprint after the edit."""
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+    path = tmp_path / f"{_PROBE_NAME}.py"
+
+    def build(body: str = _DEFAULT_BODY, helper: str = "    return text") -> str:
+        path.write_text(_PROBE_MODULE.format(body=body, helper=helper))
+        # `inspect.getsource` reads through linecache, which returns a
+        # cached copy without restatting. Only this test rewrites a
+        # module inside a live process; the CLI imports each version once.
+        linecache.checkcache(str(path))
+        importlib.invalidate_caches()
+        existing = sys.modules.get(_PROBE_NAME)
+        mod = (
+            importlib.reload(existing)
+            if existing is not None
+            else importlib.import_module(_PROBE_NAME)
+        )
+        return fingerprint_rules((mod.R(),))
+
+    yield build
+    sys.modules.pop(_PROBE_NAME, None)
+
+
+def test_fingerprint_changes_when_only_a_scan_body_changes(probe_rules) -> None:
+    """The #304 defect itself. Containment becomes a prefix test: same
+    fields, same forms, same constants — different rows out."""
+
+    before = probe_rules()
+    after = probe_rules(
+        """\
+        hits = [f for f in self.forms if _helper(chunk.text).startswith(f)]
+        return tuple(hits)"""
+    )
+    assert before != after
+
+
+def test_fingerprint_survives_reformatting_and_comments(probe_rules) -> None:
+    """The reason #287 hashed configuration instead of code, and the
+    reason #304 stayed open: hashing the code object would move every
+    digest on a reformat, and batch 7 of the close-out plan reformats
+    these files.
+
+    It does not apply to an attribute-free AST. Line numbers live in
+    `co_firstlineno` and the line table, not in the syntax; comments
+    never reach the tree at all; and a docstring is stripped before
+    hashing — which matters because a docstring-and-comment-only commit
+    is a shape this repo actually produces (dd30678 was exactly that).
+    """
+
+    plain = probe_rules()
+    reformatted = probe_rules(
+        '''\
+        """Rewritten docstring the earlier version did not have."""
+        # A comment the reformat introduced.
+        hits = [
+            f
+            for f in self.forms
+
+            if f in _helper(chunk.text)
+        ]
+
+        return tuple(hits)'''
+    )
+    assert plain == reformatted
+
+
+def test_fingerprint_changes_when_a_walked_helpers_body_changes(
+    probe_rules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rule logic is not confined to `scan`. The Latin formulaic rule
+    reaches its behaviour through `_formulaic_pattern`, and the mention
+    rules through `_compile_forms` — a walk that stopped at the rule's
+    own methods would call an edit to either one "no change".
+
+    The walkable-module prefix is widened to the probe module for the
+    same reason `test_fingerprint_terminates_on_recursive_helpers` widens
+    it: a helper living outside the project is skipped at the boundary
+    before the behaviour under test is ever reached.
+    """
+
+    monkeypatch.setattr(fingerprint_mod, "_WALKABLE_PREFIX", _PROBE_NAME)
+    before = probe_rules(helper="    return text")
+    after = probe_rules(helper="    return text.casefold()")
+    assert before != after
+
+
+def test_logic_walk_reaches_the_real_helper_a_rule_depends_on() -> None:
+    """The same coverage stated against the live package rather than a
+    probe: `FormulaicQuoteRule` keeps its quote bounds behind
+    `_formulaic_pattern`, so that function's logic has to be in the
+    digest's inputs by name."""
+
+    _globals, logic = fingerprint_mod._walk_methods(lat.FormulaicQuoteRule)
+    assert "minerva.refs.rules.scripture_cite.lat._formulaic_pattern" in logic
+    assert all(key.startswith("minerva.") for key in logic), (
+        "the logic walk honours the same project boundary as the global walk"
+    )
+
+
+def test_digest_inputs_are_project_code_only() -> None:
+    """Nothing the interpreter owns may reach the digest, or a CPython
+    upgrade becomes a full-corpus rescan.
+
+    It did before: the walk seeded itself from every method in the MRO,
+    which for a frozen dataclass includes the generated `__replace__`,
+    whose module is `dataclasses` — dragging `MISSING`, `_FIELDS`,
+    `_FIELD_CLASSVAR` and `_FIELD_INITVAR` into every author's
+    fingerprint. Those are derived from the fields the digest already
+    covers, so nothing is lost by stopping at the project boundary.
+    """
+
+    for cls in (lat.FormulaicQuoteRule, AuthorMentionRule, StrongMentionRule):
+        referenced, logic = fingerprint_mod._walk_methods(cls)
+        outside = [k for k in (*referenced, *logic) if not k.startswith("minerva.")]
+        assert outside == [], f"{cls.__name__} hashes non-project state: {outside}"
+
+
+_DISPATCH = {
+    # A lambda inside a multi-line dict literal: `getsource` returns the
+    # one line it sits on, `"key": lambda v: v,`, which is a fragment
+    # rather than a statement.
+    "key": lambda v: v,
+}
+
+
+def test_logic_digest_handles_source_that_does_not_parse_on_its_own() -> None:
+    """`inspect.getsource` returns whole source lines, not a compilable
+    unit. For a lambda in a container literal those are not the same
+    thing, and `ast.parse` raises on the fragment — which would abort the
+    fingerprint, and with it the whole `refs build`."""
+
+    assert fingerprint_mod._logic_digest(_DISPATCH["key"]) == "<unparsable>"
+
+
+def test_fingerprint_works_for_a_rule_whose_source_is_unavailable() -> None:
+    """`inspect.getsource` fails for a class built by `exec` — and would
+    for a zipped install. That has to degrade to the configuration-only
+    digest, not raise: a fingerprint that raises takes the whole `refs
+    build` with it."""
+
+    namespace: dict = {}
+    # `exec` is the point of the test: it produces a class with no source
+    # file, which is what `inspect.getsource` has to fail on.
+    exec(
+        "from dataclasses import dataclass\n"
+        "@dataclass(frozen=True)\n"
+        "class Sourceless:\n"
+        "    name: str = 'x'\n"
+        "    def scan(self, chunk):\n"
+        "        return ()\n",
+        namespace,
+    )
+    digest = fingerprint_rules((namespace["Sourceless"](),))
+    assert len(digest) == 64
 
 
 # ── the real rule modules ───────────────────────────────────────────

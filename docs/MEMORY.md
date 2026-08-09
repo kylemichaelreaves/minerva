@@ -108,11 +108,12 @@ Three things still invalidate a marker, all deliberately:
   alone — the distinction that makes this worth more than the
   `--rescan-all` it replaces.
 
-  `--rescan-all` is still the escape hatch for a rule whose *logic*
-  changed while its configuration did not; the fingerprint covers rule
-  fields, class-level config and the module constants a rule reads, not
-  the body of `scan`. `refs/rules/fingerprint.py` states the boundary,
-  #304 tracks whether to close it.
+  The fingerprint covers rule fields, class-level config and the module
+  constants a rule reads (#287), plus the logic of every method the rule
+  can reach (#304) — hashed from the AST, so a reformat or a rewritten
+  docstring moves nothing. `--rescan-all` is no longer needed for any
+  rules edit; it stays as the escape hatch for a fingerprint that is
+  itself wrong. `refs/rules/fingerprint.py` states what goes in.
 
   Markers written before #287 carry `rules_hash IS NULL`, which
   compares unequal to every fingerprint — one rescan per author, then it

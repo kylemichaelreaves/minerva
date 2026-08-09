@@ -57,26 +57,49 @@ three are covered:
    methods call (``_formulaic_pattern`` → ``_FORMULAIC_QUOTE_END_RE``,
    ``_parse_cite_num`` → ``_ROMAN_VALUES``).
 
-**Not hashed: the rule logic itself.** Rewriting the body of a ``scan``
-method without touching any constant it reads leaves the fingerprint
-unchanged, and that chunk stays skipped. Bytecode would catch it, but
-bytecode carries line numbers, so a reformat would invalidate the corpus
-— the property (2) and (3) exist to avoid. Editing rule *code* rather
-than rule *data* therefore still wants ``--rescan-all``; #304 tracks
-whether that gap is worth closing.
+4. **The logic of the methods themselves** (#304). Rewriting the body of
+   ``scan`` without touching any field or constant it reads used to leave
+   the digest unmoved, so every already-scanned chunk stayed skipped —
+   the original complaint, narrowed rather than fixed. The input is the
+   function's **AST with attributes stripped**, taken over the same
+   walked set as (3), so a helper edit counts as much as a ``scan`` edit.
+
+   #304 recorded a reason not to do this, and it was wrong: "bytecode
+   carries line numbers, so a reformat would invalidate the corpus". A
+   code *object* does — ``co_firstlineno`` and the line table — but
+   ``co_code`` itself does not, and an AST dumped with
+   ``include_attributes=False`` carries no position information at all.
+   Comments never reach the tree, and docstrings are stripped before
+   hashing, which matters because a docstring-and-comment-only commit is
+   a shape this repo produces (dd30678 was one). So batch 7's reformat
+   moves no digest. AST is preferred over ``co_code`` for the one cost
+   bytecode really does carry: bytecode differs between CPython
+   versions, which would turn an interpreter upgrade into a full-corpus
+   rescan.
+
+   Source is read with ``inspect.getsource``. A rule class with no source
+   file — built by ``exec``, or shipped in a zip — degrades to the
+   configuration-only digest rather than raising, since a fingerprint
+   that raises takes the whole ``refs build`` with it.
 
 Every unknown is resolved toward *over*-invalidation where it can be
 (a value we cannot canonicalize is recorded by type, so swapping it for
 another type still changes the digest) — a spurious rescan costs one
 pass, a missed one is the defect.
+
+``--rescan-all`` therefore no longer has a case that needs it, and is
+kept only as an escape hatch for a fingerprint that is itself wrong.
 """
 
 from __future__ import annotations
 
+import ast
 import dataclasses
 import hashlib
+import inspect
 import re
-from types import FunctionType, ModuleType
+import textwrap
+from types import CodeType, FunctionType, ModuleType
 from typing import Any
 
 # Only walk helper functions defined inside this project. Recursing into
@@ -147,27 +170,48 @@ def _rule_parts(rule: Any) -> list[str]:
             seen_attrs.add(name)
             parts.append(f"classattr:{name}={canon}")
 
-    for key, canon in sorted(_referenced_globals(cls).items()):
+    referenced, reachable = _walk_methods(cls)
+    for key, canon in sorted(referenced.items()):
         parts.append(f"global:{key}={canon}")
+    for key, digest in sorted(reachable.items()):
+        parts.append(f"logic:{key}={digest}")
 
     return parts
 
 
-def _referenced_globals(cls: type) -> dict[str, str]:
-    """Canonicalized module globals the class's methods read.
+def _walk_methods(cls: type) -> tuple[dict[str, str], dict[str, str]]:
+    """One walk over everything the class's methods can reach, returning
+    the two things a digest needs from it: the module globals they read,
+    and the logic of the functions themselves.
 
-    Keyed on ``<module>.<name>`` so two modules' identically-named
-    constants stay distinct. Follows calls into helper functions inside
-    the rules package — the Latin formulaic rule's ``_pattern`` reaches
-    its regex fragments only through ``_formulaic_pattern``.
+    Both are keyed on ``<module>.<name>`` so two modules' identically-named
+    constants — or helpers — stay distinct. The walk follows calls into
+    helper functions inside the project: the Latin formulaic rule's
+    ``_pattern`` reaches its regex fragments only through
+    ``_formulaic_pattern``, and its *logic* lives there too.
+
+    Kept as one traversal rather than two because the second would have
+    to repeat the first's boundary and cycle rules exactly, and a copy
+    that drifts is how one of the two ends up covering less than it
+    claims.
     """
 
-    out: dict[str, str] = {}
+    globals_read: dict[str, str] = {}
+    logic: dict[str, str] = {}
     pending: list[FunctionType] = []
     for klass in cls.__mro__:
         if klass is object:
             continue
-        for value in vars(klass).values():
+        for name, value in vars(klass).items():
+            # Dunders are compiler-generated plumbing here — no rules
+            # class defines one by hand, and the `__init__`/`__eq__` a
+            # frozen dataclass generates are derived from the fields the
+            # digest already covers. Following them reached CPython's own
+            # `dataclasses.__replace__`, which put four stdlib internals
+            # (`MISSING`, `_FIELDS`, …) into every author's digest and
+            # made an interpreter upgrade a full-corpus rescan.
+            if name.startswith("__"):
+                continue
             func = _as_function(value)
             if func is not None:
                 pending.append(func)
@@ -180,6 +224,7 @@ def _referenced_globals(cls: type) -> dict[str, str]:
         visited.add(id(func))
         globs = func.__globals__
         module = globs.get("__name__", "?")
+        logic[f"{module}.{func.__qualname__}"] = _logic_digest(func)
         for name in func.__code__.co_names:
             if name in _UNSTABLE_GLOBALS or name not in globs:
                 continue
@@ -191,8 +236,78 @@ def _referenced_globals(cls: type) -> dict[str, str]:
                 continue
             canon = _canon_or_none(value)
             if canon is not None:
-                out[f"{module}.{name}"] = canon
-    return out
+                globals_read[f"{module}.{name}"] = canon
+    return globals_read, logic
+
+
+# Keyed on the code object, not on a qualified name: a reimported module
+# produces a new code object, so an edited function can never read a
+# predecessor's digest out of this cache. That is what makes the memo
+# safe to keep for the process's lifetime.
+_LOGIC_CACHE: dict[CodeType, str] = {}
+
+
+def _logic_digest(func: FunctionType) -> str:
+    """Digest of what ``func`` *does*, insensitive to how it is written.
+
+    ``ast.dump(..., include_attributes=False)`` drops every line and
+    column number, comments never enter the tree, and the docstring is
+    removed first — so reformatting, re-wrapping and rewritten prose all
+    leave this unchanged while a rewritten expression does not.
+    """
+
+    code = func.__code__
+    cached = _LOGIC_CACHE.get(code)
+    if cached is not None:
+        return cached
+
+    try:
+        source = textwrap.dedent(inspect.getsource(func))
+    except (OSError, TypeError):
+        # No source file: a dataclass-generated `__init__`/`__eq__`
+        # (compiled from a string), an `exec`-defined class, a zipped
+        # install. Recorded as a constant so it neither invalidates on
+        # every run nor pretends to have checked something.
+        digest = "<no-source>"
+    else:
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            # `getsource` returns whole lines, which for a lambda inside
+            # a larger expression is not parsable on its own.
+            digest = "<unparsable>"
+        else:
+            _strip_docstrings(tree)
+            digest = hashlib.sha256(
+                ast.dump(tree, include_attributes=False).encode("utf-8")
+            ).hexdigest()[:16]
+
+    _LOGIC_CACHE[code] = digest
+    return digest
+
+
+def _strip_docstrings(tree: ast.AST) -> None:
+    """Drop the docstring from every scope in ``tree``, in place.
+
+    Prose is not behaviour, and this repo revises it constantly — one
+    commit in the rules package's history (dd30678) changed nothing but
+    comments and docstrings. Hashing those would have invalidated 16
+    authors' markers for a change that could not alter a single row.
+    """
+
+    for node in ast.walk(tree):
+        if not isinstance(
+            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            continue
+        body = node.body
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            del body[0]
 
 
 def _as_function(value: Any) -> FunctionType | None:
