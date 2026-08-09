@@ -134,9 +134,33 @@ def _spacy_extension_state() -> object | None:
 _WORD_RE = re.compile(r"\S+")
 
 
+def _pipeline_text(text: str) -> str:
+    """The form a model is fed, which is not the form the corpus stores.
+
+    NFC, and it has to be. Handed the decomposed text ``chunks.text``
+    holds for 16,032 chunks, ``grc_dep_web_sm``'s lookups miss and it
+    falls back to something close to the surface: measured over 300 live
+    non-NFC grc chunks, 2,313 of 51,549 lemmas changed, ``λέγων`` staying
+    ``λέγων`` instead of resolving to ``λέγω`` and ``κατηγορίας·``
+    carrying its ano teleia into the lemma.
+
+    Normalizing here rather than in the caller (#311) is what lets the
+    offsets stay indexed to the caller's string: composition shortens the
+    text, and a chunk whose accents are combining marks moves every token
+    after the first one of them. :class:`_SourceOffsets` already exists
+    for the rewrite ``la_core_web_sm``'s tokenizer performs (#307), and
+    an NFC difference is the same shape — it never merges or splits a
+    whitespace-delimited word, so the word-by-word map holds. Measured
+    over the whole non-NFC population (16,032 chunks, 853,894 words):
+    zero unusable maps and zero words landing on the wrong span.
+    """
+
+    return unicodedata.normalize("NFC", text)
+
+
 class _SourceOffsets:
-    """Maps a span of the text a spaCy pipeline *tokenized* back onto the
-    span of the text we *handed it* (#307).
+    """Maps a span of the text a pipeline *tokenized* back onto the span
+    of the text the caller *handed us* (#307, #311).
 
     ``spacy.Token.idx`` indexes ``doc.text``, which is only the caller's
     string while nothing between the two rewrote it. ``la_core_web_sm``
@@ -149,6 +173,11 @@ class _SourceOffsets:
     ``norm_spacing`` (**every whitespace run collapsed to one space, and
     the ends stripped**). The last of those alone puts every token after
     the chunk's first line break at the wrong offset.
+
+    :func:`_pipeline_text`'s NFC is the second rewrite, and it applies to
+    every language rather than to ``lat`` alone: composing an accent
+    stored as a combining mark costs a character, so every token after
+    the first one drifts (#311).
 
     So the offsets are recovered rather than computed. The load-bearing
     invariant is that none of those steps merges or splits a word:
@@ -171,7 +200,9 @@ class _SourceOffsets:
     chars) the live ``la_core_web_sm`` produced 127,539 non-punctuation
     tokens. Zero of their raw ``t.idx`` spans matched the source text;
     127,539 of 127,539 matched after this map, with no chunk failing the
-    word-count invariant.
+    word-count invariant. The NFC case was measured the same way over
+    the whole non-NFC population — 16,032 chunks, 853,894 words, zero
+    unusable maps and zero words landing on the wrong span.
     """
 
     __slots__ = ("_cache", "_processed", "_pwords", "_source", "_swords", "usable")
@@ -675,15 +706,11 @@ class Lemmatizer:
 
         if self._backend == "spacy":
             n_process = self._safe_n_process(n_process)
-            # The input text rides along in the context so the token
-            # builder can map offsets back onto it (#307). `nlp.pipe`
-            # zips contexts back on in THIS process — spaCy tees the
-            # (text, context) stream and only the text half crosses to a
-            # worker — so widening the context costs no extra pickling
-            # even at `n_process > 1`.
-            paired = ((text, (context, text)) for text, context in items)
             for doc, (context, source) in self._nlp.pipe(
-                paired, batch_size=batch_size, n_process=n_process, as_tuples=True
+                self._prepared(items),
+                batch_size=batch_size,
+                n_process=n_process,
+                as_tuples=True,
             ):
                 yield list(self._tokens_from_spacy_doc(doc, source)), context
         elif self._backend == "stanza":
@@ -696,7 +723,7 @@ class Lemmatizer:
             # Stanza defaults — raising them further had no effect.
             import stanza
 
-            items_iter = iter(items)
+            items_iter = iter(self._prepared(items))
             bulk = _STANZA_BULK_SIZE
             while True:
                 batch = []
@@ -710,10 +737,10 @@ class Lemmatizer:
                     contexts.append(ctx)
                 if not batch:
                     break
-                for doc, ctx in zip(
+                for doc, (ctx, source) in zip(
                     self._nlp.bulk_process(batch), contexts, strict=True
                 ):
-                    yield list(self._tokens_from_stanza_doc(doc)), ctx
+                    yield list(self._tokens_from_stanza_doc(doc, source)), ctx
         else:  # pragma: no cover — guarded by __init__
             raise UnsupportedLanguageError(self.lang)
 
@@ -756,19 +783,39 @@ class Lemmatizer:
         )
         return 1
 
+    def _prepared(
+        self, items: Iterable[tuple[str, object]]
+    ) -> Iterable[tuple[str, tuple[object, str]]]:
+        """``(pipeline text, (caller context, source text))`` per item.
+
+        The caller's string rides along so the token builders can map
+        offsets back onto it. ``nlp.pipe`` zips contexts back on in THIS
+        process — spaCy tees the stream and only the text half crosses to
+        a worker — so carrying it costs no extra pickling even at
+        ``n_process > 1``.
+        """
+
+        for text, context in items:
+            yield _pipeline_text(text), (context, text)
+
     def _tokens_spacy(self, text: str) -> Iterable[Token]:
-        yield from self._tokens_from_spacy_doc(self._nlp(text), text)
+        yield from self._tokens_from_spacy_doc(self._nlp(_pipeline_text(text)), text)
 
     def _tokens_from_spacy_doc(self, doc, source: str) -> Iterable[Token]:
         """Tokens whose ``start``/``end`` index ``source`` — the string
         the caller passed in — not ``doc.text`` (#307).
 
-        The two are the same object for ``deu``/``eng``/``fra``/``grc``,
-        which is the fast path: an equality test on the whole string,
-        then plain ``t.idx`` arithmetic as before. They differ on
-        essentially every ``lat`` chunk, because ``la_core_web_sm``'s
-        tokenizer rewrites its input before tokenizing — see
-        :class:`_SourceOffsets`.
+        The two are equal whenever nothing rewrote the text, which is the
+        fast path: an equality test on the whole string, then plain
+        ``t.idx`` arithmetic as before. Two things rewrite it. On
+        essentially every ``lat`` chunk it is ``la_core_web_sm``'s
+        tokenizer, which preprocesses its input before tokenizing (#307).
+        On any language it is :func:`_pipeline_text`'s NFC, which differs
+        from the stored text for 16,032 chunks — 16,010 of them ``grc``
+        — and shortens it wherever an accent is stored as a combining
+        mark (#311). Both are handled by :class:`_SourceOffsets`; the
+        docstring here used to name only the first and call the other
+        four languages the fast path unconditionally.
 
         ``surface`` follows the offsets. It is the slice of the corpus
         text, so ``chunk_lemmas`` stores what the edition prints
@@ -815,9 +862,21 @@ class Lemmatizer:
             )
 
     def _tokens_stanza(self, text: str) -> Iterable[Token]:
-        yield from self._tokens_from_stanza_doc(self._nlp(text))
+        yield from self._tokens_from_stanza_doc(self._nlp(_pipeline_text(text)), text)
 
-    def _tokens_from_stanza_doc(self, doc) -> Iterable[Token]:
+    def _tokens_from_stanza_doc(self, doc, source: str) -> Iterable[Token]:
+        """Tokens whose ``start``/``end`` index ``source`` — the caller's
+        string — rather than the NFC form the pipeline was fed (#311).
+
+        The two are equal for every heb/ara chunk in the corpus today, so
+        this path takes the same whole-string-equality fast path the
+        spaCy one does. It is written anyway because the alternative is
+        to feed these models decomposed text, which is measurably worse
+        (see :func:`_pipeline_text`), and normalizing without mapping is
+        the defect itself.
+        """
+
+        offsets = None if doc.text == source else _SourceOffsets(doc.text, source)
         for sent in doc.sentences:
             for w in sent.words:
                 # Stanza emits a punctuation upos for `.` `,` `;` etc.
@@ -845,7 +904,8 @@ class Lemmatizer:
                 # but token_index disambiguates them at PK level.
                 start = w.start_char
                 end = w.end_char
-                if start is None or end is None:
+                inherited = start is None or end is None
+                if inherited:
                     parent = getattr(w, "parent", None)
                     if parent is not None:
                         start = parent.start_char
@@ -855,8 +915,22 @@ class Lemmatizer:
                 # skip rather than violate the NOT NULL constraint.
                 if start is None or end is None or end <= start:
                     continue
+                surface = w.text
+                if offsets is not None:
+                    mapped = offsets.span(start, end)
+                    if mapped is None:
+                        # An offset into a string no consumer holds is
+                        # the bug, not a fallback — see #307.
+                        continue
+                    start, end = mapped
+                    # Only a word with a span of its own gets its surface
+                    # from the source. An expanded sub-word borrowed its
+                    # parent's, and slicing that would hand every clitic
+                    # the whole parent word.
+                    if not inherited:
+                        surface = source[start:end]
                 yield Token(
-                    surface=w.text,
+                    surface=surface,
                     start=start,
                     end=end,
                     lemma=lemma,

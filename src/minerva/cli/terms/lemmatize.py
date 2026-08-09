@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
-import unicodedata
 
 from ...lemmatize import (
     SUPPORTED_LANGUAGES as _SUPPORTED,
@@ -152,9 +151,6 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         chunks_productive = 0
         progress = _progress_bar(total=total, lang=lang)
         cursor = conn.execute(select_sql, params)
-        # The state row hashes the text as STORED, not the NFC form fed
-        # to the lemmatizer, so the stored hash and the `text_hash(cf.text)`
-        # in the candidate query above are computed over the same bytes.
         # Hashed on the way in and popped on the way out, so this holds
         # only the chunks currently inside the spaCy pipe — keeping the
         # text itself would restore the ~200 MB the streaming cursor was
@@ -164,7 +160,15 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         def _items():
             for row in cursor:
                 pending_hash[row["chunk_id"]] = text_hash(row["text"])
-                yield unicodedata.normalize("NFC", row["text"]), row["chunk_id"]
+                # The stored text, verbatim. This used to yield
+                # `unicodedata.normalize("NFC", ...)`, and the offsets
+                # that came back indexed *that* string while every
+                # consumer slices `chunks.text` — 1,866 rows wrong across
+                # 16,032 non-NFC chunks (#311). The normalization is
+                # still done, and still has to be, but it belongs to
+                # `Lemmatizer`, which maps the offsets back; see
+                # `lemmatize._pipeline_text`.
+                yield row["text"], row["chunk_id"]
 
         for tokens, chunk_id in lm.batch_pipe(
             _items(), batch_size=args.batch_size, n_process=args.n_process
