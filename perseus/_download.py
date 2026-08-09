@@ -275,6 +275,29 @@ def make_fetcher(
     return _fetch
 
 
+# HTML void elements: they have no end tag, so they must never move the
+# skip-subtree depth counter. Getting this wrong loses the whole rest of
+# the document — see `handle_starttag`.
+_VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+
+
 class ParagraphExtractor(HTMLParser):
     """``HTMLParser`` that emits whitespace-collapsed paragraph strings.
 
@@ -284,6 +307,13 @@ class ParagraphExtractor(HTMLParser):
     element whose ``class`` attribute contains one of those tokens is
     skipped along with its subtree — the class-aware variant the
     Wikisource / mlwerke scrapers use to drop editorial apparatus.
+
+    ``skip_id_tokens`` does the same against the ``id`` attribute.
+    Class tokens are not always enough: web.archive.org marks its
+    injected toolbar with ``id="wm-ipp"`` / ``id="donato"`` and gives
+    those elements no distinguishing class at all, so a class-only
+    skip set cannot see the wrapper it was written to strip (#152).
+    Passing either set enables the class/id-aware code path.
     """
 
     def __init__(
@@ -292,6 +322,7 @@ class ParagraphExtractor(HTMLParser):
         skip_tags: Iterable[str] = (),
         break_end_tags: Iterable[str] = (),
         skip_class_tokens: Iterable[str] | None = None,
+        skip_id_tokens: Iterable[str] | None = None,
     ) -> None:
         super().__init__(convert_charrefs=True)
         self._skip_tags = frozenset(skip_tags)
@@ -299,17 +330,29 @@ class ParagraphExtractor(HTMLParser):
         self._skip_class_tokens = (
             frozenset(skip_class_tokens) if skip_class_tokens is not None else None
         )
+        self._skip_id_tokens = (
+            frozenset(skip_id_tokens) if skip_id_tokens is not None else None
+        )
         self._skip_depth = 0
         self._buf: list[str] = []
         self.paragraphs: list[str] = []
 
+    @property
+    def _attr_aware(self) -> bool:
+        """True when a class or id skip set was supplied."""
+
+        return self._skip_class_tokens is not None or self._skip_id_tokens is not None
+
     def _should_skip(self, attrs: list[tuple[str, str | None]]) -> bool:
-        if self._skip_class_tokens is None:
+        if not self._attr_aware:
             return False
         for name, value in attrs:
-            if name != "class" or value is None:
+            if value is None:
                 continue
-            if any(tok in self._skip_class_tokens for tok in value.split()):
+            tokens = self._skip_class_tokens if name == "class" else (
+                self._skip_id_tokens if name == "id" else None
+            )
+            if tokens is not None and any(tok in tokens for tok in value.split()):
                 return True
         return False
 
@@ -322,24 +365,40 @@ class ParagraphExtractor(HTMLParser):
     def handle_starttag(
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
-        if self._skip_class_tokens is not None:
+        # A void element has no end tag, so counting it would strand the
+        # depth above zero and silently swallow every following
+        # paragraph. `<br/>` survives only because HTMLParser routes the
+        # self-closed form through handle_startendtag (start *and* end);
+        # the bare `<br>` old-school sources emit does not.
+        void = tag in _VOID_TAGS
+        if self._attr_aware:
             if self._skip_depth:
-                self._skip_depth += 1
+                if not void:
+                    self._skip_depth += 1
                 return
             if tag in self._skip_tags or self._should_skip(attrs):
-                self._skip_depth = 1
+                if not void:
+                    self._skip_depth = 1
                 return
             if tag == "p":
                 self._flush()
             return
         if tag in self._skip_tags:
-            self._skip_depth += 1
+            if not void:
+                self._skip_depth += 1
             return
         if tag in self._break_end_tags:
             self._flush()
 
     def handle_endtag(self, tag: str) -> None:
-        if self._skip_class_tokens is not None:
+        # Symmetry with handle_starttag: a void element never moved the
+        # counter up, so it must not move it down either. HTMLParser
+        # synthesises this call for the self-closed `<br/>` form via
+        # handle_startendtag, and decrementing here would end the skip one
+        # level early and leak the very chrome we are inside.
+        if tag in _VOID_TAGS:
+            return
+        if self._attr_aware:
             if self._skip_depth:
                 self._skip_depth -= 1
                 return

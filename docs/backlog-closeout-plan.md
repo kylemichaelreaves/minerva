@@ -474,11 +474,43 @@ reach a commit message, including this document.
 
 ## Batch 5 — perseus scraper verification (#151, #152)
 
+**Landed 2026-08-08.** Both issues closed; four new issues filed
+(#297–#300) and corrections recorded on both. The measurements are in the
+PR body and in each script's docstring; what follows is the plan as
+written, annotated where it was wrong.
+
 Both hold values written in #149 that were never checked against live
 pages. Both scripts are manual one-shots nothing imports, and both raised
 `NameError` before #149, so neither can have contaminated the corpus
 through this path. `perseus/**` is coverage-excluded, so no Sonar gate
 applies.
+
+**Confirmed: no contamination, on every path checked.** The committed
+`deutsche_ideologie.txt`, the six PG-DE files and all 14 Cicero Latin
+files carry none of the chrome the broken skip-sets let through, and the
+live index has none of it either. The defect was an *inert guard*, not a
+dirty corpus.
+
+**Corrected while implementing — `data/*` is gitignored, so "fetch the
+missing work" is an operator action, not a commit.** The plan and #151
+both describe fetching `de_officiis_lat.txt` as filling a gap in
+`data/cicero/raw_la/` (15 declared, 14 present). It does — but in the
+*local* data tree only:
+
+```
+$ git ls-files data/cicero | wc -l
+0
+$ git check-ignore -v data/cicero/raw_la/de_officiis_lat.txt
+.gitignore:13:data/*	data/cicero/raw_la/de_officiis_lat.txt
+```
+
+So the file cannot ride along in the PR, CI cannot verify it, and a fresh
+clone will not have it. Had this been trusted, the batch would have been
+reported as "gap filled" on the strength of a file no reviewer could see.
+The work is real and done locally (715 lines, 237,829 bytes, three Libri,
+ending at the true `[121] Habes a patre munus, Marce fili`); it is staged
+for the next ingest on that machine, and re-fetching it elsewhere is one
+`--only` invocation.
 
 - **#152** — fetch one page each from projekt-gutenberg.org (Marx) and the
   archived mlwerke.de `me03_NNN.htm`, inspect what `_extract_paragraphs`
@@ -489,6 +521,32 @@ applies.
   more than class tokens, note that in the docstring rather than widening
   the set — `"footer"` and `"navbar"` are already generic enough to eat
   real content.
+
+  **Measured: worse than "some tokens are stale". Of the eleven tokens
+  across the two scripts, exactly one matched anything.** All seven in
+  `download_marx_archive.py` matched **zero** elements on all three of
+  its sources, and three of four in `download_marx_pgde.py` did too
+  (`site-header` was the only live one). The reason no widened class set
+  can fix the wayback half: the toolbar carries **no class at all** — it
+  is keyed on `id` (`id="wm-ipp"`, `id="donato"`). The guidance above was
+  right that the wrapper needs markers beyond class tokens, and the
+  answer was `skip_id_tokens` plus web.archive.org's own
+  `<!-- BEGIN/END WAYBACK TOOLBAR INSERT -->` boundary comments, because
+  attribute skipping alone still leaked — see #297.
+
+  The predicted third layer was there: PG-DE renders each chapter body
+  **twice**, text-identical, so the pre-fix parse emitted every Marx
+  paragraph twice. Taking the body's own container
+  (`div.book-reader__chapter-content-wrapper`) both de-duplicates it and
+  survives WordPress theme churn, which enumerating chrome classes does
+  not — after widening the set to every chrome class actually present,
+  four paragraphs still came through.
+
+  And the caution about generic tokens was well aimed: `sidebar` would
+  have been harmless only by luck, since PG-DE's one `sidebar`-ish token
+  is `no-sidebar` **on `<body>`** — a substring match there empties the
+  document. Token matching is exact per whitespace-split token; there is
+  now a test pinning that.
 - **#151** — fetch the one genuine gap, `de_officiis_lat.txt` (15 declared
   works, 14 present), which exercises the multi-Liber path for real.
   Dry-run the other 12 works **to a scratch directory** and diff. Decide
@@ -496,11 +554,57 @@ applies.
   matched or deliberately diverged from; `_ROMAN_ONLY_RE` already filters
   the Roman ones and the Arabic are the same class of artifact.
 
+  **Decided and encoded: filter the markers, and do *not* touch the
+  titles.** `_ROMAN_ONLY_RE` was `^[IVXLC]+$`, which caught only the bare
+  form — 18 of the 543 markers present across a full 15-work re-fetch,
+  3%. The dotted Roman form (`XIII.`) is the commonest at 381, Arabic adds
+  144, and De re publica carries 46 `(*****)` lacuna sigils. The
+  committed files contain **zero** of any form, so the lost original
+  filtered them all. The widened filter also had to be applied to the
+  root page, not just sub-pages, which is where the 18 survivors were.
+  Result: `de_amicitia` went from 70.5% to **100.0%** line-identical,
+  `topica` stays 100%, and 11 of 14 works are now ≥97%.
+
+  **Corrected: #151's "per-Liber page titles absent from the
+  reconstruction" is false, and acting on it would have been actively
+  harmful.** The reconstruction emits them correctly wherever the source
+  still has them — `de_legibus` produces `M. TVLLI CICERONIS De legibus -
+  Liber I` and `- Liber II` exactly as committed. Only De natura deorum's
+  Liber II and III are missing, and those sub-pages now contain no
+  `M. TVLLI` string at all upstream; the committed file preserves titles
+  la.wikisource has since deleted. Had the issue been trusted, the fix
+  would have synthesised per-Liber titles — fabricating source text, and
+  injecting titles into the ~10 works that never had them, churning their
+  `chunk_id`s to "fix" two lines in one work.
+
+  Also worth not re-deriving: the committed Latin files are
+  **post-cleanup** artifacts (`scripts/clean-cicero-chrome.py` strips a
+  title/breadcrumb header after the fetch), so a raw scraper-vs-committed
+  diff conflates two transformations.
+
 **Do not re-run either script over the committed corpus.** Residual
 differences would churn `chunk_id`s and cost those works their embeddings,
 lemmas and cross-references. Byte-identity is unreachable in principle —
 la.wikisource has changed since the May 2026 fetch — so the target is
 "correct and structurally stable", not "reproduces the old bytes".
+Honoured: every fetch in this batch went to a scratch `--data-root`, and
+nothing was written under `data/` except the one missing work.
+
+**One process note worth keeping.** A half-finished version of the
+void-tag fix — guarding `handle_starttag` but not `handle_endtag` — turned
+a latent bug into an active one, letting la.wikisource's `ws-noexport`
+header chrome (`EPUB MOBI PDF RTF TXT`, `fons: incognitus`) into 15 of 15
+Cicero files. The original code leaked none of it. The new fixture test
+for the self-closed `<br/>` case is what caught it, before any of it
+reached `data/`. Asymmetric guards on a paired counter are the failure
+mode; test both halves.
+
+Second process note: a background dry-run silently did nothing because
+the backgrounded shell did not inherit an earlier `cd`, and
+`grep -rl` over the missing output directory returned "0 chrome, 0
+markers" — a clean bill of health measured against an empty set. Check
+that a verification actually ran over files that exist before believing
+its zero.
 
 ---
 

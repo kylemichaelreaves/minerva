@@ -18,9 +18,9 @@ Three pipelines:
   3. **web.archive.org snapshot of mlwerke.de** — Die deutsche
      Ideologie, lives at multiple `me03_NNN.htm` pages of an
      archived mlwerke.de Werke Bd 3. Concatenate sub-pages →
-     `data/marx/raw_deu/deutsche_ideologie.txt`. The wayback
-     wrapper adds toolbar JS + CSS we strip via the class-aware
-     extractor.
+     `data/marx/raw_deu/deutsche_ideologie.txt`. The wayback wrapper
+     adds a toolbar we strip via the extractor — by **`id`**, not by
+     class: see `_SKIP_ID_TOKENS` below and issue #152.
 
 Gap: Grundrisse der Kritik der politischen Ökonomie. No clean
 plain-text German source found on archive.org or marxists.org;
@@ -102,21 +102,52 @@ _WAYBACK_DI_BASE = (
 _fetch = make_fetcher()
 
 # Tag sets are the canonical pair shared with the other HTML scrapers.
-# The class tokens strip the web.archive.org wrapper's injected
-# toolbar (`wm-ipp*`, `wb-autocomplete-suggestions`) named in this
-# module's docstring, plus marxists.org's own page chrome.
+#
+# The skip sets below are measured against the live pages, not inferred
+# from this docstring — issue #152, which was filed because the previous
+# values were the inference. All seven of those class tokens
+# (`wm-ipp`, `wm-ipp-base`, `wm-ipp-print`,
+# `wb-autocomplete-suggestions`, `donato`, `footer`, `navbar`) matched
+# **zero elements** on every one of this module's three sources, so the
+# guard was inert and the wayback chrome came through: `269 captures 20
+# Feb 2001 - 28 Jul 2026`, `Collection: Wikipedia Outlinks March 2016`,
+# `The Wayback Machine - https://…` and a 606-character crawl blurb all
+# cleared the caller's `len >= 30` filter.
+#
+# The wayback toolbar carries **no distinguishing class** — it is keyed
+# on `id`, which is why a class-only set could never see it. marxists.org
+# names its own chrome with classes, but different ones than assumed:
+# `p.toplink` is the `MIA > Deutsch > …` breadcrumb and `p.link` the
+# "Anfang der Seite / Zuletzt aktualisiert am …" footer. `p.fst` (body)
+# and `p.note` (Marx's own manuscript notes) are content and stay.
 _SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
 _BREAK_END_TAGS = frozenset({"p", "li", "div"})
-_SKIP_CLASS_TOKENS = frozenset(
+_SKIP_CLASS_TOKENS = frozenset({"toplink", "link", "updat"})
+_SKIP_ID_TOKENS = frozenset(
     {
         "wm-ipp",
         "wm-ipp-base",
         "wm-ipp-print",
-        "wb-autocomplete-suggestions",
         "donato",
-        "footer",
-        "navbar",
+        "donato-base",
+        "donato-if",
     }
+)
+
+
+# web.archive.org delimits its injected toolbar with these two literal
+# comments. Excising the region between them is the only reliable way to
+# drop it: attribute-based subtree skipping cannot, because the toolbar's
+# own markup is tag-unbalanced. Measured on `me03_017.htm` — with
+# `wm-ipp-base` correctly matched by id and skipping active, a stray
+# `</form>` drove ParagraphExtractor's depth counter from 1 to 0 partway
+# through the toolbar, and `269 captures 20 Feb 2001 - 28 Jul 2026`,
+# `Collection: Wikipedia Outlinks March 2016` and a 606-character crawl
+# blurb leaked out (#152). This is issue #297.
+_WAYBACK_INSERT_RE = re.compile(
+    r"<!--\s*BEGIN WAYBACK TOOLBAR INSERT\s*-->.*?"
+    r"<!--\s*END WAYBACK TOOLBAR INSERT\s*-->",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -125,12 +156,17 @@ def _extract_paragraphs(html: bytes) -> list[str]:
         skip_tags=_SKIP_TAGS,
         break_end_tags=_BREAK_END_TAGS,
         skip_class_tokens=_SKIP_CLASS_TOKENS,
+        skip_id_tokens=_SKIP_ID_TOKENS,
     )
     # Some pages (mlwerke.de via web.archive.org) are ISO-8859-1.
     try:
         decoded = html.decode("utf-8")
     except UnicodeDecodeError:
         decoded = html.decode("iso-8859-1")
+    # Primary defence. `_SKIP_ID_TOKENS` stays as a second line for
+    # snapshots served without the boundary comments; on its own it
+    # removed 3 of the 6 leaking chrome paragraphs.
+    decoded = _WAYBACK_INSERT_RE.sub("", decoded)
     p.feed(decoded)
     p.close()
     return p.paragraphs
@@ -203,6 +239,26 @@ def fetch_1844_manuscripts(*, dest_root: Path) -> Path:
 
 _DI_SUBPAGE_RE = re.compile(r'href="(me03_\d+\.htm)(?:#[^"]*)?"')
 
+# mlwerke.de's own chrome, which carries no class or id to skip on: a
+# per-page running head, the "back to index" nav link, and the MEW
+# edition note. All three are absent from the committed
+# `deutsche_ideologie.txt`, so the lost original filtered them; they are
+# re-filtered here rather than left to bleed into corpus chunks. The same
+# edition note *did* leak from a sibling scraper — 18 chunks under
+# `Das Kapital, Band III` and `Lohnarbeit und Kapital` carry it today
+# (#298).
+_MLWERKE_CHROME_RES = (
+    re.compile(r"^Karl Marx\s*[-–]\s*Friedrich Engels\s*[-–]\s*.{0,60}$"),
+    re.compile(r"^Zurück zum Gesamtverzeichnis\b"),
+    re.compile(r"^Seitenzahlen verweisen auf:"),
+)
+
+
+def _drop_mlwerke_chrome(paragraphs: list[str]) -> list[str]:
+    return [
+        p for p in paragraphs if not any(rx.match(p) for rx in _MLWERKE_CHROME_RES)
+    ]
+
 
 def fetch_deutsche_ideologie(*, dest_root: Path) -> Path:
     """Walk the TOC for me03_NNN.htm sub-pages, fetch each
@@ -235,7 +291,7 @@ def fetch_deutsche_ideologie(*, dest_root: Path) -> Path:
                 print(f"    404 on {page}; skipping")
                 continue
             raise
-        paragraphs = _extract_paragraphs(raw)
+        paragraphs = _drop_mlwerke_chrome(_extract_paragraphs(raw))
         body = [p for p in paragraphs if len(p) >= 30]
         if not body:
             print(f"    0 paragraphs from {page}; skipping")
