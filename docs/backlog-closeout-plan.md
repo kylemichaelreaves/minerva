@@ -1232,15 +1232,52 @@ a stale artifact of a fetch predating the filter, which is also why its
 dash differs; the issue reads the dash as evidence of a second live
 code path.
 
-**The corpus half is an operator step and did not land.** Repairing the
-18 chunks means re-ingesting the marx corpus — and `--only` replaces
+**No Marx prose is contaminated — and the damage is nonetheless larger
+than 18 chunks.** All 18 are *standalone* chunks of 141–162 characters
+consisting only of the note; not one has real text appended to it. But
+the note is a paragraph, so it takes `¶ 1` and pushes every real
+paragraph in its chapter up by one. Chapter 37's opening paragraph is
+`Siebenunddreissigstes Kapitel: Einleitendes, ¶ 2` in the live index and
+becomes `¶ 1` once the note is gone:
+
+```
+$ sqlite3 data/index.sqlite "SELECT section, substr(text,1,40) FROM chunks
+    WHERE section LIKE 'Siebenunddreissigstes Kapitel: Einleitendes, ¶ %' …"
+Siebenunddreissigstes Kapitel: Einleitendes, ¶ 2 | Die Analyse des Grundeigentums …
+```
+
+So **745 chunks across the 17 chapters currently carry a paragraph
+number one too high**, which is a citation defect rather than a text
+one — the words are right, the address is not.
+
+**Corrected 2026-08-09, same day, on this page and on PR #315: both said
+"the 17 Band III `chunk_id`s change".** `section` is an input to
+`_make_chunk_id`, so renumbering churns the id of every body paragraph in
+those chapters, not only the 17 removed:
+
+| | |
+|---|---:|
+| pre-fix chunks from the 17 files | 790 |
+| post-fix chunks | 773 |
+| **`chunk_id`s the fix introduces** | **745** |
+
+The 28 that survive are footnote chunks, whose section is `Fn. (n)` and
+carries no `¶`. Had the 17 figure been trusted, the operator step would
+have been sized as a trivial repair and would have silently orphaned 745
+chunks' embeddings, lemmas and cross-reference anchors.
+
+**The corpus half is an operator step and did not land.** Repairing it
+means re-ingesting the marx corpus — and `--only` replaces
 `chunks.jsonl` per *corpus*, so all three marx sources have to go in
-together or the siblings are wiped. The 17 Band III `chunk_id`s change,
-which invalidates their embeddings, lemmas and cross-reference anchors
-and therefore requires a full refs rebuild including the llm-verify
-tail. That is the same shape as 4-op and belongs in a window with it,
-not at the end of a code round. #298 accordingly carries `Refs`, not a
-closing keyword.
+together or the siblings are wiped. 745 changed ids require a full refs
+rebuild including the llm-verify tail. That is the same shape as 4-op and
+belongs in a window with it, not at the end of a code round; the 745 also
+ride free there, since #285 re-derives every `chunk_id` in the corpus
+anyway. #298 accordingly carries `Refs`, not a closing keyword.
+
+One thing checked and clean: the committed parser reproduces **7,130 of
+7,130** live Kapital `chunk_id`s before the fix, so the index has not
+drifted from the code by any other route.
 
 ### #299 — still a decision, but not the one the issue frames
 
