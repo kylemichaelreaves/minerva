@@ -1,0 +1,44 @@
+-- 0028_refs_scan_state_rules_hash.sql
+-- ════════════════════════════════════════════════════════════════════
+-- The other half of the `refs build --strategy rules` skip predicate.
+--
+-- Migration 0020 gave `refs_scan_state` a `text_hash`, which answers
+-- "has this chunk, with this text, been scanned before?". It never
+-- answered "have the rules that would run against it changed since?",
+-- so editing `refs/rules/<author>.py` invalidated nothing: the next
+-- build skipped every chunk whose text was unchanged and the new rule
+-- never fired. The run exited 0 with a report identical to a correctly
+-- skipped one, which is why nothing detected it (#287). `--rescan-all`
+-- was the documented workaround — this makes the condition computable
+-- instead.
+--
+-- WHAT GOES IN THE COLUMN
+-- --------------------------------------------------------------------
+-- A digest over the *compiled* rule set for the chunk's author, not
+-- over the rules module's source text. Source would ignore the YAML-
+-- defined authors entirely (`specs/*.yaml` compiles to the same rule
+-- objects) — reproducing this exact bug for a subset of authors while
+-- appearing fixed — and would churn on comment and formatting edits.
+-- `refs/rules/fingerprint.py` holds the reasoning and, more usefully,
+-- the list of what the digest does NOT cover.
+--
+-- WHY NULLABLE, AND WHY NO BACKFILL
+-- --------------------------------------------------------------------
+-- NULL means "scanned before rule-hashing existed". It compares unequal
+-- to every fingerprint, so each author gets exactly one rescan and then
+-- settles — a bounded one-time cost, against a backfill that would have
+-- to synthesise a hash for all 428,606 existing markers and would be
+-- asserting something it cannot know (which rule set actually ran).
+--
+-- WHY `ADD COLUMN` AND NOT A REBUILD
+-- --------------------------------------------------------------------
+-- `refs_scan_state` carries no foreign key and no view depends on it,
+-- and the column is nullable with no default, so this is a pure
+-- catalogue edit — none of the PRAGMA / view-drop dance a table rebuild
+-- needs (see 0013). One consequence worth naming: a `.bak.pre-index`
+-- snapshot taken at 0027 has the table WITHOUT this column, and the
+-- restore in `store/preserved_state.py` copies by name. That restore
+-- intersects the two column sets for exactly this reason.
+-- ════════════════════════════════════════════════════════════════════
+
+ALTER TABLE refs_scan_state ADD COLUMN rules_hash TEXT;

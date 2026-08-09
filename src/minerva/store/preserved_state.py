@@ -543,11 +543,25 @@ def _report_glossary_restore(
 
 
 def _restore_from_snap(conn: sqlite3.Connection, table: str) -> int:
-    """Bulk-copy ``snap.<table>`` into the live ``<table>``."""
+    """Bulk-copy ``snap.<table>`` into the live ``<table>``.
 
-    cols = ", ".join(
-        row[1] for row in conn.execute(f"PRAGMA table_info({table})")
-    )
+    Only the columns the two schemas have in common are copied. The
+    snapshot is taken at the top of ``cmd_index``, *before* the fresh DB
+    is migrated, so on the first run after a migration that adds a column
+    the live table has a column the snapshot does not — and copying by
+    the live column list raises ``no such column``, taking the whole
+    index run with it. Migration 0028 (``refs_scan_state.rules_hash``,
+    #287) is the first column-add to an already-preserved table; the
+    columns it leaves behind take their declared default, which is why
+    such a column must be nullable or defaulted.
+
+    The reverse case — a column present in the snapshot and dropped
+    since — is covered by the same intersection.
+    """
+
+    live = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
+    snapped = {row[1] for row in conn.execute(f"PRAGMA snap.table_info({table})")}
+    cols = ", ".join(name for name in live if name in snapped)
     conn.execute(
         f"INSERT INTO {table} ({cols}) SELECT {cols} FROM snap.{table}"
     )

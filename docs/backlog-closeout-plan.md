@@ -101,12 +101,13 @@ the batch above them, and inherit its context.
 
 | # | Batch | Issues | Status | Why here |
 |---|---|---|---|---|
-| 0 | CI unblock | #282 | todo | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. |
+| 0 | CI unblock | #282 | **landed** | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. Merged 2026-08-09 as PR #302; the row said `todo` until 2026-08-09. |
 | 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
-| 3-bis | refs scan cache | ~~#288~~, then #287 | in progress | The `refs_scan_state` pair batch 3 opened: the cache is under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08 as its own PR**; #287 is the remaining half — see batch 3-bis. #289 was grouped here and is now **closed as accepted, not fixed**. |
+| 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
+| 3-ter | rules fingerprint residue | #304 | todo | Found while working 3-bis and slotted the same round. **By file** it belongs here — `refs/rules/fingerprint.py` is the file 3-bis created. **By theme** it pairs with 2-bis: both are a derived-state marker that fails to invalidate when its input changes (#284 = stale rows survive a re-pass, #304 = the scan cache is blind to rule logic). Work it with 2-bis if they land together. May resolve as a *decision*, like #299 — the issue says to measure how often a rules edit changes `scan` and not configuration before building anything. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
@@ -122,6 +123,48 @@ un-reformattable, so running them first shrinks batch 7's blocked tranche
 instead of fighting it — and batches 1–6 never rebase across a 130-file
 diff. The `-bis` batches add tests to the same files, so they shrink it
 further; run 2-bis, 3-bis and 4-bis before re-cutting tranche 1.
+
+### Sequencing measured 2026-08-09, after every numbered batch had landed
+
+The rows above are grouped by *what found them*, which is what makes them
+cheap to pick up. What follows is the order to run them in, which is now
+set by different things — the numbered batches are all landed, so "whose
+context is freshest" no longer discriminates. Nothing above is superseded;
+this only says which row goes next and why.
+
+**Run order: 2-bis + 3-ter → 5-bis → 4-bis → 6 → (4-op + 6-bis) → 7.**
+
+Three measurements set it, and two of them correct claims made higher up
+this page:
+
+- **4-bis is no longer a coverage lifter, and the paragraph above says it
+  is.** That claim was true when written. Measured today, #291's code is
+  `retrieve.py`, which batches 3 and 4 carried to **89.0%** — above the
+  gate, so 4-bis no longer shrinks batch 7's blocked tranche and its
+  position ahead of 7 needs some other reason. 2-bis still does the work
+  that paragraph describes: #284's code is `lemmatize.py` at **38.7%**
+  (235 statements, the largest blocked file left) and
+  `cli/terms/lemmatize.py` at 76.1%. Had we trusted the paragraph, 4-bis
+  would have been run early to unblock a reformat it cannot unblock.
+
+- **4-op and 6-bis are one operator window, not two.** #285 changes how
+  `chunk_id` is computed, so *every* id in the corpus churns — a full refs
+  rebuild, an embed re-encode and the llm-verify tail. #176 part 2
+  re-chunks a handful of works, churning a subset. Run separately, that
+  rebuild is paid twice for no gain; run together, #176's churn is
+  subsumed. This also picks up the `corpus/split_*.py` cluster (four files
+  at 18–26%), the other real lifter for batch 7.
+
+- **6 stays ahead of that window**, which is the existing 6-bis argument
+  doing double duty: batch 6 adds the last table keyed on `chunk_id`, so
+  building it *before* the churn puts it in the rebind script. The
+  alternative — churn first, build 6 on final ids — means designing 6
+  against a scheme that is about to change anyway.
+
+**5-bis is unordered on purpose.** `perseus/**` is coverage-excluded and
+touches no DB, so it has no gate risk, no churn interaction and no
+coverage debt. It can run at any point, including alongside another batch.
+It is placed second above only because its context is the freshest.
 
 ---
 
@@ -391,8 +434,63 @@ CREATE TABLE refs_scan_state (
 
 ### #287 — the skip predicate ignores rules changes
 
-**Design settled: a per-author hash of the *compiled* rule set, in a new
-nullable column.** Recorded on the issue. Two of its three open questions
+**Landed 2026-08-09**, as designed: a per-author hash of the compiled
+rule set in a new nullable `refs_scan_state.rules_hash` (migration 0028),
+compared alongside `text_hash`. `refs/rules/fingerprint.py` computes it;
+51 authors fingerprint in ~25 ms, deterministically across processes.
+
+Two things the design note did not anticipate, both found by building it:
+
+- **"The compiled rule set" is three things, not one.** Rules keep
+  behaviour-affecting configuration in instance fields (`forms`,
+  `confidence`), in class-level `ClassVar`s (the scripture-cite
+  `lexicon` and `cite_re`, which `dataclasses.fields` cannot see), and in
+  plain module globals (`StructuralCommentaryRule` holds *no*
+  configuration at all — its behaviour is `_COMMENTARY_TARGETS` and
+  `_SECTION_LIB_RE` in `aquinas.py`). A fields-only digest — the obvious
+  reading of "hash the compiled rule set" — would have shipped as a check
+  that validates nothing for the rules most likely to need it. The
+  globals are reached by walking method bytecode's `co_names` and
+  recursing through project helper functions, which is what catches the
+  Latin formulaic rule's quote bounds (read only by `_formulaic_pattern`)
+  and the Quran rule's surah table (`minerva.authors.quran_works`).
+- **`ALTER TABLE ADD COLUMN` is not free after all** — not for the table,
+  for the *restore*. `_restore_from_snap` copies by the live column list,
+  and the `.bak.pre-index` snapshot is taken before the fresh DB is
+  migrated. So the first `--reset` after this migration would have raised
+  `no such column: rules_hash` and taken the index run with it, losing
+  the 428,606 markers #288 had just finished protecting. Fixed by
+  intersecting the two column sets; this is the first column-add to an
+  already-preserved table, so nothing had exercised it before.
+
+The residue is #304: the fingerprint covers rule *configuration*, not
+rule *logic*. 307 of 350 rules are pure configuration and fully covered;
+the 43 that are not belong to eight classes shared across 16 of the 27
+rule-carrying authors. `--rescan-all` stays for that case.
+
+**Operator step run 2026-08-09** against the live DB, after
+`scripts/snapshot-db.sh 287-rules-hash-migration`. Migration 0028 applied,
+then the one-time NULL-driven rescan:
+
+| | before | after |
+|---|---|---|
+| markers carrying `rules_hash` | 0 / 428,606 | 428,606 / 428,606 (28 distinct) |
+| `cross_references` | 65,741 | 65,899 |
+| a second `refs build --strategy rules` | — | `scanned 0 chunks` |
+
+**The 158 new rows are the part worth reading.** They are references the
+rules already knew how to find and had never emitted, because the chunks
+were scanned before the rule existed and the cache never re-offered them:
+Aquinas 133, Augustine 12, Plato 6, Hegel 2, Hobbes 2, and one each for
+Epictetus, Nietzsche and Origen. That is the standing cost of the defect,
+paid once — and it is a floor, not a total, since #304's logic-only edits
+are still invisible.
+
+Note also that 28 distinct fingerprints cover 51 authors: 24 authors have
+no rules module at all and share the empty-tuple digest. A rules module
+added for any of them invalidates only that author.
+
+The original design note follows. Two of the issue's three open questions
 turned on facts the issue did not have:
 
 - **Granularity is not blocked.** The issue says per-module hashing "needs
