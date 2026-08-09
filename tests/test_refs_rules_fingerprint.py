@@ -56,14 +56,19 @@ def test_fingerprint_is_stable_across_equal_rule_sets() -> None:
     the configuration, not of object identity, or it would change every
     process and never skip anything."""
 
-    assert fingerprint_rules((_mention(),)) == fingerprint_rules((_mention(),))
+    first, second = _mention(), _mention()
+    assert first is not second, "the point of the test is two distinct objects"
+    assert fingerprint_rules((first,)) == fingerprint_rules((second,))
 
 
-def test_fingerprint_of_empty_rule_set_is_stable() -> None:
-    """Authors with no rules module at all (Plato today) still get a
-    marker written, so the empty tuple needs a stable digest."""
+def test_fingerprint_of_empty_rule_set_is_well_formed() -> None:
+    """Authors with no rules module at all (24 of the 51 today) still get
+    a marker written, so the empty tuple needs a real digest rather than
+    an empty string — which would compare equal to a NULL-ish column and
+    make those markers look permanently valid."""
 
-    assert fingerprint_rules(()) == fingerprint_rules(())
+    empty = fingerprint_rules(())
+    assert len(empty) == 64 and set(empty) <= set("0123456789abcdef")
 
 
 @pytest.mark.parametrize(
