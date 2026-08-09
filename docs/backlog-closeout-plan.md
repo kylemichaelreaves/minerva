@@ -358,10 +358,40 @@ transaction as the insert. Two things the issue did not have:
   chunk where every surviving row is wrong rather than merely surplus.
   Tested directly (`test_a_chunk_that_becomes_barren_loses_its_earlier_rows`).
 
-No operator step: the issue's own detection query returns 0 rows against
-the live index, so there is nothing to repair. The fix stops the damage
-the next shrinking re-pass would do — a tokenizer upgrade, a tightening
-of `is_valid_lemma`, or the re-chunk in 4-op.
+**An operator step IS owed — the issue's "no corpus damage" evidence is
+wrong.** #284 states that its detection query "returns 0 rows on the live
+index today, so no corpus damage has occurred through this path yet".
+Run against `data/index.sqlite` while preparing this batch's operator
+step, it returns **18 rows**: 18 chunks carrying **906 surplus lemma
+rows** between them, every one of them Hobbes's *De Cive* (lat), all
+stamped `lemmatized_at = 2026-08-08 20:46:56` — the first pass after
+migration 0027 created `chunk_lemma_state` empty and made every chunk a
+candidate.
+
+The surplus rows are stale, not merely extra, and it is checkable rather
+than inferred: their `surface_start`/`surface_end` address text that is
+no longer there. Sampling three per chunk, 54 of 54 point past the end of
+the current text or at a different string.
+
+```
+idx 1818: stored 'quoque'    at [13569:13575] -> text holds ''  MISMATCH
+idx 1819: stored 'excepto'   at [13578:13585] -> text holds ''  MISMATCH
+idx 1820: stored 'unomanda-' at [13586:13595] -> text holds ''  MISMATCH
+```
+
+`unomanda-` names the cause: the Latin Hobbes long-s/OCR repair shortened
+the text, the `chunk_id` survived because it hashes only `text[:120]`
+(#285), and the re-lemmatize produced fewer tokens than the rows already
+present. **That is the incremental path, not `--all`** — so this is the
+defect the issue's own suggested fix would have left in place, found in
+the corpus rather than argued from the code.
+
+Bounded: 906 of 26,156,875 lemma rows, 0.0035%, all in one work. No
+orphaned lemma rows and no chunk carrying lemmas without a state row, so
+this is the whole population.
+
+Repair and the rules-hash rescan are one operator window — see
+Verification.
 
 ---
 
