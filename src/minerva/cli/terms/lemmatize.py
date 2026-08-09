@@ -279,22 +279,39 @@ def _flush(
     rows: list[tuple[str, int, str, int, int, str, str, str | None, str | None]],
     attempts: list[tuple[str, str, int]],
 ) -> None:
-    """Bulk-insert the accumulated rows in one transaction.
+    """Delete each attempted chunk's prior lemmas, then bulk-insert the
+    accumulated rows — one transaction for both.
 
-    `INSERT OR REPLACE` (vs. the prior `OR IGNORE`) lets a `--all`
-    re-pass overwrite legacy rows that lack the pos/feats columns
-    added by migration 0008. Without REPLACE the conflicting
-    (chunk_id, token_index) keys would silently drop and the
-    backfill would be a no-op.
+    THE DELETE IS NOT OPTIONAL (#284). `INSERT OR REPLACE` is keyed on
+    (chunk_id, token_index), so overwriting alone leaves indices
+    ``N..M-1`` behind whenever a re-pass yields FEWER tokens than the
+    pass before it — rows carrying the *previous* tokenization's
+    surface offsets, indistinguishable from current output. Their
+    ``surface_start``/``surface_end`` address text that has moved, so
+    the concordance and the Reader's KWIC view highlight the wrong span
+    and ``lemma_counts`` over-counts. The docstring here used to call
+    this a trade-off ("a partial earlier run isn't preserved across a
+    re-pass") and had it exactly backwards: the earlier run's surplus
+    rows were the thing that survived.
 
-    The docstring here used to claim the trade-off was that "a partial
-    earlier run isn't preserved across a re-pass". It is the opposite,
-    and it is a bug rather than a trade-off: REPLACE is keyed on
-    (chunk_id, token_index) and nothing deletes first, so a re-pass
-    yielding FEWER tokens than its predecessor leaves the surplus
-    high-index rows behind with their old offsets. Filed separately;
-    ``chunk_lemma_state.token_count`` now makes it detectable, since it
-    records what the latest pass actually produced.
+    A shrinking re-pass is not hypothetical — a tokenizer upgrade (the
+    LatinCy migration was one), a tightening of ``is_valid_lemma``
+    (every past edit to it rejected more), or an edited chunk that kept
+    its ``chunk_id`` all produce it.
+
+    Keyed on ``attempts``, not on ``rows``. A chunk that yielded nothing
+    this pass contributes no insert at all, and it is precisely the
+    chunk whose entire previous output is now stale — deleting by the
+    rows about to be written would skip it. Issued per flush batch and
+    in the same transaction as the insert, rather than once up front:
+    an up-front delete would lose every lemma in the corpus if the run
+    were interrupted.
+
+    ``OR REPLACE`` stays on the insert even though the delete makes it
+    redundant for the case it was added for (overwriting legacy rows
+    that predate migration 0008's pos/feats columns). It is now only a
+    backstop against the same chunk appearing twice in one batch, which
+    nothing produces today.
 
     Each tuple carries ``lemma_fold`` (added in migration 0018) after
     ``lemma`` so the KWIC index can seek by case-folded value instead
@@ -312,6 +329,10 @@ def _flush(
     # sequence is already a no-op, and a wholly barren commit batch
     # (markers, no lemma rows) is the normal case for an OCR-damaged
     # corpus rather than an exception to branch on.
+    conn.executemany(
+        "DELETE FROM chunk_lemmas WHERE chunk_id = ?",
+        [(chunk_id,) for chunk_id, _text_hash, _count in attempts],
+    )
     conn.executemany(
         "INSERT OR REPLACE INTO chunk_lemmas "
         "(chunk_id, token_index, surface_form, surface_start, "

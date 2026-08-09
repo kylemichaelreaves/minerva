@@ -104,10 +104,10 @@ the batch above them, and inherit its context.
 | 0 | CI unblock | #282 | **landed** | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. Merged 2026-08-09 as PR #302; the row said `todo` until 2026-08-09. |
 | 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
-| 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
+| 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
-| 3-ter | rules fingerprint residue | #304 | todo | Found while working 3-bis and slotted the same round. **By file** it belongs here — `refs/rules/fingerprint.py` is the file 3-bis created. **By theme** it pairs with 2-bis: both are a derived-state marker that fails to invalidate when its input changes (#284 = stale rows survive a re-pass, #304 = the scan cache is blind to rule logic). Work it with 2-bis if they land together. May resolve as a *decision*, like #299 — the issue says to measure how often a rules edit changes `scan` and not configuration before building anything. |
+| 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
@@ -146,6 +146,26 @@ this page:
   (235 statements, the largest blocked file left) and
   `cli/terms/lemmatize.py` at 76.1%. Had we trusted the paragraph, 4-bis
   would have been run early to unblock a reformat it cannot unblock.
+
+  **Corrected 2026-08-09, having run 2-bis: it is not a coverage lifter
+  either, and the sentence above names the wrong file.** #284's code is
+  `cli/terms/lemmatize.py`; `src/minerva/lemmatize.py` is the *library*
+  the CLI imports `is_valid_lemma` and `Token` from, and #284's defect is
+  not in it. Measured after 2-bis landed, with its four new tests:
+
+  | file | before | after |
+  |---|---|---|
+  | `src/minerva/lemmatize.py` | 38% | 38% — untouched |
+  | `src/minerva/cli/terms/lemmatize.py` | 76% | 75% |
+
+  So both `-bis` rows are now in the same position: neither shrinks batch
+  7's blocked tranche, and both keep their place ahead of 7 for the
+  original reason — they are cheap while their batch's context is still
+  loaded. The lifter that remains is the `corpus/split_*.py` cluster in
+  the 4-op + 6-bis window. This is the second time this page has claimed
+  a coverage benefit that measurement did not support; the pattern is
+  that the claim is made from the issue's title rather than from the
+  diff, and #284's title says `terms lemmatize`.
 
 - **4-op and 6-bis are one operator window, not two.** #285 changes how
   `chunk_id` is computed, so *every* id in the corpus churns — a full refs
@@ -313,6 +333,35 @@ candidates, 2 are productive and the other 124 are Marx footnote citations
 apparatus (eng) and Renan/Gobineau OCR garbage (fra) — 857 chunks that are
 legitimately unlemmatizable and now recorded as such. Correction filed on
 the issue.
+
+---
+
+## Batch 2-bis — lemma-row hygiene (#284)
+
+**Landed 2026-08-09**, with 3-ter, in the PR that closes both.
+
+The fix is the delete the issue asked for, in `_flush`, in the same
+transaction as the insert. Two things the issue did not have:
+
+- **Its suggested fix is scoped too narrowly.** "Delete the chunk's rows
+  before inserting in the `--all` path" leaves the defect live on the
+  default path, which re-processes any chunk whose `text_hash` moved —
+  and a chunk can keep its `chunk_id` across an edit past `text[:120]`
+  (#285), which is the case `chunk_lemma_state.text_hash` was added to
+  catch in the first place. Same stale rows, no `--all` involved. The
+  delete is unconditional. Correction filed on the issue.
+
+- **The delete keys off `attempts`, not off the rows being written.** A
+  chunk that yields nothing this pass contributes no row to `inserts`,
+  and it is exactly the chunk whose *entire* previous output is now
+  stale. A delete driven by the insert batch would skip it — the one
+  chunk where every surviving row is wrong rather than merely surplus.
+  Tested directly (`test_a_chunk_that_becomes_barren_loses_its_earlier_rows`).
+
+No operator step: the issue's own detection query returns 0 rows against
+the live index, so there is nothing to repair. The fix stops the damage
+the next shrinking re-pass would do — a tokenizer upgrade, a tightening
+of `is_valid_lemma`, or the re-chunk in 4-op.
 
 ---
 
@@ -542,6 +591,90 @@ measurably slower, with the snapshot copy identified as the cost.
 **This is the one place the plan recommends *not* doing tracked work.**
 Recorded here because "grouped into a batch" was starting to read as
 "will be implemented", and for #289 the right outcome was a decision.
+
+---
+
+## Batch 3-ter — rules fingerprint residue (#304)
+
+**Landed 2026-08-09**, with 2-bis. The row above says this "may resolve
+as a decision, like #299 — the issue says to measure how often a rules
+edit changes `scan` and not configuration before building anything." The
+measurement was run and then a second one overturned the reason for not
+building.
+
+**Measurement 1 — frequency, as asked. Zero.** Every commit touching
+`src/minerva/refs/rules/` was replayed: check out `C^` and `C`, drop
+today's `fingerprint.py` into each tree, fingerprint every rules module
+on both sides, and compare against the files the commit edited. 13
+commits, and not one changed a rule's logic while leaving its
+configuration alone. Two results are worth keeping:
+
+- The three commits whose edits the digest did *not* see were all
+  behaviour-preserving — a `_figures.py` extraction that moved 19
+  authors' form tuples into shared constants without changing one of
+  them, a ruff-format pass, and a comments-and-docstrings commit
+  (dd30678). Not seeing those is the digest working. The one author that
+  *did* move in the `_figures` refactor, Locke, moved on a reordered
+  tuple that `_compile_forms` sorts anyway — a spurious invalidation, in
+  the direction the module says to resolve unknowns.
+- The single genuine gap in 14 months was 70183ed, which rewrote
+  `insert_candidate` in `refs/rules/__init__.py`. That is scan-pipeline
+  logic rather than a `scan` body, so it is adjacent to #304 rather than
+  in it — but it is covered now, because the walk reaches it.
+
+On frequency alone the answer was #289's: leave it, document it, keep
+`--rescan-all`.
+
+**Measurement 2 — the stated blocker, which is false.** #304's Hypothesis
+says bytecode is unusable because "code objects carry line numbers … so a
+reformat that moves a rule module's functions down a line changes every
+digest in it — and batch 7 of the close-out plan reformats these files."
+A code *object* does carry them; `co_code` does not, and an AST dumped
+with `include_attributes=False` carries no position information at all:
+
+```
+firstlineno      A=2 B=5      (B is A with blank lines and comments added)
+co_linetable ==  A/B False
+A original       8624085b843e0efcfff830d7
+B reformatted    8624085b843e0efcfff830d7  SAME
+C logic edited   1e4a536194b950325b7ce22d  DIFFERENT
+```
+
+Had we trusted the issue, 3-ter would have closed as "cannot be fixed
+without breaking batch 7" — declining a fix on a constraint that does not
+exist. AST is used rather than `co_code` for the one cost bytecode really
+does carry: it differs between CPython versions, which would make an
+interpreter upgrade a full-corpus rescan.
+
+**What shipped.** The digest gained a fourth input: the AST of every
+method the rule can reach, over the same walk that already collected the
+module globals it reads, with docstrings stripped first. Docstring
+stripping is not fastidiousness — dd30678 is a commit in this very
+directory that changed nothing else, and hashing prose would have
+invalidated 16 authors' markers for it.
+
+Two things found while building, both fixed here rather than filed:
+
+- **The #287 digest already depended on CPython internals.** The walk
+  seeded itself from every method in the MRO, which for a frozen
+  dataclass includes the generated `__replace__` — whose module is
+  `dataclasses`, and which dragged `MISSING`, `_FIELDS`,
+  `_FIELD_CLASSVAR` and `_FIELD_INITVAR` into every author's
+  fingerprint. A CPython release renaming any of those would have
+  invalidated all 428,606 markers with no rules change at all. No rules
+  class defines a dunder by hand, and a dataclass's generated methods
+  derive from fields the digest already covers, so the walk now stops at
+  them. Every input is project code (`test_digest_inputs_are_project_code_only`).
+- **Cost measured, not assumed.** 51 authors, 28 distinct digests, 25.0 ms
+  → 38.9 ms cold, 11.1 ms once the per-code-object memo is warm. Paid once
+  per process. The distinct count is unchanged, so per-author invalidation
+  is as sharp as it was.
+
+**Operator step owed on the next rules pass.** All 27 rule-carrying
+authors' digests move; the 24 authors with no rules module keep the
+empty-set digest and stay skipped. So the next `refs build --strategy
+rules` re-scans those 27 authors once and settles — the same one-time
+shape #287's own landing had, and idempotent.
 
 ---
 

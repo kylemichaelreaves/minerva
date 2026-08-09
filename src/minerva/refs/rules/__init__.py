@@ -487,7 +487,9 @@ def iter_chunks_for_rules(
       never fired. Invalidation is per author, so a Renan edit re-scans
       Renan's ~20K chunks rather than the corpus's 428K markers — the
       distinction that makes this worth more than the ``--rescan-all``
-      it replaces. What the fingerprint does and does not cover is in
+      it replaces. #287 covered a rule's configuration only; #304 added
+      the logic of the methods, so a rewritten ``scan`` body invalidates
+      too. What the fingerprint covers is in
       :mod:`refs.rules.fingerprint`.
 
     Lazy — yields rows one at a time so the rule runner doesn't
