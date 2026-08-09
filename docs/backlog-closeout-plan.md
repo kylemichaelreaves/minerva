@@ -107,6 +107,7 @@ the batch above them, and inherit its context.
 | 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
+| 3-ter | rules fingerprint residue | #304 | todo | Found while working 3-bis and slotted the same round. **By file** it belongs here — `refs/rules/fingerprint.py` is the file 3-bis created. **By theme** it pairs with 2-bis: both are a derived-state marker that fails to invalidate when its input changes (#284 = stale rows survive a re-pass, #304 = the scan cache is blind to rule logic). Work it with 2-bis if they land together. May resolve as a *decision*, like #299 — the issue says to measure how often a rules edit changes `scan` and not configuration before building anything. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
@@ -122,6 +123,48 @@ un-reformattable, so running them first shrinks batch 7's blocked tranche
 instead of fighting it — and batches 1–6 never rebase across a 130-file
 diff. The `-bis` batches add tests to the same files, so they shrink it
 further; run 2-bis, 3-bis and 4-bis before re-cutting tranche 1.
+
+### Sequencing measured 2026-08-09, after every numbered batch had landed
+
+The rows above are grouped by *what found them*, which is what makes them
+cheap to pick up. What follows is the order to run them in, which is now
+set by different things — the numbered batches are all landed, so "whose
+context is freshest" no longer discriminates. Nothing above is superseded;
+this only says which row goes next and why.
+
+**Run order: 2-bis + 3-ter → 5-bis → 4-bis → 6 → (4-op + 6-bis) → 7.**
+
+Three measurements set it, and two of them correct claims made higher up
+this page:
+
+- **4-bis is no longer a coverage lifter, and the paragraph above says it
+  is.** That claim was true when written. Measured today, #291's code is
+  `retrieve.py`, which batches 3 and 4 carried to **89.0%** — above the
+  gate, so 4-bis no longer shrinks batch 7's blocked tranche and its
+  position ahead of 7 needs some other reason. 2-bis still does the work
+  that paragraph describes: #284's code is `lemmatize.py` at **38.7%**
+  (235 statements, the largest blocked file left) and
+  `cli/terms/lemmatize.py` at 76.1%. Had we trusted the paragraph, 4-bis
+  would have been run early to unblock a reformat it cannot unblock.
+
+- **4-op and 6-bis are one operator window, not two.** #285 changes how
+  `chunk_id` is computed, so *every* id in the corpus churns — a full refs
+  rebuild, an embed re-encode and the llm-verify tail. #176 part 2
+  re-chunks a handful of works, churning a subset. Run separately, that
+  rebuild is paid twice for no gain; run together, #176's churn is
+  subsumed. This also picks up the `corpus/split_*.py` cluster (four files
+  at 18–26%), the other real lifter for batch 7.
+
+- **6 stays ahead of that window**, which is the existing 6-bis argument
+  doing double duty: batch 6 adds the last table keyed on `chunk_id`, so
+  building it *before* the churn puts it in the rebind script. The
+  alternative — churn first, build 6 on final ids — means designing 6
+  against a scheme that is about to change anyway.
+
+**5-bis is unordered on purpose.** `perseus/**` is coverage-excluded and
+touches no DB, so it has no gate risk, no churn interaction and no
+coverage debt. It can run at any point, including alongside another batch.
+It is placed second above only because its context is the freshest.
 
 ---
 
