@@ -304,43 +304,43 @@ wheels = [
 
 [package.optional-dependencies]
 cublas = [
-    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cudart = [
-    { name = "nvidia-cuda-runtime", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-runtime", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cufft = [
-    { name = "nvidia-cufft", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cufft", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cufile = [
-    { name = "nvidia-cufile", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cufile", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-cupti", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 curand = [
-    { name = "nvidia-curand", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-curand", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cusolver = [
-    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cusolver", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cusolver", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 
 [[package]]
@@ -384,14 +384,6 @@ wheels = [
 ]
 
 [[package]]
-name = "de-core-news-sm"
-version = "3.8.0"
-source = { url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl", hash = "sha256:fec69fec52b1780f2d269d5af7582a5e28028738bd3190532459aeb473bfa3e7" },
-]
-
-[[package]]
 name = "ebooklib"
 version = "0.20"
 source = { registry = "https://pypi.org/simple" }
@@ -414,28 +406,12 @@ wheels = [
 ]
 
 [[package]]
-name = "en-core-web-sm"
-version = "3.8.0"
-source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", hash = "sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85" },
-]
-
-[[package]]
 name = "filelock"
 version = "3.29.4"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e6/dc/be6cbe99670cd6e4ad387123647cb08e0c32975e223f82551e914c5568a6/filelock-3.29.4.tar.gz", hash = "sha256:10cdb3656fc44541cdf30652a93fb10ec6b05325620eb316bd26893e4201538a", size = 63028, upload-time = "2026-06-13T16:12:00.744Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/13/37/a065dc3bd6e49423a6532c642ca7378d3f467b1ef44c2800c937af7f9739/filelock-3.29.4-py3-none-any.whl", hash = "sha256:dac1648087d5115554850d113e7dd8c83ab2d38e3435dde2d4f163847e57b767", size = 42757, upload-time = "2026-06-13T16:11:59.582Z" },
-]
-
-[[package]]
-name = "fr-core-news-sm"
-version = "3.8.0"
-source = { url = "https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl", hash = "sha256:7d6ad14cd5078e53147bfbf70fb9d433c6a3865b695fda2657140bbc59a27e29" },
 ]
 
 [[package]]
@@ -446,20 +422,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/10/a1/ae4e3e5003468d639
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/22/4222d7ddf3da30f363edaa98e329c2bce6c65497c9cb2810931c8b2c0fbc/fsspec-2026.6.0-py3-none-any.whl", hash = "sha256:02e0b71817df9b2169dc30a16832045764def1191b43dcff5bb85bdee212d2a1", size = 203949, upload-time = "2026-06-16T01:57:26.358Z" },
 ]
-
-[[package]]
-name = "grc-dep-web-sm"
-version = "3.8.1"
-source = { url = "https://huggingface.co/latincy/grc_dep_web_sm/resolve/0165694d960f7d664ab719db4856532cd61653a4/grc_dep_web_sm-3.8.1-py3-none-any.whl" }
-dependencies = [
-    { name = "spacy" },
-]
-wheels = [
-    { url = "https://huggingface.co/latincy/grc_dep_web_sm/resolve/0165694d960f7d664ab719db4856532cd61653a4/grc_dep_web_sm-3.8.1-py3-none-any.whl", hash = "sha256:d12f5a6b054ba759e70e0390d3a883d43df45d44417b7bf386cb605983723662" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "spacy", specifier = ">=3.8.11,<3.9.0" }]
 
 [[package]]
 name = "h11"
@@ -580,47 +542,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/41/f2/d34e8b3a08a9cc79a50b2208a93dce981fe615b64d5a4d4abee421d898df/joblib-1.5.3.tar.gz", hash = "sha256:8561a3269e6801106863fd0d6d84bb737be9e7631e33aaed3fb9ce5953688da3", size = 331603, upload-time = "2025-12-15T08:41:46.427Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/91/984aca2ec129e2757d1e4e3c81c3fcda9d0f85b74670a094cc443d9ee949/joblib-1.5.3-py3-none-any.whl", hash = "sha256:5fc3c5039fc5ca8c0276333a188bbd59d6b7ab37fe6632daa76bc7f9ec18e713", size = 309071, upload-time = "2025-12-15T08:41:44.973Z" },
-]
-
-[[package]]
-name = "la-core-web-sm"
-version = "3.9.6"
-source = { url = "https://huggingface.co/latincy/la_core_web_sm/resolve/16f286d56c0201b3db8e6b6d0245e40972c94068/la_core_web_sm-3.9.6-py3-none-any.whl" }
-dependencies = [
-    { name = "la-latincy-lookups" },
-    { name = "latincy-preprocess" },
-    { name = "spacy" },
-]
-wheels = [
-    { url = "https://huggingface.co/latincy/la_core_web_sm/resolve/16f286d56c0201b3db8e6b6d0245e40972c94068/la_core_web_sm-3.9.6-py3-none-any.whl", hash = "sha256:4715eb0a5a4e61003116fd340c31520860cd9ecfe2133ea3685521b89a3ccf90" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "la-latincy-lookups", specifier = ">=1.0.0" },
-    { name = "latincy-preprocess", specifier = ">=0.2.0,<0.4.0" },
-    { name = "spacy", specifier = ">=3.8.11,<3.9.0" },
-]
-
-[[package]]
-name = "la-latincy-lookups"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "spacy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/8e/2004549437c10f4c0dcb32e608f892763d07620b760da9b967f67acb7585/la_latincy_lookups-1.0.0.tar.gz", hash = "sha256:4a200c2a9f4b0bf2caa861c742a12dd3d608fb0195c1f3389f47e2f1303e2cd9", size = 2317834, upload-time = "2026-03-21T12:59:34.51Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ba/69/c3fce55f64cb36bf3dfcb7fd078d65206436dc5d77839f8bac03b35616e7/la_latincy_lookups-1.0.0-py3-none-any.whl", hash = "sha256:629c84d7664be8fecdeeeb9bb39d41a752f7aee6a200fc6243d63c7511850d48", size = 2526733, upload-time = "2026-03-21T12:59:30.289Z" },
-]
-
-[[package]]
-name = "latincy-preprocess"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/26/fd/55ebf7816f3ce398865bffb57a59f6c8f20fbd24c4a4215dc982e4dae0b1/latincy_preprocess-0.2.0.tar.gz", hash = "sha256:e7a755b2a90a9883241a3511eb5c45a0c6de178ef3234a8e8ed5f1da27983fd8", size = 158732, upload-time = "2026-03-16T00:37:22.586Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/7e/ab2a3c1f3305e3bee68f02779138e517a32c64a2c37c88404e0d6841e234/latincy_preprocess-0.2.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:1f01972ea8a5efa1d5503a0a482ed58eeef2d2b7030a13e839a4c053611d2728", size = 456156, upload-time = "2026-03-16T00:37:20.906Z" },
 ]
 
 [[package]]
@@ -793,11 +714,6 @@ hegel = [
     { name = "pymupdf" },
 ]
 lemma = [
-    { name = "de-core-news-sm" },
-    { name = "en-core-web-sm" },
-    { name = "fr-core-news-sm" },
-    { name = "grc-dep-web-sm" },
-    { name = "la-core-web-sm" },
     { name = "pyyaml" },
     { name = "spacy" },
     { name = "stanza" },
@@ -807,13 +723,8 @@ lemma = [
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'all'", specifier = ">=4.15.0" },
     { name = "beautifulsoup4", marker = "extra == 'hegel'", specifier = ">=4.15.0" },
-    { name = "de-core-news-sm", marker = "extra == 'lemma'", url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl" },
     { name = "ebooklib", marker = "extra == 'all'", specifier = ">=0.20" },
     { name = "ebooklib", marker = "extra == 'hegel'", specifier = ">=0.20" },
-    { name = "en-core-web-sm", marker = "extra == 'lemma'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
-    { name = "fr-core-news-sm", marker = "extra == 'lemma'", url = "https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl" },
-    { name = "grc-dep-web-sm", marker = "extra == 'lemma'", url = "https://huggingface.co/latincy/grc_dep_web_sm/resolve/0165694d960f7d664ab719db4856532cd61653a4/grc_dep_web_sm-3.8.1-py3-none-any.whl" },
-    { name = "la-core-web-sm", marker = "extra == 'lemma'", url = "https://huggingface.co/latincy/la_core_web_sm/resolve/16f286d56c0201b3db8e6b6d0245e40972c94068/la_core_web_sm-3.9.6-py3-none-any.whl" },
     { name = "lxml", marker = "extra == 'hegel'", specifier = ">=6.1.1" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pymupdf", marker = "extra == 'all'", specifier = ">=1.28.0" },
@@ -1555,7 +1466,7 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7a/97/5a3609c4f8d58b039179648e62dd220f89864f56f7357f5d4f45c29eb2cc/scipy-1.17.1.tar.gz", hash = "sha256:95d8e012d8cb8816c226aef832200b1d45109ed4464303e997c5b13122b297c0", size = 30573822, upload-time = "2026-02-23T00:26:24.851Z" }
 wheels = [
@@ -1609,7 +1520,7 @@ resolution-markers = [
     "python_full_version >= '3.12'",
 ]
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "python_full_version >= '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a7/25/c2700dfaf6442b4effaa91af24ebce5dc9d31bb4a69706313aae70d72cd0/scipy-1.18.0.tar.gz", hash = "sha256:67b2ad2ad54c72ca6d04975a9b2df8c3638c34ddd5b28738e94fc2b57929d378", size = 30774447, upload-time = "2026-06-19T15:01:43.456Z" }
 wheels = [

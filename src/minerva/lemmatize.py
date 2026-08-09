@@ -18,16 +18,25 @@ Routing
   fallback. LatinCy scores 88.1% on UD lat-PROIEL dev (Stanza:
   84.9%), again ~5× faster.
 
-Both LatinCy models are HuggingFace-hosted spaCy wheels. Install them via
-the ``[lemma]`` extra rather than by hand::
+Both LatinCy models are HuggingFace-hosted spaCy wheels. Install every
+model from ``lemma-models.txt`` rather than by hand::
 
-    uv pip install -e '.[lemma]'
+    make install-lemma-models          # both halves, in the right order
+    # or: uv pip install -e '.[lemma]' && uv pip install -r lemma-models.txt
 
-``pyproject.toml`` pins both to a **commit SHA** with a ``#sha256=`` fragment,
-so the bytes are immutable and verified. Installing from a hand-written
-``resolve/main/...`` URL gets neither, and ``main`` does move: the
-``la_core_web_sm-3.9.0`` and ``-3.9.4`` URLs this docstring and the extra
-used to name have both since 404'd.
+Two halves because they are two kinds of dependency. The ``[lemma]`` extra
+holds ordinary PyPI packages (``spacy``, ``stanza``, ``pyyaml``) resolved
+through ``uv.lock``. The model wheels are pinned direct URLs held **out** of
+the lock on purpose: a URL dependency in the graph makes ``uv sync --locked``
+fetch from github.com and huggingface.co while merely *verifying* the lock,
+on every CI job, and a 429 from either failed the PR (#282).
+
+``lemma-models.txt`` pins each wheel with a ``#sha256=`` fragment, and the
+LatinCy pair to a **commit SHA**, so the bytes are immutable and verified.
+Installing from a hand-written ``resolve/main/...`` URL gets neither, and
+``main`` does move: the ``la_core_web_sm-3.9.0`` and ``-3.9.4`` URLs this
+docstring used to name have both since 404'd.
+``tests/test_lemma_models_pinning.py`` enforces all of it.
 
 See lemmatize-perf-plan memory for the full eval methodology + numbers.
 
@@ -282,8 +291,8 @@ class Lemmatizer:
         except OSError as exc:
             raise UnsupportedLanguageError(
                 "spaCy model `de_core_news_sm` not installed; "
-                "the lemma extras should pull it in automatically — "
-                "rerun `uv pip install -e '.[lemma]'`"
+                "install the model wheels: `make install-lemma-models` "
+                "(they are not in the `[lemma]` extra — see #282)"
             ) from exc
         self._backend = "spacy"
 
@@ -302,8 +311,8 @@ class Lemmatizer:
         except OSError as exc:
             raise UnsupportedLanguageError(
                 "spaCy model `fr_core_news_sm` not installed; "
-                "the lemma extras should pull it in automatically — "
-                "rerun `uv pip install -e '.[lemma]'`"
+                "install the model wheels: `make install-lemma-models` "
+                "(they are not in the `[lemma]` extra — see #282)"
             ) from exc
         self._backend = "spacy"
 
@@ -313,10 +322,11 @@ class Lemmatizer:
         / fra init paths — disable ``parser`` and ``ner`` since we
         only consume the tagger + lemmatizer output.
 
-        Wheel install path (model isn't on PyPI by name):
-            uv pip install "en_core_web_sm @ \\
-              https://github.com/explosion/spacy-models/releases/\\
-              download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+        The model isn't on PyPI by name; it installs from the pinned,
+        hash-verified URL in ``lemma-models.txt`` via
+        ``make install-lemma-models``. Don't hand-write the URL — the
+        ``#sha256=`` fragment is the only integrity check left now that
+        these wheels are deliberately outside ``uv.lock`` (#282).
         """
 
         try:
@@ -332,10 +342,9 @@ class Lemmatizer:
             )
         except OSError as exc:
             raise UnsupportedLanguageError(
-                "spaCy model `en_core_web_sm` not installed; install via "
-                "`uv pip install 'en_core_web_sm @ https://github.com/"
-                "explosion/spacy-models/releases/download/en_core_web_sm"
-                "-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl'`"
+                "spaCy model `en_core_web_sm` not installed; "
+                "install the model wheels: `make install-lemma-models` "
+                "(pinned in `lemma-models.txt`, not the `[lemma]` extra)"
             ) from exc
         self._backend = "spacy"
 

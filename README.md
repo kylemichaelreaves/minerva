@@ -96,6 +96,7 @@ the venv at a 3.13 binary directly.
 # 1. Create a venv on 3.13 and install
 uv venv -p 3.13                             # uv (recommended)
 uv pip install -e '.[embed,hegel,lemma]'    # everything; see pyproject.toml
+make install-lemma-models                   # model wheels; pinned in lemma-models.txt
 
 npm ci --prefix web                         # frontend (make check / make run)
 
@@ -105,6 +106,7 @@ cp .envrc.example .envrc                    # optional — LLM keys; then: diren
 ~/.pyenv/versions/3.13.12/bin/python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -e '.[embed,hegel,lemma]'
+.venv/bin/pip install -r lemma-models.txt
 
 # 2. Download the Perseus corpus (first time only)
 python3 perseus/download_perseus_plato.py --lang both --skip-existing

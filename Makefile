@@ -29,7 +29,8 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
         build dev run run-host start ingest reindex reingest \
-        ingest-only reingest-only embed embed-eng stats
+        ingest-only reingest-only embed embed-eng stats \
+        install-lemma-models
 
 help:
 	@echo "Targets:"
@@ -260,3 +261,15 @@ embed-eng:
 
 stats:
 	$(POIETES) stats
+
+# Install the spaCy / LatinCy model wheels `terms lemmatize` needs.
+#
+# Two commands because they are two different kinds of dependency: the
+# `lemma` extra is ordinary PyPI packages resolved through `uv.lock`, while
+# the models are pinned direct URLs held OUT of the lock on purpose — a URL
+# dependency in the graph makes `uv sync --locked` fetch from github.com and
+# huggingface.co on every CI job, and a 429 there failed PRs (#282). See
+# `lemma-models.txt` for the full rationale and the integrity rules.
+install-lemma-models:
+	uv pip install -e '.[lemma]'
+	uv pip install -r lemma-models.txt
