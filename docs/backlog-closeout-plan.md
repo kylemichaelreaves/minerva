@@ -105,6 +105,7 @@ the batch above them, and inherit its context.
 | 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
+| 2-ter | surface offsets | #307, #309 | in progress | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
@@ -1287,13 +1288,53 @@ was committed.
 **A larger defect surfaced while verifying, and it is not this one.** The
 preview checked that surviving rows still address text that exists. They
 do not: 241,736 rows across 32,842 chunks have `surface_end` past the end
-of their own chunk, and every one of those chunks has a `text_hash`
-matching its current text — so the offsets were wrong when written rather
-than stale. Sampling 400 chunks per language, `lat` offsets reproduce the
-stored text **40.0%** of the time, `grc` 95.2%, and deu/eng/fra 100%.
-Filed as #307; the hypothesis is LatinCy's deliberately-enabled
-`normer/harmonizer/uv_normalizer/remorpher` rewriting the doc that
-`t.idx` indexes.
+of their own chunk. Sampling 400 chunks per language, `lat` offsets
+reproduce the stored text **40.0%** of the time, `grc` 95.2%, and
+deu/eng/fra 100%. Filed as #307.
+
+> **Corrected 2026-08-09 while fixing #307 — two claims above were
+> wrong, and both were mine.**
+>
+> **"every one of those chunks has a `text_hash` matching its current
+> text — so the offsets were wrong when written rather than stale."**
+> The equality is real and the inference from it is not. Every one of
+> the 428,606 `chunk_lemma_state` rows carries `lemmatized_at =
+> 2026-08-08 20:44:01` — one timestamp, which is migration 0027's
+> backfill, not a lemmatize pass. That backfill sets `text_hash =
+> text_hash(c.text)` and `token_count = COUNT(*)` from whatever rows
+> already existed, so the hash certifies the text as of the migration
+> and says nothing about when the offsets were written. Staleness was
+> never ruled out — and it is in fact the whole of the largest
+> contributor. Hegel's *Philosophy of Right* (eng) supplies 93,504 of
+> the 241,736 rows, in a language whose pipeline rewrites nothing: its
+> chunk `26a0b85e…` stores 516 characters and carries 6,409 lemma rows
+> reaching offset 38,139, and 85.8% of them reproduce against that
+> chunk concatenated with its 37 successors. It was one ~39.6 k
+> chunk when it was lemmatized, was later split, and the head kept its
+> `chunk_id` because that id hashes only `text[:120]` (#285). Those
+> rows are #284/#285 residue, not #307. Had the "not staleness" claim
+> been trusted, the #307 fix would have been scoped to make the eng
+> rows correct and could not have done it.
+>
+> **"the hypothesis is LatinCy's deliberately-enabled
+> `normer/harmonizer/uv_normalizer/remorpher` rewriting the doc."**
+> Those four do not rewrite the doc: `normer` assigns `token.norm_`
+> (`la_core_web_sm/functions.py:508`) and leaves `token.text` alone.
+> The rewriting is in `LatinTokenizer.preprocess()`
+> (`functions.py:1052`), which runs before tokenization — ligature
+> expansion, macron and combining-mark removal, v→u/j→i, and
+> `norm_spacing`, which **collapses every whitespace run to one space**
+> and is what actually shifts the bulk of the offsets. It is the
+> tokenizer, so it cannot be switched off through `spacy.load(...,
+> disable=[...])` at all. The issue's third suggested direction —
+> "disable the normalizers and accept worse lemmas" — would have paid
+> the measured lemma-quality loss and fixed nothing.
+>
+> The per-language split of the 241,736 (`chunk_lemmas` joined to
+> `chunks`, not sampled): eng 93,504 / lat 89,648 / grc 55,574 / heb
+> 2,766 / fra 162 / deu 82. Only the lat share is #307; the rest is
+> residue. And the over-run count was never a good measure of #307
+> anyway — most wrong lat offsets land *inside* the chunk.
 
 This is worth reading as a process result, not just a bug. #284's
 detection query cannot see it — those chunks' `token_count` agrees with

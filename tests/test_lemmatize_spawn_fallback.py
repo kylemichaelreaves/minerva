@@ -50,7 +50,11 @@ class _StubToken:
 
 
 class _StubDoc:
+    # `.text` is what the pipeline tokenized, which since #307 is
+    # compared against the string the caller passed in. This stub
+    # rewrites nothing, so the two agree and the offsets pass through.
     def __init__(self, text: str) -> None:
+        self.text = text
         self._tokens = [_StubToken(text.split()[0])]
 
     def __iter__(self):
