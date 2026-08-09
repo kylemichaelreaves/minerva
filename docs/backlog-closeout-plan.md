@@ -106,7 +106,7 @@ the batch above them, and inherit its context.
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
-| 3-bis | refs scan cache | #287, #288, #289 | todo | All three are the `refs_scan_state` / pre-index-snapshot pair batch 3 opened: the cache is over-kept outside `--reset` (#287) and under-kept inside it (#288), and the snapshot probe is now near-unconditional (#289). One batch because fixing either half alone re-opens the other. |
+| 3-bis | refs scan cache | #288, then #287 | todo | The `refs_scan_state` pair batch 3 opened: the cache is under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 first, and separately** — see batch 3-bis. #289 was grouped here and is now **closed as accepted, not fixed**. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
@@ -339,6 +339,100 @@ preservation path, so a single `index --reset` discards all 428,606
 markers and the next rules build is a full-corpus pass (#288). The two
 defects are opposite — the cache is over-kept in the non-reset path and
 under-kept in the reset path — and neither was visible from the other.
+
+---
+
+## Batch 3-bis — refs scan cache (#288, then #287)
+
+Scouted 2026-08-08. **Not one batch.** #288 is a clean fix with no design
+decision; #287 is a design change whose calls are now taken; #289 is
+closed without code.
+
+### #288 — `refs_scan_state` is not on the `--reset` preservation path
+
+428,606 markers, discarded by one `index --reset`. Verified: the table
+appears nowhere in `src/minerva/store/preserved_state.py` — not in the
+probe, the summary, or the restore list.
+
+**The obvious objection is that restoring 428,606 FK-less rows
+reintroduces what #264 part 1 fixed. It does not, and the reason is why
+this is landable now rather than a design question.** Both hazards are
+already covered by work that shipped earlier:
+
+- *Orphans* — swept by the end-of-index reap #264 part 1 added. Measured
+  at 0 on the live DB today, so the reap holds.
+- *Stale markers on a changed chunk* — invalidated by the `text_hash`
+  comparison already in the skip predicate. This matters because
+  `chunk_id` hashes only `text[:120]` (#285), so an edit past that point
+  keeps the id; `text_hash` is what catches it.
+
+So the fix is the `chunk_lemma_state` shape batch 2 established — add to
+the probe counts, the summary line, and the restore list. Schema for
+reference:
+
+```
+CREATE TABLE refs_scan_state (
+    chunk_id   TEXT PRIMARY KEY,
+    text_hash  TEXT NOT NULL,
+    scanned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+### #287 — the skip predicate ignores rules changes
+
+**Design settled: a per-author hash of the *compiled* rule set, in a new
+nullable column.** Recorded on the issue. Two of its three open questions
+turned on facts the issue did not have:
+
+- **Granularity is not blocked.** The issue says per-module hashing "needs
+  a mapping from rules module to the chunks it can match, which the loader
+  does not currently expose". That mapping is already the dispatch key:
+  `_rules_for_author(author)` selects by source author, modules are *named*
+  for their author, `chunk.author` is read inside the rule classes, and
+  `refs build --source-author` scopes the same way. Downgraded estimate,
+  not a promise — shared `_figures.py` rules may need attribution care.
+  Worth getting right because a global hash invalidates all 428,606
+  markers whenever any one author's rules change, which is what
+  `--rescan-all` already does.
+- **Hashing `.py` source would validate nothing for some authors.** Not
+  all rules are Python — `loader.py` exposes
+  `load_author_rules_from_yaml` / `spec_path_for_author`. A source-text
+  hash ignores every YAML-defined rule, so editing one leaves the cache
+  valid and reproduces this exact bug for a subset of authors while
+  appearing fixed. The compiled rule set is the one representation both
+  sources converge on. The formatting-churn argument stands too, and has
+  a date: batch 7 reformats these files.
+- **Schema:** `ALTER TABLE ... ADD COLUMN`, no rebuild, so no PRAGMA/view
+  dance. Nullable, where NULL means "scanned before hashing existed" and
+  forces one rescan per author — bounded, and no migration has to
+  synthesise hashes for 428,606 rows.
+
+**Sequence #288 first.** There is little point teaching the cache to
+invalidate itself precisely while a single `--reset` still discards all of
+it.
+
+### #289 — closed as accepted, not fixed
+
+The observation is verified (273 live `reference_targets` against
+migration 0012's 20 seeds, so the probe's early return is unreachable).
+What was declined is building the sound predicate.
+
+The cost of leaving it is one extra whole-file copy per `index --reset`,
+only in the window where nothing else is populated — and any DB big enough
+for that copy to hurt has left that window. The cost of fixing it is
+structural and permanent: a constant shared between runtime code and a
+*migration's data payload*, which means that migration can never be
+squashed or superseded without silently changing the probe. The docstring
+was already corrected in #274's PR, which is the part that mattered — an
+unconditional-but-cheap snapshot is not a trap; a docstring claiming
+otherwise was.
+
+Reopen with a number: repeated `index --reset` during a large fresh ingest
+measurably slower, with the snapshot copy identified as the cost.
+
+**This is the one place the plan recommends *not* doing tracked work.**
+Recorded here because "grouped into a batch" was starting to read as
+"will be implemented", and for #289 the right outcome was a decision.
 
 ---
 
