@@ -333,7 +333,17 @@ class ParagraphExtractor(HTMLParser):
         self._skip_id_tokens = (
             frozenset(skip_id_tokens) if skip_id_tokens is not None else None
         )
-        self._skip_depth = 0
+        # A STACK of open tag names, not a depth counter (#297). Real
+        # pages are not well-formed and `HTMLParser` does not synthesise
+        # the end tags a browser would, so counting `+1` per start and
+        # `-1` per end desynchronises on the first stray end tag. On the
+        # archived mlwerke pages a `</form>` and a `</table>` that had no
+        # matching start unwound the counter to zero partway through
+        # web.archive.org's toolbar, and four chrome paragraphs came out
+        # with no error and no warning. With a stack an end tag closes
+        # the innermost element of the same name and one that matches
+        # nothing open is ignored — what a browser does.
+        self._skip_stack: list[str] = []
         self._buf: list[str] = []
         self.paragraphs: list[str] = []
 
@@ -372,48 +382,65 @@ class ParagraphExtractor(HTMLParser):
         # the bare `<br>` old-school sources emit does not.
         void = tag in _VOID_TAGS
         if self._attr_aware:
-            if self._skip_depth:
+            if self._skip_stack:
                 if not void:
-                    self._skip_depth += 1
+                    self._skip_stack.append(tag)
                 return
             if tag in self._skip_tags or self._should_skip(attrs):
                 if not void:
-                    self._skip_depth = 1
+                    self._skip_stack.append(tag)
                 return
             if tag == "p":
                 self._flush()
             return
         if tag in self._skip_tags:
             if not void:
-                self._skip_depth += 1
+                self._skip_stack.append(tag)
             return
         if tag in self._break_end_tags:
             self._flush()
 
+    def _close_skip(self, tag: str) -> None:
+        """Close the innermost open ``tag`` inside the current skip,
+        dropping any unclosed descendants with it.
+
+        An end tag naming nothing on the stack is dropped: a browser
+        ignores it, and treating it as one level of unwind is what let
+        the wayback toolbar's ``</form>`` end a ``<div>`` skip. Truncating
+        rather than popping one entry is the other half — ``<div
+        class=chrome><span><p>junk</div>`` has to end the skip on
+        ``</div>`` even though two descendants were never closed, and
+        popping one would leave the skip open over the rest of the
+        document.
+        """
+
+        for i in range(len(self._skip_stack) - 1, -1, -1):
+            if self._skip_stack[i] == tag:
+                del self._skip_stack[i:]
+                return
+
     def handle_endtag(self, tag: str) -> None:
-        # Symmetry with handle_starttag: a void element never moved the
-        # counter up, so it must not move it down either. HTMLParser
-        # synthesises this call for the self-closed `<br/>` form via
-        # handle_startendtag, and decrementing here would end the skip one
-        # level early and leak the very chrome we are inside.
+        # Symmetry with handle_starttag: a void element was never pushed,
+        # so it must not pop. HTMLParser synthesises this call for the
+        # self-closed `<br/>` form via handle_startendtag, and unwinding
+        # here would end the skip one level early and leak the very
+        # chrome we are inside.
         if tag in _VOID_TAGS:
             return
+        if self._skip_stack:
+            self._close_skip(tag)
+            return
         if self._attr_aware:
-            if self._skip_depth:
-                self._skip_depth -= 1
-                return
             if tag in self._break_end_tags:
                 self._flush()
             return
         if tag in self._skip_tags:
-            if self._skip_depth > 0:
-                self._skip_depth -= 1
             return
         if tag in self._break_end_tags:
             self._flush()
 
     def handle_data(self, data: str) -> None:
-        if self._skip_depth:
+        if self._skip_stack:
             return
         self._buf.append(data)
 

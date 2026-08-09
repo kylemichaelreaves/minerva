@@ -115,7 +115,7 @@ the batch above them, and inherit its context.
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
-| 5-bis | perseus follow-ups | #297, #298, #299, #300 | todo | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is the same chrome in 18 live chunks from a sibling scraper; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code. |
+| 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
 | 6-bis | content-derived `chunk_id` | #285 | todo | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
@@ -1140,6 +1140,157 @@ the backgrounded shell did not inherit an earlier `cd`, and
 markers" — a clean bill of health measured against an empty set. Check
 that a verification actually ran over files that exist before believing
 its zero.
+
+---
+
+## Batch 5-bis — perseus follow-ups (#297, #298, #299, #300)
+
+**#297 and #300 landed 2026-08-09. #298's parser half landed and its
+corpus half is an operator step. #299 stays open, with its premise
+corrected.**
+
+### #297 — the skip-depth counter, replaced by a tag stack
+
+The fix the issue calls "the real fix", and it is small: push the tag
+name on entering a skip, and on an end tag unwind to the innermost
+matching entry instead of decrementing. An end tag naming nothing open
+is then dropped, which is what a browser does and what stops a stray
+`</form>` from ending a `<div>` skip.
+
+Two things the issue did not have, both found by writing the tests:
+
+- **The counter fails in the opposite direction too, and no one had
+  noticed.** `<div class=chrome><span><p>junk</div>` — unclosed
+  descendants inside a skipped subtree — leaves the counter at 2 when
+  `</div>` arrives, so the skip never ends and **the entire rest of the
+  document is discarded**. #297 documents only the early-exit direction
+  (chrome leaking out). Truncating the stack rather than popping one
+  entry is what covers both, and a fix that only ignored unmatched end
+  tags would have left this half live.
+- **The blast radius is 5 scrapers, not 8.** The issue lists
+  `download_descartes_wikisource`, `download_spinoza` and
+  `download_augustine` among the callers passing `skip_class_tokens`.
+  They do not — each carries its own private `_ParagraphExtractor` that
+  predates the shared class and skips by tag name only:
+
+  ```
+  $ grep -rln "skip_class_tokens\|skip_id_tokens" perseus/*.py
+  perseus/_download.py
+  perseus/download_cicero_wikisource.py
+  perseus/download_marx_archive.py
+  perseus/download_marx_pgde.py
+  perseus/download_pascal_fr.py
+  perseus/download_rousseau_fr.py
+  ```
+
+  Material because a fix "verified across eight scrapers" would have
+  been verified across three that cannot reach the code. The three
+  private copies are a separate duplication problem, untouched here.
+
+Verified on live pages: a two-work Cicero re-fetch to a scratch tree
+differs from the committed files by trailing newline only, plus one
+`FRAGMENTA` heading la.wikisource has since added. No chrome, nothing
+lost.
+
+### #298 — the mlwerke edition note: right defect, wrong file
+
+The issue's Hypothesis names `perseus/download_kapital_mew.py` and
+proposes reusing `_drop_mlwerke_chrome`. **Both are wrong, and neither
+would have worked.** The scraper saves the raw `.htm` verbatim; the
+chrome strip lives in `src/minerva/corpus/split_kapital_mew.py`, which
+already has one — it just only sees `<small>`:
+
+```
+$ grep -rln "Seitenzahlen" perseus/ scripts/ src/
+perseus/download_marx_archive.py
+src/minerva/corpus/split_kapital_mew.py
+```
+
+The real cause is a markup variant, and it is narrower than "not in
+`<small>`". 54 raw files carry the note; 37 of them wrap it in `<FONT
+SIZE=2>` **outside** any `<p>`, where it never becomes a chunk. The 17
+that leak open it with `<FONT SIZE=2><P>` and close the font *before*
+the `</P>`, so it reaches the body loop as an ordinary paragraph:
+
+```
+</P>\n<FONT SIZE=2><P>Seitenzahlen verweisen auf: … S. 627 - 652<BR>
+Dietz Verlag, Berlin/DDR 1983</FONT> </P>
+```
+
+Fixed by matching the note's own opening words, anchored to the start of
+the paragraph — not by tag, because `<FONT SIZE=2>` also wraps ordinary
+inline prose here, and not by substring, because Marx discusses page
+references. Measured over the whole raw tree: the new rule removes
+**exactly 17 paragraphs**, and a full re-split produces 7,113 chunks with
+zero carrying the note.
+
+**The 18th chunk is not this defect and needs no code.** `Lohnarbeit und
+Kapital` comes from `data/marx/raw_deu/lohnarbeit_kapital.txt`, a
+PG-DE-sourced text file, and `_drop_mlwerke_chrome` already removes that
+line today — confirmed by feeding it the exact en-dash paragraph. It is
+a stale artifact of a fetch predating the filter, which is also why its
+dash differs; the issue reads the dash as evidence of a second live
+code path.
+
+**The corpus half is an operator step and did not land.** Repairing the
+18 chunks means re-ingesting the marx corpus — and `--only` replaces
+`chunks.jsonl` per *corpus*, so all three marx sources have to go in
+together or the siblings are wiped. The 17 Band III `chunk_id`s change,
+which invalidates their embeddings, lemmas and cross-reference anchors
+and therefore requires a full refs rebuild including the llm-verify
+tail. That is the same shape as 4-op and belongs in a window with it,
+not at the end of a code round. #298 accordingly carries `Refs`, not a
+closing keyword.
+
+### #299 — still a decision, but not the one the issue frames
+
+**The premise moved and the issue's mechanism does not reproduce.** #299
+concludes the 403 is "a deliberate signal from the site operator" whose
+block "keys on the literal substring `minerva`". Measured 2026-08-09
+across all six works, canonical UA against `foo/1.0`, every other header
+held equal:
+
+```
+der-18-brumaire-des-louis-bonaparte                   minerva=200  foo=200
+lohn-preis-und-profit                                 minerva=403  foo=200
+lohnarbeit-und-kapital                                minerva=200  foo=200
+das-elend-der-philosophie                             minerva=403  foo=200
+die-heilige-familie-oder-kritik-der-kritischen-kritik minerva=403  foo=200
+zur-kritik-der-politischen-oekonomie                  minerva=403  foo=200
+```
+
+The verdict is **per-URL and unstable**: `brumaire` is served to the
+canonical UA on every attempt, and `lohnarbeit-und-kapital` returned 403
+six times running and 200 a few minutes later. That behaves like a
+bot-mitigation layer with a short-lived per-(UA, URL) verdict, not like
+a substring blacklist — so "this script cannot fetch" is too strong, and
+so is "the operator has decided". The docstring the batch-5 PR wrote is
+corrected in this round.
+
+**What does not change is the response.** Rotating the UA or giving this
+script a private fetcher is still off the table. The three options in
+the issue remain the repo owner's call; what the measurement changes is
+that option 1 (accept) now costs less than it appeared to, since most of
+the six are reachable most of the time. The durable engineering finding
+is separate: 403 is not in `_RETRY_CODES`, so the script dies on its
+first refused work with no partial output — the same gap #300 fixes for
+the batch loop.
+
+### #300 — both halves, and the redirect was checkable after all
+
+Item 1 as the issue orders it: collect `(filename, reason)` per skip,
+print a summary block, name the `--only` retry, and return non-zero.
+
+Item 2 the issue hedges — "check *why* `urllib` did not follow it before
+adding a retry". The 301 no longer reproduces, so the *why* is not
+recoverable; but the redirect target is, and it is a drop-in.
+`/api/rest_v1/page/html/<title>` is the deprecated endpoint and 301s to
+`/w/rest.php/v1/page/<title>/html`. Measured byte-identical — same
+sha1, same length — for De re publica, De officiis, Laelius de Amicitia,
+Topica and the `De re publica/Liber I` sub-page, on both the space and
+underscore spellings. So `_rest_url` points at the target directly,
+which honours the redirect rather than masking it and removes the class
+of failure instead of retrying it.
 
 ---
 

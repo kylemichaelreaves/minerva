@@ -25,14 +25,21 @@ That container also de-duplicates: PG-DE renders the chapter body
 text-identical at 243,630 characters each on `brumaire` chapter/2), so
 parsing the whole document emitted every Marx paragraph twice.
 
-*** THIS SCRIPT CANNOT CURRENTLY FETCH: projekt-gutenberg.org returns
-403 to the canonical `USER_AGENT` in `_download.py`. The block keys on
-the literal substring `minerva` — `minerva/1.0` is refused where
-`research/1.0`, `foo/1.0` and even no User-Agent header at all are
-served 200, every other header held equal. That is a deliberate signal
-from the site operator, so it is recorded rather than worked around;
-see issue #299 for the decision. The class/container findings above were
-measured with a one-off diagnostic User-Agent. ***
+*** projekt-gutenberg.org SOMETIMES 403s the canonical `USER_AGENT` in
+`_download.py`, and the pattern is per-URL and intermittent rather than
+the flat block this docstring used to describe. Measured 2026-08-09 over
+all six works, canonical UA vs `foo/1.0`, every other header held equal:
+`brumaire` served 200 to both on every attempt, while four of the six
+403'd to the canonical UA and 200'd to `foo/1.0` in the same pass — and
+`lohnarbeit-und-kapital` returned 403 six times running and 200 a few
+minutes later. So it behaves like a bot-mitigation layer with a
+short-lived per-(UA, URL) verdict, not like a deliberate substring
+blacklist. Either way the response to it is the same: do NOT change the
+UA or give this script a private fetcher to get past it. What is worth
+knowing is that 403 is not in `_RETRY_CODES`, so the script dies on its
+first refused work with no partial output — see issue #299, still open
+for the decision. The class/container findings above were measured with
+a one-off diagnostic User-Agent. ***
 
 Chapter layout, measured on `der-18-brumaire-des-louis-bonaparte`:
 chapter/1 is front matter (title + publication note), chapter/2 carries

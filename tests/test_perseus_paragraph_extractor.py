@@ -89,6 +89,60 @@ class TestVoidTagsDoNotStrandTheSkipDepth:
         assert _extract(html, skip_class_tokens={"chrome"}) == ["FIRST", "SECOND"]
 
 
+class TestUnbalancedEndTagsDoNotEndTheSkipEarly:
+    """Counting start and end tags assumes well-formed markup, and
+    ``HTMLParser`` does not synthesise the end tags a browser would
+    (#297). A stray ``</form>`` unwound the counter to zero partway
+    through web.archive.org's toolbar, and four chrome paragraphs came
+    out — with no error and no warning.
+
+    A tag stack fixes it: an end tag closes the innermost element of the
+    same name, and one that matches nothing open is ignored, exactly as
+    a browser does.
+    """
+
+    def test_stray_end_tag_with_no_matching_start_is_ignored(self):
+        # The wayback shape: `</form>` arrives inside the toolbar with no
+        # <form> ever opened, so it must not close the <div> skip.
+        html = '<div id="wm-ipp-base">269 captures</form>Collection</div><p>REAL</p>'
+        assert _extract(html, skip_id_tokens={"wm-ipp-base"}) == ["REAL"]
+
+    def test_several_stray_end_tags_do_not_accumulate(self):
+        html = (
+            '<div id="wm-ipp-base">a</form>b</table>c</tr></div><p>REAL</p>'
+        )
+        assert _extract(html, skip_id_tokens={"wm-ipp-base"}) == ["REAL"]
+
+    def test_unclosed_children_do_not_outlive_their_skipped_parent(self):
+        # `<div class=chrome><span><p>junk</div>` — the span and p are
+        # never closed, and the div's end tag has to end the skip anyway
+        # or every later paragraph is swallowed.
+        html = '<div class="chrome"><span><p>junk</div><p>REAL</p>'
+        assert _extract(html, skip_class_tokens={"chrome"}) == ["REAL"]
+
+    def test_the_innermost_element_of_a_name_is_the_one_closed(self):
+        html = (
+            '<div class="chrome"><div>inner</div>still chrome</div><p>REAL</p>'
+        )
+        assert _extract(html, skip_class_tokens={"chrome"}) == ["REAL"]
+
+    def test_a_stray_end_tag_outside_any_skip_still_breaks_a_paragraph(self):
+        # Nothing about the stack may change what happens when no skip is
+        # open: `</div>` is a break_end_tag and still flushes.
+        html = "<div>FIRST</div><div>SECOND</div>"
+        assert _extract("<p>x</p>" + html)[1:] == ["FIRST", "SECOND"]
+
+    def test_the_plain_path_ignores_an_unmatched_skip_end_tag(self):
+        # Non-attribute callers pass only `skip_tags`; a `</style>` with
+        # no `<style>` open must neither flush nor go negative.
+        from _download import ParagraphExtractor
+
+        p = ParagraphExtractor(skip_tags={"style"}, break_end_tags={"p"})
+        p.feed("<p>FIRST</p></style><p>SECOND</p>")
+        p.close()
+        assert p.paragraphs == ["FIRST", "SECOND"]
+
+
 class TestSkipByIdToken:
     def test_id_token_skips_subtree(self):
         html = '<div id="wm-ipp">TOOLBAR</div><p>REAL TEXT</p>'

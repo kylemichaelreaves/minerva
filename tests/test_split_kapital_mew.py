@@ -95,6 +95,49 @@ def test_header_chrome_is_stripped(tmp_path: Path) -> None:
     assert "ERSTES KAPITEL" not in joined  # centered heads aren't chunks
 
 
+def test_source_note_is_stripped_when_it_sits_inside_a_paragraph(
+    tmp_path: Path,
+) -> None:
+    """The note is not always in ``<SMALL>`` (#298).
+
+    Verbatim from ``me25_627.htm``: 17 Band III files open the note with
+    ``<FONT SIZE=2><P>`` and close the font *before* the ``</P>``, so it
+    is a real paragraph as far as the body loop is concerned and the
+    ``<small>``-only strip cannot see it. Those 17, plus one stale row
+    from a different source, are the 18 corpus chunks that led with a
+    bibliographic note — and at 100-plus characters it clears every
+    length floor in the retrieval path.
+    """
+
+    html = _PAGE.replace(
+        '<SMALL>Seitenzahlen verweisen auf: Karl Marx - Friedrich Engels - '
+        "Werke, Band 23, Berlin/DDR 1968</SMALL>",
+        '<FONT SIZE=2><P>Seitenzahlen verweisen auf: Karl Marx - Friedrich '
+        'Engels - Werke, Band 25, "Das Kapital", Bd. III, Sechster '
+        "Abschnitt, S. 627 - 652<BR>\nDietz Verlag, Berlin/DDR 1983</FONT> </P>",
+    )
+    chunks = _split(tmp_path, name="me25_627.htm", html=html)
+    joined = " ".join(c.text for c in chunks)
+    assert "Seitenzahlen verweisen" not in joined
+    assert "Dietz Verlag" not in joined
+    # And the body survives — the strip must not eat the page.
+    assert any(c.text.startswith("Der Reichtum der Gesellschaften") for c in chunks)
+
+
+def test_a_paragraph_merely_mentioning_the_note_is_kept(tmp_path: Path) -> None:
+    """The match is anchored to the start of the paragraph. Marx's own
+    prose discusses page references, and a substring rule would delete
+    it."""
+
+    html = _PAGE.replace(
+        "Der Reichtum der Gesellschaften",
+        "Die Seitenzahlen verweisen auf eine Ausgabe, die Der Reichtum "
+        "der Gesellschaften",
+    )
+    chunks = _split(tmp_path, html=html)
+    assert any("Der Reichtum der Gesellschaften" in c.text for c in chunks)
+
+
 def test_volume_from_filename(tmp_path: Path) -> None:
     chunks = _split(tmp_path, name="me25_033.htm")
     assert all(c.work == "Das Kapital, Band III" for c in chunks)
