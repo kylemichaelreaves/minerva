@@ -51,8 +51,15 @@ def _db_at_0026(tmp_path: Path) -> Path:
     )
     # Rewind past 0027 and drop the table it creates, so re-running the
     # runner replays it over data that predates it.
+    #
+    # `= 27`, not `>= 27`: the rewind has to unrecord exactly the
+    # migration this file replays. Every *later* migration has already
+    # been applied to this DB, and unrecording one replays it against a
+    # schema that already carries it — 0028's `ALTER TABLE
+    # refs_scan_state ADD COLUMN` fails with "duplicate column name",
+    # which is a rewind bug, not a migration bug.
     conn.execute("DROP TABLE IF EXISTS chunk_lemma_state")
-    conn.execute("DELETE FROM schema_migrations WHERE version >= 27")
+    conn.execute("DELETE FROM schema_migrations WHERE version = 27")
     conn.commit()
     conn.close()
     return path
@@ -87,7 +94,9 @@ def test_backfill_is_re_entrant(tmp_path: Path):
 
     path = _db_at_0026(tmp_path)
     conn = store.open_db(path)
-    conn.execute("DELETE FROM schema_migrations WHERE version >= 27")
+    # `= 27` for the same reason as in `_db_at_0026`: unrecording a later
+    # migration replays it against a schema that already has it.
+    conn.execute("DELETE FROM schema_migrations WHERE version = 27")
     conn.commit()
     conn.close()
 

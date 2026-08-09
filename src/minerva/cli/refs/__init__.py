@@ -213,9 +213,12 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help=(
             "Force a full rules pass, ignoring the refs_scan_state "
-            "skip cache. Use after editing a rules module — chunks "
-            "whose text hasn't changed but might now match a new "
-            "rule won't be skipped."
+            "skip cache. Editing a rules module no longer needs this: "
+            "the cache stores a fingerprint of the compiled rule set "
+            "and re-scans that author on its own (#287). Still the "
+            "escape hatch when a rule's LOGIC changed without any of "
+            "its configuration doing so, which the fingerprint cannot "
+            "see."
         ),
     )
     pb.add_argument(

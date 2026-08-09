@@ -498,13 +498,22 @@ sanity-checked semantically. Two further stages clean the graph
 up; **both are required** as part of every new-author ingest,
 not optional.
 
-The rules pass keeps a `refs_scan_state(chunk_id, text_hash)`
-cache: chunks whose current `sha1(text)` matches a prior scan are
-skipped (the rule output would be identical and get deduped
-anyway). Pass `--rescan-all` after editing a rules module so the
-previously-unmatched chunks get a fresh pass — the cache is a
-content-hash skip, not a "this chunk has been seen" skip, so it
-can't catch new rules matching old text.
+The rules pass keeps a `refs_scan_state(chunk_id, text_hash,
+rules_hash)` cache: a chunk is skipped only when its current
+`sha1(text)` *and* its author's compiled rule set both match the
+prior scan (the rule output would be identical and get deduped
+anyway).
+
+Editing a rules module used to need `--rescan-all`, because the
+cache asked only whether the chunk's text had changed — so a new
+rule never fired on already-scanned chunks, and the run exited 0
+looking exactly like a correctly-skipped one. Since #287 the
+`rules_hash` half catches it: the affected author's chunks re-scan
+by themselves, and nobody else's do.
+
+`--rescan-all` remains for the case the fingerprint cannot see —
+a rule whose *logic* changed without any of its configuration
+changing (see `refs/rules/fingerprint.py` for the boundary):
 
 ```sh
 .venv/bin/minerva refs build --strategy rules --rescan-all

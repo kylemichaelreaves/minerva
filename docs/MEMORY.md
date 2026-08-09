@@ -79,8 +79,9 @@ Two consequences for operators:
 ## reingest-wipes-the-rules-scan-cache
 
 `refs_scan_state` is the skip cache for `refs build --strategy rules`:
-one row per chunk already scanned, with the `text_hash` it was scanned
-at. `index --reset` used to discard all of it — 428,606 markers — for
+one row per chunk already scanned, with the `text_hash` and the
+`rules_hash` it was scanned at. `index --reset` used to discard all of
+it — 428,606 markers — for
 the same reason the glossary was lost, absence from the snapshot probe
 and the restore list (#288). Since that fix it is snapshotted and
 restored like `chunk_lemmas`, and stderr reports how many markers came
@@ -91,7 +92,7 @@ next `refs build --strategy rules` skips the corpus instead of
 re-scanning it. That is a cost saving only — rescanning was always
 idempotent — but the pass it saves is a full-corpus one.
 
-Two things still invalidate a marker, both deliberately:
+Three things still invalidate a marker, all deliberately:
 
 - Its chunk did not come back (the text changed enough to change the
   content-hashed `chunk_id`). The end-of-index orphan sweep drops it and
@@ -100,10 +101,23 @@ Two things still invalidate a marker, both deliberately:
   because `chunk_id` hashes only `text[:120]` (#285). The `text_hash`
   comparison in the skip predicate catches this one, so the chunk is
   re-scanned.
+- The **rules** changed rather than the text. `rules_hash` is a
+  fingerprint of the compiled rule set for the chunk's author, compared
+  alongside `text_hash` (#287). Invalidation is per author, so a Renan
+  edit re-scans Renan's ~20K chunks and leaves the other 408K markers
+  alone — the distinction that makes this worth more than the
+  `--rescan-all` it replaces.
 
-Neither covers a change to the **rules** rather than the text: an edited
-rules module does not invalidate the cache, so pass `--rescan-all` after
-editing `refs/rules/*` until #287 lands.
+  `--rescan-all` is still the escape hatch for a rule whose *logic*
+  changed while its configuration did not; the fingerprint covers rule
+  fields, class-level config and the module constants a rule reads, not
+  the body of `scan`. `refs/rules/fingerprint.py` states the boundary,
+  #304 tracks whether to close it.
+
+  Markers written before #287 carry `rules_hash IS NULL`, which
+  compares unequal to every fingerprint — one rescan per author, then it
+  settles. Same for a marker restored from a `.bak.pre-index` snapshot
+  taken before migration 0028.
 
 ## transactional-preview-for-multistatement-sql
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from pathlib import Path
 
 from conftest import make_chunk
@@ -132,6 +133,48 @@ def test_scan_state_only_db_is_snapshotted_and_survives_reset(tmp_path: Path):
     assert _scan_state(db) == {"c1": "hash-1"}, (
         "scan-marker-only DB lost its cache across --reset"
     )
+
+
+def test_restore_survives_a_snapshot_taken_one_migration_back(tmp_path: Path):
+    """The snapshot is taken at the top of ``cmd_index``, before the fresh
+    DB is migrated — so on the first ``--reset`` after a migration that
+    adds a column, the live table has a column the snapshot does not.
+
+    Copying by the live column list raises ``no such column`` and takes
+    the whole index run with it, losing the markers this path exists to
+    keep. Migration 0028 (``refs_scan_state.rules_hash``, #287) is the
+    first column-add to an already-preserved table, and every existing
+    DB walks through this window exactly once.
+    """
+
+    db, jsonl = _seed(tmp_path, [make_chunk(chunk_id="c1", text="Sokrates.")])
+    _run_index(db, jsonl, reset=False)
+    _mark_scanned(db, [("c1", "hash-1")])
+
+    # Put the DB back to how 0027 left it: the column gone and the
+    # migration unrecorded, so the fresh DB re-applies it. Raw connection
+    # deliberately — `store.open_db` would migrate it straight back.
+    raw = sqlite3.connect(db)
+    try:
+        raw.execute("ALTER TABLE refs_scan_state DROP COLUMN rules_hash")
+        raw.execute("DELETE FROM schema_migrations WHERE version = 28")
+        raw.commit()
+    finally:
+        raw.close()
+
+    _run_index(db, jsonl, reset=True)
+
+    assert _scan_state(db) == {"c1": "hash-1"}
+    conn = store.open_db(db)
+    try:
+        assert conn.execute(
+            "SELECT rules_hash FROM refs_scan_state WHERE chunk_id = 'c1'"
+        ).fetchone()[0] is None, (
+            "a marker restored from a pre-0028 snapshot carries no rules "
+            "hash — NULL is what buys it exactly one rescan"
+        )
+    finally:
+        conn.close()
 
 
 def test_non_reset_reindex_leaves_a_populated_cache_alone(tmp_path: Path):

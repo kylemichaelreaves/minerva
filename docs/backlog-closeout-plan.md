@@ -106,7 +106,7 @@ the batch above them, and inherit its context.
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
-| 3-bis | refs scan cache | ~~#288~~, then #287 | in progress | The `refs_scan_state` pair batch 3 opened: the cache is under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08 as its own PR**; #287 is the remaining half — see batch 3-bis. #289 was grouped here and is now **closed as accepted, not fixed**. |
+| 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
@@ -391,8 +391,41 @@ CREATE TABLE refs_scan_state (
 
 ### #287 — the skip predicate ignores rules changes
 
-**Design settled: a per-author hash of the *compiled* rule set, in a new
-nullable column.** Recorded on the issue. Two of its three open questions
+**Landed 2026-08-09**, as designed: a per-author hash of the compiled
+rule set in a new nullable `refs_scan_state.rules_hash` (migration 0028),
+compared alongside `text_hash`. `refs/rules/fingerprint.py` computes it;
+51 authors fingerprint in ~25 ms, deterministically across processes.
+
+Two things the design note did not anticipate, both found by building it:
+
+- **"The compiled rule set" is three things, not one.** Rules keep
+  behaviour-affecting configuration in instance fields (`forms`,
+  `confidence`), in class-level `ClassVar`s (the scripture-cite
+  `lexicon` and `cite_re`, which `dataclasses.fields` cannot see), and in
+  plain module globals (`StructuralCommentaryRule` holds *no*
+  configuration at all — its behaviour is `_COMMENTARY_TARGETS` and
+  `_SECTION_LIB_RE` in `aquinas.py`). A fields-only digest — the obvious
+  reading of "hash the compiled rule set" — would have shipped as a check
+  that validates nothing for the rules most likely to need it. The
+  globals are reached by walking method bytecode's `co_names` and
+  recursing through project helper functions, which is what catches the
+  Latin formulaic rule's quote bounds (read only by `_formulaic_pattern`)
+  and the Quran rule's surah table (`minerva.authors.quran_works`).
+- **`ALTER TABLE ADD COLUMN` is not free after all** — not for the table,
+  for the *restore*. `_restore_from_snap` copies by the live column list,
+  and the `.bak.pre-index` snapshot is taken before the fresh DB is
+  migrated. So the first `--reset` after this migration would have raised
+  `no such column: rules_hash` and taken the index run with it, losing
+  the 428,606 markers #288 had just finished protecting. Fixed by
+  intersecting the two column sets; this is the first column-add to an
+  already-preserved table, so nothing had exercised it before.
+
+The residue is #304: the fingerprint covers rule *configuration*, not
+rule *logic*. 307 of 350 rules are pure configuration and fully covered;
+the 43 that are not belong to eight classes shared across 16 of the 27
+rule-carrying authors. `--rescan-all` stays for that case.
+
+The original design note follows. Two of the issue's three open questions
 turned on facts the issue did not have:
 
 - **Granularity is not blocked.** The issue says per-module hashing "needs

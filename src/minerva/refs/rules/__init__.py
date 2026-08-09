@@ -266,6 +266,43 @@ def _rules_for_author(author: str) -> tuple[Rule, ...]:
     return rules
 
 
+# Fingerprints are pure functions of the rule tuple, but computing one
+# walks every rule's fields, class config and referenced module globals.
+# `record_scan_state` asks for it once per 500-chunk flush, so it is
+# cached beside the rules themselves rather than recomputed.
+_RULES_FINGERPRINT_CACHE: dict[str, str] = {}
+
+
+def rules_fingerprint(author: str) -> str:
+    """Hex digest of the compiled rule set that applies to ``author``.
+
+    Stored per chunk in ``refs_scan_state.rules_hash`` and compared on
+    the next scan, so that editing a rules module invalidates exactly
+    the chunks that module can match — instead of nothing, which is
+    what the text-hash-only predicate did (#287). See
+    :mod:`refs.rules.fingerprint` for what the digest covers.
+    """
+
+    cached = _RULES_FINGERPRINT_CACHE.get(author)
+    if cached is not None:
+        return cached
+
+    from .fingerprint import fingerprint_rules
+
+    fp = fingerprint_rules(_rules_for_author(author))
+    _RULES_FINGERPRINT_CACHE[author] = fp
+    return fp
+
+
+def _reset_rules_caches() -> None:
+    """Drop both memo caches. For tests that install or edit rule
+    modules mid-process — the fingerprint is derived from the rules, so
+    clearing one without the other leaves them disagreeing."""
+
+    _AUTHOR_RULES_CACHE.clear()
+    _RULES_FINGERPRINT_CACHE.clear()
+
+
 def apply_rules_to_chunk(chunk: ChunkInfo) -> list[Candidate]:
     """Dispatch one chunk to its source-author's rule module + collect
     every candidate. Idempotent given identical chunk input — rule
@@ -413,6 +450,17 @@ def insert_candidate(
 # ──────────────────────────────────────────────────────────────────
 
 
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    return any(row[1] == column for row in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def _fingerprint_for(author: str, cache: dict[str, str]) -> str:
+    fp = cache.get(author)
+    if fp is None:
+        fp = cache[author] = rules_fingerprint(author)
+    return fp
+
+
 def iter_chunks_for_rules(
     conn: sqlite3.Connection,
     *,
@@ -427,11 +475,20 @@ def iter_chunks_for_rules(
     * ``source_author`` — restrict to one author (faster targeted re-runs).
     * ``limit`` — cap the row count for smoke / debug runs.
     * ``rescan_all`` — when False (default), skip chunks whose current
-      ``sha1(text)`` matches the stored hash in ``refs_scan_state``
-      (Phase 6a — text unchanged → rule output would be identical and
-      get deduped, so the work is pure overhead). Set True after a
-      rules module change so previously-unmatched chunks get a fresh
-      pass.
+      ``sha1(text)`` matches the stored hash in ``refs_scan_state`` *and*
+      whose author's rule set fingerprints the same as it did at that
+      scan (Phase 6a — nothing changed on either side → rule output would
+      be identical and get deduped, so the work is pure overhead). Set
+      True to force a pass regardless.
+
+      The rules half of that predicate is #287: before it, editing
+      ``refs/rules/<author>.py`` invalidated nothing, and the next build
+      skipped every chunk whose text was unchanged while the new rule
+      never fired. Invalidation is per author, so a Renan edit re-scans
+      Renan's ~20K chunks rather than the corpus's 428K markers — the
+      distinction that makes this worth more than the ``--rescan-all``
+      it replaces. What the fingerprint does and does not cover is in
+      :mod:`refs.rules.fingerprint`.
 
     Lazy — yields rows one at a time so the rule runner doesn't
     materialize the whole corpus in memory.
@@ -448,6 +505,12 @@ def iter_chunks_for_rules(
         is not None
     )
     use_skip = (not rescan_all) and has_scan_state
+    # Same tolerance one migration down: a DB at 0020 but not 0028 has
+    # the table and not the column. Falling back to the text-only
+    # predicate keeps that DB working exactly as it did before; treating
+    # the absent column as a mismatch would instead make every run a
+    # full-corpus pass forever, since such a DB can never store a hash.
+    has_rules_hash = has_scan_state and _has_column(conn, "refs_scan_state", "rules_hash")
 
     sql = "SELECT chunk_id, author, work, lang, section, text FROM chunks_full "
     params: list[Any] = []
@@ -459,22 +522,37 @@ def iter_chunks_for_rules(
         sql += " LIMIT ?"
         params.append(limit)
 
+    stored: dict[str, tuple[str, str | None]] = {}
     if use_skip:
         # Cache the stored hashes in memory so the per-chunk check is
         # a dict lookup, not a per-row SELECT. Even for the full
-        # ~344K-chunk corpus the table is two TEXT columns; ~30 MB
+        # ~344K-chunk corpus the table is three TEXT columns; ~50 MB
         # max, comfortably small.
-        stored = dict(conn.execute("SELECT chunk_id, text_hash FROM refs_scan_state"))
-    else:
-        stored = {}
+        cols = "chunk_id, text_hash, " + ("rules_hash" if has_rules_hash else "NULL")
+        stored = {row[0]: (row[1], row[2]) for row in conn.execute(f"SELECT {cols} FROM refs_scan_state")}
 
     import hashlib
 
+    # One fingerprint per author per pass, not per chunk — `rules_fingerprint`
+    # memoizes, but the dict lookup here keeps the hot loop free of it.
+    fp_by_author: dict[str, str] = {}
+
     for row in conn.execute(sql, params):
         if use_skip:
-            cur_hash = hashlib.sha1(row["text"].encode("utf-8"), usedforsecurity=False).hexdigest()
-            if stored.get(row["chunk_id"]) == cur_hash:
-                continue
+            prior = stored.get(row["chunk_id"])
+            if prior is not None:
+                cur_hash = hashlib.sha1(
+                    row["text"].encode("utf-8"), usedforsecurity=False
+                ).hexdigest()
+                # A NULL `rules_hash` is a marker written before #287
+                # existed. It compares unequal to any fingerprint, which
+                # is the intended one-time rescan per author rather than
+                # a migration that synthesises hashes for 428,606 rows.
+                if prior[0] == cur_hash and (
+                    not has_rules_hash
+                    or prior[1] == _fingerprint_for(row["author"], fp_by_author)
+                ):
+                    continue
         yield ChunkInfo(
             chunk_id=row["chunk_id"],
             author=row["author"],
@@ -493,12 +571,15 @@ def record_scan_state(
 
     Called by the ``refs build`` runner after a chunk has been
     scanned, so the next run's :func:`iter_chunks_for_rules` can skip
-    it cheaply. Hash is the same ``sha1(text)`` the iterator computes
-    on read, so a content-stable re-scan is a pure no-op.
+    it cheaply. Records both halves of that run's skip predicate: the
+    same ``sha1(text)`` the iterator computes on read, and the
+    fingerprint of the rule set that just ran against the chunk (#287),
+    so a re-scan is a no-op only while *both* still hold.
 
     Idempotent. Safely no-ops when the ``refs_scan_state`` table is
-    missing (pre-migration-0020 DB) so the writer doesn't need to
-    branch on schema state.
+    missing (pre-migration-0020 DB), and falls back to writing the text
+    hash alone when the table exists without the ``rules_hash`` column
+    (pre-0028), so the writer doesn't need to branch on schema state.
     """
 
     has_table = (
@@ -509,23 +590,37 @@ def record_scan_state(
     )
     if not has_table:
         return 0
+    has_rules_hash = _has_column(conn, "refs_scan_state", "rules_hash")
 
     import hashlib
 
+    fp_by_author: dict[str, str] = {}
     rows = [
         (
             ch.chunk_id,
             hashlib.sha1(ch.text.encode("utf-8"), usedforsecurity=False).hexdigest(),
+            _fingerprint_for(ch.author, fp_by_author) if has_rules_hash else None,
         )
         for ch in chunks
     ]
     if not rows:
         return 0
-    conn.executemany(
-        "INSERT INTO refs_scan_state(chunk_id, text_hash) VALUES (?, ?) "
-        "ON CONFLICT(chunk_id) DO UPDATE SET "
-        "  text_hash = excluded.text_hash, "
-        "  scanned_at = CURRENT_TIMESTAMP",
-        rows,
-    )
+    if has_rules_hash:
+        conn.executemany(
+            "INSERT INTO refs_scan_state(chunk_id, text_hash, rules_hash) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(chunk_id) DO UPDATE SET "
+            "  text_hash = excluded.text_hash, "
+            "  rules_hash = excluded.rules_hash, "
+            "  scanned_at = CURRENT_TIMESTAMP",
+            rows,
+        )
+    else:
+        conn.executemany(
+            "INSERT INTO refs_scan_state(chunk_id, text_hash) VALUES (?, ?) "
+            "ON CONFLICT(chunk_id) DO UPDATE SET "
+            "  text_hash = excluded.text_hash, "
+            "  scanned_at = CURRENT_TIMESTAMP",
+            [(cid, th) for cid, th, _ in rows],
+        )
     return len(rows)
