@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download Cicero's 16 philosophical + rhetorical works from
+"""Download Cicero's 15 philosophical + rhetorical works from
 la.wikisource.org.
 
 Each work has a top-level Latin page (e.g.
@@ -10,27 +10,50 @@ every reachable sub-page's HTML, and concatenate the text into
 a single .txt file per work — same pattern as
 ``download_marx_zeno.py`` but targeting la.wikisource.
 
-Output: ``data/cicero/raw_la/<work_code>.txt`` × 16.
+Output: ``data/cicero/raw_la/<work_code>.txt`` × 15. (Academica is
+commented out of ``_WORKS`` below, which is why the count is 15 and not
+16 — the header used to say 16 and the directory has never held that
+many.)
 
 Run: uv run python perseus/download_cicero_wikisource.py
 
 FIDELITY CAVEAT — read before re-running over existing files.
 
 ``fetch_work`` was reconstructed in 2026-08 (issue #116); the original
-never made it into the repo, so the 14 files already in
-``data/cicero/raw_la/`` were produced by an implementation we no
-longer have. This one reproduces them closely but not byte-for-byte:
-spot-checked against ``de_fato_lat.txt`` the Latin body is identical,
-and against ``de_natura_deorum_lat.txt`` ~109 of 622 lines differ —
-per-Liber page titles, Aratea verse that Wikisource breaks into short
-``<poem>`` lines, and Arabic section markers in Liber III.
+never made it into the repo, so the files in ``data/cicero/raw_la/`` were
+produced by an implementation we no longer have.
+
+All 15 works were re-fetched to a scratch tree and diffed against the
+committed files in 2026-08 (issue #151). After the marker filter below
+was widened, ``topica`` is line-identical and the rest agree on prose;
+the residual differences are paragraph-boundary blanks, not text.
+
+Two things the diff established that are worth not re-learning:
+
+* **Per-Liber page titles are produced correctly** wherever the source
+  still carries them — ``de_legibus`` emits ``M. TVLLI CICERONIS De
+  legibus - Liber I`` and ``- Liber II`` exactly as committed. #151
+  described these as "absent from the reconstruction"; they are not. The
+  only two missing are De natura deorum's Liber II and III, and those are
+  **upstream deletions**: those sub-pages now contain no ``M. TVLLI``
+  string at all. The committed file preserves titles la.wikisource has
+  since removed, so this scraper cannot reproduce them without
+  fabricating source text — and must not.
+* ``de_re_publica`` intermittently fails with a non-retryable **HTTP
+  301** on the REST endpoint during a full batch run, and succeeds on a
+  ``--only`` retry moments later. A batch that loses a work this way
+  still exits 0 (#300).
 
 Byte-identity is not reachable anyway: la.wikisource has changed since
 the May 2026 fetch (De fato has gained a ``FRAGMENTA`` heading). So
 re-running this over the committed files WILL churn chunk_ids and cost
 the affected works their embeddings / lemmas / cross-references. Use
-``--only`` to fetch genuinely missing works (``de_officiis_lat.txt``
-is the one gap) rather than refreshing the set wholesale.
+``--only`` to fetch genuinely missing works rather than refreshing the
+set wholesale.
+
+Note the committed Latin files are **post-cleanup** artifacts:
+``scripts/clean-cicero-chrome.py`` strips a Wikisource title/breadcrumb
+header from them after the fetch. Diff against them accordingly.
 """
 
 from __future__ import annotations
@@ -95,9 +118,42 @@ _HREF_RE = re.compile(r'href="\./([^"#?]+)', re.IGNORECASE)
 # philosophica`). It carries no work text — drop it wherever it appears.
 _BREADCRUMB_RE = re.compile(r"^<\s")
 
-# Bare Roman-numeral chapter markers ("I", "XVIII") that la.wikisource
-# renders as standalone paragraphs inside each Liber.
-_ROMAN_ONLY_RE = re.compile(r"^[IVXLC]+$")
+# Structural section markers that la.wikisource renders as standalone
+# paragraphs. They duplicate the `[N]` numbering the body text already
+# carries, and the committed files contain **zero** of any of these
+# forms, so the lost original filtered them all.
+#
+# `_ROMAN_ONLY_RE` used to be `^[IVXLC]+$`, which caught only the bare
+# form. Measured across a full re-fetch of all 15 works (#151): the
+# dotted Roman form is by far the commonest at 381 paragraphs, against 18
+# bare; Arabic markers add 104 bare and 40 dotted. So the old pattern
+# filtered 18 of 543 markers — 3% — and every committed file would have
+# gained hundreds of spurious one-token paragraphs on a re-fetch.
+#
+# `D` and `M` are added to the digit class; the old set stopped at `C`.
+# The exposure that creates — a Latin word made only of Roman digits,
+# e.g. `DIC` or `LVX` — is bounded by the anchors, since the marker must
+# be the *entire* paragraph. None of the 259 distinct strings matched
+# across the corpus was a word. `roman_to_int` in `_download.py` is not
+# a safer gate: it sums rather than validating canonical form, so it
+# accepts `DIC` (599) and `LVX` (55) just the same.
+_ROMAN_ONLY_RE = re.compile(r"^[IVXLCDM]+\.?$")
+_ARABIC_ONLY_RE = re.compile(r"^\d+\.?$")
+
+# Lacuna sigil, all 46 of them in De re publica — the one work in the set
+# whose transmission is substantially lost. The committed file drops
+# them, and matching that convention is what keeps a re-fetch from
+# churning chunk_ids; it is a fidelity choice, not a judgement that
+# lacunae carry no information.
+_LACUNA_RE = re.compile(r"^\(\*+\)$")
+
+
+def _is_marker(paragraph: str) -> bool:
+    return bool(
+        _ROMAN_ONLY_RE.match(paragraph)
+        or _ARABIC_ONLY_RE.match(paragraph)
+        or _LACUNA_RE.match(paragraph)
+    )
 
 
 def _extract_paragraphs(html: bytes) -> list[str]:
@@ -155,7 +211,12 @@ def fetch_work(title: str, *, dest: Path, delay: float = 1.5) -> Path | None:
     root_html = _fetch(_rest_url(title))
     subpages = _subpage_titles(root_html, title)
 
-    paragraphs: list[str] = _extract_paragraphs(root_html)
+    # The marker filter applies to the top-level page too. It used to be
+    # sub-page-only, which is why 18 bare Roman markers still reached the
+    # output on works whose text sits on the root page (#151).
+    paragraphs: list[str] = [
+        p for p in _extract_paragraphs(root_html) if not _is_marker(p)
+    ]
     for sub in subpages:
         label = unquote(sub).replace("_", " ")
         print(f"  - {label}")
@@ -165,7 +226,7 @@ def fetch_work(title: str, *, dest: Path, delay: float = 1.5) -> Path | None:
             print(f"    [subpage skipped] {type(e).__name__}: {e}")
             continue
         paragraphs.append(label)
-        paragraphs.extend(p for p in body if not _ROMAN_ONLY_RE.match(p))
+        paragraphs.extend(p for p in body if not _is_marker(p))
         time.sleep(delay)
 
     if not paragraphs:

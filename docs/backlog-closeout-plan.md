@@ -57,27 +57,71 @@ before:
 - Duplication ≤3% on new code. Copying a component wholesale fails at any
   coverage (#254).
 - Anything found along the way that isn't tracked gets its own issue
-  before moving on. A correction to a wrong claim goes **on the source** —
-  a comment on the issue, or a fix to the doc in the same PR — never into
-  a new issue.
+  before moving on, **and is slotted into a batch in the same round** —
+  see "A found issue joins a batch" below. A correction to a wrong claim
+  goes **on the source** — a comment on the issue, or a fix to the doc in
+  the same PR — never into a new issue. That includes correcting your own
+  earlier comment when a later measurement overturns it.
+
+## A found issue joins a batch; it does not join a queue
+
+**Every issue filed during this work gets slotted into a batch in the
+table below, at the time it is filed — grouped with the batch that shares
+its files or its theme wherever one exists.** Decided by the repo owner
+2026-08-08, after batches 1–5 produced eleven issues that sat outside the
+plan entirely.
+
+The reason is context, which is the same reason that sets the original
+ordering. Batches 1–5 each found defects a few lines from the code they
+were already reading: #297 is in the file batch 5 edited, #288 is the
+mirror image of the bug batch 3 fixed, #291 is the floor batch 4 moved. A
+list of unslotted issues loses exactly what made them cheap — whoever
+picks up #297 cold pays again for everything batch 5 learned.
+
+So a found issue is never merely filed. It is filed **and** placed, and
+placing it is part of the same round. Three rules:
+
+- **Group by file or theme, not by severity.** A defect in a file an
+  existing batch owns belongs to that batch's follow-up, even if it is
+  less urgent than something in another.
+- **A landed batch takes an `N-bis` follow-up** rather than a new number
+  at the end, so the grouping stays legible after the fact — batch 5's
+  four findings are batch 5-bis, not batch 8.
+- **If nothing groups, say so explicitly** and give it its own row with a
+  reason. #282 and #285 are like that; both rows below say why.
+
+The open issue list is still the progress bar. This table is not a second
+tracker of *state* — it records *grouping*, which the issue list cannot
+express.
 
 ## Order
 
-| # | Batch | Issues | Why here |
-|---|---|---|---|
-| 1 | refs verify follow-ups | #272, #276 | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
-| 2 | `terms lemmatize` | #262, #263 | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
-| 3 | reset preservation | #274, #264 | Same file as each other; low risk, no data migration. |
-| 4 | chunk-length gates | #268, #176 | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
-| 5 | perseus verification | #151, #152 | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
-| 6 | named-passage index | #182 | Largest design surface; nothing depends on it. |
-| 7 | ruff reformat tranches | #136 | Last, deliberately — see batch 7. |
+Batches 1–5 have landed. `-bis` rows are follow-ups found while working
+the batch above them, and inherit its context.
+
+| # | Batch | Issues | Status | Why here |
+|---|---|---|---|---|
+| 0 | CI unblock | #282 | todo | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. |
+| 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
+| 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
+| 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
+| 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
+| 3-bis | refs scan cache | #288, then #287 | todo | The `refs_scan_state` pair batch 3 opened: the cache is under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 first, and separately** — see batch 3-bis. #289 was grouped here and is now **closed as accepted, not fixed**. |
+| 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
+| 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
+| 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
+| 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
+| 5-bis | perseus follow-ups | #297, #298, #299, #300 | todo | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is the same chrome in 18 live chunks from a sibling scraper; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code. |
+| 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
+| 6-bis | content-derived `chunk_id` | #285 | todo | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
+| 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
 un-reformattable, so running them first shrinks batch 7's blocked tranche
 instead of fighting it — and batches 1–6 never rebase across a 130-file
-diff.
+diff. The `-bis` batches add tests to the same files, so they shrink it
+further; run 2-bis, 3-bis and 4-bis before re-cutting tranche 1.
 
 ---
 
@@ -298,6 +342,100 @@ under-kept in the reset path — and neither was visible from the other.
 
 ---
 
+## Batch 3-bis — refs scan cache (#288, then #287)
+
+Scouted 2026-08-08. **Not one batch.** #288 is a clean fix with no design
+decision; #287 is a design change whose calls are now taken; #289 is
+closed without code.
+
+### #288 — `refs_scan_state` is not on the `--reset` preservation path
+
+428,606 markers, discarded by one `index --reset`. Verified: the table
+appears nowhere in `src/minerva/store/preserved_state.py` — not in the
+probe, the summary, or the restore list.
+
+**The obvious objection is that restoring 428,606 FK-less rows
+reintroduces what #264 part 1 fixed. It does not, and the reason is why
+this is landable now rather than a design question.** Both hazards are
+already covered by work that shipped earlier:
+
+- *Orphans* — swept by the end-of-index reap #264 part 1 added. Measured
+  at 0 on the live DB today, so the reap holds.
+- *Stale markers on a changed chunk* — invalidated by the `text_hash`
+  comparison already in the skip predicate. This matters because
+  `chunk_id` hashes only `text[:120]` (#285), so an edit past that point
+  keeps the id; `text_hash` is what catches it.
+
+So the fix is the `chunk_lemma_state` shape batch 2 established — add to
+the probe counts, the summary line, and the restore list. Schema for
+reference:
+
+```
+CREATE TABLE refs_scan_state (
+    chunk_id   TEXT PRIMARY KEY,
+    text_hash  TEXT NOT NULL,
+    scanned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+### #287 — the skip predicate ignores rules changes
+
+**Design settled: a per-author hash of the *compiled* rule set, in a new
+nullable column.** Recorded on the issue. Two of its three open questions
+turned on facts the issue did not have:
+
+- **Granularity is not blocked.** The issue says per-module hashing "needs
+  a mapping from rules module to the chunks it can match, which the loader
+  does not currently expose". That mapping is already the dispatch key:
+  `_rules_for_author(author)` selects by source author, modules are *named*
+  for their author, `chunk.author` is read inside the rule classes, and
+  `refs build --source-author` scopes the same way. Downgraded estimate,
+  not a promise — shared `_figures.py` rules may need attribution care.
+  Worth getting right because a global hash invalidates all 428,606
+  markers whenever any one author's rules change, which is what
+  `--rescan-all` already does.
+- **Hashing `.py` source would validate nothing for some authors.** Not
+  all rules are Python — `loader.py` exposes
+  `load_author_rules_from_yaml` / `spec_path_for_author`. A source-text
+  hash ignores every YAML-defined rule, so editing one leaves the cache
+  valid and reproduces this exact bug for a subset of authors while
+  appearing fixed. The compiled rule set is the one representation both
+  sources converge on. The formatting-churn argument stands too, and has
+  a date: batch 7 reformats these files.
+- **Schema:** `ALTER TABLE ... ADD COLUMN`, no rebuild, so no PRAGMA/view
+  dance. Nullable, where NULL means "scanned before hashing existed" and
+  forces one rescan per author — bounded, and no migration has to
+  synthesise hashes for 428,606 rows.
+
+**Sequence #288 first.** There is little point teaching the cache to
+invalidate itself precisely while a single `--reset` still discards all of
+it.
+
+### #289 — closed as accepted, not fixed
+
+The observation is verified (273 live `reference_targets` against
+migration 0012's 20 seeds, so the probe's early return is unreachable).
+What was declined is building the sound predicate.
+
+The cost of leaving it is one extra whole-file copy per `index --reset`,
+only in the window where nothing else is populated — and any DB big enough
+for that copy to hurt has left that window. The cost of fixing it is
+structural and permanent: a constant shared between runtime code and a
+*migration's data payload*, which means that migration can never be
+squashed or superseded without silently changing the probe. The docstring
+was already corrected in #274's PR, which is the part that mattered — an
+unconditional-but-cheap snapshot is not a trap; a docstring claiming
+otherwise was.
+
+Reopen with a number: repeated `index --reset` during a large fresh ingest
+measurably slower, with the snapshot copy identified as the cost.
+
+**This is the one place the plan recommends *not* doing tracked work.**
+Recorded here because "grouped into a batch" was starting to read as
+"will be implemented", and for #289 the right outcome was a decision.
+
+---
+
 ## Batch 4 — chunk-length gates (#268, #176)
 
 ### #268 — `min_chunk_chars=60` hides short chunks from search entirely
@@ -474,11 +612,43 @@ reach a commit message, including this document.
 
 ## Batch 5 — perseus scraper verification (#151, #152)
 
+**Landed 2026-08-08.** Both issues closed; four new issues filed
+(#297–#300) and corrections recorded on both. The measurements are in the
+PR body and in each script's docstring; what follows is the plan as
+written, annotated where it was wrong.
+
 Both hold values written in #149 that were never checked against live
 pages. Both scripts are manual one-shots nothing imports, and both raised
 `NameError` before #149, so neither can have contaminated the corpus
 through this path. `perseus/**` is coverage-excluded, so no Sonar gate
 applies.
+
+**Confirmed: no contamination, on every path checked.** The committed
+`deutsche_ideologie.txt`, the six PG-DE files and all 14 Cicero Latin
+files carry none of the chrome the broken skip-sets let through, and the
+live index has none of it either. The defect was an *inert guard*, not a
+dirty corpus.
+
+**Corrected while implementing — `data/*` is gitignored, so "fetch the
+missing work" is an operator action, not a commit.** The plan and #151
+both describe fetching `de_officiis_lat.txt` as filling a gap in
+`data/cicero/raw_la/` (15 declared, 14 present). It does — but in the
+*local* data tree only:
+
+```
+$ git ls-files data/cicero | wc -l
+0
+$ git check-ignore -v data/cicero/raw_la/de_officiis_lat.txt
+.gitignore:13:data/*	data/cicero/raw_la/de_officiis_lat.txt
+```
+
+So the file cannot ride along in the PR, CI cannot verify it, and a fresh
+clone will not have it. Had this been trusted, the batch would have been
+reported as "gap filled" on the strength of a file no reviewer could see.
+The work is real and done locally (715 lines, 237,829 bytes, three Libri,
+ending at the true `[121] Habes a patre munus, Marce fili`); it is staged
+for the next ingest on that machine, and re-fetching it elsewhere is one
+`--only` invocation.
 
 - **#152** — fetch one page each from projekt-gutenberg.org (Marx) and the
   archived mlwerke.de `me03_NNN.htm`, inspect what `_extract_paragraphs`
@@ -489,6 +659,32 @@ applies.
   more than class tokens, note that in the docstring rather than widening
   the set — `"footer"` and `"navbar"` are already generic enough to eat
   real content.
+
+  **Measured: worse than "some tokens are stale". Of the eleven tokens
+  across the two scripts, exactly one matched anything.** All seven in
+  `download_marx_archive.py` matched **zero** elements on all three of
+  its sources, and three of four in `download_marx_pgde.py` did too
+  (`site-header` was the only live one). The reason no widened class set
+  can fix the wayback half: the toolbar carries **no class at all** — it
+  is keyed on `id` (`id="wm-ipp"`, `id="donato"`). The guidance above was
+  right that the wrapper needs markers beyond class tokens, and the
+  answer was `skip_id_tokens` plus web.archive.org's own
+  `<!-- BEGIN/END WAYBACK TOOLBAR INSERT -->` boundary comments, because
+  attribute skipping alone still leaked — see #297.
+
+  The predicted third layer was there: PG-DE renders each chapter body
+  **twice**, text-identical, so the pre-fix parse emitted every Marx
+  paragraph twice. Taking the body's own container
+  (`div.book-reader__chapter-content-wrapper`) both de-duplicates it and
+  survives WordPress theme churn, which enumerating chrome classes does
+  not — after widening the set to every chrome class actually present,
+  four paragraphs still came through.
+
+  And the caution about generic tokens was well aimed: `sidebar` would
+  have been harmless only by luck, since PG-DE's one `sidebar`-ish token
+  is `no-sidebar` **on `<body>`** — a substring match there empties the
+  document. Token matching is exact per whitespace-split token; there is
+  now a test pinning that.
 - **#151** — fetch the one genuine gap, `de_officiis_lat.txt` (15 declared
   works, 14 present), which exercises the multi-Liber path for real.
   Dry-run the other 12 works **to a scratch directory** and diff. Decide
@@ -496,11 +692,57 @@ applies.
   matched or deliberately diverged from; `_ROMAN_ONLY_RE` already filters
   the Roman ones and the Arabic are the same class of artifact.
 
+  **Decided and encoded: filter the markers, and do *not* touch the
+  titles.** `_ROMAN_ONLY_RE` was `^[IVXLC]+$`, which caught only the bare
+  form — 18 of the 543 markers present across a full 15-work re-fetch,
+  3%. The dotted Roman form (`XIII.`) is the commonest at 381, Arabic adds
+  144, and De re publica carries 46 `(*****)` lacuna sigils. The
+  committed files contain **zero** of any form, so the lost original
+  filtered them all. The widened filter also had to be applied to the
+  root page, not just sub-pages, which is where the 18 survivors were.
+  Result: `de_amicitia` went from 70.5% to **100.0%** line-identical,
+  `topica` stays 100%, and 11 of 14 works are now ≥97%.
+
+  **Corrected: #151's "per-Liber page titles absent from the
+  reconstruction" is false, and acting on it would have been actively
+  harmful.** The reconstruction emits them correctly wherever the source
+  still has them — `de_legibus` produces `M. TVLLI CICERONIS De legibus -
+  Liber I` and `- Liber II` exactly as committed. Only De natura deorum's
+  Liber II and III are missing, and those sub-pages now contain no
+  `M. TVLLI` string at all upstream; the committed file preserves titles
+  la.wikisource has since deleted. Had the issue been trusted, the fix
+  would have synthesised per-Liber titles — fabricating source text, and
+  injecting titles into the ~10 works that never had them, churning their
+  `chunk_id`s to "fix" two lines in one work.
+
+  Also worth not re-deriving: the committed Latin files are
+  **post-cleanup** artifacts (`scripts/clean-cicero-chrome.py` strips a
+  title/breadcrumb header after the fetch), so a raw scraper-vs-committed
+  diff conflates two transformations.
+
 **Do not re-run either script over the committed corpus.** Residual
 differences would churn `chunk_id`s and cost those works their embeddings,
 lemmas and cross-references. Byte-identity is unreachable in principle —
 la.wikisource has changed since the May 2026 fetch — so the target is
 "correct and structurally stable", not "reproduces the old bytes".
+Honoured: every fetch in this batch went to a scratch `--data-root`, and
+nothing was written under `data/` except the one missing work.
+
+**One process note worth keeping.** A half-finished version of the
+void-tag fix — guarding `handle_starttag` but not `handle_endtag` — turned
+a latent bug into an active one, letting la.wikisource's `ws-noexport`
+header chrome (`EPUB MOBI PDF RTF TXT`, `fons: incognitus`) into 15 of 15
+Cicero files. The original code leaked none of it. The new fixture test
+for the self-closed `<br/>` case is what caught it, before any of it
+reached `data/`. Asymmetric guards on a paired counter are the failure
+mode; test both halves.
+
+Second process note: a background dry-run silently did nothing because
+the backgrounded shell did not inherit an earlier `cd`, and
+`grep -rl` over the missing output directory returned "0 chrome, 0
+markers" — a clean bill of health measured against an empty set. Check
+that a verification actually ran over files that exist before believing
+its zero.
 
 ---
 
@@ -536,6 +778,62 @@ index run, so it cannot rot and cannot be wiped.
   (work-scoped queries already rank the divided line at 3), in which case
   the table's remaining value is semantic honesty plus section ranges for
   citation, not retrieval. Decide against that number, not in advance.
+
+  **Measured 2026-08-08, and the answer is: build it. Work resolution is
+  necessary and sufficient; the rank estimate above is optimistic.**
+  Measured through `prepare_chat_turn`'s own sequence — `detect_corpus` →
+  `strip_author_keywords` → `detect_work` → `retrieve_passages` — at
+  `top_k=6`, `lang=eng`:
+
+  | query | corpus | work_id | rank |
+  |---|---|---|---:|
+  | `the divided line` | None | None | absent |
+  | `the divided line in the Republic` | plato | 941 | **6** |
+  | `Where does Plato set out the divided line?` | plato | None | absent |
+  | `Plato's divided line` | plato | None | absent |
+  | `the slave boy` | None | None | absent |
+  | `Meno's slave boy` | plato | 919 | **2** |
+  | `Where does Socrates question the slave boy?` | None | None | **2** |
+  | `the Copernican revolution` | None | None | absent |
+  | `Kant's Copernican revolution` | kant | None | 5 |
+
+  The failure tracks work resolution and nothing else: every query that
+  resolved a `work_id` returned the passage, every one that did not is
+  absent bar the Socrates phrasing, which is discriminating on its own.
+  So Phase 1 as designed — a label consulted where `_best_title_matches`
+  runs — is the fix, and **keeping the section range out of the retrieval
+  filter stands**.
+
+  Two corrections to the paragraph above. **Rank 6, not 3.** Inside
+  `top_k` but at its edge; one more competing chunk pushes it out. That
+  argues for having the range available as a tiebreak — an enhancement,
+  not the fix. **And one of #182's two instances is already fixed:**
+  `Meno's slave boy` resolves `work_id=919` today and returns the passage
+  at rank 2 with zero apparatus in the top 6, and `the divided line in the
+  Republic` — listed in #182 as absent — is now rank 6. Presumably #164's
+  `title_local` work. So the live failing set is the queries naming
+  *neither* author nor work, plus `Where does Plato set out the divided
+  line?`, where the author is named and stripped but no work is.
+
+  **Do not curate "the divided line" as a `work_aliases` entry**, which is
+  the shortcut Phase 0 invites. `detect_work` requires every significant
+  token, so it would scope *any* divided-and-line query to the Republic,
+  and the alias file's own docstring rules this out: aliases are "names a
+  reader would actually type" for the work. "The divided line" is not a
+  name for the Republic. That is the semantic-honesty argument for a
+  separate table, and it is load-bearing rather than decorative.
+
+  **Method warning, learned the expensive way.** Three successive
+  harnesses gave three different answers here. Calling
+  `retrieve_passages` directly bypasses `strip_author_keywords`, which
+  lives in the *caller* — and with it disabled the divided-line query
+  returns 6/6 Shorey footnotes, which reads exactly like a real apparatus
+  defect and is not one. A second harness compared every case's hits
+  against one case's target set. Both produced confident, wrong
+  conclusions that were briefly written into #182. Any measurement here
+  must go through `prepare_chat_turn`'s sequence, print the resolved
+  `corpus`/`work_id` beside every rank, and assert the target set is
+  non-empty.
 - **Phase 1** — `named_passages`: migration `0028_named_passages.sql`
   (0027 is taken by batch 2), source of truth
   `src/minerva/authors/named_passages.py` keyed on `(author, title)` →
