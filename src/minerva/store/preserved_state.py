@@ -12,20 +12,23 @@ from ..sqlite_util import foreign_keys_disabled, table_exists
 
 def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> None:
     """Back up ``db_path`` to ``<db_path>.bak.pre-index`` when the DB
-    carries cross_references, reference_targets, chunk_lemmas,
-    embeddings, OR curated ``terms`` rows.
+    carries any of the state a ``--reset`` would otherwise annihilate.
 
-    Five pieces of state need to survive a ``--reset``: LLM-verified
-    cross_references (hours to regenerate), chunk_lemmas (~10 min via
-    LatinCy across grc+lat), embeddings (~20 min to re-encode the full
-    corpus), the term glossary — which, unlike the other three, is
-    not regenerable at any price, because it is curator prose (#192) —
-    and ``reference_targets``, which is the same kind of prose: its
+    Seven tables are probed, and what they cost to lose runs from hours
+    to unrecoverable: LLM-verified cross_references (hours to
+    regenerate), chunk_lemmas (~10 min via LatinCy across grc+lat) and
+    its ``chunk_lemma_state`` attempt markers (#263), embeddings (~20 min
+    to re-encode the full corpus), ``refs_scan_state`` — the rules-scan
+    skip cache, 428,606 markers on the live DB, whose loss turns the next
+    `refs build --strategy rules` into a full-corpus pass (#288) — the
+    term glossary, which unlike any of those is not regenerable at any
+    price because it is curator prose (#192), and
+    ``reference_targets``, which is the same kind of prose: its
     ``citation_system`` and ``notes`` are hand-written, and migration
     0012 seeds nine out-of-corpus authors with them.
     ``terms`` is the probe for the whole glossary: the other four
-    tables all reach it by foreign key, so a non-empty glossary always
-    has a non-empty ``terms``. The snapshot is
+    glossary tables all reach it by foreign key, so a non-empty glossary
+    always has a non-empty ``terms``. The snapshot is
     overwritten on each subsequent re-index — one snapshot, not a tower
     of them. No-op for fresh DBs, where the file does not exist yet.
 
@@ -81,6 +84,11 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
         # zero on all four counts above and never be snapshotted (#263).
         # Same reasoning as reference_targets above.
         state_count = _count_or_zero(probe, "chunk_lemma_state")
+        # The rules-scan skip cache (#288). Its own count for the same
+        # reason again: a DB where `refs build` has run but nothing has
+        # been lemmatized, embedded or glossed scores zero on every count
+        # above, and unsnapshotted means unrestorable.
+        scan_count = _count_or_zero(probe, "refs_scan_state")
         if (
             xref_count == 0
             and target_count == 0
@@ -88,6 +96,7 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
             and emb_count == 0
             and term_count == 0
             and state_count == 0
+            and scan_count == 0
         ):
             return
         backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
@@ -114,6 +123,8 @@ def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> No
         bits.append(f"{term_count:,} terms")
     if state_count:
         bits.append(f"{state_count:,} chunk_lemma_state")
+    if scan_count:
+        bits.append(f"{scan_count:,} refs_scan_state")
     print(
         f"Snapshotted {' + '.join(bits)} to {backup} before re-index.",
         file=sys.stderr,
@@ -131,7 +142,9 @@ def _count_or_zero(conn: sqlite3.Connection, table: str) -> int:
 def _maybe_restore_preserved_state_from_snapshot(
     conn: sqlite3.Connection, db_path: Path
 ) -> None:
-    """Restore preserved xref/lemma/embedding rows from the pre-index snapshot."""
+    """Replay the pre-index snapshot's preserved rows — xrefs, targets,
+    lemmas and their attempt markers, syntax corrections, embeddings and
+    the rules-scan cache — into the freshly-migrated DB."""
 
     backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
     if not backup.exists():
@@ -142,6 +155,14 @@ def _maybe_restore_preserved_state_from_snapshot(
         "chunk_lemma_state",
         "embeddings",
         "chunk_syntax_corrections",
+        # In the guard for a reason stronger than symmetry:
+        # ``refs_scan_state.chunk_id`` is a PRIMARY KEY, and the restore
+        # below is a plain INSERT. A non-reset re-index whose live cache
+        # is populated but whose other tables are all empty — refs built,
+        # nothing lemmatized or embedded yet — would try to insert a
+        # second copy of rows that never went away and raise
+        # IntegrityError instead of no-opping (#288).
+        "refs_scan_state",
     ):
         if _count_or_zero(conn, table):
             return
@@ -169,6 +190,15 @@ def _maybe_restore_preserved_state_from_snapshot(
         # scholar's judgement about a sentence. `chunk_syntax_corrections`
         # carries no foreign key for the same reason (migration 0024).
         syntax_count = _count_or_zero(probe, "chunk_syntax_corrections")
+        # The rules-scan skip cache (#288). Restoring it does not
+        # reintroduce the opposite defect #264 part 1 fixed: the
+        # end-of-index orphan sweep drops any marker whose chunk did not
+        # come back, and a marker that DID come back on a chunk whose text
+        # changed is invalidated by the ``text_hash`` comparison in the
+        # skip predicate — which is the check that matters here, because
+        # ``chunk_id`` hashes only ``text[:120]`` (#285) and an edit past
+        # that point keeps the id.
+        scan_count = _count_or_zero(probe, "refs_scan_state")
     finally:
         probe.close()
     if (
@@ -178,6 +208,7 @@ def _maybe_restore_preserved_state_from_snapshot(
         and state_count == 0
         and emb_count == 0
         and syntax_count == 0
+        and scan_count == 0
     ):
         return
 
@@ -209,6 +240,9 @@ def _maybe_restore_preserved_state_from_snapshot(
                 syntax_restored = 0
                 if syntax_count:
                     syntax_restored = _restore_from_snap(conn, "chunk_syntax_corrections")
+                scan_restored = 0
+                if scan_count:
+                    scan_restored = _restore_from_snap(conn, "refs_scan_state")
                 emb_restored = 0
                 if emb_count:
                     emb_restored = _restore_from_snap(conn, "embeddings")
@@ -248,6 +282,13 @@ def _maybe_restore_preserved_state_from_snapshot(
                 print(
                     f"Restored {emb_restored:,} embeddings from {backup}; "
                     f"orphan sweep will drop rows whose chunk_id changed.",
+                    file=sys.stderr,
+                )
+            if scan_restored:
+                print(
+                    f"Restored {scan_restored:,} refs_scan_state from {backup}; "
+                    f"`refs build --strategy rules` will skip these chunks "
+                    f"instead of re-scanning the corpus.",
                     file=sys.stderr,
                 )
         finally:

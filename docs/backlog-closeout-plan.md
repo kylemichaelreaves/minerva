@@ -106,7 +106,7 @@ the batch above them, and inherit its context.
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
-| 3-bis | refs scan cache | #288, then #287 | todo | The `refs_scan_state` pair batch 3 opened: the cache is under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 first, and separately** — see batch 3-bis. #289 was grouped here and is now **closed as accepted, not fixed**. |
+| 3-bis | refs scan cache | ~~#288~~, then #287 | in progress | The `refs_scan_state` pair batch 3 opened: the cache is under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08 as its own PR**; #287 is the remaining half — see batch 3-bis. #289 was grouped here and is now **closed as accepted, not fixed**. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
@@ -349,6 +349,17 @@ decision; #287 is a design change whose calls are now taken; #289 is
 closed without code.
 
 ### #288 — `refs_scan_state` is not on the `--reset` preservation path
+
+**Landed 2026-08-08.** Scouted as "a clean fix with no design decision"
+and it was, with one thing the scout did not see: the guard is not
+optional. `refs_scan_state.chunk_id` is a PRIMARY KEY and
+`_restore_from_snap` is a plain `INSERT`, so adding the table to the
+restore list *without* also adding it to the "live table is already
+populated, leave it alone" tuple turns a non-reset re-index into an
+`IntegrityError` for any DB whose refs are built but whose lemmas and
+embeddings are not. `chunk_lemma_state` did not surface this because it
+was added to both lists at once. The fourth test in
+`tests/test_index_refs_scan_state_preservation.py` is that regression.
 
 428,606 markers, discarded by one `index --reset`. Verified: the table
 appears nowhere in `src/minerva/store/preserved_state.py` — not in the
