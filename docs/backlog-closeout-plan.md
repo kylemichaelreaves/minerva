@@ -36,6 +36,57 @@ Decisions taken 2026-08-08 by the repo owner:
 - **Delivery** — one PR per batch, each carrying both issues' `Closes`
   lines.
 
+### Scope check, measured 2026-08-09
+
+Two days in, the open-issue count had gone from twelve to thirteen, which
+reads as a treadmill: **26 issues filed, 22 resolved**. Split by *which
+backlog they belong to*, it is not one, and the difference is worth
+having written down because the raw count will keep suggesting otherwise.
+
+**Of the original twelve, nine are done.** The three still open are
+#176, #182 and #136 — which are, in that order, the last three this
+document has scheduled since it was written. Nothing is behind; the
+remainder is the tail it always had. Every other open issue was filed
+*by* this work.
+
+**And the filed-along-the-way ones are decaying fast.** Today's chain,
+each found verifying the fix above it, measured by corpus rows affected:
+
+| issue | rows affected |
+|---|---:|
+| #307 | 241,736 |
+| #311 | 203,610 |
+| #314 | 214 |
+| #316 | 0 — tech-debt |
+| #317 | 0 — tech-debt, and no defect demonstrated |
+
+Three orders of magnitude in a day, ending at two that touch no data at
+all. That is what convergence looks like from inside a
+verification-driven round: each fix's verification finds the next layer
+and the layers thin out. `chunk_lemmas` now satisfies
+`text[surface_start:surface_end] == surface_form` on every language
+except `ara`, which is #314.
+
+**So the risk is not the discovery rate. It is absorption.** "A found
+issue joins a batch" is the right rule for keeping findings cheap — it is
+why #297 cost one session rather than two — but it quietly converts
+"close the twelve open on 2026-08-08" into "close everything this work
+ever finds", and nothing above says the effort cannot finish before that.
+
+**Decision owed, and deliberately not taken here:** whether this
+document's finish line is the original twelve, or every issue it spawns.
+If it is the twelve, the spawned ten graduate to ordinary backlog and are
+prioritised on their own merits, with exactly one constraint carried
+over — **anything that writes to the corpus must land before the 4-op +
+6-bis operator window**, because that window re-derives every `chunk_id`
+and re-lemmatizes, so a writer that is still wrong when it opens gets its
+output baked in. That covers #314 and #298's corpus half. #316, #317,
+#291 and #299 carry no such constraint and need not hold anything open.
+
+On the first reading the remaining path is four rounds — #314, then 6,
+then the single operator window, then 7. On the second it is open-ended
+by construction. Recorded as a question, not answered.
+
 ## Standing gates
 
 From [CLAUDE.md](../CLAUDE.md) — not optional, and each has failed a PR
@@ -115,7 +166,8 @@ the batch above them, and inherit its context.
 | 4-bis | the length floor's own rationale | #291 | todo | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
-| 5-bis | perseus follow-ups | #297, #298, #299, #300 | todo | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is the same chrome in 18 live chunks from a sibling scraper; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code. |
+| 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
+| 5-ter | perseus follow-ups, second round | #316, #317 | todo | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
 | 6-bis | content-derived `chunk_id` | #285 | todo | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
@@ -1000,10 +1052,23 @@ PR is the one that should carry the closing keyword for it.
 earlier revision of this line spelled the keyword out next to the issue
 number. That sentence went into a squash-merge commit message, GitHub's
 parser read the keyword out of the surrounding prose — backticks are no
-protection — and closed #176 on the spot, three minutes after the same
+protection — and shut the issue on the spot, three minutes after the same
 paragraph explained that it must stay open. Reopened by hand. Never put a
 closing keyword adjacent to an open issue's number in any text that can
 reach a commit message, including this document.
+
+**And this paragraph broke its own rule until 2026-08-09**, which is the
+best evidence that the rule is easy to break: the sentence above read
+"…and clos&#101;d #176 on the spot", a closing keyword directly against an
+open issue's number, sitting inside the warning against exactly that. It
+never fired only because GitHub parses commit messages and PR bodies, not
+file contents — so it was one quotation away from repeating the incident
+it describes. Found by grepping this file for
+`(close|fix|resolve)\w*\s+#\d+` before a commit; worth doing again
+whenever this page gains a paragraph. Two hits survive that grep today
+and both are benign, so do not spend the check on them again: one names
+#264, which is closed and cannot be re-closed, and one names #229, which
+is a **pull request** — closing keywords act on issues only.
 
 ---
 
@@ -1140,6 +1205,254 @@ the backgrounded shell did not inherit an earlier `cd`, and
 markers" — a clean bill of health measured against an empty set. Check
 that a verification actually ran over files that exist before believing
 its zero.
+
+---
+
+## Batch 5-bis — perseus follow-ups (#297, #298, #299, #300)
+
+**#297 and #300 landed 2026-08-09. #298's parser half landed and its
+corpus half is an operator step. #299 stays open, with its premise
+corrected.**
+
+### #297 — the skip-depth counter, replaced by a tag stack
+
+The fix the issue calls "the real fix", and it is small: push the tag
+name on entering a skip, and on an end tag unwind to the innermost
+matching entry instead of decrementing. An end tag naming nothing open
+is then dropped, which is what a browser does and what stops a stray
+`</form>` from ending a `<div>` skip.
+
+Two things the issue did not have, both found by writing the tests:
+
+- **The counter fails in the opposite direction too, and no one had
+  noticed.** `<div class=chrome><span><p>junk</div>` — unclosed
+  descendants inside a skipped subtree — leaves the counter at 2 when
+  `</div>` arrives, so the skip never ends and **the entire rest of the
+  document is discarded**. #297 documents only the early-exit direction
+  (chrome leaking out). Truncating the stack rather than popping one
+  entry is what covers both, and a fix that only ignored unmatched end
+  tags would have left this half live.
+- **The blast radius is 5 scrapers, not 8.** The issue lists
+  `download_descartes_wikisource`, `download_spinoza` and
+  `download_augustine` among the callers passing `skip_class_tokens`.
+  They do not — each carries its own private `_ParagraphExtractor` that
+  predates the shared class and skips by tag name only:
+
+  ```
+  $ grep -rln "skip_class_tokens\|skip_id_tokens" perseus/*.py
+  perseus/_download.py
+  perseus/download_cicero_wikisource.py
+  perseus/download_marx_archive.py
+  perseus/download_marx_pgde.py
+  perseus/download_pascal_fr.py
+  perseus/download_rousseau_fr.py
+  ```
+
+  Material because a fix "verified across eight scrapers" would have
+  been verified across three that cannot reach the code.
+
+  **Corrected while filing 5-ter: it is *two* private copies, not
+  three.** `download_spinoza.py` imports the shared class and defines
+  none — the grep that found "three" hit its call site. The two real
+  ones are `download_descartes_wikisource.py` and
+  `download_augustine.py`, and neither carries #297's bug; they are
+  tech-debt, filed as #317.
+
+Verified on live pages: a two-work Cicero re-fetch to a scratch tree
+differs from the committed files by trailing newline only, plus one
+`FRAGMENTA` heading la.wikisource has since added. No chrome, nothing
+lost.
+
+### #298 — the mlwerke edition note: right defect, wrong file
+
+The issue's Hypothesis names `perseus/download_kapital_mew.py` and
+proposes reusing `_drop_mlwerke_chrome`. **Both are wrong, and neither
+would have worked.** The scraper saves the raw `.htm` verbatim; the
+chrome strip lives in `src/minerva/corpus/split_kapital_mew.py`, which
+already has one — it just only sees `<small>`:
+
+```
+$ grep -rln "Seitenzahlen" perseus/ scripts/ src/
+perseus/download_marx_archive.py
+src/minerva/corpus/split_kapital_mew.py
+```
+
+The real cause is a markup variant, and it is narrower than "not in
+`<small>`". 54 raw files carry the note; 37 of them wrap it in `<FONT
+SIZE=2>` **outside** any `<p>`, where it never becomes a chunk. The 17
+that leak open it with `<FONT SIZE=2><P>` and close the font *before*
+the `</P>`, so it reaches the body loop as an ordinary paragraph:
+
+```
+</P>\n<FONT SIZE=2><P>Seitenzahlen verweisen auf: … S. 627 - 652<BR>
+Dietz Verlag, Berlin/DDR 1983</FONT> </P>
+```
+
+Fixed by matching the note's own opening words, anchored to the start of
+the paragraph — not by tag, because `<FONT SIZE=2>` also wraps ordinary
+inline prose here, and not by substring, because Marx discusses page
+references. Measured over the whole raw tree: the new rule removes
+**exactly 17 paragraphs**, and a full re-split produces 7,113 chunks with
+zero carrying the note.
+
+**The 18th chunk is not this defect and needs no code.** `Lohnarbeit und
+Kapital` comes from `data/marx/raw_deu/lohnarbeit_kapital.txt`, a
+PG-DE-sourced text file, and `_drop_mlwerke_chrome` already removes that
+line today — confirmed by feeding it the exact en-dash paragraph. It is
+a stale artifact of a fetch predating the filter, which is also why its
+dash differs; the issue reads the dash as evidence of a second live
+code path.
+
+**No Marx prose is contaminated — and the damage is nonetheless larger
+than 18 chunks.** All 18 are *standalone* chunks of 141–162 characters
+consisting only of the note; not one has real text appended to it. But
+the note is a paragraph, so it takes `¶ 1` and pushes every real
+paragraph in its chapter up by one. Chapter 37's opening paragraph is
+`Siebenunddreissigstes Kapitel: Einleitendes, ¶ 2` in the live index and
+becomes `¶ 1` once the note is gone:
+
+```
+$ sqlite3 data/index.sqlite "SELECT section, substr(text,1,40) FROM chunks
+    WHERE section LIKE 'Siebenunddreissigstes Kapitel: Einleitendes, ¶ %' …"
+Siebenunddreissigstes Kapitel: Einleitendes, ¶ 2 | Die Analyse des Grundeigentums …
+```
+
+So **745 chunks across the 17 chapters currently carry a paragraph
+number one too high**, which is a citation defect rather than a text
+one — the words are right, the address is not.
+
+**Corrected 2026-08-09, same day, on this page and on PR #315: both said
+"the 17 Band III `chunk_id`s change".** `section` is an input to
+`_make_chunk_id`, so renumbering churns the id of every body paragraph in
+those chapters, not only the 17 removed:
+
+| | |
+|---|---:|
+| pre-fix chunks from the 17 files | 790 |
+| post-fix chunks | 773 |
+| **`chunk_id`s the fix introduces** | **745** |
+
+The 28 that survive are footnote chunks, whose section is `Fn. (n)` and
+carries no `¶`. Had the 17 figure been trusted, the operator step would
+have been sized as a trivial repair and would have silently orphaned 745
+chunks' embeddings, lemmas and cross-reference anchors.
+
+**The corpus half is an operator step and did not land.** Repairing it
+means re-ingesting the marx corpus — and `--only` replaces
+`chunks.jsonl` per *corpus*, so all three marx sources have to go in
+together or the siblings are wiped. 745 changed ids require a full refs
+rebuild including the llm-verify tail. That is the same shape as 4-op and
+belongs in a window with it, not at the end of a code round; the 745 also
+ride free there, since #285 re-derives every `chunk_id` in the corpus
+anyway. #298 accordingly carries `Refs`, not a closing keyword.
+
+One thing checked and clean: the committed parser reproduces **7,130 of
+7,130** live Kapital `chunk_id`s before the fix, so the index has not
+drifted from the code by any other route.
+
+### #299 — still a decision, but not the one the issue frames
+
+**The premise moved and the issue's mechanism does not reproduce.** #299
+concludes the 403 is "a deliberate signal from the site operator" whose
+block "keys on the literal substring `minerva`". Measured 2026-08-09
+across all six works, canonical UA against `foo/1.0`, every other header
+held equal:
+
+```
+der-18-brumaire-des-louis-bonaparte                   minerva=200  foo=200
+lohn-preis-und-profit                                 minerva=403  foo=200
+lohnarbeit-und-kapital                                minerva=200  foo=200
+das-elend-der-philosophie                             minerva=403  foo=200
+die-heilige-familie-oder-kritik-der-kritischen-kritik minerva=403  foo=200
+zur-kritik-der-politischen-oekonomie                  minerva=403  foo=200
+```
+
+The verdict is **per-URL and unstable**: `brumaire` is served to the
+canonical UA on every attempt, and `lohnarbeit-und-kapital` returned 403
+six times running and 200 a few minutes later. That behaves like a
+bot-mitigation layer with a short-lived per-(UA, URL) verdict, not like
+a substring blacklist — so "this script cannot fetch" is too strong, and
+so is "the operator has decided". The docstring the batch-5 PR wrote is
+corrected in this round.
+
+**What does not change is the response.** Rotating the UA or giving this
+script a private fetcher is still off the table. The three options in
+the issue remain the repo owner's call; what the measurement changes is
+that option 1 (accept) now costs less than it appeared to, since most of
+the six are reachable most of the time. The durable engineering finding
+is separate: 403 is not in `_RETRY_CODES`, so the script dies on its
+first refused work with no partial output — the same gap #300 fixes for
+the batch loop.
+
+### #300 — both halves, and the redirect was checkable after all
+
+Item 1 as the issue orders it: collect `(filename, reason)` per skip,
+print a summary block, name the `--only` retry, and return non-zero.
+
+Item 2 the issue hedges — "check *why* `urllib` did not follow it before
+adding a retry". The 301 no longer reproduces, so the *why* is not
+recoverable; but the redirect target is, and it is a drop-in.
+`/api/rest_v1/page/html/<title>` is the deprecated endpoint and 301s to
+`/w/rest.php/v1/page/<title>/html`. Measured byte-identical — same
+sha1, same length — for De re publica, De officiis, Laelius de Amicitia,
+Topica and the `De re publica/Liber I` sub-page, on both the space and
+underscore spellings. So `_rest_url` points at the target directly,
+which honours the redirect rather than masking it and removes the class
+of failure instead of retrying it.
+
+---
+
+## Batch 5-ter — perseus follow-ups, second round (#316, #317)
+
+**Todo.** Both filed 2026-08-09 while working 5-bis, both in files it
+edited, and both are the *un-generalized* half of a 5-bis fix rather than
+a new defect class.
+
+### #316 — #300's accounting fix reached one script of fourteen
+
+PR #315 taught `download_cicero_wikisource.py` to collect what it
+dropped, print a summary and return non-zero. An AST walk over every
+`main()` in `perseus/` says thirteen other downloaders swallow per-item
+failures inside a loop, and **twelve cannot signal failure to their
+caller at all** — no value-returning `return`, no `sys.exit`:
+
+```
+downloaders whose main() swallows per-item failures in a loop: 14
+…of those, unable to signal failure to the caller: 12
+```
+
+Worse here than in the Cicero case, because several feed scripture and
+Perseus corpora where a missing book does not show up in a file count.
+The fix wants a small collector in `perseus/_download.py` rather than
+twelve copies of #315's inline block — and #315's own copy retrofitted
+onto it, so it does not become a thirteenth variant.
+
+### #317 — the two private extractor copies, and what they are *not*
+
+The part of #297 that PR #315 scoped out.
+`download_descartes_wikisource.py` and `download_augustine.py` each carry
+a private `_ParagraphExtractor` predating the shared class, so none of
+its fixes — the void-tag guard, the tag stack, attribute skipping —
+reach them.
+
+**Filed with no demonstrated defect, deliberately.** They skip by tag
+name only, so a stray end tag cannot desynchronise their counter, and on
+unbalanced markup they behave exactly as the fixed shared class does:
+
+```
+html = "<p>FIRST</p><table><tr><td>junk<p>SECOND</p><p>THIRD</p>"
+
+download_descartes_wikisource    -> ['FIRST']
+download_augustine               -> ['FIRST']
+shared, after PR #315            -> ['FIRST']
+```
+
+Two corrections to what this round first assumed, both caught by running
+it rather than reading it. The plan and #297's comment said *three*
+private copies: `download_spinoza.py` imports the shared class and has
+none — the grep hit its call site. And the copies were assumed to carry
+#297's bug; they do not, which is why this is tech-debt rather than a
+second instance of it.
 
 ---
 

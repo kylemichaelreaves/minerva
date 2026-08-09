@@ -416,6 +416,97 @@ def test_descartes_reuses_shared_gutenberg_helpers():
     assert mod._strip_pg_boilerplate(raw) == "Ego cogito.\n"
 
 
+def test_cicero_rest_url_targets_the_current_endpoint():
+    """`/api/rest_v1/page/html/<title>` is the endpoint that issued the
+    301 which lost De re publica (#300). It redirects to
+    `/w/rest.php/v1/page/<title>/html`, and `urllib` did not follow it.
+
+    Pointing at the target directly is the fix rather than retrying 3xx,
+    because a retry that masks a genuine permanent redirect is worse
+    than the skip. Verified byte-identical on 2026-08-09 for De re
+    publica, De officiis, Laelius de Amicitia, Topica and the
+    `De re publica/Liber I` sub-page — same sha1, same length, on both
+    the space and underscore spellings.
+    """
+
+    mod = importlib.import_module("download_cicero_wikisource")
+    url = mod._rest_url("De re publica")
+    assert url.endswith("/html")
+    assert "/w/rest.php/v1/page/" in url
+    assert "/api/rest_v1/" not in url
+    # The title is still fully quoted, so a sub-page's slash cannot be
+    # read as a path separator against the `/html` suffix.
+    assert mod._rest_url("De officiis/Liber I").endswith("%2FLiber%20I/html")
+
+
+class TestCiceroBatchReportsWhatItLost:
+    """A 15-work run that drops one work to a transient HTTP 301 exited
+    0, with the only signal one line in the middle of a long log (#300).
+    An unattended or scripted run therefore reported success while
+    writing 14 files.
+
+    The per-work `try/except` itself is right — one dead work should not
+    lose the other fourteen — so the fix is accounting, not propagation.
+    """
+
+    @staticmethod
+    def _run(monkeypatch, tmp_path, failures, capsys):
+        mod = importlib.import_module("download_cicero_wikisource")
+
+        def _fake_fetch_work(title, *, dest, delay):
+            exc = failures.get(title)
+            if exc is not None:
+                raise exc
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text("body")
+
+        monkeypatch.setattr(mod, "fetch_work", _fake_fetch_work)
+        monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            sys, "argv",
+            ["download_cicero_wikisource.py", "--data-root", str(tmp_path),
+             "--delay", "0", "--only", "de_officiis_lat.txt",
+             "de_re_publica_lat.txt"],
+        )
+        rc = mod.main()
+        return rc, capsys.readouterr().out
+
+    def test_a_lost_work_makes_the_run_exit_non_zero(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        import urllib.error
+
+        rc, out = self._run(
+            monkeypatch, tmp_path,
+            {"De re publica": urllib.error.HTTPError(
+                "u", 301, "Moved Permanently", {}, None)},
+            capsys,
+        )
+        assert rc != 0
+        # And it says which one, at the end, where a summary is read.
+        assert "de_re_publica_lat.txt" in out.rsplit("===", 1)[-1]
+        assert "301" in out
+
+    def test_a_clean_run_still_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, out = self._run(monkeypatch, tmp_path, {}, capsys)
+        assert rc == 0
+        assert "SKIPPED" not in out
+
+    def test_every_skipped_work_is_listed_not_just_the_count(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        rc, out = self._run(
+            monkeypatch, tmp_path,
+            {"De officiis": RuntimeError("boom"),
+             "De re publica": RuntimeError("bang")},
+            capsys,
+        )
+        assert rc != 0
+        tail = out.rsplit("===", 1)[-1]
+        assert "de_officiis_lat.txt" in tail
+        assert "de_re_publica_lat.txt" in tail
+
+
 def test_every_perseus_module_imports():
     """Blanket guard: no downloader may fail at import time."""
 

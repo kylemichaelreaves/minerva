@@ -43,6 +43,10 @@ _BACKLINK_RE = re.compile(r"<=\s*$")
 # element (<I>, <A>) ends right at it ("Karl Marx , \"Zur Kritik…").
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([,.;:!?)])")
 
+# mlwerke's per-page edition note, naming the MEW volume and page range
+# the scan follows. Site chrome, not text. Both dashes occur (#298).
+_SOURCE_NOTE_RE = re.compile(r"Seitenzahlen verweisen auf\s*[:–-]")
+
 # A chunk must contain at least one letter — Kapital's numeric tables
 # (the Band II reproduction schemas, the wage/price tables) linearize
 # into hundreds of bare-number cell fragments otherwise.
@@ -126,6 +130,20 @@ def split_kapital_mew(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         small.decompose()
     for p in soup.find_all("p", align=True):
         if p.find("a", href=True) and "Inhalt" in p.get_text():
+            p.decompose()
+    # The note is not always in <SMALL>, and the <small> pass above is
+    # not enough on its own (#298). 17 Band III files open it with
+    # `<FONT SIZE=2><P>` and close the font *before* the `</P>`, so it
+    # reaches the body loop below as an ordinary paragraph and became 17
+    # corpus chunks led by a bibliographic note — long enough to clear
+    # every length floor in the retrieval path, and editorial text in a
+    # chunk is what produces spurious cross-references. Matched on the
+    # note's own opening words rather than on the tag, because
+    # `<FONT SIZE=2>` also wraps ordinary inline prose on these pages,
+    # and anchored to the start of the paragraph, because Marx's own
+    # text discusses page references.
+    for p in soup.find_all("p"):
+        if _SOURCE_NOTE_RE.match(_norm_text(p.get_text(" "))):
             p.decompose()
 
     para_no = 0

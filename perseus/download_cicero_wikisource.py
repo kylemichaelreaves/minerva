@@ -91,9 +91,26 @@ _WORKS: tuple[tuple[str, str], ...] = (
 
 
 def _rest_url(title: str) -> str:
+    """Parsoid HTML for ``title`` from la.wikisource's current REST API.
+
+    Not ``/api/rest_v1/page/html/<title>``, which is the deprecated form
+    and 301s here — a redirect ``urllib`` did not follow, so a full
+    15-work run lost *De re publica* to it and still exited 0 (#300).
+    Pointing at the target directly is the fix rather than retrying 3xx,
+    since a retry that masks a genuine permanent redirect is worse than
+    the skip. Verified byte-identical on 2026-08-09 (same sha1, same
+    length) for De re publica, De officiis, Laelius de Amicitia, Topica
+    and the ``De re publica/Liber I`` sub-page.
+
+    ``safe=""`` keeps a sub-page's slash percent-encoded, so
+    ``De officiis/Liber I`` cannot be read as a path segment against the
+    ``/html`` suffix.
+    """
+
     return (
-        "https://la.wikisource.org/api/rest_v1/page/html/"
+        "https://la.wikisource.org/w/rest.php/v1/page/"
         + quote(title, safe="")
+        + "/html"
     )
 
 
@@ -239,7 +256,7 @@ def fetch_work(title: str, *, dest: Path, delay: float = 1.5) -> Path | None:
     return dest
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--data-root",
@@ -261,6 +278,13 @@ def main() -> None:
     args = ap.parse_args()
     out_dir = args.data_root / "cicero" / "raw_la"
     only = set(args.only) if args.only else None
+    # Per-work `except` is right — one dead work must not lose the other
+    # fourteen — but on its own it made a batch that dropped `De re
+    # publica` to a transient HTTP 301 exit 0 with 14 of 15 files
+    # written, and the only trace was one line in the middle of a long
+    # log (#300). Collect the losses and report them where a summary is
+    # read, then fail the run.
+    skipped: list[str] = []
     for filename, title in _WORKS:
         if only and filename not in only:
             continue
@@ -269,10 +293,23 @@ def main() -> None:
             fetch_work(title, dest=out_dir / filename, delay=args.delay)
         except urllib.error.HTTPError as e:
             print(f"  [WORK SKIPPED] {filename} ({title}): HTTP {e.code}")
+            skipped.append(f"{filename} ({title}): HTTP {e.code}")
         except Exception as e:
             print(f"  [WORK SKIPPED] {filename}: {type(e).__name__}: {e}")
+            skipped.append(f"{filename} ({title}): {type(e).__name__}: {e}")
         time.sleep(args.delay)
+
+    if skipped:
+        print(f"\n=== {len(skipped)} WORK(S) NOT WRITTEN ===")
+        for line in skipped:
+            print(f"  {line}")
+        # Several of these are transient — the 301 that prompted this
+        # succeeded on a plain `--only` retry minutes later — so the
+        # retry is named rather than attempted automatically.
+        print(f"  retry: --only {' '.join(s.split(' ')[0] for s in skipped)}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
