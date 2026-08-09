@@ -101,7 +101,7 @@ the batch above them, and inherit its context.
 
 | # | Batch | Issues | Status | Why here |
 |---|---|---|---|---|
-| 0 | CI unblock | #282 | todo | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. |
+| 0 | CI unblock | #282 | **landed** | **Groups with nothing** — a HuggingFace 429 fails *any* PR, so it taxes every batch below. Cheap, and first because it is a tollgate rather than a theme. Merged 2026-08-09 as PR #302; the row said `todo` until 2026-08-09. |
 | 1 | refs verify follow-ups | #272, #276 | **landed** | Deferred scope from PRs #271/#277, merged 2026-08-08. Decays fastest. |
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | #284 | todo | `terms lemmatize --all` leaves stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote; do not re-derive that context. |
@@ -424,6 +424,28 @@ The residue is #304: the fingerprint covers rule *configuration*, not
 rule *logic*. 307 of 350 rules are pure configuration and fully covered;
 the 43 that are not belong to eight classes shared across 16 of the 27
 rule-carrying authors. `--rescan-all` stays for that case.
+
+**Operator step run 2026-08-09** against the live DB, after
+`scripts/snapshot-db.sh 287-rules-hash-migration`. Migration 0028 applied,
+then the one-time NULL-driven rescan:
+
+| | before | after |
+|---|---|---|
+| markers carrying `rules_hash` | 0 / 428,606 | 428,606 / 428,606 (28 distinct) |
+| `cross_references` | 65,741 | 65,899 |
+| a second `refs build --strategy rules` | — | `scanned 0 chunks` |
+
+**The 158 new rows are the part worth reading.** They are references the
+rules already knew how to find and had never emitted, because the chunks
+were scanned before the rule existed and the cache never re-offered them:
+Aquinas 133, Augustine 12, Plato 6, Hegel 2, Hobbes 2, and one each for
+Epictetus, Nietzsche and Origen. That is the standing cost of the defect,
+paid once — and it is a floor, not a total, since #304's logic-only edits
+are still invisible.
+
+Note also that 28 distinct fingerprints cover 51 authors: 24 authors have
+no rules module at all and share the empty-tuple digest. A rules module
+added for any of them invalidates only that author.
 
 The original design note follows. Two of the issue's three open questions
 turned on facts the issue did not have:
