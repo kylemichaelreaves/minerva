@@ -106,7 +106,7 @@ the batch above them, and inherit its context.
 | 2 | `terms lemmatize` | #262, #263 | **landed** | Blocks the next Latin-touching re-ingest; #262 is a 19-minute silent hang. |
 | 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
 | 2-ter | surface offsets | ~~#307~~, ~~#309~~ | **landed** | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both, which is what happened: PR #310 fixed the writer and the operator step below ran the pass. #311 is its residue. |
-| 2-quater | NFC-layer offsets | #311 | todo | Found verifying 2-ter. `terms lemmatize` feeds `NFC(text)` and stores offsets against `chunks.text`; 1,866 rows across 16,032 non-NFC chunks. Same defect class as #307 one layer up, in the file batch 2 rewrote, and the last thing between `chunk_lemmas` and the invariant #310 established. |
+| 2-quater | NFC-layer offsets | ~~#311~~ | **landed** | Found verifying 2-ter. `terms lemmatize` fed `NFC(text)` and stored offsets against `chunks.text`; 16,032 non-NFC chunks. Same defect class as #307 one layer up, in the file batch 2 rewrote, and the last thing between `chunk_lemmas` and the invariant #310 established. The issue's "1,866 rows" is one of two failure modes; the real figure is 203,610 — see batch 2-quater. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
@@ -394,6 +394,100 @@ this is the whole population.
 
 Repair and the rules-hash rescan are one operator window — see
 Verification.
+
+---
+
+## Batch 2-quater — NFC-layer offsets (#311)
+
+**Landed 2026-08-09.** `terms lemmatize` handed the pipeline
+`unicodedata.normalize("NFC", row["text"])` and stored the offsets that
+came back against `chunks.text`. The normalization moves into
+`Lemmatizer` — `lemmatize._pipeline_text` — where `_SourceOffsets`, built
+for #307's tokenizer rewrite, maps the spans back onto the caller's
+string. The CLI now yields `row["text"]` verbatim; the model sees exactly
+what it saw before.
+
+**The issue's proposed fix is the one thing that must not be done, and it
+says so as an untested proposal.** #311's Hypothesis reads "pass
+`row["text"]` unchanged and let the existing `_SourceOffsets` path handle
+any rewrite the tokenizer performs", with the model-quality question
+listed as a thing to check first. It was checked, and it fails: fed the
+stored decomposed text, `grc_dep_web_sm`'s lookups miss and it falls back
+to something close to the surface form. Over 300 live non-NFC grc chunks,
+2,313 of 51,549 lemmas changed —
+
+```
+'λέγων'      -> NFC 'λέγω'      | raw 'λέγων'
+'ἔφη'        -> NFC 'φημί'      | raw 'ἔφη·'      <- ano teleia in the lemma
+'κρείττονος' -> NFC 'κρείσσων'  | raw 'κρείττονος'
+'πράξεις'    -> NFC 'πρᾶξις'    | raw 'πράξης'
+```
+
+— so shipping it as written would have traded 203,610 wrong offsets for
+roughly 4.5% of 2.9 million grc lemmas going wrong instead, in a table
+whose only consumer is the concordance. The issue's own alternative
+("keep feeding NFC and store `NFC(text)` in `chunks.text`") is the
+corpus-wide migration it calls it. The third option — normalize for the
+model, map the offsets — is the one both halves of the issue skip past,
+and it is a dozen lines because #307 already built the map.
+
+**The row count in the issue is one of two failure modes, and it is the
+smaller one.** #311 measures 1,866 rows "wrong vs stored text" (grc
+1,497, eng 369, deu 0). That reproduces exactly — but only for rows whose
+*span* moved. Audited across the whole corpus:
+
+| lang | non-NFC chunks | rows in them | span drifted | span right, form differs |
+|---|---:|---:|---:|---:|
+| grc | 16,010 | 837,850 | 1,497 | 201,722 |
+| eng | 5 | 4,818 | 369 | 3 |
+| deu | 17 | 4,654 | 0 | 19 |
+| **all** | **16,032** | **847,322** | **1,866** | **201,744** |
+
+203,610 rows fail `text[surface_start:surface_end] == surface_form`, not
+1,866. The 201,744 are NFC's *singleton* mappings, which change a
+character without changing the length — Greek's "oxia" letters fold onto
+their "tonos" twins, U+1F7B → U+03CD:
+
+```
+eb3446f78ac9d3702a8d[16:22]
+   stored surface_form 'κύριος'  [3ba, 03cd, 3c1, 3b9, 3bf, 3c2]
+   chunks.text slice   'κύριος'  [3ba, 1f7b, 3c1, 3b9, 3bf, 3c2]
+```
+
+Same span, same word, different string — invisible when rendered and a
+miss for any consumer comparing or searching on `surface_form`. So the
+issue's "the exposure is length-changing composition, not non-NFC-ness as
+such" is backwards for 99% of the population, and its "deu … 0" is 19.
+Had it been trusted, the repair would have been scoped to the 103
+length-changing chunks instead of all 16,032, and the verification query
+would have been the drift query — reporting success with 201,744 rows
+still wrong. The true grc rate is **93.09%**, not the 99.67% #311 quotes
+from the 2-ter sampling. Correction filed on the issue.
+
+**The two things #311 asked to check before assuming the map is safe,
+answered.** Neither was a formality:
+
+- *Model degradation on decomposed input* — real, and fatal to the
+  proposed fix. Above.
+- *The word-count invariant under NFC* — holds. Composition never merges
+  or splits a whitespace-delimited word, and it was measured rather than
+  argued: over all 16,032 non-NFC chunks, 853,894 words, **zero**
+  unusable maps and zero words landing on the wrong span. Re-running the
+  live `grc_dep_web_sm` over 400 affected chunks then gives
+  54,330/54,330 spans reproducing the stored text, with the lemma
+  sequence unchanged on every one.
+
+**The Stanza path is fixed too, with nothing to repair.** heb/ara have no
+non-NFC chunks, so this is not a live defect there — but the
+normalization the CLI was doing applied to those models as well, and
+moving it without giving `_tokens_from_stanza_doc` the same map would
+have changed what they are fed. It takes the same `source` argument and
+the same refuse-rather-than-guess rule. The one asymmetry is deliberate
+and kept: a multi-word-token sub-word borrows its parent's span, so its
+`surface` stays `w.text` rather than a slice that would hand every clitic
+the whole parent word.
+
+Operator step: see Verification.
 
 ---
 
@@ -1419,6 +1513,19 @@ explained.**
   of the 1,497 mismatching rows reproduces against the NFC form —
   1,497/1,497 — so the accounting is exact rather than approximate.
   Corpus-wide the same defect costs 369 eng rows and 0 deu rows.
+
+  **Corrected 2026-08-09 while working batch 2-quater: 99.67% and
+  "1,497" are both this sampling's artifact, and the real numbers are
+  much worse.** The 400-chunk-per-language sample is drawn in `ord`
+  order, so for `grc` it lands almost entirely outside the affected
+  works; and the mismatch it counts is only the subset whose *span*
+  moved. Audited over every grc lemma row: 203,219 of 2,942,344 fail
+  `text[surface_start:surface_end] == surface_form`, i.e. **93.09%, not
+  99.67%** — 1,497 drifted spans plus 201,722 rows where NFC's
+  oxia→tonos singleton mapping changes the character without changing
+  the length. deu is 19, not 0. Had the sampled figure been trusted,
+  2-quater would have been scoped as a 1,866-row cleanup. See batch
+  2-quater.
 - **`ara` 81.99% is intended behaviour.** Stanza's multi-word-token
   expansion gives a clitic sub-word the parent token's span, because
   `w.start_char` is `None` for the expansion;
