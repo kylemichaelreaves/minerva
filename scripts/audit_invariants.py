@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Check whole-corpus invariants against the live index (#320).
+
+Three defects — #307, #311, #314 — were found by one query written from
+scratch each time and thrown away with the scratch directory. This is
+that query, committed, with room for the others beside it.
+
+Run it after any pass that writes derived tables: an ingest, a
+``terms lemmatize``, a re-chunk::
+
+    ./.venv/bin/python scripts/audit_invariants.py
+    ./.venv/bin/python scripts/audit_invariants.py --format json
+
+Two properties are deliberate, and both come from a way the throwaway
+versions went wrong.
+
+**It reads every row; there is no sampling flag.** Both wrong numbers in
+this repo's history came from a sample that looked representative. The
+batch 2-ter operator record put ``grc`` at 99.67% from 400 chunks drawn
+in ``ord`` order; over all 2,942,344 grc rows the figure was 93.09%, and
+#311 was scoped from the sampled number and understated its own
+population by 109×. A ``--sample`` option would get used, so there
+isn't one. The cost is a few minutes against an 8.2 GB database, paid by
+an operator who has just spent an hour on a re-ingest.
+
+**It reports; it does not gate.** ``ara`` violates the lemma-surface
+invariant legitimately — Stanza's multi-word-token expansion gives a
+clitic sub-word its parent's span on purpose. A red/green check would
+have to be silenced for it, and a silenced check is not run. So a
+violation exits 0: it is the output, not a failure. Exit is non-zero only
+when the audit could not look at all, which is a different thing and must
+not be confused with a clean result.
+
+This is an operator script, not a CI gate: it needs `data/index.sqlite`,
+which is gitignored and absent in CI. ``scripts/**`` is coverage-excluded.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sqlite3
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+
+_DEFAULT_DB = Path(__file__).resolve().parents[1] / "data" / "index.sqlite"
+
+# How many offending rows to keep per invariant. A count alone sends the
+# next reader back to write the query again by hand, which is the whole
+# thing this script exists to stop; a full dump is unreadable.
+_MAX_EXAMPLES = 6
+
+
+@dataclass(frozen=True)
+class Violation:
+    group: str
+    chunk_id: str
+    detail: str
+
+
+@dataclass
+class Result:
+    name: str
+    rows_checked: int = 0
+    violations: int = 0
+    # group -> (rows checked, rows violating)
+    per_group: dict[str, tuple[int, int]] = field(default_factory=dict)
+    examples: list[Violation] = field(default_factory=list)
+
+    def record(self, group: str, *, bad: bool) -> None:
+        checked, violated = self.per_group.get(group, (0, 0))
+        self.per_group[group] = (checked + 1, violated + int(bad))
+        self.rows_checked += 1
+        self.violations += int(bad)
+
+
+@dataclass(frozen=True)
+class Invariant:
+    name: str
+    statement: str
+    run: Callable[[sqlite3.Connection], Result]
+    # Printed beside the number. Nonzero is not automatically wrong, and
+    # the explanation is what stops the next operator re-investigating a
+    # known one — `ara` cost two sessions before it was written down.
+    known_exceptions: str | None = None
+
+
+def audit_lemma_surface_offsets(conn: sqlite3.Connection) -> Result:
+    """``chunks.text[surface_start:surface_end] == surface_form``, for
+    every row of ``chunk_lemmas``, grouped by language.
+
+    Processed one language at a time so the working set is that
+    language's chunk texts rather than the corpus's 161 MB — the largest
+    is `deu` at ~115k chunks. The lemma rows themselves stream; there are
+    26 million of them and nothing is materialised.
+    """
+
+    result = Result(name="lemma_surface_offsets")
+    languages = [
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT lang FROM chunks_full WHERE lang IS NOT NULL ORDER BY lang"
+        )
+    ]
+    for lang in languages:
+        texts = {
+            row[0]: row[1]
+            for row in conn.execute(
+                "SELECT chunk_id, text FROM chunks_full WHERE lang = ?", (lang,)
+            )
+        }
+        if not texts:
+            continue
+        # A temp table beats an `IN (...)` of 100k ids and beats joining
+        # the text back onto 26M rows.
+        conn.execute("DROP TABLE IF EXISTS temp._audit_ids")
+        conn.execute("CREATE TEMP TABLE _audit_ids (chunk_id TEXT PRIMARY KEY)")
+        conn.executemany(
+            "INSERT INTO _audit_ids (chunk_id) VALUES (?)",
+            [(cid,) for cid in texts],
+        )
+        rows = conn.execute(
+            "SELECT l.chunk_id, l.surface_form, l.surface_start, l.surface_end "
+            "FROM chunk_lemmas l JOIN _audit_ids i ON i.chunk_id = l.chunk_id"
+        )
+        for chunk_id, surface_form, start, end in rows:
+            actual = texts[chunk_id][start:end]
+            bad = actual != surface_form
+            result.record(lang, bad=bad)
+            if bad and len(result.examples) < _MAX_EXAMPLES:
+                result.examples.append(
+                    Violation(
+                        group=lang,
+                        chunk_id=chunk_id,
+                        detail=(
+                            f"[{start}:{end}] stored {surface_form!r} "
+                            f"but text holds {actual!r}"
+                        ),
+                    )
+                )
+        conn.execute("DROP TABLE IF EXISTS temp._audit_ids")
+    return result
+
+
+INVARIANTS: tuple[Invariant, ...] = (
+    Invariant(
+        name="lemma_surface_offsets",
+        statement="chunks.text[surface_start:surface_end] == surface_form",
+        run=audit_lemma_surface_offsets,
+        known_exceptions=(
+            "ara is legitimately nonzero: Stanza's multi-word-token expansion "
+            "gives a clitic sub-word its parent's span deliberately "
+            "(_tokens_from_stanza_doc). Of its mismatches, the share that is "
+            "NOT that case is #314."
+        ),
+    ),
+)
+
+
+def _format_text(results: list[tuple[Invariant, Result]]) -> str:
+    out: list[str] = []
+    for inv, res in results:
+        out.append(f"\n=== {inv.name}")
+        out.append(f"    {inv.statement}")
+        out.append("")
+        out.append(f"    {'group':8} {'rows':>12} {'violations':>12} {'holds':>9}")
+        for group in sorted(res.per_group):
+            checked, bad = res.per_group[group]
+            pct = 100.0 * (checked - bad) / checked if checked else 100.0
+            out.append(f"    {group:8} {checked:12,} {bad:12,} {pct:8.2f}%")
+        pct = (
+            100.0 * (res.rows_checked - res.violations) / res.rows_checked
+            if res.rows_checked
+            else 100.0
+        )
+        out.append(
+            f"    {'ALL':8} {res.rows_checked:12,} {res.violations:12,} {pct:8.2f}%"
+        )
+        if inv.known_exceptions:
+            out.append(f"\n    note: {inv.known_exceptions}")
+        if res.examples:
+            out.append("\n    examples:")
+            for ex in res.examples:
+                out.append(f"      {ex.group} {ex.chunk_id} {ex.detail}")
+    return "\n".join(out) + "\n"
+
+
+def _format_json(results: list[tuple[Invariant, Result]]) -> str:
+    return json.dumps(
+        {
+            "invariants": [
+                {
+                    "name": inv.name,
+                    "statement": inv.statement,
+                    "rows_checked": res.rows_checked,
+                    "violations": res.violations,
+                    "per_group": {
+                        g: {"checked": c, "violations": v}
+                        for g, (c, v) in sorted(res.per_group.items())
+                    },
+                    "known_exceptions": inv.known_exceptions,
+                    "examples": [
+                        {"group": e.group, "chunk_id": e.chunk_id, "detail": e.detail}
+                        for e in res.examples
+                    ],
+                }
+                for inv, res in results
+            ]
+        },
+        indent=2,
+        ensure_ascii=False,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--db", type=Path, default=_DEFAULT_DB)
+    ap.add_argument("--format", choices=("text", "json"), default="text")
+    ap.add_argument(
+        "--only",
+        action="append",
+        help="Run only the named invariant (repeatable).",
+    )
+    args = ap.parse_args(argv)
+
+    if not args.db.exists():
+        # Distinct from "found violations", which is exit 0. Being unable
+        # to look must never read as a clean bill of health — a previous
+        # verification reported "0 chrome, 0 markers" from a grep over a
+        # directory that did not exist (batch 5).
+        print(f"audit: no database at {args.db}", file=sys.stderr)
+        return 2
+
+    selected = [i for i in INVARIANTS if not args.only or i.name in args.only]
+    if not selected:
+        print(f"audit: no invariant matches {args.only}", file=sys.stderr)
+        return 2
+
+    conn = sqlite3.connect(args.db)
+    try:
+        results = [(inv, inv.run(conn)) for inv in selected]
+    finally:
+        conn.close()
+
+    render = _format_json if args.format == "json" else _format_text
+    print(render(results))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

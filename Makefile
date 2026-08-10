@@ -24,7 +24,7 @@ PORT ?= 8000
 MINERVA_LANG ?= any
 LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
 
-.PHONY: help test test-unit test-e2e test-watch test-py test-all typecheck \
+.PHONY: help test test-unit test-e2e test-watch test-py test-all typecheck audit \
         coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
@@ -62,6 +62,7 @@ help:
 	@echo "  make embed        Compute / refresh sentence-transformer embeddings (all languages)"
 	@echo "  make embed-eng    Embed English chunks only (faster for English-only experiments)"
 	@echo "  make stats        Print index statistics"
+	@echo "  make audit        Check whole-corpus invariants against the live index"
 
 test:
 	$(NPM) test
@@ -261,6 +262,14 @@ embed-eng:
 
 stats:
 	$(POIETES) stats
+
+# Whole-corpus invariant check against the live index (#320). Reads every
+# row rather than sampling — both wrong numbers in this repo's history came
+# from a sample that looked representative — and reports rather than gates,
+# because `ara` violates the lemma-surface invariant on purpose. Run it
+# after any pass that writes derived tables. ~3 min on the current corpus.
+audit:
+	$(PYTHON) scripts/audit_invariants.py
 
 # Install the spaCy / LatinCy model wheels `terms lemmatize` needs.
 #
