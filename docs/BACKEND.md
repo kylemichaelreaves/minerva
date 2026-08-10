@@ -136,6 +136,8 @@ the TS types. `scripts/check_author_imports.py` blocks deprecated root
 | Item | Notes |
 |------|-------|
 | `chat/` subpackage | Optional move of `chat_service` + `chat_context`; root modules are canonical today |
+| Text-normalization modules into `text/` | `textnorm` (72), `orthography` (74), `transliterate` (199), `heading_clean` (347) sit at the root beside a 118-LOC `text/`. Not free: `textnorm.py:18` documents its own root import path and two `scripts/` consumers use it. `text/`'s empty-facade problem is separate and tracked in #326 |
+| `corpus_*.py` into `corpus/` | `corpus_registry` (717), `corpus_extract` (380), `corpus_works` (117) sit beside the `corpus/` package. `corpus_registry.py` is **codegen'd** — lines 32-596 are inside `# BEGIN CORPORA` / `# END CORPORA` and written by `scripts/generate_author_artifacts.py`, so a move touches the generator, not just the module |
 | Split `lemmatize.py` by language backend | Only when actively editing the lemmatizer |
 | Perseus downloader template | Operator surface — see [INGESTION.md](INGESTION.md) |
 | OpenAPI / pydantic wire models | Contract tests + TS types cover the API surface |
