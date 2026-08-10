@@ -267,7 +267,8 @@ stats:
 # row rather than sampling — both wrong numbers in this repo's history came
 # from a sample that looked representative — and reports rather than gates,
 # because `ara` violates the lemma-surface invariant on purpose. Run it
-# after any pass that writes derived tables. ~3 min on the current corpus.
+# after any pass that writes derived tables. ~40s on the current corpus.
+# Point it elsewhere with MINERVA_DB=<path> (a snapshot, say).
 audit:
 	$(PYTHON) scripts/audit_invariants.py
 

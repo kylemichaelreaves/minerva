@@ -132,31 +132,34 @@ def test_violations_are_grouped_by_language(tmp_path: Path):
     assert result.per_group["deu"] == (1, 0)
 
 
-def test_finding_violations_is_not_a_failure(tmp_path: Path, capsys):
+def test_finding_violations_is_not_a_failure(tmp_path: Path, capsys, monkeypatch):
     """`ara` violates this invariant on purpose. A gate would be silenced,
     and a silenced gate is not run — so violations exit 0."""
 
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], _DRIFTED)
-    rc = ai.main(["--db", str(db)])
+    monkeypatch.setenv("MINERVA_DB", str(db))
+    rc = ai.main([])
     out = capsys.readouterr().out
     assert rc == 0
     assert "grc" in out
     assert "1" in out
 
 
-def test_being_unable_to_look_is_a_failure(tmp_path: Path, capsys):
+def test_being_unable_to_look_is_a_failure(tmp_path: Path, capsys, monkeypatch):
     """The other half of the same decision: 'no problems found' and 'could
     not check' must not both be exit 0."""
 
-    rc = ai.main(["--db", str(tmp_path / "nope.sqlite")])
+    monkeypatch.setenv("MINERVA_DB", str(tmp_path / "nope.sqlite"))
+    rc = ai.main([])
     assert rc != 0
     assert "nope.sqlite" in capsys.readouterr().err
 
 
-def test_json_output_carries_the_counts(tmp_path: Path, capsys):
+def test_json_output_carries_the_counts(tmp_path: Path, capsys, monkeypatch):
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], _DRIFTED)
+    monkeypatch.setenv("MINERVA_DB", str(db))
     capsys.readouterr()  # drop cmd_index's own output; the JSON must stand alone
-    assert ai.main(["--db", str(db), "--format", "json"]) == 0
+    assert ai.main(["--format", "json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     (entry,) = payload["invariants"]
     assert entry["name"] == "lemma_surface_offsets"
@@ -165,14 +168,44 @@ def test_json_output_carries_the_counts(tmp_path: Path, capsys):
     assert entry["per_group"]["grc"] == {"checked": 3, "violations": 1}
 
 
-def test_a_known_exception_is_reported_beside_the_number(tmp_path: Path, capsys):
+def test_a_known_exception_is_reported_beside_the_number(
+    tmp_path: Path, capsys, monkeypatch
+):
     """`ara`'s 17% is explained in `_tokens_from_stanza_doc` and in #314.
     Printing the explanation next to the count is what stops the next
     operator re-investigating it."""
 
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], _GOOD)
-    ai.main(["--db", str(db)])
+    monkeypatch.setenv("MINERVA_DB", str(db))
+    ai.main([])
     assert "multi-word-token" in capsys.readouterr().out
+
+
+class TestTheTargetComesFromTheEnvironment:
+    """`$MINERVA_DB`, not a `--db` flag — the form
+    `corpus-quality-audit.py` and `clean-hegel-lectures-glossary.py`
+    already use. SonarCloud's `pythonsecurity:S8706` fails a PR when a CLI
+    argument reaches `sqlite3.connect`, and it failed this script's first
+    PR on exactly that line. Fixed in code rather than marked Accepted,
+    because Accepted does not survive a line move (#167, #179)."""
+
+    def test_the_environment_overrides_the_default(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("MINERVA_DB", str(tmp_path / "elsewhere.sqlite"))
+        assert ai.resolve_db_path() == tmp_path / "elsewhere.sqlite"
+
+    def test_the_repo_index_is_the_default(self, monkeypatch):
+        monkeypatch.delenv("MINERVA_DB", raising=False)
+        assert ai.resolve_db_path().name == "index.sqlite"
+
+    def test_there_is_no_db_flag(self, capsys):
+        """A regression guard with a specific failure in mind: re-adding
+        `--db` for convenience is what would turn the gate red again."""
+
+        import pytest
+
+        with pytest.raises(SystemExit):
+            ai.main(["--db", "/tmp/whatever.sqlite"])
+        assert "unrecognized arguments" in capsys.readouterr().err
 
 
 def test_the_invariant_registry_is_not_empty():

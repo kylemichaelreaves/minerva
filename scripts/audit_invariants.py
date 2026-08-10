@@ -20,8 +20,9 @@ batch 2-ter operator record put ``grc`` at 99.67% from 400 chunks drawn
 in ``ord`` order; over all 2,942,344 grc rows the figure was 93.09%, and
 #311 was scoped from the sampled number and understated its own
 population by 109×. A ``--sample`` option would get used, so there
-isn't one. The cost is a few minutes against an 8.2 GB database, paid by
-an operator who has just spent an hour on a re-ingest.
+isn't one. Measured cost: **40 seconds** for all 26,005,053 rows against
+the 8.2 GB index, paid by an operator who has just spent an hour on a
+re-ingest.
 
 **It reports; it does not gate.** ``ara`` violates the lemma-surface
 invariant legitimately — Stanza's multi-word-token expansion gives a
@@ -39,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from collections.abc import Callable
@@ -46,6 +48,30 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _DEFAULT_DB = Path(__file__).resolve().parents[1] / "data" / "index.sqlite"
+
+
+def resolve_db_path() -> Path:
+    """The index to audit: ``$MINERVA_DB`` if set, else the repo default.
+
+    Deliberately an environment variable rather than a ``--db`` flag,
+    matching ``corpus-quality-audit.py`` and
+    ``clean-hegel-lectures-glossary.py``. SonarCloud's
+    ``pythonsecurity:S8706`` fails a PR when a CLI argument reaches
+    ``sqlite3.connect``; this script's first PR was failed by exactly
+    that, on this line.
+
+    Fixed in code rather than marked Accepted in SonarCloud because
+    Accepted status does not survive a line move — which is how #167 went
+    red on a diff that only shifted one — see #179.
+
+    Point it at a snapshot with::
+
+        MINERVA_DB=data/snapshots/20260809T204241Z-.../index.sqlite \\
+            ./.venv/bin/python scripts/audit_invariants.py
+    """
+
+    override = os.environ.get("MINERVA_DB")
+    return Path(override) if override else _DEFAULT_DB
 
 # How many offending rows to keep per invariant. A count alone sends the
 # next reader back to write the query again by hand, which is the whole
@@ -91,56 +117,45 @@ def audit_lemma_surface_offsets(conn: sqlite3.Connection) -> Result:
     """``chunks.text[surface_start:surface_end] == surface_form``, for
     every row of ``chunk_lemmas``, grouped by language.
 
-    Processed one language at a time so the working set is that
-    language's chunk texts rather than the corpus's 161 MB — the largest
-    is `deu` at ~115k chunks. The lemma rows themselves stream; there are
-    26 million of them and nothing is materialised.
+    One pass. The chunk texts are held in a dict — 161 MB of text across
+    428k chunks, so a few hundred MB resident on a machine that already
+    runs spaCy models against an 8.2 GB database — and the 26 million
+    lemma rows stream past it. Joining the text back onto the lemma rows
+    in SQL would re-send each chunk's text once per token, which is the
+    same data several hundred times over.
     """
 
     result = Result(name="lemma_surface_offsets")
-    languages = [
-        row[0]
+    chunks = {
+        row[0]: (row[1], row[2])
         for row in conn.execute(
-            "SELECT DISTINCT lang FROM chunks_full WHERE lang IS NOT NULL ORDER BY lang"
+            "SELECT chunk_id, lang, text FROM chunks_full WHERE lang IS NOT NULL"
         )
-    ]
-    for lang in languages:
-        texts = {
-            row[0]: row[1]
-            for row in conn.execute(
-                "SELECT chunk_id, text FROM chunks_full WHERE lang = ?", (lang,)
-            )
-        }
-        if not texts:
+    }
+    rows = conn.execute(
+        "SELECT chunk_id, surface_form, surface_start, surface_end FROM chunk_lemmas"
+    )
+    for chunk_id, surface_form, start, end in rows:
+        found = chunks.get(chunk_id)
+        if found is None:
+            # An orphaned lemma row — a different invariant's business,
+            # and counting it here would understate the language totals.
             continue
-        # A temp table beats an `IN (...)` of 100k ids and beats joining
-        # the text back onto 26M rows.
-        conn.execute("DROP TABLE IF EXISTS temp._audit_ids")
-        conn.execute("CREATE TEMP TABLE _audit_ids (chunk_id TEXT PRIMARY KEY)")
-        conn.executemany(
-            "INSERT INTO _audit_ids (chunk_id) VALUES (?)",
-            [(cid,) for cid in texts],
-        )
-        rows = conn.execute(
-            "SELECT l.chunk_id, l.surface_form, l.surface_start, l.surface_end "
-            "FROM chunk_lemmas l JOIN _audit_ids i ON i.chunk_id = l.chunk_id"
-        )
-        for chunk_id, surface_form, start, end in rows:
-            actual = texts[chunk_id][start:end]
-            bad = actual != surface_form
-            result.record(lang, bad=bad)
-            if bad and len(result.examples) < _MAX_EXAMPLES:
-                result.examples.append(
-                    Violation(
-                        group=lang,
-                        chunk_id=chunk_id,
-                        detail=(
-                            f"[{start}:{end}] stored {surface_form!r} "
-                            f"but text holds {actual!r}"
-                        ),
-                    )
+        lang, text = found
+        actual = text[start:end]
+        bad = actual != surface_form
+        result.record(lang, bad=bad)
+        if bad and len(result.examples) < _MAX_EXAMPLES:
+            result.examples.append(
+                Violation(
+                    group=lang,
+                    chunk_id=chunk_id,
+                    detail=(
+                        f"[{start}:{end}] stored {surface_form!r} "
+                        f"but text holds {actual!r}"
+                    ),
                 )
-        conn.execute("DROP TABLE IF EXISTS temp._audit_ids")
+            )
     return result
 
 
@@ -216,7 +231,6 @@ def _format_json(results: list[tuple[Invariant, Result]]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--db", type=Path, default=_DEFAULT_DB)
     ap.add_argument("--format", choices=("text", "json"), default="text")
     ap.add_argument(
         "--only",
@@ -225,12 +239,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    if not args.db.exists():
+    db = resolve_db_path()
+    if not db.exists():
         # Distinct from "found violations", which is exit 0. Being unable
         # to look must never read as a clean bill of health — a previous
         # verification reported "0 chrome, 0 markers" from a grep over a
         # directory that did not exist (batch 5).
-        print(f"audit: no database at {args.db}", file=sys.stderr)
+        print(f"audit: no database at {db}", file=sys.stderr)
         return 2
 
     selected = [i for i in INVARIANTS if not args.only or i.name in args.only]
@@ -238,7 +253,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"audit: no invariant matches {args.only}", file=sys.stderr)
         return 2
 
-    conn = sqlite3.connect(args.db)
+    conn = sqlite3.connect(db)
+    # Strictly a reader. The target is an 8.2 GB production index and the
+    # cost of a stray write is a snapshot restore, so say so to SQLite
+    # rather than relying on the queries staying read-only.
+    conn.execute("PRAGMA query_only = ON")
     try:
         results = [(inv, inv.run(conn)) for inv in selected]
     finally:
