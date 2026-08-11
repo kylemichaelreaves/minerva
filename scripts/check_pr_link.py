@@ -64,6 +64,38 @@ def scan_closing_refs(text: str) -> set[int]:
     return {int(m.group(1)) for m in _CLOSING_REF.finditer(text)}
 
 
+#: A conservative git ref-name pattern — deliberately narrower than git's real
+#: grammar (`git check-ref-format` also permits `@{`, a trailing `.lock`, and
+#: more). `baseRefName`/`headRefName` come back from the GitHub API, and
+#: whoever opens the PR controls their own branch name, so this is untrusted
+#: input reaching `git` (via `_commit_messages`). Refusing a legal-but-weird
+#: ref here is the correct failure mode; trying to enumerate everything git
+#: accepts and guessing at the edge cases is not. Mirrors the spirit of
+#: `_REF_RE` in check_diff_coverage.py, narrowed further because this checker
+#: never needs to accept `HEAD~3`-style refs, only ordinary branch/tag names.
+_SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,255}$")
+
+#: What an element of a `gh ... --json a,b,c` argv list may contain:
+#: subcommands (`pr`, `view`), flags (`--json`), numeric IDs, and
+#: comma-separated JSON field names. No shell is ever involved — args reach
+#: `subprocess.run` as an argv list, not a shell string — but Sonar's S8705
+#: flags the `_gh_json` call site regardless of the argv-vs-shell distinction,
+#: so this makes the validation visible at that call site.
+_SAFE_GH_ARG_RE = re.compile(r"^[A-Za-z0-9_.,-]+$")
+
+
+def require_safe_ref(kind: str, ref: str) -> None:
+    """Raise `Problem` unless `ref` looks like a plausible git ref name.
+
+    `kind` names what is being checked (e.g. "base ref") so the message says
+    which value is bad; `ref` is the value under test. Pure and importable —
+    this is the logic worth unit testing, unlike the subprocess calls it
+    guards.
+    """
+    if not _SAFE_REF_RE.match(ref):
+        raise Problem(f"{kind} {ref!r} is not a plausible git ref — refusing to pass it to git")
+
+
 @dataclass(frozen=True)
 class Failure:
     """One independent defect. `check` is a stable slug for tests and hooks;
@@ -144,6 +176,12 @@ class Problem(Exception):
 
 
 def _gh_json(args: list[str]) -> dict:
+    for arg in args:
+        if not _SAFE_GH_ARG_RE.match(arg):
+            raise Problem(
+                f"gh argument {arg!r} is not a plausible gh CLI argument — refusing to "
+                "pass it to gh"
+            )
     proc = subprocess.run(
         ["gh", *args], cwd=REPO, capture_output=True, text=True
     )
@@ -161,10 +199,12 @@ def _commit_messages(base_ref: str, head_ref: str) -> dict[str, str]:
     Uses the remote refs rather than the working tree so the answer does not
     depend on which branch happens to be checked out.
     """
+    require_safe_ref("base ref", base_ref)
+    require_safe_ref("head ref", head_ref)
     proc = subprocess.run(
         [
             "git", "log", "--format=%h%x00%B%x1e",
-            f"origin/{base_ref}..origin/{head_ref}",
+            "--end-of-options", f"origin/{base_ref}..origin/{head_ref}",
         ],
         cwd=REPO,
         capture_output=True,
