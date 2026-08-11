@@ -92,3 +92,115 @@ class TestScanClosingRefs:
         commit message, which is where the gap would bite."""
 
         assert cpl.scan_closing_refs("closes issue #999001") == set()
+
+
+def _evaluate(**overrides):
+    """A sound PR, with named overrides. Every test states only its defect."""
+    kwargs = {
+        "base_ref": "main",
+        "default_branch": "main",
+        "resolved": {999001},
+        "expected": {999001},
+        "scanned_text": {"PR body": "Closes #999001"},
+    }
+    kwargs.update(overrides)
+    return cpl.evaluate(**kwargs)
+
+
+class TestEvaluate:
+    def test_a_sound_pr_produces_no_failures(self):
+        assert _evaluate() == []
+
+    def test_base_other_than_the_default_branch_fails(self):
+        """A stacked PR registers nothing. This has to fail even when the body
+        is perfect and `closingIssuesReferences` looks plausible, because the
+        link is what does not exist."""
+
+        failures = _evaluate(base_ref="feat/other", resolved=set())
+        assert [f.check for f in failures] == ["base", "missing"]
+        assert "feat/other" in failures[0].detail
+
+    def test_an_expected_issue_that_did_not_register_fails(self):
+        failures = _evaluate(resolved=set())
+        assert [f.check for f in failures] == ["missing"]
+        assert "999001" in failures[0].detail
+
+    def test_multi_issue_pr_reports_only_the_dropped_number(self):
+        """The case a single-issue check cannot see. PR #297 carried two
+        issues; a batch PR silently dropping one is the failure this exists
+        for."""
+
+        failures = _evaluate(
+            resolved={999001},
+            expected={999001, 999002},
+            scanned_text={"PR body": "Closes #999001. Closes #999002."},
+        )
+        assert [f.check for f in failures] == ["missing"]
+        assert "999002" in failures[0].detail
+        assert "[999002]" in failures[0].detail
+
+    def test_an_issue_that_registered_but_was_not_claimed_fails(self):
+        failures = _evaluate(resolved={999001, 999002})
+        assert [f.check for f in failures] == ["unexpected"]
+        assert "999002" in failures[0].detail
+
+    def test_the_293_shape_a_backticked_keyword_with_an_empty_resolved_list(self):
+        """THE headline case. PR #293 was doc-only, deliberately Refs-only, and
+        its resolved list was correctly empty — and it still closed an open
+        issue on merge. Checks 1-3 all pass here. Only the scan catches it, and
+        a naive implementation ships without this test passing."""
+
+        failures = _evaluate(
+            resolved=set(),
+            expected=set(),
+            scanned_text={
+                "PR body": "part 2's PR is the one carrying `Closes #999001`."
+            },
+        )
+        assert [f.check for f in failures] == ["hazard"]
+        assert "999001" in failures[0].detail
+        assert "PR body" in failures[0].detail
+
+    def test_a_hazard_in_a_commit_message_is_caught(self):
+        """`closingIssuesReferences` is computed from the body and cannot see
+        this at all."""
+
+        failures = _evaluate(
+            scanned_text={
+                "PR body": "Closes #999001",
+                "commit 4153e4c": "chore: mention `Fixes #999002` in passing",
+            }
+        )
+        assert [f.check for f in failures] == ["hazard"]
+        assert "999002" in failures[0].detail
+        assert "commit 4153e4c" in failures[0].detail
+
+    def test_the_prs_own_closing_lines_are_not_hazards(self):
+        """The body of a correct PR is full of closing keywords next to the
+        numbers it claims. Flagging those would make the gate unusable."""
+
+        assert (
+            _evaluate(
+                resolved={999001, 999002},
+                expected={999001, 999002},
+                scanned_text={"PR body": "Closes #999001. Closes #999002."},
+            )
+            == []
+        )
+
+    def test_reports_every_independent_defect_at_once(self):
+        """One run, one full list. Fixing them one CI round at a time is the
+        cost this replaces."""
+
+        failures = _evaluate(
+            base_ref="feat/other",
+            resolved={999003},
+            expected={999001},
+            scanned_text={"PR body": "Closes #999004"},
+        )
+        assert [f.check for f in failures] == [
+            "base",
+            "missing",
+            "unexpected",
+            "hazard",
+        ]

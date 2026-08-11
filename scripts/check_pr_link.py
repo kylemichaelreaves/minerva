@@ -35,6 +35,7 @@ Usage:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 #: GitHub's closing keywords, exactly as documented. `closing` and `fixing` are
 #: deliberately absent because GitHub does not act on them, and matching them
@@ -54,3 +55,77 @@ _CLOSING_REF = re.compile(
 def scan_closing_refs(text: str) -> set[int]:
     """Issue numbers a GitHub closing keyword points at anywhere in `text`."""
     return {int(m.group(1)) for m in _CLOSING_REF.finditer(text)}
+
+
+@dataclass(frozen=True)
+class Failure:
+    """One independent defect. `check` is a stable slug for tests and hooks;
+    `detail` is what a human needs in order to fix it."""
+
+    check: str
+    detail: str
+
+
+def evaluate(
+    *,
+    base_ref: str,
+    default_branch: str,
+    resolved: set[int],
+    expected: set[int],
+    scanned_text: dict[str, str],
+) -> list[Failure]:
+    """Every way this PR's closing links are wrong, in a fixed order.
+
+    `scanned_text` maps a label to text that will reach the merge commit — the
+    PR title, its body, and the branch's commit messages. All of it is scanned
+    backtick-blind, because the commit-message parser is.
+    """
+    failures: list[Failure] = []
+
+    if base_ref != default_branch:
+        failures.append(
+            Failure(
+                "base",
+                f"base is {base_ref!r}, not {default_branch!r}. GitHub registers a "
+                "closing link only for PRs targeting the default branch, so every "
+                "closing line in this PR is inert. Retargeting is not enough on its "
+                "own: the body is parsed when written, so it must be edited again "
+                "afterwards to re-trigger the scan.",
+            )
+        )
+
+    if missing := expected - resolved:
+        failures.append(
+            Failure(
+                "missing",
+                f"expected to close {sorted(expected)}, GitHub resolved "
+                f"{sorted(resolved)} — missing {sorted(missing)}. Each number needs "
+                "its own keyword: `Closes #1, #2` links only the first.",
+            )
+        )
+
+    if unexpected := resolved - expected:
+        failures.append(
+            Failure(
+                "unexpected",
+                f"GitHub resolved {sorted(unexpected)}, which this PR does not claim "
+                "to close. A closing keyword next to an issue number anywhere in the "
+                "body is enough, including inside a sentence about the convention.",
+            )
+        )
+
+    for label, text in scanned_text.items():
+        if hazards := scan_closing_refs(text) - expected:
+            failures.append(
+                Failure(
+                    "hazard",
+                    f"{label} puts a closing keyword next to {sorted(hazards)}, which "
+                    "this PR does not claim to close. On a squash merge the body "
+                    "becomes the commit message, and the commit-message parser does "
+                    "not exempt backticks — this is how #176 closed while the "
+                    "paragraph doing it explained the issue had to stay open. "
+                    "Rewrite it to keep the keyword away from the number.",
+                )
+            )
+
+    return failures
