@@ -84,9 +84,11 @@ repo's history came from a sample that looked representative.
 - When writing *about* this convention, keep the keyword away from any live
   issue number.
 
-Push everything first. The check reads `origin/<base>..origin/<head>`, not the
-working tree — a partially pushed branch scans only the pushed subset of
-commits and can still print `ok`.
+Push everything first — the PR has to actually reflect this work. The check
+itself now reads the PR's commits from the GitHub API (`gh pr view --json
+commits`), not local or remote git refs, so it always sees exactly the
+commits GitHub will use for the merge; there is no longer a partially-pushed
+gap where the check can print `ok` on unreviewed local commits.
 
 Then, always:
 

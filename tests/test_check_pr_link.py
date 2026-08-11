@@ -23,8 +23,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location(
     "check_pr_link", REPO / "scripts" / "check_pr_link.py"
@@ -210,47 +208,3 @@ class TestEvaluate:
             "unexpected",
             "hazard",
         ]
-
-
-class TestRequireSafeRef:
-    """`require_safe_ref` guards `_commit_messages`'s two GitHub-supplied refs
-    before they reach `git log` (#321, Sonar pythonsecurity:S8705). Pure logic,
-    so it is tested directly rather than through the subprocess boundary."""
-
-    def test_an_ordinary_branch_name_passes(self):
-        assert cpl.require_safe_ref("head ref", "feat/321-close-out-command") is None
-
-    def test_a_shell_metacharacter_is_rejected(self):
-        with pytest.raises(cpl.Problem):
-            cpl.require_safe_ref("head ref", "main; rm -rf /")
-
-    def test_a_space_is_rejected(self):
-        with pytest.raises(cpl.Problem):
-            cpl.require_safe_ref("head ref", "main branch")
-
-    def test_a_leading_dash_is_rejected(self):
-        """The `git log` argv trap: a leading `-` reads as an option, not a
-        ref. The example is deliberately `-branch` and not `--output=/tmp/x`:
-        the latter is rejected for containing `=`, so it would pass this test
-        even with the leading-dash anchor removed, and the test would be
-        asserting nothing it claims to. `-branch` fails only because the
-        pattern anchors its first character to alphanumeric."""
-
-        with pytest.raises(cpl.Problem):
-            cpl.require_safe_ref("base ref", "-branch")
-
-        # The original example, kept so both routes stay covered.
-        with pytest.raises(cpl.Problem):
-            cpl.require_safe_ref("base ref", "--output=/tmp/x")
-
-    def test_an_empty_ref_is_rejected(self):
-        with pytest.raises(cpl.Problem):
-            cpl.require_safe_ref("base ref", "")
-
-    def test_an_over_long_ref_is_rejected(self):
-        with pytest.raises(cpl.Problem):
-            cpl.require_safe_ref("head ref", "a" * 256)
-
-    def test_the_message_names_the_kind_and_the_value(self):
-        with pytest.raises(cpl.Problem, match=r"head ref.*main branch"):
-            cpl.require_safe_ref("head ref", "main branch")
