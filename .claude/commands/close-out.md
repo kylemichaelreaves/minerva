@@ -101,6 +101,19 @@ those edits is stale. Re-run the check after any phase 6 or 7 change to the
 PR's title, body, or commits. A non-zero exit means the PR is broken, not that
 the check is wrong.
 
+One exception, measured: `closingIssuesReferences` is **eventually consistent**
+after a body edit. Running the check within a second or two of `gh pr edit` can
+report `[missing]` for a link that does in fact register. If that is the only
+defect reported and the body plainly carries the keyword, re-query before
+touching anything:
+
+```
+gh pr view <n> --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'
+```
+
+If the number is there, the check simply ran too early. Any other defect it
+reports is real.
+
 ## Phase 6 — Correct the record
 
 A correction goes **on the thing that was wrong**, never into a new issue.
