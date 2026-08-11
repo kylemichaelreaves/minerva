@@ -60,8 +60,11 @@ web/.vite/
 *.swo
 
 # ── Tooling state ──────────────────────────────────────────────────
-# Claude Code project state, if any lands in-tree
-.claude/
+# Claude Code project state, if any lands in-tree. Project slash commands
+# are the exception: they are checked-in prose meant to be shared, not
+# local session state, so .claude/commands/ is carved back out.
+.claude/*
+!.claude/commands/
 .screenshots/
 # Transient working screenshots (one-off captures during dev review).
 .screenshots-tmp/

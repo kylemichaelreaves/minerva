@@ -150,7 +150,9 @@ and the PR body describes the checks without reproducing their inputs.
 ### `.claude/commands/close-out.md`
 
 The repo's first committed project command. Frontmatter: `description`,
-`argument-hint: <issue> [issue...]`, `allowed-tools`.
+`argument-hint: <issue> [issue...]`. `allowed-tools` is deliberately omitted:
+pinning a tool list is a portability bug, since tool availability varies by
+harness and a command naming an absent tool degrades silently.
 
 The body is seven phases. Each carries what to do, its **exit condition**, and
 what to do when the condition fails. The model maintains a per-issue verdict
