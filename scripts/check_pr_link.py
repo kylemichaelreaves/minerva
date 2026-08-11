@@ -75,15 +75,6 @@ def scan_closing_refs(text: str) -> set[int]:
 #: never needs to accept `HEAD~3`-style refs, only ordinary branch/tag names.
 _SAFE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
 
-#: What an element of a `gh ... --json a,b,c` argv list may contain:
-#: subcommands (`pr`, `view`), flags (`--json`), numeric IDs, and
-#: comma-separated JSON field names. No shell is ever involved — args reach
-#: `subprocess.run` as an argv list, not a shell string — but Sonar's S8705
-#: flags the `_gh_json` call site regardless of the argv-vs-shell distinction,
-#: so this makes the validation visible at that call site.
-_SAFE_GH_ARG_RE = re.compile(r"^[A-Za-z0-9_.,-]+$")
-
-
 def require_safe_ref(kind: str, ref: str) -> None:
     """Raise `Problem` unless `ref` looks like a plausible git ref name.
 
@@ -175,22 +166,22 @@ class Problem(Exception):
     unable to answer, which must never be reported as a pass."""
 
 
-def _gh_json(args: list[str]) -> dict:
-    for arg in args:
-        if not _SAFE_GH_ARG_RE.match(arg):
-            raise Problem(
-                f"gh argument {arg!r} is not a plausible gh CLI argument — refusing to "
-                "pass it to gh"
-            )
-    proc = subprocess.run(
-        ["gh", *args], cwd=REPO, capture_output=True, text=True
-    )
+def _parse_gh(proc: subprocess.CompletedProcess[str], label: str) -> dict:
+    """Turn a finished `gh` invocation into its parsed JSON, or raise `Problem`.
+
+    `label` is the command as a human would write it (e.g. `"gh pr view 328
+    --json ..."`), used only for the error message — the invocation itself has
+    already happened by the time this runs. This is the part of the old
+    `_gh_json` worth sharing: response handling, not the `subprocess.run` call
+    itself, which Sonar's S8705 flags when a variable-length argv is spread
+    into it. Each call site now builds a fully literal argv instead.
+    """
     if proc.returncode != 0:
-        raise Problem(f"`gh {' '.join(args)}` failed: {proc.stderr.strip()}")
+        raise Problem(f"`{label}` failed: {proc.stderr.strip()}")
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        raise Problem(f"`gh {' '.join(args)}` returned non-JSON: {exc}") from None
+        raise Problem(f"`{label}` returned non-JSON: {exc}") from None
 
 
 def _commit_messages(base_ref: str, head_ref: str) -> dict[str, str]:
@@ -240,13 +231,29 @@ def main() -> int:
     expected = set(args.issues)
 
     try:
-        pr = _gh_json(
+        pr_number = str(int(args.pr))
+        pr_proc = subprocess.run(
             [
-                "pr", "view", str(args.pr),
-                "--json", "baseRefName,headRefName,title,body,closingIssuesReferences",
-            ]
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--json",
+                "baseRefName,headRefName,title,body,closingIssuesReferences",
+            ],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
         )
-        repo = _gh_json(["repo", "view", "--json", "defaultBranchRef"])
+        pr = _parse_gh(pr_proc, f"gh pr view {pr_number} --json ...")
+
+        repo_proc = subprocess.run(
+            ["gh", "repo", "view", "--json", "defaultBranchRef"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+        )
+        repo = _parse_gh(repo_proc, "gh repo view --json defaultBranchRef")
         default_branch = repo["defaultBranchRef"]["name"]
         scanned = {
             "PR title": pr["title"] or "",
