@@ -245,6 +245,9 @@ different reviewer, or more scope than the change you're on, file it — and
 say in your PR description what you left out and why. Shrinking scope is
 fine; shrinking it silently isn't.
 
+`/close-out` walks this as phase 7, and will not finish until every finding has
+both an issue number and a batch row.
+
 ### Separate what you measured from what you think
 
 **Use two headings — `## Measured` and `## Hypothesis` — and put the cause
