@@ -230,8 +230,16 @@ class TestRequireSafeRef:
 
     def test_a_leading_dash_is_rejected(self):
         """The `git log` argv trap: a leading `-` reads as an option, not a
-        ref — `--output=/tmp/x` would have git write a file."""
+        ref. The example is deliberately `-branch` and not `--output=/tmp/x`:
+        the latter is rejected for containing `=`, so it would pass this test
+        even with the leading-dash anchor removed, and the test would be
+        asserting nothing it claims to. `-branch` fails only because the
+        pattern anchors its first character to alphanumeric."""
 
+        with pytest.raises(cpl.Problem):
+            cpl.require_safe_ref("base ref", "-branch")
+
+        # The original example, kept so both routes stay covered.
         with pytest.raises(cpl.Problem):
             cpl.require_safe_ref("base ref", "--output=/tmp/x")
 

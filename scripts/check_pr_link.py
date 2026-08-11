@@ -73,7 +73,7 @@ def scan_closing_refs(text: str) -> set[int]:
 #: accepts and guessing at the edge cases is not. Mirrors the spirit of
 #: `_REF_RE` in check_diff_coverage.py, narrowed further because this checker
 #: never needs to accept `HEAD~3`-style refs, only ordinary branch/tag names.
-_SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,255}$")
+_SAFE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
 
 #: What an element of a `gh ... --json a,b,c` argv list may contain:
 #: subcommands (`pr`, `view`), flags (`--json`), numeric IDs, and
