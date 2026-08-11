@@ -34,8 +34,15 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
+import subprocess
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
 
 #: GitHub's closing keywords, exactly as documented. `closing` and `fixing` are
 #: deliberately absent because GitHub does not act on them, and matching them
@@ -129,3 +136,111 @@ def evaluate(
             )
 
     return failures
+
+
+class Problem(Exception):
+    """A refusal. Distinct from a failed check: this is the script being
+    unable to answer, which must never be reported as a pass."""
+
+
+def _gh_json(args: list[str]) -> dict:
+    proc = subprocess.run(
+        ["gh", *args], cwd=REPO, capture_output=True, text=True
+    )
+    if proc.returncode != 0:
+        raise Problem(f"`gh {' '.join(args)}` failed: {proc.stderr.strip()}")
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise Problem(f"`gh {' '.join(args)}` returned non-JSON: {exc}") from None
+
+
+def _commit_messages(base_ref: str, head_ref: str) -> dict[str, str]:
+    """Every commit on the branch, labelled by short sha.
+
+    Uses the remote refs rather than the working tree so the answer does not
+    depend on which branch happens to be checked out.
+    """
+    proc = subprocess.run(
+        [
+            "git", "log", "--format=%h%x00%B%x1e",
+            f"origin/{base_ref}..origin/{head_ref}",
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise Problem(
+            f"could not read commits for origin/{head_ref}: {proc.stderr.strip()}. "
+            "Push the branch first — this reads the remote, not the working tree."
+        )
+    out: dict[str, str] = {}
+    for record in proc.stdout.split("\x1e"):
+        if "\x00" not in record:
+            continue
+        sha, message = record.split("\x00", 1)
+        out[f"commit {sha.strip()}"] = message
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Verify a PR's closing links registered, and only the intended ones."
+    )
+    ap.add_argument("pr", type=int, help="pull request number")
+    ap.add_argument(
+        "issues",
+        nargs="*",
+        type=int,
+        help="issue numbers this PR must close; omit to assert it closes none",
+    )
+    args = ap.parse_args()
+
+    expected = set(args.issues)
+
+    try:
+        pr = _gh_json(
+            [
+                "pr", "view", str(args.pr),
+                "--json", "baseRefName,headRefName,title,body,closingIssuesReferences",
+            ]
+        )
+        repo = _gh_json(["repo", "view", "--json", "defaultBranchRef"])
+        default_branch = repo["defaultBranchRef"]["name"]
+        scanned = {
+            "PR title": pr["title"] or "",
+            "PR body": pr["body"] or "",
+            **_commit_messages(pr["baseRefName"], pr["headRefName"]),
+        }
+    except (Problem, KeyError, TypeError) as exc:
+        print(f"check-pr-link: {exc}", file=sys.stderr)
+        return 1
+
+    failures = evaluate(
+        base_ref=pr["baseRefName"],
+        default_branch=default_branch,
+        resolved={r["number"] for r in pr["closingIssuesReferences"]},
+        expected=expected,
+        scanned_text=scanned,
+    )
+
+    claim = f"close {sorted(expected)}" if expected else "close nothing"
+    print(f"check-pr-link: PR #{args.pr} should {claim}; scanned {len(scanned)} text(s)")
+
+    if failures:
+        for f in failures:
+            print(f"  [{f.check}] {f.detail}", file=sys.stderr)
+        print(
+            f"check-pr-link: FAILED — {len(failures)} defect(s). "
+            "This is a bug in the PR, not in the check.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("check-pr-link: ok")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
