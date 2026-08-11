@@ -79,8 +79,9 @@ implementation with one set of tests: the command calls it in phase 5, and
 `check_api_types.py`, `check_author_imports.py`, `check_author_ingest.py`.
 
 Inputs: a PR number and the issue numbers the PR is expected to close.
-Sources: `gh pr view <n> --json baseRefName,body,closingIssuesReferences`, and
-`git log` over the branch's commits.
+Sources: `gh pr view <n> --json
+baseRefName,headRefName,title,body,closingIssuesReferences`, and `git log`
+over the branch's commits.
 
 Four checks:
 

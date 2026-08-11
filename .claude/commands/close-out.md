@@ -53,9 +53,11 @@ after the final local run. If you edit anything while fixing this phase's
 output — including the fix for the thing it just flagged — run it again.
 
 Note `make check` evaluates changed-line coverage including branches
-(`check-diff-coverage`). It does **not** evaluate Sonar's duplication rating, its
-reliability rating, or the fact that a *renamed* file arrives at the coverage
-gate with its whole surface counted as new (#324).
+(`check-diff-coverage`). It does **not** evaluate Sonar's duplication rating or
+its reliability rating. #324 measured a renamed file arriving at Sonar's
+coverage gate with its whole surface counted as new — on the specific PR it
+examined, not a general law — and locally `make check` reports the opposite for
+a content-free rename: no hunks, nothing to cover.
 
 ## Phase 4 — Verify against the live corpus
 
@@ -82,14 +84,22 @@ repo's history came from a sample that looked representative.
 - When writing *about* this convention, keep the keyword away from any live
   issue number.
 
+Push everything first. The check reads `origin/<base>..origin/<head>`, not the
+working tree — a partially pushed branch scans only the pushed subset of
+commits and can still print `ok`.
+
 Then, always:
 
 ```
 make check-pr-link PR=<n> ISSUES="<the confirmed issues>"
 ```
 
-**Exit condition:** that command exits 0. A non-zero exit means the PR is
-broken, not that the check is wrong.
+**Exit condition:** that command exits 0, **and the last run happened after
+the last edit** — same rule as phase 3. Phases 6 and 7 add commits and rewrite
+the PR title and body after this check runs; a passing result from before
+those edits is stale. Re-run the check after any phase 6 or 7 change to the
+PR's title, body, or commits. A non-zero exit means the PR is broken, not that
+the check is wrong.
 
 ## Phase 6 — Correct the record
 

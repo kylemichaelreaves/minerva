@@ -57,9 +57,15 @@ class TestScanClosingRefs:
         extra one is a false positive that trains people to ignore it."""
 
         for kw in (
-            "close", "closes", "closed",
-            "fix", "fixes", "fixed",
-            "resolve", "resolves", "resolved",
+            "close",
+            "closes",
+            "closed",
+            "fix",
+            "fixes",
+            "fixed",
+            "resolve",
+            "resolves",
+            "resolved",
         ):
             assert cpl.scan_closing_refs(f"{kw} #999001") == {999001}, kw
 
@@ -153,9 +159,7 @@ class TestEvaluate:
         failures = _evaluate(
             resolved=set(),
             expected=set(),
-            scanned_text={
-                "PR body": "part 2's PR is the one carrying `Closes #999001`."
-            },
+            scanned_text={"PR body": "part 2's PR is the one carrying `Closes #999001`."},
         )
         assert [f.check for f in failures] == ["hazard"]
         assert "999001" in failures[0].detail

@@ -213,6 +213,7 @@ def main() -> int:
             "PR body": pr["body"] or "",
             **_commit_messages(pr["baseRefName"], pr["headRefName"]),
         }
+        resolved = {r["number"] for r in pr["closingIssuesReferences"]}
     except (Problem, KeyError, TypeError) as exc:
         print(f"check-pr-link: {exc}", file=sys.stderr)
         return 1
@@ -220,7 +221,7 @@ def main() -> int:
     failures = evaluate(
         base_ref=pr["baseRefName"],
         default_branch=default_branch,
-        resolved={r["number"] for r in pr["closingIssuesReferences"]},
+        resolved=resolved,
         expected=expected,
         scanned_text=scanned,
     )
