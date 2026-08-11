@@ -23,6 +23,12 @@ data/*
 # .envrc holds API keys; .envrc.example is the committed template
 .envrc
 
+# ── Agent scratch ──────────────────────────────────────────────────
+# Per-plan working directories for subagent-driven plan execution:
+# ledgers, task briefs, review packages. Scratch by construction — the
+# git history is the durable record.
+.superpowers/
+
 # ── Python ─────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
