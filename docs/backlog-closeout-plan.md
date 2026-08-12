@@ -224,7 +224,8 @@ defect in the lemma writer.
 | 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
 | 8 | PR-gate tooling | ~~#320~~, ~~#321~~, #322, ~~#330~~, ~~#331~~ | **part landed; #322 todo** | **Groups with nothing in batches 1–7** — it is the harness those batches are worked *with*, not a defect in the corpus. A tollgate, like batch 0, and numbered 8 rather than `N-bis` for that reason: no batch above it found it. See batch 8. |
-| 8-bis | the gate's own blind spots | #333, #334 | **backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured; #334 is `main()`, where the retry's only real caller sits untested. Neither touches the DB or the coverage gate. |
+| 8-bis | the gate's own blind spots | #333, ~~#334~~ | **part landed; #333 backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured. #334 was `main()`, where the retry's only real caller sat untested — landed as PR #336, and its verdict was `CORRECTED` because one of the four risks it listed does not exist. Neither touches the DB or the coverage gate. |
+| 8-ter | worked examples cite live numbers | #335 | **backlog** | Found working #334, by an unrelated grep. Four wrong PR/issue numbers across two files, and the second pair survived the PR that fixed the first pair. **May resolve as a decision not to gate it**, like #299 — the alternative is to stop citing real numbers at all. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -1824,14 +1825,60 @@ Found working the above, in the file it edited.
   merge into a default branch, and `main` should not carry a junk commit
   for it. Run it in a scratch repo. The PR-body path is backstopped by the
   `unexpected` check; the merge-commit path is backstopped by nothing.
-- **#334** — `main()` has no test, so the retry's only real caller is
+- **#334** — `main()` had no test, so the retry's only real caller was
   unwatched. `scripts/**` is coverage-excluded, so neither
-  `check-diff-coverage` nor Sonar has anything to say about it. Overlaps
-  #322: a hook that runs the script against a known PR would catch a
-  broken argv without any refactor.
+  `check-diff-coverage` nor Sonar had anything to say about it. **Landed as
+  PR #336**, which extracted a `GitHubReader` seam and added nine tests.
 
 Neither touches the DB or the coverage gate, so like 5-bis this row is
 **unordered** — it can run at any point, including alongside another batch.
+
+#### What #334 got wrong, and the pattern it belongs to
+
+Verdict `CORRECTED`. The defect was real and is now *demonstrated* rather
+than argued: mutating the retry's `reads == 1` branch to answer from the
+cache forever left all 40 tests passing while a live run printed `read the
+link 3x` having issued exactly one query. A gate reporting that it
+outwaited a lag it never waited for.
+
+But of the four risks the issue listed as unexercised, the most concrete —
+that a `--json` field typo raises `KeyError` and reports
+"indistinguishable, in output, from GitHub being down" — **does not
+exist**. `gh` validates the field list itself and refuses the call, so the
+operator gets the most specific message the tool produces anywhere,
+including the correct spelling. No `KeyError` is reachable that way at all.
+
+Taking it at face value, the natural first test pins the `--json` string —
+an assertion that a literal equals the literal on the next line. It passes
+by construction, fails the day someone legitimately adds a field, and would
+have crowded out the one test the mutation proves is needed. The `--json`
+list is therefore deliberately **not** asserted, and `GitHubCLI`'s docstring
+says why.
+
+That is now three rows on this page whose *diagnosis* needed correcting
+while the *defect* held: #262's fix would not have stopped the hang, #330's
+fix would have left the documented hole open, and #334 named a risk that
+`gh` already covers. In all three the pointer was durable and the
+explanation was not — which is the reason the `## Measured` / `##
+Hypothesis` split exists, and #334 is the first where the author of the
+wrong half was the same session that filed it.
+
+### Batch 8-ter — worked examples cite live numbers (#335)
+
+Found working 8-bis, by a grep for something else.
+
+Four wrong PR/issue numbers across two files: `scripts/check_pr_link.py`'s
+usage block claimed `328` closes nothing (it closed two issues) and cited
+`330` as a PR (it is an issue), and `Makefile:160-161` carried the identical
+pair. PR #332 fixed the first pair and did not grep for duplicates, so the
+second pair survived it. A third instance of the same confusion — `PR #320`
+for what is PR #323 — was in this document.
+
+Nothing in `make check` sees any of it; the numbers are prose to every gate
+in the repo. **May resolve as a decision not to gate it**, like #299: the
+cheap fix is to stop citing real numbers, which costs the one property that
+made the examples worth having — you can paste them and watch them pass,
+which is how three of the four errors surfaced.
 
 ---
 
