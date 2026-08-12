@@ -152,6 +152,11 @@ before:
   goes **on the source** — a comment on the issue, or a fix to the doc in
   the same PR — never into a new issue. That includes correcting your own
   earlier comment when a later measurement overturns it.
+- Most of these gates are enumerated with their exit conditions in
+  `.claude/commands/close-out.md`; duplication ≤3% and the reliability rating
+  have no exit condition there — the command names them but cannot gate them.
+  The command is the executable form; this list is the reasoning behind it. If
+  they disagree, the disagreement is a bug in one of them — say which.
 
 ## A found issue joins a batch; it does not join a queue
 

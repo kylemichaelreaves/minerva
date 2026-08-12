@@ -23,6 +23,12 @@ data/*
 # .envrc holds API keys; .envrc.example is the committed template
 .envrc
 
+# ── Agent scratch ──────────────────────────────────────────────────
+# Per-plan working directories for subagent-driven plan execution:
+# ledgers, task briefs, review packages. Scratch by construction — the
+# git history is the durable record.
+.superpowers/
+
 # ── Python ─────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
@@ -54,8 +60,11 @@ web/.vite/
 *.swo
 
 # ── Tooling state ──────────────────────────────────────────────────
-# Claude Code project state, if any lands in-tree
-.claude/
+# Claude Code project state, if any lands in-tree. Project slash commands
+# are the exception: they are checked-in prose meant to be shared, not
+# local session state, so .claude/commands/ is carved back out.
+.claude/*
+!.claude/commands/
 .screenshots/
 # Transient working screenshots (one-off captures during dev review).
 .screenshots-tmp/

@@ -77,6 +77,11 @@ Empty output on a PR that fixes something is a bug in the PR. Keep the
 keyword in the commit message too, so a squash-merge or a direct push
 still closes the issue if the link is missing.
 
+`make check-pr-link PR=<n> ISSUES="<n> <n>"` runs that query and three more —
+base branch, unexpected links, and a backtick-blind scan of the text destined
+for the merge commit — and exits non-zero on any of them. `/close-out` calls it
+at phase 5.
+
 When a PR should deliberately *not* close its issue — a partial fix, or a
 fix nobody has verified yet — write `Refs #N` instead and say why in the
 body. Silence reads as an oversight.

@@ -28,6 +28,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
+        check-pr-link check-diff-coverage \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -152,6 +153,15 @@ check-api-types:
 
 check-author-imports:
 	$(PYTHON) scripts/check_author_imports.py
+
+# Verify a PR's closing links actually registered (#321). Deliberately NOT part
+# of `make check` — it needs a PR that already exists.
+#
+#   make check-pr-link PR=328                    # asserts it closes nothing
+#   make check-pr-link PR=330 ISSUES="297 300"   # asserts exactly those two
+check-pr-link:
+	@test -n "$(PR)" || { echo 'usage: make check-pr-link PR=<n> [ISSUES="<n> <n>"]' >&2; exit 2; }
+	$(PYTHON) scripts/check_pr_link.py $(PR) $(ISSUES)
 
 # SonarCloud gates PRs at 80% coverage OF THE LINES THE DIFF CHANGED and is a
 # required check, so this is the local equivalent (#255). Note the suites here
