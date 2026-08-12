@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import dataclasses
 import sqlite3
+import threading
 import time
 from collections.abc import Iterable, Sequence
 
@@ -270,6 +271,70 @@ def load_or_parse(conn: sqlite3.Connection, chunk_id: str) -> list[SyntaxToken] 
 
     tokens = parse_text(str(row["text"]))
     save_parse(conn, chunk_id, tokens, parser=parser_id())
+    return tokens
+
+
+def load_or_parse_locked(
+    conn: sqlite3.Connection,
+    chunk_id: str,
+    lock: threading.Lock,
+) -> list[SyntaxToken] | None:
+    """:func:`load_or_parse`, holding *lock* only for the database work.
+
+    Same contract as :func:`load_or_parse` — None for an unknown chunk,
+    :class:`UnsupportedSyntaxLanguage` for the wrong language — but the
+    Stanza parse runs *outside* the lock.
+
+    That matters because the parse is the slowest thing the server does and
+    the only part of this function that touches no connection. Measured on
+    the live corpus: 111 ms for a short paragraph, 972 ms for a long one,
+    and 4,499 ms the first time a process loads the model. A caller that
+    wrapped the whole call in the corpus lock stalled every other reader
+    for exactly that long — an unrelated work-range request measured
+    1,433.6 ms against a 355.5 ms baseline while a 2,546-char chunk parsed
+    (#340).
+
+    The pattern is the one `server_core`'s lock comment already prescribes
+    for LLM calls, and that `_handle_chat` / `_handle_translate` follow:
+    release the lock across the slow, connection-free step. The syntax path
+    did not inherit it.
+
+    *lock* must NOT already be held — :class:`threading.Lock` is not
+    reentrant, so a caller holding it deadlocks here.
+    """
+
+    with lock:
+        row = conn.execute(
+            "SELECT text, lang FROM chunks WHERE chunk_id = ?", (chunk_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        lang = str(row["lang"])
+        # Same ordering as `load_or_parse`, for the same two reasons: a
+        # cached tree for a non-German chunk could only have come from the
+        # German model, and the guard has to precede the import below,
+        # which is what pulls Stanza in.
+        if lang != SUPPORTED_LANG:
+            raise UnsupportedSyntaxLanguage(chunk_id, lang)
+        cached = load_parse(conn, chunk_id)
+        if cached is not None:
+            return cached
+        text = str(row["text"])
+
+    from .parse import parse_text, parser_id
+
+    tokens = parse_text(text)
+
+    with lock:
+        # Another request may have parsed the same chunk while this one was
+        # outside the lock. Prefer the stored copy: `save_parse` deletes
+        # before inserting, so writing anyway would be correct rather than
+        # a constraint violation, but it would also rewrite rows a
+        # correction may already have been validated against.
+        cached = load_parse(conn, chunk_id)
+        if cached is not None:
+            return cached
+        save_parse(conn, chunk_id, tokens, parser=parser_id())
     return tokens
 
 

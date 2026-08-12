@@ -25,7 +25,7 @@ from typing import Any
 from ...syntax import queries as syntax_queries
 from ...syntax import validate as syntax_validate
 from ..server_core import ServerDeps, _HTTPError
-from ._locks import with_corpus_lock
+from ._locks import map_domain_errors, with_corpus_lock
 
 
 def _token_json(tok: syntax_queries.SyntaxToken) -> dict[str, Any]:
@@ -60,17 +60,21 @@ def _correction_json(c: syntax_queries.Correction) -> dict[str, Any]:
 
 
 def _load_or_parse_or_400(deps: ServerDeps, chunk_id: str) -> list[syntax_queries.SyntaxToken]:
-    """`load_or_parse`, with its language refusal mapped to an HTTP status.
+    """`load_or_parse_locked`, with its language refusal mapped to an HTTP status.
 
     Shared by both handlers that reach the parser: the GET path and the
     correction-create path. 400, not 404, for a wrong-language chunk — the
     chunk exists, the request is the problem, and a 404 here would send the
     caller looking for a missing chunk instead. A missing chunk still 404s,
     via the `None` return `load_or_parse` documents for that case.
+
+    Takes `deps.corpus_lock` itself, around the database work only, so the
+    Stanza parse does not stall other readers (#340). Neither caller may
+    hold that lock when it gets here — see the note on each.
     """
 
     try:
-        tokens = syntax_queries.load_or_parse(deps.conn, chunk_id)
+        tokens = syntax_queries.load_or_parse_locked(deps.conn, chunk_id, deps.corpus_lock)
     except syntax_queries.UnsupportedSyntaxLanguage as exc:
         raise _HTTPError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
     if tokens is None:
@@ -78,11 +82,16 @@ def _load_or_parse_or_400(deps: ServerDeps, chunk_id: str) -> list[syntax_querie
     return tokens
 
 
-@with_corpus_lock
+# NOT `@with_corpus_lock`: the parse inside `_load_or_parse_or_400` must run
+# outside the lock, and it takes the lock itself for the parts that need it.
+# `map_domain_errors` still has to be applied by hand — it normally arrives
+# as part of the lock decorator.
+@map_domain_errors
 def _handle_chunk_syntax(deps: ServerDeps, chunk_id: str) -> dict[str, Any]:
     tokens = _load_or_parse_or_400(deps, chunk_id)
 
-    corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
+    with deps.corpus_lock:
+        corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
 
     # Group into sentences. Tokens arrive ordered by (sent_ord, tok_id), so a
     # single pass suffices; sentence ordinals are contiguous from 0.
@@ -172,7 +181,13 @@ def _check_and_prior_value(
     return target.deprel
 
 
-@with_corpus_lock
+# NOT `@with_corpus_lock`, for the same reason as `_handle_chunk_syntax`: a
+# correction to a chunk nobody has opened parses it first, and holding the
+# lock across that parse is exactly the stall #340 measured. The lock is taken
+# below instead, around the read-validate-append block, which still has to be
+# atomic — two corrections to one token must not interleave between
+# `materialise` and `append_correction`.
+@map_domain_errors
 def _handle_syntax_correction_create(
     deps: ServerDeps,
     chunk_id: str,
@@ -200,38 +215,40 @@ def _handle_syntax_correction_create(
             f"kind must be one of {', '.join(syntax_queries.CORRECTABLE)}",
         )
 
+    # Outside the lock: may parse.
     tokens = _load_or_parse_or_400(deps, chunk_id)
 
-    corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
-    current = syntax_queries.materialise(tokens, corrections)
+    with deps.corpus_lock:
+        corrections = syntax_queries.load_corrections(deps.conn, chunk_id)
+        current = syntax_queries.materialise(tokens, corrections)
 
-    target = next(
-        (t for t in current if t.sent_ord == sent_ord and t.tok_id == tok_id),
-        None,
-    )
-    if target is None:
-        raise _HTTPError(
-            HTTPStatus.NOT_FOUND,
-            f"no token {tok_id} in sentence {sent_ord} of this chunk",
+        target = next(
+            (t for t in current if t.sent_ord == sent_ord and t.tok_id == tok_id),
+            None,
+        )
+        if target is None:
+            raise _HTTPError(
+                HTTPStatus.NOT_FOUND,
+                f"no token {tok_id} in sentence {sent_ord} of this chunk",
+            )
+
+        from_val = _check_and_prior_value(
+            current, kind=kind, to_val=to_val, sent_ord=sent_ord, tok_id=tok_id, target=target
         )
 
-    from_val = _check_and_prior_value(
-        current, kind=kind, to_val=to_val, sent_ord=sent_ord, tok_id=tok_id, target=target
-    )
+        correction_id = syntax_queries.append_correction(
+            deps.conn,
+            chunk_id,
+            sent_ord=sent_ord,
+            tok_id=tok_id,
+            kind=kind,
+            from_val=from_val,
+            to_val=to_val,
+        )
 
-    correction_id = syntax_queries.append_correction(
-        deps.conn,
-        chunk_id,
-        sent_ord=sent_ord,
-        tok_id=tok_id,
-        kind=kind,
-        from_val=from_val,
-        to_val=to_val,
-    )
-
-    updated = syntax_queries.materialise(
-        tokens, syntax_queries.load_corrections(deps.conn, chunk_id)
-    )
+        updated = syntax_queries.materialise(
+            tokens, syntax_queries.load_corrections(deps.conn, chunk_id)
+        )
     token = next(t for t in updated if t.sent_ord == sent_ord and t.tok_id == tok_id)
 
     return {
