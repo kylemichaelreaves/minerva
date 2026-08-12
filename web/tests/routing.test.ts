@@ -58,6 +58,47 @@ describe("readRoute", () => {
     }
   });
 
+  it("parses the syntax layer as a modifier on the reader route", () => {
+    // "Syntax open" is a modifier, not a route of its own (#342) — the reader
+    // location has to stay resolved underneath it or the Reader has nothing
+    // to render and unmounts.
+    const route = withHash("#/r/Republic?lang=grc&syntax=rep-509d", readRoute);
+    expect(route.kind).toBe("reader");
+    if (route.kind === "reader") {
+      expect(route.workId).toBe("Republic");
+      expect(route.sourceLang).toBe("grc");
+      expect(route.syntaxChunkId).toBe("rep-509d");
+    }
+  });
+
+  it("parses the legacy #/syntax/<chunk>?work= hash into the reader route", () => {
+    // The shape #237 shipped and every existing bookmark holds. It carries no
+    // lang, so the chunk goes through as `focus=` as well: `around=<chunk>`
+    // resolves work/lang/edition off the chunk row, where defaulting a lang
+    // would open a different edition entirely (see SyntaxRoute's note).
+    const route = withHash("#/syntax/rep-509d?work=Republic", readRoute);
+    expect(route.kind).toBe("reader");
+    if (route.kind === "reader") {
+      expect(route.workId).toBe("Republic");
+      expect(route.syntaxChunkId).toBe("rep-509d");
+      expect(route.focusChunkId).toBe("rep-509d");
+      expect(route.sourceLang).toBeUndefined();
+    }
+  });
+
+  it("sends a malformed legacy syntax hash to the landing", () => {
+    // Same defensive posture as the `term=` parse: a truncated escape makes
+    // decodeURIComponent throw, and a router that throws blank-screens the app.
+    expect(withHash("#/syntax/100%?work=Republic", readRoute)).toEqual({ kind: "landing" });
+  });
+
+  it("sends a work-less #/syntax/<chunk> to the landing", () => {
+    // There is no reader location to resolve, so there is no layer to lay the
+    // overlay over. Nothing in the app has built this shape since #237 — it
+    // was the hand-typed entry point while the route was unreachable (#232).
+    expect(withHash("#/syntax/rep-509d", readRoute)).toEqual({ kind: "landing" });
+  });
+
   it("ignores a non-integer term= defensively", () => {
     // A stale bookmark or extension shouldn't crash the reader; the
     // expected behavior is just "no card opens on first paint."
@@ -182,6 +223,17 @@ describe("routeHash", () => {
     ).toBe("#/r/Republic?lang=grc&term=7");
   });
 
+  it("reader includes syntax=", () => {
+    expect(
+      routeHash({
+        kind: "reader",
+        workId: "Republic",
+        sourceLang: "grc",
+        syntaxChunkId: "rep-509d",
+      }),
+    ).toBe("#/r/Republic?lang=grc&syntax=rep-509d");
+  });
+
   it("refs serializes filters in deterministic order", () => {
     expect(
       routeHash({
@@ -223,6 +275,12 @@ describe("round-trip", () => {
       sourceLang: "grc",
       focusChunkId: "rep-509d",
       openTermId: 42,
+    },
+    {
+      kind: "reader",
+      workId: "Das Kapital, Band I",
+      sourceLang: "deu",
+      syntaxChunkId: "k-1",
     },
     {
       kind: "refs",

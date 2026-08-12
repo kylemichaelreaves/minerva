@@ -25,6 +25,21 @@ export type Route =
        *  popover for this term on next paint — used so a click on a
        *  marked Greek word is routable and survives a page reload. */
       openTermId?: number;
+      /** Dependency-syntax layer open over this chunk (`?syntax=<id>`).
+       *
+       *  A MODIFIER on the reader route, not a route of its own (#342).
+       *  The overlay used to be a peer `<Match>` in the same `<Switch>`
+       *  as the Reader, which meant opening it unmounted the Reader:
+       *  `useWorkRange`'s signals were destroyed, the window refetched,
+       *  and the return trip blanked the page and lost the scroll
+       *  position. As a modifier the reader location stays resolved, so
+       *  the Reader stays mounted and the overlay is what it always
+       *  looked like — a layer (`.syn` is `position: fixed; inset: 0`).
+       *
+       *  The legacy `#/syntax/<chunk>?work=<work>` hash parses into this
+       *  shape, so existing bookmarks keep working and get canonicalized
+       *  on load by `useRouting`'s replaceState. */
+      syntaxChunkId?: string;
     }
   | {
       /** Corpus-wide cross-references browser. Mirrors the
@@ -85,17 +100,6 @@ export type Route =
       sourceAuthors?: string[];
       corpora?: string[];
       sourceMethods?: string[];
-    }
-  | {
-      /** Full-screen dependency-syntax overlay for one chunk. Reached from
-       *  the Reader. Full-bleed like the network drilldowns rather than a
-       *  rail panel: a wrapped token row with its arc stack needs the
-       *  measure, and the median German sentence is already 1328px wide. */
-      kind: "syntax";
-      chunkId: string;
-      /** Work to return to, so the back link goes somewhere sensible.
-       *  String, matching the reader route it navigates back into. */
-      workId?: string;
     }
   | {
       /** Full-screen verification-coverage drilldown — design 6.
@@ -192,16 +196,28 @@ export function readRoute(): Route {
       author: qs.get("author") ?? undefined,
       focusChunkId: qs.get("focus") ?? undefined,
       openTermId,
+      syntaxChunkId: qs.get("syntax") ?? undefined,
     };
   }
+  // Legacy syntax hash (#237's shape). Rewritten into the reader route with
+  // the syntax modifier — see `syntaxChunkId` above. The chunk goes through as
+  // `focus=` as well because this hash carries no lang: `around=<chunk>` makes
+  // the server resolve work/lang/edition off the chunk row, where defaulting a
+  // lang (as `work_range` does, to "grc") can open a different edition of the
+  // same work. Without a `work=` there is no reader location to resolve and so
+  // no layer to lay the overlay over, which lands on the landing route.
   m = /^#\/syntax\/([^?]+)(?:\?(.*))?$/.exec(hash);
   if (m) {
     const qs = new URLSearchParams(m[2]);
     const rawWork = qs.get("work");
+    const workId = rawWork ? safeDecode(rawWork) : null;
+    const chunkId = safeDecode(m[1] ?? "");
+    if (workId === null || chunkId === null) return { kind: "landing" };
     return {
-      kind: "syntax",
-      chunkId: safeDecode(m[1] ?? "") ?? "",
-      workId: rawWork ? (safeDecode(rawWork) ?? undefined) : undefined,
+      kind: "reader",
+      workId,
+      focusChunkId: chunkId,
+      syntaxChunkId: chunkId,
     };
   }
   m = /^#\/network\/(arc|coverage)(?:\?(.*))?$/.exec(hash);
@@ -310,6 +326,7 @@ export function routeHash(route: Route): string {
     if (route.author) params.set("author", route.author);
     if (route.focusChunkId) params.set("focus", route.focusChunkId);
     if (route.openTermId !== undefined) params.set("term", String(route.openTermId));
+    if (route.syntaxChunkId) params.set("syntax", route.syntaxChunkId);
     const qs = params.toString();
     const base = `#/r/${encodeURIComponent(route.workId)}`;
     return qs ? `${base}?${qs}` : base;
@@ -370,10 +387,6 @@ export function routeHash(route: Route): string {
     const qs = params.toString();
     const base = `#/concordance/${encodeURIComponent(route.lemma)}`;
     return qs ? `${base}?${qs}` : base;
-  }
-  if (route.kind === "syntax") {
-    const base = `#/syntax/${encodeURIComponent(route.chunkId)}`;
-    return route.workId ? `${base}?work=${encodeURIComponent(route.workId)}` : base;
   }
   if (route.kind === "network-arc" || route.kind === "network-coverage") {
     const sub = route.kind === "network-arc" ? "arc" : "coverage";

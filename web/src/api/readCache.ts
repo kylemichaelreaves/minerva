@@ -3,20 +3,30 @@
 // WHY THIS EXISTS
 // ---------------
 // `AppRoutes` renders the Reader as one `<Match>` branch of a `<Switch>`,
-// so navigating to the syntax / concordance / network / refs routes
-// unmounts it and destroys `useWorkRange`'s signals. Coming back remounts
-// it and refetches everything, even though the corpus has not changed and
-// the user was looking at that exact text a moment ago.
+// so navigating to the concordance / network / refs routes unmounts it and
+// destroys `useWorkRange`'s signals. Coming back remounts it and refetches
+// everything, even though the corpus has not changed and the user was
+// looking at that exact text a moment ago.
 //
-// Measured on the live index, returning from the syntax overlay: the work
-// range itself is 20 ms (cheap since the 0029 index), but `occurrence_map`
-// and `references_map` refire at 81 ms and 89 ms — they filter on `work_id`
-// and so are still waiting on the denormalised column (#339). The three
-// serialize behind the corpus lock (#340), so the return trip costs ~190 ms
-// of requests for data the client already had.
+// TWO CORRECTIONS SINCE THIS WAS WRITTEN
+// --------------------------------------
+// The original note here measured the syntax-overlay return trip at ~190 ms
+// — work range 20 ms, `occurrence_map` 81 ms, `references_map` 89 ms, the
+// last two "still waiting on the denormalised column (#339)". Both halves
+// have since moved:
 //
-// Module scope outlives components, which is the whole point: the cache
-// survives the unmount that causes the refetch.
+//   * #339 part 2 landed (096c6fe, migration 0030): `chunks.work_id` is
+//     denormalised and indexed, and the companion-map window went 79.94 ms
+//     -> 0.04 ms. Re-measured on the live index, the three requests are
+//     ~15-35 ms together, not ~190 ms.
+//   * The syntax overlay is no longer one of the routes that unmounts the
+//     Reader at all (#342) — it is a layer over a reader route that stays
+//     mounted, so that transition issues no requests to cache.
+//
+// What the cache is for now is the concordance / network / refs returns,
+// which do still unmount the Reader, and as a backstop. Module scope
+// outlives components, which is the whole point: the cache survives the
+// unmount that causes the refetch.
 //
 // WHAT IS SAFE TO CACHE HERE
 // --------------------------

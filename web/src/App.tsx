@@ -5,6 +5,7 @@ import Sidebar from "~/Sidebar";
 import ConfirmDialog from "~/components/ConfirmDialog";
 import MobileTopBar from "~/components/MobileTopBar";
 import { AppRoutes } from "~/AppRoutes";
+import { SyntaxLayer } from "~/routes/SyntaxLayer";
 import { MobileShellProvider, useMobileShell } from "~/components/MobileShellContext";
 import { useMobileTopBarConfig } from "~/hooks/useMobileTopBarConfig";
 import "~/styles/mobile.css";
@@ -77,9 +78,16 @@ function AppShell() {
     const k = routing.route().kind;
     return k === "network" || k === "network-arc" || k === "network-coverage";
   });
-  // Full-bleed like the network drilldowns: it renders its own back bar, so
-  // the mobile chrome steps aside the same way.
-  const onSyntax = createMemo(() => routing.route().kind === "syntax");
+  // The syntax overlay is a modifier on the reader route, not a route of its
+  // own (#342) — so the Reader stays mounted underneath it and keeps its
+  // window, its scroll position and its card / rail / selection state. Full
+  // bleed like the network drilldowns: it renders its own back bar, so the
+  // mobile chrome steps aside the same way.
+  const syntaxChunkId = createMemo(() => {
+    const r = routing.route();
+    return r.kind === "reader" ? r.syntaxChunkId : undefined;
+  });
+  const onSyntax = createMemo(() => syntaxChunkId() !== undefined);
   const onConcordance = createMemo(() => {
     const k = routing.route().kind;
     return k === "concordance" || k === "concordance-lemma";
@@ -142,14 +150,21 @@ function AppShell() {
           onClick={() => setMobileDrawerOpen(false)}
         />
       </Show>
-      <main class="main">
+      {/* `inert` while the syntax layer is open. The Reader now survives that
+          navigation, which is the point — but a mounted Reader under an opaque
+          `position: fixed` overlay is still in the tab order, and before #342
+          it was unreachable only because it had been destroyed. */}
+      {/* `attr:` because the plain prop compiles to `el.inert = …`, which is a
+          no-op wherever the property is unimplemented; the attribute is what
+          the browser's inert semantics actually key on. */}
+      <main class="main" attr:inert={onSyntax() ? "" : undefined}>
         <Show
           when={
             isMobile() &&
             !conversations.showLanding() &&
             routing.route().kind !== "network-arc" &&
             routing.route().kind !== "network-coverage" &&
-            routing.route().kind !== "syntax"
+            !onSyntax()
           }
         >
           {/* MobileTopBar is suppressed on the two Network drilldown
@@ -172,13 +187,18 @@ function AppShell() {
           conversationTitle={conversationTitle}
           onRefs={onRefs}
           onNetwork={onNetwork}
-          onSyntax={onSyntax}
           onConcordance={onConcordance}
           openSourceInReader={openSourceInReader}
           onScrollChange={setScrolled}
           marginNotes={MARGIN_NOTES}
         />
       </main>
+
+      {/* Outside `<main>` on purpose: the shell above goes `inert` while this
+          is open, and a layer nested inside it would go inert with it. */}
+      <Show when={syntaxChunkId()}>
+        {(chunkId) => <SyntaxLayer routing={routing} chunkId={chunkId()} />}
+      </Show>
 
       <ConfirmDialog
         open={conversations.deleteTarget() !== null}

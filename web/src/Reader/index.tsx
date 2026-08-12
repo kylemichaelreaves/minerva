@@ -147,9 +147,10 @@ export default function Reader(props: ReaderProps) {
   // so the action is offered only on a German edition. Gated on the
   // loaded range's own `lang` (falling back to `props.sourceLang` before
   // the range has loaded) rather than `sourceLang` alone: `sourceLang` is
-  // `undefined` on citation deep-links (`App.tsx`'s `openAtChunk`) and on
-  // the syntax route's own return trip, which would otherwise hide the
-  // action from German text reached those ways. This also makes the gate
+  // `undefined` on citation deep-links (`App.tsx`'s `openAtChunk`) and on a
+  // cold load of the legacy `#/syntax/<chunk>?work=` hash, which carries no
+  // lang and so resolves the edition off `around=<chunk>` instead — either
+  // would otherwise hide the action from German text. This also makes the gate
   // true to the spec's claim that it's keyed on the chunk's language, not
   // the work's. The server refuses non-German independently (400) — this
   // keeps a dead button off screen, it is not the safety property.
@@ -173,7 +174,22 @@ export default function Reader(props: ReaderProps) {
       // routing.ts. `routeHash` is a pure function — no need to thread
       // the full routing controller through readerCtrl for this
       // single-purpose CTA.
-      window.location.hash = routeHash({ kind: "syntax", chunkId, workId: props.workId });
+      //
+      // The whole current reader location goes back into the hash, with
+      // `syntax=<chunk>` added: the overlay is a modifier on this route now
+      // (#342), and the Reader stays mounted underneath it only as long as
+      // every field the window is keyed on comes back unchanged. Dropping
+      // `lang` here would re-resolve the edition and reload the window —
+      // which is the failure the old peer route caused by unmounting.
+      window.location.hash = routeHash({
+        kind: "reader",
+        workId: props.workId,
+        sourceLang: props.sourceLang,
+        author: props.author,
+        focusChunkId: props.focusChunkId,
+        openTermId: props.openTermId,
+        syntaxChunkId: chunkId,
+      });
     },
   });
 

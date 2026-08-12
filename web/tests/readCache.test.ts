@@ -1,9 +1,12 @@
 /**
  * The Reader's route-switch cache.
  *
- * `AppRoutes` unmounts the Reader when any other route matches, so returning
- * to it refetches the window the user was already looking at — ~190 ms of
- * requests, mostly the two companion maps. These tests pin the properties
+ * `AppRoutes` unmounts the Reader when the concordance / network / refs routes
+ * match, so returning to it refetches the window the user was already looking
+ * at. That trip was measured here at ~190 ms; it is ~15-35 ms since #339 part 2
+ * denormalised `chunks.work_id` (096c6fe), and the syntax overlay — the case
+ * the number was measured on — no longer unmounts the Reader at all (#342).
+ * The cache still covers the other three returns. These tests pin the properties
  * that make caching it safe: keys carry every parameter, failures are never
  * stored, and a curation write drops the maps it invalidates.
  */

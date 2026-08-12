@@ -74,9 +74,37 @@ describe("every route kind has a constructor outside the router", () => {
   it("reads every kind out of the Route union", () => {
     // Guards the guard: a refactor that reshapes the union must not silently
     // reduce this suite to checking nothing.
+    //
+    // Ten, not eleven, since #342: "syntax" stopped being a kind and became
+    // `syntaxChunkId` on the reader route, so the overlay has no route of its
+    // own for this suite to hold to account. What replaces that check for it
+    // is the modifier case below.
     expect(kinds).toContain("landing");
     expect(kinds).toContain("network-arc");
-    expect(kinds.length).toBeGreaterThanOrEqual(11);
+    expect(kinds.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("constructs the syntax layer modifier somewhere in the app", () => {
+    // The syntax overlay is the screen this whole suite exists for: it shipped
+    // reachable only by typing its hash (#232, #237). It is now a modifier
+    // rather than a kind (#342), so `constructorsOf` cannot see it — and a
+    // route field that nothing sets is the same unreachable screen, one
+    // refactor later.
+    //
+    // Inside a navigation call, like every other case here, and NOT a bare
+    // mention: the first draft of this looked for `syntaxChunkId:` anywhere in
+    // a file, which `SyntaxLayer`'s `const { syntaxChunkId: _dropped, ...rest }`
+    // satisfies — the line that CLEARS the modifier would have stood in for the
+    // line that sets it, and the guard passed with the constructor commented
+    // out. The window is wider than `constructorsOf`'s 240 because this
+    // constructor spells the whole reader location out, one field per line.
+    const setters: string[] = [];
+    for (const { rel, text } of appFiles) {
+      for (const m of text.matchAll(NAV)) {
+        if (text.slice(m.index, m.index + 600).includes("syntaxChunkId")) setters.push(rel);
+      }
+    }
+    expect(setters).not.toEqual([]);
   });
 
   // A *constructor*, not a mention. `App.tsx` compares against nearly every
