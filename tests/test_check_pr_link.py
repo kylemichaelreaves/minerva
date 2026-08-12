@@ -242,3 +242,45 @@ class TestRequireGithubNumber:
             cpl.require_github_number("issue number", -5)
         assert "issue number" in str(exc.value)
         assert "-5" in str(exc.value)
+
+
+class TestCommitTexts:
+    """`_commit_texts` is what makes the hazard scan see commit messages at
+    all. Its failure mode is silent: a wrong key or a dropped body narrows the
+    check without changing any visible behaviour."""
+
+    def test_labels_each_commit_by_short_oid(self):
+        out = cpl._commit_texts([{"oid": "0123456789abcdef", "messageHeadline": "x"}])
+        assert list(out) == ["commit 0123456"]
+
+    def test_scans_the_body_as_well_as_the_headline(self):
+        """The one that matters. A closing keyword lives in a commit *body*
+        far more often than in its subject line, so dropping the body would
+        quietly halve the check's reach."""
+
+        out = cpl._commit_texts(
+            [
+                {
+                    "oid": "abcdef1234",
+                    "messageHeadline": "chore: something",
+                    "messageBody": "incidentally mentions `Closes #999001`",
+                }
+            ]
+        )
+        assert cpl.scan_closing_refs(out["commit abcdef1"]) == {999001}
+
+    def test_a_missing_or_null_body_is_not_an_error(self):
+        """`gh` omits messageBody for a single-line commit, and returns null
+        for some. Either must not crash the run."""
+
+        out = cpl._commit_texts(
+            [
+                {"oid": "aaaaaaa1", "messageHeadline": "no body key"},
+                {"oid": "bbbbbbb2", "messageHeadline": "null body", "messageBody": None},
+            ]
+        )
+        assert out["commit aaaaaaa"] == "no body key\n"
+        assert out["commit bbbbbbb"] == "null body\n"
+
+    def test_no_commits_yields_no_texts(self):
+        assert cpl._commit_texts([]) == {}
