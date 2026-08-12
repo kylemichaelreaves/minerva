@@ -1883,7 +1883,7 @@ which is how three of the four errors surfaced.
 #### What 8-ter turned out to be — the wrong population
 
 Verdict `CORRECTED`, and the correction is about *which text rots*. Landed as
-the PR recorded below, which built `make check-pr-citations`.
+PR #338, which built `make check-pr-citations`.
 
 All four measured numbers reproduced, and all four were already fixed. The live
 question was the issue's own option 2: gate the worked examples. Sweeping the
