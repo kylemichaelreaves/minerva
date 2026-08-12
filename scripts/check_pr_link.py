@@ -49,6 +49,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -301,6 +302,141 @@ def _commit_texts(commits: list[dict]) -> dict[str, str]:
     return out
 
 
+class GitHubReader(Protocol):
+    """The three reads this check needs, and the seam that makes it testable.
+
+    `main()` used to hold both `subprocess.run` calls inline, which left every
+    one of them — and the retry's cache-then-network branch below — unwatched by
+    any test (#334). The gap was not hypothetical: mutating that branch to
+    answer from the cache on every call left all 40 tests passing while a live
+    run printed `read the link 3x` having issued exactly one query.
+    """
+
+    def pull_request(self, pr_number: str) -> dict: ...
+
+    def closing_refs(self, pr_number: str) -> set[int]: ...
+
+    def default_branch(self) -> str: ...
+
+
+class GitHubCLI:
+    """`GitHubReader` over the real `gh`.
+
+    Every argv is spelled out at its call site rather than built from a shared
+    helper. Sonar's S8705 flags a variable-length argv spread into
+    `subprocess.run`, which is why `_parse_gh` shares the *response* handling and
+    not the invocation. Do not factor the `--json` field list into a constant:
+    that reintroduces the spread for no gain, and `gh` already validates the
+    field names better than a test could — it rejects an unknown one outright and
+    prints the correct spelling.
+    """
+
+    def pull_request(self, pr_number: str) -> dict:
+        proc = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--json",
+                "baseRefName,title,body,commits,closingIssuesReferences",
+            ],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+        )
+        return _parse_gh(proc, f"gh pr view {pr_number} --json ...")
+
+    def closing_refs(self, pr_number: str) -> set[int]:
+        proc = subprocess.run(
+            ["gh", "pr", "view", pr_number, "--json", "closingIssuesReferences"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+        )
+        label = f"gh pr view {pr_number} --json closingIssuesReferences"
+        return {r["number"] for r in _parse_gh(proc, label)["closingIssuesReferences"]}
+
+    def default_branch(self) -> str:
+        proc = subprocess.run(
+            ["gh", "repo", "view", "--json", "defaultBranchRef"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+        )
+        repo = _parse_gh(proc, "gh repo view --json defaultBranchRef")
+        return repo["defaultBranchRef"]["name"]
+
+
+def run(
+    *,
+    pr: int,
+    issues: list[int],
+    github: GitHubReader,
+    sleep: Callable[[float], None] = time.sleep,
+) -> int:
+    """The whole check, minus argument parsing. Returns the process exit code."""
+    try:
+        expected = {require_github_number("issue number", n) for n in issues}
+        pr_number = str(require_github_number("PR number", pr))
+    except Problem as exc:
+        print(f"check-pr-link: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        payload = github.pull_request(pr_number)
+        default_branch = github.default_branch()
+        scanned = {
+            "PR title": payload["title"] or "",
+            "PR body": payload["body"] or "",
+            **_commit_texts(payload["commits"]),
+        }
+
+        # `pull_request` already carried the field once, so only a retry goes
+        # back to the network — and it re-reads nothing else, because the title,
+        # the body and the commits cannot change between attempts.
+        first_read = {r["number"] for r in payload["closingIssuesReferences"]}
+        reads = 0
+
+        def fetch_resolved() -> set[int]:
+            nonlocal reads
+            reads += 1
+            if reads == 1:
+                return first_read
+            return github.closing_refs(pr_number)
+
+        resolved, attempts_used = resolve_closing_refs(
+            fetch_resolved, expected, sleep=sleep
+        )
+    except (Problem, KeyError, TypeError) as exc:
+        print(f"check-pr-link: {exc}", file=sys.stderr)
+        return 1
+
+    failures = evaluate(
+        base_ref=payload["baseRefName"],
+        default_branch=default_branch,
+        resolved=resolved,
+        expected=expected,
+        scanned_text=scanned,
+    )
+
+    claim = f"close {sorted(expected)}" if expected else "close nothing"
+    waited = f"; read the link {attempts_used}x" if attempts_used > 1 else ""
+    print(
+        f"check-pr-link: PR #{pr} should {claim}; "
+        f"scanned {len(scanned)} text(s){waited}"
+    )
+
+    if failures:
+        for f in failures:
+            print(f"  [{f.check}] {f.detail}", file=sys.stderr)
+        print(failure_summary(failures, pr), file=sys.stderr)
+        return 1
+
+    print("check-pr-link: ok")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Verify a PR's closing links registered, and only the intended ones."
@@ -313,92 +449,7 @@ def main() -> int:
         help="issue numbers this PR must close; omit to assert it closes none",
     )
     args = ap.parse_args()
-
-    try:
-        expected = {require_github_number("issue number", n) for n in args.issues}
-    except Problem as exc:
-        print(f"check-pr-link: {exc}", file=sys.stderr)
-        return 1
-
-    try:
-        pr_number = str(require_github_number("PR number", args.pr))
-        pr_proc = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "view",
-                pr_number,
-                "--json",
-                "baseRefName,headRefName,title,body,commits,closingIssuesReferences",
-            ],
-            cwd=REPO,
-            capture_output=True,
-            text=True,
-        )
-        pr = _parse_gh(pr_proc, f"gh pr view {pr_number} --json ...")
-
-        repo_proc = subprocess.run(
-            ["gh", "repo", "view", "--json", "defaultBranchRef"],
-            cwd=REPO,
-            capture_output=True,
-            text=True,
-        )
-        repo = _parse_gh(repo_proc, "gh repo view --json defaultBranchRef")
-        default_branch = repo["defaultBranchRef"]["name"]
-        scanned = {
-            "PR title": pr["title"] or "",
-            "PR body": pr["body"] or "",
-            **_commit_texts(pr["commits"]),
-        }
-
-        # The call above already read the field once, so only a retry goes back
-        # to the network — and it re-reads nothing else, because the title, the
-        # body and the commits cannot change between attempts.
-        first_read = {r["number"] for r in pr["closingIssuesReferences"]}
-        reads = 0
-
-        def fetch_resolved() -> set[int]:
-            nonlocal reads
-            reads += 1
-            if reads == 1:
-                return first_read
-            label = f"gh pr view {pr_number} --json closingIssuesReferences"
-            proc = subprocess.run(
-                ["gh", "pr", "view", pr_number, "--json", "closingIssuesReferences"],
-                cwd=REPO,
-                capture_output=True,
-                text=True,
-            )
-            return {r["number"] for r in _parse_gh(proc, label)["closingIssuesReferences"]}
-
-        resolved, attempts_used = resolve_closing_refs(fetch_resolved, expected)
-    except (Problem, KeyError, TypeError) as exc:
-        print(f"check-pr-link: {exc}", file=sys.stderr)
-        return 1
-
-    failures = evaluate(
-        base_ref=pr["baseRefName"],
-        default_branch=default_branch,
-        resolved=resolved,
-        expected=expected,
-        scanned_text=scanned,
-    )
-
-    claim = f"close {sorted(expected)}" if expected else "close nothing"
-    waited = f"; read the link {attempts_used}x" if attempts_used > 1 else ""
-    print(
-        f"check-pr-link: PR #{args.pr} should {claim}; "
-        f"scanned {len(scanned)} text(s){waited}"
-    )
-
-    if failures:
-        for f in failures:
-            print(f"  [{f.check}] {f.detail}", file=sys.stderr)
-        print(failure_summary(failures, args.pr), file=sys.stderr)
-        return 1
-
-    print("check-pr-link: ok")
-    return 0
+    return run(pr=args.pr, issues=args.issues, github=GitHubCLI())
 
 
 if __name__ == "__main__":
