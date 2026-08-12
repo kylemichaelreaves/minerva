@@ -73,8 +73,20 @@ def test_work_lookup_already_had_an_index(populated_db: sqlite3.Connection):
     """Why 0029 does not add `works(title, author)`, as #339 proposed.
 
     The UNIQUE (author, title) constraint already yields a covering index,
-    and SQLite was already choosing it. Pinning this keeps the next person
-    from re-adding a duplicate.
+    and SQLite was already choosing it — measured at 1.0x with #339's index
+    added, because the statement's cost was the `SCAN c` on chunks.
+
+    Corrected 2026-08-12: this test used to say it "keeps the next person
+    from re-adding a duplicate", and **migration 0030 adds that index.**
+    Nothing above is wrong — the index is genuinely inert while chunks is
+    scanned, and it is not a duplicate of this autoindex either (leading
+    column `title`, not `author`). What changed is the premise: 0030's
+    denormalised `chunks.work_id` removes the `SCAN c`, which promotes the
+    title-without-author access path from unused to load-bearing and takes
+    the author-less `resolve work_id` from 31.6 ms to 0.53 ms. What this
+    test pins is the narrower and still-true claim it actually asserts —
+    that the author-ful lookup needs no new index. See
+    `test_migration_0030_chunks_work_id.py` for the other half.
     """
 
     plan = _plan(

@@ -159,6 +159,51 @@ def audit_lemma_surface_offsets(conn: sqlite3.Connection) -> Result:
     return result
 
 
+def audit_chunk_work_id(conn: sqlite3.Connection) -> Result:
+    """``chunks.work_id == COALESCE(editions.work_id, translations.work_id)``,
+    for every row of ``chunks``, grouped by language.
+
+    Why this one is worth a pass of its own: since migration 0030 (#339)
+    ``chunks_full`` reaches ``works`` through ``JOIN works w ON w.id =
+    c.work_id`` — an INNER join on a NULLABLE column. A chunk whose
+    ``work_id`` is unset therefore does not surface with a missing title,
+    it does not surface at all: it disappears from the reader, from
+    search, from refs and from every count taken through the view, and
+    nothing raises. `NOT NULL` is not declarable without rebuilding a
+    428,606-row table whose rowids the FTS content tables depend on, so
+    the constraint lives here instead.
+
+    Read directly off ``chunks`` rather than through the view, because the
+    view is precisely what hides the violation.
+    """
+
+    result = Result(name="chunk_work_id")
+    rows = conn.execute(
+        "SELECT c.chunk_id, c.lang, c.work_id, "
+        "       COALESCE(e.work_id, t.work_id) AS expected "
+        "FROM chunks c "
+        "LEFT JOIN editions e ON e.id = c.edition_id "
+        "LEFT JOIN translations t ON t.id = c.translation_id"
+    )
+    for chunk_id, lang, work_id, expected in rows:
+        bad = work_id is None or work_id != expected
+        result.record(lang or "(null)", bad=bad)
+        if bad and len(result.examples) < _MAX_EXAMPLES:
+            result.examples.append(
+                Violation(
+                    group=lang or "(null)",
+                    chunk_id=chunk_id,
+                    detail=(
+                        f"work_id={work_id!r} but edition/translation "
+                        f"resolves to {expected!r} — row is invisible in chunks_full"
+                        if work_id is None
+                        else f"work_id={work_id!r} disagrees with {expected!r}"
+                    ),
+                )
+            )
+    return result
+
+
 INVARIANTS: tuple[Invariant, ...] = (
     Invariant(
         name="lemma_surface_offsets",
@@ -169,6 +214,17 @@ INVARIANTS: tuple[Invariant, ...] = (
             "gives a clitic sub-word its parent's span deliberately "
             "(_tokens_from_stanza_doc). Of its mismatches, the share that is "
             "NOT that case is #314."
+        ),
+    ),
+    Invariant(
+        name="chunk_work_id",
+        statement="chunks.work_id == COALESCE(editions.work_id, translations.work_id)",
+        run=audit_chunk_work_id,
+        known_exceptions=(
+            "Expected to be exactly zero. Any nonzero count means those chunks "
+            "are missing from chunks_full entirely — the view inner-joins works "
+            "on this column — so they are absent from the reader, search and "
+            "refs with no error raised anywhere."
         ),
     ),
 )

@@ -17,7 +17,7 @@ from minerva.store.chunks import _resolve_work_refs
 
 def test_resolve_work_refs_classifies_greek_as_edition(tmp_path: Path):
     conn = store.open_db(tmp_path / "refs.sqlite")
-    edition_id, translation_id = _resolve_work_refs(
+    _work_id, edition_id, translation_id = _resolve_work_refs(
         conn,
         corpus="plato",
         author="Plato",
@@ -32,7 +32,7 @@ def test_resolve_work_refs_classifies_greek_as_edition(tmp_path: Path):
 
 def test_resolve_work_refs_classifies_english_as_translation(tmp_path: Path):
     conn = store.open_db(tmp_path / "refs.sqlite")
-    edition_id, translation_id = _resolve_work_refs(
+    _work_id, edition_id, translation_id = _resolve_work_refs(
         conn,
         corpus="plato",
         author="Plato",
@@ -47,7 +47,7 @@ def test_resolve_work_refs_classifies_english_as_translation(tmp_path: Path):
 
 def test_resolve_work_refs_original_marker_is_edition(tmp_path: Path):
     conn = store.open_db(tmp_path / "refs.sqlite")
-    edition_id, translation_id = _resolve_work_refs(
+    _work_id, edition_id, translation_id = _resolve_work_refs(
         conn,
         corpus="hegel",
         author="Hegel",
@@ -85,7 +85,7 @@ def test_resolve_work_refs_reuses_existing_rows(tmp_path: Path):
         "SELECT edition_id FROM chunks WHERE chunk_id = 'p1'"
     ).fetchone()[0]
 
-    edition_id, translation_id = _resolve_work_refs(
+    _work_id, edition_id, translation_id = _resolve_work_refs(
         conn,
         corpus="plato",
         author="Plato",

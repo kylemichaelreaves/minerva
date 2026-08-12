@@ -32,10 +32,17 @@ def _resolve_work_refs(
     edition_year: str | None,
     citation_system_override: str | None = None,
     title_local: str | None = None,
-) -> tuple[int | None, int | None]:
+) -> tuple[int, int | None, int | None]:
     """Look up or create the works/editions/translations rows for one
-    chunk's legacy metadata. Returns ``(edition_id, translation_id)``;
-    exactly one is set per CHECK constraint on chunks.
+    chunk's legacy metadata. Returns ``(work_id, edition_id,
+    translation_id)``; exactly one of the latter two is set per CHECK
+    constraint on chunks.
+
+    ``work_id`` is returned rather than left implicit because `chunks`
+    carries it as a denormalised column since migration 0030 (#339), and
+    the caller has no cheaper way to get it — the value is resolved here
+    either way, and re-deriving it from the edition/translation id would
+    cost a second SELECT per distinct source.
 
     ``citation_system_override`` lets a specific Work pin its
     citation system to something other than the corpus default (the
@@ -100,13 +107,13 @@ def _resolve_work_refs(
             eid = int(edition_row[0])
             if title_local is not None:
                 conn.execute("UPDATE editions SET title_local = ? WHERE id = ?", (title_local, eid))
-            return eid, None
+            return work_id, eid, None
         cur = conn.execute(
             "INSERT INTO editions (work_id, name, language, year, notes, title_local) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (work_id, name, lang, year, None, title_local),
         )
-        return int(cur.lastrowid), None
+        return work_id, int(cur.lastrowid), None
     else:
         trans_row = conn.execute(
             "SELECT id FROM translations "
@@ -120,14 +127,14 @@ def _resolve_work_refs(
                 conn.execute(
                     "UPDATE translations SET title_local = ? WHERE id = ?", (title_local, tid)
                 )
-            return None, tid
+            return work_id, None, tid
         cur = conn.execute(
             "INSERT INTO translations "
             "  (work_id, translator_name, year, language, edition_notes, title_local) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (work_id, translator_value, year, lang, None, title_local),
         )
-        return None, int(cur.lastrowid)
+        return work_id, None, int(cur.lastrowid)
 
 
 def _author_labels_for_scope(jsonl_path: Path, scope: frozenset[str]) -> set[str]:
@@ -331,14 +338,18 @@ def insert_chunks(
             # per distinct source (issue #51). Safe because the first
             # call for a key creates the row and returns its surrogate
             # id; every later chunk of the same source reuses it.
-            resolve_cache: dict[tuple, tuple[int | None, int | None]] = {}
+            resolve_cache: dict[tuple, tuple[int, int | None, int | None]] = {}
             batch: list[tuple] = []
             inserted = 0
+            # `work_id` is denormalised onto `chunks` (migration 0030, #339)
+            # and MUST be written here: `chunks_full` inner-joins `works` on
+            # it, so a row inserted without it disappears from every reader,
+            # search and refs query rather than raising.
             INSERT_SQL = (
                 "INSERT OR REPLACE INTO chunks "
-                "(chunk_id, edition_id, translation_id, lang, section, book, page, "
+                "(chunk_id, edition_id, translation_id, work_id, lang, section, book, page, "
                 " speaker, source_file, text, ord, text_norm, block_type) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             for obj in load_jsonl(jsonl_path):
                 # Incremental mode: skip rows whose corpus is out of scope.
@@ -358,9 +369,9 @@ def insert_chunks(
                 )
                 cached = resolve_cache.get(resolve_key)
                 if cached is not None:
-                    edition_id, translation_id = cached
+                    work_id, edition_id, translation_id = cached
                 else:
-                    edition_id, translation_id = _resolve_work_refs(
+                    work_id, edition_id, translation_id = _resolve_work_refs(
                         conn,
                         corpus=obj["corpus"],
                         author=obj["author"],
@@ -376,7 +387,7 @@ def insert_chunks(
                         # "Republic" on canonical work "Politeia").
                         title_local=obj.get("title_local"),
                     )
-                    resolve_cache[resolve_key] = (edition_id, translation_id)
+                    resolve_cache[resolve_key] = (work_id, edition_id, translation_id)
                 key = (obj["work"], obj["lang"])
                 ord_counter[key] = ord_counter.get(key, -1) + 1
                 batch.append(
@@ -384,6 +395,7 @@ def insert_chunks(
                         obj["chunk_id"],
                         edition_id,
                         translation_id,
+                        work_id,
                         obj["lang"],
                         obj.get("section"),
                         obj.get("book"),

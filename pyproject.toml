@@ -72,10 +72,25 @@ addopts = "-q -W error::ResourceWarning"
 # baseline lives in the audit memory once one is set).
 [tool.coverage.run]
 source = ["src/minerva"]
-# Migrations are append-only; coverage churn there would mask real
-# regressions in the live code paths.
+# `src/minerva/migrations/*` was omitted here until 2026-08-12, on the
+# stated grounds that "migrations are append-only; coverage churn there
+# would mask real regressions in the live code paths." Measured, that
+# reasoning inverted itself: the suite exercises the migration chain on
+# every `store.open_db`, so the directory runs at 58-100% per file (0027
+# and 0021 at 100%, 0030 at 96%) — but omitting it kept all of that out of
+# `coverage.xml`, and SonarCloud, which does NOT list migrations in
+# `sonar.coverage.exclusions`, therefore scored the files it could see as
+# 0%:
+#
+#     kylemichaelreaves_minerva:src/minerva/migrations/0027_chunk_lemma_state.py
+#     coverableLines 11, coveredLines 0, lineCoveragePercent 0
+#
+# So the omission did not suppress churn; it manufactured a false zero in
+# the one coverage gate that blocks a merge, and every PR adding a
+# migration paid for it against the 80%-on-new-code bar. The two configs
+# now agree. If migrations should genuinely be exempt, the exemption
+# belongs in BOTH files — see #339.
 omit = [
-    "src/minerva/migrations/*",
     "src/minerva/cli/__init__.py",  # thin dispatch shim
 ]
 branch = true

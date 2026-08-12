@@ -226,6 +226,8 @@ defect in the lemma writer.
 | 8 | PR-gate tooling | ~~#320~~, ~~#321~~, #322, ~~#330~~, ~~#331~~ | **part landed; #322 todo** | **Groups with nothing in batches 1–7** — it is the harness those batches are worked *with*, not a defect in the corpus. A tollgate, like batch 0, and numbered 8 rather than `N-bis` for that reason: no batch above it found it. See batch 8. |
 | 8-bis | the gate's own blind spots | #333, ~~#334~~ | **part landed; #333 backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured. #334 was `main()`, where the retry's only real caller sat untested — landed as PR #336, and its verdict was `CORRECTED` because one of the four risks it listed does not exist. Neither touches the DB or the coverage gate. |
 | 8-ter | worked examples cite live numbers | #335 | **backlog** | Found working #334, by an unrelated grep. Four wrong PR/issue numbers across two files, and the second pair survived the PR that fixed the first pair. **May resolve as a decision not to gate it**, like #299 — the alternative is to stop citing real numbers at all. |
+| 9 | reader latency | ~~#339~~, ~~#340~~, #342 | **part landed; #342 todo** | **Groups with nothing in batches 0–8** — the first row here that is a *performance* defect rather than a corpus, ingest or harness one, and it was found by timing the app for a demo rather than by working any batch above. Numbered 9 rather than `N-bis` for that reason. All three are one user-visible symptom (a Reader page load) decomposed by layer: #339 the missing access paths, #340 the lock that stopped the reads overlapping, #342 the route model that unmounts the Reader. Landed across PRs #341 (indexes + lock release), #343 (client read cache) and the #339-part-2 PR; #342 is the remaining half and is frontend-only. See batch 9. |
+| 9-bis | what the latency fixes left behind | #344, #345 | **backlog** | Both found verifying #339 part 2, and neither is a corpus defect. #344 is `/api/health`, the last full scan of `chunks` on the read path (~210 ms) — named and scoped out by #339, so it needed its own row once #339 closed, and part 2 pushed it 9% the wrong way. #345 is the coverage-exclusion divergence the same PR hit and half-fixed: `pyproject.toml`'s `omit` and `sonar.coverage.exclusions` disagree, so a locally-omitted file arrives at the blocking gate scored 0%. Both **may resolve as decisions rather than repairs**, like #299 — #344's three options trade staleness against ingest cost, and #345's turns on whether the shim deserves a bar at all. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -2212,3 +2214,95 @@ as a single token and the language was skipped with
 `unrecognized arguments`. It failed loudly and was re-run, but a loop
 that built flags in a variable and piped through `tail` also hid the
 failure from `set -e`. Write the flags literally.
+
+---
+
+## Batch 9 — reader latency (#339, #340, #342)
+
+Found by timing the two calls a demo would show — loading a text, loading
+a syntax diagram — rather than by working any batch above. That is why it
+groups with nothing: batches 0–8 are corpus, ingest or harness defects,
+and this is the first row where the defect is *how long the product
+takes*.
+
+One symptom, three layers. A Reader page load cost **357.9 ms** against
+the live 428,606-chunk index, and each issue owns a different reason:
+
+| | |
+|---|---|
+| #339 | `chunks` had no secondary index, so every page full-scanned it 4–6 times |
+| #340 | one global `corpus_lock` serialized the reads, and held across the Stanza parse |
+| #342 | the Reader is a `<Switch>` branch, so every side route unmounts it |
+
+### What landed, in order
+
+- **PR #341** — migration 0029 (`chunks(edition_id, translation_id, ord)`),
+  the Stanza parse moved outside `corpus_lock`, and a startup warm-up.
+  Page load 511 → 346 ms; first syntax request 4,499 → 248 ms; the
+  cross-request stall 1,078 → 36 ms. Carried `Refs`, not `Closes`, on
+  both issues — correctly, since both were partial.
+- **PR #343** — `readCache`, a module-scope response cache keyed on the
+  full request path, so returning from a side route stops refetching.
+  Covers all four side routes. `Refs #342`.
+- **#339 part 2** — migration 0030 denormalises `works.id` onto `chunks`.
+  This is the one that mattered: the reader path went **172.09 ms →
+  0.42 ms** and the end-to-end page load **357.9 ms → 14.5 ms**, measured
+  on the live corpus with a server attached.
+
+### The two things this batch got wrong, and they point the same way
+
+Both were corrections to *proposed fixes*, not to measurements — the
+pattern CLAUDE.md predicts, and the reason `## Measured` and
+`## Hypothesis` are kept apart.
+
+- **#339's ledger for part 2 was short by half, and its cost estimate was
+  13x too high.** It accounted 89 ms (two statements) and omitted
+  `_default_edition` at 80.4 ms — predicting 0029 would fix it "because
+  it filters on edition_id/translation_id", when it filters on
+  `work_id`. It also priced the migration at ~107 s; measured, it is
+  **~8 s**, because 22.3 s of the stated backfill was the FTS triggers
+  firing on an `UPDATE` that touches neither `text` nor `text_norm`.
+  Dropping them around the backfill is 4.6x faster and avoids ~83 MB of
+  churn.
+- **#340's fix 1 was killed by #339's fix.** Thread-local read
+  connections were the larger, riskier half of #340. Once part 2 landed,
+  concurrency across the Reader's three fetches buys **0.4 ms of a
+  14.5 ms page load**. #340's own "Unverified" note predicted exactly
+  this; PR #341's body then asserted the opposite ("worth doing after the
+  column lands, when the queries are cheap enough that the queueing is
+  what's left"), which inverts the relationship. Not built, and #340
+  closed on that measurement.
+
+The transferable lesson is the second one: **a deferred fix's value is
+not stable while its neighbours are still being fixed.** #340 fix 1 was
+worth 2.7 ms when filed and 0.4 ms three PRs later, and nothing would
+have re-measured it if the deferral note had been trusted.
+
+### An index that was correctly inert and stopped being so
+
+0029 deliberately omitted `works(title, author)`, and the correction on
+#339 explains why: measured at 1.0x, because the statement's cost was the
+`SCAN c` on chunks, and "the only access path it genuinely adds is
+title-without-author".
+
+**0030 adds it.** Nothing above was wrong — removing the `SCAN c` is what
+promotes that access path from unused to load-bearing, and `author` is
+optional on the reader route, so every legacy bookmark takes it.
+Author-less `resolve work_id`: 73.7 ms before part 2, 31.6 ms with part 2
+alone, **0.53 ms** with both. The reasoning in 0029's header is what made
+the reversal legible rather than contradictory, which is the argument for
+writing the reasoning down and not just the verdict.
+
+### What #342 still needs
+
+Frontend only, and the largest design surface of the three: making
+"syntax open" a modifier on the reader route rather than a route kind of
+its own. The route types, the URL shape and back-button semantics all
+move. The cache in #343 removes the *network* cost of the transition;
+what remains is the unmount itself — `loadWork` calls `setRange(null)`,
+so the page still blanks for a frame, and scroll position is still lost
+and re-acquired through the `focusChunkId` animation.
+
+Deliberately split from the #339 part-2 PR: that one is a migration plus
+one line of view SQL, verifiable against the live corpus; this one shares
+none of its files and is a route-model rewrite.

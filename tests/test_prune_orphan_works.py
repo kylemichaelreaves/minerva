@@ -27,11 +27,11 @@ def test_prune_removes_empty_works_but_keeps_populated(tmp_path: Path):
 
     # Work A: a Greek edition WITH a chunk, plus an English translation with
     # NO chunk (a stranded translation on an otherwise-live work).
-    ed_a, _ = _resolve_work_refs(
+    _, ed_a, _ = _resolve_work_refs(
         conn, corpus="plato", author="Plato", work="Politeia", lang="grc",
         translator="Burnet", edition_year="1903",
     )
-    _, tr_a = _resolve_work_refs(
+    _, _, tr_a = _resolve_work_refs(
         conn, corpus="plato", author="Plato", work="Politeia", lang="eng",
         translator="Shorey", edition_year="1969",
     )
@@ -39,7 +39,7 @@ def test_prune_removes_empty_works_but_keeps_populated(tmp_path: Path):
 
     # Work B: a Greek edition with NO chunk at all — a fully orphaned work
     # (the pre-canonicalization shell).
-    ed_b, _ = _resolve_work_refs(
+    _, ed_b, _ = _resolve_work_refs(
         conn, corpus="plato", author="Plato", work="Republic", lang="grc",
         translator="Burnet", edition_year="1903",
     )
@@ -70,7 +70,7 @@ def test_prune_removes_empty_works_but_keeps_populated(tmp_path: Path):
 
 def test_prune_is_idempotent(tmp_path: Path):
     conn = store.open_db(tmp_path / "prune2.sqlite")
-    ed, _ = _resolve_work_refs(
+    _, ed, _ = _resolve_work_refs(
         conn, corpus="plato", author="Plato", work="Kriton", lang="grc",
         translator="Burnet", edition_year="1903",
     )

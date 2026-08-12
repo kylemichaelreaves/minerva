@@ -40,8 +40,10 @@ def _seed_db(db_path: Path) -> None:
         INSERT INTO translations (id, work_id, translator_name, year, language)
         VALUES (1, 1, 'Paul Shorey', 1969, 'eng');
 
-        INSERT INTO chunks (chunk_id, edition_id, lang, section, source_file, text, ord)
-        VALUES ('chk-330a', 1, 'grc', '330a',
+        -- `work_id` is required for the row to appear in `chunks_full`, which
+        -- inner-joins `works` on it since migration 0030 (#339).
+        INSERT INTO chunks (chunk_id, edition_id, work_id, lang, section, source_file, text, ord)
+        VALUES ('chk-330a', 1, 1, 'grc', '330a',
                 'r.xml', 'pollou\\\\s o( au)to\\\\s lo/gos kai\\\\ a)/llo lo/gos te', 0);
         """
     )
@@ -300,9 +302,9 @@ def test_tag_rejects_translation_chunk(fresh_db, capsys):
     conn = sqlite3.connect(fresh_db)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute(
-        "INSERT INTO chunks (chunk_id, translation_id, lang, section, "
+        "INSERT INTO chunks (chunk_id, translation_id, work_id, lang, section, "
         "source_file, text, ord) "
-        "VALUES ('chk-eng', 1, 'eng', '330a', 'r-en.xml', 'account ...', 0)"
+        "VALUES ('chk-eng', 1, 1, 'eng', '330a', 'r-en.xml', 'account ...', 0)"
     )
     conn.commit()
     conn.close()
@@ -532,15 +534,19 @@ def _seed_db_with_sibling(db_path: Path) -> None:
         INSERT INTO translations (id, work_id, translator_name, year, language)
         VALUES (10, 11, 'Guyer / Wood', 1998, 'eng');
 
-        INSERT INTO chunks (chunk_id, edition_id, lang, section, source_file, text, ord)
-        VALUES ('de-1', 10, 'deu', 'Einleitung, ¶1', 'krv_de.html',
+        -- `work_id` mirrors each edition's / translation's own, as
+        -- `insert_chunks` writes it: 10 for the German edition, 11 for the
+        -- English translation. Required since migration 0030 (#339), whose
+        -- view inner-joins `works` on this column.
+        INSERT INTO chunks (chunk_id, edition_id, work_id, lang, section, source_file, text, ord)
+        VALUES ('de-1', 10, 10, 'deu', 'Einleitung, ¶1', 'krv_de.html',
                 '[45] Daß alle unsere Erkenntnis mit der Erfahrung anfange', 0),
-               ('de-2', 10, 'deu', 'Einleitung, ¶2', 'krv_de.html',
+               ('de-2', 10, 10, 'deu', 'Einleitung, ¶2', 'krv_de.html',
                 'Wenn aber gleich alle unsere Erkenntnis', 1);
-        INSERT INTO chunks (chunk_id, translation_id, lang, section, source_file, text, ord)
-        VALUES ('en-1', 10, 'eng', 'B1', 'krv_en.pdf',
+        INSERT INTO chunks (chunk_id, translation_id, work_id, lang, section, source_file, text, ord)
+        VALUES ('en-1', 10, 11, 'eng', 'B1', 'krv_en.pdf',
                 'All our cognition begins with experience', 0),
-               ('en-2', 10, 'eng', 'B2', 'krv_en.pdf',
+               ('en-2', 10, 11, 'eng', 'B2', 'krv_en.pdf',
                 'Although all our cognition starts with experience', 1);
         """
     )
