@@ -42,16 +42,19 @@ def seeded_db(tmp_path: Path) -> sqlite3.Connection:
         -- One chunk in each grc edition; same locator, different
         -- physical text (the two editions disagree about which word
         -- appears at 514a in this fabricated fixture).
-        INSERT INTO chunks (chunk_id, edition_id, lang, section, source_file, text, ord)
-        VALUES ('chk-burnet-514a', 1, 'grc', '514a', 'r.xml',
+        -- `work_id` is not optional here: `chunks_full` inner-joins `works`
+        -- on it since migration 0030, so a row without it is invisible to
+        -- every query that goes through the view (#339).
+        INSERT INTO chunks (chunk_id, edition_id, work_id, lang, section, source_file, text, ord)
+        VALUES ('chk-burnet-514a', 1, 1, 'grc', '514a', 'r.xml',
                 'meta\\\\ tau=ta lo/gos peri\\\\ paidei/as', 0),
-               ('chk-slings-514a', 2, 'grc', '514a', 'r2.xml',
+               ('chk-slings-514a', 2, 1, 'grc', '514a', 'r2.xml',
                 'meta\\\\ tau=ta lo/gos kai\\\\ a)/llo lo/gos', 0);
 
         -- One translation chunk for Shorey's English Republic
         -- (translation_id = 1).
-        INSERT INTO chunks (chunk_id, translation_id, lang, section, source_file, text, ord)
-        VALUES ('chk-shorey-514a', 1, 'eng', '514a', 'r-en.xml',
+        INSERT INTO chunks (chunk_id, translation_id, work_id, lang, section, source_file, text, ord)
+        VALUES ('chk-shorey-514a', 1, 1, 'eng', '514a', 'r-en.xml',
                 'After this, then, I said, liken our nature in its training to such an experience.', 0);
 
         INSERT INTO terms (id, source_form, source_language, transliteration,
@@ -253,9 +256,9 @@ def test_work_occurrences_per_occurrence_override_supersedes_default(seeded_db):
     source='override' regardless of whether a default exists."""
     deps = _make_deps(seeded_db, StubBackend())
     seeded_db.executescript(
-        "INSERT INTO chunks (chunk_id, translation_id, lang, section, "
+        "INSERT INTO chunks (chunk_id, translation_id, work_id, lang, section, "
         "  source_file, text, ord) "
-        "VALUES ('chk-shorey-514a-2', 1, 'eng', '514a', 'r-en.xml', "
+        "VALUES ('chk-shorey-514a-2', 1, 1, 'eng', '514a', 'r-en.xml', "
         "'a definition, in this specific use', 0);"
     )
     terms.insert_occurrence_rendering(

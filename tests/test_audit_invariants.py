@@ -161,11 +161,53 @@ def test_json_output_carries_the_counts(tmp_path: Path, capsys, monkeypatch):
     capsys.readouterr()  # drop cmd_index's own output; the JSON must stand alone
     assert ai.main(["--format", "json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    (entry,) = payload["invariants"]
-    assert entry["name"] == "lemma_surface_offsets"
+    # Selected by name rather than unpacked: the script carries more than one
+    # invariant, and a positional read makes every addition break this test.
+    entry = next(e for e in payload["invariants"] if e["name"] == "lemma_surface_offsets")
     assert entry["rows_checked"] == 3
     assert entry["violations"] == 1
     assert entry["per_group"]["grc"] == {"checked": 3, "violations": 1}
+
+
+def test_work_id_invariant_is_clean_after_an_ordinary_ingest(tmp_path: Path):
+    """`insert_chunks` writes `chunks.work_id`, so a normally-built index
+    starts at zero violations — which is what makes a nonzero count later
+    mean something."""
+
+    db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], _GOOD)
+    conn = store.open_db(db)
+    try:
+        result = ai.audit_chunk_work_id(conn)
+    finally:
+        conn.close()
+
+    assert result.rows_checked == 1
+    assert result.violations == 0
+
+
+def test_work_id_invariant_catches_a_row_the_view_hides(tmp_path: Path):
+    """The failure mode the invariant exists for (#339): `chunks_full`
+    inner-joins `works` on `work_id`, so a NULL does not degrade the row, it
+    removes it from the view — and therefore from every query that would
+    otherwise notice. The audit reads `chunks` directly for that reason.
+    """
+
+    db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], _GOOD)
+    conn = store.open_db(db)
+    try:
+        conn.execute("UPDATE chunks SET work_id = NULL WHERE chunk_id = 'c1'")
+        conn.commit()
+        # The view cannot see it, which is the point.
+        assert conn.execute("SELECT COUNT(*) FROM chunks_full").fetchone()[0] == 0
+
+        result = ai.audit_chunk_work_id(conn)
+    finally:
+        conn.close()
+
+    assert result.rows_checked == 1
+    assert result.violations == 1
+    assert result.examples[0].chunk_id == "c1"
+    assert "invisible in chunks_full" in result.examples[0].detail
 
 
 def test_a_known_exception_is_reported_beside_the_number(

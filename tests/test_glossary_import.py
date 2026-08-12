@@ -31,9 +31,11 @@ def big_work_db(tmp_path: Path) -> tuple[sqlite3.Connection, list[str]]:
     eid = int(cur.lastrowid)
     n = 1050
     conn.executemany(
-        "INSERT INTO chunks(chunk_id, edition_id, translation_id, lang, section, "
-        "source_file, text, ord) VALUES (?,?,?,?,?,?,?,?)",
-        [(f"ps-{i:04d}", eid, None, "lat", f"§{i}", "x", f"text {i}", i) for i in range(n)],
+        # `work_id` mirrors the edition's, as `insert_chunks` writes it —
+        # `chunks_full` inner-joins `works` on it since migration 0030 (#339).
+        "INSERT INTO chunks(chunk_id, edition_id, translation_id, work_id, lang, section, "
+        "source_file, text, ord) VALUES (?,?,?,?,?,?,?,?,?)",
+        [(f"ps-{i:04d}", eid, None, 1, "lat", f"§{i}", "x", f"text {i}", i) for i in range(n)],
     )
     conn.commit()
     return conn, [f"ps-{i:04d}" for i in range(n)]

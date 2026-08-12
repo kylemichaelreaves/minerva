@@ -40,6 +40,18 @@
 -- index that buys no measured time is the inert kind; left out
 -- deliberately, and the correction is recorded on #339.
 --
+-- CORRECTED 2026-08-12 BY MIGRATION 0030, WHICH ADDS THAT INDEX.
+-- Everything above stays true of *this* migration, and the reasoning is
+-- what makes the reversal legible rather than contradictory: the index is
+-- inert only for as long as the same statement also scans `chunks`. 0030
+-- denormalises `works.id` onto `chunks` and removes that scan, at which
+-- point the "title-without-author lookup" named above stops being the
+-- index's useless corner and becomes the whole remaining cost — `author`
+-- is optional on the reader route, so every legacy bookmark takes it.
+-- Measured author-less: 73.7 ms here, 31.6 ms with 0030 alone, 0.53 ms
+-- with 0030 plus the index. Do not read this paragraph as "add the index";
+-- read it as "an index's value is a property of the plan around it".
+--
 -- WHY `resolve work_id` DOES NOT IMPROVE
 -- --------------------------------------------------------------------
 -- `chunks_full` reaches `works` through

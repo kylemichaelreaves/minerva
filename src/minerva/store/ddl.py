@@ -71,7 +71,13 @@ SELECT
     c.block_type,
     c.edition_id,
     c.translation_id,
-    w.id      AS work_id,
+    -- Denormalised from `works.id` onto `chunks` by migration 0030, and
+    -- read from `chunks` rather than `works` deliberately: `w.id` is
+    -- equal to it (the join below is an equality on exactly that), but
+    -- only `c.work_id` is a real column the planner can index. Reading
+    -- it here is what lets `idx_chunks_work_lang_ord` serve every
+    -- caller that filters on `work_id` — see #339.
+    c.work_id AS work_id,
     w.author  AS author,
     w.title   AS work,
     LOWER(w.author) AS corpus,
@@ -81,7 +87,7 @@ SELECT
 FROM chunks c
 LEFT JOIN editions     e ON e.id = c.edition_id
 LEFT JOIN translations t ON t.id = c.translation_id
-JOIN works w ON w.id = COALESCE(e.work_id, t.work_id)
+JOIN works w ON w.id = c.work_id
 """
 
 
