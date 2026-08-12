@@ -73,6 +73,33 @@ def _pipeline() -> Any:
     return _PIPELINE
 
 
+def warm_pipeline() -> bool:
+    """Build the pipeline ahead of the first request. True if it is resident.
+
+    The load is ~4.5 s, and until #340 it happened inside the corpus lock on
+    whichever request touched syntax first — so the first reader to open a
+    diagram waited 4,499 ms and everyone else queued behind them. Paying it
+    at startup instead moves the cost to a moment nobody is watching.
+
+    Best-effort by design. Returns False rather than raising when Stanza is
+    absent (the ``[lemma]`` extra is optional and CI does not install it) or
+    when the model is not on disk — `_pipeline()` is built with
+    ``download_method=None``, so an un-downloaded model raises here rather
+    than silently fetching. Either way the server must still start: the
+    syntax endpoint degrades to the old lazy load, and every other route is
+    unaffected.
+    """
+
+    try:
+        _pipeline()
+    # Broad on purpose: startup must survive any parser fault, and the
+    # failure modes here are open-ended (ImportError without the extra,
+    # Stanza's own ResourcesFileNotFoundError with no model on disk).
+    except Exception:
+        return False
+    return True
+
+
 def doc_to_tokens(doc: Any) -> list[SyntaxToken]:
     """Flatten a parsed document into storable tokens.
 

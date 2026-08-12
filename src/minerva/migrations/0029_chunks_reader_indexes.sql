@@ -1,0 +1,67 @@
+-- 0029_chunks_reader_indexes.sql
+-- ════════════════════════════════════════════════════════════════════
+-- Access paths for the Reader's read path. See #339.
+--
+-- `chunks` carried no index other than the primary-key autoindex:
+--
+--     sqlite> SELECT name FROM sqlite_master
+--        ...>  WHERE type='index' AND tbl_name='chunks';
+--     sqlite_autoindex_chunks_1
+--
+-- Every Reader page therefore full-scanned all 428,606 rows four to
+-- six times, through the three-way join in `chunks_full`. Measured on
+-- the live index at ~70 ms per scan, which is the entire latency
+-- budget: the endpoint answered in ~365 ms whether it was asked for
+-- one chunk or eighty, and whether the body came back at 20 KB or
+-- 780 KB. Payload size was never the cost.
+--
+-- Measured on a clone of snapshot
+-- 20260812T135642Z-pre-syntax-latency-bench, timing the statements
+-- `reader.queries.work_range` issues:
+--
+--                              before      after
+--     resolve work_id          68.7 ms    69.9 ms  (  1.0x)
+--     meta + total COUNT       63.8 ms     0.1 ms  (1016x)
+--     the page (LIMIT 80)      64.2 ms     0.1 ms  (1263x)
+--     sibling editions         77.5 ms    19.2 ms  (  4.0x)
+--     TOTAL                   274.2 ms    89.2 ms  (  3.1x)
+--
+-- Build cost was 0.7 s for 6.1 MB on disk.
+--
+-- #339 proposed a second index, `works(title, author)`. It is not here:
+-- `works` already declares `UNIQUE (author, title)`, whose autoindex
+-- SQLite was already using as a covering index —
+--
+--     SEARCH works USING COVERING INDEX sqlite_autoindex_works_1
+--                                       (author=? AND title=?)
+--
+-- which is why `resolve work_id` measured 1.0x. The index would only add
+-- an access path for a title-without-author lookup across 866 rows. An
+-- index that buys no measured time is the inert kind; left out
+-- deliberately, and the correction is recorded on #339.
+--
+-- WHY `resolve work_id` DOES NOT IMPROVE
+-- --------------------------------------------------------------------
+-- `chunks_full` reaches `works` through
+--
+--     JOIN works w ON w.id = COALESCE(e.work_id, t.work_id)
+--
+-- an expression join no index on `chunks` can serve, so that statement
+-- and the tail of `sibling editions` still scan. Closing that gap
+-- needs a denormalised `work_id` column on `chunks` — measured at
+-- 0.002 ms and 0.038 ms respectively, but it costs a backfill, a
+-- `chunks_full` change and ongoing maintenance in the ingest path.
+-- Deliberately left out of this migration and tracked in #339; this
+-- file is the pure-addition half, which carries no correctness risk.
+--
+-- The column order on the first index is not arbitrary. The reader
+-- always knows the edition before it knows the offset — every
+-- statement filters `edition_id IS ? AND translation_id IS ?` and then
+-- wants rows in `ord` order — so the equality columns lead and `ord`
+-- trails, letting the same index serve both the lookup and the sort.
+-- Without `ord` in the index the LIMIT 80 still needs a temp B-tree
+-- over the whole edition.
+-- ════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_chunks_edition_ord
+    ON chunks(edition_id, translation_id, ord);

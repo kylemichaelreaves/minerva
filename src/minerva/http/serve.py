@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import sqlite3
+import threading
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -460,6 +461,31 @@ def _default_loopback_origins(port: int) -> frozenset[str]:
     return frozenset(bases)
 
 
+def _start_syntax_warmup() -> threading.Thread:
+    """Load the Stanza pipeline in the background while the server accepts traffic.
+
+    The pipeline costs ~4.5 s to build and is process-wide. Left lazy, that
+    lands on whoever first opens a syntax diagram (measured: 4,499 ms for a
+    request whose parse was 111 ms). Doing it here overlaps the load with
+    startup and with early requests, which need no parser.
+
+    Daemon thread on purpose: a warm-up in flight must not keep the process
+    alive at ctrl-c, and nothing waits on the result. `warm_pipeline` handles
+    its own failures — a missing `[lemma]` extra or an undownloaded model
+    just leaves the endpoint on its old lazy path.
+    """
+
+    def _warm() -> None:
+        from ..syntax.parse import warm_pipeline
+
+        if warm_pipeline():
+            print("syntax: parser ready.", flush=True)
+
+    thread = threading.Thread(target=_warm, name="syntax-warmup", daemon=True)
+    thread.start()
+    return thread
+
+
 def serve(
     *,
     host: str,
@@ -531,6 +557,7 @@ def serve(
         flush=True,
     )
     print("ctrl-c to stop.", flush=True)
+    _start_syntax_warmup()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
