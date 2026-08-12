@@ -157,8 +157,8 @@ check-author-imports:
 # Verify a PR's closing links actually registered (#321). Deliberately NOT part
 # of `make check` — it needs a PR that already exists.
 #
-#   make check-pr-link PR=328                    # asserts it closes nothing
-#   make check-pr-link PR=330 ISSUES="297 300"   # asserts exactly those two
+#   make check-pr-link PR=327                    # asserts it closes nothing
+#   make check-pr-link PR=315 ISSUES="297 300"   # asserts exactly those two
 check-pr-link:
 	@test -n "$(PR)" || { echo 'usage: make check-pr-link PR=<n> [ISSUES="<n> <n>"]' >&2; exit 2; }
 	$(PYTHON) scripts/check_pr_link.py $(PR) $(ISSUES)

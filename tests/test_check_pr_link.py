@@ -492,3 +492,191 @@ class TestCommitTexts:
 
     def test_no_commits_yields_no_texts(self):
         assert cpl._commit_texts([]) == {}
+
+
+class FakeGitHub:
+    """A stand-in for the two `gh` reads, recording what was asked of it.
+
+    `later_refs` is what a *re-read* returns, which is the whole point: the real
+    reader answers the first attempt from the value the big `pull_request` call
+    already carried, and only a retry goes to the network. A fake that cannot
+    tell those apart could not catch the branch this class exists to test.
+    """
+
+    def __init__(self, *, pr, default_branch="main", later_refs=None):
+        self._pr = pr
+        self._default_branch = default_branch
+        self._later_refs = later_refs if later_refs is not None else set()
+        self.calls: list[str] = []
+
+    def pull_request(self, pr_number):
+        self.calls.append(f"pull_request({pr_number})")
+        if isinstance(self._pr, Exception):
+            raise self._pr
+        return self._pr
+
+    def closing_refs(self, pr_number):
+        self.calls.append(f"closing_refs({pr_number})")
+        return self._later_refs
+
+    def default_branch(self):
+        self.calls.append("default_branch()")
+        if isinstance(self._default_branch, Exception):
+            raise self._default_branch
+        return self._default_branch
+
+
+def _pr_payload(*, body="Closes #999001", resolved=(999001,), base="main", commits=()):
+    """The shape `gh pr view --json ...` returns, with only what `run` reads."""
+    return {
+        "baseRefName": base,
+        "title": "fix: something",
+        "body": body,
+        "commits": list(commits),
+        "closingIssuesReferences": [{"number": n} for n in resolved],
+    }
+
+
+class TestRun:
+    """`run` is `main()` without the argument parsing — the seam #334 asked for.
+
+    Before it existed, nothing tested any of this: not the cache-then-network
+    branch in the retry, not the refusal paths, not `default_branch`. The gap was
+    demonstrated rather than argued — mutating that branch to return the cached
+    value on every call left all 40 tests passing while the live run printed
+    `read the link 3x` having issued exactly one query.
+    """
+
+    def test_the_second_attempt_performs_a_real_read(self):
+        """THE test #334 exists for. The first attempt is answered from the
+        payload already fetched; the link is absent there and present on a
+        re-read, which is the #331 lag. If a retry ever stopped going to the
+        network, this is the only assertion that would notice."""
+
+        gh = FakeGitHub(pr=_pr_payload(resolved=()), later_refs={999001})
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert code == 0
+        assert gh.calls == [
+            "pull_request(332)",
+            "default_branch()",
+            "closing_refs(332)",
+        ]
+
+    def test_a_retry_is_announced_in_the_summary(self, capsys):
+        """A run that waited must say so. Silence here is the shape of the
+        mutation that made the retry inert while still looking like it ran."""
+
+        gh = FakeGitHub(pr=_pr_payload(resolved=()), later_refs={999001})
+
+        cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert "read the link 2x" in capsys.readouterr().out
+
+    def test_a_sound_pr_never_goes_back_to_the_network(self, capsys):
+        """The common case. The link is already in the payload, so the narrow
+        read must not happen at all — every green run of this gate is this
+        path, and a wasted round-trip here is paid on every PR."""
+
+        gh = FakeGitHub(pr=_pr_payload())
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert code == 0
+        assert "closing_refs(332)" not in gh.calls
+        out = capsys.readouterr().out
+        assert "check-pr-link: ok" in out
+        assert "read the link" not in out
+
+    def test_a_read_that_cannot_answer_is_a_refusal_not_a_pass(self, capsys):
+        """The #116 rule at the seam. A `gh` that fails must exit non-zero with
+        its own message, and must NOT be reported as a defect count — a refusal
+        is the check being unable to answer, not the PR being wrong."""
+
+        gh = FakeGitHub(pr=cpl.Problem("`gh pr view 332 --json ...` failed: boom"))
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        captured = capsys.readouterr()
+        assert code == 1
+        assert "boom" in captured.err
+        assert "defect(s)" not in captured.err
+        assert "check-pr-link: ok" not in captured.out
+
+    def test_a_failure_to_resolve_the_default_branch_is_a_refusal(self, capsys):
+        """The second read has the same rule as the first. Its own docstring
+        calls a repo whose default branch cannot be resolved a "no data" path
+        that must never read as fine."""
+
+        gh = FakeGitHub(
+            pr=_pr_payload(), default_branch=cpl.Problem("gh repo view failed: nope")
+        )
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert code == 1
+        assert "nope" in capsys.readouterr().err
+
+    def test_the_default_branch_comes_from_the_reader_not_a_literal(self, capsys):
+        """A hard-coded `"main"` would pass every other test in this class. Here
+        the repo's default branch is `trunk`, so a PR based on `main` is the
+        stacked-PR defect and must be reported as one."""
+
+        gh = FakeGitHub(pr=_pr_payload(base="main"), default_branch="trunk")
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        captured = capsys.readouterr()
+        assert code == 1
+        assert "[base]" in captured.err
+        assert "trunk" in captured.err
+
+    def test_a_malformed_payload_is_a_refusal_not_a_crash(self, capsys):
+        """The `KeyError` arm of `run`'s handler. Unreachable via a `--json`
+        typo — `gh` rejects an unknown field outright, which is the claim in
+        #334 that turned out to be false — so this covers the case it IS
+        insurance against: the API returning a shape the code does not expect."""
+
+        gh = FakeGitHub(pr={"title": "no other keys"})
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert code == 1
+        assert "check-pr-link:" in capsys.readouterr().err
+
+    def test_an_out_of_range_pr_number_never_reaches_github(self, capsys):
+        """`require_github_number` guards the only command-line value that
+        becomes a subprocess argument, so it has to run before any read."""
+
+        gh = FakeGitHub(pr=_pr_payload())
+
+        code = cpl.run(pr=-1, issues=[], github=gh, sleep=lambda _: None)
+
+        assert code == 1
+        assert gh.calls == []
+        assert "out of range" in capsys.readouterr().err
+
+    def test_a_hazard_in_a_commit_message_reaches_the_report(self, capsys):
+        """End-to-end wiring of `_commit_texts` through `evaluate`. The unit
+        tests cover each half; this covers that `run` actually joins them, which
+        is where the #293 shape would go unnoticed."""
+
+        gh = FakeGitHub(
+            pr=_pr_payload(
+                commits=[
+                    {
+                        "oid": "abcdef1234",
+                        "messageHeadline": "docs: something",
+                        "messageBody": "mentions `Closes #999002` in passing",
+                    }
+                ]
+            )
+        )
+
+        code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
+
+        captured = capsys.readouterr()
+        assert code == 1
+        assert "[hazard]" in captured.err
+        assert "commit abcdef1" in captured.err
