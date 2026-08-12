@@ -1,4 +1,5 @@
 import { apiGet, apiPost, qs } from "~/api/client";
+import { cachedRead } from "~/api/readCache";
 import type {
   ChunkContextResponse,
   LemmaHighlights,
@@ -36,18 +37,18 @@ export async function getWorkRange(
   args: WorkRangeArgs = {},
   signal?: AbortSignal,
 ): Promise<WorkRange> {
-  return apiGet<WorkRange>(
-    `/api/works/${encodeURIComponent(work)}${qs({
-      lang: args.lang,
-      author: args.author,
-      from: args.from,
-      limit: args.limit,
-      around: args.around,
-      edition: args.edition,
-      at_section: args.at_section,
-    })}`,
-    signal,
-  );
+  // Cached: a route switch unmounts the Reader, and returning to it asks
+  // for the same window again. See `readCache.ts`.
+  const path = `/api/works/${encodeURIComponent(work)}${qs({
+    lang: args.lang,
+    author: args.author,
+    from: args.from,
+    limit: args.limit,
+    around: args.around,
+    edition: args.edition,
+    at_section: args.at_section,
+  })}`;
+  return cachedRead(path, () => apiGet<WorkRange>(path, signal));
 }
 
 export async function fetchChunkContext(
@@ -80,14 +81,15 @@ export async function fetchOccurrenceMap(
   args: { lang?: string; from?: number; limit?: number } = {},
   signal?: AbortSignal,
 ): Promise<OccurrenceMap> {
-  return apiGet<OccurrenceMap>(
-    `/api/works/${workId}/occurrence_map${qs({
-      lang: args.lang,
-      from: args.from,
-      limit: args.limit,
-    })}`,
-    signal,
-  );
+  // Cached (see `readCache.ts`): fires alongside every work-range load, and
+  // term occurrences are fixed for the session — the glossary is only
+  // written by the CLI importer.
+  const path = `/api/works/${workId}/occurrence_map${qs({
+    lang: args.lang,
+    from: args.from,
+    limit: args.limit,
+  })}`;
+  return cachedRead(path, () => apiGet<OccurrenceMap>(path, signal));
 }
 
 export async function fetchLemmaHighlights(
