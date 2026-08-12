@@ -1,4 +1,5 @@
 import { apiGet, apiPatch, qs } from "~/api/client";
+import { cachedRead, invalidateReads } from "~/api/readCache";
 import type {
   Reference,
   ReferencesListResponse,
@@ -24,14 +25,15 @@ export async function fetchReferencesMap(
   args: { lang?: string; from?: number; limit?: number } = {},
   signal?: AbortSignal,
 ): Promise<ReferencesMap> {
-  return apiGet<ReferencesMap>(
-    `/api/works/${workId}/references_map${qs({
-      lang: args.lang,
-      from: args.from,
-      limit: args.limit,
-    })}`,
-    signal,
-  );
+  // Cached (see `readCache.ts`), and invalidated by
+  // `updateReferenceCuration` below — this is the one cached read the user
+  // can change from inside the app.
+  const path = `/api/works/${workId}/references_map${qs({
+    lang: args.lang,
+    from: args.from,
+    limit: args.limit,
+  })}`;
+  return cachedRead(path, () => apiGet<ReferencesMap>(path, signal));
 }
 
 export async function fetchReferencesList(
@@ -107,5 +109,11 @@ export async function updateReferenceCuration(
   },
   signal?: AbortSignal,
 ): Promise<Reference> {
-  return apiPatch<Reference>(`/api/references/${id}`, patch, signal);
+  const updated = await apiPatch<Reference>(`/api/references/${id}`, patch, signal);
+  // Approving or rejecting an xref changes what `references_map` answers, so
+  // the Reader's cached gutter for every work is now suspect. Dropped after
+  // the write succeeds, not before: a failed PATCH changed nothing, and
+  // clearing early would throw away a good cache for no reason.
+  invalidateReads("/references_map");
+  return updated;
 }
