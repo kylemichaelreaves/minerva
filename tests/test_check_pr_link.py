@@ -91,15 +91,65 @@ class TestScanClosingRefs:
 
         assert cpl.scan_closing_refs("This closes the loop. See #999001.") == set()
 
-    def test_known_gap_an_intervening_word_is_not_matched(self):
-        """DOCUMENTED LIMITATION, asserted so it is recorded rather than
-        assumed. Whether GitHub itself acts on `closes issue #N` has not been
-        verified against the API; if it does, this is a hole and widening the
-        separator is the fix. Check 3 (`evaluate`, Task 2) is the backstop for
-        anything GitHub actually resolves from the PR body — but NOT for a
-        commit message, which is where the gap would bite."""
+    def test_a_repo_qualified_reference_is_matched(self):
+        """`KEYWORD OWNER/REPOSITORY#N` is documented closing syntax — the
+        second row of GitHub's own syntax table, and `Fixes
+        octo-org/octo-repo#100` is their worked example. The original separator
+        class could not match it: `[^A-Za-z]{0,3}` is what makes the scan
+        backtick-blind, and stopping at any letter is the same property that
+        made it stop at the `o` of `octo-org` (#330)."""
+
+        assert cpl.scan_closing_refs("Fixes octo-org/octo-repo#100") == {100}
+
+    def test_an_intervening_word_is_not_matched_and_this_was_measured(self):
+        """#330 asks whether the separator should admit a filler word, so that
+        `closes issue #N` matches. MEASURED, and the answer is no.
+
+        The argument for admitting it is that this scan feeds the `hazard` check
+        and nothing else, so over-matching costs a rewritten sentence while
+        under-matching is #176. That is sound and still incomplete: it never
+        prices the over-matching. Priced against every PR text in the repo — 760
+        titles, bodies and commit messages across 194 PRs — a one-word filler
+        matches 6 texts the shipped scanner does not, and all 6 are false
+        positives, while `closes issue #N` occurs zero times.
+
+        Two of the six shapes are endemic here, which is what settles it:
+
+            "Both defects are now fixed.\\n\\nRefs #N"   -> matches
+            "point the prose sources at /close-out (#N)" -> matches
+
+        The first breaks `Refs #N`, the documented way to reference an issue
+        WITHOUT closing it, whenever the preceding sentence ends in a keyword.
+        The second fires on this repo's own command name. A gate that flags the
+        sanctioned form teaches people to override it, which is the same
+        corrosion #331 is about.
+
+        Whether GitHub's parser acts on `closes issue #N` remains unmeasured and
+        is now beside the point: the scan declines the form because matching it
+        costs more here than the form is worth, not because GitHub ignores it."""
 
         assert cpl.scan_closing_refs("closes issue #999001") == set()
+        assert cpl.scan_closing_refs("Both defects are now fixed.\n\nRefs #999001") == set()
+        assert cpl.scan_closing_refs("point the prose sources at /close-out (#999001)") == set()
+        assert cpl.scan_closing_refs("`lemmatize.py` all close correctly. #999001") == set()
+
+    def test_the_documented_syntax_forms_github_acts_on(self):
+        """GitHub's documented closing syntax, matched form by form, replacing
+        an earlier docstring that recorded the question as open (#330).
+
+        Measured 2026-08-11 against both doc pages. "Linking a pull request to
+        an issue" gives the syntax table; "Using keywords in issues and pull
+        requests" gives the worked cross-repo example. Neither documents a
+        full-URL form, and neither documents a filler word — the form above is
+        matched on the asymmetry argument, not on evidence GitHub acts on it."""
+
+        assert cpl.scan_closing_refs("Closes #999001") == {999001}
+        assert cpl.scan_closing_refs("Closes: #999001") == {999001}
+        assert cpl.scan_closing_refs("CLOSES: #999001") == {999001}
+        assert cpl.scan_closing_refs("Fixes octo-org/octo-repo#100") == {100}
+        assert cpl.scan_closing_refs(
+            "Fixes kylemichaelreaves/minerva#999001"
+        ) == {999001}
 
 
 def _evaluate(**overrides):
@@ -132,6 +182,17 @@ class TestEvaluate:
         failures = _evaluate(resolved=set())
         assert [f.check for f in failures] == ["missing"]
         assert "999001" in failures[0].detail
+
+    def test_the_missing_detail_names_the_lag_and_the_requery(self):
+        """A `missing` result has two causes with opposite fixes — a body that
+        lacks the keyword, and a body that has it that the API has not caught up
+        with (#331). The detail has to name the second and hand over the command
+        that settles which one it is."""
+
+        failures = _evaluate(resolved=set())
+        assert [f.check for f in failures] == ["missing"]
+        assert "eventually consistent" in failures[0].detail
+        assert "gh pr view" in failures[0].detail
 
     def test_multi_issue_pr_reports_only_the_dropped_number(self):
         """The case a single-issue check cannot see. PR #297 carried two
@@ -210,6 +271,153 @@ class TestEvaluate:
             "unexpected",
             "hazard",
         ]
+
+
+class TestResolveClosingRefs:
+    """`closingIssuesReferences` is eventually consistent after a body edit, so
+    reading it once and reporting `[missing]` is a false failure on a correct
+    PR (#331). Measured on PR #328: the check failed immediately after
+    `gh pr edit` installed a body whose first line carried the keyword, and
+    seconds later, with nothing changed, the API resolved the link.
+
+    A false failure is less dangerous than the false pass of #329, but it is
+    corrosive in its own way — the gate's message asserts the PR is broken, and
+    a gate that cries wolf teaches people to override it.
+
+    `sleep` and `fetch` are injected so these run in no time and assert on real
+    behaviour rather than on a mock's call log."""
+
+    @staticmethod
+    def _fetch_returning(*results):
+        """A fetch that yields each result in turn, recording its calls."""
+        calls: list[int] = []
+
+        def fetch() -> set[int]:
+            calls.append(len(calls))
+            return results[min(len(calls) - 1, len(results) - 1)]
+
+        return fetch, calls
+
+    def test_retries_until_the_link_appears(self):
+        """The #331 shape. The first read is empty and the second is not, with
+        nothing edited in between."""
+
+        fetch, calls = self._fetch_returning(set(), {999001})
+        slept: list[float] = []
+
+        resolved, attempts = cpl.resolve_closing_refs(
+            fetch, {999001}, sleep=slept.append
+        )
+
+        assert resolved == {999001}
+        assert attempts == 2
+        assert len(calls) == 2
+        assert len(slept) == 1
+
+    def test_a_link_already_registered_costs_no_wait(self):
+        """The overwhelmingly common case, and the one that must not get
+        slower. Every green run of this gate goes through here."""
+
+        fetch, calls = self._fetch_returning({999001})
+        slept: list[float] = []
+
+        resolved, attempts = cpl.resolve_closing_refs(
+            fetch, {999001}, sleep=slept.append
+        )
+
+        assert (resolved, attempts) == ({999001}, 1)
+        assert len(calls) == 1
+        assert slept == []
+
+    def test_a_genuinely_missing_link_gives_up_and_reports_it(self):
+        """The retry must not turn a real defect into a hang or a pass. Three
+        reads, two waits, and the empty answer is still returned."""
+
+        fetch, calls = self._fetch_returning(set())
+        slept: list[float] = []
+
+        resolved, attempts = cpl.resolve_closing_refs(
+            fetch, {999001}, attempts=3, sleep=slept.append
+        )
+
+        assert (resolved, attempts) == (set(), 3)
+        assert len(calls) == 3
+        assert len(slept) == 2
+
+    def test_a_pr_that_claims_nothing_is_not_waited_on(self):
+        """A `Refs`-only PR expects no link, so there is no lag to outwait.
+        Sleeping here would tax every doc-only round for nothing."""
+
+        fetch, calls = self._fetch_returning(set())
+        slept: list[float] = []
+
+        assert cpl.resolve_closing_refs(fetch, set(), sleep=slept.append) == (set(), 1)
+        assert len(calls) == 1
+        assert slept == []
+
+    def test_an_unexpected_link_is_not_retried(self):
+        """Deliberately narrow. An `unexpected` link is already registered and
+        will not un-register, so re-reading cannot change the answer — it would
+        only spend seconds before reporting the same real defect."""
+
+        fetch, calls = self._fetch_returning({999001, 999002})
+        slept: list[float] = []
+
+        resolved, attempts = cpl.resolve_closing_refs(
+            fetch, {999001}, sleep=slept.append
+        )
+
+        assert (resolved, attempts) == ({999001, 999002}, 1)
+        assert len(calls) == 1
+        assert slept == []
+
+    def test_the_delay_is_passed_through_to_sleep(self):
+        """The wait has to actually be the configured one. A hard-coded sleep
+        would pass every other test in this class."""
+
+        fetch, _ = self._fetch_returning(set())
+        slept: list[float] = []
+
+        cpl.resolve_closing_refs(
+            fetch, {999001}, attempts=2, delay=0.25, sleep=slept.append
+        )
+
+        assert slept == [0.25]
+
+
+class TestFailureSummary:
+    """The line printed under the defect list. It used to assert flatly that
+    "This is a bug in the PR, not in the check" — true for every defect except
+    the one the propagation lag can fabricate, and a gate that says that while
+    crying wolf teaches people to override it, which is how #158's required
+    check stops meaning anything (#331)."""
+
+    def test_a_missing_only_failure_does_not_assert_the_pr_is_broken(self):
+        summary = cpl.failure_summary([cpl.Failure("missing", "d")], 328)
+        assert "not in the check" not in summary
+        assert "gh pr view 328" in summary
+
+    def test_any_other_defect_still_asserts_the_pr_is_broken(self):
+        """The softening is scoped to `missing`. A `hazard` is read from text
+        that does not change between reads, so hedging it would be a lie."""
+
+        summary = cpl.failure_summary([cpl.Failure("hazard", "d")], 328)
+        assert "not in the check" in summary
+
+    def test_missing_alongside_another_defect_is_not_softened(self):
+        """If anything else is wrong, the PR is broken regardless of whether the
+        link has propagated, and the run should say so."""
+
+        summary = cpl.failure_summary(
+            [cpl.Failure("base", "d"), cpl.Failure("missing", "d")], 328
+        )
+        assert "not in the check" in summary
+
+    def test_the_defect_count_is_reported(self):
+        summary = cpl.failure_summary(
+            [cpl.Failure("base", "d"), cpl.Failure("hazard", "d")], 328
+        )
+        assert "2 defect(s)" in summary
 
 
 class TestRequireGithubNumber:

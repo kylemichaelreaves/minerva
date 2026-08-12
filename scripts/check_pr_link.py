@@ -25,11 +25,17 @@ Every "no data" path is an error. A PR that cannot be fetched, a repo whose
 default branch cannot be resolved — a naive implementation calls each of those
 "nothing to report, fine", and an inert gate is worse than no gate (#116).
 
+WHY IT READS THE LINK MORE THAN ONCE
+
+`closingIssuesReferences` is eventually consistent after a body edit, so a
+single read reports a missing link on a PR whose body is correct. That is the
+one verdict here the API can fabricate, so it is the only one retried (#331).
+
 Usage:
     scripts/check_pr_link.py <pr> [issue ...]
 
-    scripts/check_pr_link.py 330 297 300   # must close exactly 297 and 300
-    scripts/check_pr_link.py 328           # must close nothing (a Refs-only PR)
+    scripts/check_pr_link.py 315 297 300   # must close exactly 297 and 300
+    scripts/check_pr_link.py 327           # must close nothing (a Refs-only PR)
 """
 
 from __future__ import annotations
@@ -39,6 +45,8 @@ import json
 import re
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,19 +57,78 @@ REPO = Path(__file__).resolve().parent.parent
 #: would fail correctly-written PRs.
 _KEYWORDS = r"close[sd]?|fix(?:e[sd])?|resolve[sd]?"
 
-#: Keyword, then up to three non-letter characters, then #N.
+#: Up to three non-letter characters — a space, a colon, a backtick.
 #:
-#: The separator class is what makes this BACKTICK-BLIND, and that is the whole
+#: This class is what makes the scan BACKTICK-BLIND, and that is the whole
 #: point. Narrowing it to bare prose — stripping code spans, requiring a plain
 #: space — reintroduces exactly the bug this catches. See the module docstring.
+_GAP = r"[^A-Za-z]{0,3}"
+
+#: An optional `owner/repo` qualifying the number, as in GitHub's own example
+#: `Fixes octo-org/octo-repo#100`. Documented closing syntax, and unmatchable by
+#: `_GAP` alone: stopping at any letter is what keeps the scan backtick-blind,
+#: and it is the same property that stops it at the `o` of `octo-org` (#330).
+_QUALIFIER = r"(?:[\w.-]+/[\w.-]+)?"
+
+#: Keyword, a gap, then an optionally repo-qualified #N.
+#:
+#: NO INTERVENING WORD, measured rather than assumed (#330). Admitting one so
+#: that `closes issue #N` matches is defensible in the abstract: this scan feeds
+#: the `hazard` check and nothing else, so over-matching costs a rewritten
+#: sentence while under-matching is #176. What that argument never prices is
+#: what over-matching actually costs. Measured across every PR text in the repo
+#: — 760 titles, bodies and commit messages over 194 PRs — a one-word filler
+#: matches 6 texts this pattern does not, all 6 false positives, against zero
+#: real occurrences of `closes issue #N`. Two of the six shapes recur here
+#: constantly: a `Refs #N` line after a sentence ending in "fixed.", and
+#: `/close-out (#N)`. Flagging the sanctioned non-closing form is how a gate
+#: gets overridden, which is the corrosion #331 is about.
 _CLOSING_REF = re.compile(
-    rf"\b(?:{_KEYWORDS})\b[^A-Za-z]{{0,3}}#(\d+)", re.IGNORECASE
+    rf"\b(?:{_KEYWORDS})\b{_GAP}{_QUALIFIER}#(\d+)", re.IGNORECASE
 )
 
 
 def scan_closing_refs(text: str) -> set[int]:
     """Issue numbers a GitHub closing keyword points at anywhere in `text`."""
     return {int(m.group(1)) for m in _CLOSING_REF.finditer(text)}
+
+
+#: How many times to read `closingIssuesReferences` before believing a link is
+#: absent, and the pause between reads. The field is eventually consistent after
+#: a body edit, so one read can report `[missing]` for a link that registers a
+#: moment later (#331). A genuinely missing link costs these seconds; a false
+#: failure costs the gate its credibility.
+_LINK_ATTEMPTS = 3
+_LINK_RETRY_DELAY = 1.0
+
+
+def resolve_closing_refs(
+    fetch: Callable[[], set[int]],
+    expected: set[int],
+    *,
+    attempts: int = _LINK_ATTEMPTS,
+    delay: float = _LINK_RETRY_DELAY,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[set[int], int]:
+    """Read the resolved closing refs, re-reading while one is still missing.
+
+    Returns the last answer and how many reads it took, so the caller can say
+    what it waited for rather than implying the first read was the only one.
+
+    Retries ONLY on a missing link, which is the one defect the propagation lag
+    can fabricate. An `unexpected` link is already registered and will not
+    un-register, and a `hazard` is read from text that does not change between
+    attempts — re-reading for either would mask a real defect rather than
+    outwait a race.
+    """
+    resolved: set[int] = set()
+    for attempt in range(1, attempts + 1):
+        resolved = fetch()
+        if not expected - resolved:
+            return resolved, attempt
+        if attempt < attempts:
+            sleep(delay)
+    return resolved, attempts
 
 
 @dataclass(frozen=True)
@@ -107,7 +174,11 @@ def evaluate(
                 "missing",
                 f"expected to close {sorted(expected)}, GitHub resolved "
                 f"{sorted(resolved)} — missing {sorted(missing)}. Each number needs "
-                "its own keyword: `Closes #1, #2` links only the first.",
+                "its own keyword: `Closes #1, #2` links only the first. If the body "
+                "plainly carries a keyword next to each number, the link may simply "
+                "not have registered yet — `closingIssuesReferences` is eventually "
+                "consistent after a body edit — so re-query with `gh pr view` before "
+                "editing anything (#331).",
             )
         )
 
@@ -136,6 +207,26 @@ def evaluate(
             )
 
     return failures
+
+
+def failure_summary(failures: list[Failure], pr: int) -> str:
+    """The line printed under the defect list.
+
+    Asserting "this is a bug in the PR, not in the check" is true of every
+    defect here except one: `missing` is the only verdict the propagation lag
+    can fabricate, and it is fabricated on a *correct* PR (#331). So a
+    `missing`-only run hedges and hands over the command that settles it, and
+    every other combination — including `missing` alongside a second defect,
+    where the PR is broken whatever the API says — keeps the flat claim.
+    """
+    hedge = [f.check for f in failures] == ["missing"]
+    verdict = (
+        "the link may not have propagated yet. Re-query before editing: "
+        f"`gh pr view {pr} --json closingIssuesReferences`"
+        if hedge
+        else "This is a bug in the PR, not in the check."
+    )
+    return f"check-pr-link: FAILED — {len(failures)} defect(s). {verdict}"
 
 
 class Problem(Exception):
@@ -259,7 +350,28 @@ def main() -> int:
             "PR body": pr["body"] or "",
             **_commit_texts(pr["commits"]),
         }
-        resolved = {r["number"] for r in pr["closingIssuesReferences"]}
+
+        # The call above already read the field once, so only a retry goes back
+        # to the network — and it re-reads nothing else, because the title, the
+        # body and the commits cannot change between attempts.
+        first_read = {r["number"] for r in pr["closingIssuesReferences"]}
+        reads = 0
+
+        def fetch_resolved() -> set[int]:
+            nonlocal reads
+            reads += 1
+            if reads == 1:
+                return first_read
+            label = f"gh pr view {pr_number} --json closingIssuesReferences"
+            proc = subprocess.run(
+                ["gh", "pr", "view", pr_number, "--json", "closingIssuesReferences"],
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+            )
+            return {r["number"] for r in _parse_gh(proc, label)["closingIssuesReferences"]}
+
+        resolved, attempts_used = resolve_closing_refs(fetch_resolved, expected)
     except (Problem, KeyError, TypeError) as exc:
         print(f"check-pr-link: {exc}", file=sys.stderr)
         return 1
@@ -273,16 +385,16 @@ def main() -> int:
     )
 
     claim = f"close {sorted(expected)}" if expected else "close nothing"
-    print(f"check-pr-link: PR #{args.pr} should {claim}; scanned {len(scanned)} text(s)")
+    waited = f"; read the link {attempts_used}x" if attempts_used > 1 else ""
+    print(
+        f"check-pr-link: PR #{args.pr} should {claim}; "
+        f"scanned {len(scanned)} text(s){waited}"
+    )
 
     if failures:
         for f in failures:
             print(f"  [{f.check}] {f.detail}", file=sys.stderr)
-        print(
-            f"check-pr-link: FAILED — {len(failures)} defect(s). "
-            "This is a bug in the PR, not in the check.",
-            file=sys.stderr,
-        )
+        print(failure_summary(failures, args.pr), file=sys.stderr)
         return 1
 
     print("check-pr-link: ok")
