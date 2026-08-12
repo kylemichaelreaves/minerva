@@ -9,10 +9,11 @@ wrong one: sweeping the repo showed all four runnable examples already correct,
 because an example is self-correcting. You paste it, it fails, you fix it. Three
 of the original four were found exactly that way.
 
-The same sweep found `PR #297` in a test docstring and in a design spec, both
-attributing issues #297 and #300 to it — when #297 is an issue and PR #315 is
-the PR. A sentence is never executed, so nothing was ever going to catch it. A
-gate over the examples would have passed on the day it was written.
+The same sweep found issue #297 cited as a pull request in a test docstring and
+in a design spec, both attributing issues #297 and #300 to it — when PR #315 is
+the one that carried them. A sentence is never executed, so nothing was ever
+going to catch it. A gate over the examples would have passed on the day it was
+written.
 
 WHY IT REFUSES RATHER THAN REPORTING ZERO
 

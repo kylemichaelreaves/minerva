@@ -372,8 +372,9 @@ It exists because the two populations rot at different rates (#335). A worked
 example is self-correcting: paste `make check-pr-link PR=327`, watch it fail,
 fix it — which is how three of #335's four wrong numbers were found. A sentence
 attributing work to a PR is never executed by anyone, so nothing catches it. The
-gate's first live run found `PR #297` in a test docstring and a design spec,
-both naming an issue number as the PR that carried it; PR #315 is the one.
+gate's first live run found issue #297 cited as a pull request in a test
+docstring and a design spec, both naming it as the PR that carried #297 and
+#300; PR #315 is the one.
 
 The recurring error is one shape: **an issue number standing in for the PR that
 closed it.** They are adjacent in time, often adjacent in a sentence, and

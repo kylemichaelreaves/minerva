@@ -1880,6 +1880,55 @@ cheap fix is to stop citing real numbers, which costs the one property that
 made the examples worth having — you can paste them and watch them pass,
 which is how three of the four errors surfaced.
 
+#### What 8-ter turned out to be — the wrong population
+
+Verdict `CORRECTED`, and the correction is about *which text rots*. Landed as
+the PR recorded below, which built `make check-pr-citations`.
+
+All four measured numbers reproduced, and all four were already fixed. The live
+question was the issue's own option 2: gate the worked examples. Sweeping the
+repo first — the step the issue itself flagged as "unmeasured and worth knowing
+first" — showed that option would have been **green on the day it was written**.
+Every runnable example was already correct, because an example is
+self-correcting: paste it, watch it fail, fix it. That is how three of the
+original four were found at all.
+
+The same sweep found issue #297 cited as the pull request that carried #297 and
+#300 — in `tests/test_check_pr_link.py`, in a design spec, and in the plan doc
+the spec came from. PR #315 is the one. A sentence is never executed by anyone,
+so nothing was ever going to catch it, and the gate's first live run found all
+three: 60 citations across 201 files.
+
+So the class is not "worked examples cite live numbers". It is **any prose
+citation of a live number**, of which the runnable examples are the small,
+self-correcting minority. The issue named the population that had the visible
+errors rather than the one that retains them.
+
+Two false-positive traps were priced rather than argued, which is the lesson
+this page has now recorded three times. Test fixtures at 999000+ are skipped by
+rule, because flagging the repo's own sanctioned numbering is how #330's filler
+earned its removal. And a sentence *reporting* a wrong citation has to contain
+one, so exemptions are hand-written entries with reasons — backticks cannot be
+the discriminator (#293) — and a fixed entry must be removed. Exactly one entry
+exists: this page's own account of the defect, three paragraphs up.
+
+That makes four rows here whose *diagnosis* needed correcting while the
+*defect* held.
+
+### Batch 8-quater — the citation gate's blind spots (#337)
+
+Found building 8-ter, in the globs it had just written.
+
+- **#337** — `check-pr-citations` scans five globs and one direction.
+  `src/minerva/refs/rules/quran_cite_fr.py:7` and `.github/dependabot.yml:34`
+  both cite a PR and sit outside it, and the mirror-image error — a PR number
+  called an issue — is unchecked. Both measure at **zero defects today**, so
+  this is hardening, not a bug fix, and the cheap half is widening the globs.
+
+Same shape as 8-bis one level down: the blind spots of a gate, found while
+building the gate. Touches neither the DB nor the coverage gate, so this row is
+**unordered** and can run at any point.
+
 ---
 
 ## Verification
