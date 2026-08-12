@@ -36,7 +36,7 @@ import { useWordHoverTranslations } from "~/Reader/useWordHoverTranslations";
 import { useWordLookup } from "~/Reader/useWordLookup";
 import { useWorkRange } from "~/Reader/useWorkRange";
 import { useXrefCard } from "~/Reader/useXrefCard";
-import { isSyntaxLangEnabled } from "~/Reader/utils";
+import { escapeExitsReader, isSyntaxLangEnabled, type ReaderSurfaces } from "~/Reader/utils";
 import { Lines, type XrefMap } from "~/Reader/components/Lines";
 import { RailContent } from "~/Reader/components/Rail";
 import { ReaderMobileSettingsSheet } from "~/Reader/components/ReaderMobileSettingsSheet";
@@ -64,6 +64,14 @@ interface ReaderProps {
   openTermId?: number;
   onOpenTermIdChange?: (id: number | null) => void;
   onClose?: () => void;
+  /** True while the syntax overlay is layered over this Reader
+   *  (`?syntax=<chunk>`). The Reader stays mounted underneath it (#342),
+   *  so it has to know not to take an Escape the overlay owns. */
+  syntaxOpen?: boolean;
+  /** Leave the Reader entirely — Escape, when nothing else is open.
+   *  Distinct from `onClose`, which is the back arrow and resumes the
+   *  last conversation; this one goes to the landing. */
+  onExit?: () => void;
 }
 
 export default function Reader(props: ReaderProps) {
@@ -239,6 +247,24 @@ export default function Reader(props: ReaderProps) {
   // intercept anything else (e.g. TermCard's own Esc listener — which
   // uses the same useEscape helper).
   useEscape(dismiss, () => railApi.rail().kind !== "idle");
+
+  // …and Esc with nothing open leaves the Reader. Last resort, not first:
+  // every surface below answers Escape itself, so the gate is what makes a
+  // press close the card the user meant to close and the NEXT press leave.
+  // `useEscape` registers no listener at all while the gate is false, which
+  // is what keeps this out of the way of the surfaces that own the key.
+  const surfaces = (): ReaderSurfaces => ({
+    rail: railApi.rail().kind !== "idle",
+    termCard: term.openCard() !== null,
+    xrefCard: xref.openRefCard() !== null,
+    selectionToolbar: selection.selToolbar() !== null,
+    settingsSheet: shell.readerSettingsOpen(),
+    syntaxLayer: props.syntaxOpen ?? false,
+  });
+  useEscape(
+    () => props.onExit?.(),
+    () => props.onExit !== undefined && escapeExitsReader(surfaces()),
+  );
 
   /** Derived count-only map for Lines.tsx — the marker only needs
    *  `count` per chunk; the full `top` array is read by the click
