@@ -72,6 +72,16 @@ interface ReaderProps {
    *  Distinct from `onClose`, which is the back arrow and resumes the
    *  last conversation; this one goes to the landing. */
   onExit?: () => void;
+  /** True while the Reader is retained but off-screen — the route has stepped
+   *  out to a concordance and `AppRoutes` is holding this instance mounted so
+   *  the passage survives the round trip (#348).
+   *
+   *  Distinct from `syntaxOpen`, which is the Reader still being the route.
+   *  The wrapper carries `hidden` and `inert`, but neither reaches a listener
+   *  bound to `window` or `document`: without this flag the retained Reader
+   *  would answer the concordance's Escape and exit to the landing, and its
+   *  selection-toolbar hotkeys would fire on a toolbar nobody can see. */
+  suspended?: boolean;
 }
 
 export default function Reader(props: ReaderProps) {
@@ -176,6 +186,11 @@ export default function Reader(props: ReaderProps) {
       wordLookup.onWordClick(word, chunkId, offset, lineEl);
     },
     syntaxEnabled,
+    // `Boolean`, not `?? false`: the hook already treats a missing accessor
+    // and an `undefined` result the same way, so the default would be a
+    // branch that no test can reach without opening a selection toolbar
+    // inside a full Reader mount.
+    suspended: () => Boolean(props.suspended),
     onSyntaxRequest: (chunkId: string) => {
       // Build the hash through the router's own serializer rather than
       // by hand, so this link can't drift from `readRoute`'s parser in
@@ -246,7 +261,7 @@ export default function Reader(props: ReaderProps) {
   // "idle"` so a stray Esc-press without an open drawer doesn't
   // intercept anything else (e.g. TermCard's own Esc listener — which
   // uses the same useEscape helper).
-  useEscape(dismiss, () => railApi.rail().kind !== "idle");
+  useEscape(dismiss, () => !props.suspended && railApi.rail().kind !== "idle");
 
   // …and Esc with nothing open leaves the Reader. Last resort, not first:
   // every surface below answers Escape itself, so the gate is what makes a
@@ -263,7 +278,7 @@ export default function Reader(props: ReaderProps) {
   });
   useEscape(
     () => props.onExit?.(),
-    () => props.onExit !== undefined && escapeExitsReader(surfaces()),
+    () => !props.suspended && props.onExit !== undefined && escapeExitsReader(surfaces()),
   );
 
   /** Derived count-only map for Lines.tsx — the marker only needs

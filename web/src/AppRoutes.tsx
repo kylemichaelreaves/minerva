@@ -1,4 +1,13 @@
-import { Match, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import {
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
 import { NetworkRoute } from "~/routes/NetworkRoute";
@@ -90,23 +99,53 @@ export function AppRoutes(props: AppRoutesProps) {
   };
   /* eslint-enable solid/reactivity */
 
-  // The syntax overlay is NOT a branch here. It is a layer over whatever this
-  // switch renders, mounted by `App` outside `<main>` — as a `<Match>` it
-  // unmounted the Reader every time it opened (#342).
+  // The Reader lives OUTSIDE the switch (#348). As a peer `<Match>` it was
+  // destroyed by every side route that matched ahead of it, and #342 fixed
+  // only the fourth such case, the syntax overlay — which is not a branch
+  // here at all, but a layer `App` mounts outside `<main>` over whatever this
+  // renders.
+  //
+  // `retainedWork` keeps a location to render while the route has stepped out
+  // to a concordance; it is null on the destinations (network, refs) and on a
+  // concordance reached cold, so those release the Reader as before. `hidden`
+  // keeps the retained Reader off the screen and `inert` keeps it out of the
+  // tab order — a mounted Reader under a full-page view is still focusable,
+  // and before this it was unreachable only because it had been destroyed.
+  // The wrapper is `display: contents` so `.main`'s flex column still sees
+  // `.reader` as its own child.
+  const readerShowing = () => props.reader.mode() === "reader";
   return (
-    <Switch fallback={<ChatRoute {...ctx} />}>
-      <Match when={props.onConcordance()}>
-        <ConcordanceRoute {...ctx} />
-      </Match>
-      <Match when={props.onNetwork()}>
-        <NetworkRoute {...ctx} />
-      </Match>
-      <Match when={props.onRefs()}>
-        <RefsRoute {...ctx} />
-      </Match>
-      <Match when={props.reader.mode() === "reader" && props.reader.readerWork()}>
-        <ReaderRoute {...ctx} />
-      </Match>
-    </Switch>
+    <>
+      <Show when={props.reader.readerWork() ?? props.reader.retainedWork()}>
+        {/* `attr:inert` because the plain prop compiles to `el.inert = …`, a
+            no-op wherever the property is unimplemented; the attribute is
+            what the browser's inert semantics key on. Same reason as
+            `App.tsx`. `hidden` needs no such escape — Solid treats it as a
+            boolean attribute — and `attr:hidden` is not in the JSX types. */}
+        <div
+          class="reader-keepalive"
+          hidden={!readerShowing()}
+          attr:inert={readerShowing() ? undefined : ""}
+        >
+          <ReaderRoute {...ctx} />
+        </div>
+      </Show>
+      {/* `mode()` is `readerWork() ? "reader" : "chat"`, so this is exactly the
+          condition the removed `<Match>` used — without it the switch would
+          fall through to `ChatRoute` and render the chat under the Reader. */}
+      <Show when={!readerShowing()}>
+        <Switch fallback={<ChatRoute {...ctx} />}>
+          <Match when={props.onConcordance()}>
+            <ConcordanceRoute {...ctx} />
+          </Match>
+          <Match when={props.onNetwork()}>
+            <NetworkRoute {...ctx} />
+          </Match>
+          <Match when={props.onRefs()}>
+            <RefsRoute {...ctx} />
+          </Match>
+        </Switch>
+      </Show>
+    </>
   );
 }

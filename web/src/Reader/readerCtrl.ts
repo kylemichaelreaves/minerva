@@ -8,6 +8,7 @@
 
 import { createEffect, createSignal } from "solid-js";
 import { listWorks } from "~/api/readerApi";
+import { keepsReaderAlive } from "~/routes/routeUtils";
 import { apiError } from "~/utils/apiError";
 import type { RoutingApi } from "~/routing";
 import type { AppMode } from "~/Sidebar";
@@ -34,6 +35,18 @@ const CONV_STORAGE_KEY = "minerva:last-conversation";
 export interface ReaderApi {
   /** Current reader location from the route, or null when in chat. */
   readerWork: () => ReaderLocation | null;
+  /** The reader location to keep RENDERING while the route has stepped out
+   *  to a side route that should not tear the Reader down (#348) — the
+   *  concordance today. Equal to `readerWork()` on a reader route, holds the
+   *  last one while `keepsReaderAlive` is true, and null everywhere else.
+   *
+   *  Deliberately in memory only, and deliberately NOT sourced from the
+   *  `minerva:last-reader` key `switchMode` reads. That key is a session-long
+   *  bookmark; this is "the passage you are standing in right now". Sourcing
+   *  it from storage would mount a hidden Reader — and refetch its window —
+   *  behind a concordance opened cold from the top nav, which is an entry
+   *  point with nothing to come back to. */
+  retainedWork: () => ReaderLocation | null;
   /** "chat" / "reader" derived from the route — used by the sidebar tabs. */
   mode: () => AppMode;
   /** Switch view. Reads `localStorage` for the last reader location;
@@ -79,6 +92,19 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
   };
 
   const mode = (): AppMode => (readerWork() ? "reader" : "chat");
+
+  // Hold the reader location across a step-out, drop it on anything else.
+  // A signal rather than a derivation because the whole point is to remember
+  // a value the route no longer carries.
+  const [retainedWork, setRetainedWork] = createSignal<ReaderLocation | null>(null);
+  createEffect(() => {
+    const loc = readerWork();
+    if (loc) {
+      setRetainedWork(loc);
+      return;
+    }
+    if (!keepsReaderAlive(routing.route())) setRetainedWork(null);
+  });
 
   const currentWork = (): Work | null => {
     const loc = readerWork();
@@ -222,6 +248,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
 
   return {
     readerWork,
+    retainedWork,
     mode,
     currentWork,
     switchMode,

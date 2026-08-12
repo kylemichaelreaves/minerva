@@ -25,7 +25,14 @@ import type { RouteContextProps } from "~/routes/types";
  * across navigations.
  */
 export function ReaderRoute(props: RouteContextProps) {
-  const work = () => props.reader.readerWork();
+  // Falls back to the retained location so the Reader keeps rendering the
+  // passage while the route has stepped out to the concordance (#348).
+  // `readerWork()` is null there — it is derived from the route — and reading
+  // it alone would blank the Reader that `AppRoutes` went to the trouble of
+  // keeping mounted. The retained value is the same object the reader route
+  // last produced, so the props below do not change and `useWorkRange`'s
+  // `windowKey` memo (PR #347) sees no reason to reload.
+  const work = () => props.reader.readerWork() ?? props.reader.retainedWork();
   // Read off the route rather than through `readerWork()`: the syntax layer is
   // a modifier on the reader route (#342), not part of the reader LOCATION —
   // `readerCtrl` mirrors that location into localStorage, and "an overlay was
@@ -35,7 +42,7 @@ export function ReaderRoute(props: RouteContextProps) {
     return r.kind === "reader" && r.syntaxChunkId !== undefined;
   };
   return (
-    <Show when={props.reader.mode() === "reader" && work() !== null}>
+    <Show when={work() !== null}>
       <Reader
         workId={work()!.workId}
         sourceLang={work()!.sourceLang}
@@ -44,6 +51,7 @@ export function ReaderRoute(props: RouteContextProps) {
         openTermId={work()!.openTermId}
         onOpenTermIdChange={props.reader.setOpenTermId}
         syntaxOpen={syntaxOpen()}
+        suspended={props.reader.mode() !== "reader"}
         onExit={() => {
           // Escape leaves for the landing, unscoped — the same state
           // `newConversation` produces. Deliberately NOT `onClose`: the back

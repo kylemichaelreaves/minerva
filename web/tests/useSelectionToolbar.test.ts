@@ -244,6 +244,59 @@ describe("useSelectionToolbar persistence", () => {
     });
   });
 
+  it("registers no keydown listener while the Reader is suspended", async () => {
+    // The Reader now survives a step-out to the concordance instead of being
+    // destroyed (#348), so its `document`-level shortcuts outlive the
+    // navigation. `hidden` and `inert` on the Reader do not reach a listener
+    // bound to `document` — without this gate, T on the concordance would
+    // commit a translate from a toolbar nobody can see.
+    await createRoot(async (dispose) => {
+      const onTranslate = vi.fn();
+      const [suspended, setSuspended] = createSignal(true);
+      const api = useSelectionToolbar({
+        getStage: () => undefined,
+        workId: () => "Republic",
+        onTranslateRequest: onTranslate,
+        onLookupRequest: vi.fn(),
+        suspended,
+      });
+      const textNode = document.createTextNode("divided line");
+      document.body.appendChild(textNode);
+      const fakeRange = {
+        startContainer: textNode,
+        endContainer: textNode,
+        getBoundingClientRect: () => new DOMRect(0, 0, 1, 1),
+      } as unknown as Range;
+      const fakeSel = {
+        isCollapsed: false,
+        rangeCount: 1,
+        toString: () => "divided line",
+        getRangeAt: () => fakeRange,
+        removeAllRanges: () => undefined,
+      } as unknown as Selection;
+      const selSpy = vi.spyOn(window, "getSelection").mockReturnValue(fakeSel);
+
+      api.onMouseUp({ target: null } as unknown as MouseEvent);
+      await flush();
+      // The toolbar STATE is open — that is the point of retaining the
+      // Reader. Only the key binding is withheld.
+      expect(api.selToolbar()).not.toBeNull();
+
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "t", bubbles: true }));
+      expect(onTranslate).not.toHaveBeenCalled();
+
+      // Coming back to the Reader re-arms it against the same open toolbar.
+      setSuspended(false);
+      await flush();
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "t", bubbles: true }));
+      expect(onTranslate).toHaveBeenCalledTimes(1);
+
+      selSpy.mockRestore();
+      textNode.remove();
+      dispose();
+    });
+  });
+
   it("ignores toolbar shortcuts while typing in a form field", async () => {
     await createRoot(async (dispose) => {
       const onTranslate = vi.fn();

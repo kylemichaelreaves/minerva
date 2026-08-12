@@ -83,6 +83,11 @@ export interface SelectionToolbarProps {
   syntaxEnabled?: () => boolean;
   /** Navigate to the syntax overlay for `chunkId`. */
   onSyntaxRequest?: (chunkId: string) => void;
+  /** True while the Reader is retained off-screen behind a step-out route
+   *  (#348). The toolbar's hotkeys are bound to `document`, which `inert` on
+   *  the Reader does not reach — so T / L / S / Esc would still fire against
+   *  a toolbar the user cannot see, on a page that is not the Reader. */
+  suspended?: () => boolean;
 }
 
 export type ToolbarKeyAction = "dismiss" | "translate" | "lookup" | "syntax";
@@ -307,6 +312,7 @@ export function useSelectionToolbar(
   createEffect(() => {
     const t = selToolbar();
     if (!t) return;
+    if (props.suspended?.()) return;
     const onKey = (e: KeyboardEvent) => {
       const action = toolbarKeyAction(e, {
         singleWord: t.singleWord,
