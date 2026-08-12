@@ -23,6 +23,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location(
     "check_pr_link", REPO / "scripts" / "check_pr_link.py"
@@ -208,3 +210,35 @@ class TestEvaluate:
             "unexpected",
             "hazard",
         ]
+
+
+class TestRequireGithubNumber:
+    """The PR number is the only command-line value that reaches an OS command
+    — the single non-literal element in the `gh` argv. `argparse(type=int)`
+    constrains its type; these tests cover constraining its value."""
+
+    def test_an_ordinary_number_passes_through(self):
+        assert cpl.require_github_number("PR number", 328) == 328
+
+    def test_a_numeric_string_is_normalised_to_int(self):
+        assert cpl.require_github_number("PR number", "328") == 328
+
+    def test_zero_and_negatives_are_rejected(self):
+        for bad in (0, -1, -328):
+            with pytest.raises(cpl.Problem):
+                cpl.require_github_number("PR number", bad)
+
+    def test_an_absurd_number_is_rejected(self):
+        with pytest.raises(cpl.Problem):
+            cpl.require_github_number("PR number", 10_000_000)
+
+    def test_a_non_number_is_rejected(self):
+        for bad in ("not-a-number", None, "12; rm -rf /"):
+            with pytest.raises(cpl.Problem):
+                cpl.require_github_number("PR number", bad)
+
+    def test_the_message_names_the_kind_and_the_value(self):
+        with pytest.raises(cpl.Problem) as exc:
+            cpl.require_github_number("issue number", -5)
+        assert "issue number" in str(exc.value)
+        assert "-5" in str(exc.value)

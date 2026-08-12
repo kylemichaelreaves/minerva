@@ -143,6 +143,37 @@ class Problem(Exception):
     unable to answer, which must never be reported as a pass."""
 
 
+#: Upper bound on a GitHub PR or issue number. Arbitrary but generous — this
+#: repo is in the hundreds — and the point is the bound, not its exact value.
+_MAX_GITHUB_NUMBER = 1_000_000
+
+
+def require_github_number(kind: str, value: object) -> int:
+    """Return `value` as a validated GitHub number, or raise `Problem`.
+
+    The PR number is the ONLY value this script takes from the command line
+    that reaches an OS command — it is the single non-literal element in the
+    `gh` argv built below. `argparse(type=int)` already rejects non-numeric
+    input, but that constrains the type and not the value, and a type
+    constraint is not a validation: a negative number or an absurd one is a
+    typo worth catching before it becomes a subprocess argument rather than
+    after.
+
+    Pure and importable, which is what makes it testable — unlike the
+    subprocess calls it guards.
+    """
+    try:
+        number = int(value)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        raise Problem(f"{kind} {value!r} is not a number") from None
+    if number <= 0 or number > _MAX_GITHUB_NUMBER:
+        raise Problem(
+            f"{kind} {number} is out of range — GitHub numbers are positive "
+            f"and below {_MAX_GITHUB_NUMBER}. Refusing to pass it to `gh`."
+        )
+    return number
+
+
 def _parse_gh(proc: subprocess.CompletedProcess[str], label: str) -> dict:
     """Turn a finished `gh` invocation into its parsed JSON, or raise `Problem`.
 
@@ -192,10 +223,14 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    expected = set(args.issues)
+    try:
+        expected = {require_github_number("issue number", n) for n in args.issues}
+    except Problem as exc:
+        print(f"check-pr-link: {exc}", file=sys.stderr)
+        return 1
 
     try:
-        pr_number = str(int(args.pr))
+        pr_number = str(require_github_number("PR number", args.pr))
         pr_proc = subprocess.run(
             [
                 "gh",
