@@ -225,9 +225,11 @@ defect in the lemma writer.
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
 | 8 | PR-gate tooling | ~~#320~~, ~~#321~~, #322, ~~#330~~, ~~#331~~ | **part landed; #322 todo** | **Groups with nothing in batches 1–7** — it is the harness those batches are worked *with*, not a defect in the corpus. A tollgate, like batch 0, and numbered 8 rather than `N-bis` for that reason: no batch above it found it. See batch 8. |
 | 8-bis | the gate's own blind spots | #333, ~~#334~~ | **part landed; #333 backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured. #334 was `main()`, where the retry's only real caller sat untested — landed as PR #336, and its verdict was `CORRECTED` because one of the four risks it listed does not exist. Neither touches the DB or the coverage gate. |
+| 8-quinquies | a guard satisfied by commented-out source | #349 | **backlog** | Found working #342 as PR #347, and grouped **by theme rather than by file** — it is in `web/tests/`, not `scripts/`, but it is the 8-series question ("does this gate check what it claims?") rather than a frontend defect. `routeConstruction.test.ts` decides reachability by regex over source text with no comment stripping, so commenting out the one line that navigates to a route keeps it green — measured, on the case PR #347 added. One-directional: the reachability half can pass on dead code, the hash-drift half can only over-report. |
 | 8-ter | worked examples cite live numbers | #335 | **backlog** | Found working #334, by an unrelated grep. Four wrong PR/issue numbers across two files, and the second pair survived the PR that fixed the first pair. **May resolve as a decision not to gate it**, like #299 — the alternative is to stop citing real numbers at all. |
-| 9 | reader latency | ~~#339~~, ~~#340~~, #342 | **part landed; #342 todo** | **Groups with nothing in batches 0–8** — the first row here that is a *performance* defect rather than a corpus, ingest or harness one, and it was found by timing the app for a demo rather than by working any batch above. Numbered 9 rather than `N-bis` for that reason. All three are one user-visible symptom (a Reader page load) decomposed by layer: #339 the missing access paths, #340 the lock that stopped the reads overlapping, #342 the route model that unmounts the Reader. Landed across PRs #341 (indexes + lock release), #343 (client read cache) and the #339-part-2 PR; #342 is the remaining half and is frontend-only. See batch 9. |
+| 9 | reader latency | ~~#339~~, ~~#340~~, ~~#342~~ | **landed** | **Groups with nothing in batches 0–8** — the first row here that is a *performance* defect rather than a corpus, ingest or harness one, and it was found by timing the app for a demo rather than by working any batch above. Numbered 9 rather than `N-bis` for that reason. All three are one user-visible symptom (a Reader page load) decomposed by layer: #339 the missing access paths, #340 the lock that stopped the reads overlapping, #342 the route model that unmounts the Reader. Landed across PRs #341 (indexes + lock release), #343 (client read cache), #346 (#339 part 2) and #347 (#342's route model, frontend-only). See batch 9. |
 | 9-bis | what the latency fixes left behind | #344, #345 | **backlog** | Both found verifying #339 part 2, and neither is a corpus defect. #344 is `/api/health`, the last full scan of `chunks` on the read path (~210 ms) — named and scoped out by #339, so it needed its own row once #339 closed, and part 2 pushed it 9% the wrong way. #345 is the coverage-exclusion divergence the same PR hit and half-fixed: `pyproject.toml`'s `omit` and `sonar.coverage.exclusions` disagree, so a locally-omitted file arrives at the blocking gate scored 0%. Both **may resolve as decisions rather than repairs**, like #299 — #344's three options trade staleness against ingest cost, and #345's turns on whether the shim deserves a bar at all. |
+| 9-ter | the other three side routes | #348 | **backlog** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. **May resolve as a decision rather than a repair**, like #299: full-page destination is a plausible answer for the network dashboard, and for the concordance it plausibly differs by entry point (Reader rail vs top nav). Decide per route first, then pick a mechanism — #347's `windowKey` memo is the prerequisite either way. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -2243,7 +2245,8 @@ the live 428,606-chunk index, and each issue owns a different reason:
   both issues — correctly, since both were partial.
 - **PR #343** — `readCache`, a module-scope response cache keyed on the
   full request path, so returning from a side route stops refetching.
-  Covers all four side routes. `Refs #342`.
+  Covers all four side routes — three of them after PR #347, which
+  removes the syntax overlay from that set entirely. `Refs #342`.
 - **#339 part 2** — migration 0030 denormalises `works.id` onto `chunks`.
   This is the one that mattered: the reader path went **172.09 ms →
   0.42 ms** and the end-to-end page load **357.9 ms → 14.5 ms**, measured
@@ -2293,16 +2296,38 @@ alone, **0.53 ms** with both. The reasoning in 0029's header is what made
 the reversal legible rather than contradictory, which is the argument for
 writing the reasoning down and not just the verdict.
 
-### What #342 still needs
+### #342 — the route model, landed as PR #347
 
-Frontend only, and the largest design surface of the three: making
-"syntax open" a modifier on the reader route rather than a route kind of
-its own. The route types, the URL shape and back-button semantics all
-move. The cache in #343 removes the *network* cost of the transition;
-what remains is the unmount itself — `loadWork` calls `setRange(null)`,
-so the page still blanks for a frame, and scroll position is still lost
-and re-acquired through the `focusChunkId` animation.
+Frontend only, and the largest design surface of the three: "syntax open"
+is now a modifier on the reader route (`#/r/<work>?...&syntax=<chunk>`)
+rather than a route kind, so the reader location stays resolved and the
+Reader stays mounted under the overlay. The legacy
+`#/syntax/<chunk>?work=` hash parses into the new shape; a work-less
+`#/syntax/<chunk>` has no reader location to lay a layer over and
+resolves to the landing, which is a deliberate narrowing. No CSS changed
+— `.syn` was already `position: fixed; inset: 0; z-index: 40`.
 
 Deliberately split from the #339 part-2 PR: that one is a migration plus
 one line of view SQL, verifiable against the live corpus; this one shares
-none of its files and is a route-model rewrite.
+none of its files.
+
+**The half nobody had measured was Solid's identity semantics.** Every
+field the Reader's window is keyed on is read out of the route, and each
+hashchange installs a *new* `Route` object — so `useWorkRange`'s load
+effect re-ran on any route change at all and began with `setRange(null)`.
+Adding `?syntax=` would have blanked and reloaded the window exactly as
+the unmount did, and the fix would have looked like it had done nothing.
+Keying the effect on a memo of the four window fields is what makes the
+modifier free, and it fixed a live instance of the same bug in passing:
+opening a term card (`?term=<id>`) reloaded the whole window.
+
+**#342's `~190 ms` was stale, and #346 is why.** Part 2 denormalised
+`chunks.work_id` — the exact filter #342 named as the reason
+`occurrence_map` and `references_map` still scanned. Re-measured, the
+return trip is ~15–35 ms, not ~190 ms: the range still costs its 20 ms,
+but the two companion maps went 81 → ~1 ms and 89 → ~9–53 ms. Same
+lesson as #340 fix 1 above, from the other direction — **a number in an
+issue decays while its neighbours are being fixed**, and here it decayed
+between the issue being filed and the issue being worked, four days. The
+figure was also copied into `readCache.ts` and its test, so the
+correction had to be made in three places; PR #347 makes all three.
