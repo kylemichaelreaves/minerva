@@ -80,6 +80,23 @@ if (typeof SVGElement !== "undefined" && !("getComputedTextLength" in SVGElement
   });
 }
 
+// jsdom implements no scrolling, so `Element.scrollIntoView` is absent. The
+// Reader calls it after paint on a focus deep-link (`useWorkRange`), which is
+// on the path of any test that mounts a reader location carrying `focus=` —
+// including the legacy `#/syntax/<chunk>?work=` hash, which supplies one. The
+// call throws asynchronously in a queueMicrotask, so it does not fail the
+// assertion it happens under; it surfaces as an unhandled error that fails the
+// whole run.
+if (typeof Element !== "undefined" && !("scrollIntoView" in Element.prototype)) {
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    value(): void {
+      /* no-op: jsdom does not lay out, so there is nowhere to scroll */
+    },
+    writable: true,
+    configurable: true,
+  });
+}
+
 // jsdom has no FontFaceSet. `measureTokens` gates its first measurement on
 // `document.fonts.ready` — measuring before webfonts resolve makes arcs land
 // on fallback-metric positions and then snap. Resolve immediately here.

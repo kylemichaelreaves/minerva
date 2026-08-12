@@ -17,8 +17,7 @@ Hash-based routing ([`web/src/routing.ts`](../web/src/routing.ts)) — no pathna
 |-------|--------|
 | `#/` | Landing — new question |
 | `#/c/:id` | Conversation thread + composer |
-| `#/r/:work?lang=&focus=&term=` | Primary-source Reader |
-| `#/syntax/:chunkId?work=` | Dependency-syntax close-reading overlay (German) |
+| `#/r/:work?lang=&focus=&term=&syntax=` | Primary-source Reader. `syntax=:chunkId` opens the dependency-syntax close-reading overlay (German) as a **layer** over the Reader, which stays mounted — it was a peer route until #342, and opening it unmounted the Reader. The legacy `#/syntax/:chunkId?work=` hash parses into this shape; without a `work=` it has no reader location to lay the layer over and resolves to the landing. |
 | `#/refs?source=&target=&work=&type=` | Cross-references browser |
 | `#/refs/review?source=&type=` | Curator review queue |
 | `#/network`, `#/network/arc`, `#/network/coverage` | Citation network, chronological arc, coverage heatmap |

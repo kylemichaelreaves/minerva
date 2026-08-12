@@ -36,7 +36,7 @@
 // AbortController is current and discard responses whose controller
 // has been replaced.
 
-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
+import { createEffect, createMemo, createSignal, on, onCleanup, type Accessor } from "solid-js";
 import { fetchOccurrenceMap, getWorkRange } from "~/api/readerApi";
 import { fetchReferencesMap } from "~/api/refsApi";
 import { errorMessage, isAbortError } from "~/utils/util";
@@ -318,18 +318,30 @@ export function useWorkRange(
     void loadWork();
   }
 
-  createEffect(() => {
-    // Bare property accesses register Solid signal reads so the
-    // effect re-runs when either changes. They look like dead code
-    // to ESLint; the void-comma form keeps it quiet without altering
-    // semantics.
-    void (props.workId, props.focusChunkId, props.sourceLang, props.author);
-    // A genuine work-identity change resets to the default edition —
-    // a selector chosen for the previous work must not leak across.
-    editionOverride = undefined;
-    pendingAtSection = undefined;
-    void loadWork();
-  });
+  // The window's identity as one comparable value, so the load effect fires
+  // on a change of VALUE and not on a change of object.
+  //
+  // Every one of these four props is read out of the route (`ReaderRoute`
+  // passes `readerWork()!.workId` and friends as JSX props, which Solid
+  // compiles to getters), and each hashchange installs a NEW Route object.
+  // Solid signals notify on identity, so reading the props directly inside
+  // the effect meant any route change at all reloaded the window — including
+  // ones that leave it alone, like `?term=42` opening a term card or
+  // `?syntax=<id>` opening the syntax layer (#342). The reload starts with
+  // `setRange(null)`, so the cost was a blanked stage, not just a request.
+  const windowKey = createMemo(() =>
+    JSON.stringify([props.workId, props.sourceLang, props.author, props.focusChunkId]),
+  );
+
+  createEffect(
+    on(windowKey, () => {
+      // A genuine work-identity change resets to the default edition —
+      // a selector chosen for the previous work must not leak across.
+      editionOverride = undefined;
+      pendingAtSection = undefined;
+      void loadWork();
+    }),
+  );
 
   // Cancel any in-flight load when the component tears down so a
   // stale response can't apply state after unmount.
