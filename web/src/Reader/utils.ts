@@ -152,3 +152,39 @@ export function isSyntaxLangEnabled(
 ): boolean {
   return (rangeLang ?? sourceLang) === "deu";
 }
+
+/** Which transient Reader surfaces are open. Every one of them already
+ *  answers Escape itself. */
+export interface ReaderSurfaces {
+  /** Translate rail (`useTranslateRail`), open on any non-idle kind. */
+  rail: boolean;
+  /** Term-card popover (`useTermCard`), also resumable from `?term=`. */
+  termCard: boolean;
+  /** Cross-reference card (`useXrefCard`). */
+  xrefCard: boolean;
+  /** Selection toolbar (`useSelectionToolbar`). */
+  selectionToolbar: boolean;
+  /** Mobile reader-settings sheet (`MobileShellContext`). */
+  settingsSheet: boolean;
+  /** Dependency-syntax overlay, open as `?syntax=<chunk>` on the reader
+   *  route. It is a LAYER over a Reader that stays mounted (#342), so
+   *  the Reader's own Escape listener is live while the overlay owns
+   *  the key — it was not before, because the Reader was unmounted. */
+  syntaxLayer: boolean;
+}
+
+/**
+ * Whether Escape should leave the Reader for the landing.
+ *
+ * Only when nothing else is using the key. Escape is what dismisses each
+ * surface above, so an ungated exit would take the whole reader away with the
+ * card the user meant to close — and a surface that owns Escape must win it,
+ * which is what makes the second press the one that leaves.
+ *
+ * A seventh surface added to the Reader joins `ReaderSurfaces`, and the
+ * wiring in `Reader/index.tsx` supplies it. The type is what makes that a
+ * compile error rather than a silent hole.
+ */
+export function escapeExitsReader(open: ReaderSurfaces): boolean {
+  return !Object.values(open).some(Boolean);
+}

@@ -4,7 +4,7 @@
 // selection-toolbar hook computes itself — see `Reader/utils.ts`.
 
 import { describe, expect, it } from "vitest";
-import { isSyntaxLangEnabled } from "~/Reader/utils";
+import { escapeExitsReader, isSyntaxLangEnabled } from "~/Reader/utils";
 
 describe("isSyntaxLangEnabled", () => {
   it("is true for German, whichever input supplies it", () => {
@@ -37,4 +37,29 @@ describe("isSyntaxLangEnabled", () => {
   it("is false when both inputs are absent", () => {
     expect(isSyntaxLangEnabled(undefined, undefined)).toBe(false);
   });
+});
+
+describe("escapeExitsReader", () => {
+  // Escape is the Reader's last resort, not its first — every surface below
+  // already answers it, and exiting past one of them would throw away the
+  // reader the user was only trying to un-clutter (#342 made the syntax
+  // overlay one of them by keeping the Reader mounted underneath it).
+  const quiet = {
+    rail: false,
+    termCard: false,
+    xrefCard: false,
+    selectionToolbar: false,
+    settingsSheet: false,
+    syntaxLayer: false,
+  };
+
+  it("exits when every surface is closed", () => {
+    expect(escapeExitsReader(quiet)).toBe(true);
+  });
+
+  for (const surface of Object.keys(quiet) as (keyof typeof quiet)[]) {
+    it(`does not exit while the ${surface} is open`, () => {
+      expect(escapeExitsReader({ ...quiet, [surface]: true })).toBe(false);
+    });
+  }
 });

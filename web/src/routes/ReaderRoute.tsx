@@ -26,6 +26,14 @@ import type { RouteContextProps } from "~/routes/types";
  */
 export function ReaderRoute(props: RouteContextProps) {
   const work = () => props.reader.readerWork();
+  // Read off the route rather than through `readerWork()`: the syntax layer is
+  // a modifier on the reader route (#342), not part of the reader LOCATION —
+  // `readerCtrl` mirrors that location into localStorage, and "an overlay was
+  // open" is not something Read should resume into.
+  const syntaxOpen = () => {
+    const r = props.routing.route();
+    return r.kind === "reader" && r.syntaxChunkId !== undefined;
+  };
   return (
     <Show when={props.reader.mode() === "reader" && work() !== null}>
       <Reader
@@ -35,6 +43,23 @@ export function ReaderRoute(props: RouteContextProps) {
         focusChunkId={work()!.focusChunkId}
         openTermId={work()!.openTermId}
         onOpenTermIdChange={props.reader.setOpenTermId}
+        syntaxOpen={syntaxOpen()}
+        onExit={() => {
+          // Escape leaves for the landing, unscoped — the same state
+          // `newConversation` produces. Deliberately NOT `onClose`: the back
+          // arrow resumes the last conversation, and "escape out of the
+          // Reader" should not drop the user into a thread they did not ask
+          // for. The passage is not lost either way; `minerva:last-reader`
+          // brings Read back to it.
+          //
+          // No chat scope is seeded here, unlike `onClose`. The landing has
+          // no scope chip to show one — `WorkScopeControl` lives in
+          // `ChatRoute`'s conversation branch — and `startFromLanding`
+          // clears the scope on submit by design ("the global entry point —
+          // unscoped"), so seeding it would be invisible and then discarded.
+          props.conversations.setChatScope(null);
+          props.routing.navigate({ kind: "landing" });
+        }}
         onClose={() => {
           // Seed the chat scope with the work being read, so a question
           // asked right after closing the Reader is scoped to it. Shown

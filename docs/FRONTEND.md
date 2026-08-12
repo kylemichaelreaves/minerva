@@ -120,6 +120,15 @@ The project's pattern (not a strict WCAG ramp, but consistent):
 - Keyboard nav: every page-level shortcut lives in the owning SFC (e.g.
   `LemmaDetail.tsx`) with cleanup via `onCleanup`. Don't sprinkle ad-hoc
   `addEventListener` calls in JSX.
+- **Escape is a ladder, innermost first.** Each transient surface dismisses
+  itself, and only a press with nothing open does the outer thing. In the
+  Reader that outer thing is *leave for the landing*, gated on
+  `escapeExitsReader` (`Reader/utils.ts`), which names every surface that owns
+  the key: rail, term card, xref card, selection toolbar, mobile settings
+  sheet, syntax layer. `useEscape`'s `active` argument is how a rung stands
+  down — a false gate registers no listener at all, so it cannot race the
+  surface that should win. A new transient surface in the Reader adds itself to
+  `ReaderSurfaces`, and the type turns forgetting into a compile error.
 
 ## Solid reactivity gotchas
 
