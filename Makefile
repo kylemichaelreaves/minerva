@@ -28,7 +28,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
-        check-pr-link check-diff-coverage \
+        check-pr-link check-pr-citations check-diff-coverage \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -162,6 +162,17 @@ check-author-imports:
 check-pr-link:
 	@test -n "$(PR)" || { echo 'usage: make check-pr-link PR=<n> [ISSUES="<n> <n>"]' >&2; exit 2; }
 	$(PYTHON) scripts/check_pr_link.py $(PR) $(ISSUES)
+
+# Verify every `PR #N` this repo cites in prose is really a PR (#335). Also out
+# of `make check`, and for the same reason: it queries GitHub.
+#
+# The population here is the one that rots. A worked example is self-correcting
+# — paste it, watch it fail — which is how three of #335's four wrong numbers
+# turned up. A sentence attributing work to a PR is never executed by anyone, so
+# `PR #297` sat in a test docstring and a design spec asserting that an issue
+# number was the PR that carried it.
+check-pr-citations:
+	$(PYTHON) scripts/check_pr_citations.py
 
 # SonarCloud gates PRs at 80% coverage OF THE LINES THE DIFF CHANGED and is a
 # required check, so this is the local equivalent (#255). Note the suites here

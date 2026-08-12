@@ -362,6 +362,29 @@ $ gh pr view 213 --json closingIssuesReferences --jq '[.closingIssuesReferences[
 An empty array on a PR that fixes something is a defect in the PR. Check it
 after opening, and again after any base change.
 
+### And check what you write *about* PRs
+
+`make check-pr-citations` asserts that every `PR #N` in this repo's prose —
+docs, script docstrings, test docstrings — is really a pull request. Like
+`check-pr-link` it queries GitHub, so it is deliberately outside `make check`.
+
+It exists because the two populations rot at different rates (#335). A worked
+example is self-correcting: paste `make check-pr-link PR=327`, watch it fail,
+fix it — which is how three of #335's four wrong numbers were found. A sentence
+attributing work to a PR is never executed by anyone, so nothing catches it. The
+gate's first live run found `PR #297` in a test docstring and a design spec,
+both naming an issue number as the PR that carried it; PR #315 is the one.
+
+The recurring error is one shape: **an issue number standing in for the PR that
+closed it.** They are adjacent in time, often adjacent in a sentence, and
+nothing about `#297` says which kind of thing it is.
+
+When a sentence *reports* a wrong citation it must contain one, so the gate
+carries an `_EXEMPT` table of hand-written entries with reasons. Backticks are
+not the discriminator — #293 established that formatting is no defence — and an
+entry whose citation has been fixed must be removed, the same enforcement
+`granularity.known_coarse` gets.
+
 ### When not to close
 
 A PR that only partly addresses an issue, or whose fix nobody has verified

@@ -276,9 +276,9 @@ class TestEvaluate:
         assert "999001" in failures[0].detail
 
     def test_multi_issue_pr_reports_only_the_dropped_number(self):
-        """The case a single-issue check cannot see. PR #297 carried two
-        issues; a batch PR silently dropping one is the failure this exists
-        for."""
+        """The case a single-issue check cannot see. PR #315 carried two
+        issues, #297 and #300; a batch PR silently dropping one is the failure
+        this exists for."""
 
         failures = _evaluate(
             resolved={999001},

@@ -54,7 +54,7 @@ slotting — have no skill to delegate to and would still need writing. Phase 2
 does delegate to `superpowers:test-driven-development`.
 
 **3. It takes one or more issue numbers and produces one PR.** Batches land
-together in this repo — PR #297 carried both #297 and #300. Phase 1 runs per
+together in this repo — PR #315 carried both #297 and #300. Phase 1 runs per
 issue and reports a verdict for each; phases 2–4 cover the combined change;
 phase 5 emits one PR with a closing line per confirmed issue and verifies that
 *every* number came back. A multi-issue link check is precisely where a number
