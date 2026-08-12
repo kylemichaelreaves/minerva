@@ -105,16 +105,24 @@ the check is wrong.
 
 One exception, measured: `closingIssuesReferences` is **eventually consistent**
 after a body edit. Running the check within a second or two of `gh pr edit` can
-report `[missing]` for a link that does in fact register. If that is the only
-defect reported and the body plainly carries the keyword, re-query before
-touching anything:
+report `[missing]` for a link that does in fact register.
+
+**The check now absorbs this itself.** It reads the field up to three times, a
+second apart, and stops as soon as every expected link is present — so a
+`missing` verdict has already outwaited the lag, and the run prints `read the
+link 2x` (or `3x`) when it had to. The retry is deliberately narrow: `missing` is
+the only verdict the lag can fabricate, so `base`, `unexpected` and `hazard` are
+never re-read.
+
+If a `missing`-only failure survives all three reads, the summary line hedges
+rather than asserting the PR is broken, and names the re-query:
 
 ```
 gh pr view <n> --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'
 ```
 
-If the number is there, the check simply ran too early. Any other defect it
-reports is real.
+If the number is there after all, say so — three reads over two seconds were not
+enough and the bound wants raising. Any other defect it reports is real.
 
 ## Phase 6 — Correct the record
 

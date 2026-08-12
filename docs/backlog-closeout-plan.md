@@ -223,6 +223,8 @@ defect in the lemma writer.
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
 | 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
+| 8 | PR-gate tooling | ~~#320~~, ~~#321~~, #322, ~~#330~~, ~~#331~~ | **part landed; #322 todo** | **Groups with nothing in batches 1–7** — it is the harness those batches are worked *with*, not a defect in the corpus. A tollgate, like batch 0, and numbered 8 rather than `N-bis` for that reason: no batch above it found it. See batch 8. |
+| 8-bis | the gate's own blind spots | #333, #334 | **backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured; #334 is `main()`, where the retry's only real caller sits untested. Neither touches the DB or the coverage gate. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -1751,6 +1753,85 @@ One caveat to state in the PR: file-level coverage ≥80% is a strong
 predictor, not a guarantee. Sonar measures the *changed lines*, and a
 well-covered file's reformatted lines could still be its uncovered ones.
 `check-diff-coverage` settles it per tranche before pushing.
+
+---
+
+## Batch 8 — PR-gate tooling (#320, #321, #322, #330, #331)
+
+The one row here that is not about the corpus. Batches 1–7 fix Minerva;
+this one fixes the harness they are worked with — the three deterministic
+checks that had each failed at least once by being forgotten, and that
+lived as prose competing for attention with the work itself.
+
+Agreed with the repo owner 2026-08-09 as a round to run *before* resuming
+the remaining batches, on the reasoning that a batch worked with a broken
+gate has to be re-verified afterwards anyway. **Recorded here 2026-08-11**,
+having previously existed only in session memory — which is precisely the
+failure this document is for.
+
+| # | what | state |
+|---|---|---|
+| #320 | whole-corpus invariant audit script | landed as PR #323, commit `7439713` |
+| #321 | the `/close-out` command | landed as PR #328 |
+| #322 | move the gates into `.claude/` hooks | **todo** — the next thing in this row |
+| #330 | `scan_closing_refs` missed a documented closing form | landed as PR #332 |
+| #331 | `check-pr-link` reported a false `[missing]` | landed as PR #332 |
+
+### What #330 and #331 turned out to be
+
+Both were found in the whole-branch review of #321's PR, and both are the
+same shape one level up from the gate's own subject: **the check's inputs
+are not final when it runs.** #331 is the API half — `closingIssuesReferences`
+is eventually consistent, so a single read fails a correct PR. #330 is the
+text half — the scanner's separator could not see a form GitHub documents.
+
+#330's verdict was `CORRECTED`, twice, and the second correction is the
+useful one:
+
+- **In phase 1**, its framing — a hole "exactly the width of one word" —
+  understated it. `KEYWORD OWNER/REPOSITORY#N` is documented closing
+  syntax and the scanner matched none of it, no experiment required. Its
+  proposed fix gated everything on an experiment that merges a throwaway
+  PR into `main`, which does not gate the fix at all: `scan_closing_refs`
+  feeds the `hazard` check and nothing else, so its error directions cost
+  differently and widening is right either way.
+- **Mid-implementation**, that asymmetry argument turned out to be half an
+  argument. It says over-matching is cheap without ever pricing it. Priced
+  across all 760 PR texts in the repo, a one-word filler matches 6 texts
+  the shipped scanner does not — **all 6 false positives**, against zero
+  real occurrences of the form it was meant to catch. Two shapes are
+  endemic: a `Refs` line after a sentence ending in "fixed.", and this
+  repo's own `/close-out` command name before a bracketed number. A gate
+  that flags the sanctioned non-closing form is a gate people learn to
+  override, so the filler was built, measured and removed.
+
+The documented qualifier stayed: **zero** behaviour change across the same
+760 texts, so it is purely additive.
+
+The lesson for the rest of this page, which has now happened twice: an
+argument about which direction an error should lean is not a measurement,
+and this document has a track record of claims made from an issue's title
+rather than from the diff. Both #330 corrections came from running the
+thing over the whole corpus of PR texts rather than over the examples in
+the issue.
+
+### Batch 8-bis — the gate's own blind spots (#333, #334)
+
+Found working the above, in the file it edited.
+
+- **#333** — whether GitHub's *merge-commit* parser acts on
+  `KEYWORD <word> #N`. Still unmeasured, deliberately: the answer needs a
+  merge into a default branch, and `main` should not carry a junk commit
+  for it. Run it in a scratch repo. The PR-body path is backstopped by the
+  `unexpected` check; the merge-commit path is backstopped by nothing.
+- **#334** — `main()` has no test, so the retry's only real caller is
+  unwatched. `scripts/**` is coverage-excluded, so neither
+  `check-diff-coverage` nor Sonar has anything to say about it. Overlaps
+  #322: a hook that runs the script against a known PR would catch a
+  broken argv without any refactor.
+
+Neither touches the DB or the coverage gate, so like 5-bis this row is
+**unordered** — it can run at any point, including alongside another batch.
 
 ---
 
