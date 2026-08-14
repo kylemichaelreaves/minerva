@@ -1,0 +1,54 @@
+/* Shared popover shell — colocated with PopoverCard.tsx. Only the close
+   control lives here; positioning, paper and type stay with each variant in
+   termcard.css / referencecard.css, which use different token families
+   (`--ink`/`--paper` vs the reader's `--r-*`).
+
+   Deliberately unstyled apart from the glyph: no background, no border, no
+   hover fill. Both cards are spare by design, and the control follows
+   `.xref-pin`'s convention of ink-faint at rest and accent on hover rather
+   than introducing a new button treatment (#358). */
+
+.popover-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  /* The glyph is U+00D7, not a letter x — it reads as a symbol to a screen
+     reader, and the button carries aria-label="Close" regardless. */
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-faint, var(--r-ink-mute));
+  cursor: pointer;
+}
+.popover-close:hover {
+  color: var(--accent, var(--r-accent));
+}
+.popover-close:focus-visible {
+  outline: 1px solid var(--accent, var(--r-accent));
+  outline-offset: 2px;
+}
+
+/* The reference card's top-right corner is not free: `.refcard-chip` is
+   absolutely positioned there in every state and the "unverified · auto" pill
+   joins it when pending. Both shift left of the close control rather than down
+   — a chip beside the × reads as one header row, where pushing it down would
+   move the always-present chip into the citation it labels. `.refcard-head`'s
+   right padding grows by the same amount so a long author + work still wraps
+   clear of both. */
+.refcard .refcard-chip {
+  right: 46px;
+}
+.refcard .refcard-head {
+  padding-right: 118px;
+}
+.refcard.is-pending .refcard-unverified {
+  right: 44px;
+}

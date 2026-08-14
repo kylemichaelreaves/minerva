@@ -259,10 +259,51 @@ describe("<ReferenceCard />", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("clicks inside the card don't bubble to the parent (stopPropagation)", () => {
-    // Reader's outside-click handler closes the card when clicks fall
-    // outside; the card itself stops propagation so clicks inside the
-    // dialog stay there.
+  it("a click inside the card does not dismiss it", () => {
+    // What the deleted `stopPropagation()` shim was believed to protect
+    // (#357). The protection is containment, in `useClickOutside`
+    // (`root.contains(t)`), and it is phase-independent — this test replaces
+    // one that asserted the mechanism via a parent handler the app does not
+    // have, and asserts the behaviour instead.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <ReferenceCard
+        reference={makeReference()}
+        anchor={ANCHOR}
+        onClose={onClose}
+      />
+    ));
+
+    fireEvent.mouseDown(container.querySelector(".refcard-head")!);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("the close control dismisses the card", () => {
+    // #358. This card had no button of any kind before it.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <ReferenceCard
+        reference={makeReference()}
+        anchor={ANCHOR}
+        onClose={onClose}
+      />
+    ));
+
+    fireEvent.click(container.querySelector(".popover-close")!);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("a click inside the card reaches an ancestor handler", () => {
+    // The behaviour change #357 makes: the card is presentation-only, not an
+    // event boundary. It used to call `stopPropagation()` on every click,
+    // which could not reach the capture-phase `mousedown` listener it named
+    // and had no ancestor bubble-phase handler to stop — there is exactly one
+    // document-level click-family listener in the app and all six of its call
+    // sites are capture-phase. Asserting the bubble keeps the deletion
+    // deliberate: if an ancestor handler is ever added, it sees inside-clicks,
+    // and this test is where that was decided.
     const parentClick = vi.fn();
     const { container } = render(() => (
       <div onClick={parentClick}>
@@ -273,7 +314,9 @@ describe("<ReferenceCard />", () => {
         />
       </div>
     ));
+
     fireEvent.click(container.querySelector(".refcard")!);
-    expect(parentClick).not.toHaveBeenCalled();
+
+    expect(parentClick).toHaveBeenCalledTimes(1);
   });
 });
