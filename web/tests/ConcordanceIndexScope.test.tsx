@@ -4,7 +4,7 @@
 // scope=work without ?work=).
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@solidjs/testing-library";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 
 const fetchLemmaIndex = vi.fn();
 const listWorks = vi.fn();
@@ -201,6 +201,43 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     // are present at least once.
     expect((await screen.findAllByText("Kant")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Hegel")).length).toBeGreaterThan(0);
+  });
+
+  it("filters the work picker as you type, and the umlaut need not be typed", async () => {
+    // #363. Covers the `filterable` wiring on the two pickers in FilterBar —
+    // without this the two attributes are uncovered changed lines. `phanomen`
+    // exercises the fold: the fixture work is "Phänomenologie des Geistes".
+    const { container } = render(() => (
+      <ConcordanceIndexPage
+        lang="deu"
+        scope="work"
+        onNavigate={vi.fn()}
+        onOpenLemma={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(listWorks).toHaveBeenCalled());
+
+    // Two pickers render at work scope (author + work) and both are filterable.
+    const triggers = () =>
+      container.querySelectorAll(".minerva-select__trigger");
+    await waitFor(() => expect(triggers().length).toBe(2));
+    fireEvent.click(triggers()[1]!);
+
+    const input = container.querySelector<HTMLInputElement>(
+      ".minerva-select__filter-input",
+    )!;
+    expect(input).not.toBeNull();
+    fireEvent.input(input, { target: { value: "phanomen" } });
+
+    // Read the primary span, not the row: work options carry the author as a
+    // sublabel, so the row's textContent is "…GeistesHegel".
+    const labels = Array.from(
+      container.querySelectorAll(
+        ".minerva-select__option .minerva-select__primary",
+      ),
+      (el) => el.textContent,
+    );
+    expect(labels).toEqual(["Phänomenologie des Geistes"]);
   });
 
   it("renders the picker prompt and skips the fetch when scope=author has an empty authors array", async () => {

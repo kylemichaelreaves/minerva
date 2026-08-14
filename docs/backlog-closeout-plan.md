@@ -234,6 +234,8 @@ defect in the lemma writer.
 | 9-quinquies | the popover shell's uneven dismissal | ~~#356~~ | **landed** | Found working 9-quater, in the files it edited, and grouped **by file rather than by theme** — it is not a retained-Reader defect at all. `ReferenceCard` shares `PopoverCard` and its anchoring but nothing gave it an outside-click listener: `useClickOutside` has six consumers and `useXrefCard` is not one. Placed here because 9-quater is the batch that audited every listener these two cards own, so the context is already loaded, and because its fix decided where the gate for `useClickOutside` lives — which is the first thing #356 had to not contradict. Two claims above are **corrected**, and the first was this row's whole reason to expect a decision: it said "nothing records either way" and "shares … both its other dismissal affordances", and *three* comments in two files describe the missing listener as existing behaviour while the shared close button does not exist at all. Verdict `CORRECTED`; landed as PR #359. See batch 9-quinquies. |
 | 9-sexies | what the shell inherited | #357, #358 | **backlog** | Both found working 9-quinquies, in the files it edited, and both are the shell rather than either card — which is the difference from the row above, where the defect was one card missing what the other had. #357 is `PopoverCard`'s `stopPropagation()` shim: it names the outside-click listener as the thing it stops and cannot reach it (capture-phase on `document`, and on a different event), and no ancestor of the card binds a bubble-phase click handler either — the only thing that fails without it is a test supplying the parent the app lacks. #358 is what correction 2 exposed rather than fixed: both cards are `aria-modal="true"` with no visible close control, and `TermCard`'s renders only in the load-error state. Neither touches the DB. **#358 may resolve as a decision rather than a repair**, like #299, and the decision may be to drop the attribute instead of adding the button — a popover that does not trap the page is arguably not modal. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
+| 11 | type-to-filter the concordance pickers | ~~#363~~ | **landed** | **Groups with nothing in batches 0–10** — a directly-requested feature, like batch 10, and numbered rather than `10-bis` because it shares neither #350's files nor its theme. The Author and Work pickers held up to ~964 options in a 320px scroll list with no filter field; `Select` gained an opt-in `filterable` mode, and the lemma-search `q` predicate gained the same diacritic fold server-side. See batch 11. |
+| 11-bis | what the filter work found | #364, #365, #366, #367 | **backlog** | All four found working #363, none caused by it, and they do not group with each other beyond that — which is stated rather than fudged. #366 is the serious one and is **not a frontend defect at all**: `merge_case` groups Greek lemmas by folded *first character*, so the leaderboard's Greek counts are inflated and its labels name the wrong word (`στηλογραφία` merges into `συλλογισμός`). It is one line once #363's whole-string folder exists, but it changes user-visible numbers and wants its own PR. #367 is the script detectors answering `true` for any combining mark, which #363 works around rather than fixes. #364 is the other three concordance dropdowns having no keyboard access at all; #365 is `Select`'s panel lacking the mobile-sheet containment rule its neighbour has. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -2638,3 +2640,110 @@ this PR. It is inert — capture-phase listener, different event, no ancestor
 handler — but `ReferenceCard.test.tsx:262` asserts it, and whether it is dead
 weight or a pre-emptive guard for a backdrop nobody has built is a decision,
 not a repair. The same fork #356 itself resolved by measuring.
+
+## Batch 11 — type-to-filter the concordance pickers (#363)
+
+A directly-requested feature, not a defect found by working a batch. One
+sentence carries it: **the Work picker held up to ~964 options in a 320px
+scroll list and the only way to narrow it was to scroll.**
+
+### Scope, decided by counting the options
+
+The Concordance has five dropdowns. Two got a filter field and three did not,
+and the split is a measurement rather than a preference:
+
+| control | component | options | filter? |
+|---|---|---|---|
+| Language | local `Dropdown` | 5 | no |
+| Sort | local `Dropdown` | 3 | no |
+| POS | local `Dropdown` | 10 | no |
+| Author | shared `Select` | dozens | **yes** |
+| Work | shared `Select` | ~964 corpus-wide | **yes** |
+
+The three short lists are also a *different* component — `FilterBar.tsx:85-125`,
+whose trigger is a `<span>` with no `tabindex`. That they cannot be operated
+from the keyboard at all is #364, filed rather than folded in.
+
+### `Select`, not `PickerShell`
+
+`Syntax/components/PickerShell.tsx` already does everything asked for —
+filter field, wraparound arrows, Enter-commits-the-highlight, `n of N` footer,
+13 tests. It was still the wrong host: it is a modal `<dialog>` on `--syn-*`
+tokens, and turning an inline filter-bar dropdown into a modal is a change
+nobody asked for. Its *lessons* were copied deliberately, above all **"the
+field filters; it never accepts"** — an accepted non-existent work title would
+enter the URL, look valid, and return an empty concordance.
+
+### The obstacle that made it more than a text input
+
+`Select` indexed everything positionally against `props.options` — `activeIdx`,
+`commit(i)`, `optionId(i)`, and the scroll effect's `listboxRef.children[i]`.
+A filtered view breaks that correspondence: filtered to Gamma alone, DOM row 0
+is `options[2]`, so a click committed `"a"`.
+
+The fix that avoids a parallel index map — which is where this class of bug
+actually comes from — is a `view()` memo that returns **`props.options` by
+reference** whenever there is nothing to filter. Every index helper reads
+`view()`, and for the five non-filterable call sites the two are the same
+array, so their behaviour cannot have changed. `selected` is the deliberate
+exception: it resolves against the full list, because a filtered-out option is
+still the selected one and the trigger has to keep showing it.
+
+### ARIA: the combobox role follows real focus
+
+`aria-activedescendant` is only announced on the element that holds focus, so
+leaving `role="combobox"` on the trigger while the field is focused would
+announce nothing as the highlight moved — and two elements claiming the role at
+once is invalid. While a filterable panel is open the field is the combobox and
+the trigger steps down to `role="button"`. A test asserts there is exactly one.
+
+### Matching: fold measured against the live corpus
+
+`logos`, `λογος`, `λόγος` and `ΛΟΓΟΣ` all had to find `λόγος`. Client-side that
+is `utils/fold.ts` + `utils/searchFold.ts`; server-side it is a whole-string
+`_fold_text` sharing `_fold_initial`'s implementation.
+
+Two things the fold exposed rather than introduced:
+
+- **SQLite's `LOWER()` is ASCII-only.** `q=ΛΟΓΟΣ` matched **0** lemmas before
+  and 37 after, so the docstring's "case-insensitive substring filter" was
+  false for every non-Latin script in the corpus.
+- **`merge_case` groups Greek by folded first character** — #366, and the
+  serious find of this batch. Not fixed here: it changes visible counts.
+
+Measured on `data/index.sqlite`, distinct lemmas matched, `count >= 2`:
+
+| | before | after |
+|---|---|---|
+| grc `q=λογος` | 19 | **37** |
+| grc `q=ΛΟΓΟΣ` | **0** | 37 |
+| deu `q=grosse` | 2 | **58** |
+
+### No migration, and the measurement that settles it
+
+`EXPLAIN QUERY PLAN` shows the index seek covering
+`(lang, scope_kind, scope_value)` with the `LIKE` as a residual filter — so
+`q` already scanned its partition before the fold existed, and a leading
+wildcard cannot seek an index even on a stored column. A folded column would
+therefore buy nothing here while costing a rebuild of a 4,527,497-row
+materialized table in an operator window.
+
+The fold's whole cost is a Python callback per row, and memoizing it is what
+makes that affordable — the vocabulary is tiny next to the row count. End to
+end, against the live index:
+
+| | folded `q` | the page's own unfiltered request |
+|---|---|---|
+| grc | 100 ms | 269 ms |
+| deu | 145 ms | 266 ms |
+
+The search field is debounced 250 ms, and the folded query is roughly twice as
+fast as the request the page already issues on every load.
+
+### What was deliberately not done
+
+No debounce and no memoized haystack on the client: folding 964 labels measures
+0.607 ms, so both would be complexity bought with nothing. No sort and no
+rendered-row cap either — `WorkScopeControl` caps at 60, but capping silently
+hides options and sorting would reorder the list for the callers that did not
+ask for a filter.

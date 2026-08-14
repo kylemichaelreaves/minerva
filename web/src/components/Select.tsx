@@ -29,6 +29,7 @@ import {
   type JSX,
 } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
+import { matchesQuery } from "~/utils/searchFold";
 import "~/components/Select.css";
 
 export interface SelectOption {
@@ -55,6 +56,11 @@ export interface SelectProps {
    *  set to `false` for selects where a value is required and the
    *  user shouldn't be able to drop back to the placeholder. */
   clearable?: boolean;
+  /** Opt-in filter field at the top of the panel, for lists too long to scan
+   *  — the concordance work picker holds ~964 options (#363). Off by default:
+   *  the 3-, 5- and 10-option pickers do not need one, and it changes the
+   *  keyboard model (see the header comment). */
+  filterable?: boolean;
 }
 
 let uidCounter = 0;
@@ -71,6 +77,7 @@ export function Select(props: SelectProps): JSX.Element {
 
   const [isOpen, setOpen] = createSignal(false);
   const [activeIdx, setActiveIdx] = createSignal(-1);
+  const [query, setQuery] = createSignal("");
 
   // Type-ahead buffer; resets after 500ms of no typing. Lives outside
   // of Solid signals because it's transient input-side state — no
@@ -81,37 +88,60 @@ export function Select(props: SelectProps): JSX.Element {
   let triggerRef: HTMLButtonElement | undefined;
   let listboxRef: HTMLUListElement | undefined;
   let rootRef: HTMLDivElement | undefined;
+  let filterRef: HTMLInputElement | undefined;
 
-  const selectedIdx = createMemo(() =>
-    props.options.findIndex((o) => o.value === props.value),
+  /** Whether the filter field currently owns real focus. `aria-activedescendant`
+   *  is only announced on the focused element, so this is also what decides
+   *  which element carries `role="combobox"`. */
+  const filterActive = createMemo(
+    () => props.filterable === true && isOpen(),
   );
-  const selected = createMemo(() => {
-    const i = selectedIdx();
-    return i >= 0 ? props.options[i] : undefined;
+
+  /** The list the panel renders. **Identical to `props.options` — the same array
+   *  reference — unless a filterable Select has a non-empty query.** That
+   *  identity is what lets every index helper below read `view()` with provably
+   *  no behaviour change for the five non-filterable call sites. */
+  const view = createMemo<SelectOption[]>(() => {
+    const q = query().trim();
+    if (props.filterable !== true || q === "") return props.options;
+    return props.options.filter((o) => matchesQuery(q, [o.label, o.sublabel]));
   });
 
-  // ── Index helpers ─────────────────────────────────────────────────
+  // Resolved against `props.options`, NOT `view()`: the query can exclude the
+  // selected option and the trigger still has to show it.
+  const selected = createMemo(() =>
+    props.options.find((o) => o.value === props.value),
+  );
+
+  // ── Index helpers, all view-relative ──────────────────────────────
   const nextEnabledIdx = (from: number, dir: 1 | -1): number => {
-    const n = props.options.length;
+    const list = view();
+    const n = list.length;
     if (n === 0) return -1;
     let i = from;
     for (let k = 0; k < n; k++) {
       i = (i + dir + n) % n;
-      if (!props.options[i]?.disabled) return i;
+      if (!list[i]?.disabled) return i;
     }
     return -1;
   };
   const firstEnabled = (): number => nextEnabledIdx(-1, 1);
   const lastEnabled = (): number => nextEnabledIdx(0, -1);
 
+  /** Where the highlight lands when the panel opens: the current selection if
+   *  it is in view and pickable, else the first thing that is. */
+  const seedIdx = (): number => {
+    const i = view().findIndex(
+      (o) => o.value === props.value && o.disabled !== true,
+    );
+    return i >= 0 ? i : firstEnabled();
+  };
+
   // ── Open / close / commit ─────────────────────────────────────────
   const openPanel = (): void => {
     if (props.disabled || isOpen()) return;
     setOpen(true);
-    const sel = selectedIdx();
-    setActiveIdx(
-      sel >= 0 && !props.options[sel]?.disabled ? sel : firstEnabled(),
-    );
+    setActiveIdx(seedIdx());
   };
 
   const closePanel = (returnFocus = true): void => {
@@ -119,14 +149,26 @@ export function Select(props: SelectProps): JSX.Element {
     setOpen(false);
     setActiveIdx(-1);
     typeBuf = "";
+    // Every open starts from the full list. All close paths funnel through
+    // here, so there is no route that leaves a stale query behind.
+    setQuery("");
     if (returnFocus) triggerRef?.focus();
   };
 
   const commit = (i: number): void => {
-    const o = props.options[i];
+    const o = view()[i];
     if (o === undefined || o.disabled) return;
     props.onChange(o.value);
     closePanel();
+  };
+
+  const moveActive = (dir: 1 | -1): void => {
+    setActiveIdx((i) => nextEnabledIdx(i, dir));
+  };
+  const commitActive = (): void => {
+    // The field filters; it never accepts. There is no path from the query
+    // text to `onChange` — nothing highlighted means nothing committed.
+    if (activeIdx() >= 0) commit(activeIdx());
   };
 
   useClickOutside(
@@ -154,6 +196,29 @@ export function Select(props: SelectProps): JSX.Element {
       listboxRef.scrollTop = bottom - listboxRef.clientHeight;
   });
 
+  // The list can shorten under the highlight from either side: a keystroke
+  // narrows it, and so does the caller (picking a work removes it from
+  // `addWorkOptions`; a language switch replaces the list wholesale). An
+  // activeIdx past the end makes Enter a silent no-op and names an
+  // `aria-activedescendant` that does not exist.
+  //
+  // No `isOpen()` guard: activeIdx is -1 while closed and `-1 >= n` is false,
+  // so this self-neutralises. The updater form reads the current value without
+  // subscribing to it, so it cannot loop.
+  createEffect(() => {
+    const n = view().length;
+    const fallback = n === 0 ? -1 : firstEnabled();
+    setActiveIdx((i) => (i >= n ? fallback : i));
+  });
+
+  // Focus the field when the panel opens. The panel is remounted on each open,
+  // so this is that mount — `onMount` in the component body would fire once,
+  // at Select mount, when the field does not exist. Same shape as
+  // `Composer/WorkScopeControl.tsx:38-40`.
+  createEffect(() => {
+    if (filterActive()) filterRef?.focus();
+  });
+
   onCleanup(() => {
     if (typeTimer !== undefined) clearTimeout(typeTimer);
   });
@@ -178,6 +243,8 @@ export function Select(props: SelectProps): JSX.Element {
 
     for (let k = 0; k < n; k++) {
       const idx = (start + k) % n;
+      // `props.options`, not `view()`, and safely so: type-ahead is only
+      // reachable when `filterable` is off, where the two are the same array.
       const o = props.options[idx];
       if (o === undefined || o.disabled) continue;
       if (o.label.toLowerCase().startsWith(needle)) {
@@ -196,7 +263,7 @@ export function Select(props: SelectProps): JSX.Element {
       case "ArrowDown":
         e.preventDefault();
         if (!open) openPanel();
-        else setActiveIdx((i) => nextEnabledIdx(i, 1));
+        else moveActive(1);
         return;
 
       case "ArrowUp":
@@ -206,7 +273,7 @@ export function Select(props: SelectProps): JSX.Element {
           // Land on the last enabled option, matching native behavior.
           setActiveIdx(lastEnabled());
         } else {
-          setActiveIdx((i) => nextEnabledIdx(i, -1));
+          moveActive(-1);
         }
         return;
 
@@ -227,7 +294,7 @@ export function Select(props: SelectProps): JSX.Element {
       case "Enter":
         if (open) {
           e.preventDefault();
-          if (activeIdx() >= 0) commit(activeIdx());
+          commitActive();
         }
         return;
 
@@ -237,9 +304,11 @@ export function Select(props: SelectProps): JSX.Element {
           openPanel();
         } else if (typeBuf === "") {
           // Space commits when no type-ahead is in flight; otherwise
-          // it contributes to the buffer.
+          // it contributes to the buffer. In filterable mode `typeBuf` is
+          // permanently "", and this arm is unreachable anyway because focus
+          // is in the field.
           e.preventDefault();
-          if (activeIdx() >= 0) commit(activeIdx());
+          commitActive();
         } else {
           runTypeahead(" ");
         }
@@ -258,12 +327,63 @@ export function Select(props: SelectProps): JSX.Element {
         return;
     }
 
-    // Printable characters → type-ahead.
+    // Printable characters → type-ahead, or the filter field.
     if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (props.filterable === true) {
+        // The only place the two mechanisms could collide: once the panel is
+        // open, focus is in the field and the trigger never sees a printable
+        // character. Closed, the field does not exist yet and cannot receive
+        // this one — so seed it rather than swallowing the reader's first
+        // keystroke. preventDefault because the field takes focus in this same
+        // tick and would otherwise insert the character a second time.
+        e.preventDefault();
+        openPanel();
+        setQuery((q) => q + e.key);
+        setActiveIdx(firstEnabled());
+        return;
+      }
       if (!open) openPanel();
       runTypeahead(e.key);
     }
   };
+
+  /** The field owns the keys that drive the list while it has focus. Home/End
+   *  are deliberately absent: in a text field those move the caret, which is
+   *  what a reader expects. */
+  const onFilterKeyDown = (e: KeyboardEvent): void => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        moveActive(1);
+        return;
+      case "ArrowUp":
+        e.preventDefault();
+        moveActive(-1);
+        return;
+      case "Enter":
+        e.preventDefault();
+        commitActive();
+        return;
+      case "Escape":
+        e.preventDefault();
+        closePanel();
+        return;
+      case "Tab":
+        // No preventDefault — focus returns to the trigger and then moves on
+        // naturally. Leaving focus in an unmounting node drops it to <body>.
+        closePanel();
+        return;
+    }
+  };
+
+  const onFilterInput = (e: InputEvent): void => {
+    setQuery((e.currentTarget as HTMLInputElement).value);
+    // Every keystroke re-aims the highlight at the top of what now matches.
+    setActiveIdx(firstEnabled());
+  };
+
+  const emptyText = (): string =>
+    query() === "" ? "No options" : `No match for “${query()}”`;
 
   const onTriggerClick = (): void => {
     if (props.disabled) return;
@@ -309,12 +429,19 @@ export function Select(props: SelectProps): JSX.Element {
         ref={triggerRef}
         id={baseId}
         class="minerva-select__trigger"
-        role="combobox"
+        // The combobox role follows real focus (#363). While a filterable
+        // panel is open the field holds focus and claims the role, so the
+        // trigger steps down to a plain button — `aria-activedescendant` is
+        // only announced on the focused element, and two elements claiming
+        // `combobox` at once is invalid.
+        role={filterActive() ? "button" : "combobox"}
         aria-haspopup="listbox"
         aria-expanded={isOpen()}
         aria-controls={listboxId}
         aria-activedescendant={
-          isOpen() && activeIdx() >= 0 ? optionId(activeIdx()) : undefined
+          !filterActive() && isOpen() && activeIdx() >= 0
+            ? optionId(activeIdx())
+            : undefined
         }
         aria-label={props.ariaLabel}
         aria-labelledby={props.ariaLabelledBy}
@@ -400,6 +527,35 @@ export function Select(props: SelectProps): JSX.Element {
 
       <Show when={isOpen()}>
         <div class="minerva-select__panel">
+          <Show when={props.filterable === true}>
+            <div class="minerva-select__filter">
+              <input
+                ref={filterRef}
+                type="text"
+                class="minerva-select__filter-input"
+                role="combobox"
+                aria-expanded={true}
+                aria-controls={listboxId}
+                aria-activedescendant={
+                  activeIdx() >= 0 ? optionId(activeIdx()) : undefined
+                }
+                aria-autocomplete="list"
+                aria-label={props.ariaLabel ?? "Filter options"}
+                aria-labelledby={props.ariaLabelledBy}
+                autocomplete="off"
+                spellcheck={false}
+                placeholder="Type to filter…"
+                value={query()}
+                onInput={onFilterInput}
+                onKeyDown={onFilterKeyDown}
+              />
+            </div>
+          </Show>
+
+          {/* INVARIANT: this <ul>'s children are exactly `view()`, 1:1. The
+              scroll effect above indexes `listboxRef.children[activeIdx()]`,
+              so nothing else may live in here — the empty state and the
+              footer are siblings below, inside the panel. */}
           <ul
             ref={listboxRef}
             id={listboxId}
@@ -407,7 +563,7 @@ export function Select(props: SelectProps): JSX.Element {
             role="listbox"
             tabindex="-1"
           >
-            <For each={props.options}>
+            <For each={view()}>
               {(opt, i) => {
                 const isActive = (): boolean => i() === activeIdx();
                 const isSelected = (): boolean => opt.value === props.value;
@@ -448,6 +604,15 @@ export function Select(props: SelectProps): JSX.Element {
               }}
             </For>
           </ul>
+
+          <Show when={props.filterable === true && view().length === 0}>
+            <div class="minerva-select__empty">{emptyText()}</div>
+          </Show>
+          <Show when={props.filterable === true}>
+            <div class="minerva-select__foot">
+              {view().length} of {props.options.length}
+            </div>
+          </Show>
         </div>
       </Show>
     </div>

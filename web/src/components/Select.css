@@ -180,6 +180,47 @@
   }
 }
 
+/* ─── FILTER FIELD (filterable, #363) ─── */
+/* Sits above the listbox inside the panel, which is already `overflow: hidden`
+   with a radius, so it clips cleanly against the panel's top corners. */
+.minerva-select__filter {
+  padding: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+.minerva-select__filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--pset-radius);
+  font: inherit;
+}
+.minerva-select__filter-input::placeholder {
+  color: var(--ink-faint);
+}
+.minerva-select__filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Empty state and match count are siblings of the listbox, never inside it —
+   the active-option scroll effect indexes `listbox.children[i]` against the
+   rendered options 1:1. */
+.minerva-select__empty {
+  padding: 10px 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.minerva-select__foot {
+  padding: 6px 12px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
 /* ─── LISTBOX ─── */
 .minerva-select__listbox {
   list-style: none;
