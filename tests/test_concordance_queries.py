@@ -15,6 +15,7 @@ import pytest
 from conftest import make_chunk  # type: ignore[import-not-found]
 
 from minerva import store
+from minerva.concordance import index_queries
 from minerva.concordance import queries as concordance_queries
 from minerva.errors import BadRequestError
 
@@ -139,6 +140,67 @@ def concordance_db(tmp_path: Path) -> sqlite3.Connection:
     # The concordance read path queries ``lemma_counts`` (the
     # materialized aggregate, populated post-lemmatize in production).
     # Build it here so the tests exercise the real read path.
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+@pytest.fixture
+def tie_concordance_db(tmp_path: Path) -> sqlite3.Connection:
+    """A store whose rows TIE on the whole ``freq`` sort key.
+
+    ``recht`` is seeded twice with the same count under two different parts of
+    speech, so the two groups agree on ``(n, lemma_key)`` and differ only in
+    ``pos`` — which is in the GROUP BY but was not in the ORDER BY. That makes
+    the sort a partial order, and ``LIMIT/OFFSET`` over a partial order may put
+    the same row on two pages and no page at all for its partner.
+
+    Measured on the live index: 805 groups in the German corpus partition tie on
+    the full sort key this way. No page boundary has been caught mis-serving one
+    — this is the invariant, held on principle, rather than a reproduction.
+    """
+
+    chunks = [
+        make_chunk(
+            chunk_id="tie-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie des Geistes",
+            lang="deu",
+            section="A",
+            text="recht recht recht recht Sache Sache Ding",
+        ),
+    ]
+    import json
+
+    jsonl = tmp_path / "tie_chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "tie_conc.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    seed = [
+        # `recht` twice as ADJ and twice as VERB — same lemma_key, same count.
+        ("tie-1", 0, "recht", "recht", "ADJ", ""),
+        ("tie-1", 1, "recht", "recht", "ADJ", ""),
+        ("tie-1", 2, "recht", "recht", "VERB", ""),
+        ("tie-1", 3, "recht", "recht", "VERB", ""),
+        # Two more rows so a limit=1 walk has several pages to get wrong.
+        ("tie-1", 4, "Sache", "Sache", "NOUN", ""),
+        ("tie-1", 5, "Sache", "Sache", "NOUN", ""),
+        ("tie-1", 6, "Ding", "Ding", "NOUN", ""),
+    ]
+    for chunk_id, idx, surface, lemma, pos, feats in seed:
+        _insert_lemma(
+            conn,
+            chunk_id=chunk_id,
+            token_index=idx,
+            surface=surface,
+            lemma=lemma,
+            pos=pos,
+            feats=feats,
+        )
+    conn.commit()
     from minerva.concordance import aggregate
 
     aggregate.build(conn)
@@ -814,3 +876,216 @@ def test_merge_case_pagination_honors_offset(case_merge_db: sqlite3.Connection) 
     assert first["rows"][0]["lemma"] == "haben"
     assert second["rows"][0]["lemma"] == "Gott"
     assert second["rows"][0]["count"] == 2
+
+# ── q — diacritic + case folding (#363) ──────────────────────────────
+
+
+def test_fold_text_folds_the_whole_string() -> None:
+    """``_fold_text`` is ``_fold_initial`` without the first-character
+    slice: NFD-decompose, drop combining marks, upper-case. Unlike SQL
+    ``LOWER()`` it is Unicode-aware, which is what makes the ``q``
+    filter work for every script in the corpus rather than Latin only."""
+
+    assert index_queries._fold_text("\u03bb\u03cc\u03b3\u03bf\u03c2") == "\u039b\u039f\u0393\u039f\u03a3"
+    assert index_queries._fold_text("\u1f08\u03b8\u03b7\u03bd\u1fb6") == "\u0391\u0398\u0397\u039d\u0391"
+    # German eszett expands under upper-casing, so Strasse ↔ Straße fold
+    # together. Surprising but wanted for a substring search field.
+    assert index_queries._fold_text("Gr\u00f6\u00dfe") == "GROSSE"
+    assert index_queries._fold_text("") == ""
+    assert index_queries._fold_text(None) == ""
+
+
+def test_fold_initial_still_folds_only_the_first_character() -> None:
+    """The letter-rail folder keeps its contract while sharing the
+    whole-string implementation. Guards the refactor, not new behaviour."""
+
+    assert index_queries._fold_initial("\u1f04\u03bd\u03b8\u03c1\u03c9\u03c0\u03bf\u03c2") == "\u0391"
+    assert index_queries._fold_initial("") == ""
+    assert index_queries._fold_initial(None) == ""
+
+
+def test_q_folds_greek_diacritics(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """Unaccented input finds the accented lemma. The polytonic accents
+    are the hardest part of a Greek word to type and carry no
+    information the reader has before they start typing."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u03bb\u03bf\u03b3\u03bf\u03c2", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"\u03bb\u03cc\u03b3\u03bf\u03c2"}
+
+
+def test_q_accented_input_still_matches(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """Folding must not break the reader who *can* type the diacritics.
+    Fails if only the column side is folded and the parameter is not."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u03bb\u03cc\u03b3\u03bf\u03c2", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"\u03bb\u03cc\u03b3\u03bf\u03c2"}
+
+
+def test_q_greek_uppercase_input_matches_lowercase_lemma(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """SQLite's ``LOWER()`` is ASCII-only — measured, ``SELECT
+    lower('\u039b\u039f\u0393\u039f\u03a3')`` returns the string unchanged — so the docstring's
+    promise of a case-insensitive filter was false for every non-Latin
+    script in the corpus. Folding in Python fixes that as a side
+    effect."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u039b\u039f\u0393\u039f\u03a3", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"\u03bb\u03cc\u03b3\u03bf\u03c2"}
+
+
+def test_q_totals_fold_too(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """The header totals are a second query over the same predicate
+    builder. Folding one and not the other desyncs the "n of N" the page
+    prints against the rows it shows."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u03bb\u03bf\u03b3\u03bf\u03c2", "min_count": "1"},
+    )
+    assert out["total_lemmas"] == 1
+
+
+def test_q_folded_wildcards_do_not_bypass_the_filter(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """#120's guard, re-asserted through the fold. ``escape_like_substring``
+    is applied *after* folding, so the escape cannot be undone by an
+    NFD/upper-case pass — and an accented wildcard is the case only the
+    ordering can break."""
+
+    for pattern in ("%", "_", "\u03cc%"):
+        out = concordance_queries.lemma_index(
+            greek_concordance_db,
+            {"lang": "grc", "q": pattern, "min_count": "1"},
+        )
+        assert out["rows"] == [], pattern
+        assert out["total_lemmas"] == 0, pattern
+# ── next_offset — the pagination cursor (#371) ────────────────────────
+
+
+def test_next_offset_walks_then_stops(concordance_db: sqlite3.Connection) -> None:
+    """A full page hands back the offset of the next one; a short page hands
+    back ``None``. This is what lets the client page without consulting
+    ``total_lemmas``, which cannot be trusted as a row count."""
+
+    first = concordance_queries.lemma_index(
+        concordance_db, {"lang": "deu", "limit": "1", "offset": "0"},
+    )
+    assert len(first["rows"]) == 1
+    assert first["next_offset"] == 1
+
+    # Walk to the end and confirm the cursor terminates rather than running on.
+    seen: list[str] = []
+    params = {"lang": "deu", "limit": "1", "offset": "0"}
+    for _ in range(20):
+        page = concordance_queries.lemma_index(concordance_db, dict(params))
+        seen.extend(r["lemma"] for r in page["rows"])
+        if page["next_offset"] is None:
+            break
+        params["offset"] = str(page["next_offset"])
+    else:  # pragma: no cover - only trips if the cursor never terminates
+        raise AssertionError("next_offset never became None")
+
+    # Every lemma seen exactly once — the cursor neither skipped nor repeated.
+    assert len(seen) == len(set(seen))
+
+
+def test_next_offset_is_derived_from_returned_rows_not_total_lemmas(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The crux, and the reason this is not modelled on the KWIC endpoint's
+    ``offset + limit < total``.
+
+    ``total_lemmas`` is computed *without* the frequency range applied (see the
+    note above the totals query), so a ``max_count`` that excludes rows leaves
+    it larger than anything the caller can actually page to. A cursor derived
+    from it would keep asking for pages that come back empty."""
+
+    filtered = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "max_count": "1", "min_count": "1", "limit": "50"},
+    )
+    # The freq range narrowed the rows but not the total — that mismatch is
+    # exactly what a total-derived cursor would trip over.
+    assert len(filtered["rows"]) < filtered["total_lemmas"]
+    # Short page → the cursor stops, despite `total_lemmas` suggesting more.
+    assert filtered["next_offset"] is None
+
+
+def test_next_offset_survives_case_merging(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The aggregate branch pages in Python after a GROUP BY, so its row count
+    is the merged one. Guards the cursor against being computed before the
+    merge, which would over-report."""
+
+    page = concordance_queries.lemma_index(
+        concordance_db, {"lang": "deu", "limit": "1", "offset": "0", "merge_case": "1"},
+    )
+    assert page["next_offset"] == 1
+
+
+def test_paging_one_row_at_a_time_visits_every_row_exactly_once(
+    tie_concordance_db: sqlite3.Connection,
+) -> None:
+    """The invariant offset pagination rests on: the sort must be a TOTAL order.
+
+    ``recht``/ADJ and ``recht``/VERB agree on ``(n, lemma_key)`` and differ only
+    in ``pos``, which the ORDER BY omitted — so the two were interchangeable and
+    ``LIMIT/OFFSET`` could serve one twice and the other never.
+
+    805 groups in the live German index tie on the full sort key, so the risk is
+    real; but neither this fixture nor a live 200-row walk has caught a boundary
+    actually mis-serving one, and a four-row fixture is far too small to make
+    SQLite's planner change its mind. So this is a net, not a reproduction —
+    said plainly because an earlier draft of this test claimed a live duplicate
+    as its evidence, and that duplicate was a different bug (ASCII-only
+    ``LOWER()`` splitting ``merge_case`` groups)."""
+
+    unpaged = concordance_queries.lemma_index(
+        tie_concordance_db, {"lang": "deu", "limit": "50", "min_count": "1"},
+    )
+    expected = [(r["lemma"], r["pos"]) for r in unpaged["rows"]]
+    assert len(expected) == len(set(expected)), "fixture itself has duplicate rows"
+
+    walked: list[tuple[str, str]] = []
+    offset: int | None = 0
+    while offset is not None:
+        page = concordance_queries.lemma_index(
+            tie_concordance_db,
+            {"lang": "deu", "limit": "1", "offset": str(offset), "min_count": "1"},
+        )
+        walked.extend((r["lemma"], r["pos"]) for r in page["rows"])
+        offset = page["next_offset"]
+
+    # Same rows, same order, each exactly once.
+    assert walked == expected
+
+
+def test_tied_rows_are_ordered_by_pos_so_the_sort_is_total(
+    tie_concordance_db: sqlite3.Connection,
+) -> None:
+    """Names the tiebreaker, so a future ORDER BY edit that drops it fails here
+    rather than silently reintroducing unstable paging."""
+
+    out = concordance_queries.lemma_index(
+        tie_concordance_db, {"lang": "deu", "limit": "50", "min_count": "1"},
+    )
+    tied = [(r["lemma"], r["pos"], r["count"]) for r in out["rows"] if r["lemma"] == "recht"]
+    assert tied == [("recht", "ADJ", 2), ("recht", "VERB", 2)]

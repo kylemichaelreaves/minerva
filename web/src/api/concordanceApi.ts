@@ -34,10 +34,15 @@ export interface LemmaIndexResponse {
   lang: string;
   letter: string | null;
   sort: ConcSort;
+  /** Lemmas in scope, ignoring the frequency range — orientation, NOT a row
+   *  count. Do not paginate on it; use `next_offset` (#371). */
   total_lemmas: number;
   total_occurrences: number;
   limit: number;
   offset: number;
+  /** Offset of the next page, or null when this was the last one. Derived
+   *  server-side from the rows actually returned. */
+  next_offset: number | null;
   rows: LemmaIndexRow[];
 }
 

@@ -214,10 +214,96 @@ describe("<ReferenceCard />", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("clicks inside the card don't bubble to the parent (stopPropagation)", () => {
-    // Reader's outside-click handler closes the card when clicks fall
-    // outside; the card itself stops propagation so clicks inside the
-    // dialog stay there.
+  it("a click away calls onClose", () => {
+    // #356: the card's own header comment claimed "Esc / outside-click
+    // dismisses" and nothing supplied the second half — `useClickOutside` had
+    // six consumers and `useXrefCard` was not one of them. With no close
+    // button either (the term card's is error-state only), a reader with this
+    // card open had Escape or re-clicking a 24px gutter glyph and nothing
+    // else.
+    const onClose = vi.fn();
+    render(() => (
+      <ReferenceCard
+        reference={makeReference()}
+        anchor={ANCHOR}
+        onClose={onClose}
+      />
+    ));
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("a click on the gutter marker does not call onClose", () => {
+    // The marker is the card's anchor, and clicking it again is the
+    // toggle-to-dismiss gesture `useXrefCard.onXrefOpen` implements. If the
+    // shell counted it as "outside", the mousedown would close the card and
+    // the click would then reopen it.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <>
+        <button class="xref-pin" type="button">
+          ▸
+        </button>
+        <ReferenceCard
+          reference={makeReference()}
+          anchor={ANCHOR}
+          onClose={onClose}
+        />
+      </>
+    ));
+
+    fireEvent.mouseDown(container.querySelector(".xref-pin")!);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("a click inside the card does not dismiss it", () => {
+    // What the deleted `stopPropagation()` shim was believed to protect
+    // (#357). The protection is containment, in `useClickOutside`
+    // (`root.contains(t)`), and it is phase-independent — this test replaces
+    // one that asserted the mechanism via a parent handler the app does not
+    // have, and asserts the behaviour instead.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <ReferenceCard
+        reference={makeReference()}
+        anchor={ANCHOR}
+        onClose={onClose}
+      />
+    ));
+
+    fireEvent.mouseDown(container.querySelector(".refcard-head")!);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("the close control dismisses the card", () => {
+    // #358. This card had no button of any kind before it.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <ReferenceCard
+        reference={makeReference()}
+        anchor={ANCHOR}
+        onClose={onClose}
+      />
+    ));
+
+    fireEvent.click(container.querySelector(".popover-close")!);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("a click inside the card reaches an ancestor handler", () => {
+    // The behaviour change #357 makes: the card is presentation-only, not an
+    // event boundary. It used to call `stopPropagation()` on every click,
+    // which could not reach the capture-phase `mousedown` listener it named
+    // and had no ancestor bubble-phase handler to stop — there is exactly one
+    // document-level click-family listener in the app and all six of its call
+    // sites are capture-phase. Asserting the bubble keeps the deletion
+    // deliberate: if an ancestor handler is ever added, it sees inside-clicks,
+    // and this test is where that was decided.
     const parentClick = vi.fn();
     const { container } = render(() => (
       <div onClick={parentClick}>
@@ -228,7 +314,9 @@ describe("<ReferenceCard />", () => {
         />
       </div>
     ));
+
     fireEvent.click(container.querySelector(".refcard")!);
-    expect(parentClick).not.toHaveBeenCalled();
+
+    expect(parentClick).toHaveBeenCalledTimes(1);
   });
 });

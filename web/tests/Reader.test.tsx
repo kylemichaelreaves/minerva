@@ -50,7 +50,62 @@ const SAMPLE_RANGE = {
   ],
 };
 
+// Term-card fixtures: a one-chunk work whose first word is a marked term
+// occurrence, and the term detail the card resolves. Shared by the three
+// term-card tests below rather than restated in each — the trio ran to ~40
+// lines a copy, and #254 failed Sonar's duplication gate on exactly that.
+const TERM_RANGE = {
+  ...SAMPLE_RANGE,
+  work_id: 91,
+  chunks: [
+    { chunk_id: "cat-1", section: "1.¶1", book: null, page: null,
+      speaker: null, text: "ὁμώνυμα λόγος", ord: 0 },
+  ],
+  total: 1,
+};
+
+const TERM_OCC_MAP = {
+  work_id: 91, lang: "grc", from: 0, limit: 200,
+  by_chunk: { "cat-1": [
+    { id: 1, term_id: 7, source_start: 0, source_end: 7,
+      source_form: "ὁμώνυμα", lemma: "ὁμώνυμα",
+      transliteration: "homonyma", short_gloss: "homonyms" },
+  ] },
+};
+
+const TERM_DETAIL = {
+  id: 7, source_form: "ὁμώνυμα", source_language: "grc",
+  transliteration: "homonyma", lemma: "ὁμώνυμα",
+  short_gloss: "homonyms", long_description: "",
+  renderings: [], occurrences_by_edition: [], related: [],
+};
+
 describe("<Reader />", () => {
+  /** Mounts the term fixture, clicks its one `.term-mark`, and resolves once
+   *  the card has rendered its lemma. */
+  async function openTermCard() {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL ? input.href : input.url;
+      if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(TERM_OCC_MAP));
+      if (url.includes("/api/terms/7")) return Promise.resolve(okResponse(TERM_DETAIL));
+      return Promise.resolve(okResponse(TERM_RANGE));
+    });
+    const { container } = renderReader(() => <Reader workId="Categories" sourceLang="grc" />);
+    await waitFor(() => {
+      expect(container.querySelector(".term-mark")).not.toBeNull();
+    });
+    const mark = container.querySelector(".term-mark");
+    if (mark === null) throw new Error("term-mark not found");
+    fireEvent.click(mark);
+    await waitFor(() => {
+      expect(container.querySelector(".termcard-lemma")).not.toBeNull();
+    });
+    return { container, mark };
+  }
+
   beforeEach(() => {
     fetchMock = vi.fn();
     // Default: an unmocked URL returns a benign 404. The Reader mounts
@@ -208,104 +263,44 @@ describe("<Reader />", () => {
   });
 
   it("opens the TermCard on .term-mark click", async () => {
-    const range = {
-      ...SAMPLE_RANGE,
-      work_id: 91,
-      chunks: [
-        { chunk_id: "cat-1", section: "1.¶1", book: null, page: null,
-          speaker: null, text: "ὁμώνυμα λόγος", ord: 0 },
-      ],
-      total: 1,
-    };
-    const occMap = {
-      work_id: 91, lang: "grc", from: 0, limit: 200,
-      by_chunk: { "cat-1": [
-        { id: 1, term_id: 7, source_start: 0, source_end: 7,
-          source_form: "ὁμώνυμα", lemma: "ὁμώνυμα",
-          transliteration: "homonyma", short_gloss: "homonyms" },
-      ] },
-    };
-    const termDetail = {
-      id: 7,
-      source_form: "ὁμώνυμα",
-      source_language: "grc",
-      transliteration: "homonyma",
-      lemma: "ὁμώνυμα",
-      short_gloss: "homonyms",
-      long_description: "",
-      renderings: [],
-      occurrences_by_edition: [],
-      related: [],
-    };
-    fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
-      if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(occMap));
-      if (url.includes("/api/terms/7")) return Promise.resolve(okResponse(termDetail));
-      return Promise.resolve(okResponse(range));
-    });
-    const { container } = renderReader(() => <Reader workId="Categories" sourceLang="grc" />);
-    await waitFor(() => {
-      expect(container.querySelector(".term-mark")).not.toBeNull();
-    });
-    const mark = container.querySelector(".term-mark");
-    if (mark === null) throw new Error("term-mark not found");
-    fireEvent.click(mark);
-    // Card mounts and resolves.
-    await waitFor(() => {
-      expect(container.querySelector(".termcard-lemma")).not.toBeNull();
-    });
+    const { container } = await openTermCard();
+
     expect(container.querySelector(".termcard-lemma")?.textContent).toBe("ὁμώνυμα");
   });
 
   it("clicking the same term-mark a second time closes the open card", async () => {
-    const range = {
-      ...SAMPLE_RANGE,
-      work_id: 91,
-      chunks: [
-        { chunk_id: "cat-1", section: "1.¶1", book: null, page: null,
-          speaker: null, text: "ὁμώνυμα λόγος", ord: 0 },
-      ],
-      total: 1,
-    };
-    const occMap = {
-      work_id: 91, lang: "grc", from: 0, limit: 200,
-      by_chunk: { "cat-1": [
-        { id: 1, term_id: 7, source_start: 0, source_end: 7,
-          source_form: "ὁμώνυμα", lemma: "ὁμώνυμα",
-          transliteration: "homonyma", short_gloss: "homonyms" },
-      ] },
-    };
-    const termDetail = {
-      id: 7, source_form: "ὁμώνυμα", source_language: "grc",
-      transliteration: "homonyma", lemma: "ὁμώνυμα",
-      short_gloss: "homonyms", long_description: "",
-      renderings: [], occurrences_by_edition: [], related: [],
-    };
-    fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
-      if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(occMap));
-      if (url.includes("/api/terms/7")) return Promise.resolve(okResponse(termDetail));
-      return Promise.resolve(okResponse(range));
-    });
-    const { container } = renderReader(() => <Reader workId="Categories" sourceLang="grc" />);
-    await waitFor(() => {
-      expect(container.querySelector(".term-mark")).not.toBeNull();
-    });
-    const mark = container.querySelector(".term-mark");
-    if (mark === null) throw new Error("term-mark not found");
-    // First click opens the card.
-    fireEvent.click(mark);
-    await waitFor(() => {
-      expect(container.querySelector(".termcard-lemma")).not.toBeNull();
-    });
+    const { container, mark } = await openTermCard();
+
     // Second click on the same mark dismisses it.
     fireEvent.click(mark);
+
+    await waitFor(() => {
+      expect(container.querySelector(".termcard")).toBeNull();
+    });
+  });
+
+  it("closes the open term card from its close control", async () => {
+    // #358: a term card that loaded successfully had no close button at all —
+    // `.termcard-close` renders only in the load-error branch. This fixture
+    // loads, so the control under test is the shell's.
+    const { container } = await openTermCard();
+
+    fireEvent.click(container.querySelector(".popover-close")!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".termcard")).toBeNull();
+    });
+  });
+
+  it("clicking away from the open term card closes it", async () => {
+    // The affordance #356 moved into `PopoverCard` from `useTermCard`. Nothing
+    // covered it end to end before, so the move had no guard: deleting the
+    // hook's copy left the term card with no outside-click dismissal at all
+    // and every existing test stayed green.
+    const { container } = await openTermCard();
+
+    fireEvent.mouseDown(document.body);
+
     await waitFor(() => {
       expect(container.querySelector(".termcard")).toBeNull();
     });

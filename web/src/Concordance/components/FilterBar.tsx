@@ -315,6 +315,7 @@ export function FilterBar(props: FilterBarProps) {
             }}
             placeholder={props.scope === "work" ? "any author" : "add an author…"}
             clearable={false}
+            filterable
             ariaLabel="Add an author to the concordance scope"
           />
           <Show when={(props.scopeAuthors?.length ?? 0) > 0}>
@@ -352,6 +353,7 @@ export function FilterBar(props: FilterBarProps) {
             }}
             placeholder="add a work…"
             clearable={false}
+            filterable
             ariaLabel="Add a work to the concordance scope"
           />
           <Show when={(props.scopeWorks?.length ?? 0) > 0}>

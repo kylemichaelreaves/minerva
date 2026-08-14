@@ -176,8 +176,15 @@ def _build_all(conn: sqlite3.Connection, *, verbose: bool) -> tuple[int, int, in
 
     # ── materialize + insert work scope ──
     # work_buckets is a flat int-count dict — per_work_json is just
-    # the single work + count, kept for shape parity with the other
-    # scopes (read path ignores it when scope_kind='work').
+    # the single work + count, kept for shape parity with the other scopes.
+    #
+    # The read path does NOT ignore it, which this comment used to claim: the
+    # non-aggregate branch passes it through verbatim and `_merge_per_work_blobs`
+    # sums it on the aggregate branch (the default). The concordance therefore
+    # rendered a one-bar sparkline from it on every row at work scope — a full
+    # block carrying nothing — until #370 stopped drawing it below two works.
+    # If you are tempted to make this shape richer, that renderer is the caller
+    # to check first.
     if verbose:
         print("  materializing scope=work …")
     work_rows = []

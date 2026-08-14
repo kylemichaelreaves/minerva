@@ -18,7 +18,12 @@
 //     triggered the open. The card pins itself below the marker by
 //     default; flips above when overflow would push it off-screen.
 //   - Esc / outside-click dismisses (caller owns the open/closed
-//     state; this component is presentation only).
+//     state; this component is presentation only). True of Esc since
+//     the beginning and of outside-click only since #356 — the shell
+//     wired it per-caller and this card was not one of the callers,
+//     so this line described the intent rather than the behaviour for
+//     as long as the card existed. There is no close button: the term
+//     card's is error-state only, so the two cards match there too.
 //
 // The component is fully prop-driven — no internal fetch. The reader
 // fetches `/api/chunks/:id/references` once per row, then passes the
@@ -61,9 +66,10 @@ export interface ReferenceCardProps {
    *  Logeion/Perseus/archive.org triple derived from the target
    *  author/work. */
   externalLinks?: ExternalLink[];
-  /** Called when the user dismisses the card (Esc / outside click /
-   *  the close affordance). The reader uses this to clear its
-   *  selection state. */
+  /** Called when the user dismisses the card — Esc, a click away (#356), or
+   *  a second click on the gutter marker that opened it. There is no close
+   *  button on this card. The reader uses this to clear its selection
+   *  state. */
   onClose: () => void;
 }
 
@@ -98,6 +104,7 @@ export default function ReferenceCard(props: ReferenceCardProps) {
       variant="refcard"
       anchor={props.anchor}
       ariaLabel="Cross-reference details"
+      anchorSelector=".xref-pin"
       onClose={props.onClose}
       class={isPending() ? "is-pending" : undefined}
     >

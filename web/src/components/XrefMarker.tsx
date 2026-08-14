@@ -33,9 +33,18 @@ export interface XrefMarkerProps {
 
 export function XrefMarker(props: XrefMarkerProps): JSX.Element {
   const handleClick = (e: MouseEvent & { currentTarget: HTMLButtonElement }) => {
-    // Stop the document-level outside-click handler (registered while
-    // a ReferenceCard is open) from clearing the parent's selection
-    // on the very gesture that opens the card.
+    // Keeps the opening click off any bubble-phase handler on the enclosing
+    // `.line`.
+    //
+    // It does NOT protect the card from the outside-click listener, which is
+    // what this comment claimed until #356 — twice over. That listener did
+    // not exist at all for reference cards (the affordance is new in #356),
+    // and the one `PopoverCard` now registers could not be reached from here
+    // anyway: it is a capture-phase `mousedown` on `document`, so it runs
+    // before this bubble-phase `click` and cannot be stopped from a
+    // descendant. The protection comes from the shell's `anchorSelector`
+    // ignore predicate, which this component supplies via the `.xref-pin`
+    // class below.
     e.stopPropagation();
     props.onOpen(e.currentTarget.getBoundingClientRect());
   };

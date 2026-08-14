@@ -3,6 +3,8 @@
 
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
+import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
+import { usePaginatedAppend } from "~/hooks/usePaginatedAppend";
 import {
   fetchLemmaIndex,
   type ConcScope,
@@ -64,7 +66,10 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
   const sort = (): ConcSort => props.sort ?? "freq";
   const letter = () => props.letter;
 
-  const { data, loading, error, setRetryKey, lettersWithHits, grouped } = useConcordanceIndex({
+  const {
+    data, loading, error, setRetryKey, lettersWithHits, grouped,
+    allRows, hasMore, appending, appendError, setSentinelEl,
+  } = useConcordanceIndex({
     lang,
     scope,
     sort,
@@ -342,12 +347,17 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
 
       <ActiveFilterStrip
         items={activeChips()}
-        // Show the actual page row count — this is what changes as the
-        // user narrows. The header retains the unfiltered scope total
-        // ("122,965 lemmas") for orientation; the strip mirrors the
-        // result set the user is looking at right now. Capped at the
-        // fetch limit (200), which is plenty for any narrowed filter.
-        count={data()?.rows.length}
+        // Show the actual row count — this is what changes as the user narrows,
+        // and as further pages append. The header retains the unfiltered scope
+        // total ("135,047 lemmas") for orientation; the strip mirrors the result
+        // set the user is looking at right now.
+        //
+        // This used to read `data()?.rows.length` and say the 200-row fetch cap
+        // "is plenty for any narrowed filter". It is not: the narrowest
+        // combination the UI offers short of a text query — one author plus one
+        // letter — measures 1,318 lemmas for Hegel + B, and the corpus view is
+        // 135,047. The list pages now (#371), so this has to follow it.
+        count={allRows().length}
         countLabel="lemmas shown"
         onReset={resetAll}
       />
@@ -516,6 +526,22 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                   </>
                 )}
               </For>
+
+              {/* Paging sentinel (#371). Mirrors `Refs/index.tsx` — the hook
+                  stores the element in a signal so a sentinel that mounts later
+                  still gets observed, and pre-fetches 400px early. */}
+              <Show when={hasMore() && !loading()}>
+                <div class="lb-sentinel" ref={setSentinelEl}>
+                  <Show when={appending()}>
+                    <span class="lb-sentinel-note">loading more lemmas…</span>
+                  </Show>
+                </div>
+              </Show>
+              <Show when={appendError()}>
+                <div class="lb-sentinel-error">
+                  Could not load more lemmas: {appendError()}
+                </div>
+              </Show>
             </div>
           </Show>
         </Show>
@@ -538,6 +564,10 @@ interface UseConcordanceIndexArgs {
   q: () => string | undefined;
 }
 
+/** Rows per request. The first page keeps the historic 200 so nothing about the
+ *  initial render changes; appended pages use the same size. */
+const PAGE_SIZE = 200;
+
 export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
   const [retryKey, setRetryKey] = createSignal(0);
 
@@ -547,52 +577,88 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
   // superseded request is now actually cancelled — a fast typist in the
   // search box used to leave one uncancelled 200-row index query per
   // keystroke running against the server (#65).
+  /** Don't fetch an incomplete scope — scope=author without an author (or
+   *  scope=work without a work) is a backend 400. The page renders a picker
+   *  prompt instead; a null args object skips the request. */
+  const pageArgs = () => {
+    if (args.scope() === "author" && !args.scopeAuthors()?.length) return null;
+    if (args.scope() === "work" && !args.scopeWorks()?.length) return null;
+    return {
+      lang: args.lang(),
+      scope: args.scope(),
+      authors: args.scopeAuthors(),
+      works: args.scopeWorks(),
+      letter: args.letter(),
+      sort: args.sort(),
+      pos: args.pos(),
+      freqMin: args.freqMin(),
+      freqMax: args.freqMax(),
+      q: args.q(),
+      _retry: retryKey(),
+    };
+  };
+
+  /** The request for one page. Shared by the first page and by every appended
+   *  one, so a filter can never apply to one and not the other. */
+  const indexArgs = (p: NonNullable<ReturnType<typeof pageArgs>>, offset: number) => ({
+    lang: p.lang,
+    scope: p.scope,
+    authors: p.authors,
+    works: p.works,
+    letter: p.letter,
+    sort: p.sort,
+    pos_in: p.pos,
+    min_count: p.freqMin,
+    max_count: p.freqMax,
+    q: p.q,
+    limit: PAGE_SIZE,
+    offset,
+  });
+
   const { data, loading, error } = useAbortableFetch(
-    () => {
-      // Don't fetch an incomplete scope — scope=author without an
-      // author (or scope=work without a work) is a backend 400. The
-      // page renders a picker prompt instead; a null args object skips
-      // the request.
-      if (args.scope() === "author" && !args.scopeAuthors()?.length) return null;
-      if (args.scope() === "work" && !args.scopeWorks()?.length) return null;
-      return {
-        lang: args.lang(),
-        scope: args.scope(),
-        authors: args.scopeAuthors(),
-        works: args.scopeWorks(),
-        letter: args.letter(),
-        sort: args.sort(),
-        pos: args.pos(),
-        freqMin: args.freqMin(),
-        freqMax: args.freqMax(),
-        q: args.q(),
-        _retry: retryKey(),
-      };
-    },
+    pageArgs,
     async (p, signal) =>
-      p === null
-        ? null
-        : fetchLemmaIndex(
-            {
-              lang: p.lang,
-              scope: p.scope,
-              authors: p.authors,
-              works: p.works,
-              letter: p.letter,
-              sort: p.sort,
-              pos_in: p.pos,
-              min_count: p.freqMin,
-              max_count: p.freqMax,
-              q: p.q,
-              limit: 200,
-            },
-            signal,
-          ),
+      p === null ? null : fetchLemmaIndex(indexArgs(p, 0), signal),
     { resetOnChange: true },
   );
 
+  // ── Paging (#371) ─────────────────────────────────────────────────
+  // The cursor is the server's `next_offset`, NOT `rows.length < total_lemmas`.
+  // `total_lemmas` is not a row count: it is computed without the frequency
+  // range applied, and on one branch counts DISTINCT lemma while rows are per
+  // (lemma, pos). A length-vs-total test would keep asking for pages that come
+  // back empty. `usePaginatedAppend.hasMore` is deliberately unused for that
+  // reason — this is the one caller that cannot use it.
+  const pagination = usePaginatedAppend<LemmaIndexRow>(() => data());
+  const [cursor, setCursor] = createSignal<number | null>(null);
+  // Mirrors the hook's own reset: a new first page replaces the cursor.
+  createEffect(() => { setCursor(data()?.next_offset ?? null); });
+
+  const firstPage = (): LemmaIndexRow[] => data()?.rows ?? [];
+  const allRows = (): LemmaIndexRow[] => pagination.rows(firstPage());
+  const hasMore = (): boolean => cursor() !== null;
+
+  const fetchPage = (offset: number, signal: AbortSignal) => {
+    const p = pageArgs();
+    if (p === null) return Promise.resolve({ items: [] as LemmaIndexRow[] });
+    return fetchLemmaIndex(indexArgs(p, offset), signal).then((res) => {
+      setCursor(res.next_offset ?? null);
+      return { items: res.rows };
+    });
+  };
+
+  const setSentinelEl = useInfiniteScrollSentinel(
+    () => hasMore() && !loading(),
+    () => {
+      if (!hasMore() || pagination.appending()) return;
+      void pagination.loadMore(firstPage(), fetchPage);
+    },
+  );
+
   const lettersWithHits = createMemo<Set<string>>(() => {
-    const rows = data()?.rows ?? [];
+    // Appended rows count: paging makes the rail's "has hits" dots
+    // progressively more accurate rather than reflecting only the top page.
+    const rows = allRows();
     const s = new Set<string>();
     for (const r of rows) {
       // Fold to the base capital (ASCII A–Z or Greek Α–Ω) so the rail's
@@ -604,7 +670,7 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
   });
 
   const grouped = createMemo<{ letter: string; rows: LemmaIndexRow[] }[]>(() => {
-    const rows = data()?.rows ?? [];
+    const rows = allRows();
     if (args.sort() !== "alpha" && !args.letter()) {
       return [{ letter: "", rows }];
     }
@@ -621,5 +687,18 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
       .map(([letter, rows]) => ({ letter, rows }));
   });
 
-  return { data, loading, error, retryKey, setRetryKey, lettersWithHits, grouped };
+  return {
+    data,
+    loading,
+    error,
+    retryKey,
+    setRetryKey,
+    lettersWithHits,
+    grouped,
+    allRows,
+    hasMore,
+    appending: pagination.appending,
+    appendError: pagination.appendError,
+    setSentinelEl,
+  };
 }

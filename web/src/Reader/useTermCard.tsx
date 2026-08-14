@@ -8,9 +8,14 @@
 // window between click and URL-propagation would clobber the freshly-
 // opened card. Closing is owned by the dismiss UI (outside click,
 // Esc, close button), which also clears the URL.
+//
+// The dismiss UI lives in `components/PopoverCard.tsx` as of #356 — this hook
+// held the outside-click listener until then, and being the only caller that
+// held one is why `ReferenceCard` never got the affordance. Its `suspended`
+// gate (#352) moved with it, and reads the `suspendedSubtree` context there
+// instead of being threaded as a prop.
 
 import { createEffect, createSignal, untrack, type Accessor } from "solid-js";
-import { useClickOutside } from "~/hooks/useClickOutside";
 
 export interface OpenTermCard {
   termId: number;
@@ -56,18 +61,6 @@ export function useTermCard(props: TermCardProps): TermCardApi {
     setOpenCard(null);
     props.onOpenTermIdChange?.(null);
   }
-
-  useClickOutside(
-    () => document.querySelector(".termcard") as HTMLElement | undefined,
-    () => openCard() !== null,
-    close,
-    {
-      event: "mousedown",
-      capture: true,
-      ignore: (target) =>
-        (target as Element).closest(".term-mark") != null,
-    },
-  );
 
   // Resume from URL on first paint / reload / deep-link. Sentinel
   // anchor at the viewport top because the URL doesn't (and shouldn't)

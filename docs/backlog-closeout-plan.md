@@ -229,8 +229,16 @@ defect in the lemma writer.
 | 8-ter | worked examples cite live numbers | #335 | **backlog** | Found working #334, by an unrelated grep. Four wrong PR/issue numbers across two files, and the second pair survived the PR that fixed the first pair. **May resolve as a decision not to gate it**, like #299 — the alternative is to stop citing real numbers at all. |
 | 9 | reader latency | ~~#339~~, ~~#340~~, ~~#342~~ | **landed** | **Groups with nothing in batches 0–8** — the first row here that is a *performance* defect rather than a corpus, ingest or harness one, and it was found by timing the app for a demo rather than by working any batch above. Numbered 9 rather than `N-bis` for that reason. All three are one user-visible symptom (a Reader page load) decomposed by layer: #339 the missing access paths, #340 the lock that stopped the reads overlapping, #342 the route model that unmounts the Reader. Landed across PRs #341 (indexes + lock release), #343 (client read cache), #346 (#339 part 2) and #347 (#342's route model, frontend-only). See batch 9. |
 | 9-bis | what the latency fixes left behind | #344, #345 | **backlog** | Both found verifying #339 part 2, and neither is a corpus defect. #344 is `/api/health`, the last full scan of `chunks` on the read path (~210 ms) — named and scoped out by #339, so it needed its own row once #339 closed, and part 2 pushed it 9% the wrong way. #345 is the coverage-exclusion divergence the same PR hit and half-fixed: `pyproject.toml`'s `omit` and `sonar.coverage.exclusions` disagree, so a locally-omitted file arrives at the blocking gate scored 0%. Both **may resolve as decisions rather than repairs**, like #299 — #344's three options trade staleness against ingest cost, and #345's turns on whether the shim deserves a bar at all. |
-| 9-ter | the other three side routes | #348 | **backlog** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. **May resolve as a decision rather than a repair**, like #299: full-page destination is a plausible answer for the network dashboard, and for the concordance it plausibly differs by entry point (Reader rail vs top nav). Decide per route first, then pick a mechanism — #347's `windowKey` memo is the prerequisite either way. |
+| 9-ter | the other three side routes | ~~#348~~ | **landed** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. It resolved **half as a decision and half as a repair**, which the row anticipated: the entry points settle it — the Reader rail links into the concordance twice and into neither of the other two, so the concordance keeps the Reader and network/refs stay destinations that release it. See batch 9-ter. |
+| 9-quater | what the hoist left armed | ~~#352~~ | **landed** | Found working 9-ter, in the files it edited. The `suspended` flag added there gates the two global listeners whose misfire was measured; four more in the Reader subtree stayed armed while the Reader is retained off-screen. The row predicted this "may resolve as a decision rather than a repair" and that only one of the four loses user state — **both halves were wrong**, and measuring is what showed it: a third listener (`useDialogFocus`) hijacks every shift-Tab on the concordance, so the count that costs the user is two, not one. Verdict `CORRECTED` — three of the issue's explanations did not survive phase 1. Landed as PR #355; see batch 9-quater. |
+| 9-quinquies | the popover shell's uneven dismissal | ~~#356~~ | **landed** | Found working 9-quater, in the files it edited, and grouped **by file rather than by theme** — it is not a retained-Reader defect at all. `ReferenceCard` shares `PopoverCard` and its anchoring but nothing gave it an outside-click listener: `useClickOutside` has six consumers and `useXrefCard` is not one. Placed here because 9-quater is the batch that audited every listener these two cards own, so the context is already loaded, and because its fix decided where the gate for `useClickOutside` lives — which is the first thing #356 had to not contradict. Two claims above are **corrected**, and the first was this row's whole reason to expect a decision: it said "nothing records either way" and "shares … both its other dismissal affordances", and *three* comments in two files describe the missing listener as existing behaviour while the shared close button does not exist at all. Verdict `CORRECTED`; landed as PR #359. See batch 9-quinquies. |
+| 9-sexies | what the shell inherited | ~~#357~~, ~~#358~~ | **landed** | Both found working 9-quinquies, in the files it edited, and both are the shell rather than either card — which is the difference from the row above, where the defect was one card missing what the other had. #357 is `PopoverCard`'s `stopPropagation()` shim: it names the outside-click listener as the thing it stops and cannot reach it (capture-phase on `document`, and on a different event), and no ancestor of the card binds a bubble-phase click handler either — the only thing that fails without it is a test supplying the parent the app lacks. #358 is what 9-quinquies' correction 2 exposed rather than fixed: both cards are `aria-modal="true"` with no visible close control, and `TermCard`'s renders only in the load-error state. Neither touches the DB. This row said **#358 "may resolve as a decision rather than a repair", the decision being to drop the attribute** — that is **corrected**: the popovers *do* trap focus, unconditionally, so dropping the attribute would unannounce a trap that stays put. #357 `CONFIRMED`, #358 `CORRECTED`; landed as PR #362. See batch 9-sexies. |
+| 9-septies | the close control's own residue | #360, #361 | **backlog** | Both found working 9-sexies. Grouped with each other rather than with the row above because neither is about dismissal: #360 is four comments in three files citing `project/reference-card/*.html` as the design of record for a path that has never been in the repository (plus `term-wireframes/` in `termcard.css:2`, the same shape) — it is filed rather than corrected in place because the replacement reference is the repo owner's to name. #361 is the part of #358 scoped out: the shell's `×` and `TermCard`'s error-state "Dismiss" button now both render in the load-error state, doing the same thing. #360 **may resolve as a decision** to stop citing local mockups at all, which makes it #335's failure class applied to paths instead of issue numbers. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
+| 11 | type-to-filter the concordance pickers | ~~#363~~ | **landed** | **Groups with nothing in batches 0–10** — a directly-requested feature, like batch 10, and numbered rather than `10-bis` because it shares neither #350's files nor its theme. The Author and Work pickers held up to ~964 options in a 320px scroll list with no filter field; `Select` gained an opt-in `filterable` mode, and the lemma-search `q` predicate gained the same diacritic fold server-side. See batch 11. |
+| 11-bis | what the filter work found | #364, #365, #366, #367, #369 | **backlog** | All four found working #363, none caused by it, and they do not group with each other beyond that — which is stated rather than fudged. #366 is the serious one and is **not a frontend defect at all**: `merge_case` groups Greek lemmas by folded *first character*, so the leaderboard's Greek counts are inflated and its labels name the wrong word (`στηλογραφία` merges into `συλλογισμός`). It is one line once #363's whole-string folder exists, but it changes user-visible numbers and wants its own PR. #367 is the script detectors answering `true` for any combining mark, which #363 works around rather than fixes. #364 is the other three concordance dropdowns having no keyboard access at all; #365 is `Select`'s panel lacking the mobile-sheet containment rule its neighbour has. #369 was found last, working the trigger redesign: `check-pr-link` retries only on a `missing` link because `unexpected` "will not un-register", and it does — measured on PR #368, where the check asserted the PR was broken seconds after GitHub had already dropped the link. It belongs to the 8-series question rather than to this batch's theme, and is grouped here only because this is what found it. |
+| 11-ter | the index page's own claims | ~~#370~~, ~~#371~~ | **landed** | Both reported from use, one sitting after 11: the leaderboard sparkline showed an identical full block on every row at single-work scope (#370, PR #372), and the list stopped at 200 rows while the header printed the true total beside it — 135,047 for German (#371, PR #374). Neither is a filter defect; they are the same *kind* of defect as each other, which is why they group: **the page displaying something that is not what the reader takes it to mean.** #370 corrected a false comment in `aggregate.py` that had claimed the read path ignores the degenerate shape; #371 corrected the one in `IndexPage.tsx` claiming a 200-row cap is "plenty for any narrowed filter" (Hegel + letter B is 1,318). |
+| 11-quater | what the index page found | #373, #375, #376, #377 | **backlog** | All four found working 11-ter, and **#373 is the one to read first**: `merge_case` groups on SQLite's `LOWER()`, which is ASCII-only, so `Übergehen` and `übergehen` stay separate groups and then render the *same* display label — one lemma reported twice, 78 and 59 where the truth is 137, across 113 German group pairs. With #366 (the Greek group key) and #363's `q` fold, that is **three case-folding defects in one file from one cause**: SQLite's case functions do not handle non-ASCII. #373 and #366 want fixing together — same replacement, and both move visible counts. The others are display and access: #377 the header total that is not a row count (6,797 printed above 3,163 rows, measured, under the default `min_count`), #376 the A–Z rail whose "has hits" dots are folded from the fetched rows so a 12,715-lemma letter can render empty, #375 the leaderboard rows that are `role="link"` with no `tabindex` — the same pattern Sonar blocked #368 over, unflagged here only because the lines are not new. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -2332,3 +2340,621 @@ issue decays while its neighbours are being fixed**, and here it decayed
 between the issue being filed and the issue being worked, four days. The
 figure was also copied into `readCache.ts` and its test, so the
 correction had to be made in three places; PR #347 makes all three.
+
+## Batch 9-ter — the other three side routes (#348)
+
+#342 fixed one of four. The syntax overlay became a modifier on the reader
+route, so the Reader stayed mounted under it; the concordance, the network
+dashboard and the refs browser were left as peer `<Match>` branches of the
+same `<Switch>`, and #342 recorded that it had not surveyed whether they
+should get the same treatment. #348 is that survey.
+
+**The issue was right about everything it measured, and its framing
+understated the count by one.** All three unmount the Reader, reproduced
+after PR #347 with the same harness `readerSyntaxLayer.test.tsx` uses:
+
+```
+× probe concordance        expected { readerPresent: false } to equal { readerPresent: true }
+× probe concordance-lemma  expected { readerPresent: false } to equal { readerPresent: true }
+× probe network            expected { readerPresent: false } to equal { readerPresent: true }
+× probe refs               expected { readerPresent: false } to equal { readerPresent: true }
+```
+
+`concordance-lemma` is a fourth route kind, not a fourth route: `App.tsx:92`
+folds it and `concordance` into one `onConcordance()` predicate, so it shares
+the branch and needed no separate handling. Worth writing down only because
+"three routes" is how the issue names the problem and there are four kinds.
+
+### The decision came from the entry points, not from the routes
+
+#348 refused to name a mechanism until each route's intent was decided, and
+the question turns out to be answerable by grep rather than by taste. What
+links into each:
+
+| Route | From the Reader | From the nav |
+|-------|-----------------|--------------|
+| `concordance-lemma` | **yes** — `Reader/index.tsx:389`, the rail's lemma card | yes |
+| `concordance` | **yes** — `Reader/index.tsx:400`, the work-concordance link | yes (`ChatRoute.tsx:80`) |
+| `network` | none | yes (`ChatRoute.tsx:77`) |
+| `refs` | none | yes (`ChatRoute.tsx:73`, `NetworkRoute.tsx:49,74,81`) |
+
+The concordance is the only one you step out to *from a passage*, which is the
+shape the syntax overlay has. The other two are arrived at. So the concordance
+keeps the Reader alive and the other two release it — and "release it" is what
+they already did, which is why half of this batch is a set of tests over
+unchanged behaviour.
+
+### Mechanism: a retained location, not a wider route
+
+Both mechanisms #348 offered would have worked. The one not taken —
+concordance-as-a-reader-modifier, symmetric with #342 — would have pulled
+seven concordance parameters (`scope`, `scopeAuthors`, `scopeWorks`, `case`,
+`number`, `surface`, `lang`) onto the reader route and made `ConcordanceRoute`
+render from two route shapes, which is duplication the Sonar gate scores
+independently of coverage.
+
+What landed instead: the Reader moves out of the `<Switch>` and renders from
+`readerWork() ?? retainedWork()`, inside a `display: contents` host carrying
+`hidden` + `inert`. `retainedWork` holds the last reader location while
+`keepsReaderAlive(route)` is true and drops it everywhere else, so no URL
+shape changes at all and a concordance opened cold from the top nav mounts no
+hidden Reader. The props the Reader sees do not move across the step-out,
+so PR #347's `windowKey` memo — the prerequisite #348 named — sees no reason
+to reload, which is what makes the whole thing free.
+
+### The hoist's own hazard, which the tests found and not the design
+
+Keeping a component mounted keeps its listeners mounted, and `inert` is a
+focus-and-pointer mechanism that reaches neither `window` nor `document`.
+Two misfires, both caught red:
+
+- Escape on `#/concordance/Ware` navigated to `#/`. The Reader's own
+  `useEscape` exit handler answered a key that belonged to the concordance,
+  and threw the user out to the landing.
+- `t` on the concordance committed a translate, from a selection toolbar
+  still open behind the page and invisible.
+
+A `suspended` flag gates both. **It gates only those two**, which is #352 —
+four more global listeners in the Reader subtree stay armed, and two of them
+close the retained term card on any click. That is the state this batch set
+out to preserve, so the follow-up is not optional decoration.
+
+The transferable part: *"the component survives the route" is a change to
+every listener it owns, not just to its rendering.* #342 made that true for
+one overlay and paid for it once (`App.tsx` went `inert` under the syntax
+layer). #348 made it true for a whole route class and paid for it twice more.
+Nothing enumerates the debt — it is found one failing test at a time, and
+#352 exists because the third and fourth payments have not been made yet.
+
+## Batch 9-quater — what the hoist left armed (#352)
+
+Found working 9-ter, in the files it edited, and worked immediately after it
+merged. One sentence carries the batch: **making a component survive its route
+is a change to every listener it owns**, and #342 → #348 → #352 is that debt
+being paid one failing test at a time rather than enumerated once.
+
+### The row above it predicted a decision, and the measurement refused it
+
+9-quater said this "may resolve as a decision rather than a repair, like
+#299", on the grounds that "only one of the four loses user state". Both
+halves are wrong, and the second is what falsifies the first:
+
+| listener | what it does to a retained Reader | cost |
+|---|---|---|
+| `useTermCard` → `useClickOutside` | any click on the concordance dismisses the open term card | user state |
+| `PopoverCard` → `useEscape` | Escape destroys the card, which the route change then rebuilds at the sentinel anchor | user state |
+| `PopoverCard` → `useDialogFocus` | **every shift-Tab on the concordance is cancelled** and redirected into a `display: none` dialog | keyboard nav, app-wide |
+| `PopoverCard` → `usePopoverPosition` | recomputes a correct value from a stored rect | nothing |
+
+Two listeners cost user state, not one, and the third is worse than either:
+it breaks shift-Tab on a route the Reader is not even on. With three of four
+defective there is no "fix one, leave the rest" to decide between.
+
+### What #352 got wrong, and the shape of the error
+
+Verdict `CORRECTED`. The four listeners are all real, at the exact lines
+cited, and grep 1 reproduces exactly — but three *explanations* do not, which
+is the split CLAUDE.md predicts: the pointer survives, the diagnosis does not.
+
+- **"`PopoverCard` … used on the concordance itself"** — false, and it was the
+  stated reason a context "may be too broad". `PopoverCard`'s only consumers
+  are `TermCard` and `ReferenceCard`, both rendered solely from
+  `Reader/index.tsx:444,455`. Only `Select` is genuinely shared, and it
+  reaches exactly one of the four hooks. Trusting it would have priced the
+  context approach as needing subtree discrimination for all four, and pushed
+  the work to option 2 — the one the issue itself notes gives "no protection
+  against the fifth".
+- **Item 3's `getBoundingClientRect()` "all zeros"** — nothing measures.
+  `computePopoverPosition(anchor: DOMRect, …)` takes a rect captured at click
+  time and reads `window.inner*`; the file contains no
+  `getBoundingClientRect` at all. Item 3 is not "corrected on return", it is
+  never wrong. The zeroing is real for item 4 (`offsetWidth`/`offsetHeight`),
+  which has `|| 240` / `|| 40` fallbacks.
+- **"`PopoverCard`'s ungated `useEscape` would win instead"** — nothing wins.
+  `useEscape` calls `preventDefault()` and not `stopPropagation()`, and every
+  handler is a bubble-phase `window` listener, so one Escape runs both the
+  card's dismissal and the concordance's navigation.
+
+### The trap that the third correction sets, and why the test asserts identity
+
+This is the transferable part. Written as the issue framed it — "the
+concordance's Escape handler still wins" — the regression test **passes on
+the unfixed branch**, because the navigation does happen. So does the
+obvious repair, `expect(card).not.toBeNull()`. Measured before the fix:
+
+```
+D before esc, card: true
+E after esc,  card: true | SAME NODE: false | hash: #/concordance
+```
+
+Escape destroys the card; the concordance's own navigation then changes the
+route, which re-runs `useTermCard`'s URL-resume effect — `?term=` is still 7,
+because `setOpenTermId` early-returns off the reader route (`readerCtrl.ts:237-239`)
+and so `close()` never cleared it — and rebuilds the card at the sentinel
+anchor, viewport top. Presence: identical. Anchor, fetch and focus: gone.
+
+Vitest says it plainly: `Compared values have no visual difference.` The test
+asserts **node identity**, the same way `readerKeepAlive` does for the Reader
+itself and for the same reason. A presence assertion here is a green test over
+a live bug.
+
+### Mechanism: a scoped context, plus one threaded flag
+
+The scoping is the whole argument for a context over a global flag. The
+provider wraps the Reader's keep-alive host only, so `useContext` answers *"am
+I inside the suspended subtree?"* and never *"does the app have a suspended
+subtree somewhere?"* — the distinction #352 named as the hard part. Everything
+in the sibling `<Switch>` reads the default `false` and stays live, including
+`useListKeyboardNav`, a fifth `window` keydown binder that the issue's own
+grep output omitted and that the concordance depends on for j/k/Escape.
+
+Placement is load-bearing: the provider sits **above** `ReaderRoute`, not
+inside the Reader's JSX, because hooks called in the Reader's component body
+(`useTermCard`, both `useEscape`s) resolve `useContext` at that point and
+would not see a provider nested in the returned tree.
+
+`useClickOutside` is deliberately left out of the context and takes the flag
+through the `isActive` accessor it already had. It is the one hook shared with
+a surface that must stay live while the Reader is suspended, so keeping it
+context-free makes `Select` provably unaffected wherever a future provider
+lands.
+
+### What was deliberately not fixed
+
+`usePopoverPosition` is untouched, said out loud rather than by omission —
+which is what 9-quater's row asked for, applied to the item that earned it
+instead of the item it guessed. Correction 2 shows it recomputes a correct
+value from a stored rect, so there is no defect to gate and gating it would
+add production code no test can fail on. If a future popover does measure
+live, the context is already there to consult.
+
+## Batch 9-quinquies — the popover shell's uneven dismissal (#356)
+
+Found working 9-quater, in the files it edited. One sentence carries the
+batch: **an affordance wired per-caller is an affordance the next caller
+will not have**, and the shell was already the right owner — it held Escape
+and the focus trap the whole time.
+
+### The row above it expected a decision, and the code had already made it
+
+9-quinquies said #356 "may resolve as a comment rather than a listener, like
+#299", because "nothing records either way, which is the defect". Nothing
+records it is the one claim in the issue that is false in the most direct way
+possible: three comments in two files describe the missing listener as
+existing behaviour, and one of them claims to defend against it.
+
+| where | what it says | true? |
+|---|---|---|
+| `ReferenceCard.tsx:16-21` | "Esc / outside-click dismisses" | Esc yes, outside-click no |
+| `ReferenceCard.tsx:64-67` | "dismisses the card (Esc / outside click / the close affordance)" | one of three |
+| `XrefMarker.tsx:35-41` | "Stop the document-level outside-click handler (registered while a ReferenceCard is open)" | there was no such handler |
+
+Had we trusted it, the comment-only option would have been on the table. It
+is not: writing "dismissal by clicking away is deliberately omitted" would
+contradict three comments already in the tree, and reconciling all four is
+more editing than adding the listener.
+
+### The second correction, and why it raises the severity
+
+The issue's affordance table credits both cards with a close button. Neither
+has one in the state a reader is normally in:
+
+```
+$ grep -c "button" web/src/components/ReferenceCard.tsx
+0
+$ grep -rn "close" web/src/components/referencecard.css
+$ echo $?
+1
+```
+
+`TermCard`'s `.termcard-close` is real but sits inside `<Show
+when={Boolean(term.error)}>` (`TermCard.tsx:76-86`) — it renders only when the
+term fetch failed. So the reference card was not missing one affordance of
+three with a button as a fallback; it was missing one of two, and there was no
+fallback. Corrected:
+
+| | Escape | click away | re-click anchor | visible close control |
+|---|---|---|---|---|
+| `TermCard` (loaded) | yes | yes | yes | no |
+| `ReferenceCard`, before | yes | **no** | yes | no |
+| `ReferenceCard`, after | yes | **yes** | yes | no |
+
+The last column is #358: exposed by this correction, not fixed by this batch.
+
+### Mechanism: the shell owns the listener, the card names its anchor
+
+`PopoverCard` calls `useClickOutside` rooted on the `cardRef` it already
+holds, and takes a new required `anchorSelector` prop — `.term-mark` for the
+term card, `.xref-pin` for the reference card. Required rather than optional
+so a third popover has to answer "what anchors me?" instead of inheriting a
+listener that fights its own opener: the mousedown half of the click that
+opens a card is, geometrically, a click outside it.
+
+`useTermCard`'s copy is deleted, along with the `suspended` prop #352 threaded
+into it. That is the part of the issue's constraint 2 that wanted settling —
+it warned the two mechanisms "would then disagree about which hook owns the
+gate", and deleting one of them is what stops the disagreement. The gate now
+reads `useSuspendedSubtree()` inside `PopoverCard` and folds it into the
+`isActive` accessor, so `useClickOutside` itself stays context-free and
+`components/Select.tsx` stays provably unaffected — the property
+`suspendedSubtree.tsx:26-32` exists to preserve. #352's four suspended-listener
+tests pass unchanged.
+
+### The test that had to be watched failing twice
+
+The ignore predicate got its own red. Implemented without it, "leaves the card
+open when the click lands on its own anchor" fails:
+
+```
+FAIL  tests/PopoverCard.test.tsx > leaves the card open when the click lands on its own anchor
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+```
+
+`XrefMarker`'s own `e.stopPropagation()` cannot supply that guard, which is
+the fourth thing its comment gets wrong and is now #357: it is on a
+bubble-phase `click`, and the listener is a capture-phase `mousedown` on
+`document`, which runs first.
+
+### The refactor had no guard, so one was built first
+
+Nothing covered the term card's outside-click dismissal end to end — deleting
+`useTermCard`'s copy left the affordance entirely absent and every existing
+test green. `Reader.test.tsx` gains "clicking away from the open term card
+closes it" for that, and it is not vacuous: with `PopoverCard`'s listener
+disabled, exactly the three positive tests fail and the four suspended-listener
+tests still pass.
+
+```
+× calls onClose when a click lands outside the card
+× a click away calls onClose
+× clicking away from the open term card closes it
+Test Files  3 failed | 1 passed (4)
+      Tests  3 failed | 38 passed (41)
+```
+
+Adding it meant hoisting the three term-card fixtures to module scope: the
+trio ran ~40 lines a copy in two tests already, and a third copy is what
+failed Sonar's duplication gate on #254.
+
+### What was deliberately not fixed
+
+`PopoverCard`'s `onCardClick` shim stays, as #357 rather than a deletion in
+this PR. It is inert — capture-phase listener, different event, no ancestor
+handler — but `ReferenceCard.test.tsx:262` asserts it, and whether it is dead
+weight or a pre-emptive guard for a backdrop nobody has built is a decision,
+not a repair. The same fork #356 itself resolved by measuring.
+
+## Batch 9-sexies — what the shell inherited (#357, #358)
+
+Found working 9-quinquies, in the files it edited. Both are the shell rather
+than either card, which is the difference from 9-quinquies: there the defect
+was one card missing what the other had, here it is what `PopoverCard` gives
+*both* of them. One sentence carries the batch: **a shell that owns an
+affordance also owns the claims made about it** — #356 moved dismissal into the
+shell, and these are the two things that move became responsible for.
+
+### #357 — confirmed, and firmer than filed
+
+Verdict `CONFIRMED`. The issue argued "no ancestor bubble-phase click handler"
+from a grep of four files. Measured across the whole app, there is exactly one
+document-level listener in the click family:
+
+```
+$ grep -rn 'addEventListener("click"|addEventListener("mousedown"|addEventListener("pointerdown"' web/src | grep -v "\.test\."
+web/src/hooks/useClickOutside.tsx:33:    document.addEventListener(eventName, onDoc, capture);
+```
+
+All six of its call sites pass `mousedown` or `pointerdown`, and all get
+capture phase (`capture = options.capture ?? true`, `useClickOutside.tsx:18`).
+So the shim had nothing to stop anywhere in the app — not merely nothing in the
+files the issue happened to grep.
+
+The deletion is a real behaviour change even so, and that is what made a red
+test possible: an inside click used to be swallowed and now bubbles.
+
+```
+FAIL  tests/ReferenceCard.test.tsx > a click inside the card reaches an ancestor handler
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+```
+
+The test that asserted the mechanism through a synthetic parent is replaced by
+two that assert behaviour: an inside click does not dismiss (containment, which
+is what was always doing the work), and an inside click reaches an ancestor
+(the deletion, made deliberate rather than incidental).
+
+### #358 — the cheap option was strictly worse than doing nothing
+
+Verdict `CORRECTED`. The defect is real and the issue's own preferred fix is
+what landed; what did not survive is its alternative. It offered dropping
+`aria-modal="true"` instead of adding a button, on the grounds that "a popover
+that does not trap the page is arguably not modal" and that this "costs nothing
+visually".
+
+The popovers trap. `PopoverCard` calls `useDialogFocus(cardRef, () => true)`
+unconditionally, and the trap is a two-way Tab cycle for as long as the card is
+open (`useDialogFocus.tsx:36-53`). #352 exists *because* that trap is real — its
+third finding was every shift-Tab on the concordance being redirected into a
+`display: none` copy of this dialog. So option B would have removed the
+announcement of a trap that stays in place, leaving a keyboard user cycling
+inside a card with no visible exit and nothing telling their AT why. It reads
+as the cheap resolution and is worse than leaving the issue open.
+
+With the trap established, the WAI-ARIA dialog pattern's recommendation of a
+visible close control in the tab sequence applies directly, and #358 is a
+repair.
+
+### The instrument that broke, and what it teaches
+
+The issue's evidence was `grep -c "button" web/src/components/ReferenceCard.tsx`
+→ `0`. On the branch this batch built on it returns **2** — both hits comments
+that **PR #359 added**, documenting the absence of a close button. The count
+moved because the file started describing itself.
+
+```
+$ grep -c "button" web/src/components/ReferenceCard.tsx
+2
+$ grep -c "<button" web/src/components/ReferenceCard.tsx
+0
+$ git show origin/main:web/src/components/ReferenceCard.tsx | grep -c "button"   # pre-#359
+0
+```
+
+Anyone re-running the issue's own evidence after #359 landed would read `2` as
+"a close button was added" — i.e. as *fixed*. The transferable part: **an
+evidence command that counts a word rather than a construct can be falsified by
+a comment**, and the record-correction half of a previous batch is exactly the
+kind of edit that adds comments. `grep -c "<button"` is the form that survives.
+
+### Placement: the corner was not free, and the choice made on that was wrong
+
+Scoping picked "top-right ×, and the pending pill moves down when both show".
+That premise was wrong in a way worth recording, because it came from this
+work's own phase-1 comment. `.refcard-chip` — the reference-type pill — is
+absolutely positioned at `top: 16px; right: 20px` and renders in **every**
+state, not just pending (`referencecard.css:59-62`). The element that has to
+yield is the always-present chip, and moving it down pushes it into the citation
+line it labels.
+
+Built instead: the `×` takes the corner, and the chip and the pending pill both
+shift **left** of it, reading as one header row. `.refcard-head`'s
+`padding-right` grows 92px → 118px so a long author + work still wraps clear.
+
+### What was deliberately not fixed
+
+`TermCard`'s error-state "Dismiss" button stays, so the load-error state now has
+two controls doing the same thing — the shell's `×` and its own. Filed as #361
+rather than resolved here: a bare glyph is a weaker affordance than a labelled
+button next to an error message, and the error state is where a stuck reader is
+most likely to be, so which one goes is a design call.
+
+The four `project/reference-card/*.html` citations are untouched and filed as
+#360. #358's case for treating the close control as a decision leaned on that
+directory being "a faithful-port design"; it has never been in the repository,
+so the naming of a durable replacement is the repo owner's call and not a
+correction this PR can make.
+## Batch 11 — type-to-filter the concordance pickers (#363)
+
+A directly-requested feature, not a defect found by working a batch. One
+sentence carries it: **the Work picker held up to ~964 options in a 320px
+scroll list and the only way to narrow it was to scroll.**
+
+### Scope, decided by counting the options
+
+The Concordance has five dropdowns. Two got a filter field and three did not,
+and the split is a measurement rather than a preference:
+
+| control | component | options | filter? |
+|---|---|---|---|
+| Language | local `Dropdown` | 5 | no |
+| Sort | local `Dropdown` | 3 | no |
+| POS | local `Dropdown` | 10 | no |
+| Author | shared `Select` | dozens | **yes** |
+| Work | shared `Select` | ~964 corpus-wide | **yes** |
+
+The three short lists are also a *different* component — `FilterBar.tsx:85-125`,
+whose trigger is a `<span>` with no `tabindex`. That they cannot be operated
+from the keyboard at all is #364, filed rather than folded in.
+
+### `Select`, not `PickerShell`
+
+`Syntax/components/PickerShell.tsx` already does everything asked for —
+filter field, wraparound arrows, Enter-commits-the-highlight, `n of N` footer,
+13 tests. It was still the wrong host: it is a modal `<dialog>` on `--syn-*`
+tokens, and turning an inline filter-bar dropdown into a modal is a change
+nobody asked for. Its *lessons* were copied deliberately, above all **"the
+field filters; it never accepts"** — an accepted non-existent work title would
+enter the URL, look valid, and return an empty concordance.
+
+### The obstacle that made it more than a text input
+
+`Select` indexed everything positionally against `props.options` — `activeIdx`,
+`commit(i)`, `optionId(i)`, and the scroll effect's `listboxRef.children[i]`.
+A filtered view breaks that correspondence: filtered to Gamma alone, DOM row 0
+is `options[2]`, so a click committed `"a"`.
+
+The fix that avoids a parallel index map — which is where this class of bug
+actually comes from — is a `view()` memo that returns **`props.options` by
+reference** whenever there is nothing to filter. Every index helper reads
+`view()`, and for the five non-filterable call sites the two are the same
+array, so their behaviour cannot have changed. `selected` is the deliberate
+exception: it resolves against the full list, because a filtered-out option is
+still the selected one and the trigger has to keep showing it.
+
+### ARIA: the combobox role follows real focus
+
+`aria-activedescendant` is only announced on the element that holds focus, so
+leaving `role="combobox"` on the trigger while the field is focused would
+announce nothing as the highlight moved — and two elements claiming the role at
+once is invalid. While a filterable panel is open the field is the combobox and
+the trigger steps down to `role="button"`. A test asserts there is exactly one.
+
+### Matching: fold measured against the live corpus
+
+`logos`, `λογος`, `λόγος` and `ΛΟΓΟΣ` all had to find `λόγος`. Client-side that
+is `utils/fold.ts` + `utils/searchFold.ts`; server-side it is a whole-string
+`_fold_text` sharing `_fold_initial`'s implementation.
+
+Two things the fold exposed rather than introduced:
+
+- **SQLite's `LOWER()` is ASCII-only.** `q=ΛΟΓΟΣ` matched **0** lemmas before
+  and 37 after, so the docstring's "case-insensitive substring filter" was
+  false for every non-Latin script in the corpus.
+- **`merge_case` groups Greek by folded first character** — #366, and the
+  serious find of this batch. Not fixed here: it changes visible counts.
+
+Measured on `data/index.sqlite`, distinct lemmas matched, `count >= 2`:
+
+| | before | after |
+|---|---|---|
+| grc `q=λογος` | 19 | **37** |
+| grc `q=ΛΟΓΟΣ` | **0** | 37 |
+| deu `q=grosse` | 2 | **58** |
+
+### No migration, and the measurement that settles it
+
+`EXPLAIN QUERY PLAN` shows the index seek covering
+`(lang, scope_kind, scope_value)` with the `LIKE` as a residual filter — so
+`q` already scanned its partition before the fold existed, and a leading
+wildcard cannot seek an index even on a stored column. A folded column would
+therefore buy nothing here while costing a rebuild of a 4,527,497-row
+materialized table in an operator window.
+
+The fold's whole cost is a Python callback per row, and memoizing it is what
+makes that affordable — the vocabulary is tiny next to the row count. End to
+end, against the live index:
+
+| | folded `q` | the page's own unfiltered request |
+|---|---|---|
+| grc | 100 ms | 269 ms |
+| deu | 145 ms | 266 ms |
+
+The search field is debounced 250 ms, and the folded query is roughly twice as
+fast as the request the page already issues on every load.
+
+### What was deliberately not done
+
+No debounce and no memoized haystack on the client: folding 964 labels measures
+0.607 ms, so both would be complexity bought with nothing. No sort and no
+rendered-row cap either — `WorkScopeControl` caps at 60, but capping silently
+hides options and sorting would reorder the list for the callers that did not
+ask for a filter.
+
+### The redesign, and the two things measuring caught
+
+Shipped first with the filter field **inside the panel**, which the repo owner
+rejected on sight: the field should be the select, not a second input below it.
+The trigger is now the input — ARIA's combobox pattern — which deleted the
+`role="combobox"` handoff between two elements, the focus-on-open effect, and a
+seeding branch that existed only because the field did not exist yet when the
+first character arrived.
+
+Mobile is the exception, and it is measured rather than cautious.
+`styles/mobile.css:1119-1134` makes the panel a full-screen sheet at `z-index:
+80` while `.mobile-sheet` is at 71, so below 768px an editable trigger is covered
+by its own dropdown. There the trigger stays a button and the field renders at
+the top of the sheet.
+
+Two things the tests caught that the plan had got wrong:
+
+- **The integration test did not survive untouched, as predicted.** With the
+  trigger as the input, both pickers own a field permanently, so a
+  `container`-wide `querySelector(".minerva-select__filter-input")` landed on the
+  *author* picker and silently filtered the wrong list. The lookup is now scoped
+  to the picker under test.
+- **`check-pr-link` reported a defect that did not exist** — #369. Rewriting the
+  PR body tripped the hazard check on a sentence containing `close #365`; after
+  fixing the wording, the check still read the stale link and asserted "this is a
+  bug in the PR, not in the check." It was not: seconds later the API returned
+  `[363]` and the unchanged command passed. The script's premise that only a
+  `missing` link is lag-fabricable holds in one direction only.
+
+## Batch 11-ter — the index page's own claims (#370, #371)
+
+Both reported from use rather than found by working a batch, and they group by
+kind rather than by file: **each is the page displaying something that is not
+what the reader takes it to mean.**
+
+### #370 — a chart that was right and said nothing
+
+`Sparkline` scales each bar against the *row's own* maximum, so the tallest bar
+is always 100% at every scope. At work scope `per_work` collapses to one entry
+whose `n` equals the row's `count` — measured, every row returns
+`distinct_works=1, per_work=[{work, n}]` — so every row drew one identical
+filled block. The reader's words: "I thought it was broken, although it's
+technically doing its job."
+
+`LbRow`'s `<Show>` already had the right shape, its fallback keeping the 130px
+grid track occupied, so the fix was the predicate: at least two works. The count
+stays. Landed as PR #372.
+
+The transferable part is *why nobody had noticed*: `aggregate.py` claimed "read
+path ignores it when scope_kind='work'" of the degenerate shape it writes. The
+read path does not ignore it — one branch passes it through verbatim, the other
+sums it. The writer's author believed the shape was inert downstream and the
+renderer's author had no reason to check.
+
+### #371 — a list that stopped, next to a total that did not
+
+200 rows hardcoded, no offset ever sent, and the header printing the real total
+beside it. The A–Z rail is a filter, not a pager — top 200 *per letter* — and the
+narrowest combination the UI offers short of a text query is 1,318 lemmas.
+
+| scope | total lemmas | reachable before |
+|---|---|---|
+| corpus deu | 135,047 | 200 |
+| author Hegel | 19,409 | 200 |
+| corpus deu, letter=S | 12,715 | 200 |
+| Hegel + letter B | 1,318 | 200 |
+
+**The cursor had to come from the server**, and establishing that is the useful
+part. `total_lemmas` cannot drive `hasMore`: it ignores the frequency range, and
+on one branch counts `DISTINCT lemma` while rows are per `(lemma, pos)`. Measured
+on one work scope, walking to exhaustion:
+
+```
+  min_count=1: reachable rows=  6797   total_lemmas=6797
+  min_count=2: reachable rows=  3163   total_lemmas=6797   ← the DEFAULT
+```
+
+So the default view's total overstates the reachable set 2×, and a
+`rows.length < total` pager would have requested pages forever. `next_offset` is
+derived from returned rows instead — which is exactly where it departs from the
+KWIC endpoint it otherwise mirrors, whose total *does* describe its rows.
+
+### A correction to my own reasoning, mid-implementation
+
+Walking the live index to check pages were disjoint tripped on `('Übergehen',
+'NOUN')` appearing twice, and I diagnosed unstable `LIMIT/OFFSET` over a partial
+sort order. **Wrong.** Those are two genuinely different groups that render the
+same label, because SQLite's `LOWER()` is ASCII-only — now #373.
+
+The sort-order hardening shipped anyway (805 German groups really do tie on the
+whole `freq` key and differ only in `pos`, and `LIMIT/OFFSET` over a partial
+order has no stability guarantee), but **relabelled as hardening rather than as a
+fix for an observed duplicate**, in the code comment and in both test docstrings
+that had cited the wrong cause. Worth recording as a pattern: the dedup key was
+the *display* string, and a display string is not an identity.
+
+The tie-order tests say out loud that they are a regression net and not a
+reproduction — a four-row fixture cannot make SQLite's planner change its mind.
+Better a test that admits what it does not prove than one that implies it does.
