@@ -147,6 +147,67 @@ def concordance_db(tmp_path: Path) -> sqlite3.Connection:
 
 
 @pytest.fixture
+def tie_concordance_db(tmp_path: Path) -> sqlite3.Connection:
+    """A store whose rows TIE on the whole ``freq`` sort key.
+
+    ``recht`` is seeded twice with the same count under two different parts of
+    speech, so the two groups agree on ``(n, lemma_key)`` and differ only in
+    ``pos`` — which is in the GROUP BY but was not in the ORDER BY. That makes
+    the sort a partial order, and ``LIMIT/OFFSET`` over a partial order may put
+    the same row on two pages and no page at all for its partner.
+
+    Measured on the live index: 805 groups in the German corpus partition tie on
+    the full sort key this way. No page boundary has been caught mis-serving one
+    — this is the invariant, held on principle, rather than a reproduction.
+    """
+
+    chunks = [
+        make_chunk(
+            chunk_id="tie-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie des Geistes",
+            lang="deu",
+            section="A",
+            text="recht recht recht recht Sache Sache Ding",
+        ),
+    ]
+    import json
+
+    jsonl = tmp_path / "tie_chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "tie_conc.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    seed = [
+        # `recht` twice as ADJ and twice as VERB — same lemma_key, same count.
+        ("tie-1", 0, "recht", "recht", "ADJ", ""),
+        ("tie-1", 1, "recht", "recht", "ADJ", ""),
+        ("tie-1", 2, "recht", "recht", "VERB", ""),
+        ("tie-1", 3, "recht", "recht", "VERB", ""),
+        # Two more rows so a limit=1 walk has several pages to get wrong.
+        ("tie-1", 4, "Sache", "Sache", "NOUN", ""),
+        ("tie-1", 5, "Sache", "Sache", "NOUN", ""),
+        ("tie-1", 6, "Ding", "Ding", "NOUN", ""),
+    ]
+    for chunk_id, idx, surface, lemma, pos, feats in seed:
+        _insert_lemma(
+            conn,
+            chunk_id=chunk_id,
+            token_index=idx,
+            surface=surface,
+            lemma=lemma,
+            pos=pos,
+            feats=feats,
+        )
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+@pytest.fixture
 def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
     """SQLite store with one Greek chunk + polytonic lemma cache.
 
@@ -915,3 +976,116 @@ def test_q_folded_wildcards_do_not_bypass_the_filter(
         )
         assert out["rows"] == [], pattern
         assert out["total_lemmas"] == 0, pattern
+# ── next_offset — the pagination cursor (#371) ────────────────────────
+
+
+def test_next_offset_walks_then_stops(concordance_db: sqlite3.Connection) -> None:
+    """A full page hands back the offset of the next one; a short page hands
+    back ``None``. This is what lets the client page without consulting
+    ``total_lemmas``, which cannot be trusted as a row count."""
+
+    first = concordance_queries.lemma_index(
+        concordance_db, {"lang": "deu", "limit": "1", "offset": "0"},
+    )
+    assert len(first["rows"]) == 1
+    assert first["next_offset"] == 1
+
+    # Walk to the end and confirm the cursor terminates rather than running on.
+    seen: list[str] = []
+    params = {"lang": "deu", "limit": "1", "offset": "0"}
+    for _ in range(20):
+        page = concordance_queries.lemma_index(concordance_db, dict(params))
+        seen.extend(r["lemma"] for r in page["rows"])
+        if page["next_offset"] is None:
+            break
+        params["offset"] = str(page["next_offset"])
+    else:  # pragma: no cover - only trips if the cursor never terminates
+        raise AssertionError("next_offset never became None")
+
+    # Every lemma seen exactly once — the cursor neither skipped nor repeated.
+    assert len(seen) == len(set(seen))
+
+
+def test_next_offset_is_derived_from_returned_rows_not_total_lemmas(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The crux, and the reason this is not modelled on the KWIC endpoint's
+    ``offset + limit < total``.
+
+    ``total_lemmas`` is computed *without* the frequency range applied (see the
+    note above the totals query), so a ``max_count`` that excludes rows leaves
+    it larger than anything the caller can actually page to. A cursor derived
+    from it would keep asking for pages that come back empty."""
+
+    filtered = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "max_count": "1", "min_count": "1", "limit": "50"},
+    )
+    # The freq range narrowed the rows but not the total — that mismatch is
+    # exactly what a total-derived cursor would trip over.
+    assert len(filtered["rows"]) < filtered["total_lemmas"]
+    # Short page → the cursor stops, despite `total_lemmas` suggesting more.
+    assert filtered["next_offset"] is None
+
+
+def test_next_offset_survives_case_merging(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The aggregate branch pages in Python after a GROUP BY, so its row count
+    is the merged one. Guards the cursor against being computed before the
+    merge, which would over-report."""
+
+    page = concordance_queries.lemma_index(
+        concordance_db, {"lang": "deu", "limit": "1", "offset": "0", "merge_case": "1"},
+    )
+    assert page["next_offset"] == 1
+
+
+def test_paging_one_row_at_a_time_visits_every_row_exactly_once(
+    tie_concordance_db: sqlite3.Connection,
+) -> None:
+    """The invariant offset pagination rests on: the sort must be a TOTAL order.
+
+    ``recht``/ADJ and ``recht``/VERB agree on ``(n, lemma_key)`` and differ only
+    in ``pos``, which the ORDER BY omitted — so the two were interchangeable and
+    ``LIMIT/OFFSET`` could serve one twice and the other never.
+
+    805 groups in the live German index tie on the full sort key, so the risk is
+    real; but neither this fixture nor a live 200-row walk has caught a boundary
+    actually mis-serving one, and a four-row fixture is far too small to make
+    SQLite's planner change its mind. So this is a net, not a reproduction —
+    said plainly because an earlier draft of this test claimed a live duplicate
+    as its evidence, and that duplicate was a different bug (ASCII-only
+    ``LOWER()`` splitting ``merge_case`` groups)."""
+
+    unpaged = concordance_queries.lemma_index(
+        tie_concordance_db, {"lang": "deu", "limit": "50", "min_count": "1"},
+    )
+    expected = [(r["lemma"], r["pos"]) for r in unpaged["rows"]]
+    assert len(expected) == len(set(expected)), "fixture itself has duplicate rows"
+
+    walked: list[tuple[str, str]] = []
+    offset: int | None = 0
+    while offset is not None:
+        page = concordance_queries.lemma_index(
+            tie_concordance_db,
+            {"lang": "deu", "limit": "1", "offset": str(offset), "min_count": "1"},
+        )
+        walked.extend((r["lemma"], r["pos"]) for r in page["rows"])
+        offset = page["next_offset"]
+
+    # Same rows, same order, each exactly once.
+    assert walked == expected
+
+
+def test_tied_rows_are_ordered_by_pos_so_the_sort_is_total(
+    tie_concordance_db: sqlite3.Connection,
+) -> None:
+    """Names the tiebreaker, so a future ORDER BY edit that drops it fails here
+    rather than silently reintroducing unstable paging."""
+
+    out = concordance_queries.lemma_index(
+        tie_concordance_db, {"lang": "deu", "limit": "50", "min_count": "1"},
+    )
+    tied = [(r["lemma"], r["pos"], r["count"]) for r in out["rows"] if r["lemma"] == "recht"]
+    assert tied == [("recht", "ADJ", 2), ("recht", "VERB", 2)]
