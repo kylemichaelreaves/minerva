@@ -17,6 +17,8 @@
 // If a scheme with macrons or strict ALA-LC is wanted later, swap the
 // table below; the tokenizer and Reader integration stay the same.
 
+import { stripMarks } from "~/utils/fold";
+
 const GREEK_BASE: Record<string, string> = {
   α: "a",
   β: "b",
@@ -51,16 +53,15 @@ const GREEK_BASE: Record<string, string> = {
 // combining marks — eslint's `no-misleading-character-class` rule
 // flags unattached marks in character classes (they look like they
 // belong to the preceding bracket), and editors render the orphans
-// confusingly. Ranges in use:
+// confusingly.
+//
+// Stripping the marks lives in `utils/fold.ts` as of #363, shared with the
+// concordance's type-to-filter matching rather than duplicated here. It
+// removes all of `\p{M}`, which covers the ranges this module cares about:
 //   U+0300–U+036F  general combining diacritics (accents/breathings)
 //   U+0345         combining ypogegrammeni (iota subscript)
 //   U+0314         combining rough breathing (subset of the above)
-const DIACRITIC_RE = /\p{M}/gu;
 const ROUGH_BREATHING = "\u0314";
-
-function stripDiacritics(s: string): string {
-  return s.normalize("NFD").replace(DIACRITIC_RE, "");
-}
 
 // Combining rough breathing = U+0314. Its presence anywhere in the
 // NFD form means the word starts with an aspirated vowel (or initial ρ).
@@ -71,7 +72,7 @@ function hasRoughBreathing(word: string): boolean {
 export function romanize(word: string): string {
   if (!word) return word;
   const rough = hasRoughBreathing(word);
-  const stripped = stripDiacritics(word);
+  const stripped = stripMarks(word);
   let out = "";
   for (let i = 0; i < stripped.length; i++) {
     const raw = stripped[i];

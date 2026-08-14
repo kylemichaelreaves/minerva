@@ -180,6 +180,89 @@
   }
 }
 
+/* ─── FILTER FIELD (filterable, #363) ─── */
+/* One class, two homes. On desktop the input IS the trigger, so it has to be
+   invisible inside the box the wrapper draws; on mobile it sits at the top of
+   the full-screen panel and needs a box of its own. Shared declarations here,
+   per-site ones below. */
+.minerva-select__filter-input {
+  box-sizing: border-box;
+  appearance: none;
+  font: inherit;
+  color: var(--ink);
+}
+
+/* Panel site — mobile only. See the note on the trigger shapes in Select.tsx. */
+.minerva-select__filter {
+  padding: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+.minerva-select__filter .minerva-select__filter-input {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--pset-radius);
+}
+.minerva-select__filter .minerva-select__filter-input::placeholder {
+  color: var(--ink-faint);
+}
+.minerva-select__filter .minerva-select__filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Trigger site — the input is the control. The wrapper keeps the border, the
+   padding and the flex row from `.minerva-select__trigger`; the input fills the
+   remaining space and draws nothing. */
+.minerva-select__trigger--field {
+  cursor: text;
+}
+/* The ring moves to the box, since the focusable element is now inside it. */
+.minerva-select__trigger--field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.minerva-select__trigger--field .minerva-select__filter-input {
+  flex: 1 1 auto;
+  /* Not optional: an input's intrinsic `size`-based width fights `width: 100%`
+     inside the inline-flex `.fbar .grp` (concordance.css:112-118). */
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  /* Matches `.minerva-select__primary`, so the typed text sits exactly where
+     the selected label sat in the button shape. */
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: 0.002em;
+}
+.minerva-select__trigger--field .minerva-select__filter-input::placeholder {
+  /* Restates `.minerva-select__placeholder` so switching shapes is invisible.
+     `opacity: 1` because Firefox dims placeholders by default. */
+  font-style: italic;
+  color: var(--ink-mute);
+  opacity: 1;
+}
+
+/* Empty state and match count are siblings of the listbox, never inside it —
+   the active-option scroll effect indexes `listbox.children[i]` against the
+   rendered options 1:1. */
+.minerva-select__empty {
+  padding: 10px 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.minerva-select__foot {
+  padding: 6px 12px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
 /* ─── LISTBOX ─── */
 .minerva-select__listbox {
   list-style: none;

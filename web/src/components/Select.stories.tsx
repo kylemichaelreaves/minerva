@@ -101,6 +101,7 @@ function Harness(props: {
   placeholder?: string;
   disabled?: boolean;
   clearable?: boolean;
+  filterable?: boolean;
   ariaLabel: string;
 }): ReturnType<typeof Select> {
   const [value, setValue] = createSignal<string | undefined>(props.initial);
@@ -113,6 +114,7 @@ function Harness(props: {
         placeholder={props.placeholder}
         disabled={props.disabled}
         clearable={props.clearable}
+        filterable={props.filterable}
         ariaLabel={props.ariaLabel}
       />
     </div>
@@ -334,6 +336,58 @@ export const Dark: Story = {
           "accent shifts to terracotta and the paper goes near-black; " +
           "all other tokens cascade from --r-* declared in " +
           "Reader/reader.css.",
+      },
+    },
+  },
+};
+
+export const Filterable: Story = {
+  render: () => (
+    <Harness
+      options={LONG_AUTHORS}
+      placeholder="add an author…"
+      clearable={false}
+      filterable
+      ariaLabel="Add an author to the concordance scope"
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The trigger IS the input (#363). Typing narrows the list as you " +
+          "go, matching diacritic-folded and romanized forms, so `logos` " +
+          "finds `λόγος` and `Schroder` finds `Schröder`. The focus ring " +
+          "sits on the box rather than the inner input, and the placeholder " +
+          "keeps the serif italic of the button shape so switching between " +
+          "them is invisible. Enter commits the highlighted row and never " +
+          "the raw text. Below 768px the trigger reverts to a button and the " +
+          "field moves to the top of the full-screen sheet, because the " +
+          "mobile panel would otherwise cover the trigger it belongs to.",
+      },
+    },
+  },
+};
+
+export const FilterableDark: Story = {
+  render: () => (
+    <Harness
+      options={LONG_AUTHORS}
+      placeholder="add an author…"
+      clearable={false}
+      filterable
+      ariaLabel="Add an author to the concordance scope"
+    />
+  ),
+  decorators: [withTheme("dark")],
+  parameters: {
+    backgrounds: { default: "paper-dark" },
+    docs: {
+      description: {
+        story:
+          "The filterable trigger in dark theme — the check is that the " +
+          "transparent borderless input inherits the panel's ink and that " +
+          "the placeholder stays legible against `--paper`.",
       },
     },
   },

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import sqlite3
 import unicodedata
@@ -32,9 +33,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
                  Greek (``grc``) the lemma's first character is folded
                  (diacritics stripped, upper-cased) before comparison so
                  ``Α`` matches ἀ/ἄ/Ἀ/α (see ``_fold_initial``).
-      q          case-insensitive substring filter on the lemma —
-                 drives the F1 "find lemma" search field. Trimmed; an
-                 empty/whitespace-only value is ignored.
+      q          substring filter on the lemma, **diacritic- and
+                 case-folded** on both sides (see ``_fold_text``), so
+                 ``λογος`` matches ``λόγος`` and ``schroder`` matches
+                 ``Schröder`` (#363). Applies to every language, not just
+                 Greek. Drives the F1 "find lemma" search field.
+                 Trimmed; an empty/whitespace-only value is ignored.
       pos_in     comma-separated POS whitelist; default content words
                  only (NOUN/VERB/ADJ/PROPN). Pass ``all`` to
                  disable the filter and surface function words too.
@@ -134,6 +138,13 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     fold_letter = lang == "grc"
     if fold_letter:
         conn.create_function("fold_initial", 1, _fold_initial, deterministic=True)
+    # The `q` filter folds the whole lemma, for every language rather than just
+    # Greek: German umlauts and the eszett want it as much as polytonic accents
+    # do, and gating it would mean two `q` semantics to document. Registered
+    # only when there is a query, so the callback is never installed on the
+    # request the page issues on load. See `_fold_text` for the cost.
+    if q:
+        conn.create_function("fold_text", 1, _fold_text_cached, deterministic=True)
 
     # ── Materialized read path ────────────────────────────────────
     # The ``lemma_counts`` table (migration 0019, populated by
@@ -474,12 +485,16 @@ def _counts_where(
         where_parts.append(f"pos IN ({placeholders})")
         where_params.extend(pos_in)
     if q:
-        # Case-insensitive substring match. LOWER on both sides plays
-        # nice with SQLite's collation-free LIKE; we escape the user's
-        # wildcard chars so a literal "%" in the search string doesn't
-        # blow open the filter.
-        where_parts.append("LOWER(lemma) LIKE LOWER(?) ESCAPE '\\'")
-        where_params.append(f"%{escape_like_substring(q)}%")
+        # Diacritic- and case-folded substring match (#363), so `λογος` finds
+        # `λόγος` and `schroder` finds `Schröder`. Both sides go through the
+        # same `_fold_text`, via the SQL function on the column and directly on
+        # the parameter, so the two cannot drift.
+        #
+        # `escape_like_substring` is applied AFTER the fold. Either order works
+        # today — NFD + upper-casing cannot emit `%`, `_` or `\` — but escaping
+        # last means #120's invariant does not depend on that staying true.
+        where_parts.append("fold_text(lemma) LIKE ? ESCAPE '\\'")
+        where_params.append(f"%{escape_like_substring(_fold_text(q))}%")
     # Lemma-validity guard: matches the same first-char rule we apply
     # at lemmatize time / KWIC. Defense-in-depth — if a partial
     # rebuild ever leaves junk in lemma_counts, the read path skips it.
@@ -521,23 +536,56 @@ def _canonical_display(
     return variants_by_freq[0]
 
 
-def _fold_initial(s: str | None) -> str:
-    """Fold a string's first character to its base capital letter.
+def _fold_text(s: str | None) -> str:
+    """Fold a whole string to its base capital letters.
 
-    NFD-decompose the leading code point, drop combining marks, then
-    upper-case. This maps polytonic Greek precomposed forms onto their
-    bare capital so the concordance letter rail buckets them together:
-    ``ἄ`` → ``Α``, ``ὁ`` → ``Ο``, ``Ἀθηνᾶ`` → ``Α``. Registered as a
-    SQLite scalar function for the Greek leading-letter filter.
+    NFD-decompose, drop combining marks, then upper-case. Diacritics and
+    case both stop mattering, which is what lets ``q=λογος`` find
+    ``λόγος`` and ``q=schroder`` find ``Schröder`` (#363).
+
+    Note this is *not* interchangeable with SQL ``LOWER()``, which is
+    ASCII-only — measured, ``SELECT lower('ΛΟΓΟΣ')`` returns the string
+    unchanged, so the ``q`` filter was case-sensitive for every
+    non-Latin script in the corpus before this.
+
+    Two behaviours worth knowing: ``ß`` expands to ``SS`` under
+    upper-casing, so ``Strasse`` and ``Straße`` fold together; and
+    lunate sigma ``ϲ`` upper-cases to ``Ϲ`` rather than ``Σ``, so it does
+    not fold with ``σ`` (3 rows in the whole corpus — not worth a case).
 
     Returns ``""`` for empty/None input.
     """
 
     if not s:
         return ""
-    decomposed = unicodedata.normalize("NFD", s[0])
+    decomposed = unicodedata.normalize("NFD", s)
     base = "".join(c for c in decomposed if not unicodedata.combining(c))
     return base.upper()
+
+
+# The SQL-callback path only. `q` is a substring match, so the predicate is
+# `LIKE '%…%'` and cannot seek an index — measured with EXPLAIN QUERY PLAN, the
+# index seek covers `(lang, scope_kind, scope_value)` and the LIKE is a residual
+# filter, i.e. this already scanned the partition before the fold existed. So
+# the fold's whole cost is a Python callback per row over up to 165,049 rows
+# (the largest corpus partition, deu). Memoizing it takes that from 5.1x the C
+# built-in to ~1.3x, because the vocabulary is tiny next to the row count.
+# Bounded rather than unbounded: the full 596,351-lemma corpus vocabulary
+# measures 48.7 MB cached, and this connection is long-lived.
+_fold_text_cached = functools.lru_cache(maxsize=200_000)(_fold_text)
+
+
+def _fold_initial(s: str | None) -> str:
+    """Fold a string's first character to its base capital letter.
+
+    ``ἄ`` → ``Α``, ``ὁ`` → ``Ο``, ``Ἀθηνᾶ`` → ``Α``: the concordance
+    letter rail buckets polytonic forms under their bare capital.
+    Registered as a SQLite scalar function for the Greek leading-letter
+    filter, and exactly ``_fold_text`` over the first character — the
+    empty-string case included.
+    """
+
+    return _fold_text(s[:1] if s else s)
 
 
 def _corpus_label(lang: str) -> str:

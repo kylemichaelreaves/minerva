@@ -101,7 +101,9 @@
 
 .fbar {
   display: flex;
-  align-items: center;
+  /* `flex-start`, not `center`: each group stacks its label above its control, so
+     aligning on the top edge puts every label on one line across the bar. */
+  align-items: flex-start;
   gap: 14px;
   margin: 4px 0 8px;
   padding: 10px 0;
@@ -111,8 +113,12 @@
 }
 .fbar .grp {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  /* Label above its control rather than beside it. Six groups plus the search
+     field had run out of horizontal room and were clipping at the right — and
+     stacking is what the mobile block below already claims the layout does. */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   padding-right: 14px;
   border-right: 1px dashed var(--rule-soft);
 }
@@ -1266,7 +1272,11 @@
     padding: 0;
     border-bottom: 1px dashed var(--rule-soft);
     padding-bottom: 12px;
-    flex-wrap: wrap;
+    /* `stretch` so the pickers and the range still fill the sheet's width —
+       the base rule's `flex-start` would shrink them to their content. The
+       label-above-control stacking now comes from that base rule, which is why
+       the `flex-wrap: wrap` that used to fake it here is gone. */
+    align-items: stretch;
   }
   .fbar .grp:last-of-type {
     border-bottom: 0;

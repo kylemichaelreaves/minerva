@@ -15,6 +15,7 @@ import pytest
 from conftest import make_chunk  # type: ignore[import-not-found]
 
 from minerva import store
+from minerva.concordance import index_queries
 from minerva.concordance import queries as concordance_queries
 from minerva.errors import BadRequestError
 
@@ -814,3 +815,103 @@ def test_merge_case_pagination_honors_offset(case_merge_db: sqlite3.Connection) 
     assert first["rows"][0]["lemma"] == "haben"
     assert second["rows"][0]["lemma"] == "Gott"
     assert second["rows"][0]["count"] == 2
+
+# ── q — diacritic + case folding (#363) ──────────────────────────────
+
+
+def test_fold_text_folds_the_whole_string() -> None:
+    """``_fold_text`` is ``_fold_initial`` without the first-character
+    slice: NFD-decompose, drop combining marks, upper-case. Unlike SQL
+    ``LOWER()`` it is Unicode-aware, which is what makes the ``q``
+    filter work for every script in the corpus rather than Latin only."""
+
+    assert index_queries._fold_text("\u03bb\u03cc\u03b3\u03bf\u03c2") == "\u039b\u039f\u0393\u039f\u03a3"
+    assert index_queries._fold_text("\u1f08\u03b8\u03b7\u03bd\u1fb6") == "\u0391\u0398\u0397\u039d\u0391"
+    # German eszett expands under upper-casing, so Strasse ↔ Straße fold
+    # together. Surprising but wanted for a substring search field.
+    assert index_queries._fold_text("Gr\u00f6\u00dfe") == "GROSSE"
+    assert index_queries._fold_text("") == ""
+    assert index_queries._fold_text(None) == ""
+
+
+def test_fold_initial_still_folds_only_the_first_character() -> None:
+    """The letter-rail folder keeps its contract while sharing the
+    whole-string implementation. Guards the refactor, not new behaviour."""
+
+    assert index_queries._fold_initial("\u1f04\u03bd\u03b8\u03c1\u03c9\u03c0\u03bf\u03c2") == "\u0391"
+    assert index_queries._fold_initial("") == ""
+    assert index_queries._fold_initial(None) == ""
+
+
+def test_q_folds_greek_diacritics(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """Unaccented input finds the accented lemma. The polytonic accents
+    are the hardest part of a Greek word to type and carry no
+    information the reader has before they start typing."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u03bb\u03bf\u03b3\u03bf\u03c2", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"\u03bb\u03cc\u03b3\u03bf\u03c2"}
+
+
+def test_q_accented_input_still_matches(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """Folding must not break the reader who *can* type the diacritics.
+    Fails if only the column side is folded and the parameter is not."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u03bb\u03cc\u03b3\u03bf\u03c2", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"\u03bb\u03cc\u03b3\u03bf\u03c2"}
+
+
+def test_q_greek_uppercase_input_matches_lowercase_lemma(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """SQLite's ``LOWER()`` is ASCII-only — measured, ``SELECT
+    lower('\u039b\u039f\u0393\u039f\u03a3')`` returns the string unchanged — so the docstring's
+    promise of a case-insensitive filter was false for every non-Latin
+    script in the corpus. Folding in Python fixes that as a side
+    effect."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u039b\u039f\u0393\u039f\u03a3", "min_count": "1"},
+    )
+    assert {r["lemma"] for r in out["rows"]} == {"\u03bb\u03cc\u03b3\u03bf\u03c2"}
+
+
+def test_q_totals_fold_too(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """The header totals are a second query over the same predicate
+    builder. Folding one and not the other desyncs the "n of N" the page
+    prints against the rows it shows."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "q": "\u03bb\u03bf\u03b3\u03bf\u03c2", "min_count": "1"},
+    )
+    assert out["total_lemmas"] == 1
+
+
+def test_q_folded_wildcards_do_not_bypass_the_filter(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """#120's guard, re-asserted through the fold. ``escape_like_substring``
+    is applied *after* folding, so the escape cannot be undone by an
+    NFD/upper-case pass — and an accented wildcard is the case only the
+    ordering can break."""
+
+    for pattern in ("%", "_", "\u03cc%"):
+        out = concordance_queries.lemma_index(
+            greek_concordance_db,
+            {"lang": "grc", "q": pattern, "min_count": "1"},
+        )
+        assert out["rows"] == [], pattern
+        assert out["total_lemmas"] == 0, pattern
