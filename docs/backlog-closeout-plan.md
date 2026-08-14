@@ -231,7 +231,8 @@ defect in the lemma writer.
 | 9-bis | what the latency fixes left behind | #344, #345 | **backlog** | Both found verifying #339 part 2, and neither is a corpus defect. #344 is `/api/health`, the last full scan of `chunks` on the read path (~210 ms) — named and scoped out by #339, so it needed its own row once #339 closed, and part 2 pushed it 9% the wrong way. #345 is the coverage-exclusion divergence the same PR hit and half-fixed: `pyproject.toml`'s `omit` and `sonar.coverage.exclusions` disagree, so a locally-omitted file arrives at the blocking gate scored 0%. Both **may resolve as decisions rather than repairs**, like #299 — #344's three options trade staleness against ingest cost, and #345's turns on whether the shim deserves a bar at all. |
 | 9-ter | the other three side routes | ~~#348~~ | **landed** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. It resolved **half as a decision and half as a repair**, which the row anticipated: the entry points settle it — the Reader rail links into the concordance twice and into neither of the other two, so the concordance keeps the Reader and network/refs stay destinations that release it. See batch 9-ter. |
 | 9-quater | what the hoist left armed | ~~#352~~ | **landed** | Found working 9-ter, in the files it edited. The `suspended` flag added there gates the two global listeners whose misfire was measured; four more in the Reader subtree stayed armed while the Reader is retained off-screen. The row predicted this "may resolve as a decision rather than a repair" and that only one of the four loses user state — **both halves were wrong**, and measuring is what showed it: a third listener (`useDialogFocus`) hijacks every shift-Tab on the concordance, so the count that costs the user is two, not one. Verdict `CORRECTED` — three of the issue's explanations did not survive phase 1. Landed as PR #355; see batch 9-quater. |
-| 9-quinquies | the popover shell's uneven dismissal | #356 | **backlog** | Found working 9-quater, in the files it edited, and grouped **by file rather than by theme** — it is not a retained-Reader defect at all. `ReferenceCard` calls itself "sibling of TermCard" and shares `PopoverCard`, its anchoring and both its other dismissal affordances, but nothing gives it an outside-click listener: `useClickOutside` has six consumers and `useXrefCard` is not one. Placed here because 9-quater is the batch that audited every listener these two cards own, so the context is already loaded, and because its fix decided where the gate for `useClickOutside` lives — which is the first thing #356 has to not contradict. **May resolve as a comment rather than a listener**, like #299: the reference card is anchored to a gutter marker rather than an inline word, so "click the text to dismiss" may have been deliberate. Nothing records either way, which is the defect. |
+| 9-quinquies | the popover shell's uneven dismissal | ~~#356~~ | **landed** | Found working 9-quater, in the files it edited, and grouped **by file rather than by theme** — it is not a retained-Reader defect at all. `ReferenceCard` shares `PopoverCard` and its anchoring but nothing gave it an outside-click listener: `useClickOutside` has six consumers and `useXrefCard` is not one. Placed here because 9-quater is the batch that audited every listener these two cards own, so the context is already loaded, and because its fix decided where the gate for `useClickOutside` lives — which is the first thing #356 had to not contradict. Two claims above are **corrected**, and the first was this row's whole reason to expect a decision: it said "nothing records either way" and "shares … both its other dismissal affordances", and *three* comments in two files describe the missing listener as existing behaviour while the shared close button does not exist at all. Verdict `CORRECTED`; landed as PR #359. See batch 9-quinquies. |
+| 9-sexies | what the shell inherited | #357, #358 | **backlog** | Both found working 9-quinquies, in the files it edited, and both are the shell rather than either card — which is the difference from the row above, where the defect was one card missing what the other had. #357 is `PopoverCard`'s `stopPropagation()` shim: it names the outside-click listener as the thing it stops and cannot reach it (capture-phase on `document`, and on a different event), and no ancestor of the card binds a bubble-phase click handler either — the only thing that fails without it is a test supplying the parent the app lacks. #358 is what correction 2 exposed rather than fixed: both cards are `aria-modal="true"` with no visible close control, and `TermCard`'s renders only in the load-error state. Neither touches the DB. **#358 may resolve as a decision rather than a repair**, like #299, and the decision may be to drop the attribute instead of adding the button — a popover that does not trap the page is arguably not modal. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
@@ -2521,3 +2522,119 @@ instead of the item it guessed. Correction 2 shows it recomputes a correct
 value from a stored rect, so there is no defect to gate and gating it would
 add production code no test can fail on. If a future popover does measure
 live, the context is already there to consult.
+
+## Batch 9-quinquies — the popover shell's uneven dismissal (#356)
+
+Found working 9-quater, in the files it edited. One sentence carries the
+batch: **an affordance wired per-caller is an affordance the next caller
+will not have**, and the shell was already the right owner — it held Escape
+and the focus trap the whole time.
+
+### The row above it expected a decision, and the code had already made it
+
+9-quinquies said #356 "may resolve as a comment rather than a listener, like
+#299", because "nothing records either way, which is the defect". Nothing
+records it is the one claim in the issue that is false in the most direct way
+possible: three comments in two files describe the missing listener as
+existing behaviour, and one of them claims to defend against it.
+
+| where | what it says | true? |
+|---|---|---|
+| `ReferenceCard.tsx:16-21` | "Esc / outside-click dismisses" | Esc yes, outside-click no |
+| `ReferenceCard.tsx:64-67` | "dismisses the card (Esc / outside click / the close affordance)" | one of three |
+| `XrefMarker.tsx:35-41` | "Stop the document-level outside-click handler (registered while a ReferenceCard is open)" | there was no such handler |
+
+Had we trusted it, the comment-only option would have been on the table. It
+is not: writing "dismissal by clicking away is deliberately omitted" would
+contradict three comments already in the tree, and reconciling all four is
+more editing than adding the listener.
+
+### The second correction, and why it raises the severity
+
+The issue's affordance table credits both cards with a close button. Neither
+has one in the state a reader is normally in:
+
+```
+$ grep -c "button" web/src/components/ReferenceCard.tsx
+0
+$ grep -rn "close" web/src/components/referencecard.css
+$ echo $?
+1
+```
+
+`TermCard`'s `.termcard-close` is real but sits inside `<Show
+when={Boolean(term.error)}>` (`TermCard.tsx:76-86`) — it renders only when the
+term fetch failed. So the reference card was not missing one affordance of
+three with a button as a fallback; it was missing one of two, and there was no
+fallback. Corrected:
+
+| | Escape | click away | re-click anchor | visible close control |
+|---|---|---|---|---|
+| `TermCard` (loaded) | yes | yes | yes | no |
+| `ReferenceCard`, before | yes | **no** | yes | no |
+| `ReferenceCard`, after | yes | **yes** | yes | no |
+
+The last column is #358: exposed by this correction, not fixed by this batch.
+
+### Mechanism: the shell owns the listener, the card names its anchor
+
+`PopoverCard` calls `useClickOutside` rooted on the `cardRef` it already
+holds, and takes a new required `anchorSelector` prop — `.term-mark` for the
+term card, `.xref-pin` for the reference card. Required rather than optional
+so a third popover has to answer "what anchors me?" instead of inheriting a
+listener that fights its own opener: the mousedown half of the click that
+opens a card is, geometrically, a click outside it.
+
+`useTermCard`'s copy is deleted, along with the `suspended` prop #352 threaded
+into it. That is the part of the issue's constraint 2 that wanted settling —
+it warned the two mechanisms "would then disagree about which hook owns the
+gate", and deleting one of them is what stops the disagreement. The gate now
+reads `useSuspendedSubtree()` inside `PopoverCard` and folds it into the
+`isActive` accessor, so `useClickOutside` itself stays context-free and
+`components/Select.tsx` stays provably unaffected — the property
+`suspendedSubtree.tsx:26-32` exists to preserve. #352's four suspended-listener
+tests pass unchanged.
+
+### The test that had to be watched failing twice
+
+The ignore predicate got its own red. Implemented without it, "leaves the card
+open when the click lands on its own anchor" fails:
+
+```
+FAIL  tests/PopoverCard.test.tsx > leaves the card open when the click lands on its own anchor
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+```
+
+`XrefMarker`'s own `e.stopPropagation()` cannot supply that guard, which is
+the fourth thing its comment gets wrong and is now #357: it is on a
+bubble-phase `click`, and the listener is a capture-phase `mousedown` on
+`document`, which runs first.
+
+### The refactor had no guard, so one was built first
+
+Nothing covered the term card's outside-click dismissal end to end — deleting
+`useTermCard`'s copy left the affordance entirely absent and every existing
+test green. `Reader.test.tsx` gains "clicking away from the open term card
+closes it" for that, and it is not vacuous: with `PopoverCard`'s listener
+disabled, exactly the three positive tests fail and the four suspended-listener
+tests still pass.
+
+```
+× calls onClose when a click lands outside the card
+× a click away calls onClose
+× clicking away from the open term card closes it
+Test Files  3 failed | 1 passed (4)
+      Tests  3 failed | 38 passed (41)
+```
+
+Adding it meant hoisting the three term-card fixtures to module scope: the
+trio ran ~40 lines a copy in two tests already, and a third copy is what
+failed Sonar's duplication gate on #254.
+
+### What was deliberately not fixed
+
+`PopoverCard`'s `onCardClick` shim stays, as #357 rather than a deletion in
+this PR. It is inert — capture-phase listener, different event, no ancestor
+handler — but `ReferenceCard.test.tsx:262` asserts it, and whether it is dead
+weight or a pre-emptive guard for a backdrop nobody has built is a decision,
+not a repair. The same fork #356 itself resolved by measuring.

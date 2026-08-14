@@ -221,7 +221,6 @@ export default function Reader(props: ReaderProps) {
   const term = useTermCard({
     openTermId: () => props.openTermId,
     onOpenTermIdChange: (id) => props.onOpenTermIdChange?.(id),
-    suspended: () => Boolean(props.suspended),
   });
 
   /** Composed dismiss: aborts the rail + word-lookup, then promotes
