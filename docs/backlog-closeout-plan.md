@@ -236,6 +236,8 @@ defect in the lemma writer.
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
 | 11 | type-to-filter the concordance pickers | ~~#363~~ | **landed** | **Groups with nothing in batches 0–10** — a directly-requested feature, like batch 10, and numbered rather than `10-bis` because it shares neither #350's files nor its theme. The Author and Work pickers held up to ~964 options in a 320px scroll list with no filter field; `Select` gained an opt-in `filterable` mode, and the lemma-search `q` predicate gained the same diacritic fold server-side. See batch 11. |
 | 11-bis | what the filter work found | #364, #365, #366, #367, #369 | **backlog** | All four found working #363, none caused by it, and they do not group with each other beyond that — which is stated rather than fudged. #366 is the serious one and is **not a frontend defect at all**: `merge_case` groups Greek lemmas by folded *first character*, so the leaderboard's Greek counts are inflated and its labels name the wrong word (`στηλογραφία` merges into `συλλογισμός`). It is one line once #363's whole-string folder exists, but it changes user-visible numbers and wants its own PR. #367 is the script detectors answering `true` for any combining mark, which #363 works around rather than fixes. #364 is the other three concordance dropdowns having no keyboard access at all; #365 is `Select`'s panel lacking the mobile-sheet containment rule its neighbour has. #369 was found last, working the trigger redesign: `check-pr-link` retries only on a `missing` link because `unexpected` "will not un-register", and it does — measured on PR #368, where the check asserted the PR was broken seconds after GitHub had already dropped the link. It belongs to the 8-series question rather than to this batch's theme, and is grouped here only because this is what found it. |
+| 11-ter | the index page's own claims | ~~#370~~, ~~#371~~ | **landed** | Both reported from use, one sitting after 11: the leaderboard sparkline showed an identical full block on every row at single-work scope (#370, PR #372), and the list stopped at 200 rows while the header printed the true total beside it — 135,047 for German (#371, PR #374). Neither is a filter defect; they are the same *kind* of defect as each other, which is why they group: **the page displaying something that is not what the reader takes it to mean.** #370 corrected a false comment in `aggregate.py` that had claimed the read path ignores the degenerate shape; #371 corrected the one in `IndexPage.tsx` claiming a 200-row cap is "plenty for any narrowed filter" (Hegel + letter B is 1,318). |
+| 11-quater | what the index page found | #373, #375, #376, #377 | **backlog** | All four found working 11-ter, and **#373 is the one to read first**: `merge_case` groups on SQLite's `LOWER()`, which is ASCII-only, so `Übergehen` and `übergehen` stay separate groups and then render the *same* display label — one lemma reported twice, 78 and 59 where the truth is 137, across 113 German group pairs. With #366 (the Greek group key) and #363's `q` fold, that is **three case-folding defects in one file from one cause**: SQLite's case functions do not handle non-ASCII. #373 and #366 want fixing together — same replacement, and both move visible counts. The others are display and access: #377 the header total that is not a row count (6,797 printed above 3,163 rows, measured, under the default `min_count`), #376 the A–Z rail whose "has hits" dots are folded from the fetched rows so a 12,715-lemma letter can render empty, #375 the leaderboard rows that are `role="link"` with no `tabindex` — the same pattern Sonar blocked #368 over, unflagged here only because the lines are not new. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -2776,3 +2778,74 @@ Two things the tests caught that the plan had got wrong:
   bug in the PR, not in the check." It was not: seconds later the API returned
   `[363]` and the unchanged command passed. The script's premise that only a
   `missing` link is lag-fabricable holds in one direction only.
+
+## Batch 11-ter — the index page's own claims (#370, #371)
+
+Both reported from use rather than found by working a batch, and they group by
+kind rather than by file: **each is the page displaying something that is not
+what the reader takes it to mean.**
+
+### #370 — a chart that was right and said nothing
+
+`Sparkline` scales each bar against the *row's own* maximum, so the tallest bar
+is always 100% at every scope. At work scope `per_work` collapses to one entry
+whose `n` equals the row's `count` — measured, every row returns
+`distinct_works=1, per_work=[{work, n}]` — so every row drew one identical
+filled block. The reader's words: "I thought it was broken, although it's
+technically doing its job."
+
+`LbRow`'s `<Show>` already had the right shape, its fallback keeping the 130px
+grid track occupied, so the fix was the predicate: at least two works. The count
+stays. Landed as PR #372.
+
+The transferable part is *why nobody had noticed*: `aggregate.py` claimed "read
+path ignores it when scope_kind='work'" of the degenerate shape it writes. The
+read path does not ignore it — one branch passes it through verbatim, the other
+sums it. The writer's author believed the shape was inert downstream and the
+renderer's author had no reason to check.
+
+### #371 — a list that stopped, next to a total that did not
+
+200 rows hardcoded, no offset ever sent, and the header printing the real total
+beside it. The A–Z rail is a filter, not a pager — top 200 *per letter* — and the
+narrowest combination the UI offers short of a text query is 1,318 lemmas.
+
+| scope | total lemmas | reachable before |
+|---|---|---|
+| corpus deu | 135,047 | 200 |
+| author Hegel | 19,409 | 200 |
+| corpus deu, letter=S | 12,715 | 200 |
+| Hegel + letter B | 1,318 | 200 |
+
+**The cursor had to come from the server**, and establishing that is the useful
+part. `total_lemmas` cannot drive `hasMore`: it ignores the frequency range, and
+on one branch counts `DISTINCT lemma` while rows are per `(lemma, pos)`. Measured
+on one work scope, walking to exhaustion:
+
+```
+  min_count=1: reachable rows=  6797   total_lemmas=6797
+  min_count=2: reachable rows=  3163   total_lemmas=6797   ← the DEFAULT
+```
+
+So the default view's total overstates the reachable set 2×, and a
+`rows.length < total` pager would have requested pages forever. `next_offset` is
+derived from returned rows instead — which is exactly where it departs from the
+KWIC endpoint it otherwise mirrors, whose total *does* describe its rows.
+
+### A correction to my own reasoning, mid-implementation
+
+Walking the live index to check pages were disjoint tripped on `('Übergehen',
+'NOUN')` appearing twice, and I diagnosed unstable `LIMIT/OFFSET` over a partial
+sort order. **Wrong.** Those are two genuinely different groups that render the
+same label, because SQLite's `LOWER()` is ASCII-only — now #373.
+
+The sort-order hardening shipped anyway (805 German groups really do tie on the
+whole `freq` key and differ only in `pos`, and `LIMIT/OFFSET` over a partial
+order has no stability guarantee), but **relabelled as hardening rather than as a
+fix for an observed duplicate**, in the code comment and in both test docstrings
+that had cited the wrong cause. Worth recording as a pattern: the dedup key was
+the *display* string, and a display string is not an identity.
+
+The tie-order tests say out loud that they are a regression net and not a
+reproduction — a four-row fixture cannot make SQLite's planner change its mind.
+Better a test that admits what it does not prove than one that implies it does.
