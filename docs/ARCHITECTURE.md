@@ -160,7 +160,7 @@ Stdlib server in [`src/minerva/server.py`](../src/minerva/server.py). Run via `m
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/chunks/:id/syntax` | Pristine parse + correction log; parses on first call |
-| `POST` | `/api/chunks/:id/syntax/corrections` | Append one `head` or `deprel` correction |
+| `POST` | `/api/chunks/:id/syntax/corrections` | Append one `head`, `deprel` or `upos` correction |
 | `DELETE` | `/api/syntax/corrections/:id` | Undo one correction |
 
 The `GET` is rate-limited (`_RATE_LIMITS` in `http/server_core.py`) because an

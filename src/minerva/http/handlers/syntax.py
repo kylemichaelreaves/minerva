@@ -44,6 +44,13 @@ def _token_json(tok: syntax_queries.SyntaxToken) -> dict[str, Any]:
         "deprel": tok.deprel,
         "start": tok.surface_start,
         "end": tok.surface_end,
+        # Not "has this token ever been corrected" — ask `corrections` that.
+        # Both endpoints share this serialiser and only the POST materialises,
+        # so this is always false on the GET (pristine parse, per the module
+        # docstring) and true on the POST for the token just edited. A
+        # `corrected: false` beside a non-empty `corrections` array is the
+        # designed state; `test_the_tree_comes_back_pristine_not_merged` pins
+        # it.
         "corrected": tok.corrected,
     }
 
