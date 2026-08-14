@@ -44,7 +44,9 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
                  disable the filter and surface function words too.
       sort       freq | alpha | pos  (default: freq)
       limit      default 200, max 1000
-      offset     default 0
+      offset     default 0. Page with ``next_offset`` from the response
+                 rather than computing it from ``total_lemmas``, which is
+                 not a row count — see the note beside it below.
       min_count  drop lemmas with fewer than this many occurrences in
                  scope (default 2 — strips spaCy noise + hapax that
                  would otherwise dominate the long tail). Drives the
@@ -57,8 +59,9 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
       {
         scope: "corpus" | "author" | "work",
         scope_label: "All German" | "Hegel" | "PhdG",
-        total_lemmas: int,
+        total_lemmas: int,       # NB: not a row count — see `next_offset`
         total_occurrences: int,
+        next_offset: int | None, # offset of the next page, None when done
         sort: "freq" | "alpha" | "pos",
         letter: "A" | None,
         rows: [
@@ -190,10 +193,14 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     where_parts.append("count >= ?")
     where_params.append(min_count)
 
+    # Total order, for the reason given on the aggregate branch's clause below.
+    # Rows here are per `(lemma, pos)`, so that pair is the unique key. The bare
+    # `lemma ASC` after the NOCASE one matters: NOCASE folds ASCII case, so
+    # `Gott` and `gott` are distinct rows that compare equal under it.
     order_clause = {
-        "freq": "count DESC, lemma COLLATE NOCASE ASC",
-        "alpha": "lemma COLLATE NOCASE ASC",
-        "pos": "pos COLLATE NOCASE ASC, count DESC",
+        "freq": "count DESC, lemma COLLATE NOCASE ASC, lemma ASC, pos ASC",
+        "alpha": "lemma COLLATE NOCASE ASC, lemma ASC, pos ASC",
+        "pos": "pos COLLATE NOCASE ASC, count DESC, lemma COLLATE NOCASE ASC, lemma ASC",
     }[sort]
 
     if aggregate:
@@ -308,6 +315,20 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     else:
         scope_label = _corpus_label(lang)
 
+    # Pagination cursor (#371). Derived from the rows actually returned, NOT
+    # from `total_lemmas` — unlike the KWIC endpoint, which can do
+    # `offset + limit < total` because its total describes its rows.
+    # `total_lemmas` here does not: it is computed without the frequency range
+    # applied (see the note above the totals query), and on the non-aggregate
+    # branch it counts DISTINCT lemma while rows are per (lemma, pos). A cursor
+    # built on it would keep requesting pages that come back empty, or stop
+    # before the end.
+    #
+    # A full page means "there may be more"; a short one means "that was the
+    # last". The cost is one extra request when the final page is exactly full,
+    # which is the standard trade and cheaper than being wrong.
+    next_offset = offset + len(out_rows) if len(out_rows) == limit else None
+
     return {
         "scope": scope,
         "scope_label": scope_label,
@@ -318,6 +339,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         "total_occurrences": int(totals["total_tokens"]) if totals else 0,
         "limit": limit,
         "offset": offset,
+        "next_offset": next_offset,
         "rows": out_rows,
     }
 
@@ -351,10 +373,27 @@ def _fetch_aggregate_page(
         having_parts.append("SUM(count) <= ?")
         having_params.append(max_count)
 
+    # Every clause ends on a key combination unique per row, because
+    # `LIMIT/OFFSET` over a partial order is unsound: tied rows are
+    # interchangeable, so a page boundary can serve one twice and its partner
+    # never. `pos` is in the GROUP BY, so `(lemma_key, pos)` identifies a row —
+    # naming it last makes each sort total.
+    #
+    # Measured: 805 groups in the German corpus partition tie on the whole `freq`
+    # key `(n, lemma_key)` and differ only in `pos` — `rechtschaffen` ADJ/VERB
+    # both at 47, `zween` NOUN/VERB both at 29. Nothing had noticed because
+    # nothing sent an `offset` (#371).
+    #
+    # This is hardening on principle, not a fix for an observed duplicate: no
+    # page boundary has been caught mis-serving a tie. A 200-row walk of that
+    # index DOES surface `('Übergehen', 'NOUN')` twice, but that turned out to be
+    # a different defect — SQLite's `LOWER()` is ASCII-only, so `merge_case`
+    # leaves umlaut-initial variants in separate groups that then render the same
+    # display label — #373.
     order_clause = {
-        "freq": "n DESC, lemma_key COLLATE NOCASE ASC",
-        "alpha": "lemma_key COLLATE NOCASE ASC",
-        "pos": "pos COLLATE NOCASE ASC, n DESC",
+        "freq": "n DESC, lemma_key COLLATE NOCASE ASC, pos ASC",
+        "alpha": "lemma_key COLLATE NOCASE ASC, pos ASC",
+        "pos": "pos COLLATE NOCASE ASC, n DESC, lemma_key COLLATE NOCASE ASC",
     }[sort]
 
     sql = f"""

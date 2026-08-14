@@ -1318,3 +1318,26 @@
     padding: 8px 10px;
   }
 }
+
+/* Paging sentinel for the leaderboard (#371). Spans the row grid so it does not
+   land inside a column; the height gives the IntersectionObserver something to
+   see even when the note is absent. */
+.lb-sentinel {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+}
+.lb-sentinel-note,
+.lb-sentinel-error {
+  grid-column: 1 / -1;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-mute);
+  padding: 6px 0;
+}
+.lb-sentinel-error {
+  color: var(--accent);
+}
