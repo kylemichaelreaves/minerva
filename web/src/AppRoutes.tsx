@@ -8,6 +8,7 @@ import {
   onCleanup,
   onMount,
 } from "solid-js";
+import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
 import { NetworkRoute } from "~/routes/NetworkRoute";
@@ -127,7 +128,16 @@ export function AppRoutes(props: AppRoutesProps) {
           hidden={!readerShowing()}
           attr:inert={readerShowing() ? undefined : ""}
         >
-          <ReaderRoute {...ctx} />
+          {/* Above `ReaderRoute`, not inside the Reader's JSX: hooks called in
+              the Reader's own component body (`useTermCard`, its two
+              `useEscape`s) resolve `useContext` against the provider that is
+              already above them at that point, and a provider nested inside
+              the Reader's returned tree would be invisible to them. Scoped to
+              this wrapper so the concordance rendered in the sibling `<Switch>`
+              below reads the default and stays live (#352). */}
+          <SuspendedSubtreeProvider suspended={() => !readerShowing()}>
+            <ReaderRoute {...ctx} />
+          </SuspendedSubtreeProvider>
         </div>
       </Show>
       {/* `mode()` is `readerWork() ? "reader" : "chat"`, so this is exactly the
