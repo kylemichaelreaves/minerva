@@ -101,6 +101,51 @@ describe("PopoverCard dismissal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("dismisses the card from the close control", () => {
+    // #358: both cards were `aria-modal="true"` with a real Tab trap
+    // (`useDialogFocus`) and no visible way out. Escape and clicking away are
+    // both undiscoverable, and the term card's only button rendered in the
+    // load-error state. Owned by the shell for the same reason the
+    // outside-click listener is (#356): per-caller is how the reference card
+    // came to have neither.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <PopoverCard
+        variant="refcard"
+        anchor={ANCHOR}
+        ariaLabel="Cross-reference details"
+        anchorSelector=".test-anchor"
+        onClose={onClose}
+      >
+        <div class="body">body</div>
+      </PopoverCard>
+    ));
+
+    fireEvent.click(container.querySelector(".popover-close")!);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the close control an accessible name", () => {
+    // A bare `×` glyph is unlabelled to a screen reader, and this control is
+    // the dialog's only visible exit.
+    const { container } = render(() => (
+      <PopoverCard
+        variant="termcard"
+        anchor={ANCHOR}
+        ariaLabel="Term details"
+        anchorSelector=".test-anchor"
+        onClose={() => undefined}
+      >
+        <div class="body">body</div>
+      </PopoverCard>
+    ));
+
+    expect(
+      container.querySelector(".popover-close")?.getAttribute("aria-label"),
+    ).toBe("Close");
+  });
+
   it("registers no outside-click listener while its subtree is suspended", () => {
     // #352's constraint, which is why the gate is folded into the `isActive`
     // accessor here rather than into `useClickOutside` itself: a Reader

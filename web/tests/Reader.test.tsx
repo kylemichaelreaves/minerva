@@ -279,6 +279,19 @@ describe("<Reader />", () => {
     });
   });
 
+  it("closes the open term card from its close control", async () => {
+    // #358: a term card that loaded successfully had no close button at all —
+    // `.termcard-close` renders only in the load-error branch. This fixture
+    // loads, so the control under test is the shell's.
+    const { container } = await openTermCard();
+
+    fireEvent.click(container.querySelector(".popover-close")!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".termcard")).toBeNull();
+    });
+  });
+
   it("clicking away from the open term card closes it", async () => {
     // The affordance #356 moved into `PopoverCard` from `useTermCard`. Nothing
     // covered it end to end before, so the move had no guard: deleting the

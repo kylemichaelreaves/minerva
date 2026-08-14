@@ -232,7 +232,8 @@ defect in the lemma writer.
 | 9-ter | the other three side routes | ~~#348~~ | **landed** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. It resolved **half as a decision and half as a repair**, which the row anticipated: the entry points settle it — the Reader rail links into the concordance twice and into neither of the other two, so the concordance keeps the Reader and network/refs stay destinations that release it. See batch 9-ter. |
 | 9-quater | what the hoist left armed | ~~#352~~ | **landed** | Found working 9-ter, in the files it edited. The `suspended` flag added there gates the two global listeners whose misfire was measured; four more in the Reader subtree stayed armed while the Reader is retained off-screen. The row predicted this "may resolve as a decision rather than a repair" and that only one of the four loses user state — **both halves were wrong**, and measuring is what showed it: a third listener (`useDialogFocus`) hijacks every shift-Tab on the concordance, so the count that costs the user is two, not one. Verdict `CORRECTED` — three of the issue's explanations did not survive phase 1. Landed as PR #355; see batch 9-quater. |
 | 9-quinquies | the popover shell's uneven dismissal | ~~#356~~ | **landed** | Found working 9-quater, in the files it edited, and grouped **by file rather than by theme** — it is not a retained-Reader defect at all. `ReferenceCard` shares `PopoverCard` and its anchoring but nothing gave it an outside-click listener: `useClickOutside` has six consumers and `useXrefCard` is not one. Placed here because 9-quater is the batch that audited every listener these two cards own, so the context is already loaded, and because its fix decided where the gate for `useClickOutside` lives — which is the first thing #356 had to not contradict. Two claims above are **corrected**, and the first was this row's whole reason to expect a decision: it said "nothing records either way" and "shares … both its other dismissal affordances", and *three* comments in two files describe the missing listener as existing behaviour while the shared close button does not exist at all. Verdict `CORRECTED`; landed as PR #359. See batch 9-quinquies. |
-| 9-sexies | what the shell inherited | #357, #358 | **backlog** | Both found working 9-quinquies, in the files it edited, and both are the shell rather than either card — which is the difference from the row above, where the defect was one card missing what the other had. #357 is `PopoverCard`'s `stopPropagation()` shim: it names the outside-click listener as the thing it stops and cannot reach it (capture-phase on `document`, and on a different event), and no ancestor of the card binds a bubble-phase click handler either — the only thing that fails without it is a test supplying the parent the app lacks. #358 is what correction 2 exposed rather than fixed: both cards are `aria-modal="true"` with no visible close control, and `TermCard`'s renders only in the load-error state. Neither touches the DB. **#358 may resolve as a decision rather than a repair**, like #299, and the decision may be to drop the attribute instead of adding the button — a popover that does not trap the page is arguably not modal. |
+| 9-sexies | what the shell inherited | ~~#357~~, ~~#358~~ | **landed** | Both found working 9-quinquies, in the files it edited, and both are the shell rather than either card — which is the difference from the row above, where the defect was one card missing what the other had. #357 is `PopoverCard`'s `stopPropagation()` shim: it names the outside-click listener as the thing it stops and cannot reach it (capture-phase on `document`, and on a different event), and no ancestor of the card binds a bubble-phase click handler either — the only thing that fails without it is a test supplying the parent the app lacks. #358 is what 9-quinquies' correction 2 exposed rather than fixed: both cards are `aria-modal="true"` with no visible close control, and `TermCard`'s renders only in the load-error state. Neither touches the DB. This row said **#358 "may resolve as a decision rather than a repair", the decision being to drop the attribute** — that is **corrected**: the popovers *do* trap focus, unconditionally, so dropping the attribute would unannounce a trap that stays put. #357 `CONFIRMED`, #358 `CORRECTED`; landed as PR #362. See batch 9-sexies. |
+| 9-septies | the close control's own residue | #360, #361 | **backlog** | Both found working 9-sexies. Grouped with each other rather than with the row above because neither is about dismissal: #360 is four comments in three files citing `project/reference-card/*.html` as the design of record for a path that has never been in the repository (plus `term-wireframes/` in `termcard.css:2`, the same shape) — it is filed rather than corrected in place because the replacement reference is the repo owner's to name. #361 is the part of #358 scoped out: the shell's `×` and `TermCard`'s error-state "Dismiss" button now both render in the load-error state, doing the same thing. #360 **may resolve as a decision** to stop citing local mockups at all, which makes it #335's failure class applied to paths instead of issue numbers. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
 | 11 | type-to-filter the concordance pickers | ~~#363~~ | **landed** | **Groups with nothing in batches 0–10** — a directly-requested feature, like batch 10, and numbered rather than `10-bis` because it shares neither #350's files nor its theme. The Author and Work pickers held up to ~964 options in a 320px scroll list with no filter field; `Select` gained an opt-in `filterable` mode, and the lemma-search `q` predicate gained the same diacritic fold server-side. See batch 11. |
 | 11-bis | what the filter work found | #364, #365, #366, #367, #369 | **backlog** | All four found working #363, none caused by it, and they do not group with each other beyond that — which is stated rather than fudged. #366 is the serious one and is **not a frontend defect at all**: `merge_case` groups Greek lemmas by folded *first character*, so the leaderboard's Greek counts are inflated and its labels name the wrong word (`στηλογραφία` merges into `συλλογισμός`). It is one line once #363's whole-string folder exists, but it changes user-visible numbers and wants its own PR. #367 is the script detectors answering `true` for any combining mark, which #363 works around rather than fixes. #364 is the other three concordance dropdowns having no keyboard access at all; #365 is `Select`'s panel lacking the mobile-sheet containment rule its neighbour has. #369 was found last, working the trigger redesign: `check-pr-link` retries only on a `missing` link because `unexpected` "will not un-register", and it does — measured on PR #368, where the check asserted the PR was broken seconds after GitHub had already dropped the link. It belongs to the 8-series question rather than to this batch's theme, and is grouped here only because this is what found it. |
@@ -2643,6 +2644,114 @@ handler — but `ReferenceCard.test.tsx:262` asserts it, and whether it is dead
 weight or a pre-emptive guard for a backdrop nobody has built is a decision,
 not a repair. The same fork #356 itself resolved by measuring.
 
+## Batch 9-sexies — what the shell inherited (#357, #358)
+
+Found working 9-quinquies, in the files it edited. Both are the shell rather
+than either card, which is the difference from 9-quinquies: there the defect
+was one card missing what the other had, here it is what `PopoverCard` gives
+*both* of them. One sentence carries the batch: **a shell that owns an
+affordance also owns the claims made about it** — #356 moved dismissal into the
+shell, and these are the two things that move became responsible for.
+
+### #357 — confirmed, and firmer than filed
+
+Verdict `CONFIRMED`. The issue argued "no ancestor bubble-phase click handler"
+from a grep of four files. Measured across the whole app, there is exactly one
+document-level listener in the click family:
+
+```
+$ grep -rn 'addEventListener("click"|addEventListener("mousedown"|addEventListener("pointerdown"' web/src | grep -v "\.test\."
+web/src/hooks/useClickOutside.tsx:33:    document.addEventListener(eventName, onDoc, capture);
+```
+
+All six of its call sites pass `mousedown` or `pointerdown`, and all get
+capture phase (`capture = options.capture ?? true`, `useClickOutside.tsx:18`).
+So the shim had nothing to stop anywhere in the app — not merely nothing in the
+files the issue happened to grep.
+
+The deletion is a real behaviour change even so, and that is what made a red
+test possible: an inside click used to be swallowed and now bubbles.
+
+```
+FAIL  tests/ReferenceCard.test.tsx > a click inside the card reaches an ancestor handler
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+```
+
+The test that asserted the mechanism through a synthetic parent is replaced by
+two that assert behaviour: an inside click does not dismiss (containment, which
+is what was always doing the work), and an inside click reaches an ancestor
+(the deletion, made deliberate rather than incidental).
+
+### #358 — the cheap option was strictly worse than doing nothing
+
+Verdict `CORRECTED`. The defect is real and the issue's own preferred fix is
+what landed; what did not survive is its alternative. It offered dropping
+`aria-modal="true"` instead of adding a button, on the grounds that "a popover
+that does not trap the page is arguably not modal" and that this "costs nothing
+visually".
+
+The popovers trap. `PopoverCard` calls `useDialogFocus(cardRef, () => true)`
+unconditionally, and the trap is a two-way Tab cycle for as long as the card is
+open (`useDialogFocus.tsx:36-53`). #352 exists *because* that trap is real — its
+third finding was every shift-Tab on the concordance being redirected into a
+`display: none` copy of this dialog. So option B would have removed the
+announcement of a trap that stays in place, leaving a keyboard user cycling
+inside a card with no visible exit and nothing telling their AT why. It reads
+as the cheap resolution and is worse than leaving the issue open.
+
+With the trap established, the WAI-ARIA dialog pattern's recommendation of a
+visible close control in the tab sequence applies directly, and #358 is a
+repair.
+
+### The instrument that broke, and what it teaches
+
+The issue's evidence was `grep -c "button" web/src/components/ReferenceCard.tsx`
+→ `0`. On the branch this batch built on it returns **2** — both hits comments
+that **PR #359 added**, documenting the absence of a close button. The count
+moved because the file started describing itself.
+
+```
+$ grep -c "button" web/src/components/ReferenceCard.tsx
+2
+$ grep -c "<button" web/src/components/ReferenceCard.tsx
+0
+$ git show origin/main:web/src/components/ReferenceCard.tsx | grep -c "button"   # pre-#359
+0
+```
+
+Anyone re-running the issue's own evidence after #359 landed would read `2` as
+"a close button was added" — i.e. as *fixed*. The transferable part: **an
+evidence command that counts a word rather than a construct can be falsified by
+a comment**, and the record-correction half of a previous batch is exactly the
+kind of edit that adds comments. `grep -c "<button"` is the form that survives.
+
+### Placement: the corner was not free, and the choice made on that was wrong
+
+Scoping picked "top-right ×, and the pending pill moves down when both show".
+That premise was wrong in a way worth recording, because it came from this
+work's own phase-1 comment. `.refcard-chip` — the reference-type pill — is
+absolutely positioned at `top: 16px; right: 20px` and renders in **every**
+state, not just pending (`referencecard.css:59-62`). The element that has to
+yield is the always-present chip, and moving it down pushes it into the citation
+line it labels.
+
+Built instead: the `×` takes the corner, and the chip and the pending pill both
+shift **left** of it, reading as one header row. `.refcard-head`'s
+`padding-right` grows 92px → 118px so a long author + work still wraps clear.
+
+### What was deliberately not fixed
+
+`TermCard`'s error-state "Dismiss" button stays, so the load-error state now has
+two controls doing the same thing — the shell's `×` and its own. Filed as #361
+rather than resolved here: a bare glyph is a weaker affordance than a labelled
+button next to an error message, and the error state is where a stuck reader is
+most likely to be, so which one goes is a design call.
+
+The four `project/reference-card/*.html` citations are untouched and filed as
+#360. #358's case for treating the close control as a decision leaned on that
+directory being "a faithful-port design"; it has never been in the repository,
+so the naming of a durable replacement is the repo owner's call and not a
+correction this PR can make.
 ## Batch 11 — type-to-filter the concordance pickers (#363)
 
 A directly-requested feature, not a defect found by working a batch. One

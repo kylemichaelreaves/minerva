@@ -1,4 +1,5 @@
 import { type JSX, createSignal } from "solid-js";
+import "~/components/popovercard.css";
 import { POPOVER_CARD_WIDTH } from "~/utils/popoverPosition";
 import { useClickOutside } from "~/hooks/useClickOutside";
 import { useDialogFocus } from "~/hooks/useDialogFocus";
@@ -64,10 +65,6 @@ export default function PopoverCard(props: PopoverCardProps) {
       (target as Element).closest(props.anchorSelector) != null,
   });
 
-  function onCardClick(e: MouseEvent) {
-    e.stopPropagation();
-  }
-
   const width = props.width ?? POPOVER_CARD_WIDTH;
   const shellClass = () =>
     `${props.variant}${pos().flipUp ? " flip-up" : ""}${props.class ? ` ${props.class}` : ""}`;
@@ -81,11 +78,25 @@ export default function PopoverCard(props: PopoverCardProps) {
         left: `${pos().left}px`,
         ...(props.variant === "termcard" ? { width: `${width}px` } : {}),
       }}
-      onClick={onCardClick}
       role="dialog"
       aria-modal="true"
       aria-label={props.ariaLabel}
     >
+      {/* The dialog's only visible exit (#358). Escape and clicking away both
+          work and neither is discoverable, and `useDialogFocus` traps Tab in
+          here for as long as the card is open — which is why this belongs in
+          the tab sequence rather than being left to each card. First child so
+          it is the first focusable the trap lands on. */}
+      <button
+        type="button"
+        class="popover-close"
+        aria-label="Close"
+        onClick={() => {
+          props.onClose();
+        }}
+      >
+        ×
+      </button>
       {props.variant === "termcard" ? (
         <span class="termcard-arrow" aria-hidden="true" />
       ) : (
