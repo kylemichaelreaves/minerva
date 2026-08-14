@@ -2,7 +2,7 @@
 // lib/Select.tsx. Covers the click + keyboard interaction surfaces
 // the FiltersBar (in /refs) and other call sites depend on.
 
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { Select, type SelectOption } from "~/components/Select";
@@ -188,45 +188,59 @@ describe("<Select />", () => {
   // ── filterable mode (#363) ──────────────────────────────────────────
   //
   // The concordance work picker holds ~964 options in a 320px scroll list.
-  // `filterable` puts a field at the top of the panel and narrows the list as
-  // the reader types. Everything above this comment is the `filterable`-off
-  // baseline and must keep passing unchanged — it is the only proof the five
-  // other call sites are untouched.
+  // `filterable` makes the trigger itself a text input that narrows the list as
+  // the reader types — the ARIA combobox pattern, one element rather than a
+  // button plus a second field inside the panel.
+  //
+  // The exception is mobile: `styles/mobile.css` turns the panel into a
+  // full-screen sheet at `z-index: 80` while the sheet holding the trigger is
+  // at 71, so an editable trigger would be typed into blind. There the trigger
+  // stays a button and the field renders at the top of the panel. `setup.ts`
+  // stubs `matchMedia` to `matches: false`, so everything below is the desktop
+  // shape unless it overrides it.
+  //
+  // Everything ABOVE this comment is the `filterable`-off baseline and must keep
+  // passing unchanged — it is the only proof the five other call sites are
+  // untouched.
 
-  it("renders no filter field by default", () => {
-    // Regression guard for the other call sites rather than a red-first test:
-    // it passes before the feature exists, and would fail if `filterable`
-    // defaulted on.
+  it("renders a button trigger, not an input, when filterable is off", () => {
     const { trigger, filter } = harness(undefined);
-    fireEvent.click(trigger());
+    expect(trigger().tagName).toBe("BUTTON");
     expect(filter()).toBeNull();
   });
 
-  it("renders a filter field and focuses it when the panel opens", () => {
+  it("makes the trigger itself a text input when filterable", () => {
+    // The field exists before the panel opens — it *is* the trigger, so there
+    // is nothing to reveal.
     const { trigger, filter } = harness(undefined, OPTS, { filterable: true });
-    fireEvent.click(trigger());
+    expect(trigger().tagName).not.toBe("BUTTON");
     expect(filter()).not.toBeNull();
-    expect(document.activeElement).toBe(filter());
+    expect(filter()!.tagName).toBe("INPUT");
   });
 
-  it("moves the combobox role to the field while open, and back on close", () => {
-    // `aria-activedescendant` is only announced on the element that has real
-    // focus, so leaving `role="combobox"` on the trigger while the field is
-    // focused would announce nothing as the highlight moved. Two elements
-    // claiming the role at once is also invalid — hence exactly one.
-    const { container, trigger, filter } = harness(undefined, OPTS, {
+  it("focuses the input and opens the panel when the trigger is clicked", () => {
+    const { trigger, filter, listbox } = harness(undefined, OPTS, {
       filterable: true,
     });
     fireEvent.click(trigger());
-    expect(container.querySelectorAll('[role="combobox"]').length).toBe(1);
-    expect(filter()!.getAttribute("role")).toBe("combobox");
-    expect(trigger().getAttribute("role")).toBe("button");
-
-    fireEvent.keyDown(filter()!, { key: "Escape" });
-    expect(trigger().getAttribute("role")).toBe("combobox");
+    expect(listbox()).not.toBeNull();
+    expect(document.activeElement).toBe(filter());
   });
 
-  it("puts aria-activedescendant on the field, not the trigger", () => {
+  it("makes the input the one and only combobox", () => {
+    // `aria-activedescendant` is only announced on the element that holds real
+    // focus, which is why the role belongs on the input rather than on a
+    // wrapper the user never focuses. Two elements claiming it is invalid.
+    const { container, trigger, filter } = harness(undefined, OPTS, {
+      filterable: true,
+    });
+    expect(filter()!.getAttribute("role")).toBe("combobox");
+    expect(trigger().getAttribute("role")).toBeNull();
+    fireEvent.click(trigger());
+    expect(container.querySelectorAll('[role="combobox"]').length).toBe(1);
+  });
+
+  it("puts aria-activedescendant on the input as the highlight moves", () => {
     const { container, trigger, filter } = harness(undefined, OPTS, {
       filterable: true,
     });
@@ -234,16 +248,24 @@ describe("<Select />", () => {
     fireEvent.keyDown(filter()!, { key: "ArrowDown" });
     const active = container.querySelector(".minerva-select__option.is-active");
     expect(filter()!.getAttribute("aria-activedescendant")).toBe(active!.id);
-    expect(trigger().getAttribute("aria-activedescendant")).toBeNull();
   });
 
-  it("narrows the option list as the query is typed", () => {
-    const { trigger, type, optionLabels } = harness(undefined, OPTS, {
+  it("carries the caller's ariaLabel on the input", () => {
+    // No `?? "Filter options"` fallback: the input is the trigger, so the
+    // label the caller gave the control is the label the control needs.
+    const { filter } = harness(undefined, OPTS, { filterable: true });
+    expect(filter()!.getAttribute("aria-label")).toBe("Test select");
+  });
+
+  it("opens the panel and narrows the list as the trigger is typed into", () => {
+    // Native: the character lands in the input because the input is what the
+    // reader is focused on. No seeding, and nothing to swallow.
+    const { type, listbox, optionLabels } = harness(undefined, OPTS, {
       filterable: true,
     });
-    fireEvent.click(trigger());
-    expect(optionLabels().length).toBe(3);
+    expect(listbox()).toBeNull();
     type("gam");
+    expect(listbox()).not.toBeNull();
     expect(optionLabels()).toEqual(["Gamma"]);
   });
 
@@ -289,6 +311,16 @@ describe("<Select />", () => {
     ).toContain("zzz");
   });
 
+  it("Space does not commit — in a text field a space is text", () => {
+    const { trigger, filter, onChange } = harness(undefined, OPTS, {
+      filterable: true,
+    });
+    fireEvent.click(trigger());
+    fireEvent.keyDown(filter()!, { key: "ArrowDown" });
+    fireEvent.keyDown(filter()!, { key: " " });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("says there are no options at all, rather than no match for an empty query", () => {
     // Reachable in the concordance: `addWorkOptions` returns [] once every
     // work is already chosen, and `No match for ""` would be nonsense there.
@@ -301,17 +333,18 @@ describe("<Select />", () => {
     );
   });
 
-  it("keeps showing a selected option that the query excludes", () => {
-    // `selected` resolves against the full list, not the filtered view — a
-    // filtered-out option is still the selected one.
-    const { container, trigger, type } = harness("b", OPTS, {
-      filterable: true,
-    });
+  it("shows the query while open and the selected label once closed", () => {
+    // The input does double duty. `selected` still resolves against the full
+    // list, so a query that excludes the selection does not erase it.
+    const { trigger, filter, type } = harness("b", OPTS, { filterable: true });
+    expect(filter()!.value).toBe("Beta");
+
     fireEvent.click(trigger());
     type("gam");
-    expect(
-      container.querySelector(".minerva-select__primary")?.textContent,
-    ).toBe("Beta");
+    expect(filter()!.value).toBe("gam");
+
+    fireEvent.keyDown(filter()!, { key: "Escape" });
+    expect(filter()!.value).toBe("Beta");
   });
 
   it("opens with the highlight on the current selection", () => {
@@ -327,7 +360,7 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    type("a"); // Alpha + Gamma
+    type("a"); // every label contains an "a"
     fireEvent.keyDown(filter()!, { key: "ArrowUp" });
     expect(
       container.querySelector(".minerva-select__option.is-active")?.textContent,
@@ -374,46 +407,58 @@ describe("<Select />", () => {
     expect(foot()).toContain("1 of 3");
   });
 
-  it("seeds the field with the first character typed on a closed select", () => {
-    // The bug class: the field does not exist yet when this key arrives, so
-    // without seeding the character is silently swallowed and the reader's
-    // first keystroke does nothing.
-    const { trigger, filter, optionLabels } = harness(undefined, OPTS, {
-      filterable: true,
-    });
-    fireEvent.keyDown(trigger(), { key: "g" });
-    expect(filter()).not.toBeNull();
-    expect(filter()!.value).toBe("g");
-    expect(optionLabels()).toEqual(["Gamma"]);
-  });
-
   it("filters rather than prefix-jumping in filterable mode", () => {
     // "m" is the discriminator: it is a substring of Gamma and a prefix of
     // nothing. Type-ahead would find no match and leave all three rendered;
     // filtering narrows to the one that contains it. (A letter like "a" cannot
     // tell the two apart — every label here contains one, Beta included.)
-    const { trigger, optionLabels } = harness(undefined, OPTS, {
+    const { type, optionLabels } = harness(undefined, OPTS, {
       filterable: true,
     });
-    fireEvent.keyDown(trigger(), { key: "m" });
+    type("m");
     expect(optionLabels()).toEqual(["Gamma"]);
   });
 
-  it("opens on Space without seeding a leading space", () => {
-    const { trigger, filter } = harness(undefined, OPTS, { filterable: true });
-    fireEvent.keyDown(trigger(), { key: " " });
-    expect(filter()).not.toBeNull();
-    expect(filter()!.value).toBe("");
+  it("does not open a disabled filterable select", () => {
+    const [value] = createSignal<string | undefined>(undefined);
+    const { container } = render(() => (
+      <Select
+        options={OPTS}
+        value={value()}
+        onChange={() => undefined}
+        filterable
+        disabled
+      />
+    ));
+    fireEvent.click(container.querySelector(".minerva-select__trigger")!);
+    expect(container.querySelector(".minerva-select__listbox")).toBeNull();
   });
 
-  it("Escape from the field closes the panel and returns focus to the trigger", () => {
+  it("falls back to a default placeholder when the caller gives none", () => {
+    const [value] = createSignal<string | undefined>(undefined);
+    const { container } = render(() => (
+      <Select
+        options={OPTS}
+        value={value()}
+        onChange={() => undefined}
+        filterable
+      />
+    ));
+    expect(
+      container
+        .querySelector(".minerva-select__filter-input")
+        ?.getAttribute("placeholder"),
+    ).toBe("Select…");
+  });
+
+  it("Escape closes the panel and leaves focus in the input", () => {
     const { trigger, filter, listbox } = harness(undefined, OPTS, {
       filterable: true,
     });
     fireEvent.click(trigger());
     fireEvent.keyDown(filter()!, { key: "Escape" });
     expect(listbox()).toBeNull();
-    expect(document.activeElement).toBe(trigger());
+    expect(document.activeElement).toBe(filter());
   });
 
   it("reopens with an empty query, so the full list is back", () => {
@@ -428,34 +473,75 @@ describe("<Select />", () => {
     expect(optionLabels().length).toBe(3);
   });
 
-  it("labels the filter field even when the caller gives no ariaLabel", () => {
-    // The field is the combobox while open, so an unlabelled one is an
-    // unlabelled combobox. `RefsFilterField` wraps Select in a visible
-    // <label> and passes no ariaLabel, so this fallback is the reachable path
-    // for any caller that does the same and opts into filtering.
-    const [value] = createSignal<string | undefined>(undefined);
-    const { container } = render(() => (
-      <Select
-        options={OPTS}
-        value={value()}
-        onChange={() => undefined}
-        filterable
-      />
-    ));
-    fireEvent.click(container.querySelector(".minerva-select__trigger")!);
-    expect(
-      container
-        .querySelector(".minerva-select__filter-input")
-        ?.getAttribute("aria-label"),
-    ).toBe("Filter options");
-  });
-
-  it("Tab from the field closes the panel", () => {
+  it("Tab from the input closes the panel", () => {
     const { trigger, filter, listbox } = harness(undefined, OPTS, {
       filterable: true,
     });
     fireEvent.click(trigger());
     fireEvent.keyDown(filter()!, { key: "Tab" });
     expect(listbox()).toBeNull();
+  });
+
+  describe("on mobile", () => {
+    // `styles/mobile.css:1119-1134` makes the panel `position: fixed; inset:
+    // 44px 0 0 0; z-index: 80` while `.mobile-sheet` is `z-index: 71`, so the
+    // panel covers its own trigger. An editable trigger would be invisible
+    // while the list is open, so the field moves into the panel and the
+    // trigger stays a button. Overriding `matchMedia` follows the precedent in
+    // `App.test.tsx:115-116`.
+    const realMatchMedia = window.matchMedia.bind(window);
+    beforeEach(() => {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => false,
+      }));
+    });
+    afterEach(() => {
+      window.matchMedia = realMatchMedia;
+    });
+
+    it("keeps a button trigger and puts the field inside the panel", () => {
+      const { container, trigger, filter } = harness(undefined, OPTS, {
+        filterable: true,
+      });
+      expect(trigger().tagName).toBe("BUTTON");
+      // Closed: no field anywhere, because the panel is not rendered.
+      expect(filter()).toBeNull();
+
+      fireEvent.click(trigger());
+      expect(filter()).not.toBeNull();
+      expect(
+        container
+          .querySelector(".minerva-select__panel")!
+          .contains(filter()),
+      ).toBe(true);
+    });
+
+    it("returns focus to the button trigger when Escape closes the sheet", () => {
+      const { trigger, filter, listbox } = harness(undefined, OPTS, {
+        filterable: true,
+      });
+      fireEvent.click(trigger());
+      fireEvent.keyDown(filter()!, { key: "Escape" });
+      expect(listbox()).toBeNull();
+      // The button is the control here, so that is where focus belongs — the
+      // mirror of the desktop case, where focus stays in the input.
+      expect(document.activeElement).toBe(trigger());
+    });
+
+    it("narrows the list from the panel's field", () => {
+      const { trigger, type, optionLabels } = harness(undefined, OPTS, {
+        filterable: true,
+      });
+      fireEvent.click(trigger());
+      type("gam");
+      expect(optionLabels()).toEqual(["Gamma"]);
+    });
   });
 });

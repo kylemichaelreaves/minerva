@@ -223,7 +223,10 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     await waitFor(() => expect(triggers().length).toBe(2));
     fireEvent.click(triggers()[1]!);
 
-    const input = container.querySelector<HTMLInputElement>(
+    // Scoped to the work picker, not `container`-wide: the filterable trigger
+    // IS the input, so both pickers own one at all times and a document-order
+    // lookup would land on the author picker and silently filter the wrong list.
+    const input = triggers()[1]!.querySelector<HTMLInputElement>(
       ".minerva-select__filter-input",
     )!;
     expect(input).not.toBeNull();

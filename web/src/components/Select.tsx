@@ -14,10 +14,17 @@
 //   Enter             — commit active option
 //   Space             — commits when no type-ahead in flight,
 //                       otherwise contributes to the buffer
-//   Escape            — close, return focus to trigger
+//   Escape            — close, return focus to the control
 //   Tab / Shift+Tab   — close, focus moves naturally
 //   Printable chars   — type-ahead, 500ms quiet-reset, repeat-key
 //                       cycles matches
+//
+// `filterable` (#363) replaces the last of those: the trigger becomes a text
+// input and printable characters narrow the list instead of jumping the
+// highlight. Home/End then move the caret, as a reader expects in a field, and
+// Space is text rather than a commit. Enter still commits the *highlighted row*
+// and never the typed text — see `commitActive`. Three shapes exist; the one
+// that surprises people is mobile, and `isMobile` carries the reason.
 
 import {
   For,
@@ -29,6 +36,7 @@ import {
   type JSX,
 } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
+import { useMobile } from "~/hooks/useMobile";
 import { matchesQuery } from "~/utils/searchFold";
 import "~/components/Select.css";
 
@@ -46,8 +54,8 @@ export interface SelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** Used as the trigger button's id so a wrapping <label for=…>
-   *  can target it. */
+  /** Id of the focusable control — the trigger button, or the input when
+   *  `filterable` puts one there — so a wrapping <label for=…> can target it. */
   id?: string;
   ariaLabel?: string;
   ariaLabelledBy?: string;
@@ -56,10 +64,15 @@ export interface SelectProps {
    *  set to `false` for selects where a value is required and the
    *  user shouldn't be able to drop back to the placeholder. */
   clearable?: boolean;
-  /** Opt-in filter field at the top of the panel, for lists too long to scan
-   *  — the concordance work picker holds ~964 options (#363). Off by default:
-   *  the 3-, 5- and 10-option pickers do not need one, and it changes the
-   *  keyboard model (see the header comment). */
+  /** Turn the trigger into a text input that narrows the list as the reader
+   *  types, for lists too long to scan — the concordance work picker holds ~964
+   *  options (#363). Off by default: the 3-, 5- and 10-option pickers do not
+   *  need it, and it changes the keyboard model (see the header comment).
+   *
+   *  Below 768px the trigger stays a button and the field renders at the top of
+   *  the panel instead, because the mobile panel is a full-screen sheet that
+   *  would cover the trigger. A filterable trigger shows the selected option's
+   *  label but not its `sublabel` — an input cannot hold two lines. */
   filterable?: boolean;
 }
 
@@ -90,11 +103,22 @@ export function Select(props: SelectProps): JSX.Element {
   let rootRef: HTMLDivElement | undefined;
   let filterRef: HTMLInputElement | undefined;
 
-  /** Whether the filter field currently owns real focus. `aria-activedescendant`
-   *  is only announced on the focused element, so this is also what decides
-   *  which element carries `role="combobox"`. */
-  const filterActive = createMemo(
-    () => props.filterable === true && isOpen(),
+  // Viewport-aware, which nothing else in this component is — every other
+  // mobile behaviour it has is pure CSS. The reason is measured:
+  // `styles/mobile.css:1119-1134` makes the panel a full-screen sheet at
+  // `z-index: 80` while `.mobile-sheet` is at 71, so on mobile the panel covers
+  // its own trigger. An editable trigger would be typed into blind, so there the
+  // trigger stays a button and the field renders inside the panel.
+  const isMobile = useMobile();
+
+  /** Desktop `filterable`: the trigger IS the input — the ARIA combobox
+   *  pattern, one element rather than a button plus a second field. */
+  const fieldTrigger = createMemo(
+    () => props.filterable === true && !isMobile(),
+  );
+  /** Mobile `filterable`: button trigger, field at the top of the sheet. */
+  const filterInPanel = createMemo(
+    () => props.filterable === true && isMobile(),
   );
 
   /** The list the panel renders. **Identical to `props.options` — the same array
@@ -152,7 +176,9 @@ export function Select(props: SelectProps): JSX.Element {
     // Every open starts from the full list. All close paths funnel through
     // here, so there is no route that leaves a stale query behind.
     setQuery("");
-    if (returnFocus) triggerRef?.focus();
+    // In the field shape the input IS the trigger, so that is where focus
+    // belongs on close.
+    if (returnFocus) (fieldTrigger() ? filterRef : triggerRef)?.focus();
   };
 
   const commit = (i: number): void => {
@@ -211,13 +237,10 @@ export function Select(props: SelectProps): JSX.Element {
     setActiveIdx((i) => (i >= n ? fallback : i));
   });
 
-  // Focus the field when the panel opens. The panel is remounted on each open,
-  // so this is that mount — `onMount` in the component body would fire once,
-  // at Select mount, when the field does not exist. Same shape as
-  // `Composer/WorkScopeControl.tsx:38-40`.
-  createEffect(() => {
-    if (filterActive()) filterRef?.focus();
-  });
+  // No focus-on-open effect. In the field shape the input already holds focus
+  // (it is the trigger, and the click handler focuses it); on mobile we
+  // deliberately do NOT auto-focus, because raising the soft keyboard over a
+  // full-screen list costs more than the one tap it saves.
 
   onCleanup(() => {
     if (typeTimer !== undefined) clearTimeout(typeTimer);
@@ -329,19 +352,10 @@ export function Select(props: SelectProps): JSX.Element {
 
     // Printable characters → type-ahead, or the filter field.
     if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (props.filterable === true) {
-        // The only place the two mechanisms could collide: once the panel is
-        // open, focus is in the field and the trigger never sees a printable
-        // character. Closed, the field does not exist yet and cannot receive
-        // this one — so seed it rather than swallowing the reader's first
-        // keystroke. preventDefault because the field takes focus in this same
-        // tick and would otherwise insert the character a second time.
-        e.preventDefault();
-        openPanel();
-        setQuery((q) => q + e.key);
-        setActiveIdx(firstEnabled());
-        return;
-      }
+      // No seeding branch. This handler only runs for the button trigger, and
+      // in `filterable` mode that shape only exists on mobile, where there is
+      // no hardware keyboard to type on a closed select. On desktop the input
+      // IS the trigger, so the character lands natively.
       if (!open) openPanel();
       runTypeahead(e.key);
     }
@@ -378,9 +392,18 @@ export function Select(props: SelectProps): JSX.Element {
 
   const onFilterInput = (e: InputEvent): void => {
     setQuery((e.currentTarget as HTMLInputElement).value);
+    // Typing into a closed field opens the list — the reader is already saying
+    // what they want, so making them click as well is pure friction.
+    openPanel();
     // Every keystroke re-aims the highlight at the top of what now matches.
     setActiveIdx(firstEnabled());
   };
+
+  /** The input's displayed text. It does double duty in the field shape: the
+   *  query while the list is open, the selected option's label at rest. Closing
+   *  clears the query, so the label comes back on its own. */
+  const fieldValue = (): string =>
+    fieldTrigger() && !isOpen() ? (selected()?.label ?? "") : query();
 
   const emptyText = (): string =>
     query() === "" ? "No options" : `No match for “${query()}”`;
@@ -389,6 +412,16 @@ export function Select(props: SelectProps): JSX.Element {
     if (props.disabled) return;
     if (isOpen()) closePanel(false);
     else openPanel();
+  };
+
+  /** Clicking anywhere in the field-shape trigger — its padding included —
+   *  focuses the input and opens the list. It opens rather than toggling:
+   *  clicking into a text field to place the caret must not close the list
+   *  under it. */
+  const onFieldTriggerClick = (): void => {
+    if (props.disabled) return;
+    filterRef?.focus();
+    openPanel();
   };
 
   // Whether the clear-button is visible. Hidden when disabled, when
@@ -415,62 +448,33 @@ export function Select(props: SelectProps): JSX.Element {
     if (isOpen()) closePanel(false);
   };
 
-  return (
-    <div
-      ref={rootRef}
-      class={
-        "minerva-select" +
-        (isOpen() ? " is-open" : "") +
-        (props.disabled ? " is-disabled" : "")
-      }
-    >
-      <button
-        type="button"
-        ref={triggerRef}
-        id={baseId}
-        class="minerva-select__trigger"
-        // The combobox role follows real focus (#363). While a filterable
-        // panel is open the field holds focus and claims the role, so the
-        // trigger steps down to a plain button — `aria-activedescendant` is
-        // only announced on the focused element, and two elements claiming
-        // `combobox` at once is invalid.
-        role={filterActive() ? "button" : "combobox"}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen()}
-        aria-controls={listboxId}
-        aria-activedescendant={
-          !filterActive() && isOpen() && activeIdx() >= 0
-            ? optionId(activeIdx())
-            : undefined
-        }
-        aria-label={props.ariaLabel}
-        aria-labelledby={props.ariaLabelledBy}
-        aria-disabled={props.disabled || undefined}
-        disabled={props.disabled}
-        onClick={onTriggerClick}
-        onKeyDown={onTriggerKeyDown}
-      >
-        <span class="minerva-select__value">
-          <Show
-            when={selected()}
-            fallback={
-              <span class="minerva-select__placeholder">
-                {props.placeholder ?? "Select…"}
-              </span>
-            }
-          >
-            {(s) => (
-              <>
-                <span class="minerva-select__primary">{s().label}</span>
-                <Show when={s().sublabel}>
-                  {(sub) => (
-                    <span class="minerva-select__secondary">{sub()}</span>
-                  )}
-                </Show>
-              </>
-            )}
-          </Show>
-        </span>
+  /** One set of props, spread into whichever site renders the field, so the
+   *  two shapes cannot drift and neither is a copy of the other. */
+  const fieldProps = () => ({
+    ref: (el: HTMLInputElement) => (filterRef = el),
+    type: "text",
+    class: "minerva-select__filter-input",
+    role: "combobox" as const,
+    "aria-expanded": isOpen(),
+    "aria-controls": listboxId,
+    "aria-activedescendant":
+      isOpen() && activeIdx() >= 0 ? optionId(activeIdx()) : undefined,
+    "aria-autocomplete": "list" as const,
+    "aria-label": props.ariaLabel,
+    "aria-labelledby": props.ariaLabelledBy,
+    autocomplete: "off",
+    spellcheck: false,
+    placeholder: props.placeholder ?? "Select…",
+    value: fieldValue(),
+    disabled: props.disabled,
+    onInput: onFilterInput,
+    onKeyDown: onFilterKeyDown,
+  });
+
+  /** Caret by default, clear (×) when there is a value. Shared verbatim by
+   *  both trigger shapes — only one renders at a time. */
+  const affordance = (): JSX.Element => (
+    <>
         {/* Right-side affordance: caret by default, clear (×) button
             when a value is selected and `clearable` isn't disabled.
             The clear button REPLACES the caret rather than appearing
@@ -523,32 +527,86 @@ export function Select(props: SelectProps): JSX.Element {
             </svg>
           </span>
         </Show>
-      </button>
+    </>
+  );
+
+  return (
+    <div
+      ref={rootRef}
+      class={
+        "minerva-select" +
+        (isOpen() ? " is-open" : "") +
+        (props.disabled ? " is-disabled" : "")
+      }
+    >
+      <Show when={fieldTrigger()} fallback={
+              <button
+                type="button"
+                ref={triggerRef}
+                id={baseId}
+                class="minerva-select__trigger"
+                // Plain button whenever the panel hosts the field (mobile), because
+                // the field claims `role="combobox"` there and two elements claiming it
+                // is invalid. `aria-activedescendant` is only announced on the focused
+                // element, so it goes wherever focus is.
+                role={filterInPanel() ? "button" : "combobox"}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen()}
+                aria-controls={listboxId}
+                aria-activedescendant={
+                  !filterInPanel() && isOpen() && activeIdx() >= 0
+                    ? optionId(activeIdx())
+                    : undefined
+                }
+                aria-label={props.ariaLabel}
+                aria-labelledby={props.ariaLabelledBy}
+                aria-disabled={props.disabled || undefined}
+                disabled={props.disabled}
+                onClick={onTriggerClick}
+                onKeyDown={onTriggerKeyDown}
+              >
+                <span class="minerva-select__value">
+                  <Show
+                    when={selected()}
+                    fallback={
+                      <span class="minerva-select__placeholder">
+                        {props.placeholder ?? "Select…"}
+                      </span>
+                    }
+                  >
+                    {(s) => (
+                      <>
+                        <span class="minerva-select__primary">{s().label}</span>
+                        <Show when={s().sublabel}>
+                          {(sub) => (
+                            <span class="minerva-select__secondary">{sub()}</span>
+                          )}
+                        </Show>
+                      </>
+                    )}
+                  </Show>
+                </span>
+                {affordance()}
+              </button>}>
+        {/* The trigger IS the input (#363). A wrapper is structurally forced:
+            an <input> cannot contain children, and the caret and the clear ×
+            must stay inside the trigger — `styles/mobile.css:973-985` styles the
+            Refs active-filter chip with `:has(.minerva-select__clear)` scoped to
+            it, and moving the × out would silently stop that matching. */}
+        <div
+          class="minerva-select__trigger minerva-select__trigger--field"
+          onClick={onFieldTriggerClick}
+        >
+          <input id={baseId} {...fieldProps()} />
+          {affordance()}
+        </div>
+      </Show>
 
       <Show when={isOpen()}>
         <div class="minerva-select__panel">
-          <Show when={props.filterable === true}>
+          <Show when={filterInPanel()}>
             <div class="minerva-select__filter">
-              <input
-                ref={filterRef}
-                type="text"
-                class="minerva-select__filter-input"
-                role="combobox"
-                aria-expanded={true}
-                aria-controls={listboxId}
-                aria-activedescendant={
-                  activeIdx() >= 0 ? optionId(activeIdx()) : undefined
-                }
-                aria-autocomplete="list"
-                aria-label={props.ariaLabel ?? "Filter options"}
-                aria-labelledby={props.ariaLabelledBy}
-                autocomplete="off"
-                spellcheck={false}
-                placeholder="Type to filter…"
-                value={query()}
-                onInput={onFilterInput}
-                onKeyDown={onFilterKeyDown}
-              />
+              <input {...fieldProps()} />
             </div>
           </Show>
 
