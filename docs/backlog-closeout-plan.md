@@ -230,7 +230,7 @@ defect in the lemma writer.
 | 9 | reader latency | ~~#339~~, ~~#340~~, ~~#342~~ | **landed** | **Groups with nothing in batches 0–8** — the first row here that is a *performance* defect rather than a corpus, ingest or harness one, and it was found by timing the app for a demo rather than by working any batch above. Numbered 9 rather than `N-bis` for that reason. All three are one user-visible symptom (a Reader page load) decomposed by layer: #339 the missing access paths, #340 the lock that stopped the reads overlapping, #342 the route model that unmounts the Reader. Landed across PRs #341 (indexes + lock release), #343 (client read cache), #346 (#339 part 2) and #347 (#342's route model, frontend-only). See batch 9. |
 | 9-bis | what the latency fixes left behind | #344, #345 | **backlog** | Both found verifying #339 part 2, and neither is a corpus defect. #344 is `/api/health`, the last full scan of `chunks` on the read path (~210 ms) — named and scoped out by #339, so it needed its own row once #339 closed, and part 2 pushed it 9% the wrong way. #345 is the coverage-exclusion divergence the same PR hit and half-fixed: `pyproject.toml`'s `omit` and `sonar.coverage.exclusions` disagree, so a locally-omitted file arrives at the blocking gate scored 0%. Both **may resolve as decisions rather than repairs**, like #299 — #344's three options trade staleness against ingest cost, and #345's turns on whether the shim deserves a bar at all. |
 | 9-ter | the other three side routes | ~~#348~~ | **landed** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. It resolved **half as a decision and half as a repair**, which the row anticipated: the entry points settle it — the Reader rail links into the concordance twice and into neither of the other two, so the concordance keeps the Reader and network/refs stay destinations that release it. See batch 9-ter. |
-| 9-quater | what the hoist left armed | #352 | **backlog** | Found working 9-ter, in the files it edited. The `suspended` flag added there gates the two global listeners whose misfire was measured; four more in the Reader subtree stay armed while the Reader is retained off-screen, and two of them dismiss the open term card — the exact state 9-ter set out to preserve. **May resolve as a decision rather than a repair**, like #299: only one of the four loses user state, and "fix that one, leave the rest" is a defensible answer that wants saying out loud. Same `N-bis` logic as 8-bis: 9-ter has landed, so its follow-up takes a suffix rather than a new number. |
+| 9-quater | what the hoist left armed | ~~#352~~ | **landed** | Found working 9-ter, in the files it edited. The `suspended` flag added there gates the two global listeners whose misfire was measured; four more in the Reader subtree stayed armed while the Reader is retained off-screen. The row predicted this "may resolve as a decision rather than a repair" and that only one of the four loses user state — **both halves were wrong**, and measuring is what showed it: a third listener (`useDialogFocus`) hijacks every shift-Tab on the concordance, so the count that costs the user is two, not one. Verdict `CORRECTED` — three of the issue's explanations did not survive phase 1. Landed as PR #355; see batch 9-quater. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
@@ -2418,3 +2418,105 @@ one overlay and paid for it once (`App.tsx` went `inert` under the syntax
 layer). #348 made it true for a whole route class and paid for it twice more.
 Nothing enumerates the debt — it is found one failing test at a time, and
 #352 exists because the third and fourth payments have not been made yet.
+
+## Batch 9-quater — what the hoist left armed (#352)
+
+Found working 9-ter, in the files it edited, and worked immediately after it
+merged. One sentence carries the batch: **making a component survive its route
+is a change to every listener it owns**, and #342 → #348 → #352 is that debt
+being paid one failing test at a time rather than enumerated once.
+
+### The row above it predicted a decision, and the measurement refused it
+
+9-quater said this "may resolve as a decision rather than a repair, like
+#299", on the grounds that "only one of the four loses user state". Both
+halves are wrong, and the second is what falsifies the first:
+
+| listener | what it does to a retained Reader | cost |
+|---|---|---|
+| `useTermCard` → `useClickOutside` | any click on the concordance dismisses the open term card | user state |
+| `PopoverCard` → `useEscape` | Escape destroys the card, which the route change then rebuilds at the sentinel anchor | user state |
+| `PopoverCard` → `useDialogFocus` | **every shift-Tab on the concordance is cancelled** and redirected into a `display: none` dialog | keyboard nav, app-wide |
+| `PopoverCard` → `usePopoverPosition` | recomputes a correct value from a stored rect | nothing |
+
+Two listeners cost user state, not one, and the third is worse than either:
+it breaks shift-Tab on a route the Reader is not even on. With three of four
+defective there is no "fix one, leave the rest" to decide between.
+
+### What #352 got wrong, and the shape of the error
+
+Verdict `CORRECTED`. The four listeners are all real, at the exact lines
+cited, and grep 1 reproduces exactly — but three *explanations* do not, which
+is the split CLAUDE.md predicts: the pointer survives, the diagnosis does not.
+
+- **"`PopoverCard` … used on the concordance itself"** — false, and it was the
+  stated reason a context "may be too broad". `PopoverCard`'s only consumers
+  are `TermCard` and `ReferenceCard`, both rendered solely from
+  `Reader/index.tsx:444,455`. Only `Select` is genuinely shared, and it
+  reaches exactly one of the four hooks. Trusting it would have priced the
+  context approach as needing subtree discrimination for all four, and pushed
+  the work to option 2 — the one the issue itself notes gives "no protection
+  against the fifth".
+- **Item 3's `getBoundingClientRect()` "all zeros"** — nothing measures.
+  `computePopoverPosition(anchor: DOMRect, …)` takes a rect captured at click
+  time and reads `window.inner*`; the file contains no
+  `getBoundingClientRect` at all. Item 3 is not "corrected on return", it is
+  never wrong. The zeroing is real for item 4 (`offsetWidth`/`offsetHeight`),
+  which has `|| 240` / `|| 40` fallbacks.
+- **"`PopoverCard`'s ungated `useEscape` would win instead"** — nothing wins.
+  `useEscape` calls `preventDefault()` and not `stopPropagation()`, and every
+  handler is a bubble-phase `window` listener, so one Escape runs both the
+  card's dismissal and the concordance's navigation.
+
+### The trap that the third correction sets, and why the test asserts identity
+
+This is the transferable part. Written as the issue framed it — "the
+concordance's Escape handler still wins" — the regression test **passes on
+the unfixed branch**, because the navigation does happen. So does the
+obvious repair, `expect(card).not.toBeNull()`. Measured before the fix:
+
+```
+D before esc, card: true
+E after esc,  card: true | SAME NODE: false | hash: #/concordance
+```
+
+Escape destroys the card; the concordance's own navigation then changes the
+route, which re-runs `useTermCard`'s URL-resume effect — `?term=` is still 7,
+because `setOpenTermId` early-returns off the reader route (`readerCtrl.ts:237-239`)
+and so `close()` never cleared it — and rebuilds the card at the sentinel
+anchor, viewport top. Presence: identical. Anchor, fetch and focus: gone.
+
+Vitest says it plainly: `Compared values have no visual difference.` The test
+asserts **node identity**, the same way `readerKeepAlive` does for the Reader
+itself and for the same reason. A presence assertion here is a green test over
+a live bug.
+
+### Mechanism: a scoped context, plus one threaded flag
+
+The scoping is the whole argument for a context over a global flag. The
+provider wraps the Reader's keep-alive host only, so `useContext` answers *"am
+I inside the suspended subtree?"* and never *"does the app have a suspended
+subtree somewhere?"* — the distinction #352 named as the hard part. Everything
+in the sibling `<Switch>` reads the default `false` and stays live, including
+`useListKeyboardNav`, a fifth `window` keydown binder that the issue's own
+grep output omitted and that the concordance depends on for j/k/Escape.
+
+Placement is load-bearing: the provider sits **above** `ReaderRoute`, not
+inside the Reader's JSX, because hooks called in the Reader's component body
+(`useTermCard`, both `useEscape`s) resolve `useContext` at that point and
+would not see a provider nested in the returned tree.
+
+`useClickOutside` is deliberately left out of the context and takes the flag
+through the `isActive` accessor it already had. It is the one hook shared with
+a surface that must stay live while the Reader is suspended, so keeping it
+context-free makes `Select` provably unaffected wherever a future provider
+lands.
+
+### What was deliberately not fixed
+
+`usePopoverPosition` is untouched, said out loud rather than by omission —
+which is what 9-quater's row asked for, applied to the item that earned it
+instead of the item it guessed. Correction 2 shows it recomputes a correct
+value from a stored rect, so there is no defect to gate and gating it would
+add production code no test can fail on. If a future popover does measure
+live, the context is already there to consult.

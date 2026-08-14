@@ -33,6 +33,11 @@ export interface TermCardProps {
   openTermId: Accessor<number | undefined>;
   /** Push local open-state changes back to the URL. */
   onOpenTermIdChange?: (id: number | null) => void;
+  /** True while the Reader is retained but stepped out of (#352). The
+   *  outside-click listener is on `document`, so a click on the concordance
+   *  is "outside" the card and dismissed it — destroying the exact state
+   *  #348 keeps the Reader mounted to preserve. */
+  suspended?: Accessor<boolean>;
 }
 
 export function useTermCard(props: TermCardProps): TermCardApi {
@@ -59,7 +64,11 @@ export function useTermCard(props: TermCardProps): TermCardApi {
 
   useClickOutside(
     () => document.querySelector(".termcard") as HTMLElement | undefined,
-    () => openCard() !== null,
+    // Folded into the accessor the hook already takes rather than gated by
+    // the `suspendedSubtree` context: `useClickOutside` is shared with
+    // `Select`, which the concordance renders and which must stay live while
+    // the Reader behind it is suspended. See `hooks/suspendedSubtree.tsx`.
+    () => !props.suspended?.() && openCard() !== null,
     close,
     {
       event: "mousedown",
