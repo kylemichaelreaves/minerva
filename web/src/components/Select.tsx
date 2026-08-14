@@ -414,13 +414,10 @@ export function Select(props: SelectProps): JSX.Element {
     else openPanel();
   };
 
-  /** Clicking anywhere in the field-shape trigger — its padding included —
-   *  focuses the input and opens the list. It opens rather than toggling:
-   *  clicking into a text field to place the caret must not close the list
-   *  under it. */
-  const onFieldTriggerClick = (): void => {
-    if (props.disabled) return;
-    filterRef?.focus();
+  /** Clicking the input opens the list — it does not toggle, because clicking
+   *  into a text field to place the caret must not close the list under it.
+   *  The enclosing <label> forwards a click on the trigger's padding here. */
+  const onFieldClick = (): void => {
     openPanel();
   };
 
@@ -434,11 +431,18 @@ export function Select(props: SelectProps): JSX.Element {
   });
 
   const onClearClick = (e: MouseEvent): void => {
-    // Stop the click from bubbling to the trigger button, which would
-    // open / close the panel. We deliberately don't preventDefault on
-    // pointerdown because the trigger's click is what we're guarding
-    // against; calling stopPropagation on the click event is enough
-    // and keeps the focus-state of the trigger predictable.
+    // Stop the click from bubbling to the trigger, which would open / close
+    // the panel. We deliberately don't preventDefault on pointerdown because
+    // the trigger's click is what we're guarding against; calling
+    // stopPropagation on the click event is enough and keeps the focus-state
+    // of the trigger predictable.
+    //
+    // In the field shape the trigger is a <label>, so this guard does a second
+    // job: without it the click would reach the label, the browser would
+    // forward its own click to the labelled input, and `onFieldClick` would
+    // re-open the panel this handler just closed. Not reachable today — no
+    // caller combines `filterable` with a clearable value — and not testable in
+    // jsdom either, which does not implement label activation.
     e.stopPropagation();
     if (props.disabled) return;
     props.onChange("");
@@ -467,6 +471,7 @@ export function Select(props: SelectProps): JSX.Element {
     placeholder: props.placeholder ?? "Select…",
     value: fieldValue(),
     disabled: props.disabled,
+    onClick: onFieldClick,
     onInput: onFilterInput,
     onKeyDown: onFilterKeyDown,
   });
@@ -592,14 +597,22 @@ export function Select(props: SelectProps): JSX.Element {
             an <input> cannot contain children, and the caret and the clear ×
             must stay inside the trigger — `styles/mobile.css:973-985` styles the
             Refs active-filter chip with `:has(.minerva-select__clear)` scoped to
-            it, and moving the × out would silently stop that matching. */}
-        <div
-          class="minerva-select__trigger minerva-select__trigger--field"
-          onClick={onFieldTriggerClick}
-        >
+            it, and moving the × out would silently stop that matching.
+
+            A <label> rather than a <div>, so clicking the wrapper's padding
+            focuses the input *natively*. The first cut hung an `onClick` on a
+            div to do that by hand, which is a non-native interactive element
+            with no keyboard path — Sonar's S6848 and S1082, and a fair call.
+            The label needs no handler at all: the click reaches the input, and
+            the input's own onClick opens the panel.
+
+            Do not let a caller nest this inside another <label>.
+            `Refs/components/RefsFilterField.tsx` wraps Select in a bare one, so
+            it must never set `filterable` — there is a test on that. */}
+        <label class="minerva-select__trigger minerva-select__trigger--field">
           <input id={baseId} {...fieldProps()} />
           {affordance()}
-        </div>
+        </label>
       </Show>
 
       <Show when={isOpen()}>

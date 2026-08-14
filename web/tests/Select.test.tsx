@@ -209,6 +209,24 @@ describe("<Select />", () => {
     expect(filter()).toBeNull();
   });
 
+  it("wraps the field trigger in a label, and only when filterable", () => {
+    // The <label> is what makes clicking the trigger's padding focus the input,
+    // natively — it replaced an `onClick` on a bare <div>, which Sonar flagged
+    // as a non-native interactive element (S6848 + S1082) and which was doing
+    // by hand what a label does for free.
+    //
+    // The "only when filterable" half is a guard, not decoration:
+    // `RefsFilterField` already wraps Select in a bare <label class="refs-filter">,
+    // and nested labels are invalid HTML. Setting `filterable` there must fail
+    // here rather than ship the nesting.
+    const plain = harness(undefined);
+    expect(plain.trigger().tagName).toBe("BUTTON");
+    expect(plain.container.querySelector("label")).toBeNull();
+
+    const field = harness(undefined, OPTS, { filterable: true });
+    expect(field.trigger().tagName).toBe("LABEL");
+  });
+
   it("makes the trigger itself a text input when filterable", () => {
     // The field exists before the panel opens — it *is* the trigger, so there
     // is nothing to reveal.
@@ -218,13 +236,20 @@ describe("<Select />", () => {
     expect(filter()!.tagName).toBe("INPUT");
   });
 
-  it("focuses the input and opens the panel when the trigger is clicked", () => {
-    const { trigger, filter, listbox } = harness(undefined, OPTS, {
-      filterable: true,
-    });
-    fireEvent.click(trigger());
+  it("opens the panel when the input is clicked, and does not toggle shut", () => {
+    // Clicking the input opens; clicking again must NOT close, because placing
+    // the caret in a text field cannot be allowed to dismiss the list under it.
+    //
+    // Focus is deliberately not asserted here. The enclosing <label> is what
+    // carries a click on the trigger's padding to the input, and that is the
+    // browser's behaviour rather than ours — jsdom does not reproduce it, so
+    // asserting it here would test jsdom. What is ours is the label itself,
+    // pinned by the tagName test above.
+    const { filter, listbox } = harness(undefined, OPTS, { filterable: true });
+    fireEvent.click(filter()!);
     expect(listbox()).not.toBeNull();
-    expect(document.activeElement).toBe(filter());
+    fireEvent.click(filter()!);
+    expect(listbox()).not.toBeNull();
   });
 
   it("makes the input the one and only combobox", () => {
