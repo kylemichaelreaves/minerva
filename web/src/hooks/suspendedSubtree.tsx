@@ -27,9 +27,10 @@
 // shared with a surface that must stay live while the Reader is suspended
 // (`components/Select.tsx`, rendered by the concordance's own FilterBar), and
 // keeping it out of the context makes `Select` provably unaffected no matter
-// where a future provider lands. Its one Reader caller — `useTermCard` —
-// already has the flag on hand and folds it into the `isActive` accessor the
-// hook already takes.
+// where a future provider lands. Its popover caller folds the flag into the
+// `isActive` accessor the hook already takes instead — `useTermCard` did until
+// #356 moved the listener to the shell both cards share, and
+// `components/PopoverCard.tsx` does now, by reading this context directly.
 
 import { createContext, useContext, type Accessor, type JSX } from "solid-js";
 

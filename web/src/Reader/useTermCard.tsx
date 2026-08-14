@@ -8,9 +8,14 @@
 // window between click and URL-propagation would clobber the freshly-
 // opened card. Closing is owned by the dismiss UI (outside click,
 // Esc, close button), which also clears the URL.
+//
+// The dismiss UI lives in `components/PopoverCard.tsx` as of #356 — this hook
+// held the outside-click listener until then, and being the only caller that
+// held one is why `ReferenceCard` never got the affordance. Its `suspended`
+// gate (#352) moved with it, and reads the `suspendedSubtree` context there
+// instead of being threaded as a prop.
 
 import { createEffect, createSignal, untrack, type Accessor } from "solid-js";
-import { useClickOutside } from "~/hooks/useClickOutside";
 
 export interface OpenTermCard {
   termId: number;
@@ -33,11 +38,6 @@ export interface TermCardProps {
   openTermId: Accessor<number | undefined>;
   /** Push local open-state changes back to the URL. */
   onOpenTermIdChange?: (id: number | null) => void;
-  /** True while the Reader is retained but stepped out of (#352). The
-   *  outside-click listener is on `document`, so a click on the concordance
-   *  is "outside" the card and dismissed it — destroying the exact state
-   *  #348 keeps the Reader mounted to preserve. */
-  suspended?: Accessor<boolean>;
 }
 
 export function useTermCard(props: TermCardProps): TermCardApi {
@@ -61,22 +61,6 @@ export function useTermCard(props: TermCardProps): TermCardApi {
     setOpenCard(null);
     props.onOpenTermIdChange?.(null);
   }
-
-  useClickOutside(
-    () => document.querySelector(".termcard") as HTMLElement | undefined,
-    // Folded into the accessor the hook already takes rather than gated by
-    // the `suspendedSubtree` context: `useClickOutside` is shared with
-    // `Select`, which the concordance renders and which must stay live while
-    // the Reader behind it is suspended. See `hooks/suspendedSubtree.tsx`.
-    () => !props.suspended?.() && openCard() !== null,
-    close,
-    {
-      event: "mousedown",
-      capture: true,
-      ignore: (target) =>
-        (target as Element).closest(".term-mark") != null,
-    },
-  );
 
   // Resume from URL on first paint / reload / deep-link. Sentinel
   // anchor at the viewport top because the URL doesn't (and shouldn't)

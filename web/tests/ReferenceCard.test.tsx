@@ -214,6 +214,51 @@ describe("<ReferenceCard />", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("a click away calls onClose", () => {
+    // #356: the card's own header comment claimed "Esc / outside-click
+    // dismisses" and nothing supplied the second half — `useClickOutside` had
+    // six consumers and `useXrefCard` was not one of them. With no close
+    // button either (the term card's is error-state only), a reader with this
+    // card open had Escape or re-clicking a 24px gutter glyph and nothing
+    // else.
+    const onClose = vi.fn();
+    render(() => (
+      <ReferenceCard
+        reference={makeReference()}
+        anchor={ANCHOR}
+        onClose={onClose}
+      />
+    ));
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("a click on the gutter marker does not call onClose", () => {
+    // The marker is the card's anchor, and clicking it again is the
+    // toggle-to-dismiss gesture `useXrefCard.onXrefOpen` implements. If the
+    // shell counted it as "outside", the mousedown would close the card and
+    // the click would then reopen it.
+    const onClose = vi.fn();
+    const { container } = render(() => (
+      <>
+        <button class="xref-pin" type="button">
+          ▸
+        </button>
+        <ReferenceCard
+          reference={makeReference()}
+          anchor={ANCHOR}
+          onClose={onClose}
+        />
+      </>
+    ));
+
+    fireEvent.mouseDown(container.querySelector(".xref-pin")!);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("clicks inside the card don't bubble to the parent (stopPropagation)", () => {
     // Reader's outside-click handler closes the card when clicks fall
     // outside; the card itself stops propagation so clicks inside the

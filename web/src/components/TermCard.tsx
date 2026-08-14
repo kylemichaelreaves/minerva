@@ -28,8 +28,10 @@ export interface TermCardProps {
    *  it would overflow. */
   anchor: DOMRect;
   direction?: "ltr" | "rtl";
-  /** Called when the user dismisses the card (outside click / Esc /
-   *  close button). The Reader uses this to clear its selection state. */
+  /** Called when the user dismisses the card — a click away, Esc, a second
+   *  click on the marked word, or the "Dismiss" button, which renders in the
+   *  load-error state only and is not a general close affordance (#356). The
+   *  Reader uses this to clear its selection state. */
   onClose: () => void;
 }
 
@@ -65,6 +67,7 @@ export default function TermCard(props: TermCardProps) {
       anchor={props.anchor}
       direction={props.direction}
       ariaLabel="Term details"
+      anchorSelector=".term-mark"
       onClose={props.onClose}
     >
       <Show when={term.loading}>

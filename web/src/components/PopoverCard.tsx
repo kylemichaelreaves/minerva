@@ -1,14 +1,24 @@
 import { type JSX, createSignal } from "solid-js";
 import { POPOVER_CARD_WIDTH } from "~/utils/popoverPosition";
+import { useClickOutside } from "~/hooks/useClickOutside";
 import { useDialogFocus } from "~/hooks/useDialogFocus";
 import { useEscape } from "~/hooks/useEscape";
 import { usePopoverPosition } from "~/hooks/usePopoverPosition";
+import { useSuspendedSubtree } from "~/hooks/suspendedSubtree";
 
 export interface PopoverCardProps {
   anchor: DOMRect;
   /** CSS class prefix: `termcard` or `refcard`. */
   variant: "termcard" | "refcard";
   ariaLabel: string;
+  /** Selector for the element this popover hangs off — `.term-mark` for the
+   *  term card, `.xref-pin` for the reference card. A click on it is the
+   *  gesture that opens or toggles the card, so the outside-click listener
+   *  must not count it as outside: the mousedown half of the opening click
+   *  would otherwise dismiss the card the click is about to open. Required
+   *  rather than optional, so a new popover has to answer "what anchors me?"
+   *  instead of silently inheriting a listener that fights its own opener. */
+  anchorSelector: string;
   heightEstimate?: number;
   onClose: () => void;
   children: JSX.Element;
@@ -31,6 +41,28 @@ export default function PopoverCard(props: PopoverCardProps) {
     props.onClose();
   });
   useDialogFocus(cardRef, () => true);
+
+  // Dismissal by clicking away, owned by the shell rather than the caller
+  // (#356). It was wired per-caller until then, and only `useTermCard` ever
+  // wired it — so `ReferenceCard`, whose header comment claimed the
+  // affordance and whose `XrefMarker` claimed to defend against it, never had
+  // it. Owning it here is what stops a third popover repeating that.
+  //
+  // The suspension gate is folded into `isActive` rather than read inside
+  // `useClickOutside`, unlike `useEscape` and `useDialogFocus` which consult
+  // the context themselves. `useClickOutside` is shared with
+  // `components/Select.tsx`, which the concordance renders and which must stay
+  // live while the Reader behind it is suspended, so the hook stays
+  // context-free and `Select` stays provably unaffected (#352). The card is
+  // only mounted while open, so "mounted and not suspended" is the whole
+  // active condition.
+  const suspended = useSuspendedSubtree();
+  useClickOutside(cardRef, () => !suspended(), props.onClose, {
+    event: "mousedown",
+    capture: true,
+    ignore: (target) =>
+      (target as Element).closest(props.anchorSelector) != null,
+  });
 
   function onCardClick(e: MouseEvent) {
     e.stopPropagation();
