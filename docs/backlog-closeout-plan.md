@@ -229,7 +229,8 @@ defect in the lemma writer.
 | 8-ter | worked examples cite live numbers | #335 | **backlog** | Found working #334, by an unrelated grep. Four wrong PR/issue numbers across two files, and the second pair survived the PR that fixed the first pair. **May resolve as a decision not to gate it**, like #299 — the alternative is to stop citing real numbers at all. |
 | 9 | reader latency | ~~#339~~, ~~#340~~, ~~#342~~ | **landed** | **Groups with nothing in batches 0–8** — the first row here that is a *performance* defect rather than a corpus, ingest or harness one, and it was found by timing the app for a demo rather than by working any batch above. Numbered 9 rather than `N-bis` for that reason. All three are one user-visible symptom (a Reader page load) decomposed by layer: #339 the missing access paths, #340 the lock that stopped the reads overlapping, #342 the route model that unmounts the Reader. Landed across PRs #341 (indexes + lock release), #343 (client read cache), #346 (#339 part 2) and #347 (#342's route model, frontend-only). See batch 9. |
 | 9-bis | what the latency fixes left behind | #344, #345 | **backlog** | Both found verifying #339 part 2, and neither is a corpus defect. #344 is `/api/health`, the last full scan of `chunks` on the read path (~210 ms) — named and scoped out by #339, so it needed its own row once #339 closed, and part 2 pushed it 9% the wrong way. #345 is the coverage-exclusion divergence the same PR hit and half-fixed: `pyproject.toml`'s `omit` and `sonar.coverage.exclusions` disagree, so a locally-omitted file arrives at the blocking gate scored 0%. Both **may resolve as decisions rather than repairs**, like #299 — #344's three options trade staleness against ingest cost, and #345's turns on whether the shim deserves a bar at all. |
-| 9-ter | the other three side routes | #348 | **backlog** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. **May resolve as a decision rather than a repair**, like #299: full-page destination is a plausible answer for the network dashboard, and for the concordance it plausibly differs by entry point (Reader rail vs top nav). Decide per route first, then pick a mechanism — #347's `windowKey` memo is the prerequisite either way. |
+| 9-ter | the other three side routes | ~~#348~~ | **landed** | Found working #342 as PR #347, in the file it edited (`AppRoutes.tsx`) — it is the half #342 explicitly did not survey. `ConcordanceRoute`, `NetworkRoute` and `RefsRoute` still unmount the Reader; measured after #347, `.reader` is absent after each of the three and present after the syntax layer. It resolved **half as a decision and half as a repair**, which the row anticipated: the entry points settle it — the Reader rail links into the concordance twice and into neither of the other two, so the concordance keeps the Reader and network/refs stay destinations that release it. See batch 9-ter. |
+| 9-quater | what the hoist left armed | #352 | **backlog** | Found working 9-ter, in the files it edited. The `suspended` flag added there gates the two global listeners whose misfire was measured; four more in the Reader subtree stay armed while the Reader is retained off-screen, and two of them dismiss the open term card — the exact state 9-ter set out to preserve. **May resolve as a decision rather than a repair**, like #299: only one of the four loses user state, and "fix that one, leave the rest" is a defensible answer that wants saying out loud. Same `N-bis` logic as 8-bis: 9-ter has landed, so its follow-up takes a suffix rather than a new number. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
@@ -2332,3 +2333,88 @@ issue decays while its neighbours are being fixed**, and here it decayed
 between the issue being filed and the issue being worked, four days. The
 figure was also copied into `readCache.ts` and its test, so the
 correction had to be made in three places; PR #347 makes all three.
+
+## Batch 9-ter — the other three side routes (#348)
+
+#342 fixed one of four. The syntax overlay became a modifier on the reader
+route, so the Reader stayed mounted under it; the concordance, the network
+dashboard and the refs browser were left as peer `<Match>` branches of the
+same `<Switch>`, and #342 recorded that it had not surveyed whether they
+should get the same treatment. #348 is that survey.
+
+**The issue was right about everything it measured, and its framing
+understated the count by one.** All three unmount the Reader, reproduced
+after PR #347 with the same harness `readerSyntaxLayer.test.tsx` uses:
+
+```
+× probe concordance        expected { readerPresent: false } to equal { readerPresent: true }
+× probe concordance-lemma  expected { readerPresent: false } to equal { readerPresent: true }
+× probe network            expected { readerPresent: false } to equal { readerPresent: true }
+× probe refs               expected { readerPresent: false } to equal { readerPresent: true }
+```
+
+`concordance-lemma` is a fourth route kind, not a fourth route: `App.tsx:92`
+folds it and `concordance` into one `onConcordance()` predicate, so it shares
+the branch and needed no separate handling. Worth writing down only because
+"three routes" is how the issue names the problem and there are four kinds.
+
+### The decision came from the entry points, not from the routes
+
+#348 refused to name a mechanism until each route's intent was decided, and
+the question turns out to be answerable by grep rather than by taste. What
+links into each:
+
+| Route | From the Reader | From the nav |
+|-------|-----------------|--------------|
+| `concordance-lemma` | **yes** — `Reader/index.tsx:389`, the rail's lemma card | yes |
+| `concordance` | **yes** — `Reader/index.tsx:400`, the work-concordance link | yes (`ChatRoute.tsx:80`) |
+| `network` | none | yes (`ChatRoute.tsx:77`) |
+| `refs` | none | yes (`ChatRoute.tsx:73`, `NetworkRoute.tsx:49,74,81`) |
+
+The concordance is the only one you step out to *from a passage*, which is the
+shape the syntax overlay has. The other two are arrived at. So the concordance
+keeps the Reader alive and the other two release it — and "release it" is what
+they already did, which is why half of this batch is a set of tests over
+unchanged behaviour.
+
+### Mechanism: a retained location, not a wider route
+
+Both mechanisms #348 offered would have worked. The one not taken —
+concordance-as-a-reader-modifier, symmetric with #342 — would have pulled
+seven concordance parameters (`scope`, `scopeAuthors`, `scopeWorks`, `case`,
+`number`, `surface`, `lang`) onto the reader route and made `ConcordanceRoute`
+render from two route shapes, which is duplication the Sonar gate scores
+independently of coverage.
+
+What landed instead: the Reader moves out of the `<Switch>` and renders from
+`readerWork() ?? retainedWork()`, inside a `display: contents` host carrying
+`hidden` + `inert`. `retainedWork` holds the last reader location while
+`keepsReaderAlive(route)` is true and drops it everywhere else, so no URL
+shape changes at all and a concordance opened cold from the top nav mounts no
+hidden Reader. The props the Reader sees do not move across the step-out,
+so PR #347's `windowKey` memo — the prerequisite #348 named — sees no reason
+to reload, which is what makes the whole thing free.
+
+### The hoist's own hazard, which the tests found and not the design
+
+Keeping a component mounted keeps its listeners mounted, and `inert` is a
+focus-and-pointer mechanism that reaches neither `window` nor `document`.
+Two misfires, both caught red:
+
+- Escape on `#/concordance/Ware` navigated to `#/`. The Reader's own
+  `useEscape` exit handler answered a key that belonged to the concordance,
+  and threw the user out to the landing.
+- `t` on the concordance committed a translate, from a selection toolbar
+  still open behind the page and invisible.
+
+A `suspended` flag gates both. **It gates only those two**, which is #352 —
+four more global listeners in the Reader subtree stay armed, and two of them
+close the retained term card on any click. That is the state this batch set
+out to preserve, so the follow-up is not optional decoration.
+
+The transferable part: *"the component survives the route" is a change to
+every listener it owns, not just to its rendering.* #342 made that true for
+one overlay and paid for it once (`App.tsx` went `inert` under the syntax
+layer). #348 made it true for a whole route class and paid for it twice more.
+Nothing enumerates the debt — it is found one failing test at a time, and
+#352 exists because the third and fourth payments have not been made yet.

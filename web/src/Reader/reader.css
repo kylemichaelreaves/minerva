@@ -4,6 +4,21 @@
    Dark variant cascades off the document-level `[data-theme="dark"]` already
    set by App.tsx. */
 
+/* Keep-alive wrapper (#348). The Reader survives a step-out to the
+   concordance instead of being destroyed and rebuilt, so it needs a host
+   element to carry `hidden` / `inert` while the step-out is on screen.
+   `display: contents` keeps that host out of the layout — `.main` is a flex
+   column and `.reader` is its `flex: 1` child, which a real box in between
+   would break. The `[hidden]` rule is not redundant: `display: contents` here
+   overrides the UA stylesheet's `[hidden] { display: none }`, so without it a
+   hidden Reader would still be painted. */
+.reader-keepalive {
+  display: contents;
+}
+.reader-keepalive[hidden] {
+  display: none;
+}
+
 .reader {
   /* Light — warm paper, deep ink, oxblood selection */
   --r-paper: #f6f2ea;

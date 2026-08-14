@@ -36,6 +36,29 @@ export function isLemmaRoute(r: Route): r is RouteLemma {
   return r.kind === "concordance-lemma";
 }
 
+/** Routes you step OUT to from the Reader and step back from, as opposed to
+ *  destinations you arrive at (#348).
+ *
+ *  A step-out keeps the Reader mounted underneath it — `useWorkRange`'s
+ *  signals, the scroll position, the open term card, the pinned highlights,
+ *  the translate rail and the selection toolbar all survive the round trip,
+ *  none of which the `readCache` from #343 can restore. A destination
+ *  releases it, because there is no passage to come back to and a retained
+ *  Reader would keep a window, its effects and its `IntersectionObserver`
+ *  alive behind a full-page view for the rest of the session.
+ *
+ *  Both concordance kinds qualify: `Reader/index.tsx` links to the lemma
+ *  detail from the rail's lemma card and to the index from the
+ *  work-concordance link. Nothing in the Reader links to the network
+ *  dashboard or the refs browser — both are top-nav entry points — so they
+ *  are destinations, which is why they are absent here rather than
+ *  overlooked. #342 fixed the fourth case, the syntax overlay, by a
+ *  different mechanism: it is a modifier on the reader route itself, so the
+ *  route never stops being a reader route and this predicate never sees it. */
+export function keepsReaderAlive(r: Route): boolean {
+  return r.kind === "concordance" || r.kind === "concordance-lemma";
+}
+
 export interface NetworkFilterFields {
   minConfidence?: number;
   sourceAuthors?: string[];
