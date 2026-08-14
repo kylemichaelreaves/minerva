@@ -1,10 +1,9 @@
-import { Show, createMemo } from "solid-js";
+import { Show } from "solid-js";
 import type { LemmaIndexRow } from "~/api/concordanceApi";
 import { Romanizable } from "~/Concordance/components/Romanizable";
 import { Sparkline } from "~/Concordance/components/Sparkline";
 
 export function LbRow(props: { row: LemmaIndexRow; onOpen: () => void }) {
-  const sparkData = createMemo(() => props.row.per_work.map((w) => w.n));
   return (
     <div class="lb-row" onClick={props.onOpen} role="link">
       <span class="rk">{props.row.rank}</span>
@@ -13,8 +12,13 @@ export function LbRow(props: { row: LemmaIndexRow; onOpen: () => void }) {
       </span>
       <span class="pos">{props.row.pos.toLowerCase()}</span>
       <span class="ct">{props.row.count.toLocaleString()}</span>
-      <Show when={props.row.per_work.length > 0} fallback={<span class="spark" />}>
-        <Sparkline data={sparkData()} />
+      {/* Two works or more, or there is nothing to compare: a one-work
+          distribution renders as a single full-height block on every row, which
+          reads as a broken chart rather than as a complete one (#370). The
+          fallback keeps the grid track occupied so rows do not reflow when the
+          scope widens and the bars come back. */}
+      <Show when={props.row.per_work.length > 1} fallback={<span class="spark" />}>
+        <Sparkline data={props.row.per_work} />
       </Show>
       <span class="gloss">
         {props.row.distinct_works > 0
