@@ -235,7 +235,7 @@ defect in the lemma writer.
 | 9-sexies | what the shell inherited | #357, #358 | **backlog** | Both found working 9-quinquies, in the files it edited, and both are the shell rather than either card — which is the difference from the row above, where the defect was one card missing what the other had. #357 is `PopoverCard`'s `stopPropagation()` shim: it names the outside-click listener as the thing it stops and cannot reach it (capture-phase on `document`, and on a different event), and no ancestor of the card binds a bubble-phase click handler either — the only thing that fails without it is a test supplying the parent the app lacks. #358 is what correction 2 exposed rather than fixed: both cards are `aria-modal="true"` with no visible close control, and `TermCard`'s renders only in the load-error state. Neither touches the DB. **#358 may resolve as a decision rather than a repair**, like #299, and the decision may be to drop the attribute instead of adding the button — a popover that does not trap the page is arguably not modal. |
 | 10 | reader ↔ chat handoff | #350 | **backlog** | **Groups with nothing in batches 0–9** — not a defect at all, and not found by working one: it is the half of a directly-requested feature (Escape leaves the Reader for the landing) that turned out to be unbuildable as agreed. The landing composer takes no scope chip and `startFromLanding` clears the scope by design, so the back arrow can hand the work over to a conversation and the landing cannot receive it. Numbered rather than `9-quater` because batch 9 is a latency batch and this shares neither its files nor its theme. |
 | 11 | type-to-filter the concordance pickers | ~~#363~~ | **landed** | **Groups with nothing in batches 0–10** — a directly-requested feature, like batch 10, and numbered rather than `10-bis` because it shares neither #350's files nor its theme. The Author and Work pickers held up to ~964 options in a 320px scroll list with no filter field; `Select` gained an opt-in `filterable` mode, and the lemma-search `q` predicate gained the same diacritic fold server-side. See batch 11. |
-| 11-bis | what the filter work found | #364, #365, #366, #367 | **backlog** | All four found working #363, none caused by it, and they do not group with each other beyond that — which is stated rather than fudged. #366 is the serious one and is **not a frontend defect at all**: `merge_case` groups Greek lemmas by folded *first character*, so the leaderboard's Greek counts are inflated and its labels name the wrong word (`στηλογραφία` merges into `συλλογισμός`). It is one line once #363's whole-string folder exists, but it changes user-visible numbers and wants its own PR. #367 is the script detectors answering `true` for any combining mark, which #363 works around rather than fixes. #364 is the other three concordance dropdowns having no keyboard access at all; #365 is `Select`'s panel lacking the mobile-sheet containment rule its neighbour has. |
+| 11-bis | what the filter work found | #364, #365, #366, #367, #369 | **backlog** | All four found working #363, none caused by it, and they do not group with each other beyond that — which is stated rather than fudged. #366 is the serious one and is **not a frontend defect at all**: `merge_case` groups Greek lemmas by folded *first character*, so the leaderboard's Greek counts are inflated and its labels name the wrong word (`στηλογραφία` merges into `συλλογισμός`). It is one line once #363's whole-string folder exists, but it changes user-visible numbers and wants its own PR. #367 is the script detectors answering `true` for any combining mark, which #363 works around rather than fixes. #364 is the other three concordance dropdowns having no keyboard access at all; #365 is `Select`'s panel lacking the mobile-sheet containment rule its neighbour has. #369 was found last, working the trigger redesign: `check-pr-link` retries only on a `missing` link because `unexpected` "will not un-register", and it does — measured on PR #368, where the check asserted the PR was broken seconds after GitHub had already dropped the link. It belongs to the 8-series question rather than to this batch's theme, and is grouped here only because this is what found it. |
 
 Reformatting last is a measured choice, not a default. Batches 1–4 add
 tests to files that currently sit *below* the 80% gate and are therefore
@@ -2747,3 +2747,32 @@ No debounce and no memoized haystack on the client: folding 964 labels measures
 rendered-row cap either — `WorkScopeControl` caps at 60, but capping silently
 hides options and sorting would reorder the list for the callers that did not
 ask for a filter.
+
+### The redesign, and the two things measuring caught
+
+Shipped first with the filter field **inside the panel**, which the repo owner
+rejected on sight: the field should be the select, not a second input below it.
+The trigger is now the input — ARIA's combobox pattern — which deleted the
+`role="combobox"` handoff between two elements, the focus-on-open effect, and a
+seeding branch that existed only because the field did not exist yet when the
+first character arrived.
+
+Mobile is the exception, and it is measured rather than cautious.
+`styles/mobile.css:1119-1134` makes the panel a full-screen sheet at `z-index:
+80` while `.mobile-sheet` is at 71, so below 768px an editable trigger is covered
+by its own dropdown. There the trigger stays a button and the field renders at
+the top of the sheet.
+
+Two things the tests caught that the plan had got wrong:
+
+- **The integration test did not survive untouched, as predicted.** With the
+  trigger as the input, both pickers own a field permanently, so a
+  `container`-wide `querySelector(".minerva-select__filter-input")` landed on the
+  *author* picker and silently filtered the wrong list. The lookup is now scoped
+  to the picker under test.
+- **`check-pr-link` reported a defect that did not exist** — #369. Rewriting the
+  PR body tripped the hazard check on a sentence containing `close #365`; after
+  fixing the wording, the check still read the stale link and asserted "this is a
+  bug in the PR, not in the check." It was not: seconds later the API returned
+  `[363]` and the unchanged command passed. The script's premise that only a
+  `missing` link is lag-fabricable holds in one direction only.
