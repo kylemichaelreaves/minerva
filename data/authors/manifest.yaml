@@ -1054,7 +1054,6 @@ granularity:
     "Nietzsche|Nachgelassene Fragmente (KGW)|deu": {max: 32778, mean: 674}  # 3345 chunks
     "Aquinas|Sententia libri Metaphysicae|lat": {max: 28975, mean: 11826}  # 151 chunks
     "Aquinas|Summa contra Gentiles|lat": {max: 25683, mean: 5025}  # 454 chunks
-    "Epictetus|Fragmenta dissertationum Epictetearum sive ab Arriano sive ab aliis digestarum|grc": {max: 25244, mean: 25244}  # 1 chunks
     "Hegel|Elements of the Philosophy of Right|eng": {max: 24251, mean: 1052}  # 961 chunks
     "Nietzsche|Unzeitgemäße Betrachtungen|deu": {max: 24140, mean: 2152}  # 321 chunks
     "Hegel|Grundlinien der Philosophie des Rechts|deu": {max: 23444, mean: 992}  # 742 chunks
