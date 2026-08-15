@@ -233,6 +233,8 @@ prerequisite is discharged and 4-op is unblocked on that axis.**
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator — **scope corrected, see below** | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. **Its stated scope does not survive measurement (2026-08-15): two of the four works it names as "clear parser failures" are documented design decisions, and the affected set is five parsers rather than one.** See "4-op's scope, corrected" below before opening the window. |
 | 4-op-ter | apparatus ingested as text | #385 | **backlog** | Found scoping 4-op across the four non-XML ingest paths, 2026-08-15. The PDF-sourced Hegel volumes merge bibliography, editor's notes and the alphabetical index into the **last body section**: `§244` is 118,716 chars of which roughly 1,300 are Hegel, and it ends `…Zeno of Elea, 145, 164 Zeus, 120, 221`. **Deliberately not folded into #176**, which is the granularity issue that surfaced it: #176's units are too coarse but are the right *text*, and re-chunking §244 into ten pieces would produce ten index chunks instead of one. It is #177's class one layer down — that was back matter as a standalone *work* and is fixed; this is the same material inside a section, wearing a legitimate citation label. Rides 4-op's re-ingest because it is the same corpus and the same refs rebuild, but it is a separate fix and wants its own explanation for why the numbers moved. |
 | 4-op-bis | what 4-op's prerequisite audit found | #383 | **backlog** | Filed 2026-08-15 by the Marx chrome audit **this document called for** ("decide whether the Marx corpus gets a chrome audit, and decide it now… the audit itself is read-only measurement"). Layer (b) of the 2026-05-31 cleanup is not closed: 33 chunks of Internet Archive crawl-provenance boilerplate survive in *Die deutsche Ideologie*, carrying 198 `chunk_lemmas` rows and 33 embeddings. **Layers (a) and (c) are clean** — 0 Gutenberg chrome chunks, 0 duplicate Marx paragraphs ≥60 chars — which is worth recording so nobody re-audits them. `cross_references` on the 33 is **0**, so nothing needs re-anchoring: this is the cheapest thing in the batch and it should ride 4-op's re-ingest rather than buy its own window, exactly as the audit note predicted. Grouped here rather than with 5-bis (#298) because #298 is an mlwerke edition note and this is Wayback viewer residue — same corpus, different source and different cleaner. |
+| 4-op-quater | the two pairs the `.xml` half left | ~~#395~~, #394 | **part landed; rest blocked on nothing** | The residue of PRs #393/#396, paired below since 2026-08-09 as "blocked on the same locator question". **They were not, and the pairing is corrected here.** #395's *Fragmenta* had its citable unit sitting unused in its own markup — 111 milestones, 36 `unit="Fragment"` and 75 `unit="Sententia"`, discarded by a three-name allowlist that the issue read as the milestones having no `unit` at all. Honouring them takes the pair from 1 chunk to 111 (mean 226, max 1,066, none over the gate, 111 distinct locators, zero churn in the other five Epictetus works) and out of `known_coarse`, 94 pairs → 93. **Landed 2026-08-15.** #394's *Discourses* eng has genuinely nothing to chunk on — 0 milestones, no numbering below `chapter` — so its locator had to be decided rather than discovered: **`IV.1a` / `IV.1b`, taken by the repo owner 2026-08-15**, because synthesised `18.1` collides with the Greek's real third citation level. What remains there is mechanical, lifting the packer from `tei_drama.py`. |
+| 4-op-quinquies | what the gate and the detector cannot see | #404, #405 | **backlog** | Both found closing 4-op-quater, and both are the same shape: a check that runs and reports nothing. #404 — every threshold in `manifest.yaml`'s `granularity` block is a ceiling, and the generated snapshot only lists pairs that trip one, so Babrius eng's 44-char median and 2,139 chunks are invisible while its coarser Greek sibling is baselined. No value of any existing key would list it. Named in passing by #399 and deliberately left unfiled there, so it existed only inside an issue about a different defect. #405 — `_detect_chunk_boundary_units` returns `frozenset()` both for a body with no milestones and for one whose milestones are all unrecognized, with no warning either way; that ambiguity is what #395 was misdiagnosed from. Sizing #404 needs a measurement nobody has taken (how many verse pairs a floor would list), so it is not a one-liner despite reading like one. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
 | 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed; rest backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
 | 5-ter | perseus follow-ups, second round | #316, #317 | **backlog** | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
@@ -1191,7 +1193,7 @@ ext      ragged>=20x  uniform<20x
 | pair | evidence |
 |---|---|
 | Hegel *Encyclopaedia* eng (`.pdf`) | §244 is 118,716 chars ending `…Zeno of Elea, 145, 164 Zeus, 120, 221` — the volume's index. ~1,300 chars are Hegel. **#385** |
-| Hegel *Philosophy of Mind* eng (`.pdf`) | §82 is 84,516 chars, editorial footnotes at the head and the 1830 preface at the tail. **#385** |
+| Hegel ~~*Philosophy of Mind*~~ *Encyclopaedia* eng (`.pdf`) | §82 is 84,516 chars, editorial footnotes at the head and the 1830 preface at the tail. **#385** — **corrected 2026-08-15: §82 is in the *Encyclopaedia* file, the same volume as §244, not the sibling.** *Philosophy of Mind*'s two largest chunks (§406 at 66,265 and §408 at 53,592) are genuine Hegel on mental illness; its back matter accretes onto **§577** (43,001), third in that volume. This matters because #385 proposes bounding section length as one of two fixes, and a size threshold tuned to catch §244 would relabel 119,857 characters of Hegel as apparatus. |
 | Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — ~~paragraph detection failing repeatedly~~ **corrected: the source is sparsely paragraphed, see below** |
 | Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables — **corrected: #385's class, not this one, and the English half has the opposite defect. #398, #399** |
 | Hobbes *De Cive* eng (`.txt`) | the dedicatory epistle emitted as a single 10,709-char `¶1` |
@@ -1276,14 +1278,25 @@ one — the exact objection this document already records against folding
 locator half: `_HEADING_RE` matched an OCR'd apparatus line as a chapter
 head, so those 409 chunks cite as `V. V1 πατὴρ conicias …, ¶N`.
 
-**English — the opposite defect, and the gate cannot see it.** 1,823 of
-2,239 chunks are under 100 characters, median 44, because the Davies scan
-carries OCR-inserted blank lines (2,307 breaks in 6,172 lines) and the
-splitter emits one chunk per blank-line paragraph, correctly. Filed as
-**#399**. Worth noting for the gate's own sake: `max_chunk_chars` and
-`max_mean_chunk_chars` bound coarseness only, so a work can fragment to
-44-character chunks and pass. This page has been treating the gate as
-covering granularity; it covers half of it.
+**English — the opposite defect, and the gate cannot see it.** ~~1,823 of
+2,239 chunks are under 100 characters, median 44~~ — **corrected
+2026-08-15 verifying #399: that row is `Aesop|*|eng`, not Babrius.** It
+sums in the 100 correctly-chunked Phaedrus eng chunks; Babrius alone is
+`n=2,139 median=44 mean=71 under-100=1,813`, which is *finer* than the
+figure quoted, not coarser. The cause holds — the Davies scan carries
+OCR-inserted blank lines (2,307 breaks in 6,171 lines) and the splitter
+emits one chunk per blank-line paragraph, correctly. Filed as **#399**,
+where the correction is posted. Worth noting for the gate's own sake:
+`max_chunk_chars` and `max_mean_chunk_chars` bound coarseness only, so a
+work can fragment to 44-character chunks and pass. This page has been
+treating the gate as covering granularity; it covers half of it. **Now
+filed as #404** rather than left as an observation here.
+
+**What would also have gone wrong:** #399 proposes accumulating lines to
+the next `[Fable N]` marker. The file carries **92 markers for ~143
+fables** — the shortfall is already recorded at
+`src/minerva/authors/aesop_works.py:83-86` — so that fix silently merges
+the ~51 unmarked fables into their predecessors.
 
 **What would have gone wrong:** applying #397's `max_paragraph_chars` to
 Babrius — the obvious next step, since it was next in the same list —
@@ -1320,7 +1333,23 @@ a paragraph mid-sentence — would have damaged a working parser.
 
 So the `.xml` half of 4-op is **done pending the window**: 42 pairs
 re-chunked, 2 correctly left alone. What the two PRs deliberately left,
-both blocked on the same locator question, is #394 and #395.
+~~both blocked on the same locator question,~~ is #394 and #395.
+
+**Corrected 2026-08-15, closing out #395: they were never blocked on the
+same question, and treating them as one pair is what kept the cheap half
+sitting in the backlog.** #395's *Fragmenta* was not missing a locator —
+its body carries 111 milestones numbering Schenkl's fragments and the two
+Stobaeus gnomologia, which `_detect_chunk_boundary_units` discarded for
+not being `section`/`bekker page`/`card`. Honouring the source's own units
+took it from one 25,244-char chunk to 111, and the "check the `<p>` runs
+against Schenkl's numbering" the issue asked for was never needed. #394's
+*Discourses* eng has no milestones at all and nothing numbered below
+`chapter`, so its locator genuinely had to be chosen: **`IV.1a`, decided
+2026-08-15** and recorded on the issue. **What would have gone wrong:**
+whoever unblocked #395 from its markup would reasonably have expected the
+same trick to unblock #394, and gone looking for sub-chapter markers that
+are not there — after designing the fix around them. The property that
+made the misdiagnosis reasonable is filed as #405.
 
 **Two things to settle *before* this window opens, added 2026-08-09.
 Both are cheap now and expensive afterwards, which is the whole reason

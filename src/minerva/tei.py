@@ -259,9 +259,18 @@ def _identify_works(root: ET.Element) -> list[TeiWork]:
     return [TeiWork(title="", container_type="single", body=body)]
 
 
+# Milestone units that name their own citation series rather than a
+# position in a shared one: the Greek *Fragmenta*'s `unit="Fragment"`
+# (Schenkl's *Fr.* 1-36) and `unit="Sententia"` (the two Stobaeus
+# gnomologia). Unlike `section`/`card`, the number alone does not
+# identify the passage — `Fragment 9` and `Sententia 9` are different
+# texts — so the series name goes into `section` with it (#395).
+_NAMED_SERIES_UNITS = frozenset({"fragment", "sententia"})
+
+
 def _detect_chunk_boundary_units(body: ET.Element) -> frozenset[str]:
     """Decide which milestone units fire as chunk boundaries for this
-    body. Two policies coexist:
+    body. Three policies coexist:
 
     * The Plato/Aristotle pattern: `unit="section"` (Stephanus letters)
       and `unit="bekker page"` (Bekker pagination) BOTH count as
@@ -271,6 +280,14 @@ def _detect_chunk_boundary_units(body: ET.Element) -> frozenset[str]:
       Used only when no section/bekker-page markers appear at all —
       otherwise stray cards in a section-chunked work (Aristotle
       Economics has 5) would re-split the work spuriously.
+    * The Epictetus *Fragmenta* pattern: a named series
+      (`_NAMED_SERIES_UNITS`). Last, and for the same reason `card` is
+      not first — a stray `Fragment` inside a section-chunked body must
+      not re-split it.
+
+    Note the units are read but filtered, so "no boundary unit" never
+    means "no milestones". #395 read `frozenset()` here as the latter and
+    reported the *Fragmenta*'s 111 well-formed milestones as unit-less.
     """
 
     seen: set[str] = set()
@@ -283,7 +300,7 @@ def _detect_chunk_boundary_units(body: ET.Element) -> frozenset[str]:
         return frozenset(section_family)
     if "card" in seen:
         return frozenset({"card"})
-    return frozenset()
+    return frozenset(seen & _NAMED_SERIES_UNITS)
 
 
 # `<div1>`/`<div2>`/`<div3>` — TEI.2 numbers its division levels rather
@@ -513,6 +530,12 @@ class _ChunkBuilder:
             elif unit == "card" and n and "card" in self._chunk_boundary_units:
                 self._flush()
                 self._cur_section = f"{self._cur_book}.{n}" if self._cur_book else n
+            elif unit in _NAMED_SERIES_UNITS and n and unit in self._chunk_boundary_units:
+                # The series name is part of the citation, so it is kept —
+                # from the source's own spelling of the unit, not a
+                # synthesised abbreviation. See _NAMED_SERIES_UNITS.
+                self._flush()
+                self._cur_section = f"{el.get('unit')} {n}"
             elif unit == "page" and n:
                 self._cur_page = n
             elif unit == "bekker line" and n:
@@ -559,6 +582,22 @@ class _ChunkBuilder:
                 if n != self._cur_book:
                     self._flush()
                 self._cur_book = n
+            elif self._chunk_boundary_units & _NAMED_SERIES_UNITS:
+                # A named series numbers each division from 1, so `book`
+                # is what keeps two runs of it apart — and in the
+                # *Fragmenta* the two gnomologia divisions carry no `n`,
+                # leaving both stamped with the first division's "0" and
+                # citing identically. Their `<head>` is the only thing in
+                # the source that tells them apart, so it stands in for
+                # the missing number. Confined to bodies chunked by a
+                # named series: `head` is prose, and promoting it to a
+                # locator anywhere else is how Babrius ended up with 409
+                # chunks labelled with an OCR'd apparatus line (#398).
+                head = el.find("head")
+                label = _norm_text("".join(head.itertext())) if head is not None else ""
+                if label and label != self._cur_book:
+                    self._flush()
+                    self._cur_book = label
             self._add_text(el.text)
             for child in el:
                 self._walk(child)

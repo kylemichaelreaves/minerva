@@ -448,10 +448,14 @@ def test_a_body_with_milestones_ignores_chapter_divisions(tmp_path: Path):
 
 
 def test_a_milestone_less_body_without_chapters_is_left_alone(tmp_path: Path):
-    """Scoped out on purpose: the Greek *Fragmenta* has neither milestones
-    nor chapter divisions, only three untyped `<div1>` runs of `<p>`, and
-    stays one 25,244-char chunk. Pinned so the next person sees that the
-    fallback was measured against it and declined, not overlooked."""
+    """A body with nothing to chunk on stays one chunk: the chapter
+    fallback is not a licence to invent boundaries.
+
+    This was written against the Greek *Fragmenta*, described here as
+    having "neither milestones nor chapter divisions". The second half was
+    right and the first was not — that body carries 111 milestones, and it
+    now chunks on them (#395). What the case below pins is the general
+    rule, with a body that genuinely has no markers."""
 
     xml = """<?xml version="1.0"?>
 <TEI.2><teiHeader><fileDesc><titleStmt><title>Fragmenta</title></titleStmt></fileDesc></teiHeader>
@@ -466,3 +470,113 @@ def test_a_milestone_less_body_without_chapters_is_left_alone(tmp_path: Path):
     chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
     assert len(chunks) == 1
     assert chunks[0].section is None
+
+
+# ---------- named-series milestones (#395) ----------
+
+# Two `<div1 type="book">` with no `n`, each restarting `Sententia` at 1 —
+# the shape of the Greek *Fragmenta*'s two Stobaeus gnomologia. Reused by
+# the two tests below so the run-separation case and the label case read
+# against the same body.
+SAMPLE_FRAGMENTA_XML = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Fragmenta</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="0">
+    <milestone unit="Fragment" n="1"/>
+    What is it to me whether all existing things are composed of atoms?
+    <milestone unit="Fragment" n="2"/>
+    He who is dissatisfied with what he has is unlearned.
+  </div1>
+  <div1 type="book">
+    <head>Gnomologium Epicteteum (e Stobaei libris 1-2)</head>
+    <milestone unit="Sententia" n="1"/>
+    All things obey and serve the cosmos.
+  </div1>
+  <div1 type="book">
+    <head>Gnomologium Epicteteum (e Stobaei libris 3-4)</head>
+    <milestone unit="Sententia" n="1"/>
+    Freedom is the name of virtue, slavery of vice.
+  </div1>
+</body></text></TEI.2>
+"""
+
+
+def test_named_series_milestones_chunk_a_body_the_section_family_ignores(tmp_path: Path):
+    """The *Fragmenta*'s 111 milestones all carry a `unit` — 36 `Fragment`
+    and 75 `Sententia` — but neither is in the section/bekker/card
+    allowlist, so the body read as milestone-less and stayed one
+    25,244-char chunk. The series name and number are the citable locator
+    (*Fr.* 1), so both come from the source rather than being invented."""
+
+    path = _write_xml(tmp_path, "fragmenta_gr.xml", SAMPLE_FRAGMENTA_XML)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [c.section for c in chunks] == [
+        "Fragment 1",
+        "Fragment 2",
+        "Sententia 1",
+        "Sententia 1",
+    ]
+
+
+def test_repeated_named_series_runs_are_separated_by_their_division_heads(tmp_path: Path):
+    """Both gnomologia restart `Sententia` at 1 and neither `<div1>` carries
+    an `n`, so `book` never moves off the first division's "0" and the two
+    runs would cite identically. The divisions' own `<head>` is what tells
+    them apart, so it becomes the book label when there is no number."""
+
+    path = _write_xml(tmp_path, "fragmenta_gr.xml", SAMPLE_FRAGMENTA_XML)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [c.book for c in chunks] == [
+        "0",
+        "0",
+        "Gnomologium Epicteteum (e Stobaei libris 1-2)",
+        "Gnomologium Epicteteum (e Stobaei libris 3-4)",
+    ]
+    assert len({(c.book, c.section) for c in chunks}) == len(chunks)
+
+
+def test_a_section_chunked_body_ignores_stray_named_series_milestones(tmp_path: Path):
+    """The churn guard, same as the one that keeps Aristotle Economics's 5
+    stray cards from re-splitting a section-chunked work. A body that fires
+    on `unit="section"` must not also fire on a named series, or every
+    `chunk_id` in the milestone-driven corpora moves."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Dissertationes</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="1">
+    <milestone unit="section" n="1"/>
+    Of things some are in our power, and others are not.
+    <milestone unit="Fragment" n="9"/>
+    <milestone unit="section" n="2"/>
+    What then is to be done?
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "dissertationes_gr.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [c.section for c in chunks] == ["1", "2"]
+
+
+def test_a_headless_division_does_not_blank_the_book_label(tmp_path: Path):
+    """`<head>` stands in for a missing `n`, but only when there is one.
+    A division with neither keeps whatever book label is in force rather
+    than overwriting it with the empty string — an unlabelled chunk is
+    worse than one inheriting its predecessor's division."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Fragmenta</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="0">
+    <milestone unit="Fragment" n="1"/>
+    What is it to me whether all existing things are composed of atoms?
+  </div1>
+  <div1 type="book">
+    <milestone unit="Fragment" n="2"/>
+    He who is dissatisfied with what he has is unlearned.
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "fragmenta_gr.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [c.book for c in chunks] == ["0", "0"]
