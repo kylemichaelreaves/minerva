@@ -20,10 +20,20 @@ Chunking
 --------
 One chunk per **leaf** ``<div type="textpart">``. Inner divs (e.g.
 ``<textpart subtype="lyric">`` inside ``<textpart subtype="episode">``)
-are walked recursively; only the innermost ones emit chunks. This
-keeps chunks at scene-or-ode granularity (typically 10–80 lines),
-which is the right size for retrieval — a whole choral ode is one
-unit of meaning, a single line is not.
+are walked recursively; only the innermost ones emit chunks. The aim is
+scene-or-ode granularity — a whole choral ode is one unit of meaning, a
+single line is not.
+
+**A leaf over ``MAX_CHUNK_CHARS`` is split** at ``<sp>`` speech
+boundaries, or at line boundaries for choral odes that have no ``<sp>``
+(#176). This paragraph used to claim the leaf unit gives "typically
+10–80 lines"; it does not, because the source's textpart nesting is
+uneven. Measured on the live index before the split landed, this parser
+owned **39 of the 44** ragged ``.xml`` work/lang pairs — single leaves
+spanning 200+ lines, such as ``lyric 1204-1425`` (11,404 chars) and
+``choral 205-496`` (10,862) — while the median chunk in the same works
+was a couple of hundred characters. A leaf already within budget is
+emitted whole, so only the oversized ones churn their ``chunk_id``.
 
 The chunk's ``section`` is ``"{subtype} {first}-{last}"`` (e.g.
 ``"lyric 217-247"``). When the subtype is missing or ``unknown``,
@@ -60,6 +70,7 @@ _NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 _SPEAKER_TAG = "{http://www.tei-c.org/ns/1.0}speaker"
 _STAGE_TAG = "{http://www.tei-c.org/ns/1.0}stage"
+_SP_TAG = "{http://www.tei-c.org/ns/1.0}sp"
 
 
 def _text_of(elem: ET.Element) -> str:
@@ -72,6 +83,64 @@ def _text_of(elem: ET.Element) -> str:
     that follows them."""
 
     return _norm_text(text_excluding(elem, frozenset({_SPEAKER_TAG, _STAGE_TAG})))
+
+
+#: Size above which a leaf textpart is split into several chunks (#176).
+#:
+#: The leaf ``<div type="textpart">`` was the sole chunk unit, on the stated
+#: assumption that it gives "scene-or-ode granularity (typically 10-80 lines)".
+#: The source's nesting is uneven, so that holds for some leaves and not
+#: others: measured on the live index, this parser owns 39 of the 44 ragged
+#: `.xml` work/lang pairs, and 87 tragedian chunks exceed 8,000 characters —
+#: single leaves spanning 200+ lines (`lyric 1204-1425`, `choral 205-496`).
+#:
+#: 8,000 is the granularity gate's own per-chunk ceiling
+#: (`data/authors/manifest.yaml`), so a leaf at or under it is already
+#: acceptable and is left alone — which keeps its `chunk_id` stable, since the
+#: id hashes `section` and `text[:120]`. Only oversized leaves churn.
+MAX_CHUNK_CHARS = 8000
+
+
+def _segments(leaf: ET.Element) -> list[ET.Element]:
+    """The units an oversized leaf may be split between.
+
+    ``<sp>`` speech turns when the leaf has them — the natural dramatic
+    boundary, and the one the parser already reads ``speaker`` from. Choral
+    odes are bare ``<l>`` runs with no ``<sp>`` wrapper (the ``choral 205-496``
+    case), so those fall back to individual lines. Both are document-order and
+    exhaustive over the leaf's lines, which is what keeps the split lossless.
+    """
+
+    speeches = leaf.findall("tei:sp", _NS)
+    if speeches:
+        return speeches
+    return list(leaf.findall("tei:l", _NS)) or [leaf]
+
+
+def _packed(segments: list[ET.Element]) -> list[list[ET.Element]]:
+    """Greedily group consecutive segments into runs under the budget.
+
+    Greedy rather than balanced on purpose: a reader citing a line wants the
+    surrounding speech intact, and packing in document order keeps each group
+    contiguous so its line range stays a single ``first-last`` span. A single
+    segment larger than the budget becomes its own group rather than being
+    broken mid-speech — splitting inside a speech would produce a chunk with no
+    honest speaker and a range that misrepresents it.
+    """
+
+    groups: list[list[ET.Element]] = []
+    current: list[ET.Element] = []
+    size = 0
+    for seg in segments:
+        seg_len = len(_text_of(seg))
+        if current and size + seg_len > MAX_CHUNK_CHARS:
+            groups.append(current)
+            current, size = [], 0
+        current.append(seg)
+        size += seg_len
+    if current:
+        groups.append(current)
+    return groups
 
 
 def _has_inner_textpart(elem: ET.Element) -> bool:
@@ -101,6 +170,25 @@ def _first_speaker(elem: ET.Element) -> str | None:
         return None
     text = _norm_text(" ".join(sp.itertext()))
     return text or None
+
+
+def _segment_speaker(seg: ET.Element) -> str | None:
+    """Speaker for one split segment.
+
+    ``_first_speaker`` searches for a *descendant* ``<sp>``, which is right for
+    a textpart and wrong for a segment that **is** an ``<sp>`` — there the
+    ``<speaker>`` is a direct child and the descendant search finds nothing.
+    Both shapes occur: speech segments are ``<sp>``, choral segments are bare
+    ``<l>`` with no speaker at all.
+    """
+
+    if seg.tag == _SP_TAG:
+        own = seg.find("tei:speaker", _NS)
+        if own is not None:
+            text = _norm_text(" ".join(own.itertext()))
+            return text or None
+        return None
+    return _first_speaker(seg)
 
 
 def _line_range(lines: list[ET.Element]) -> tuple[str | None, str | None]:
@@ -198,39 +286,89 @@ def parse_file(
         lines = _gather_lines(leaf)
         if not lines:
             continue
-        first_line, last_line = _line_range(lines)
         subtype = leaf.get("subtype")
-        section = _format_section(subtype, first_line, last_line)
-        speaker = _first_speaker(leaf)
-        text = _text_of(leaf)
-        if not text:
-            continue
 
-        chunk_id = _make_chunk_id(
-            path.name,
-            work,
-            lang,
-            "",
-            section or "",
-            speaker or "",
-            text[:120],
-        )
-        yield Chunk(
-            chunk_id=chunk_id,
-            corpus=corpus,
-            author=author,
-            work=work,
-            lang=lang,
-            section=section,
-            book=None,
-            page=None,
-            speaker=speaker,
-            text=text,
-            source_file=path.name,
-            translator=editor_name,
-            edition_year=year,
-            citation_system=citation_system,
-        )
+        # One chunk per leaf while the leaf is within budget — the original
+        # behaviour, and the path every well-sized textpart still takes, so
+        # their `chunk_id`s do not move. An oversized leaf is split at speech
+        # boundaries instead (#176); see `MAX_CHUNK_CHARS`.
+        if len(_text_of(leaf)) <= MAX_CHUNK_CHARS:
+            groups: list[list[ET.Element]] = [[leaf]]
+        else:
+            groups = _packed(_segments(leaf))
+
+        for group in groups:
+            group_lines = [ln for seg in group for ln in _gather_lines(seg)]
+            if not group_lines:
+                continue
+            first_line, last_line = _line_range(group_lines)
+            section = _format_section(subtype, first_line, last_line)
+            # Per group, not per leaf: every piece but the first would
+            # otherwise inherit the leaf's opening speaker and be attributed
+            # to a character who does not speak in it.
+            speaker = next(
+                (s for s in (_segment_speaker(seg) for seg in group) if s), None
+            )
+            text = _norm_text(" ".join(t for t in (_text_of(seg) for seg in group) if t))
+            if not text:
+                continue
+            yield _drama_chunk(
+                path=path,
+                corpus=corpus,
+                author=author,
+                work=work,
+                lang=lang,
+                section=section,
+                speaker=speaker,
+                text=text,
+                translator=editor_name,
+                edition_year=year,
+                citation_system=citation_system,
+            )
+
+
+def _drama_chunk(
+    *,
+    path: Path,
+    corpus: str,
+    author: str,
+    work: str,
+    lang: str,
+    section: str | None,
+    speaker: str | None,
+    text: str,
+    translator: str | None,
+    edition_year: str | None,
+    citation_system: str | None,
+) -> Chunk:
+    """Build one drama Chunk. Extracted so the split path and the
+    single-leaf path cannot drift in what they put in the id."""
+
+    chunk_id = _make_chunk_id(
+        path.name,
+        work,
+        lang,
+        "",
+        section or "",
+        speaker or "",
+        text[:120],
+    )
+    return Chunk(
+        chunk_id=chunk_id,
+        corpus=corpus,
+        author=author,
+        work=work,
+        lang=lang,
+        section=section,
+        book=None,
+        page=None,
+        speaker=speaker,
+        text=text,
+        source_file=path.name,
+        translator=translator,
+        edition_year=edition_year,
+        citation_system=citation_system,
+    )
 
 
 # ── Directory-level driver ───────────────────────────────────────
