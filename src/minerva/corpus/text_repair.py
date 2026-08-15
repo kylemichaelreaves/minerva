@@ -89,6 +89,13 @@ _CRAWL_CHROME_PREFIXES = (
     "- top ranked pages",
     "-- a ranking of all urls",
     "-- up to a maximum of",
+    # Project Gutenberg's transcriber credit, which opens Locke's Second
+    # Treatise with 566 characters about the McPherson edition and its
+    # copyright status — retrievable as though Locke wrote it. Exactly one
+    # chunk in the corpus begins this way, so the prefix reaches it and
+    # nothing else; the Google Books watermark of the same name is a
+    # different beast and is handled in split_hegel_pr_de (#401).
+    "digitized by dave gowan",
 )
 
 # `Seitenzahlen verweisen auf: Karl Marx - Friedrich Engels - Werke, Band 25,

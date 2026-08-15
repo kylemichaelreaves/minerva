@@ -1029,3 +1029,19 @@ def test_prose_that_merely_mentions_the_archive_is_kept(tmp_path: Path):
     text = f"CHAPTER ONE\n\n{prose}\n"
     chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
     assert [c.text for c in chunks] == [prose]
+
+
+def test_a_transcribers_credit_paragraph_is_dropped(tmp_path: Path):
+    """Project Gutenberg's transcriber credit opens Locke's *Second
+    Treatise* and is retrievable as though Locke wrote it — 566 characters
+    about the McPherson edition and its copyright status. Exactly one chunk
+    in the corpus begins this way, so the prefix rule reaches it and
+    nothing else (#401)."""
+
+    credit = (
+        "Digitized by Dave Gowan. John Locke's “Second Treatise of Government” "
+        "was published in 1690. The 1690 edition text is free of copyright."
+    )
+    text = f"CHAPTER ONE\n\n{credit}\n\nTo understand political power right.\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.text for c in chunks] == ["To understand political power right."]
