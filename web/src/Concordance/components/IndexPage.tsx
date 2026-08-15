@@ -68,7 +68,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
   const letter = () => props.letter;
 
   const {
-    data, loading, error, setRetryKey, lettersWithHits, grouped,
+    data, loading, error, setRetryKey, lettersWithHits, letterCounts, grouped,
     allRows, hasMore, appending, appendError, setSentinelEl,
   } = useConcordanceIndex({
     lang,
@@ -312,8 +312,19 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                 props.onNavigate({ scope: s, scopeAuthors: undefined, scopeWorks: undefined })
               }
             />
+            {/* Both numbers, always (#377). `total_lemmas` alone sat in the
+                position a reader takes for "how many rows are in this list",
+                and is not that: it is computed without the frequency range,
+                whose default `min_count` is 2, so the DEFAULT view already
+                diverged — 28,963 printed above 11,413 rows, measured on the
+                live index. The `ActiveFilterStrip` had gained a count for the
+                narrowed set, but only renders when a filter chip is active, so
+                on the default view the scope total was the only number on
+                screen. Naming it "in scope" is the other half: it reads as the
+                denominator it is rather than as the list's size. */}
             <span>
-              · <b>{data()?.total_lemmas.toLocaleString() ?? "—"}</b> lemmas ·{" "}
+              · <b>Showing {allRows().length.toLocaleString()}</b> of{" "}
+              <b>{data()?.total_lemmas.toLocaleString() ?? "—"}</b> lemmas in scope ·{" "}
               {lang().toUpperCase()}
             </span>
           </div>
@@ -329,9 +340,18 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           {(L) => {
             const klass = () =>
               "l " + (L === letter() ? "cur" : lettersWithHits().has(L) ? "has" : "");
+            // The dot says "something here"; the count says how much, which is
+            // what makes the rail worth reading before clicking (#376).
+            const title = () => {
+              const n = letterCounts()[L];
+              return n === undefined
+                ? `${L} — nothing in scope`
+                : `${L} — ${n.toLocaleString()} lemma${n === 1 ? "" : "s"}`;
+            };
             return (
               <span
                 class={klass()}
+                title={title()}
                 onClick={() => props.onNavigate({ letter: L === letter() ? undefined : L })}
               >
                 {L}
@@ -669,19 +689,19 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
     },
   );
 
-  const lettersWithHits = createMemo<Set<string>>(() => {
-    // Appended rows count: paging makes the rail's "has hits" dots
-    // progressively more accurate rather than reflecting only the top page.
-    const rows = allRows();
-    const s = new Set<string>();
-    for (const r of rows) {
-      // Fold to the base capital (ASCII A–Z or Greek Α–Ω) so the rail's
-      // "has hits" dots line up with the diacritic-folded backend filter.
-      const c = foldInitial(r.lemma);
-      if (c) s.add(c);
-    }
-    return s;
-  });
+  // Per-letter populations, straight from the server (#376). This used to fold
+  // the letters out of `allRows()` — the rows already fetched — which made a
+  // dot a property of the current sort's top slice rather than of the scope.
+  // On the live index that hid G (11,125 German lemmas) and S (15,366) on
+  // first paint, which is exactly when the rail is used. Paging made it drift
+  // towards correct as the reader scrolled, which is not the same as being
+  // right when it is read.
+  const letterCounts = createMemo<Record<string, number>>(
+    () => data()?.letter_counts ?? {},
+  );
+  const lettersWithHits = createMemo<Set<string>>(
+    () => new Set(Object.keys(letterCounts())),
+  );
 
   const grouped = createMemo<{ letter: string; rows: LemmaIndexRow[] }[]>(() => {
     const rows = allRows();
@@ -708,6 +728,7 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
     retryKey,
     setRetryKey,
     lettersWithHits,
+    letterCounts,
     grouped,
     allRows,
     hasMore,

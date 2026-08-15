@@ -38,6 +38,13 @@ export interface LemmaIndexResponse {
    *  count. Do not paginate on it; use `next_offset` (#371). */
   total_lemmas: number;
   total_occurrences: number;
+  /** Rows per A–Z rail letter, over the whole filtered scope (#376). Keyed by
+   *  the same folded initial the `letter` filter matches on, so a present key
+   *  means clicking that letter returns rows. Computed WITHOUT the letter
+   *  filter — the rail must keep showing where else there is something while
+   *  one letter is selected — and WITH the frequency range, unlike
+   *  `total_lemmas`. Letters with nothing in scope are absent, not zero. */
+  letter_counts: Record<string, number>;
   limit: number;
   offset: number;
   /** Offset of the next page, or null when this was the last one. Derived
