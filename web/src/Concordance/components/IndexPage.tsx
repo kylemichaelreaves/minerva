@@ -20,6 +20,7 @@ import { LbRow } from "~/Concordance/components/LbRow";
 import { LoadingSkeleton } from "~/Concordance/components/LoadingSkeleton";
 import { ScopePill } from "~/Concordance/components/ScopePill";
 import { alphabetFor, foldInitial } from "~/Concordance/constants";
+import { routeHash } from "~/routing";
 import { useMobile } from "~/hooks/useMobile";
 import { MobileSheet } from "~/components/MobileSheet";
 import "~/Concordance/concordance.css";
@@ -512,6 +513,19 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                       {(row) => (
                         <LbRow
                           row={row}
+                          // The same destination the click handler navigates
+                          // to, as a URL (#375). `routeHash` is pure, and the
+                          // router already listens for `hashchange` precisely
+                          // so in-page anchors work — so this is a real link,
+                          // not a decorative one.
+                          href={routeHash({
+                            kind: "concordance-lemma",
+                            lemma: row.lemma,
+                            lang: lang(),
+                            scope: scope(),
+                            scopeAuthors: props.scopeAuthors,
+                            scopeWorks: props.scopeWorks,
+                          })}
                           onOpen={() =>
                             props.onOpenLemma(
                               row.lemma,

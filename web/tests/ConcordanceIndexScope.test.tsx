@@ -217,16 +217,24 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     ));
     await waitFor(() => expect(listWorks).toHaveBeenCalled());
 
-    // Two pickers render at work scope (author + work) and both are filterable.
-    const triggers = () =>
-      container.querySelectorAll(".minerva-select__trigger");
-    await waitFor(() => expect(triggers().length).toBe(2));
-    fireEvent.click(triggers()[1]!);
+    // Located by the group's own label rather than by document order. The bar
+    // held exactly two `Select`s when this was written; since #364 ported
+    // Language/Sort/POS onto the shared component it holds five, and an index
+    // silently addressed a different picker.
+    const triggerFor = (label: string) => {
+      const group = Array.from(container.querySelectorAll(".fbar .grp")).find(
+        (g) => g.querySelector(".lab")?.textContent === label,
+      );
+      return group!.querySelector<HTMLElement>(".minerva-select__trigger")!;
+    };
+    await waitFor(() => expect(triggerFor("Work")).not.toBeNull());
+    const workTrigger = triggerFor("Work");
+    fireEvent.click(workTrigger);
 
     // Scoped to the work picker, not `container`-wide: the filterable trigger
     // IS the input, so both pickers own one at all times and a document-order
     // lookup would land on the author picker and silently filter the wrong list.
-    const input = triggers()[1]!.querySelector<HTMLInputElement>(
+    const input = workTrigger.querySelector<HTMLInputElement>(
       ".minerva-select__filter-input",
     )!;
     expect(input).not.toBeNull();
