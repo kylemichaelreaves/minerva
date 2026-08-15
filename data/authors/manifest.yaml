@@ -953,8 +953,12 @@ expected_chunks:
     min: 319
     max: 489
   epictetus:
-    min: 2408
-    max: 3116
+    # Re-based on 3,147 after #176's re-chunk (was 2,833: band 2408/3116).
+    # The English side gained 311 chunks when the milestone-less TEI bodies
+    # started chunking at their chapter divisions — Discourses 85 → 176,
+    # Enchiridion 3 → 55, Fragments 9 → 177. The Greek is unchanged.
+    min: 2674
+    max: 3461
   marcus_aurelius:
     min: 861
     max: 1320
@@ -1039,64 +1043,42 @@ granularity:
   max_mean_chunk_chars: 3000
   tolerance_pct: 5
   known_coarse:
-    "Epictetus|The Discourses of Epictetus|eng": {max: 151427, mean: 6744}  # 85 chunks
+    "Epictetus|The Discourses of Epictetus|eng": {max: 42683, mean: 3257}  # 176 chunks
     "Hobbes|Leviathan|lat": {max: 127001, mean: 17632}  # 47 chunks
     "Hegel|Encyclopaedia of the Philosophical Sciences, Part I: The Logic|eng": {max: 118716, mean: 4006}  # 246 chunks
-    "Aeschylus|Agamemnon|eng": {max: 82256, mean: 82256}  # 1 chunks
+    "Aeschylus|Agamemnon|eng": {max: 8015, mean: 6891}  # 12 chunks
     "Hobbes|De Cive|lat": {max: 71878, mean: 26357}  # 18 chunks
     "Hegel|Encyclopaedia of the Philosophical Sciences, Part III: The Philosophy of Mind|eng": {max: 66265, mean: 4453}  # 201 chunks
     "Augustine|De civitate Dei|lat": {max: 53414, mean: 3086}  # 600 chunks
-    "Epictetus|The Enchiridion|eng": {max: 36338, mean: 12262}  # 3 chunks
-    "Epictetus|Fragments of Epictetus from Stobaeus, Antonius, and Maximus.|eng": {max: 34241, mean: 3853}  # 9 chunks
     "Aquinas|In libros Physicorum|lat": {max: 34120, mean: 10861}  # 121 chunks
-    "Cicero|Brutus and Orator|eng": {max: 33241, mean: 1705}  # 270 chunks
     "Nietzsche|Nachgelassene Fragmente (KGW)|deu": {max: 32778, mean: 674}  # 3345 chunks
     "Aquinas|Sententia libri Metaphysicae|lat": {max: 28975, mean: 11826}  # 151 chunks
     "Aquinas|Summa contra Gentiles|lat": {max: 25683, mean: 5025}  # 454 chunks
     "Epictetus|Fragmenta dissertationum Epictetearum sive ab Arriano sive ab aliis digestarum|grc": {max: 25244, mean: 25244}  # 1 chunks
     "Hegel|Elements of the Philosophy of Right|eng": {max: 24251, mean: 1052}  # 961 chunks
     "Nietzsche|Unzeitgemäße Betrachtungen|deu": {max: 24140, mean: 2152}  # 321 chunks
-    "Hegel|Grundlinien der Philosophie des Rechts|deu": {max: 23444, mean: 1014}  # 742 chunks
+    "Hegel|Grundlinien der Philosophie des Rechts|deu": {max: 23444, mean: 992}  # 742 chunks
     "Aesop|Fables (Babrius)|grc": {max: 22615, mean: 1008}  # 498 chunks
-    "Euripides|Helen|eng": {max: 20713, mean: 2331}  # 30 chunks
     "Kant|Critique of Pure Reason|eng": {max: 19470, mean: 1422}  # 1138 chunks
     "Aquinas|Sentencia libri De anima|lat": {max: 18488, mean: 11142}  # 56 chunks
-    "Euripides|Orestes|eng": {max: 17885, mean: 2562}  # 30 chunks
     "Aristotle|Generation of Animals|grc": {max: 17051, mean: 4885}  # 60 chunks
     "Aquinas|Sententia libri Ethicorum|lat": {max: 16412, mean: 8996}  # 156 chunks
     "Aristotle|History of Animals|grc": {max: 16074, mean: 1711}  # 324 chunks
-    "Sophocles|Oedipus at Colonus|eng": {max: 16027, mean: 2041}  # 39 chunks
-    "Euripides|Helen|grc": {max: 15764, mean: 1778}  # 30 chunks
-    "Sophocles|Electra|eng": {max: 15187, mean: 2057}  # 32 chunks
-    "Euripides|Orestes|grc": {max: 14407, mean: 2068}  # 30 chunks
-    "Sophocles|Trachiniae|eng": {max: 13952, mean: 1792}  # 32 chunks
+    "Sophocles|Oedipus at Colonus|eng": {max: 8020, mean: 1894}  # 42 chunks
+    "Sophocles|Electra|eng": {max: 8017, mean: 1881}  # 35 chunks
+    "Sophocles|Trachiniae|eng": {max: 8003, mean: 1638}  # 35 chunks
     "Spinoza|Ethica|lat": {max: 13879, mean: 474}  # 925 chunks
-    "Euripides|Cyclops|eng": {max: 13548, mean: 1855}  # 16 chunks
-    "Euripides|Bacchae|eng": {max: 13169, mean: 2140}  # 29 chunks
-    "Euripides|Phoenician Women|eng": {max: 13153, mean: 2359}  # 30 chunks
-    "Aeschylus|Eumenides|eng": {max: 12900, mean: 967}  # 54 chunks
+    "Euripides|Bacchae|eng": {max: 8061, mean: 1897}  # 33 chunks
     "Aristotle|Meteorology|grc": {max: 12703, mean: 4365}  # 45 chunks
-    "Euripides|Andromache|eng": {max: 12627, mean: 1409}  # 42 chunks
-    "Sophocles|Philoctetes|eng": {max: 12576, mean: 2315}  # 30 chunks
-    "Sophocles|Oedipus Tyrannus|eng": {max: 12426, mean: 1958}  # 36 chunks
-    "Euripides|Hippolytus|eng": {max: 12402, mean: 1562}  # 42 chunks
-    "Sophocles|Oedipus at Colonus|grc": {max: 12338, mean: 1574}  # 39 chunks
+    "Sophocles|Oedipus Tyrannus|eng": {max: 8044, mean: 1802}  # 39 chunks
+    "Sophocles|Oedipus at Colonus|grc": {max: 8064, mean: 1498}  # 41 chunks
     "Aristotle|On the Heavens|grc": {max: 12054, mean: 4054}  # 42 chunks
-    "Euripides|Heraclidae|eng": {max: 11846, mean: 1584}  # 21 chunks
-    "Euripides|Suppliants|eng": {max: 11771, mean: 1028}  # 44 chunks
-    "Sophocles|Electra|grc": {max: 11612, mean: 1450}  # 32 chunks
-    "Euripides|Heracles|eng": {max: 11404, mean: 752}  # 85 chunks
-    "Euripides|Ion|eng": {max: 11280, mean: 2184}  # 32 chunks
-    "Euripides|Hecuba|eng": {max: 11065, mean: 1941}  # 27 chunks
-    "Euripides|Electra|eng": {max: 10911, mean: 1409}  # 36 chunks
-    "Sophocles|Trachiniae|grc": {max: 10862, mean: 1261}  # 35 chunks
-    "Hobbes|De Cive|eng": {max: 10709, mean: 744}  # 800 chunks
-    "Euripides|Phoenician Women|grc": {max: 10559, mean: 1872}  # 30 chunks
+    "Euripides|Ion|eng": {max: 8069, mean: 1997}  # 35 chunks
+    "Euripides|Hecuba|eng": {max: 8015, mean: 1765}  # 30 chunks
+    "Sophocles|Trachiniae|grc": {max: 8025, mean: 1193}  # 37 chunks
+    "Euripides|Phoenician Women|grc": {max: 8029, mean: 1755}  # 32 chunks
     "Origen|Contra Celsum|eng": {max: 10536, mean: 2138}  # 619 chunks
-    "Euripides|Cyclops|grc": {max: 10510, mean: 1238}  # 18 chunks
-    "Euripides|Iphigenia in Aulis|eng": {max: 10466, mean: 2450}  # 33 chunks
-    "Euripides|Trojan Women|eng": {max: 10448, mean: 1433}  # 43 chunks
-    "Aeschylus|Prometheus Bound|eng": {max: 10407, mean: 1351}  # 29 chunks
+    "Euripides|Iphigenia in Aulis|eng": {max: 8025, mean: 2212}  # 37 chunks
     "Kant|Metaphysische Anfangsgründe der Naturwissenschaft|deu": {max: 10335, mean: 846}  # 291 chunks
     "Augustine|De Trinitate|lat": {max: 10321, mean: 2093}  # 353 chunks
     "Aristotle|Problems|grc": {max: 10269, mean: 486}  # 889 chunks
@@ -1104,28 +1086,20 @@ granularity:
     "Descartes|Objections et Réponses|fra": {max: 9980, mean: 1071}  # 537 chunks
     "Aristotle|Physics|grc": {max: 9934, mean: 3174}  # 97 chunks
     "Nietzsche|Zur Genealogie der Moral|deu": {max: 9869, mean: 2724}  # 114 chunks
-    "Euripides|Bacchae|grc": {max: 9595, mean: 892}  # 46 chunks
-    "Sophocles|Oedipus Tyrannus|grc": {max: 9528, mean: 1283}  # 36 chunks
-    "Euripides|Medea|eng": {max: 9428, mean: 1301}  # 37 chunks
-    "Aeschylus|Suppliants|eng": {max: 9417, mean: 588}  # 82 chunks
+    "Euripides|Bacchae|grc": {max: 8041, mean: 873}  # 47 chunks
     "Aquinas|Summa Theologiae|lat": {max: 9380, mean: 467}  # 23325 chunks
     "Kant|Kritik der reinen Vernunft|deu": {max: 9168, mean: 852}  # 1489 chunks
-    "Aeschylus|Persians|eng": {max: 9049, mean: 565}  # 64 chunks
-    "Euripides|Iphigenia in Tauris|eng": {max: 9015, mean: 2478}  # 21 chunks
-    "Euripides|Hecuba|grc": {max: 8718, mean: 1517}  # 27 chunks
-    "Euripides|Andromache|grc": {max: 8695, mean: 971}  # 42 chunks
+    "Euripides|Iphigenia in Tauris|eng": {max: 8072, mean: 2221}  # 24 chunks
+    "Euripides|Hecuba|grc": {max: 8014, mean: 1462}  # 28 chunks
     "Locke|An Essay Concerning Human Understanding|eng": {max: 8643, mean: 616}  # 2475 chunks
-    "Euripides|Heraclidae|grc": {max: 8602, mean: 1132}  # 21 chunks
-    "Euripides|Hippolytus|grc": {max: 8539, mean: 1116}  # 42 chunks
-    "Sophocles|Philoctetes|grc": {max: 8520, mean: 1398}  # 32 chunks
-    "Euripides|Electra|grc": {max: 8504, mean: 1099}  # 36 chunks
-    "Sophocles|Ajax|eng": {max: 8477, mean: 761}  # 43 chunks
+    "Euripides|Hippolytus|grc": {max: 8007, mean: 1090}  # 43 chunks
+    "Sophocles|Philoctetes|grc": {max: 8016, mean: 1356}  # 33 chunks
+    "Euripides|Electra|grc": {max: 8029, mean: 1070}  # 37 chunks
+    "Sophocles|Ajax|eng": {max: 8019, mean: 744}  # 44 chunks
     "Aristotle|Parts of Animals|grc": {max: 8474, mean: 436}  # 466 chunks
-    "Sophocles|Antigone|eng": {max: 8449, mean: 859}  # 55 chunks
-    "Euripides|Heracles|grc": {max: 8447, mean: 561}  # 85 chunks
-    "Euripides|Suppliants|grc": {max: 8351, mean: 718}  # 44 chunks
+    "Sophocles|Antigone|eng": {max: 8016, mean: 846}  # 56 chunks
+    "Euripides|Heracles|grc": {max: 8050, mean: 548}  # 87 chunks
     "Hegel|Enzyklopädie der philosophischen Wissenschaften im Grundrisse|deu": {max: 8316, mean: 734}  # 1383 chunks
-    "Euripides|Ion|grc": {max: 8283, mean: 1589}  # 32 chunks
     "Nietzsche|Jenseits von Gut und Böse|deu": {max: 8149, mean: 880}  # 441 chunks
     "Theognis|Theognidea|grc": {max: 8111, mean: 1380}  # 127 chunks
     "Aristotle|On Memory and Reminiscence|grc": {max: 8037, mean: 4827}  # 3 chunks
