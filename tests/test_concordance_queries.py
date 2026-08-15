@@ -1198,6 +1198,159 @@ def test_next_offset_is_derived_from_returned_rows_not_total_lemmas(
     assert filtered["next_offset"] is None
 
 
+# ── letter_counts — the A–Z rail's populations (#376) ────────────────
+
+
+def test_letter_counts_describe_the_scope_not_the_page(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The rail's per-letter populations come from the server, over the whole
+    filtered scope (#376).
+
+    They used to be folded from the rows the client had already fetched, so a
+    letter whose lemmas all sorted below the fetched window rendered as empty —
+    measured on the live index, G holds 11,125 German lemmas and S holds
+    15,366, and neither was visible on first paint unless one of them happened
+    to rank in the top rows."""
+
+    out = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "limit": "1", "min_count": "1"},
+    )
+
+    # One row fetched, but every letter present in scope is counted.
+    assert len(out["rows"]) == 1
+    assert out["letter_counts"]["G"] == 2  # Geist, geistig
+    assert out["letter_counts"]["H"] == 1  # haben
+    assert out["letter_counts"]["F"] == 1  # fragen
+    assert "Z" not in out["letter_counts"]
+
+
+def test_letter_counts_honour_the_other_filters(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """A dot means "clicking this letter returns rows", so the counts sit under
+    the same filters the rows do — including the frequency range, which
+    ``total_lemmas`` deliberately ignores. ``fragen`` occurs once, so the
+    default ``min_count=2`` must take F off the rail entirely."""
+
+    out = concordance_queries.lemma_index(concordance_db, {"lang": "deu"})
+
+    assert "F" not in out["letter_counts"]
+    assert out["letter_counts"]["G"] == 2
+
+
+def test_letter_counts_ignore_the_selected_letter(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """Selecting a letter must not empty the rest of the rail — otherwise the
+    reader has no way to see where else there is anything, and cannot move
+    between letters without clearing first."""
+
+    out = concordance_queries.lemma_index(
+        concordance_db,
+        {"lang": "deu", "letter": "G", "min_count": "1"},
+    )
+
+    assert [r["lemma"] for r in out["rows"]] == ["Geist", "geistig"]
+    assert out["letter_counts"]["H"] == 1
+    assert out["letter_counts"]["G"] == 2
+
+
+def test_greek_letter_counts_fold_diacritics(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """Greek buckets on the folded initial, the same key the letter filter
+    uses — ἄνθρωπος, ἀγαθός and Ἀθηνᾶ all land under Α."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "min_count": "1"},
+    )
+
+    # 4, not 3. #366's fix made the group key the whole lemma and added
+    # ἀρχή NOUN to this fixture beside ἄνθρωπος NOUN; under the old
+    # first-character key those two were a single group. Neither PR could
+    # catch this on its own — each number was right on its own branch.
+    assert out["letter_counts"]["Α"] == 4
+    assert out["letter_counts"]["Λ"] == 1
+
+
+# ── total_lemmas counts the unit the rows use (#377) ─────────────────
+
+
+def test_total_lemmas_counts_lemma_pos_pairs_on_both_branches(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """``total_lemmas`` counted ``DISTINCT lemma`` when case-merging was off,
+    while the rows it sits above are per ``(lemma, pos)`` — so a lemma tagged
+    both NOUN and VERB was one for the header and two for the list (#377).
+
+    ``Geist`` is seeded as NOUN only here, so the fixture pins the invariant
+    rather than the divergence: the two branches must agree on the unit."""
+
+    merged = concordance_queries.lemma_index(
+        concordance_db, {"lang": "deu", "merge_case": "1", "min_count": "1"},
+    )
+    unmerged = concordance_queries.lemma_index(
+        concordance_db, {"lang": "deu", "merge_case": "0", "min_count": "1"},
+    )
+
+    # No case variants in this fixture, so merging changes nothing — and with
+    # both branches counting the same unit, neither does the branch.
+    assert unmerged["total_lemmas"] == merged["total_lemmas"]
+
+
+def test_total_lemmas_splits_a_lemma_carrying_two_pos_tags(
+    pos_split_db: sqlite3.Connection,
+) -> None:
+    """The divergence itself. ``recht`` is tagged ADJ and VERB, so it is two
+    rows; the header must say two, not one."""
+
+    out = concordance_queries.lemma_index(
+        pos_split_db, {"lang": "deu", "merge_case": "0", "min_count": "1"},
+    )
+
+    assert [(r["lemma"], r["pos"]) for r in out["rows"]] == [
+        ("recht", "ADJ"),
+        ("recht", "VERB"),
+    ]
+    assert out["total_lemmas"] == 2
+
+
+@pytest.fixture
+def pos_split_db(tmp_path: Path) -> sqlite3.Connection:
+    """One lemma carrying two POS tags — the shape ``COUNT(DISTINCT lemma)``
+    under-counted (#377)."""
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="p-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie",
+            lang="deu",
+            section="¶1",
+            text="recht recht",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "pos_split.sqlite")
+    store.insert_chunks(conn, jsonl)
+    for chunk_id, idx, lemma, pos in [
+        ("p-1", 0, "recht", "ADJ"),
+        ("p-1", 1, "recht", "VERB"),
+    ]:
+        _insert_lemma(conn, chunk_id=chunk_id, token_index=idx, surface=lemma, lemma=lemma, pos=pos)
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
 def test_next_offset_survives_case_merging(
     concordance_db: sqlite3.Connection,
 ) -> None:

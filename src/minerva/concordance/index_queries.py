@@ -245,56 +245,86 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         ]
         variants_by_display = {(r["lemma"], r["pos"]): [r["lemma"]] for r in rows}
 
-    # ── Totals ────────────────────────────────────────────────────
-    # Sum the same scope+filter slice for header counts. Frequency
-    # range is deliberately NOT applied here (the range shapes which
-    # lemmas show up; the header is meant to be a scope-wide
-    # reference). The lemma-search ``q`` IS applied so a search for
-    # "geist" doesn't show "1.9M occurrences" next to 4 rows.
-    totals_where_parts, totals_where_params = _counts_where(
-        lang,
-        scope_kind,
-        scope_values,
-        letter=letter,
-        fold_letter=fold_letter,
-        pos_in=pos_in,
-        q=q,
-    )
-    if aggregate and merge_case:
-        group_expr = _lemma_group_expr(merge_case=True)
-        sql_totals = f"""
-            SELECT COUNT(*) AS total_lemmas,
-                   COALESCE(SUM(n), 0) AS total_tokens
+    # ── Totals + rail letter populations ──────────────────────────
+    # Two header numbers and the A–Z rail's per-letter counts, over the
+    # same scope+filter slice as the rows.
+    #
+    # They differ in exactly two ways, and the differences are what makes
+    # this one function rather than three queries:
+    #
+    #   * The **frequency range** applies to the rail and not to the
+    #     totals. `total_lemmas` is a scope-wide reference the slider is
+    #     not supposed to move; a rail dot means "clicking here returns
+    #     rows", so it has to agree with the rows. That is a `SUM(CASE …)`
+    #     over one grouped scan rather than a second scan.
+    #   * The **letter predicate** applies to the totals and not to the
+    #     rail, which must keep showing where else there is something
+    #     while one letter is selected. When no letter is selected the two
+    #     WHERE clauses are identical and one scan serves both — the
+    #     default view, and the reason this is worth the shape. Measured
+    #     on the deu corpus partition: 116 ms + 127 ms as two scans
+    #     against 148 ms as one.
+    #
+    # The lemma-search `q` applies to both, so a search for "geist" does
+    # not show "1.9M occurrences" next to 4 rows.
+    #
+    # One grouping expression covers every branch. It used to be three,
+    # and the odd one out counted `DISTINCT lemma` while its rows were per
+    # `(lemma, pos)` (#377); with that corrected, `merge_case` off is just
+    # `group_expr = "lemma"` and the branches collapse.
+    if fold_letter:
+        conn.create_function("fold_initial", 1, _fold_initial, deterministic=True)
+    group_expr = _lemma_group_expr(merge_case=merge_case)
+    letter_expr = _letter_key_expr(fold_letter, "lemma_key")
+
+    def _scan(parts: list[str], params: list[Any]) -> list[sqlite3.Row]:
+        """One grouped pass: per-letter totals, and per-letter counts
+        inside the frequency range."""
+        freq_parts = ["n >= ?"]
+        freq_params: list[Any] = [min_count]
+        if max_count is not None:
+            freq_parts.append("n <= ?")
+            freq_params.append(max_count)
+        sql = f"""
+            SELECT {letter_expr} AS letter,
+                   COUNT(*) AS n_lemmas,
+                   COALESCE(SUM(n), 0) AS n_tokens,
+                   SUM(CASE WHEN {" AND ".join(freq_parts)} THEN 1 ELSE 0 END)
+                       AS n_in_range
             FROM (
                 SELECT {group_expr} AS lemma_key, pos, SUM(count) AS n
                 FROM lemma_counts
-                WHERE {" AND ".join(totals_where_parts)}
+                WHERE {" AND ".join(parts)}
                 GROUP BY lemma_key, pos
             )
+            GROUP BY letter
         """
-    elif aggregate:
-        sql_totals = f"""
-            SELECT COUNT(*) AS total_lemmas,
-                   COALESCE(SUM(n), 0) AS total_tokens
-            FROM (
-                SELECT lemma, pos, SUM(count) AS n
-                FROM lemma_counts
-                WHERE {" AND ".join(totals_where_parts)}
-                GROUP BY lemma, pos
-            )
-        """
+        # Freq params FIRST: the `CASE` sits in the SELECT list, which
+        # precedes the WHERE in the statement text, and SQLite binds `?`
+        # by position in that text.
+        return conn.execute(sql, [*freq_params, *params]).fetchall()
+
+    totals_where_parts, totals_where_params = _counts_where(
+        lang, scope_kind, scope_values,
+        letter=letter, fold_letter=fold_letter, pos_in=pos_in, q=q,
+    )
+    totals_rows = _scan(totals_where_parts, totals_where_params)
+    total_lemmas = sum(int(r["n_lemmas"]) for r in totals_rows)
+    total_tokens = sum(int(r["n_tokens"]) for r in totals_rows)
+
+    if letter:
+        rail_where_parts, rail_where_params = _counts_where(
+            lang, scope_kind, scope_values,
+            letter="", fold_letter=fold_letter, pos_in=pos_in, q=q,
+        )
+        rail_rows = _scan(rail_where_parts, rail_where_params)
     else:
-        # COUNT(DISTINCT lemma) — not COUNT(*) — because a single lemma
-        # can carry multiple POS tags (the lemmatizer occasionally splits
-        # the same word into NOUN + VERB rows). The header reads as
-        # "distinct lemmas", which is what users expect.
-        sql_totals = f"""
-            SELECT COUNT(DISTINCT lemma) AS total_lemmas,
-                   COALESCE(SUM(count), 0) AS total_tokens
-            FROM lemma_counts
-            WHERE {" AND ".join(totals_where_parts)}
-        """
-    totals = conn.execute(sql_totals, totals_where_params).fetchone()
+        rail_rows = totals_rows
+    letter_counts = {
+        r["letter"]: int(r["n_in_range"])
+        for r in rail_rows
+        if r["letter"] and int(r["n_in_range"] or 0) > 0
+    }
 
     out_rows = []
     for i, r in enumerate(rows):
@@ -340,8 +370,9 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         "lang": lang,
         "letter": letter or None,
         "sort": sort,
-        "total_lemmas": int(totals["total_lemmas"]) if totals else 0,
-        "total_occurrences": int(totals["total_tokens"]) if totals else 0,
+        "total_lemmas": total_lemmas,
+        "total_occurrences": total_tokens,
+        "letter_counts": letter_counts,
         "limit": limit,
         "offset": offset,
         "next_offset": next_offset,
@@ -362,6 +393,22 @@ def _lemma_group_expr(*, merge_case: bool) -> str:
     """
 
     return "lower_uni(lemma)" if merge_case else "lemma"
+
+
+def _letter_key_expr(fold_letter: bool, col: str = "lemma") -> str:
+    """The A–Z rail's bucket for ``col``.
+
+    Deliberately the same key the ``letter`` filter matches on, so a dot
+    on the rail means "clicking here returns rows" rather than something
+    close to it. For Greek that is ``fold_initial`` (ἄ/ἀ/Ἀ → Α); for
+    everything else the filter is ``lemma LIKE 'A%'``, which SQLite
+    evaluates case-insensitively for ASCII and not at all for anything
+    else — so ``UPPER(SUBSTR(...))`` buckets exactly what that matches,
+    and ``Ähnlich`` lands under ``Ä`` rather than ``A`` because the
+    filter would not return it under ``A`` either.
+    """
+
+    return f"fold_initial({col})" if fold_letter else f"UPPER(SUBSTR({col}, 1, 1))"
 
 
 def _fetch_aggregate_page(
