@@ -22,7 +22,11 @@ from ..heading_clean import (
     _is_title_page_artifact,
 )
 from ..tei import Chunk, _make_chunk_id, _norm_text
-from .text_repair import _looks_like_bibliography, _repair_crossref_linebreaks
+from .text_repair import (
+    _looks_like_bibliography,
+    _repair_crossref_linebreaks,
+    strip_source_chrome,
+)
 
 # Anchored to start-of-line so inline cross-references like "see §44"
 # inside a section's body don't get parsed as fresh section heads.
@@ -79,6 +83,12 @@ def _emit(
         # surviving chunks around it.
         return None
     if _looks_like_bibliography(text):
+        return None
+    # Scraped page furniture (#383, #298). Same position as the filters
+    # above and for the same reason: the caller has already assigned this
+    # paragraph's ¶ index, so dropping it here costs no chunk_id but its own.
+    text = strip_source_chrome(text)
+    if not text:
         return None
     chunk_id = _make_chunk_id(
         path.name,
