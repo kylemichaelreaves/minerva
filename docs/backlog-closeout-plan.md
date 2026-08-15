@@ -112,7 +112,7 @@ below pairs 4-op with 6-bis (#285) because #285 re-derives every
 both.
 
 > **Corrected 2026-08-15.** "#285 re-derives every `chunk_id`" is true of
-> only one of the three fixes #285 offers, and it is the one the issue
+> only one of the three remedies #285 offers, and it is the one the issue
 > itself rules out: "Hash the whole text into `chunk_id`. Correct, but
 > churns **every** id in the corpus once… Almost certainly not worth it."
 > Its recommended fix is option 1 — give `embeddings` the `text_hash`
@@ -1225,6 +1225,38 @@ sized and can be scheduled on their own merits; three of them
 (Cicero, Aesop, Hobbes eng) are single-work parser fixes, and two are
 #385.
 
+#### The `.xml` path, worked 2026-08-15 — and it is **three** parsers, not one
+
+Taken, and the parenthesis above is wrong twice. The 44 ragged `.xml`
+pairs are split across `tei_drama.py` (39, the tragedians — PR #393),
+`tei.py` (3, Epictetus's English — PR #396) and `tei_p5.py` (2,
+Aristotle's *Problems* and *Parts of Animals* in Greek). Both fixes are
+parser-only; neither has touched the database.
+
+**The two `tei_p5.py` pairs are not defects, and this section's own
+discriminator says they are.** The table above reads "ratio >= 20x →
+parser dropping structure on an input". Measured:
+
+```
+problems:         n=889 median=359 max=10,269  chunks over 8,000: 1
+                     book='30' section='30.1.¶1' len=10,269
+parts_of_animals: n=466 median=395 max= 8,474  chunks over 8,000: 1
+                     book='4'  section='4.1.¶1'  len= 8,474
+```
+
+`tei_p5.py` emits **one chunk per `<p>`** — the finest unit these files
+carry. Each work has exactly one paragraph over the ceiling, and the
+ratio is high because the median paragraph is ~360 characters. That is
+the Hobbes case in miniature: a real source unit that happens to be long,
+which this document already excludes from part 2's scope. **What would
+have gone wrong:** the `.xml` path would have been left open pending a
+`tei_p5.py` fix that has nothing to fix, and the natural "fix" — splitting
+a paragraph mid-sentence — would have damaged a working parser.
+
+So the `.xml` half of 4-op is **done pending the window**: 42 pairs
+re-chunked, 2 correctly left alone. What the two PRs deliberately left,
+both blocked on the same locator question, is #394 and #395.
+
 **Two things to settle *before* this window opens, added 2026-08-09.
 Both are cheap now and expensive afterwards, which is the whole reason
 they are written here rather than left to whoever runs it.**
@@ -1303,10 +1335,39 @@ never fired only because GitHub parses commit messages and PR bodies, not
 file contents — so it was one quotation away from repeating the incident
 it describes. Found by grepping this file for
 `(close|fix|resolve)\w*\s+#\d+` before a commit; worth doing again
-whenever this page gains a paragraph. Two hits survive that grep today
-and both are benign, so do not spend the check on them again: one names
-#264, which is closed and cannot be re-closed, and one names #229, which
-is a **pull request** — closing keywords act on issues only.
+whenever this page gains a paragraph. Two hits are benign, so do not
+spend the check on them again: one names #264, which is closed and
+cannot be re-closed, and one names #229, which is a **pull request** —
+closing keywords act on issues only.
+
+**Corrected 2026-08-15: the sentence above said those were the only two
+hits, and two more were live at the time it was written.** Both sat
+against **open** issues, and both have been reworded in this edit:
+
+| line | shape | issue |
+|---|---|---|
+| ~115 | a closing keyword used as a *noun* — "one of the three &lt;keyword&gt;s &lt;issue&gt; offers" | open |
+| ~3054 | a sentence quoting the literal trigger, keyword against number | open |
+
+Neither the keywords nor the numbers are reproduced here, and the HTML
+character-entity escape this page uses two paragraphs up is **not** the
+way to reproduce them. An entity spliced into the middle of a keyword
+renders as that keyword, and *scans* as the keyword followed by the
+entity's decimal code read as an issue number — `make check-pr-link`
+rejected a body of that shape on PR #396, naming an issue number nobody
+had typed. Safe in a file, which GitHub never parses; a fresh hazard the
+moment the paragraph is quoted into a PR body, which is the one thing
+this page's paragraphs are for. Describe the shape instead.
+
+Neither had fired, for the same reason the paragraph above gives: GitHub
+parses commit messages and PR bodies, not files. But this page is quoted
+into PR bodies constantly — that is what it is *for* — and either
+quotation would have shut an open issue silently. **What would have gone
+wrong had the "both are benign" line been trusted:** the grep would have
+been skipped as already-done, which is precisely how these two survived
+the round that wrote the warning. Re-run it, and check each hit's issue
+state rather than the list here — a benign hit stops being benign when
+its issue reopens.
 
 ---
 
@@ -3019,7 +3080,8 @@ Two things the tests caught that the plan had got wrong:
   *author* picker and silently filtered the wrong list. The lookup is now scoped
   to the picker under test.
 - **`check-pr-link` reported a defect that did not exist** — #369. Rewriting the
-  PR body tripped the hazard check on a sentence containing `close #365`; after
+  PR body tripped the hazard check on a sentence putting a closing keyword
+  directly against #365's number; after
   fixing the wording, the check still read the stale link and asserted "this is a
   bug in the PR, not in the check." It was not: seconds later the API returned
   `[363]` and the unchanged command passed. The script's premise that only a
