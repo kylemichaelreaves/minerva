@@ -148,6 +148,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # request the page issues on load. See `_fold_text` for the cost.
     if q:
         conn.create_function("fold_text", 1, _fold_text_cached, deterministic=True)
+    # The `merge_case` group key. Unlike `q` this cannot be gated on a
+    # request parameter — `merge_case` defaults to on, so the callback is
+    # installed on the page's own load request. See `_lower_unicode` for
+    # what that costs and why SQL `LOWER()` could not stay.
+    if merge_case:
+        conn.create_function("lower_uni", 1, _lower_unicode_cached, deterministic=True)
 
     # ── Materialized read path ────────────────────────────────────
     # The ``lemma_counts`` table (migration 0019, populated by
@@ -207,7 +213,6 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         rows, variants_by_display = _fetch_aggregate_page(
             conn,
             lang=lang,
-            fold_letter=fold_letter,
             merge_case=merge_case,
             where_parts=where_parts,
             where_params=where_params,
@@ -256,7 +261,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         q=q,
     )
     if aggregate and merge_case:
-        group_expr = _lemma_group_expr(fold_letter, merge_case=True)
+        group_expr = _lemma_group_expr(merge_case=True)
         sql_totals = f"""
             SELECT COUNT(*) AS total_lemmas,
                    COALESCE(SUM(n), 0) AS total_tokens
@@ -344,17 +349,25 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     }
 
 
-def _lemma_group_expr(fold_letter: bool, *, merge_case: bool) -> str:
-    if not merge_case:
-        return "lemma"
-    return "fold_initial(lemma)" if fold_letter else "LOWER(lemma)"
+def _lemma_group_expr(*, merge_case: bool) -> str:
+    """The ``GROUP BY`` key ``merge_case`` collapses variants on.
+
+    One expression for every language. It used to be two, and both were
+    wrong: ``LOWER(lemma)`` is ASCII-only so non-ASCII case variants
+    stayed split (#373), and Greek took ``fold_initial(lemma)`` — a
+    *single character* — so every Greek lemma sharing an initial and a
+    POS collapsed into one row (#366). ``fold_initial`` keeps its real
+    job, the A–Z letter rail's WHERE clause; it was only ever reused
+    here on the strength of its name.
+    """
+
+    return "lower_uni(lemma)" if merge_case else "lemma"
 
 
 def _fetch_aggregate_page(
     conn: sqlite3.Connection,
     *,
     lang: str,
-    fold_letter: bool,
     merge_case: bool,
     where_parts: list[str],
     where_params: list[Any],
@@ -366,7 +379,7 @@ def _fetch_aggregate_page(
 ) -> tuple[list[dict[str, Any]], dict[tuple[str, str], list[str]]]:
     """Page merged lemma rows in SQL instead of scanning from offset 0."""
 
-    group_expr = _lemma_group_expr(fold_letter, merge_case=merge_case)
+    group_expr = _lemma_group_expr(merge_case=merge_case)
     having_parts = ["SUM(count) >= ?"]
     having_params: list[Any] = [min_count]
     if max_count is not None:
@@ -612,6 +625,39 @@ def _fold_text(s: str | None) -> str:
 # Bounded rather than unbounded: the full 596,351-lemma corpus vocabulary
 # measures 48.7 MB cached, and this connection is long-lived.
 _fold_text_cached = functools.lru_cache(maxsize=200_000)(_fold_text)
+
+
+def _lower_unicode(s: str | None) -> str:
+    """Lower-case a lemma for the ``merge_case`` group key.
+
+    Python's ``str.lower()`` rather than SQL ``LOWER()``, which is
+    ASCII-only: measured, ``SELECT lower('Übergehen')`` returns the
+    string unchanged, so ``Übergehen`` and ``übergehen`` were two groups
+    that then rendered the *same* display label at different ranks —
+    113 such pairs in the German corpus partition (#373).
+
+    Deliberately **not** ``_fold_text``. That drops combining marks,
+    which is right for the ``q`` search box and wrong for a group key:
+    it merges ``Abdruck`` with ``Abdrück``, and in Greek — where accent
+    is lexical rather than typographic — it collapses a further 8,228
+    groups. Measured over the live index, folding diacritics here would
+    break 7,705 German and French groups to fix 113.
+
+    Case is the whole job, because case is the whole of what
+    ``merge_case`` claims to merge.
+    """
+
+    return (s or "").lower()
+
+
+# One callback per row of an already-narrowed partition, same shape as
+# `_fold_text_cached` above and memoized for the same reason: the
+# vocabulary is tiny next to the row count. Measured on the largest
+# partition (deu, 165,049 rows), a 200-row freq page costs 166.3 ms with
+# SQL `LOWER(lemma)` and 197.5 ms with this — +19%, and unlike `q` this
+# one is installed on the request the page issues on load, because a
+# group key runs on every request.
+_lower_unicode_cached = functools.lru_cache(maxsize=200_000)(_lower_unicode)
 
 
 def _fold_initial(s: str | None) -> str:
