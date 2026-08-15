@@ -300,3 +300,69 @@ def test_the_cli_hands_the_lemmatizer_the_stored_text(tmp_path: Path):
     for text, surface, start, end in rows:
         assert text == DECOMPOSED
         assert text[start:end] == surface
+
+
+# --- #314: the fast path must take surface from the source too --------
+#
+# `surface = source[start:end]` sat inside `if offsets is not None`, so it ran
+# only when the pipeline text differed from the caller's. For `ara` the two are
+# always equal today, so that branch was never entered and `surface` stayed
+# `w.text` — the token text the *pipeline* produced. Stanza's Arabic tokenizer
+# rewrites it: hamza and alif variants folded, shadda dropped. Measured on the
+# live index, 214 rows in 210 chunks store a string that is neither the corpus
+# slice nor a sub-word of it, e.g. `حرُم` stored against a span reading `حُرُمٌ`.
+#
+# The condition that matters is whether the word has a span of its OWN, not
+# whether the text needed mapping. Those are independent, and conflating them
+# is the defect.
+
+
+def test_stanza_surface_comes_from_the_source_even_when_no_mapping_is_needed():
+    # doc.text == source, so the mapped branch is skipped entirely — the
+    # `ara` case. The pipeline "rewrote" the word (dropped a diacritic); the
+    # stored surface must still be what the edition prints.
+    source = "حُرُمٌ"          # حُرُمٌ
+    rewritten = "حرُم"                    # حرُم
+    doc = _FakeStanzaDoc(source, [_FakeWord(rewritten, 0, len(source))])
+
+    lm = Lemmatizer.__new__(Lemmatizer)
+    (tok,) = list(lm._tokens_from_stanza_doc(doc, source))
+
+    assert tok.surface == source
+    assert source[tok.start : tok.end] == tok.surface
+
+
+def test_stanza_fast_path_keeps_an_inherited_span_on_its_own_surface():
+    # The MWT exception has to survive on the fast path as well: sub-words
+    # sharing the parent's span must NOT each be handed the whole parent.
+    source = "والكتاب"     # والكتاب
+    parent = _FakeWord(source, 0, len(source))
+    doc = _FakeStanzaDoc(
+        source,
+        [
+            _FakeWord("و", None, None, parent=parent),
+            _FakeWord("الكتاب", None, None, parent=parent),
+        ],
+    )
+
+    lm = Lemmatizer.__new__(Lemmatizer)
+    toks = list(lm._tokens_from_stanza_doc(doc, source))
+
+    assert [t.surface for t in toks] == ["و", "الكتاب"]
+    assert all((t.start, t.end) == (0, len(source)) for t in toks)
+
+
+def test_stanza_subword_with_a_real_span_is_sliced_from_the_source():
+    # #314 asks whether Stanza can hand an expanded sub-word a real span, and
+    # notes the code keys on "did `start_char` come back None". It does, and
+    # that is the correct key either way: a word with a span of its own is
+    # addressed by that span, whether or not it has a parent. Pinned so the
+    # answer is defined rather than assumed.
+    source = "والكتاب"     # والكتاب
+    parent = _FakeWord(source, 0, len(source))
+    doc = _FakeStanzaDoc(source, [_FakeWord("REWRITTEN", 1, len(source), parent=parent)])
+
+    lm = Lemmatizer.__new__(Lemmatizer)
+    (tok,) = list(lm._tokens_from_stanza_doc(doc, source))
+
+    assert tok.surface == source[1:]

@@ -915,7 +915,6 @@ class Lemmatizer:
                 # skip rather than violate the NOT NULL constraint.
                 if start is None or end is None or end <= start:
                     continue
-                surface = w.text
                 if offsets is not None:
                     mapped = offsets.span(start, end)
                     if mapped is None:
@@ -923,12 +922,22 @@ class Lemmatizer:
                         # the bug, not a fallback — see #307.
                         continue
                     start, end = mapped
-                    # Only a word with a span of its own gets its surface
-                    # from the source. An expanded sub-word borrowed its
-                    # parent's, and slicing that would hand every clitic
-                    # the whole parent word.
-                    if not inherited:
-                        surface = source[start:end]
+                # Only a word with a span of its own gets its surface from
+                # the source. An expanded sub-word borrowed its parent's,
+                # and slicing that would hand every clitic the whole parent
+                # word.
+                #
+                # This is keyed on having a span, NOT on whether the text
+                # needed mapping — the two are independent, and conflating
+                # them was #314. The assignment used to live inside the
+                # branch above, so it ran only when `doc.text != source`;
+                # for `ara` the two are always equal, so `surface` stayed
+                # `w.text` — the token text the *pipeline* produced. Stanza's
+                # Arabic tokenizer rewrites that (hamza and alif variants
+                # folded, shadda dropped), leaving 214 rows in 210 chunks
+                # storing a string that is neither the corpus slice nor a
+                # sub-word of it: `حرُم` against a span reading `حُرُمٌ`.
+                surface = w.text if inherited else source[start:end]
                 yield Token(
                     surface=surface,
                     start=start,
