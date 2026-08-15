@@ -1339,18 +1339,29 @@ they are written here rather than left to whoever runs it.**
   no Arabic corpus churns in this window, so it would not in fact have
   gated *this* re-ingest even had it still been open. The prerequisite
   was right for the general case and over-broad for this one.
-- **Decide whether the Marx corpus gets a chrome audit, and decide it
-  now.** #298 audited one string, `Seitenzahlen verweisen auf:`. The
-  2026-05-31 quality round found Marx carried **three distinct chrome
-  layers** (site chrome, the Wayback wrapper, and intra-file duplicate
-  paragraphs), and that sweep has not been re-run since. Anything still
-  there is nearly free to fix inside this window — it rides the same
-  re-ingest and the same refs rebuild — and buys its own window if found
-  afterwards. The audit itself is read-only measurement over
-  `data/marx/**` and the live index, so it costs a session rather than an
-  operator slot. **Deliberately not filed as an issue** — nothing has
-  been found, so there is nothing to record; it is an unexamined area
-  with a deadline, not a defect.
+- ~~**Decide whether the Marx corpus gets a chrome audit, and decide it
+  now.**~~ **Done — the audit ran on 2026-08-15 and its finding is #383.**
+  This entry described an unexamined area with a deadline; the area has
+  been examined. All three layers of the 2026-05-31 cleanup were checked
+  in one read-only pass: **(a) Gutenberg site chrome — 0 chunks**,
+  **(c) duplicate paragraphs ≥60 chars — 0**, and **(b) 33 chunks of
+  Internet Archive crawl-provenance boilerplate**, all in *Die deutsche
+  Ideologie*, carrying 198 `chunk_lemmas` rows, 33 embeddings and **0**
+  `cross_references`. Row 4-op-bis above has recorded this since it was
+  filed. **Corrected 2026-08-15 while scoping the window**, for the same
+  reason as the entry above it: the batch table knew and the checklist
+  did not, and the checklist is the half that gets acted on.
+
+  The decision the entry asked for has therefore been taken, and it is
+  the one this entry predicted: #383 costs nothing extra inside the
+  window — same re-ingest, same refs rebuild, and with 0 cross-references
+  nothing to re-anchor — so it rides along rather than buying its own
+  slot.
+
+  Kept from the original entry because it is still the reason the audit
+  was worth running: #298 audited a single string,
+  `Seitenzahlen verweisen auf:`, and the 2026-05-31 round had found
+  **three** distinct chrome layers.
 
 #298's own corpus repair rides here too — 745 Marx `chunk_id`s, for the
 reason recorded in batch 5-bis.
