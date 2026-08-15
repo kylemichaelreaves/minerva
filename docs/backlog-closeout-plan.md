@@ -109,7 +109,20 @@ as part of 4-op's setup, not as a batch of its own.
 **2. 4-op loses its free ride, and that is a bill.** The sequencing note
 below pairs 4-op with 6-bis (#285) because #285 re-derives every
 `chunk_id`, so #176's re-chunk churn is subsumed and one rebuild covers
-both. #285 is spawned, so the cap puts it out of scope — which leaves
+both.
+
+> **Corrected 2026-08-15.** "#285 re-derives every `chunk_id`" is true of
+> only one of the three fixes #285 offers, and it is the one the issue
+> itself rules out: "Hash the whole text into `chunk_id`. Correct, but
+> churns **every** id in the corpus once… Almost certainly not worth it."
+> Its recommended fix is option 1 — give `embeddings` the `text_hash`
+> treatment `chunk_lemma_state` already has, and re-encode on mismatch —
+> which churns nothing. So the pairing this paragraph prices was never
+> available at the recommended fix, and the "bill" the cap creates is
+> mostly notional. Material because it cuts both ways: a session that
+> scheduled 4-op *and* #285 together to "take the saving" would have
+> found there was no saving to take, and might have reached for option 3
+> to create one — buying a full-corpus rebuild to justify a pairing. #285 is spawned, so the cap puts it out of scope — which leaves
 #176 part 2 to pay a full refs rebuild plus the llm-verify tail on its
 own, and #285 to pay it again whenever it is scheduled. The coupling was
 always an optimisation, never a correctness requirement, so this is
@@ -198,9 +211,10 @@ the batch above them, and inherit its context.
 of this document.** The row stays — the grouping is the expensive part
 and is worth keeping — but the issue is now ordinary backlog and holds
 nothing open here. Only three rows are still in scope: **6, 4-op and 7**.
-The one exception is 2-quinquies, which is out of scope and is still a
-hard prerequisite for 4-op, because 4-op re-lemmatizes and #314 is a
-defect in the lemma writer.
+The one exception was 2-quinquies, out of scope by the cap and still a
+hard prerequisite for 4-op because 4-op re-lemmatizes and #314 is a
+defect in the lemma writer. **It landed 2026-08-15 as PR #382, so the
+prerequisite is discharged and 4-op is unblocked on that axis.**
 
 | # | Batch | Issues | Status | Why here |
 |---|---|---|---|---|
@@ -210,13 +224,14 @@ defect in the lemma writer.
 | 2-bis | lemma-row hygiene | ~~#284~~ | **landed** | `terms lemmatize --all` left stale `chunk_lemmas` rows. Same file and same predicate batch 2 rewrote. Merged 2026-08-09 with 3-ter; the issue's suggested fix was scoped to `--all` and had to be widened — see batch 2-bis. |
 | 2-ter | surface offsets | ~~#307~~, ~~#309~~ | **landed** | Found verifying 2-bis, in the writer batch 2 rewrote. #307 is `lat` offsets indexing the tokenizer's rewritten string; #309 is the stale-row residue the same query exposed, which is #285's damage rather than #307's and needs an operator repair either way. Paired because one `terms lemmatize` pass over the affected languages settles both, which is what happened: PR #310 fixed the writer and the operator step below ran the pass. #311 is its residue. |
 | 2-quater | NFC-layer offsets | ~~#311~~ | **landed** | Found verifying 2-ter. `terms lemmatize` fed `NFC(text)` and stored offsets against `chunks.text`; 16,032 non-NFC chunks. Same defect class as #307 one layer up, in the file batch 2 rewrote, and the last thing between `chunk_lemmas` and the invariant #310 established. The issue's "1,866 rows" is one of two failure modes; the real figure is 203,610 — see batch 2-quater. |
-| 2-quinquies | Stanza's rewritten surface | #314 | **backlog — 4-op prereq** | Found verifying 2-quater, one function away from it. `ara`'s `surface_form` holds Stanza's rewrite of the word rather than the corpus slice — 214 rows whose span is right and whose text is not. Not the same defect: these offsets never moved, so a fix churns stored text instead. |
+| 2-quinquies | Stanza's rewritten surface | ~~#314~~ | **landed — was 4-op's prereq** | Found verifying 2-quater, one function away from it. `ara`'s `surface_form` holds Stanza's rewrite of the word rather than the corpus slice — 214 rows whose span is right and whose text is not. Not the same defect: these offsets never moved, so a fix churns stored text instead. **Landed 2026-08-15 as PR #382**, ahead of 4-op exactly as the cap decision required. One line: `surface = w.text if inherited else source[start:end]`, lifted out of the `offsets is not None` branch it was wrongly nested in — the condition that matters is whether a word has a span of its *own*, not whether the text needed mapping. **The issue's own risk estimate is corrected there**: it feared the fix "rewrites `surface_form` for every non-MWT `ara` row … possibly a large fraction of the 87,478", but 72,178 of those rows already satisfy `source[start:end] == surface_form`, so the assignment is the identity for them and cannot move them. Ceiling 1,429 rows (1.63%), floor 214 (0.24%), every one of them wrong today. Trusting the estimate would have bought this its own operator window instead of a two-line change. |
 | 3 | reset preservation | #274, #264 | **landed** | Same file as each other; low risk, no data migration. |
 | 3-bis | refs scan cache | ~~#288~~, ~~#287~~ | done | The `refs_scan_state` pair batch 3 opened: the cache was under-kept inside `--reset` (#288) and over-kept outside it (#287). **#288 landed 2026-08-08, #287 on 2026-08-09**, as separate PRs — see batch 3-bis. #289 was grouped here and is **closed as accepted, not fixed**; #304 is #287's recorded residue. |
 | 3-ter | rules fingerprint residue | ~~#304~~ | **landed** | Found while working 3-bis, landed 2026-08-09 with 2-bis as the theme pairing predicted (both are a derived-state marker that fails to invalidate when its input changes). The row said it "may resolve as a *decision*, like #299", and on the frequency measurement it would have — 0 logic-only rules edits in 13 commits. It was **built anyway**, because the second measurement showed the issue's reason not to build was false. See batch 3-ter. |
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | **backlog** | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
-| 4-op | #176 part 2 — re-chunk | #176 | todo, operator | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. |
+| 4-op | #176 part 2 — re-chunk | #176 | todo, operator — **scope corrected, see below** | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. **Its stated scope does not survive measurement (2026-08-15): two of the four works it names as "clear parser failures" are documented design decisions, and the affected set is five parsers rather than one.** See "4-op's scope, corrected" below before opening the window. |
+| 4-op-bis | what 4-op's prerequisite audit found | #383 | **backlog** | Filed 2026-08-15 by the Marx chrome audit **this document called for** ("decide whether the Marx corpus gets a chrome audit, and decide it now… the audit itself is read-only measurement"). Layer (b) of the 2026-05-31 cleanup is not closed: 33 chunks of Internet Archive crawl-provenance boilerplate survive in *Die deutsche Ideologie*, carrying 198 `chunk_lemmas` rows and 33 embeddings. **Layers (a) and (c) are clean** — 0 Gutenberg chrome chunks, 0 duplicate Marx paragraphs ≥60 chars — which is worth recording so nobody re-audits them. `cross_references` on the 33 is **0**, so nothing needs re-anchoring: this is the cheapest thing in the batch and it should ride 4-op's re-ingest rather than buy its own window, exactly as the audit note predicted. Grouped here rather than with 5-bis (#298) because #298 is an mlwerke edition note and this is Wayback viewer residue — same corpus, different source and different cleaner. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
 | 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed; rest backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
 | 5-ter | perseus follow-ups, second round | #316, #317 | **backlog** | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
@@ -1088,6 +1103,75 @@ so this is not recent drift. Consequences, both material:
    characters would have passed the gate silently. It is pinned at 151,427.
 
 Corrected on the issue as well.
+
+### 4-op's scope, corrected 2026-08-15 while scoping part 2
+
+**Measured before opening the window, and it does not survive.** Three
+findings, each changing what part 2 *is* rather than how it is run.
+Recorded on #176 as well.
+
+**1. Hobbes is not a parser failure.** Part 2's scope above reads
+"re-chunk the clear parser failures only: Aeschylus *Agamemnon* (eng),
+Hobbes *De Cive* and *Leviathan* (lat), Epictetus *Discourses* (eng)".
+Two of those four are deliberate. `src/minerva/sources/hobbes_la.py` says
+so in its module docstring — "Each chapter becomes one ``Chunk``. The OCR
+is noisy enough that finer-grained per-article chunking would be
+unreliable" — and the parser does exactly that:
+
+```
+Leviathan: 47 chunks   (I-XLVII = 47 chapters)   max=127,001 mean=17,632
+De Cive:   18 chunks   (I-XVIII = 18 chapters)   max= 71,878 mean=26,356
+```
+
+47 for 47 and 18 for 18. Re-chunking these overrides a stated trade-off,
+which is the same *kind* of decision this document already excludes
+Aquinas for. **What would have gone wrong:** part 2 would have reversed a
+documented choice as though it were a bug, and rediscovered the
+OCR-reliability question from the output.
+
+**2. The two genuine failures have different causes, and neither is the
+one #176 names** ("a parser that found no structural divisions and
+emitted the whole document"):
+
+- *Aeschylus* — `tei_drama.py` chunks on leaf `<div type="textpart">`
+  and its siblings prove the strategy works (Eumenides eng 54 chunks /
+  avg 967; Persians eng 64 / avg 565). Agamemnon eng alone yields 1 chunk
+  of 82,256. One file, not the strategy.
+- *Epictetus* — a different path entirely, `tei.py`'s `_ChunkBuilder`.
+  `discourses_en.xml` is TEI.2 with **no milestones at all**, so
+  `_detect_chunk_boundary_units` returns an empty frozenset and the body
+  becomes one chunk. Its docstring calls that case "rare". The structure
+  it ignores is present: `div2[type=chapter]×96` in body0 alone. So the
+  fix is a fallback to `div[type=chapter]`, not a re-source.
+
+**3. It is five parsers, not one.** 111 work/lang pairs exceed the
+8,000-char threshold (105 excluding Aquinas), across five ingest paths:
+
+```
+.txt 13,511 chunks · .html 11,949 · .xml 5,277 · .pdf 1,585 · .epub 754
+```
+
+**The useful discriminator is raggedness, not coarseness** — max/median
+chunk size *within* a work. A working parser is uniform; a failure spikes:
+
+```
+ratio >= 20x:  59 pairs   ragged  -> parser dropping structure on an input
+ratio <  20x:  31 pairs   uniform -> a granularity choice, Hobbes-shaped
+
+  1211x Epictetus Discourses    eng  n=  85 median   125 max 151,427
+   105x Nietzsche Nachg. Frag.  deu  n=3,345 median  311 max  32,778
+    51x Hegel     Encyclopaedia eng  n= 246 median 2,311 max 118,716
+```
+
+Hobbes does not appear — its chapters are uniform, which is the point.
+
+**Consequence.** "Re-chunk the outliers" is not one change. It is at
+least five, one per ingest path, plus a per-work ragged/uniform judgment.
+**Recommendation, not yet taken: narrow 4-op to the TEI path's ragged
+pairs** (Epictetus and the tragedians, ~5,277 chunks, one parser), land
+it with #298 and #383 in one window, and re-scope the other four formats
+from the result. The `.txt` / `.html` / `.pdf` / `.epub` paths have not
+been investigated and cannot currently be sized.
 
 **Two things to settle *before* this window opens, added 2026-08-09.
 Both are cheap now and expensive afterwards, which is the whole reason
