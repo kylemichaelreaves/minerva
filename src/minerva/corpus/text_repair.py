@@ -67,3 +67,47 @@ def _looks_like_bibliography(text: str) -> bool:
     if author_hits >= 3:
         return True
     return author_hits >= 2 and len(_BIB_CITY_YEAR_RE.findall(text)) >= 2
+
+
+# Scraped page furniture that reached the corpus as text. Both were found
+# after the fact, in chunks that had already been embedded and lemmatized:
+# the Internet Archive's crawl-provenance block (#383, 33 chunks in *Die
+# deutsche Ideologie*, sitting mid-text where the scrape spliced it) and
+# mlwerke.de's MEW edition note (#298, 18 chunks). Neither is cosmetic —
+# editorial text in a chunk is what produces spurious cross-references, and
+# a 100-plus-character bibliographic note clears every length floor in the
+# retrieval path.
+#
+# Matched as a *prefix* of the paragraph rather than as a substring: Marx's
+# editors write about archives, and the crawl block's lines are the whole
+# paragraph wherever they appear.
+_CRAWL_CHROME_PREFIXES = (
+    "organization: internet archive",
+    "collection: wide crawl",
+    "- slash pages from every domain",
+    "-- a list of domains using",
+    "- top ranked pages",
+    "-- a ranking of all urls",
+    "-- up to a maximum of",
+)
+
+# `Seitenzahlen verweisen auf: Karl Marx - Friedrich Engels - Werke, Band 25,
+# …, S. 627 - 652 Dietz Verlag, Berlin/DDR 1983`. Runs to the end of the
+# paragraph in all 18 chunks carrying it (longest tail 162 chars), so this
+# cuts the note without cutting prose. Seventeen are nothing but the note and
+# so vanish; the eighteenth keeps its title line.
+_EDITION_NOTE_RE = re.compile(r"\s*Seitenzahlen verweisen auf:.*\Z", re.S)
+
+
+def strip_source_chrome(text: str) -> str:
+    """Remove scraped site/crawl furniture. Empty result means drop the chunk.
+
+    Callers must apply this **after** assigning paragraph indices. Dropping a
+    paragraph earlier renumbers every one after it, and `section` feeds
+    `_make_chunk_id` — the crawl block sits mid-work, so an early filter
+    would churn *Die deutsche Ideologie* entire rather than 33 chunks.
+    """
+
+    if any(text.lstrip().lower().startswith(p) for p in _CRAWL_CHROME_PREFIXES):
+        return ""
+    return _EDITION_NOTE_RE.sub("", text).strip()

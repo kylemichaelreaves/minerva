@@ -947,3 +947,85 @@ def test_a_single_speech_turn_over_the_cap_splits_at_sentences(tmp_path: Path):
     text = f"CHAPTER ONE\n\n{para}\n"
     chunks = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
     assert all(len(c.text) <= 400 for c in chunks), [len(c.text) for c in chunks]
+
+
+# ---------- source chrome (#383, #298) ----------
+
+# Two scrapers left their page furniture in the corpus: the Internet Archive's
+# crawl-provenance block (33 chunks in Die deutsche Ideologie) and mlwerke.de's
+# MEW edition note (18 chunks, 17 of them the whole chunk).
+
+_IA_BLOCK = [
+    "Organization: Internet Archive",
+    "Collection: Wide Crawl Number 14 - Started Mar 4th, 2016 - Ended Sep 15th, 2016",
+    "- Slash pages from every domain on the web:",
+    "-- a list of domains using Survey crawl seeds",
+    "-- a list of domains using Wide00012 web graph",
+    "- Top ranked pages (up to a max of 100) from every linked-to domain using the "
+    "Wide00012 inter-domain navigational link graph",
+    "-- a ranking of all URLs that have more than one incoming inter-domain link "
+    "(rank was determined by number of incoming links using Wide00012 inter domain links)",
+    "-- up to a maximum of 100 most highly ranked URLs per domain",
+]
+
+_EDITION_NOTE = (
+    "Seitenzahlen verweisen auf: Karl Marx - Friedrich Engels - Werke, Band 25, "
+    '"Das Kapital", Bd. III, Sechster Abschnitt, S. 627 - 652 Dietz Verlag, Berlin/DDR 1983'
+)
+
+
+def test_internet_archive_crawl_lines_are_dropped(tmp_path: Path):
+    body = "\n\n".join(_IA_BLOCK)
+    text = f"CHAPTER ONE\n\nReal Marx text about the German ideology.\n\n{body}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.text for c in chunks] == ["Real Marx text about the German ideology."]
+
+
+def test_dropping_crawl_chrome_does_not_renumber_the_paragraphs_after_it(tmp_path: Path):
+    """The reason the filter lives in `_emit`: ¶ indices are assigned before
+    it runs, so a dropped paragraph costs no `chunk_id` but its own. The
+    crawl block sits mid-text in Die deutsche Ideologie, so a filter that
+    renumbered would churn the whole work."""
+
+    text = (
+        "CHAPTER ONE\n\nFirst real paragraph.\n\n"
+        "Organization: Internet Archive\n\n"
+        "Second real paragraph.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [(c.section, c.text) for c in chunks] == [
+        ("Chapter One, ¶1", "First real paragraph."),
+        ("Chapter One, ¶3", "Second real paragraph."),
+    ]
+
+
+def test_mlwerke_edition_note_alone_is_dropped(tmp_path: Path):
+    text = f"CHAPTER ONE\n\n{_EDITION_NOTE}\n\nReal text.\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.text for c in chunks] == ["Real text."]
+
+
+def test_edition_note_is_stripped_from_a_chunk_that_also_has_text(tmp_path: Path):
+    """One of the 18 is not a standalone note: `Lohnarbeit und Kapital` ¶4
+    carries the work's own title line and then the note. Measured on all 18,
+    the note runs to the end of the paragraph (longest tail 162 chars), so
+    stripping it leaves the title rather than cutting real prose."""
+
+    title = "Einleitung [zu Karl Marx' \"Lohnarbeit und Kapital\" (Ausgabe 1891)]"
+    text = f"CHAPTER ONE\n\n{title} {_EDITION_NOTE}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.text for c in chunks] == [title]
+
+
+def test_prose_that_merely_mentions_the_archive_is_kept(tmp_path: Path):
+    """The match is on the chrome line's own shape, not on a substring —
+    Marx's editors write about archives, and a 100-char bibliographic note
+    is exactly what the retrieval path cannot tell from real text."""
+
+    prose = (
+        "Die Redaktion dankt dem Internet Archive für die Bereitstellung der "
+        "Scans, ohne die diese Ausgabe nicht möglich gewesen wäre."
+    )
+    text = f"CHAPTER ONE\n\n{prose}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.text for c in chunks] == [prose]
