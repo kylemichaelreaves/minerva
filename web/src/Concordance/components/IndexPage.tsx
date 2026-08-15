@@ -189,28 +189,20 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
    *  the chip represents. */
   const activeChips = createMemo(() => {
     const chips: { k: string; v: string; onRemove: () => void }[] = [];
-    if (props.scopeAuthors?.length) {
-      // One chip per selected author; removing a chip toggles that
-      // author back off.
-      for (const a of props.scopeAuthors) {
-        chips.push({
-          k: "author",
-          v: a,
-          onRemove: () => pickAuthor(a),
-        });
-      }
-    }
-    if (scope() === "work" && props.scopeWorks?.length) {
-      // One chip per selected work; removing a chip toggles that work
-      // back off (drops it from the scope=work selection).
-      for (const w of props.scopeWorks) {
-        chips.push({
-          k: "work",
-          v: w,
-          onRemove: () => pickWork(w),
-        });
-      }
-    }
+    // Scope — author and work — is deliberately NOT here (#387).
+    //
+    // It used to be, and `resetAll` below does not clear it: narrowing scope
+    // is a directed navigation the reader performed, and dropping it on a
+    // filter reset would discard that with no undo. That policy is fine; what
+    // was not fine is that the strip counted scope in "Active · N", gave it a
+    // chip, and offered "reset all" over the lot. Clicking reset then cleared
+    // the filters and left the chip and the control exactly as they were, so
+    // the button read as broken. Measured: `?scope=author&author=Hegel&pos=NOUN&q=geist`
+    // reset to `?scope=author&author=Hegel` with the strip unchanged.
+    //
+    // The set shown and the set cleared are now the same set. Scope keeps its
+    // own affordances — the `ScopePill` breadcrumb above, and the filter bar's
+    // own author/work chips, which already rendered this same value twice.
     if (props.letter) {
       chips.push({
         k: "letter",
