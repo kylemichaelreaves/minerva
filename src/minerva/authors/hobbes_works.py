@@ -90,6 +90,13 @@ WORKS: tuple[CorpusWork, ...] = (
         lang="eng",
         corpus="hobbes",
         author="Hobbes",
+        # Two paragraphs clear 8,000 chars in a work whose median is 166:
+        # the dedicatory epistle to the Earl of Devonshire (10,709, one
+        # paragraph of 153 lines) and §51 (8,151). Neither is dialogue, so
+        # both split at sentence ends (#176). The Latin De Cive is
+        # deliberately NOT capped — its 18 chapter-sized chunks are the
+        # documented OCR trade-off in sources/hobbes_la.py.
+        max_paragraph_chars=8000,
     ),
     # ─── Elements of Law (1640) ───────────────────────────────────
     # Two-part 1650 publication; English only.

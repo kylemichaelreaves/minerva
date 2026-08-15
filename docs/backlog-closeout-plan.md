@@ -1192,8 +1192,8 @@ ext      ragged>=20x  uniform<20x
 |---|---|
 | Hegel *Encyclopaedia* eng (`.pdf`) | §244 is 118,716 chars ending `…Zeno of Elea, 145, 164 Zeus, 120, 221` — the volume's index. ~1,300 chars are Hegel. **#385** |
 | Hegel *Philosophy of Mind* eng (`.pdf`) | §82 is 84,516 chars, editorial footnotes at the head and the 1830 preface at the tail. **#385** |
-| Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — paragraph detection failing repeatedly |
-| Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables |
+| Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — ~~paragraph detection failing repeatedly~~ **corrected: the source is sparsely paragraphed, see below** |
+| Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables — **corrected: #385's class, not this one, and the English half has the opposite defect. #398, #399** |
 | Hobbes *De Cive* eng (`.txt`) | the dedicatory epistle emitted as a single 10,709-char `¶1` |
 
 **Faithful to a real source unit — not defects:**
@@ -1224,6 +1224,71 @@ it with #298 and #383 in one window. The five non-XML defects are now
 sized and can be scheduled on their own merits; three of them
 (Cicero, Aesop, Hobbes eng) are single-work parser fixes, and two are
 #385.
+
+#### Cicero *Brutus*, worked 2026-08-15 — not a detection failure
+
+The table above calls it "paragraph detection failing repeatedly". The
+splitter detects every blank line the file has; the file is simply
+paragraphed sparsely in one half and not the other:
+
+```
+BRUTUS: chars=251,812  blank-line breaks= 66  paras= 65  median=1,726  max=33,241
+ORATOR: chars=206,726  blank-line breaks=205  paras=199  median=  744  max= 5,039
+```
+
+Same file, same splitter, same translator — Jones runs Cicero's dialogue
+continuously, and the largest "paragraph" is 461 lines with no break in
+it. There is nothing to detect better. **What would have gone wrong:**
+the fix would have been sought in `_HEADING_RE` or the blank-line regex,
+where the defect is not, and a working splitter would have been tuned
+until something else broke.
+
+What the source *does* carry is speech turns — `…"--"…`, 148 of them
+across the Brutus — so a paragraph over the cap now splits there, and an
+oversized turn splits again at its sentence ends. **The cap is opt-in per
+work** (`CorpusWork.max_paragraph_chars`), because this same splitter
+serves Hegel's `§244`: a global rule would have done to that section
+exactly what the #385 row forbids. Measured: 270 → 288 chunks, max
+33,241 → 7,958, chunks over 8,000 10 → 0, and 21 of the 22 Cicero
+work/lang pairs byte-identical. The pair leaves `known_coarse` at the
+window (mean 1,599, max 7,958 — under both thresholds).
+
+#### Babrius, worked 2026-08-15 — one of the five "genuine defects" is two, and neither is this issue's
+
+The row above lists Babrius grc among 4-op's parser defects, on evidence
+that already describes a different defect class: "the 22,615-char body is
+an index of fables". Read before writing a split for it, and the split
+would have been wrong.
+
+**Greek — #385's class, at 409 chunks rather than one.** Apparatus
+criticus is interleaved with the verse throughout, because the source is
+a critical edition that prints each fable's apparatus beneath it:
+
+```
+under 'V. V1 πατὴρ conicias κἀσποίει | 66 ἐτέρῳφϑη A, corr. Bgk':  409 chunks, 450,696 chars
+elsewhere (¶1 … ¶89):                                               89 chunks,  51,087 chars
+chunks with >=3 apparatus markers: 100 of the 409, and 25 of the other 89
+```
+
+Splitting the 22,615-char chunk yields three apparatus chunks instead of
+one — the exact objection this document already records against folding
+#385 into this issue. Filed as **#398**, which also carries the separable
+locator half: `_HEADING_RE` matched an OCR'd apparatus line as a chapter
+head, so those 409 chunks cite as `V. V1 πατὴρ conicias …, ¶N`.
+
+**English — the opposite defect, and the gate cannot see it.** 1,823 of
+2,239 chunks are under 100 characters, median 44, because the Davies scan
+carries OCR-inserted blank lines (2,307 breaks in 6,172 lines) and the
+splitter emits one chunk per blank-line paragraph, correctly. Filed as
+**#399**. Worth noting for the gate's own sake: `max_chunk_chars` and
+`max_mean_chunk_chars` bound coarseness only, so a work can fragment to
+44-character chunks and pass. This page has been treating the gate as
+covering granularity; it covers half of it.
+
+**What would have gone wrong:** applying #397's `max_paragraph_chars` to
+Babrius — the obvious next step, since it was next in the same list —
+would have made the Greek worse by multiplying apparatus chunks and done
+nothing at all for the English, whose chunks are already 44 characters.
 
 #### The `.xml` path, worked 2026-08-15 — and it is **three** parsers, not one
 
@@ -1261,23 +1326,42 @@ both blocked on the same locator question, is #394 and #395.
 Both are cheap now and expensive afterwards, which is the whole reason
 they are written here rather than left to whoever runs it.**
 
-- **#314 must land first.** This window re-lemmatizes, and #314 is a
-  defect in the lemma *writer* — run the window first and its output is
-  baked in, so the fix afterwards needs a second pass over the same
-  corpus. Out of scope by the 2026-08-09 cap and mandatory anyway; treat
-  it as setup, not as a batch.
-- **Decide whether the Marx corpus gets a chrome audit, and decide it
-  now.** #298 audited one string, `Seitenzahlen verweisen auf:`. The
-  2026-05-31 quality round found Marx carried **three distinct chrome
-  layers** (site chrome, the Wayback wrapper, and intra-file duplicate
-  paragraphs), and that sweep has not been re-run since. Anything still
-  there is nearly free to fix inside this window — it rides the same
-  re-ingest and the same refs rebuild — and buys its own window if found
-  afterwards. The audit itself is read-only measurement over
-  `data/marx/**` and the live index, so it costs a session rather than an
-  operator slot. **Deliberately not filed as an issue** — nothing has
-  been found, so there is nothing to record; it is an unexamined area
-  with a deadline, not a defect.
+- ~~**#314 must land first.**~~ **Done — #314 landed 2026-08-15 as PR
+  #382 and the issue is closed.** The reasoning stands and is worth
+  keeping: this window re-lemmatizes, #314 was a defect in the lemma
+  *writer*, and running the window first would have baked its output in.
+  The batch table above has recorded it as landed since it merged; this
+  line kept the imperative, which is the one a reader opening the window
+  would act on. **Corrected 2026-08-15 while scoping that window.**
+
+  Worth knowing if it is ever re-checked: the defect was `ara`-only —
+  every other language measured 100.00% correct on the same audit — and
+  no Arabic corpus churns in this window, so it would not in fact have
+  gated *this* re-ingest even had it still been open. The prerequisite
+  was right for the general case and over-broad for this one.
+- ~~**Decide whether the Marx corpus gets a chrome audit, and decide it
+  now.**~~ **Done — the audit ran on 2026-08-15 and its finding is #383.**
+  This entry described an unexamined area with a deadline; the area has
+  been examined. All three layers of the 2026-05-31 cleanup were checked
+  in one read-only pass: **(a) Gutenberg site chrome — 0 chunks**,
+  **(c) duplicate paragraphs ≥60 chars — 0**, and **(b) 33 chunks of
+  Internet Archive crawl-provenance boilerplate**, all in *Die deutsche
+  Ideologie*, carrying 198 `chunk_lemmas` rows, 33 embeddings and **0**
+  `cross_references`. Row 4-op-bis above has recorded this since it was
+  filed. **Corrected 2026-08-15 while scoping the window**, for the same
+  reason as the entry above it: the batch table knew and the checklist
+  did not, and the checklist is the half that gets acted on.
+
+  The decision the entry asked for has therefore been taken, and it is
+  the one this entry predicted: #383 costs nothing extra inside the
+  window — same re-ingest, same refs rebuild, and with 0 cross-references
+  nothing to re-anchor — so it rides along rather than buying its own
+  slot.
+
+  Kept from the original entry because it is still the reason the audit
+  was worth running: #298 audited a single string,
+  `Seitenzahlen verweisen auf:`, and the 2026-05-31 round had found
+  **three** distinct chrome layers.
 
 #298's own corpus repair rides here too — 745 Marx `chunk_id`s, for the
 reason recorded in batch 5-bis.

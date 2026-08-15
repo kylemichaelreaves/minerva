@@ -288,7 +288,80 @@ def _split_chapter_block(work: CorpusWork, path: Path, heading: str, body: str) 
 
     paragraphs = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
     for idx, para in enumerate(paragraphs, 1):
-        section = f"{heading}, ¶{idx}" if heading else f"¶{idx}"
-        chunk = _emit(work, path, section=section, text=para, book_label=heading or None)
-        if chunk is not None:
-            yield chunk
+        for label, piece in _paragraph_pieces(work, idx, para):
+            section = f"{heading}, {label}" if heading else label
+            chunk = _emit(work, path, section=section, text=piece, book_label=heading or None)
+            if chunk is not None:
+                yield chunk
+
+
+#: A speech turn ends `…"--` and the next begins `"`. Zero-width, so the
+#: `--` stays with the turn that ends and nothing is consumed but the
+#: whitespace `_norm_text` would collapse anyway.
+_TURN_RE = re.compile(r'(?<="--)\s*(?=")')
+#: Fallback for a run with no turns in it — sentence end followed by a
+#: capital, an opening quote, or the `_italic_` markup Gutenberg uses.
+_SENTENCE_RE = re.compile(r'(?<=[.!?])\s+(?=[A-Z"_])')
+
+
+def _paragraph_pieces(work: CorpusWork, idx: int, para: str) -> list[tuple[str, str]]:
+    """`(locator, text)` for one blank-line paragraph.
+
+    Under the work's cap — or with no cap at all — that is the paragraph
+    itself under `¶N`, byte for byte, so its `chunk_id` does not move.
+    Over the cap it is several pieces under `¶N.1`, `¶N.2`, … The
+    sub-numbering matters: numbering the pieces `¶N`, `¶N+1` instead would
+    renumber every paragraph after them, and `section` is an input to
+    `_make_chunk_id` — 17 dropped paragraphs once churned 745 chunks that
+    way. Every piece gets a sub-locator, including the first, so no piece
+    inherits the whole paragraph's id and with it an embedding computed
+    over text four times longer.
+    """
+
+    cap = work.max_paragraph_chars
+    if cap is None or len(para) <= cap:
+        return [(f"¶{idx}", para)]
+    return [(f"¶{idx}.{k}", piece) for k, piece in enumerate(_packed(para, cap), 1)]
+
+
+def _packed(para: str, cap: int) -> list[str]:
+    """Greedily pack the paragraph's segments into runs under `cap`.
+
+    A segment that is itself over the cap is emitted alone rather than
+    cut mid-sentence — the cap is a target, and a sentence longer than it
+    is still one sentence.
+    """
+
+    out: list[str] = []
+    current = ""
+    for seg in _segments(para, cap):
+        if current and len(current) + len(seg) + 1 > cap:
+            out.append(current)
+            current = seg
+        else:
+            current = f"{current} {seg}".strip() if current else seg
+    if current:
+        out.append(current)
+    return out
+
+
+def _segments(para: str, cap: int) -> list[str]:
+    """The units an oversized paragraph may be split between.
+
+    Speech turns when the paragraph has them — Brutus is a dialogue, and
+    the turn is the unit a reader would cite. A turn that is *itself* over
+    the cap splits again at its sentence ends: Cicero's longest
+    uninterrupted answer in the Brutus is 9,070 characters, so turns alone
+    leave one piece over the ceiling.
+    """
+
+    turns = [t for t in _TURN_RE.split(para) if t.strip()]
+    if len(turns) == 1:
+        return [s for s in _SENTENCE_RE.split(para) if s.strip()]
+    out: list[str] = []
+    for turn in turns:
+        if len(turn) > cap:
+            out.extend(s for s in _SENTENCE_RE.split(turn) if s.strip())
+        else:
+            out.append(turn)
+    return out
