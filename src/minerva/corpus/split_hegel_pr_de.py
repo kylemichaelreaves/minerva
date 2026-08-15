@@ -58,11 +58,29 @@ def _is_prose(el) -> bool:
 
 
 def _clean_ocr(s: str) -> str:
-    s = re.sub(r"Digitized\s+by\s+Googl?e?k?", " ", s, flags=re.I)  # watermark
+    # Google Books watermark, once per scanned page — 104 of them in the
+    # Gans appendix. The pattern used to spell the word out
+    # (`Googl?e?k?`), which is why 8 chunks still carried it: the OCR
+    # renders it differently almost every time — `Googk`, `Google`,
+    # `Goos.`, `Go^k`, `Ggjogk`, `VjOOQIC`, `VjOOQ IC`. Match whatever
+    # single token follows instead (plus the stray `IC` that `VjOOQ`
+    # splits into), since in this file the phrase is never anything but
+    # the watermark (#401).
+    s = re.sub(r"Digitized\s+by\s+\S{1,10}(?:\s+IC\b)?", " ", s, flags=re.I)
     s = re.sub(r"\bZu\s+§\s*[\d.\- ]+", " ", s)  # running page headers ("Zu § 1-4.")
     s = re.sub(r"-\s+", "", s)  # de-hyphenate line breaks
     s = re.sub(r"\s+", " ", s)
     return s.strip()
+
+
+#: Where the Gans appendix stops being Hegel. After the last Addition the
+#: scan continues into the editor's textual notes, a name index, a subject
+#: index, the printer's colophon and — the scan being a library copy — a
+#: circulation slip. All of it was glued onto the final Addition: `§339
+#: Zusatz` measured 16,498 characters of which **501 are Hegel** (#401).
+#: That is #385's shape, one work and one language over, and splitting the
+#: chunk would only have produced several index chunks instead of one.
+_BACK_MATTER_RE = re.compile(r"Zur\s+Feststellung\s+des\s+Textes")
 
 
 def _load_zusaetze(path: Path) -> dict[int, str]:
@@ -70,6 +88,9 @@ def _load_zusaetze(path: Path) -> dict[int, str]:
     if not path.exists():
         return {}
     text = path.read_text(encoding="utf-8", errors="replace")
+    cut = _BACK_MATTER_RE.search(text)
+    if cut is not None:
+        text = text[: cut.start()]
     hits = list(_ZUSATZ_HDR_RE.finditer(text))
     out: dict[int, str] = {}
     for i, m in enumerate(hits):

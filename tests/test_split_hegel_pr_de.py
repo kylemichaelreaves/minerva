@@ -104,3 +104,67 @@ def test_emitted_in_numeric_order(tmp_path: Path):
 
     nums = [int(re.match(r"§(\d+)", c.section).group(1)) for c in chunks]
     assert nums == sorted(nums)
+
+
+# ── OCR-mangled Google Books watermark (#401) ─────────────────────────
+
+# The Gans appendix is a Google Books scan: the watermark lands on 104 page
+# breaks, and `_clean_ocr` strips the well-formed ones. Eight chunks survive
+# it in the live corpus because the OCR mangles the word differently each
+# time — measured in `pr_de_zusaetze.txt`.
+
+_OCR_VARIANTS = (
+    "Digitized by Googk",  # already handled; the pin
+    "Digitized by Google",
+    "Digitized by VjOOQIC",
+    "Digitized by VjOOQ IC",
+    "Digitized by Go^k",
+    "Digitized by Goos.",
+    "Digitized by Ggjogk",
+)
+
+
+def test_every_ocr_variant_of_the_watermark_is_stripped(tmp_path: Path):
+    zusaetze = "Zusätze.\n" + "".join(
+        f"{i}. Zusatz zu § {i}. (Thema.) Vor dem Umbruch {v} nach dem Umbruch.\n"
+        for i, v in enumerate(_OCR_VARIANTS, 1)
+    )
+    (tmp_path / "pr_de.html").write_text(
+        "".join(f"<h4>§ {i}</h4>\n<p class=\"zenoPLm4n0\">Hauptsatz {i}.</p>\n" for i in range(1, 8)),
+        encoding="utf-8",
+    )
+    (tmp_path / "pr_de_zusaetze.txt").write_text(zusaetze, encoding="utf-8")
+    chunks = list(split_hegel_pr_de(tmp_path / "pr_de.html", _work()))
+    additions = [c.text for c in chunks if c.block_type == "addition"]
+    assert len(additions) == len(_OCR_VARIANTS)
+    for text in additions:
+        assert "Digitized" not in text, text
+        assert "VjOOQ" not in text, text
+    # And the prose either side of the watermark survives, joined.
+    assert all("Vor dem Umbruch" in t and "nach dem Umbruch" in t for t in additions)
+
+
+def test_back_matter_after_the_last_addition_is_not_glued_onto_it(tmp_path: Path):
+    """The appendix ends with the editor's textual notes, a name index, a
+    subject index, the printer's colophon and a library circulation slip.
+    All of it landed in the last Zusatz: `§339 Zusatz` measured 16,498
+    characters of which 501 — 3% — are Hegel, which is #385's shape."""
+
+    zusaetze = (
+        "Zusätze.\n"
+        "1. Zusatz zu § 1. (Thema.) Der höhere Prätor ist der Weltgeist.\n"
+        "Zur Feststellung des Textes. Die Ausgabe von Gans folgt der Handschrift.\n"
+        "Namenregister. Aristoteles 119f., 137. Spinoza 68.\n"
+        "Sachregister. A. Aberglauben 68. Zwölftafelgesetz 22 f.\n"
+        "Druck von C. Grombach in Leipzig.\n"
+        "STANFORD UNIVERSITY LIBRARIES All books are subject to recall. DATE DUE\n"
+    )
+    (tmp_path / "pr_de.html").write_text(
+        '<h4>§ 1</h4>\n<p class="zenoPLm4n0">Hauptsatz eins.</p>\n', encoding="utf-8"
+    )
+    (tmp_path / "pr_de_zusaetze.txt").write_text(zusaetze, encoding="utf-8")
+    chunks = list(split_hegel_pr_de(tmp_path / "pr_de.html", _work()))
+    addition = next(c.text for c in chunks if c.block_type == "addition")
+    assert addition == "(Thema.) Der höhere Prätor ist der Weltgeist."
+    for leaked in ("Namenregister", "Sachregister", "Grombach", "STANFORD", "DATE DUE"):
+        assert leaked not in addition
