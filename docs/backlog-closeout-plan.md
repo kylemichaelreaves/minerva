@@ -1193,7 +1193,7 @@ ext      ragged>=20x  uniform<20x
 | Hegel *Encyclopaedia* eng (`.pdf`) | §244 is 118,716 chars ending `…Zeno of Elea, 145, 164 Zeus, 120, 221` — the volume's index. ~1,300 chars are Hegel. **#385** |
 | Hegel *Philosophy of Mind* eng (`.pdf`) | §82 is 84,516 chars, editorial footnotes at the head and the 1830 preface at the tail. **#385** |
 | Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — ~~paragraph detection failing repeatedly~~ **corrected: the source is sparsely paragraphed, see below** |
-| Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables |
+| Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables — **corrected: #385's class, not this one, and the English half has the opposite defect. #398, #399** |
 | Hobbes *De Cive* eng (`.txt`) | the dedicatory epistle emitted as a single 10,709-char `¶1` |
 
 **Faithful to a real source unit — not defects:**
@@ -1252,6 +1252,43 @@ exactly what the #385 row forbids. Measured: 270 → 288 chunks, max
 33,241 → 7,958, chunks over 8,000 10 → 0, and 21 of the 22 Cicero
 work/lang pairs byte-identical. The pair leaves `known_coarse` at the
 window (mean 1,599, max 7,958 — under both thresholds).
+
+#### Babrius, worked 2026-08-15 — one of the five "genuine defects" is two, and neither is this issue's
+
+The row above lists Babrius grc among 4-op's parser defects, on evidence
+that already describes a different defect class: "the 22,615-char body is
+an index of fables". Read before writing a split for it, and the split
+would have been wrong.
+
+**Greek — #385's class, at 409 chunks rather than one.** Apparatus
+criticus is interleaved with the verse throughout, because the source is
+a critical edition that prints each fable's apparatus beneath it:
+
+```
+under 'V. V1 πατὴρ conicias κἀσποίει | 66 ἐτέρῳφϑη A, corr. Bgk':  409 chunks, 450,696 chars
+elsewhere (¶1 … ¶89):                                               89 chunks,  51,087 chars
+chunks with >=3 apparatus markers: 100 of the 409, and 25 of the other 89
+```
+
+Splitting the 22,615-char chunk yields three apparatus chunks instead of
+one — the exact objection this document already records against folding
+#385 into this issue. Filed as **#398**, which also carries the separable
+locator half: `_HEADING_RE` matched an OCR'd apparatus line as a chapter
+head, so those 409 chunks cite as `V. V1 πατὴρ conicias …, ¶N`.
+
+**English — the opposite defect, and the gate cannot see it.** 1,823 of
+2,239 chunks are under 100 characters, median 44, because the Davies scan
+carries OCR-inserted blank lines (2,307 breaks in 6,172 lines) and the
+splitter emits one chunk per blank-line paragraph, correctly. Filed as
+**#399**. Worth noting for the gate's own sake: `max_chunk_chars` and
+`max_mean_chunk_chars` bound coarseness only, so a work can fragment to
+44-character chunks and pass. This page has been treating the gate as
+covering granularity; it covers half of it.
+
+**What would have gone wrong:** applying #397's `max_paragraph_chars` to
+Babrius — the obvious next step, since it was next in the same list —
+would have made the Greek worse by multiplying apparatus chunks and done
+nothing at all for the English, whose chunks are already 44 characters.
 
 #### The `.xml` path, worked 2026-08-15 — and it is **three** parsers, not one
 
