@@ -112,34 +112,17 @@ export function FilterRail(props: {
    *  remove behaviour so the card never needs to know the filter kind. */
   const appliedPills = createMemo(() => {
     const pills: { k: string; v: string; italic?: boolean; onRemove: () => void }[] = [];
-    if (props.scope === "work" && props.scopeWorks?.length) {
-      // One pill per selected work; removing toggles that work off.
-      for (const w of props.scopeWorks) {
-        pills.push({
-          k: "work",
-          v: abbrevWork(w),
-          onRemove: () => props.onToggleWork(w),
-        });
-      }
-    } else if (props.scope === "author" && props.scopeAuthors?.length) {
-      // One pill per selected author; removing toggles that author off.
-      // Removing the last author falls back up to corpus.
-      const authors = props.scopeAuthors;
-      for (const a of authors) {
-        pills.push({
-          k: "author",
-          v: a,
-          onRemove: () => {
-            const next = authors.filter((x) => x !== a);
-            props.onSetScope(
-              next.length > 0
-                ? { scope: "author", scopeAuthors: next, scopeWorks: undefined }
-                : { scope: "corpus", scopeAuthors: undefined, scopeWorks: undefined },
-            );
-          },
-        });
-      }
-    }
+    // Scope — work and author — is deliberately NOT here (#387), the same
+    // change made to `activeChips` on the index page for the same reason.
+    //
+    // `resetAllFilters` clears `caseFilter` / `numberFilter` / `surface` and
+    // says why it stops there: "Scope is the one knob we DON'T touch —
+    // narrowing scope is a directed action the user took at the F1 page".
+    // Counting scope in "N filters applied" and offering "↺ reset" over it
+    // contradicted that: the reset left those pills standing.
+    //
+    // Scope keeps the segmented Work/Author/Corpus bar directly above this
+    // card, which is both its display and its control.
     if (props.caseFilter) {
       pills.push({
         k: "case",
