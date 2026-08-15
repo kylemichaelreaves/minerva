@@ -219,6 +219,18 @@ def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
       * ἀγαθός   — smooth breathing (ἀ)
       * Ἀθηνᾶ    — capital + smooth (Ἀ)
       * λόγος    — control, leading λ → must NOT match letter=Α
+
+    Two of the seeds exist for ``merge_case`` rather than for the letter
+    filter, and the fixture could not tell the two group keys apart
+    without them (#366):
+
+      * ἀρχή  NOUN — shares its folded initial *and* its POS with
+        ἄνθρωπος, so a first-character group key merges them and a
+        whole-lemma key does not. Every other lemma here has a unique
+        (initial, pos) pair, which is exactly why the defect survived.
+      * Λόγος NOUN — a capitalised variant of λόγος, so the fix cannot
+        be "stop merging"; what ``merge_case`` exists for must still
+        happen.
     """
 
     chunks = [
@@ -229,7 +241,10 @@ def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
             work="Respublica",
             lang="grc",
             section="327a",
-            text="ἄνθρωπος ἄνθρωπος ἀγαθός ἀγαθός Ἀθηνᾶ Ἀθηνᾶ λόγος λόγος",
+            text=(
+                "ἄνθρωπος ἄνθρωπος ἀγαθός ἀγαθός Ἀθηνᾶ Ἀθηνᾶ λόγος λόγος "
+                "ἀρχή ἀρχή Λόγος"
+            ),
         ),
     ]
     import json
@@ -248,6 +263,9 @@ def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
         ("rep-1", 5, "Ἀθηνᾶν", "Ἀθηνᾶ", "PROPN", "Case=Acc|Number=Sing|Gender=Fem"),
         ("rep-1", 6, "λόγος", "λόγος", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
         ("rep-1", 7, "λόγον", "λόγος", "NOUN", "Case=Acc|Number=Sing|Gender=Masc"),
+        ("rep-1", 8, "ἀρχή", "ἀρχή", "NOUN", "Case=Nom|Number=Sing|Gender=Fem"),
+        ("rep-1", 9, "ἀρχῆς", "ἀρχή", "NOUN", "Case=Gen|Number=Sing|Gender=Fem"),
+        ("rep-1", 10, "Λόγος", "Λόγος", "NOUN", "Case=Nom|Number=Sing|Gender=Masc"),
     ]
     for chunk_id, idx, surface, lemma, pos, feats in seed:
         _insert_lemma(
@@ -284,9 +302,9 @@ def test_greek_letter_folds_diacritics(
         {"lang": "grc", "letter": "Α", "min_count": "1"},
     )
     lemmas = {r["lemma"] for r in out["rows"]}
-    assert lemmas == {"ἄνθρωπος", "ἀγαθός", "Ἀθηνᾶ"}
+    assert lemmas == {"ἄνθρωπος", "ἀγαθός", "Ἀθηνᾶ", "ἀρχή"}
     assert "λόγος" not in lemmas
-    assert out["total_lemmas"] == 3
+    assert out["total_lemmas"] == 4
 
 
 def test_greek_letter_lowercase_request_folds_too(
@@ -305,6 +323,51 @@ def test_greek_letter_lowercase_request_folds_too(
         {"lang": "grc", "letter": "Α", "min_count": "1"},
     )
     assert {r["lemma"] for r in lo["rows"]} == {r["lemma"] for r in hi["rows"]}
+
+
+def test_greek_merge_case_keeps_lemmas_that_share_an_initial_apart(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """``merge_case`` groups whole lemmas, not leading letters (#366).
+
+    ``ἄνθρωπος`` and ``ἀρχή`` are both NOUNs whose initial folds to Α.
+    Grouping on ``fold_initial(lemma)`` made them one row, summing their
+    counts under whichever label sorted first — on the live index that
+    merged ``στηλογραφία`` into ``συλλογισμός`` and reported 65 Greek
+    lemmas where there were 522."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "merge_case": "1", "min_count": "1"},
+    )
+    by_lemma = {(r["lemma"], r["pos"]): r for r in out["rows"]}
+
+    assert ("ἄνθρωπος", "NOUN") in by_lemma
+    assert ("ἀρχή", "NOUN") in by_lemma
+    assert by_lemma[("ἄνθρωπος", "NOUN")]["count"] == 2
+    assert by_lemma[("ἀρχή", "NOUN")]["count"] == 2
+    # Neither row may carry the other as a merged variant.
+    assert by_lemma[("ἄνθρωπος", "NOUN")]["variants"] == ["ἄνθρωπος"]
+    assert by_lemma[("ἀρχή", "NOUN")]["variants"] == ["ἀρχή"]
+
+
+def test_greek_merge_case_still_merges_case_variants(
+    greek_concordance_db: sqlite3.Connection,
+) -> None:
+    """The fix for #366 must not disable what ``merge_case`` is for.
+
+    ``λόγος`` and ``Λόγος`` are one lemma in two typographic dresses and
+    still belong in one row, with their counts summed."""
+
+    out = concordance_queries.lemma_index(
+        greek_concordance_db,
+        {"lang": "grc", "merge_case": "1", "min_count": "1"},
+    )
+    logos = [r for r in out["rows"] if r["lemma"].lower() == "λόγος"]
+
+    assert len(logos) == 1, f"λόγος/Λόγος did not merge: {logos}"
+    assert logos[0]["count"] == 3
+    assert sorted(logos[0]["variants"]) == ["Λόγος", "λόγος"]
 
 
 def test_greek_letter_lambda_only(
@@ -860,6 +923,113 @@ def case_merge_db(tmp_path: Path) -> sqlite3.Connection:
 
     aggregate.build(conn)
     return conn
+
+
+@pytest.fixture
+def unicode_case_merge_db(tmp_path: Path) -> sqlite3.Connection:
+    """German lemmas whose case difference sits outside ASCII (#373).
+
+    ``case_merge_db`` above seeds ``Gott``/``GOtt`` — the flourishes
+    ``merge_case``'s docstring names, all ASCII, all handled by SQL
+    ``LOWER()``. Nothing exercised a lemma with an umlaut until this,
+    which is why the defect survived.
+
+      * Übergehen / übergehen — one lemma, one POS, split by an
+        ASCII-only ``LOWER()`` into two groups rendering the same label.
+      * Abdruck / Abdrück — *different* lemmas that a diacritic-folding
+        group key would wrongly merge. They are here to pin the choice
+        of fold, not just the presence of one.
+    """
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="u-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Phänomenologie",
+            lang="deu",
+            section="¶1",
+            text="Übergehen übergehen übergehen Abdruck Abdrück",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "unicode_case.sqlite")
+    store.insert_chunks(conn, jsonl)
+    for chunk_id, idx, lemma, pos in [
+        ("u-1", 0, "Übergehen", "NOUN"),
+        ("u-1", 1, "übergehen", "NOUN"),
+        ("u-1", 2, "übergehen", "NOUN"),
+        ("u-1", 3, "Abdruck", "NOUN"),
+        ("u-1", 4, "Abdrück", "NOUN"),
+    ]:
+        _insert_lemma(conn, chunk_id=chunk_id, token_index=idx, surface=lemma, lemma=lemma, pos=pos)
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def test_merge_case_merges_variants_whose_case_leaves_ascii(
+    unicode_case_merge_db: sqlite3.Connection,
+) -> None:
+    """``merge_case`` folds case for every script, not just ASCII (#373).
+
+    SQLite's ``LOWER()`` leaves non-ASCII untouched — measured,
+    ``lower('Übergehen')`` returns it unchanged — so ``Übergehen`` and
+    ``übergehen`` stayed separate groups, then rendered the *same*
+    display label at different ranks. On the live German index that is
+    113 group pairs, and ``Übergehen`` NOUN appeared twice at 78 and 59
+    where the truth is 137."""
+
+    out = concordance_queries.lemma_index(
+        unicode_case_merge_db,
+        {"lang": "deu", "merge_case": "1", "min_count": "1"},
+    )
+    rows = [r for r in out["rows"] if r["lemma"].lower() == "übergehen"]
+
+    assert len(rows) == 1, f"one lemma rendered as {len(rows)} rows: {rows}"
+    assert rows[0]["count"] == 3
+    assert sorted(rows[0]["variants"]) == ["Übergehen", "übergehen"]
+
+
+def test_merge_case_does_not_merge_lemmas_that_differ_by_diacritic(
+    unicode_case_merge_db: sqlite3.Connection,
+) -> None:
+    """The group key folds *case*, not diacritics.
+
+    Both #366 and #373 proposed reusing ``_fold_text`` — right for the
+    ``q`` search box, wrong here: it drops combining marks, so it would
+    merge ``Abdruck`` with ``Abdrück``. Measured against the live index
+    that is 2,206 further German groups, 5,499 French and 8,228 Greek
+    (where accent is lexical) — 7,705 broken to fix 113."""
+
+    out = concordance_queries.lemma_index(
+        unicode_case_merge_db,
+        {"lang": "deu", "merge_case": "1", "min_count": "1"},
+    )
+    lemmas = {r["lemma"] for r in out["rows"]}
+
+    assert "Abdruck" in lemmas
+    assert "Abdrück" in lemmas
+
+
+def test_merge_case_off_keeps_every_variant_on_its_own_row(
+    unicode_case_merge_db: sqlite3.Connection,
+) -> None:
+    """``merge_case=0`` groups on the bare lemma and installs no folding
+    callback at all, so the variants the default collapses stay apart."""
+
+    out = concordance_queries.lemma_index(
+        unicode_case_merge_db,
+        {"lang": "deu", "merge_case": "0", "min_count": "1"},
+    )
+    rows = {(r["lemma"], r["pos"]): r["count"] for r in out["rows"]}
+
+    assert rows[("Übergehen", "NOUN")] == 1
+    assert rows[("übergehen", "NOUN")] == 2
 
 
 def test_merge_case_pagination_honors_offset(case_merge_db: sqlite3.Connection) -> None:
