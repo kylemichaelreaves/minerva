@@ -1192,7 +1192,7 @@ ext      ragged>=20x  uniform<20x
 |---|---|
 | Hegel *Encyclopaedia* eng (`.pdf`) | §244 is 118,716 chars ending `…Zeno of Elea, 145, 164 Zeus, 120, 221` — the volume's index. ~1,300 chars are Hegel. **#385** |
 | Hegel *Philosophy of Mind* eng (`.pdf`) | §82 is 84,516 chars, editorial footnotes at the head and the 1830 preface at the tail. **#385** |
-| Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — paragraph detection failing repeatedly |
+| Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — ~~paragraph detection failing repeatedly~~ **corrected: the source is sparsely paragraphed, see below** |
 | Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables |
 | Hobbes *De Cive* eng (`.txt`) | the dedicatory epistle emitted as a single 10,709-char `¶1` |
 
@@ -1224,6 +1224,34 @@ it with #298 and #383 in one window. The five non-XML defects are now
 sized and can be scheduled on their own merits; three of them
 (Cicero, Aesop, Hobbes eng) are single-work parser fixes, and two are
 #385.
+
+#### Cicero *Brutus*, worked 2026-08-15 — not a detection failure
+
+The table above calls it "paragraph detection failing repeatedly". The
+splitter detects every blank line the file has; the file is simply
+paragraphed sparsely in one half and not the other:
+
+```
+BRUTUS: chars=251,812  blank-line breaks= 66  paras= 65  median=1,726  max=33,241
+ORATOR: chars=206,726  blank-line breaks=205  paras=199  median=  744  max= 5,039
+```
+
+Same file, same splitter, same translator — Jones runs Cicero's dialogue
+continuously, and the largest "paragraph" is 461 lines with no break in
+it. There is nothing to detect better. **What would have gone wrong:**
+the fix would have been sought in `_HEADING_RE` or the blank-line regex,
+where the defect is not, and a working splitter would have been tuned
+until something else broke.
+
+What the source *does* carry is speech turns — `…"--"…`, 148 of them
+across the Brutus — so a paragraph over the cap now splits there, and an
+oversized turn splits again at its sentence ends. **The cap is opt-in per
+work** (`CorpusWork.max_paragraph_chars`), because this same splitter
+serves Hegel's `§244`: a global rule would have done to that section
+exactly what the #385 row forbids. Measured: 270 → 288 chunks, max
+33,241 → 7,958, chunks over 8,000 10 → 0, and 21 of the 22 Cicero
+work/lang pairs byte-identical. The pair leaves `known_coarse` at the
+window (mean 1,599, max 7,958 — under both thresholds).
 
 #### The `.xml` path, worked 2026-08-15 — and it is **three** parsers, not one
 

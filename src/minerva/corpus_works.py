@@ -29,6 +29,18 @@ class CorpusWork:
     # Lower bound for the same — useful when a partial-volume edition
     # might catch low numbers from OCR noise or front-matter cross-refs.
     min_section: int | None = None
+    # Split blank-line paragraphs longer than this, at speech turns or
+    # sentence ends (#176). Opt-in per work, and deliberately not a global
+    # default: the same splitter serves Hegel's `§244`, which is 118,716
+    # characters of which roughly 1,300 are Hegel and the rest the volume's
+    # index — splitting that yields ten index chunks instead of one, which
+    # is #385's defect rather than this one. A work only gets a cap once
+    # someone has looked at what its long paragraphs actually contain.
+    #
+    # Read by `locator="chapter"` only. The §-splitter and the ¶-splitter
+    # do not consult it, so setting it on a `section` or `paragraph` work
+    # is silently inert — wire it through there before relying on it.
+    max_paragraph_chars: int | None = None
     # ISO 639-3 language code stored on every chunk (default English;
     # override for German/Greek/etc. originals).
     lang: str = "eng"

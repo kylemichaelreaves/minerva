@@ -845,3 +845,105 @@ def test_dropping_junk_paragraph_does_not_renumber_survivors(tmp_path: Path):
     # the filter existed.
     assert [c.section for c in chunks] == ["Vorrede, ¶2", "Vorrede, ¶4"]
     assert [c.text for c in chunks] == [body_a, body_b]
+
+
+# ---------- oversized paragraphs (#176) ----------
+
+# Jones's 1776 Brutus runs Cicero's dialogue continuously: 251,812 characters
+# across 66 blank-line breaks, so one "paragraph" reaches 33,241 chars while
+# the same file's Orator half (205 breaks in 206,726 chars) is fine. Opt-in
+# per work, because the same splitter serves Hegel's §244, which #385 says
+# must NOT be split into ten index chunks.
+
+
+def _capped_work(cap: int) -> corpus_works.CorpusWork:
+    return corpus_works.CorpusWork(
+        code="x",
+        title="Test CorpusWork",
+        translator="T",
+        edition_year="2000",
+        filenames=("x.txt",),
+        fmt="txt",
+        locator="chapter",
+        max_paragraph_chars=cap,
+    )
+
+
+def _turn(speaker_line: str, filler: int) -> str:
+    return f'"{speaker_line} {"word " * filler}end."--'
+
+
+def test_an_oversized_paragraph_splits_at_speech_turns(tmp_path: Path):
+    para = _turn("Upon my word, cried Atticus,", 60) + _turn("As I have been speaking,", 60)
+    text = f"CHAPTER ONE\n\n{para}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
+    assert len(chunks) > 1
+    assert all(len(c.text) <= 400 for c in chunks)
+
+
+def test_split_pieces_carry_sub_locators_and_do_not_renumber_what_follows(tmp_path: Path):
+    """`section` feeds `chunk_id`, so a split must not shift the paragraphs
+    after it — that would churn every id downstream of the fix."""
+
+    para = _turn("First speaker,", 60) + _turn("Second speaker,", 60)
+    text = f"CHAPTER ONE\n\n{para}\n\nA short second paragraph.\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
+    sections = [c.section for c in chunks]
+    assert sections[0] == "Chapter One, ¶1.1"
+    assert sections[1] == "Chapter One, ¶1.2"
+    assert sections[-1] == "Chapter One, ¶2"
+
+
+def test_a_paragraph_within_budget_keeps_its_bare_locator(tmp_path: Path):
+    """The churn guard: a paragraph under the cap is emitted exactly as
+    before, so its chunk_id — which hashes `section` and `text[:120]` —
+    does not move."""
+
+    text = "CHAPTER ONE\n\nA paragraph that is comfortably within budget.\n"
+    capped = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
+    plain = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.section for c in capped] == ["Chapter One, ¶1"]
+    assert [c.chunk_id for c in capped] == [c.chunk_id for c in plain]
+
+
+def test_a_work_without_a_cap_never_splits_a_paragraph(tmp_path: Path):
+    """#385's pin. Hegel's §244 is 118,716 chars of which ~1,300 are Hegel;
+    splitting it would yield ten index chunks instead of one, so works that
+    have not opted in keep whole paragraphs however long."""
+
+    para = _turn("First speaker,", 200) + _turn("Second speaker,", 200)
+    text = f"CHAPTER ONE\n\n{para}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert len(chunks) == 1
+    assert len(chunks[0].text) > 400
+
+
+def test_an_oversized_paragraph_without_speech_turns_splits_at_sentences(tmp_path: Path):
+    """Brutus is dialogue, but two of its ten oversized paragraphs carry no
+    turn marker at all — a speech-only rule would leave those whole."""
+
+    para = " ".join(f"Sentence number {i} runs on for a while here." for i in range(40))
+    text = f"CHAPTER ONE\n\n{para}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
+    assert len(chunks) > 1
+    assert all(len(c.text) <= 400 for c in chunks)
+
+
+def test_no_text_is_lost_when_a_paragraph_splits(tmp_path: Path):
+    para = _turn("First speaker,", 60) + _turn("Second speaker,", 60)
+    text = f"CHAPTER ONE\n\n{para}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
+    squash = lambda s: "".join(s.split())  # noqa: E731 — whitespace-blind comparison
+    assert squash("".join(c.text for c in chunks)) == squash(para)
+
+
+def test_a_single_speech_turn_over_the_cap_splits_at_sentences(tmp_path: Path):
+    """Turn boundaries alone leave one 9,070-char piece in the real Brutus:
+    Cicero's longest uninterrupted answer is itself over the cap, so an
+    oversized turn splits again at its sentence ends."""
+
+    monologue = " ".join(f"Sentence number {i} runs on for a while here." for i in range(40))
+    para = f'"{monologue}"--"A short reply."--'
+    text = f"CHAPTER ONE\n\n{para}\n"
+    chunks = list(corpus_parse.split_by_chapter(text, _capped_work(400), tmp_path / "x.txt"))
+    assert all(len(c.text) <= 400 for c in chunks), [len(c.text) for c in chunks]

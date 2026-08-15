@@ -235,6 +235,13 @@ _ENGLISH: tuple[CorpusWork, ...] = (
         filenames=("brutus_orator_en.txt",),
         fmt="txt", locator="chapter", lang="eng",
         corpus="cicero", author="Cicero",
+        # Jones runs the dialogue continuously: 66 blank-line breaks in the
+        # Brutus half's 251,812 chars against 205 in the Orator half's
+        # 206,726, so ten "paragraphs" cleared 8,000 chars and the largest
+        # was 33,241 (#176). The breaks the parser found are the breaks the
+        # source has — this is a sparsely-paragraphed source, not a
+        # detection failure — so the split goes at Cicero's speech turns.
+        max_paragraph_chars=8000,
     ),
     # PG 14970 — Academica bilingual English+Latin. We use English
     # half via this entry; Latin is the la.wikisource version above.
