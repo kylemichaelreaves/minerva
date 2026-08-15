@@ -124,9 +124,16 @@ per-work/lang chunk length (#176). Local runs have the real index and fail
 if either snapshot has drifted from it — but only locally, so a stale
 snapshot leaves CI checking a fossil.
 
-The granularity gate is **baseline-pinned**: 94 work/lang pairs already
-exceed its thresholds, and they are excused by `granularity.known_coarse`
-in `data/authors/manifest.yaml`. A newly-coarse work appears in the
+The granularity gate is **baseline-pinned**: the work/lang pairs that
+already exceed its thresholds are excused by `granularity.known_coarse`
+in `data/authors/manifest.yaml`. Count them rather than quoting a number
+from here — the baseline shrinks every time something is re-chunked, and
+the 94 this paragraph used to name was true when the gate landed (#292,
+2026-08-08) and was 64 seven days later:
+
+```
+./.venv/bin/python -c "import yaml; print(len(yaml.safe_load(open('data/authors/manifest.yaml'))['granularity']['known_coarse']))"
+``` A newly-coarse work appears in the
 generated snapshot and fails `make check-authors` until it is either
 re-chunked or added to that baseline by hand — the manifest is policy and
 is not regenerated, which is what keeps the gate from blessing its own
