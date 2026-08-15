@@ -1045,14 +1045,14 @@ granularity:
   known_coarse:
     "Epictetus|The Discourses of Epictetus|eng": {max: 42683, mean: 3257}  # 176 chunks
     "Hobbes|Leviathan|lat": {max: 127001, mean: 17632}  # 47 chunks
-    "Hegel|Encyclopaedia of the Philosophical Sciences, Part I: The Logic|eng": {max: 118716, mean: 4006}  # 246 chunks
     "Aeschylus|Agamemnon|eng": {max: 8015, mean: 6891}  # 12 chunks
     "Hobbes|De Cive|lat": {max: 71878, mean: 26357}  # 18 chunks
-    "Hegel|Encyclopaedia of the Philosophical Sciences, Part III: The Philosophy of Mind|eng": {max: 66265, mean: 4453}  # 201 chunks
+    "Hegel|Encyclopaedia of the Philosophical Sciences, Part III: The Philosophy of Mind|eng": {max: 66265, mean: 4248}  # 201 chunks
     "Augustine|De civitate Dei|lat": {max: 53414, mean: 3086}  # 600 chunks
     "Aquinas|In libros Physicorum|lat": {max: 34120, mean: 10861}  # 121 chunks
     "Nietzsche|Nachgelassene Fragmente (KGW)|deu": {max: 32778, mean: 674}  # 3345 chunks
     "Aquinas|Sententia libri Metaphysicae|lat": {max: 28975, mean: 11826}  # 151 chunks
+    "Hegel|Encyclopaedia of the Philosophical Sciences, Part I: The Logic|eng": {max: 28449, mean: 3158}  # 268 chunks
     "Aquinas|Summa contra Gentiles|lat": {max: 25683, mean: 5025}  # 454 chunks
     "Hegel|Elements of the Philosophy of Right|eng": {max: 24251, mean: 1052}  # 961 chunks
     "Nietzsche|Unzeitgemäße Betrachtungen|deu": {max: 24140, mean: 2152}  # 321 chunks

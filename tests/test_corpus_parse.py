@@ -1045,3 +1045,125 @@ def test_a_transcribers_credit_paragraph_is_dropped(tmp_path: Path):
     text = f"CHAPTER ONE\n\n{credit}\n\nTo understand political power right.\n"
     chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
     assert [c.text for c in chunks] == ["To understand political power right."]
+
+
+# ---------- split_by_section: apparatus wearing a citation label (#385) ----------
+
+
+def test_back_matter_after_the_final_section_is_not_part_of_it(tmp_path: Path):
+    """Only the last section runs to end-of-file, so everything the volume
+    prints after the body — bibliography, editor's notes, index — accretes
+    onto it. `§244` of the *Encyclopaedia* is 118,716 chars of which ~950
+    are Hegel, and it is still labelled `§244`."""
+
+    text = (
+        f"§1\n{_BODY_A}\n\n"
+        f"§2\n{_BODY_B}\n\n"
+        "Bibliography\n"
+        "Hegel, Georg Wilhelm Friedrich. Enzyklopadie der philosophischen "
+        "Wissenschaften, ed. Eva Moldenhauer (Frankfurt a.M.: Suhrkamp, 1970).\n"
+    )
+    chunks = list(corpus_parse.split_by_section(text, _make_work("section"), tmp_path / "x.pdf"))
+    assert [c.section for c in chunks] == ["§1", "§2"]
+    assert chunks[-1].text == _BODY_B
+    assert "Suhrkamp" not in chunks[-1].text
+
+
+def test_the_index_heading_also_ends_the_final_section(tmp_path: Path):
+    """The sibling volume cuts at `Index to Translation and Commentary`
+    rather than `Bibliography`, and its final section legitimately ends
+    with Hegel's closing quotation of *Metaphysics* XII.7 — so the
+    boundary has to be the heading, not a size threshold."""
+
+    text = (
+        f"§576\n{_BODY_A}\n\n"
+        f"§577\n{_BODY_B}\n"
+        "Aristotle, Metaphysics, XII, 7\n"
+        "Thinking that is in itself is of what is best in itself.\n\n"
+        "Index to Translation and Commentary\n"
+        "absent-mindedness 123-4\nabsolute actuality 17\n"
+    )
+    chunks = list(corpus_parse.split_by_section(text, _make_work("section"), tmp_path / "x.pdf"))
+    assert [c.section for c in chunks] == ["§576", "§577"]
+    assert "Metaphysics" in chunks[-1].text
+    assert "absent-mindedness" not in chunks[-1].text
+
+
+def test_section_markers_before_the_works_first_section_are_front_matter(tmp_path: Path):
+    """The editors' introduction cites `§ 24` and `§ 82` at line starts, so
+    the splitter read them as section heads and gave everything up to the
+    real `§1` a citation label. Those two chunks are `ord=0` and `ord=1` in
+    the *Encyclopaedia* — they precede §1, which is what gives them away."""
+
+    text = (
+        f"§ 24\nA footnote in the editors' introduction, running on at length.\n\n"
+        f"§ 82\nMore editorial matter, also long enough to clear the body filter.\n\n"
+        f"§1\n{_BODY_A}\n\n"
+        f"§2\n{_BODY_B}\n"
+    )
+    chunks = list(corpus_parse.split_by_section(text, _make_work("section"), tmp_path / "x.pdf"))
+    assert [c.section for c in chunks] == ["§1", "§2"]
+
+
+def test_out_of_order_markers_are_kept_when_the_first_section_never_appears(tmp_path: Path):
+    """The guard only fires when the work's opening section is actually
+    present. An extraction that loses `§1` must not lose the whole work."""
+
+    text = f"§ 24\n{_BODY_A}\n\n§ 82\n{_BODY_B}\n"
+    chunks = list(corpus_parse.split_by_section(text, _make_work("section"), tmp_path / "x.pdf"))
+    assert [c.section for c in chunks] == ["§24", "§82"]
+
+
+def _front_matter_work() -> corpus_works.CorpusWork:
+    return corpus_works.CorpusWork(
+        code="x",
+        title="Test CorpusWork",
+        translator="T",
+        edition_year="2000",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="section",
+        front_matter_headings=("Preface to the first edition",),
+    )
+
+
+def test_front_matter_capture_prefers_the_body_over_the_table_of_contents(tmp_path: Path):
+    """Each preface heading appears twice in the *Encyclopaedia*: once in
+    the volume's table of contents and once over its own text, 2,000 chars
+    later. Taking the first match captures the contents listing and leaves
+    Hegel's preface in whatever runs after it."""
+
+    text = (
+        "Contents\n"
+        "Preface to the first edition\n"
+        "Preface to the second edition\n\n"
+        "Preface to the first edition\n"
+        f"{_BODY_A}\n\n"
+        f"§1\n{_BODY_B}\n"
+    )
+    chunks = list(corpus_parse.split_by_section(text, _front_matter_work(), tmp_path / "x.pdf"))
+    captured = [c for c in chunks if c.book == "Preface to the first edition"]
+    assert [c.text for c in captured] == [_BODY_A]
+
+
+def test_front_matter_headings_match_across_the_fi_ligature(tmp_path: Path):
+    """PyMuPDF returns the heading as `Preface to the ﬁrst edition` (U+FB01),
+    so a literal `first` never matches and the preface is silently not
+    captured — the same failure as not configuring the heading at all."""
+
+    text = "Preface to the ﬁrst edition\n" f"{_BODY_A}\n\n" f"§1\n{_BODY_B}\n"
+    chunks = list(corpus_parse.split_by_section(text, _front_matter_work(), tmp_path / "x.pdf"))
+    assert [c.book for c in chunks] == ["Preface to the first edition", None]
+    assert chunks[0].text == _BODY_A
+
+
+def test_a_front_matter_heading_that_never_appears_is_skipped(tmp_path: Path):
+    """The *Philosophy of Mind* configures no front matter and the
+    *Encyclopaedia* names three prefaces; an edition that prints only some
+    of them must still parse. A missing heading contributes nothing rather
+    than raising."""
+
+    text = f"§1\n{_BODY_A}\n\n§2\n{_BODY_B}\n"
+    chunks = list(corpus_parse.split_by_section(text, _front_matter_work(), tmp_path / "x.pdf"))
+    assert [c.section for c in chunks] == ["§1", "§2"]
+    assert all(c.book is None for c in chunks)

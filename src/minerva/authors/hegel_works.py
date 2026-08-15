@@ -118,6 +118,18 @@ WORKS: tuple[CorpusWork, ...] = (
         fmt="pdf",
         locator="section",
         max_section=244,
+        # Hegel's own three prefaces sit before §1, among the editors'
+        # introduction and translators' note. Without these they were
+        # swept into a chunk labelled `§82` — a number taken from a
+        # citation in an editorial footnote — and naming them is what
+        # lets the rest of that region be dropped without losing 64,134
+        # characters of Hegel (#385). Spelled with ASCII `fi`; the
+        # extraction's `ﬁ` ligature is handled by the matcher.
+        front_matter_headings=(
+            "Preface to the first edition",
+            "Preface to the second edition",
+            "Foreword to the third edition",
+        ),
     ),
     CorpusWork(
         code="enz_mind",
