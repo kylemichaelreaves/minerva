@@ -124,6 +124,63 @@ def _in_section_range(work: CorpusWork, n: int) -> bool:
     return not (work.min_section is not None and n < work.min_section)
 
 
+# Standalone heading lines that begin a volume's back matter. Only the
+# final section's body is scanned for these (see `split_by_section`), so
+# the pattern does not have to survive the whole book — it has to be
+# right once, at the point where the work stops and the apparatus starts.
+#
+# Measured against both `.pdf` Hegel volumes: the *Encyclopaedia* cuts at
+# `Bibliography` and the *Philosophy of Mind* at `Index to Translation and
+# Commentary`. Both recur later as running page headers, which is why the
+# first match is the one taken (#385).
+_BACK_MATTER_RE = re.compile(
+    r"(?m)^[ \t]*(?:"
+    r"(?:Select(?:ed)?\s+)?Bibliography"
+    r"|Index(?:\s+to\s+[A-Za-z][^\n]{0,60})?"
+    r"|Works\s+Cited"
+    r")[ \t]*$"
+)
+
+# PyMuPDF returns the ligature glyphs the typesetter used, so a heading
+# configured as "Preface to the first edition" never matches the extracted
+# "Preface to the ﬁrst edition". Substituting an alternation (rather than
+# expanding the ligature in the text) keeps every offset in the prefix
+# where it was, which the front-matter capture indexes into.
+_LIGATURES = (("ffi", "ﬃ"), ("ffl", "ﬄ"), ("ff", "ﬀ"), ("fi", "ﬁ"), ("fl", "ﬂ"))
+
+
+def _ligature_tolerant(heading: str) -> str:
+    """`re.escape` a heading, then let each `fi`/`fl`/… also match its
+    single-glyph ligature."""
+
+    pattern = re.escape(heading)
+    for ascii_form, ligature in _LIGATURES:
+        pattern = pattern.replace(ascii_form, f"(?:{ascii_form}|{ligature})")
+    return pattern
+
+
+def _body_start_index(work: CorpusWork, matches: list[re.Match[str]]) -> int:
+    """Index of the first match that is the work's own opening section.
+
+    Editorial front matter cites the body it introduces, and those
+    citations sit at line starts after PDF extraction, so `_SECTION_RE`
+    reads them as section heads: the *Encyclopaedia* opens `§24, §82, §1,
+    §2, …`, giving 85,286 characters of editors' introduction, translators'
+    note and Hegel's three prefaces a locator taken from a footnote.
+
+    The work's own numbering ascends from `min_section` (or 1), so
+    everything before the first match of that number is prefix. Returns 0
+    when that number never appears — an extraction that lost `§1` must
+    lose one marker, not the whole work.
+    """
+
+    start_n = work.min_section if work.min_section is not None else 1
+    for i, m in enumerate(matches):
+        if int(m.group(1)) == start_n:
+            return i
+    return 0
+
+
 def split_by_section(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
     """Split a text on §N markers. Front matter before the first marker is
     dropped (or routed through `work.front_matter_headings`, see below).
@@ -134,6 +191,11 @@ def split_by_section(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
 
     text = _repair_crossref_linebreaks(text)
     matches = list(_SECTION_RE.finditer(text))
+    # Markers the editors' apparatus cites, not sections of the work. See
+    # `_body_start_index`; dropping them here rather than in the loop below
+    # is what widens the front-matter prefix to include them, so the
+    # prefaces buried among them can be captured instead of relabelled.
+    matches = matches[_body_start_index(work, matches) :]
 
     # Front-matter capture (e.g. Hegel's own Preface in §-numbered
     # editions). The default §-splitter drops everything before §1,
@@ -151,9 +213,14 @@ def split_by_section(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
         prefix = text[:prefix_end]
         positions: list[tuple[int, int, str]] = []
         for h in work.front_matter_headings:
-            m_h = re.search(rf"(?m)^\s*{re.escape(h)}\s*$", prefix)
-            if m_h is not None:
-                positions.append((m_h.start(), m_h.end(), h))
+            # The LAST occurrence, not the first: a volume that prints a
+            # table of contents lists every preface heading there before
+            # the preface itself appears, and the first match captures the
+            # contents listing — a body of one line, with Hegel's actual
+            # preface left in whatever region follows it.
+            found = list(re.finditer(rf"(?m)^\s*{_ligature_tolerant(h)}\s*$", prefix))
+            if found:
+                positions.append((found[-1].start(), found[-1].end(), h))
         positions.sort()
         for i, (_, head_end, label) in enumerate(positions):
             body_end = positions[i + 1][0] if i + 1 < len(positions) else prefix_end
@@ -162,11 +229,23 @@ def split_by_section(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
                 yield from _split_chapter_block(work, path, label, body)
 
     for i, m in enumerate(matches):
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        is_last = i + 1 == len(matches)
+        end = matches[i + 1].start() if not is_last else len(text)
         n_str = m.group(1)
         if not _in_section_range(work, int(n_str)):
             continue
         body = text[m.end() : end]
+        if is_last:
+            # Only the final section runs to end-of-file, so the volume's
+            # bibliography, editor's notes and index accrete onto it and
+            # inherit its citation label. Cut at the heading that starts
+            # them: a size threshold cannot do this job, because the
+            # *Philosophy of Mind* ends §577 with Hegel's own quotation of
+            # *Metaphysics* XII.7 and its two largest body sections (§406,
+            # §408) are 119,857 characters of genuine text (#385).
+            cut = _BACK_MATTER_RE.search(body)
+            if cut is not None:
+                body = body[: cut.start()]
         if len(body.strip()) < _SECTION_MIN_BODY:
             continue
         chunk = _emit(work, path, section=f"§{n_str}", text=body)

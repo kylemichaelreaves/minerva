@@ -177,14 +177,14 @@
       "mean": 1052
     },
     "Hegel|Encyclopaedia of the Philosophical Sciences, Part I: The Logic|eng": {
-      "chunks": 246,
-      "max": 118716,
-      "mean": 4006
+      "chunks": 268,
+      "max": 28449,
+      "mean": 3158
     },
     "Hegel|Encyclopaedia of the Philosophical Sciences, Part III: The Philosophy of Mind|eng": {
       "chunks": 201,
       "max": 66265,
-      "mean": 4453
+      "mean": 4248
     },
     "Hegel|Enzyklop\u00e4die der philosophischen Wissenschaften im Grundrisse|deu": {
       "chunks": 1383,
