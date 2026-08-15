@@ -354,3 +354,115 @@ def test_a_work_whose_title_merely_contains_index_is_kept(tmp_path: Path):
     path = _write_xml(tmp_path, "x_en.xml", xml)
     chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
     assert {c.work for c in chunks} == {"The Index Librorum Prohibitorum"}
+
+
+# ── chapter fallback for milestone-less bodies (#176) ──────────────────
+
+# Perseus's English Epictetus carries no `<milestone>` at all, so
+# `_detect_chunk_boundary_units` returns an empty set and the body used to
+# become one chunk per `<div1 type="book">` — 151,427 characters at the
+# worst. The chapter divisions the source does carry are the fallback.
+
+SAMPLE_DISCOURSES_XML = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Discourses</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <head>The Discourses of Epictetus</head>
+  <div1 type="book" n="1">
+    <div2 type="chapter" n="1">
+      <head>Of the things which are, and the things which are not, in our own power</head>
+      <p>Of all the faculties, you will find none capable of contemplating itself.</p>
+    </div2>
+    <div2 type="chapter" n="2">
+      <head>In what manner, upon every occasion, to preserve our character</head>
+      <p>To a reasonable creature, that alone is insupportable which is unreasonable.</p>
+    </div2>
+  </div1>
+  <div1 type="book" n="2">
+    <div2 type="chapter" n="1">
+      <head>That courage is not inconsistent with caution</head>
+      <p>The opinion of the philosophers perhaps seems a paradox to some.</p>
+    </div2>
+  </div1>
+</body></text></TEI.2>
+"""
+
+
+def test_a_body_with_no_milestones_chunks_at_chapter_divisions(tmp_path: Path):
+    path = _write_xml(tmp_path, "discourses_en.xml", SAMPLE_DISCOURSES_XML)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [(c.book, c.section) for c in chunks] == [("1", "1"), ("1", "2"), ("2", "1")]
+
+
+def test_chapter_fallback_finds_chapters_at_div1(tmp_path: Path):
+    """The Enchiridion's chapters are `<div1 type="chapter">` — there is no
+    book level above them, so a fallback that only looked at `<div2>`
+    would leave the whole work in one chunk."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Enchiridion</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <head>The Enchiridion</head>
+  <div1 type="chapter" n="1"><p>Some things are in our power, and others are not.</p></div1>
+  <div1 type="chapter" n="2"><p>Remember that desire demands the attainment of that of which you are desirous.</p></div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "enchiridion_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [c.section for c in chunks] == ["1", "2"]
+
+
+def test_every_chapter_survives_the_fallback(tmp_path: Path):
+    """No text is lost or duplicated by the split."""
+
+    path = _write_xml(tmp_path, "discourses_en.xml", SAMPLE_DISCOURSES_XML)
+    joined = " ".join(c.text for c in tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    for sentence in (
+        "none capable of contemplating itself",
+        "that alone is insupportable which is unreasonable",
+        "seems a paradox to some",
+    ):
+        assert joined.count(sentence) == 1
+
+
+def test_a_body_with_milestones_ignores_chapter_divisions(tmp_path: Path):
+    """The churn guard. A body whose milestones fire keeps chunking on
+    them, so no existing `chunk_id` in the five milestone-driven corpora
+    moves — chapter divisions are a fallback, not a second boundary."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Athenian Constitution</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="1">
+    <div2 type="chapter" n="1">
+      <milestone unit="section" n="1"/>
+      They were tried by a court empanelled from among the noble families.
+      <milestone unit="section" n="2"/>
+      Epimenides purified the city.
+    </div2>
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "athenian_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="aristotle", author="Aristotle"))
+    assert [c.section for c in chunks] == ["1", "2"]
+
+
+def test_a_milestone_less_body_without_chapters_is_left_alone(tmp_path: Path):
+    """Scoped out on purpose: the Greek *Fragmenta* has neither milestones
+    nor chapter divisions, only three untyped `<div1>` runs of `<p>`, and
+    stays one 25,244-char chunk. Pinned so the next person sees that the
+    fallback was measured against it and declined, not overlooked."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Fragmenta</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="0">
+    <p>What is it to me whether all existing things are composed of atoms?</p>
+    <p>He who is dissatisfied with what he has is unlearned.</p>
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "fragmenta_gr.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert len(chunks) == 1
+    assert chunks[0].section is None

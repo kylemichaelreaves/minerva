@@ -5,6 +5,14 @@ and `page`. Section milestones carry the canonical locator (e.g. Stephanus `327a
 for Plato, Bekker analogs for Aristotle). We treat each section milestone as a
 chunk boundary; speaker, book, and page are recorded as metadata.
 
+**A body carrying no boundary milestone at all chunks at its
+``type="chapter"`` divisions instead** (#176). Perseus's English Epictetus
+is that whole case here — 4 of the 6 works in the two Epictetus files,
+against 0 of the 22 Aristotle and Homer works — and without the fallback
+the only boundary left was ``<div1 type="book">``: the *Discourses* ran to
+a 151,427-char chunk against a 125-char median. A body whose milestones
+fire never consults its chapters, so no existing ``chunk_id`` moves.
+
 Files come in three shapes:
 
 * Single work: ``text > body > div1 ...`` (e.g. Republic, Laws).
@@ -12,8 +20,11 @@ Files come in three shapes:
   Apology, Crito, Phaedo packaged together).
 * Per-letter divs: ``text > body > div1 type="Letter" n="N" ...`` (Letters).
 
-Notes (footnotes) are excluded from running text. Beta-code Greek is preserved
-verbatim; downstream consumers may transliterate to polytonic Unicode if desired.
+Notes (footnotes) are excluded from running text and emitted as separate
+``block_type="note"`` chunks. Beta-code Greek is transliterated to polytonic
+Unicode here, *after* the ``chunk_id`` is computed so ids stay stable — this
+paragraph used to say it was "preserved verbatim" for downstream consumers to
+convert, which stopped being true when `_flush` gained that hook.
 """
 
 from __future__ import annotations
@@ -275,6 +286,27 @@ def _detect_chunk_boundary_units(body: ET.Element) -> frozenset[str]:
     return frozenset()
 
 
+# `<div1>`/`<div2>`/`<div3>` — TEI.2 numbers its division levels rather
+# than nesting one `<div>`, so the chapter level sits at a different depth
+# per work (Epictetus's *Discourses* at `div2`, its *Enchiridion* at
+# `div1`).
+_DIV_TAGS = frozenset({"div1", "div2", "div3"})
+
+
+def _has_chapter_divisions(body: ET.Element) -> bool:
+    """Whether this body carries `type="chapter"` divisions with numbers.
+
+    Only consulted for bodies where `_detect_chunk_boundary_units` found
+    nothing — see `_ChunkBuilder.walk`.
+    """
+
+    for tag in _DIV_TAGS:
+        for el in body.iter(tag):
+            if (el.get("type") or "").lower() == "chapter" and el.get("n"):
+                return True
+    return False
+
+
 class _ChunkBuilder:
     """Streaming chunker: walks a body element in document order."""
 
@@ -326,9 +358,16 @@ class _ChunkBuilder:
         self._aux_seq = 0  # monotonic per work → stable note/cast chunk_ids
         self._chunks: list[Chunk] = []
         # Set by walk() before _walk() recurses. Empty frozenset for
-        # bodies with no chunk-boundary milestones (rare; the body
-        # produces a single chunk).
+        # bodies with no chunk-boundary milestones — Perseus's English
+        # Epictetus is the whole of that case in the corpora this parser
+        # reads (4 of 6 works in the two Epictetus files; 0 of 22 across
+        # Aristotle and Homer). Those bodies fall back to their chapter
+        # divisions; see _chapter_fallback below.
         self._chunk_boundary_units: frozenset[str] = frozenset()
+        # Chunk at `type="chapter"` divisions instead. Set by walk() only
+        # when no boundary milestone fired for this body, so a work whose
+        # milestones work keeps its existing chunk_ids.
+        self._chapter_fallback = False
 
     @property
     def chunks(self) -> list[Chunk]:
@@ -424,11 +463,27 @@ class _ChunkBuilder:
         # Pre-scan to pick the milestone units that drive chunking for
         # this body. See _detect_chunk_boundary_units for the policy.
         self._chunk_boundary_units = _detect_chunk_boundary_units(body)
+        # Without milestones the only boundary left is `<div1 type="book">`,
+        # which made whole books single chunks: the English *Discourses*
+        # ran to 151,427 characters against a 125-char median. Chapters are
+        # the citable unit on that side anyway (*Disc.* II.18 = book 2,
+        # chapter 18), and the Greek is already finer than this.
+        self._chapter_fallback = not self._chunk_boundary_units and _has_chapter_divisions(body)
         self._walk(body)
         self._flush()
 
     def _walk(self, el: ET.Element) -> None:
         tag = el.tag
+
+        if self._chapter_fallback and tag in _DIV_TAGS:
+            n = el.get("n")
+            if (el.get("type") or "").lower() == "chapter" and n:
+                # Flush before the section moves, exactly as a milestone
+                # does — the buffered tail belongs to the chapter that has
+                # just ended. Falls through to the tag handlers below,
+                # which still walk the children and stamp `book`.
+                self._flush()
+                self._cur_section = n
 
         if tag == "milestone":
             unit = (el.get("unit") or "").lower()
