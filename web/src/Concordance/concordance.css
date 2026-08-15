@@ -135,64 +135,33 @@
   flex: 1;
 }
 
-/* fbar dropdown — click trigger + a fly-out menu. */
+/* fbar dropdown — the shared `Select`, sized down to a filter-bar row
+   (#364). The local `Dropdown` this replaced owned its whole appearance;
+   what is left here is the size difference between a filter-bar control
+   and a form control, and nothing else. `Select.css` keeps the rest. */
 .fbar-drop {
   position: relative;
   display: inline-block;
 }
-.fbar-drop .trigger {
-  display: inline-flex;
-  align-items: center;
+.fbar-drop .minerva-select {
+  min-width: 0;
+}
+.fbar-drop .minerva-select__trigger {
   gap: 6px;
-  border: 1px solid var(--rule);
+  min-height: 0;
   padding: 3px 10px;
   border-radius: 4px;
-  color: var(--ink);
-  background: var(--paper);
-  cursor: pointer;
-  user-select: none;
   letter-spacing: 0.02em;
   font-size: 12px;
-}
-.fbar-drop.on .trigger {
-  border-color: var(--ink);
-  background: var(--paper-soft);
-}
-.fbar-drop .trigger:hover {
-  border-color: var(--ink-mute);
-}
-.fbar-drop .chev {
-  color: var(--ink-faint);
-  font-size: 10px;
-}
-.fbar-drop .menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 12;
-  display: block;
-  min-width: 100%;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  padding: 4px 0;
   white-space: nowrap;
 }
-.fbar-drop .menu .opt {
-  display: block;
+.fbar-drop .minerva-select__option {
   padding: 5px 12px;
-  color: var(--ink-mute);
-  cursor: pointer;
   font-size: 12px;
 }
-.fbar-drop .menu .opt:hover {
-  background: var(--paper-soft);
-  color: var(--ink);
-}
-.fbar-drop .menu .opt.cur {
-  color: var(--ink);
-  font-weight: 600;
+.fbar-drop .minerva-select__panel {
+  min-width: 100%;
+  width: max-content;
 }
 
 /* fbar dual-knob range slider. Stacks two native range inputs on the
@@ -441,6 +410,9 @@
 
 /* ── leaderboard ─────────────────────────────────────────────── */
 
+/* An <a> since #375 — the row was a click-only div. Anchor defaults
+   (underline, visited colour) are cleared so the leaderboard looks exactly as
+   it did; what changes is that the row is focusable and answers Enter. */
 .lb-row {
   display: grid;
   grid-template-columns: 40px 240px 100px 84px 130px 1fr;
@@ -452,9 +424,20 @@
   font-size: 14px;
   cursor: pointer;
   color: var(--ink);
+  text-decoration: none;
+}
+.lb-row:visited {
+  color: var(--ink);
 }
 .lb-row:hover {
   background: var(--paper-soft);
+}
+/* Keyboard focus has to be visible now that it is reachable — the hover tint
+   alone would leave a tabbing user unable to see where they are. */
+.lb-row:focus-visible {
+  background: var(--paper-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .lb-row .rk {
   font-family: var(--mono);
@@ -1284,10 +1267,14 @@
   .fbar-search {
     width: 100%;
   }
-  /* The fbar dropdown menu in the sheet should never escape the
-     sheet's body — explicit positioning keeps it clipped. */
-  .fbar-drop .menu {
+  /* The fbar dropdown panel in the sheet should never escape the
+     sheet's body — explicit positioning keeps it clipped. Retargeted from
+     `.fbar-drop .menu` to `Select`'s panel with the #364 port; without this
+     the three controls would have lost the containment they already had.
+     (The Author/Work `Select`s in the same bar still lack it — #365.) */
+  .fbar-drop .minerva-select__panel {
     position: static;
+    width: auto;
     box-shadow: none;
     border-radius: 0;
     margin-top: 4px;

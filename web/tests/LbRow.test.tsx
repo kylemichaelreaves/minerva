@@ -35,7 +35,9 @@ function makeRow(overrides: Partial<LemmaIndexRow> = {}): LemmaIndexRow {
 }
 
 function renderRow(row: LemmaIndexRow) {
-  return render(() => <LbRow row={row} onOpen={vi.fn()} />);
+  return render(() => (
+    <LbRow row={row} href="#/concordance/Geist?lang=deu" onOpen={vi.fn()} />
+  ));
 }
 
 describe("<LbRow /> sparkline", () => {
@@ -98,5 +100,67 @@ describe("<LbRow /> sparkline", () => {
     expect(container.querySelector(".spark")?.getAttribute("title")).toContain(
       "top works",
     );
+  });
+});
+
+// ── Keyboard access (#375) ──────────────────────────────────────────────
+//
+// The row opened a lemma on click and could not be reached from the keyboard
+// at all: a `div` with `role="link"`, no `tabindex`, no key handler. The role
+// made it worse rather than better — a screen-reader user was told there was a
+// link and then could not activate it. Opening a lemma is the leaderboard's
+// only action, and the lemma text was a `<span>`, so there was no other path.
+//
+// The fix makes the row itself the anchor. The issue expected this to mean
+// "re-homing the grid", because it assumed the anchor would wrap the cells;
+// putting it on the row instead keeps the six cells exactly where they were —
+// `.lb-row` stays the grid, it is just an `<a>` now.
+
+describe("<LbRow /> keyboard access", () => {
+  it("is a real anchor carrying the lemma's own URL", () => {
+    // Not `role="link"` on a div. A real href is what gets focus, Enter,
+    // middle-click and open-in-new-tab from the browser rather than from us.
+    const { container } = render(() => (
+      <LbRow row={makeRow()} href="#/conc/deu/lemma/Geist" onOpen={vi.fn()} />
+    ));
+    const row = container.querySelector("a.lb-row");
+
+    expect(row).not.toBeNull();
+    expect(row!.getAttribute("href")).toBe("#/conc/deu/lemma/Geist");
+  });
+
+  it("drops role=link, which an anchor already announces", () => {
+    const { container } = render(() => (
+      <LbRow row={makeRow()} href="#/x" onOpen={vi.fn()} />
+    ));
+    expect(container.querySelector(".lb-row")!.getAttribute("role")).toBeNull();
+  });
+
+  it("still opens the lemma on click, without a full page navigation", () => {
+    const onOpen = vi.fn();
+    const { container } = render(() => (
+      <LbRow row={makeRow()} href="#/x" onOpen={onOpen} />
+    ));
+
+    const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
+    container.querySelector(".lb-row")!.dispatchEvent(ev);
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(ev.defaultPrevented).toBe(true);
+  });
+
+  it("lets the browser handle a modified click, so open-in-new-tab works", () => {
+    // The whole point of using an anchor. Cmd/Ctrl-click and middle-click must
+    // reach the browser rather than being swallowed by the SPA handler.
+    const onOpen = vi.fn();
+    const { container } = render(() => (
+      <LbRow row={makeRow()} href="#/x" onOpen={onOpen} />
+    ));
+
+    const ev = new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true });
+    container.querySelector(".lb-row")!.dispatchEvent(ev);
+
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(false);
   });
 });

@@ -6,8 +6,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { isConcSort, type ConcScope, type ConcSort } from "~/api/concordanceApi";
 import { Select, type SelectOption } from "~/components/Select";
-import { useClickOutside } from "~/hooks/useClickOutside";
-import { useEscape } from "~/hooks/useEscape";
 
 /** Debounce window for the lemma search box. Each commit patches the
  *  URL and refetches the lemma index, so per-keystroke commits were a
@@ -78,51 +76,47 @@ export interface FilterBarProps {
   onSetQ: (v: string | undefined) => void;
 }
 
-/** Pull-down dropdown — a lightweight click-to-toggle popover. We don't
- *  reach for the project's `Select` because the surface area is small
- *  enough to inline (no async loading, no grouping, no keyboard nav
- *  beyond what native focus already gives us). */
-function Dropdown(props: {
-  label: string;
-  current: string;
-  options: { value: string; label: string }[];
+/** The Language / Sort / POS controls, on the shared `Select` (#364).
+ *
+ *  This replaced a local `Dropdown` that could not be operated from the
+ *  keyboard at all: a `<span>` trigger with no `tabindex`, `<span>` options
+ *  with no roles, and Escape as the only key handled — which could only ever
+ *  fire for a popover already opened with a mouse. Its comment justified
+ *  skipping `Select` on the grounds that it needed "no keyboard nav beyond
+ *  what native focus already gives us"; that is true of a `<button>` and was
+ *  not true of the markup written. Two `Select`s already sat in this same bar
+ *  with arrows, Home/End, Enter, Space, type-ahead and
+ *  `aria-activedescendant`, so the bar was split down the middle.
+ *
+ *  `clearable` is off: each of the three always has a value, and the
+ *  placeholder is not a state the reader should be able to land back on.
+ */
+function FbarSelect(props: {
+  ariaLabel: string;
+  value: string;
+  placeholder?: string;
+  options: SelectOption[];
   onPick: (v: string) => void;
 }) {
-  const [open, setOpen] = createSignal(false);
-  const [rootEl, setRootEl] = createSignal<HTMLSpanElement | null>(null);
-  useClickOutside(
-    () => rootEl() ?? undefined,
-    open,
-    () => setOpen(false),
-  );
-  useEscape(() => setOpen(false), open);
   return (
-    <span class="fbar-drop" classList={{ on: !!props.current }} ref={setRootEl}>
-      <span class="trigger" onClick={() => setOpen((o) => !o)}>
-        {props.label}
-        <span class="chev">▾</span>
-      </span>
-      <Show when={open()}>
-        <span class="menu" onClick={() => setOpen(false)}>
-          <For each={props.options}>
-            {(o) => (
-              <span
-                class="opt"
-                classList={{ cur: o.value === props.current }}
-                onClick={() => {
-                  props.onPick(o.value);
-                  setOpen(false);
-                }}
-              >
-                {o.label}
-              </span>
-            )}
-          </For>
-        </span>
-      </Show>
+    <span class="fbar-drop">
+      <Select
+        options={props.options}
+        value={props.value || undefined}
+        placeholder={props.placeholder}
+        ariaLabel={props.ariaLabel}
+        clearable={false}
+        onChange={props.onPick}
+      />
     </span>
   );
 }
+
+const SORT_OPTIONS: SelectOption[] = [
+  { value: "freq", label: "Frequency" },
+  { value: "alpha", label: "A→Z" },
+  { value: "pos", label: "POS" },
+];
 
 /** Two-thumb range slider over [0, ceil]. Used both for the F1 desktop
  *  filter bar and for the mobile filter sheet's "Frequency" row.
@@ -269,30 +263,17 @@ export function FilterBar(props: FilterBarProps) {
     return props.authorOptions.filter((o) => !chosen.has(o.value));
   });
 
-  const sortLabel = createMemo(() => {
-    switch (props.sort) {
-      case "alpha":
-        return "A→Z";
-      case "pos":
-        return "POS";
-      default:
-        return "Frequency";
-    }
-  });
-  const posLabel = createMemo(() => {
-    if (!props.pos) return "default";
-    return POS_OPTIONS.find((o) => o.value === props.pos)?.label ?? props.pos;
-  });
-  const langLabel = createMemo(
-    () => LANG_OPTIONS.find((o) => o.value === props.lang)?.label ?? props.lang.toUpperCase(),
-  );
+  // The three label memos that used to live here are gone with the local
+  // `Dropdown` (#364): `Select` derives the trigger's text from the option
+  // matching `value`, so restating each mapping by hand was the duplication
+  // that let POS and Sort drift from their own option lists.
   return (
     <div class="fbar">
       <div class="grp">
         <span class="lab">Language</span>
-        <Dropdown
-          label={langLabel()}
-          current={props.lang}
+        <FbarSelect
+          ariaLabel="Language"
+          value={props.lang}
           options={LANG_OPTIONS}
           onPick={(v) => props.onSetLang(v)}
         />
@@ -377,14 +358,10 @@ export function FilterBar(props: FilterBarProps) {
 
       <div class="grp">
         <span class="lab">Sort</span>
-        <Dropdown
-          label={sortLabel()}
-          current={props.sort}
-          options={[
-            { value: "freq", label: "Frequency" },
-            { value: "alpha", label: "A→Z" },
-            { value: "pos", label: "POS" },
-          ]}
+        <FbarSelect
+          ariaLabel="Sort"
+          value={props.sort}
+          options={SORT_OPTIONS}
           onPick={(v) => {
             if (isConcSort(v)) props.onSetSort(v);
           }}
@@ -393,9 +370,10 @@ export function FilterBar(props: FilterBarProps) {
 
       <div class="grp">
         <span class="lab">POS</span>
-        <Dropdown
-          label={posLabel()}
-          current={props.pos ?? ""}
+        <FbarSelect
+          ariaLabel="POS"
+          value={props.pos ?? ""}
+          placeholder="default"
           options={POS_OPTIONS}
           onPick={(v) => props.onSetPos(v || undefined)}
         />
