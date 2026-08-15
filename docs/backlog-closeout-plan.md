@@ -231,6 +231,7 @@ prerequisite is discharged and 4-op is unblocked on that axis.**
 | 4 | chunk-length gates | #268, #176 (part 1) | **landed** | #268 is the only user-visible bug in the set. #176's re-chunk needs an operator window. |
 | 4-bis | the length floor's own rationale | #291 | **backlog** | The `min_chunk_chars=60` floor does not exclude the Nietzsche signatures its docstring cites — they are 66–113 chars. Same constant batch 4 moved; the exemption work is already in context. |
 | 4-op | #176 part 2 — re-chunk | #176 | todo, operator — **scope corrected, see below** | Needs a DB window, a full refs rebuild, and `known_coarse` pruning. Sequenced after 4-bis so the retrieval floor is settled before chunk boundaries move. **Its stated scope does not survive measurement (2026-08-15): two of the four works it names as "clear parser failures" are documented design decisions, and the affected set is five parsers rather than one.** See "4-op's scope, corrected" below before opening the window. |
+| 4-op-ter | apparatus ingested as text | #385 | **backlog** | Found scoping 4-op across the four non-XML ingest paths, 2026-08-15. The PDF-sourced Hegel volumes merge bibliography, editor's notes and the alphabetical index into the **last body section**: `§244` is 118,716 chars of which roughly 1,300 are Hegel, and it ends `…Zeno of Elea, 145, 164 Zeus, 120, 221`. **Deliberately not folded into #176**, which is the granularity issue that surfaced it: #176's units are too coarse but are the right *text*, and re-chunking §244 into ten pieces would produce ten index chunks instead of one. It is #177's class one layer down — that was back matter as a standalone *work* and is fixed; this is the same material inside a section, wearing a legitimate citation label. Rides 4-op's re-ingest because it is the same corpus and the same refs rebuild, but it is a separate fix and wants its own explanation for why the numbers moved. |
 | 4-op-bis | what 4-op's prerequisite audit found | #383 | **backlog** | Filed 2026-08-15 by the Marx chrome audit **this document called for** ("decide whether the Marx corpus gets a chrome audit, and decide it now… the audit itself is read-only measurement"). Layer (b) of the 2026-05-31 cleanup is not closed: 33 chunks of Internet Archive crawl-provenance boilerplate survive in *Die deutsche Ideologie*, carrying 198 `chunk_lemmas` rows and 33 embeddings. **Layers (a) and (c) are clean** — 0 Gutenberg chrome chunks, 0 duplicate Marx paragraphs ≥60 chars — which is worth recording so nobody re-audits them. `cross_references` on the 33 is **0**, so nothing needs re-anchoring: this is the cheapest thing in the batch and it should ride 4-op's re-ingest rather than buy its own window, exactly as the audit note predicted. Grouped here rather than with 5-bis (#298) because #298 is an mlwerke edition note and this is Wayback viewer residue — same corpus, different source and different cleaner. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
 | 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed; rest backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
@@ -1167,11 +1168,62 @@ Hobbes does not appear — its chapters are uniform, which is the point.
 
 **Consequence.** "Re-chunk the outliers" is not one change. It is at
 least five, one per ingest path, plus a per-work ragged/uniform judgment.
+
+### The four non-XML paths, scoped 2026-08-15
+
+The paragraph above said these "have not been investigated and cannot
+currently be sized". **They now have been, and the answer is much smaller
+than the pair count suggests.** Of 58 ragged pairs (max/median ≥ 20×),
+**44 are `.xml`**. The other four paths hold 14 between them, and only
+**5 are parser defects**:
+
+```
+ext      ragged>=20x  uniform<20x
+.xml            44          15
+.html            6           6
+.txt             5           4
+.pdf             2           1
+.epub            1           0
+```
+
+**Genuine defects — 5 pairs, 3 parsers:**
+
+| pair | evidence |
+|---|---|
+| Hegel *Encyclopaedia* eng (`.pdf`) | §244 is 118,716 chars ending `…Zeno of Elea, 145, 164 Zeus, 120, 221` — the volume's index. ~1,300 chars are Hegel. **#385** |
+| Hegel *Philosophy of Mind* eng (`.pdf`) | §82 is 84,516 chars, editorial footnotes at the head and the 1830 preface at the tail. **#385** |
+| Cicero *Brutus* eng (`.txt`) | 64 paragraphs, median 1,749, top five 33,241 / 28,156 / 17,701 / 15,936 / 12,604 — paragraph detection failing repeatedly |
+| Aesop *Babrius* grc (`.txt`) | section label is garbled apparatus criticus (`V. V1 πατὴρ conicias κἀσποίει \| 66 ἐτέρῳφϑη A, corr. Bgk`); the 22,615-char body is an index of fables |
+| Hobbes *De Cive* eng (`.txt`) | the dedicatory epistle emitted as a single 10,709-char `¶1` |
+
+**Faithful to a real source unit — not defects:**
+
+- **Augustine *De civitate Dei*** — the apparent gaps are in the **source**,
+  not the parser. Source markers: 600; corpus chapters: **600**; every book
+  matches exactly. `[CIV.22.5]`–`[CIV.22.11]` and `[CIV.18.32]`–`[CIV.18.43]`
+  are simply absent from `civitate_dei.txt`, and the 53,414-char chunk
+  reproduces its source span (53,428, the difference being the marker line).
+  Coarse addressing is a re-sourcing question, not a chunking one.
+- **Spinoza** `E I, App.` — the real Appendix to Part I, one undivided unit.
+- **Kant** *Anfangsgründe* — a real chapter.
+- **Nietzsche** *Nachlass* `NF-1888,24[1]` — one fragment that happens to
+  contain an entire *Ecce Homo* draft. The fragment id is the citable unit.
+- **Hegel** *Elements* `§140 Remark` (`.epub`) — genuinely one of the longest
+  Remarks in the work.
+- **Locke** *Essay* — an 8,643-char paragraph, barely over the threshold.
+
+**#385 is a different defect class and must not be folded into #176.**
+#176 is granularity — units too coarse but the right *text*. #385 is
+apparatus ingested *as* text: splitting §244 into ten 12,000-char pieces
+would yield ten index chunks instead of one. Same window, separate fix,
+separate issue — the relationship #177 already has to this family.
+
 **Recommendation, not yet taken: narrow 4-op to the TEI path's ragged
 pairs** (Epictetus and the tragedians, ~5,277 chunks, one parser), land
-it with #298 and #383 in one window, and re-scope the other four formats
-from the result. The `.txt` / `.html` / `.pdf` / `.epub` paths have not
-been investigated and cannot currently be sized.
+it with #298 and #383 in one window. The five non-XML defects are now
+sized and can be scheduled on their own merits; three of them
+(Cicero, Aesop, Hobbes eng) are single-work parser fixes, and two are
+#385.
 
 **Two things to settle *before* this window opens, added 2026-08-09.
 Both are cheap now and expensive afterwards, which is the whole reason
