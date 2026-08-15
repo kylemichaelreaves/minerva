@@ -1326,11 +1326,19 @@ both blocked on the same locator question, is #394 and #395.
 Both are cheap now and expensive afterwards, which is the whole reason
 they are written here rather than left to whoever runs it.**
 
-- **#314 must land first.** This window re-lemmatizes, and #314 is a
-  defect in the lemma *writer* — run the window first and its output is
-  baked in, so the fix afterwards needs a second pass over the same
-  corpus. Out of scope by the 2026-08-09 cap and mandatory anyway; treat
-  it as setup, not as a batch.
+- ~~**#314 must land first.**~~ **Done — #314 landed 2026-08-15 as PR
+  #382 and the issue is closed.** The reasoning stands and is worth
+  keeping: this window re-lemmatizes, #314 was a defect in the lemma
+  *writer*, and running the window first would have baked its output in.
+  The batch table above has recorded it as landed since it merged; this
+  line kept the imperative, which is the one a reader opening the window
+  would act on. **Corrected 2026-08-15 while scoping that window.**
+
+  Worth knowing if it is ever re-checked: the defect was `ara`-only —
+  every other language measured 100.00% correct on the same audit — and
+  no Arabic corpus churns in this window, so it would not in fact have
+  gated *this* re-ingest even had it still been open. The prerequisite
+  was right for the general case and over-broad for this one.
 - **Decide whether the Marx corpus gets a chrome audit, and decide it
   now.** #298 audited one string, `Seitenzahlen verweisen auf:`. The
   2026-05-31 quality round found Marx carried **three distinct chrome
