@@ -107,25 +107,39 @@ def resolve_closing_refs(
     fetch: Callable[[], set[int]],
     expected: set[int],
     *,
+    hazards: set[int] = frozenset(),  # type: ignore[assignment]
     attempts: int = _LINK_ATTEMPTS,
     delay: float = _LINK_RETRY_DELAY,
     sleep: Callable[[float], None] = time.sleep,
 ) -> tuple[set[int], int]:
-    """Read the resolved closing refs, re-reading while one is still missing.
+    """Read the resolved closing refs, re-reading while the answer can still move.
 
     Returns the last answer and how many reads it took, so the caller can say
     what it waited for rather than implying the first read was the only one.
 
-    Retries ONLY on a missing link, which is the one defect the propagation lag
-    can fabricate. An `unexpected` link is already registered and will not
-    un-register, and a `hazard` is read from text that does not change between
-    attempts — re-reading for either would mask a real defect rather than
-    outwait a race.
+    Retries on a link that is *missing*, and on one that is *unexpected and no
+    longer asked for by the text*. Both are the same race. `closingIssuesReferences`
+    is re-derived from the body on every edit, so a removal propagates on the
+    same delay as an addition — this used to retry only on `missing`, reasoning
+    that registration is monotonic, which was generalised from #331 where the
+    observed lag happened to be an addition. It is not monotonic, and PR #368
+    measured the other direction (#369).
+
+    `hazards` is what keeps the widening honest: the numbers the PR's own text
+    still puts a closing keyword next to. An unexpected link that is in
+    `hazards` is real — the body still asks for it, so it will not un-register
+    and re-reading only spends the budget. An unexpected link that is *not* is
+    the #368 shape: the text is already clean and only the API is behind.
+
+    A `hazard` itself is still never retried. It is read from text that does not
+    change between attempts.
     """
     resolved: set[int] = set()
     for attempt in range(1, attempts + 1):
         resolved = fetch()
-        if not expected - resolved:
+        # An unexpected link the text still asks for is settled, not racing.
+        unsettled = (expected - resolved) | ((resolved - expected) - hazards)
+        if not unsettled:
             return resolved, attempt
         if attempt < attempts:
             sleep(delay)
@@ -214,13 +228,21 @@ def failure_summary(failures: list[Failure], pr: int) -> str:
     """The line printed under the defect list.
 
     Asserting "this is a bug in the PR, not in the check" is true of every
-    defect here except one: `missing` is the only verdict the propagation lag
-    can fabricate, and it is fabricated on a *correct* PR (#331). So a
-    `missing`-only run hedges and hands over the command that settles it, and
-    every other combination — including `missing` alongside a second defect,
-    where the PR is broken whatever the API says — keeps the flat claim.
+    defect here except the two the propagation lag can fabricate, both of which
+    it fabricates on a *correct* PR: `missing` after an edit that adds a keyword
+    (#331), and `unexpected` after one that removes it (#368, #369). Either
+    alone hedges and hands over the command that settles it.
+
+    Alone is the whole gate, and it does the work unaided for `unexpected`.
+    `hazard` reads the PR's own text rather than the API, so the two fire
+    together exactly when the body still carries the keyword — which is real
+    breakage, and keeps the flat claim. `unexpected` without its hazard means
+    the text no longer says close and only the API has yet to catch up.
+
+    Every other combination — including either of the two alongside a second
+    defect, where the PR is broken whatever the API says — keeps the flat claim.
     """
-    hedge = [f.check for f in failures] == ["missing"]
+    hedge = [f.check for f in failures] in (["missing"], ["unexpected"])
     verdict = (
         "the link may not have propagated yet. Re-query before editing: "
         f"`gh pr view {pr} --json closingIssuesReferences`"
@@ -405,8 +427,14 @@ def run(
                 return first_read
             return github.closing_refs(pr_number)
 
+        # The numbers the PR's own text still puts a closing keyword next to.
+        # Computed before the first read, because none of `scanned` can change
+        # between attempts — and it is what tells an unexpected link the body
+        # still asks for apart from one only the API has yet to drop (#369).
+        hazards = set().union(*(scan_closing_refs(t) for t in scanned.values()))
+
         resolved, attempts_used = resolve_closing_refs(
-            fetch_resolved, expected, sleep=sleep
+            fetch_resolved, expected, hazards=hazards, sleep=sleep
         )
     except (Problem, KeyError, TypeError) as exc:
         print(f"check-pr-link: {exc}", file=sys.stderr)

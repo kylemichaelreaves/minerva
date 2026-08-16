@@ -71,3 +71,24 @@ describe("containsArabic", () => {
     expect(containsArabic("בראשית")).toBe(false);
   });
 });
+
+describe("containsArabic is a script test, not a combining-mark test (#367)", () => {
+  it("rejects decomposed Latin", () => {
+    expect(containsArabic("Schröder".normalize("NFD"))).toBe(false);
+  });
+
+  it("rejects decomposed Greek", () => {
+    expect(containsArabic("ἀρχή".normalize("NFD"))).toBe(false);
+  });
+
+  it("rejects pointed Hebrew", () => {
+    expect(containsArabic("שָׁלוֹם")).toBe(false);
+  });
+
+  it("accepts vocalized Arabic in either normalization form", () => {
+    // Harakat are Script=Inherited, so this passes on the base letters
+    // rather than on the marks.
+    expect(containsArabic("مُحَمَّد".normalize("NFC"))).toBe(true);
+    expect(containsArabic("مُحَمَّد".normalize("NFD"))).toBe(true);
+  });
+});

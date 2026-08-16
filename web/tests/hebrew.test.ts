@@ -75,3 +75,26 @@ describe("containsHebrew", () => {
     expect(containsHebrew("ἀρχή")).toBe(false);
   });
 });
+
+describe("containsHebrew is a script test, not a combining-mark test (#367)", () => {
+  it("rejects decomposed Latin", () => {
+    expect(containsHebrew("Schröder".normalize("NFD"))).toBe(false);
+  });
+
+  it("rejects decomposed Greek", () => {
+    // NFC Greek was already rejected — its accents are precomposed. NFD
+    // Greek decomposes to base + Inherited mark, which tripped `\p{M}`.
+    expect(containsHebrew("ἀρχή".normalize("NFD"))).toBe(false);
+  });
+
+  it("rejects vocalized Arabic", () => {
+    expect(containsHebrew("مُحَمَّد")).toBe(false);
+  });
+
+  it("accepts pointed Hebrew in either normalization form", () => {
+    // Hebrew points are themselves Script=Hebrew, unlike Greek accents
+    // and Arabic harakat, so a mark-free regex still sees them.
+    expect(containsHebrew("שָׁלוֹם".normalize("NFC"))).toBe(true);
+    expect(containsHebrew("שָׁלוֹם".normalize("NFD"))).toBe(true);
+  });
+});

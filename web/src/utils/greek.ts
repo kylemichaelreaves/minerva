@@ -131,7 +131,15 @@ export function romanize(word: string): string {
 // `\p{Script=Greek}` matches Greek/Coptic + Greek-Extended letters but
 // not combining marks (those carry Script=Inherited); union with
 // `\p{M}` to keep accents/breathings attached to their word run.
-const GREEK_RE = /[\p{Script=Greek}\p{M}]/u;
+//
+// Two questions, two regexes (#367). `TOKEN_RE` asks "does this
+// character continue the run?", where a combining mark must say yes or
+// `ἄνθρωπος` in NFD splits at its own breathing. `GREEK_RE` asks "is
+// this Greek?", where a combining mark must say no — it carries
+// Script=Inherited and belongs to whatever base letter precedes it, so
+// answering yes made decomposed Latin read as Greek. One constant
+// served both and the second question got the first one's answer.
+const GREEK_RE = /\p{Script=Greek}/u;
 const TOKEN_RE = /[\p{Script=Greek}\p{M}]+|[^\p{Script=Greek}\p{M}]+/gu;
 
 // Language-agnostic word/non-word split. `\p{L}` covers Latin, Greek,

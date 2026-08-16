@@ -355,21 +355,56 @@ class TestResolveClosingRefs:
         assert len(calls) == 1
         assert slept == []
 
-    def test_an_unexpected_link_is_not_retried(self):
-        """Deliberately narrow. An `unexpected` link is already registered and
-        will not un-register, so re-reading cannot change the answer — it would
-        only spend seconds before reporting the same real defect."""
+    def test_an_unexpected_link_the_text_still_asks_for_is_not_retried(self):
+        """Deliberately narrow. When the body still carries a closing keyword
+        next to the number, the link is real and will not un-register, so
+        re-reading cannot change the answer — it would only spend seconds
+        before reporting the same real defect. `hazards` is how the caller
+        says the text still asks for it."""
 
         fetch, calls = self._fetch_returning({999001, 999002})
         slept: list[float] = []
 
         resolved, attempts = cpl.resolve_closing_refs(
-            fetch, {999001}, sleep=slept.append
+            fetch, {999001}, hazards={999002}, sleep=slept.append
         )
 
         assert (resolved, attempts) == ({999001, 999002}, 1)
         assert len(calls) == 1
         assert slept == []
+
+    def test_an_unexpected_link_the_text_no_longer_asks_for_is_retried(self):
+        """The mirror of #331, measured on PR #368 (#369). A body edit that
+        *removes* a closing keyword propagates on the same delay as one that
+        adds it, so `unexpected` is lag-fabricable too — and when it is, the
+        text is already clean and only the API is stale. Re-read until it
+        catches up."""
+
+        fetch, calls = self._fetch_returning({999001, 999002}, {999001})
+        slept: list[float] = []
+
+        resolved, attempts = cpl.resolve_closing_refs(
+            fetch, {999001}, hazards=set(), sleep=slept.append
+        )
+
+        assert (resolved, attempts) == ({999001}, 2)
+        assert len(calls) == 2
+        assert slept == [cpl._LINK_RETRY_DELAY]
+
+    def test_a_genuinely_unexpected_link_gives_up_and_reports_it(self):
+        """The cost this widening buys: a real unexpected link with no hazard
+        now spends the full retry budget before it is reported. Bounded, and
+        the run says it waited."""
+
+        fetch, calls = self._fetch_returning({999001, 999002})
+        slept: list[float] = []
+
+        resolved, attempts = cpl.resolve_closing_refs(
+            fetch, {999001}, hazards=set(), sleep=slept.append
+        )
+
+        assert (resolved, attempts) == ({999001, 999002}, cpl._LINK_ATTEMPTS)
+        assert len(calls) == cpl._LINK_ATTEMPTS
 
     def test_the_delay_is_passed_through_to_sleep(self):
         """The wait has to actually be the configured one. A hard-coded sleep
@@ -680,3 +715,71 @@ class TestRun:
         assert code == 1
         assert "[hazard]" in captured.err
         assert "commit abcdef1" in captured.err
+
+
+class TestUnexpectedIsAlsoHedged:
+    """`unexpected` is lag-fabricable in the same way `missing` is, so a run
+    reporting it alone must not assert the PR is broken (#369). Measured on
+    PR #368: the body was edited to remove a `close #365`, the check reported
+    `[unexpected]` and the flat verdict, and a direct query seconds later —
+    nothing changed in between — resolved `[363]`.
+
+    The distinguishing signal is the `hazard` check, which reads the PR's own
+    text rather than the API. `unexpected` *with* a co-reported hazard means
+    the text still says close; `unexpected` alone means it no longer does and
+    only the API is behind."""
+
+    def test_an_unexpected_only_failure_does_not_assert_the_pr_is_broken(self):
+        summary = cpl.failure_summary([cpl.Failure("unexpected", "d")], 368)
+        assert "not in the check" not in summary
+        assert "gh pr view 368" in summary
+
+    def test_unexpected_alongside_its_hazard_is_not_softened(self):
+        """The pairing that means real breakage: the keyword is still in the
+        text, so the link is not going to un-register."""
+
+        summary = cpl.failure_summary(
+            [cpl.Failure("unexpected", "d"), cpl.Failure("hazard", "d")], 368
+        )
+        assert "not in the check" in summary
+
+    def test_a_stale_unexpected_link_is_re_read_and_clears(self):
+        """PR #368's shape end to end (#369). The body no longer carries a
+        closing keyword next to 999002, but the API still resolves it. The
+        run must re-read and pass, not fail on a PR that is already correct.
+
+        The `hazard` check passes on the same run — it reads the body, which is
+        clean — so before this, the two halves of the gate disagreed and the
+        API half won."""
+
+        gh = FakeGitHub(
+            pr=_pr_payload(body="Closes #999001", resolved=(999001, 999002)),
+            later_refs={999001},
+        )
+
+        code = cpl.run(pr=368, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert code == 0
+        assert gh.calls == [
+            "pull_request(368)",
+            "default_branch()",
+            "closing_refs(368)",
+        ]
+
+    def test_an_unexpected_link_the_body_still_asks_for_fails_without_waiting(self):
+        """The other side of the same wiring: the body genuinely says
+        `Closes #999002`, so the link is real. No re-read, and the run fails —
+        with the hazard reported alongside, which is what keeps the flat
+        "bug in the PR" verdict honest."""
+
+        gh = FakeGitHub(
+            pr=_pr_payload(
+                body="Closes #999001. Closes #999002.", resolved=(999001, 999002)
+            ),
+            later_refs={999001},
+        )
+
+        code = cpl.run(pr=368, issues=[999001], github=gh, sleep=lambda _: None)
+
+        assert code == 1
+        assert "closing_refs(368)" not in gh.calls
