@@ -51,13 +51,29 @@ DEFAULT_TOLERANCE_PCT = 5.0
 # contains a pipe (verified against the live index).
 KEY_SEP = "|"
 
+# The floor's counterpart to the two ceilings. 100 was picked by measuring:
+# with verse-addressed works exempted it listed ONE pair in the corpus
+# (#417's Dionysos-Dithyramben, since fixed) and then two more that turned
+# out to be empty ingests (#420). Without the exemption it lists 110, most
+# of them Quran suras at a 26-character mean, which are correct (#404).
+DEFAULT_MIN_MEAN_CHUNK_CHARS = 100
+
+# Works addressed by verse are legitimately a sentence per chunk. Same
+# signal `retrieve.py` uses to exempt them from its retrieval floor, and
+# for the same reason given there: `works.citation_system` is already the
+# column that records how a work is addressed, so a new scripture edition
+# is exempt the day it is ingested with no second list to remember (#268).
+VERSE_CITATION_SYSTEMS = ("bcv", "surah_ayah")
+
 
 @dataclasses.dataclass(frozen=True)
 class GranularityPolicy:
     max_chunk_chars: int
     max_mean_chunk_chars: int
+    min_mean_chunk_chars: int
     tolerance_pct: float
     known_coarse: dict[str, dict[str, int]]
+    known_fine: dict[str, dict[str, int]]
 
     def ceiling(self, key: str, field: str, threshold: int) -> int:
         """Highest value *key* may report for *field* before failing.
@@ -87,8 +103,19 @@ def granularity_policy(manifest: dict[str, Any]) -> GranularityPolicy:
         entry = {f: int(spec[f]) for f in ("max", "mean") if spec.get(f) is not None}
         if entry:
             known[str(key)] = entry
+    fine: dict[str, dict[str, int]] = {}
+    for key, spec in (raw.get("known_fine") or {}).items():
+        if not isinstance(spec, dict):
+            continue
+        entry = {f: int(spec[f]) for f in ("mean",) if spec.get(f) is not None}
+        if entry:
+            fine[str(key)] = entry
     return GranularityPolicy(
         max_chunk_chars=int(raw.get("max_chunk_chars") or DEFAULT_MAX_CHUNK_CHARS),
+        min_mean_chunk_chars=int(
+            raw.get("min_mean_chunk_chars") or DEFAULT_MIN_MEAN_CHUNK_CHARS
+        ),
+        known_fine=fine,
         max_mean_chunk_chars=int(
             raw.get("max_mean_chunk_chars") or DEFAULT_MAX_MEAN_CHUNK_CHARS
         ),
@@ -114,7 +141,9 @@ SELECT w.author, w.title, c.lang,
   LEFT JOIN translations t ON t.id = c.translation_id
   JOIN works w ON w.id = COALESCE(e.work_id, t.work_id)
  GROUP BY w.id, c.lang
-HAVING MAX(LENGTH(c.text)) > ? OR AVG(LENGTH(c.text)) > ?
+HAVING MAX(LENGTH(c.text)) > ?
+    OR AVG(LENGTH(c.text)) > ?
+    OR (AVG(LENGTH(c.text)) < ? AND w.citation_system NOT IN (?, ?))
 """
 
 
@@ -130,7 +159,13 @@ def measure(
     """
 
     rows = conn.execute(
-        _MEASURE_SQL, (policy.max_chunk_chars, policy.max_mean_chunk_chars)
+        _MEASURE_SQL,
+        (
+            policy.max_chunk_chars,
+            policy.max_mean_chunk_chars,
+            policy.min_mean_chunk_chars,
+            *VERSE_CITATION_SYSTEMS,
+        ),
     ).fetchall()
     return {
         make_key(r[0], r[1], r[2]): {
@@ -199,6 +234,21 @@ def validate_snapshot(
     errors: list[str] = []
     for key in sorted(snapshot):
         got = snapshot[key]
+        # The floor and the ceilings cannot both be tripped by one pair —
+        # `max` is never below `mean` — so a snapshot entry belongs to
+        # exactly one side, and the two baselines stay separate lists.
+        mean = got.get("mean")
+        if mean is not None and mean < policy.min_mean_chunk_chars:
+            if key not in policy.known_fine:
+                errors.append(
+                    f"{key}: {got.get('chunks', 0):,} chunks at a mean of "
+                    f"{mean:,} chars is below the granularity floor "
+                    f"({policy.min_mean_chunk_chars:,}) and is not in "
+                    f"granularity.known_fine. A work this fragmented cannot be "
+                    f"retrieved on — check it is not an empty ingest (#420) or "
+                    f"verse chunked a line at a time (#417) before baselining it."
+                )
+            continue
         if key not in policy.known_coarse:
             errors.append(
                 f"{key}: {got.get('chunks', 0):,} chunks, max "
@@ -228,6 +278,11 @@ def validate_snapshot(
         errors.append(
             f"{key}: in granularity.known_coarse but no longer exceeds any "
             f"threshold — stale baseline entry, remove it from manifest.yaml"
+        )
+    for key in sorted(set(policy.known_fine) - set(snapshot)):
+        errors.append(
+            f"{key}: in granularity.known_fine but is no longer below the "
+            f"floor — stale baseline entry, remove it from manifest.yaml"
         )
     return errors
 

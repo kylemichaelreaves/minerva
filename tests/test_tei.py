@@ -580,3 +580,69 @@ def test_a_headless_division_does_not_blank_the_book_label(tmp_path: Path):
     path = _write_xml(tmp_path, "fragmenta_gr.xml", xml)
     chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
     assert [c.book for c in chunks] == ["0", "0"]
+
+
+# ---------- unrecognized boundary units (#405) ----------
+
+
+def test_a_body_whose_only_units_are_unrecognized_says_so(tmp_path: Path, capsys):
+    """`_detect_chunk_boundary_units` returns an empty set both for a body
+    with no milestones and for one whose milestones all carry a unit it
+    does not know. Nothing distinguished the two, and #395 was filed on
+    that ambiguity — its author read the empty return as "these
+    milestones have no unit" when the *Fragmenta* had 111 with units."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Unknown</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="1">
+    <milestone unit="strophe" n="1"/>
+    A body chunked on a unit this parser has never been taught.
+    <milestone unit="strophe" n="2"/>
+    Which is a different thing from a body with no milestones at all.
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "unknown_gr.xml", xml)
+    list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    err = capsys.readouterr().out
+    assert "strophe" in err
+    assert "unknown_gr.xml" in err
+
+
+def test_a_body_with_no_milestones_at_all_stays_quiet(tmp_path: Path, capsys):
+    """The guard's whole value is that it fires only on the ambiguous
+    case. Warning on every milestone-less body would bury it — three of
+    Epictetus's English works are legitimately milestone-less."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Quiet</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="chapter" n="1"><p>Some things are in our power, and others are not.</p></div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "quiet_en.xml", xml)
+    list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert "unrecognized" not in capsys.readouterr().out
+
+
+def test_a_stray_unrecognized_unit_in_a_chunked_body_stays_quiet(tmp_path: Path, capsys):
+    """The allowlist dropping a stray unit inside a body that chunks fine
+    is the guard working, not a problem. Only a body left with NOTHING to
+    chunk on is worth a line."""
+
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Mixed</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="1">
+    <milestone unit="section" n="1"/>
+    Of things some are in our power, and others are not.
+    <milestone unit="strophe" n="9"/>
+    <milestone unit="section" n="2"/>
+    What then is to be done?
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "mixed_gr.xml", xml)
+    list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert "unrecognized" not in capsys.readouterr().out
