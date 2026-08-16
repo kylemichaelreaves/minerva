@@ -108,3 +108,40 @@ def test_refs_review_quit_leaves_remaining_auto(tmp_path, review_db, db_path):
     assert review_db.execute(
         "SELECT COUNT(*) FROM cross_references WHERE curator_status='auto'"
     ).fetchone()[0] == 3
+
+
+def test_review_labels_the_matched_form_as_wider_than_the_highlight(capsys):
+    """`source_form_snapshot` and `source_span_*` describe different
+    extents on purpose: the snapshot is the construction the rule matched
+    (`in Psalmo: <quote>.`), the span is the quotation the highlight
+    covers. 212 scripture references in Aquinas and Augustine differ this
+    way, and the display used to print the snapshot as `form` next to a
+    highlight over something shorter, which reads as a bug (#414).
+
+    Narrowing the snapshot is not the fix — it is part of the shadow
+    address that makes references recoverable across a re-ingest."""
+
+    from minerva.cli.refs import review
+
+    row = {
+        "id": 1,
+        "source_author": "Aquinas",
+        "target_author": "Psalms",
+        "target_work": "Psalmi",
+        "in_corpus_work_id": None,
+        "source_work": "Summa contra Gentiles",
+        "source_section": "SCG I, cap. 1",
+        "reference_type": "quotes",
+        "confidence": 0.9,
+        "source_method": "rule+embed+llm",
+        "source_form_snapshot": "in Psalmo: cor meum et caro mea exultaverunt.",
+        "quoted_phrase": None,
+        "curator_note": None,
+        "source_text": "Dicitur in Psalmo: cor meum et caro mea exultaverunt.",
+        "source_span_start": 12,
+        "source_span_end": 52,
+    }
+    review._print_row(row, 1)
+    out = capsys.readouterr().out
+    assert "matched" in out, "the wider extent must be labelled, not printed as `form`"
+    assert "in Psalmo: cor meum" in out

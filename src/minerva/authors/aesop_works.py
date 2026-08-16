@@ -95,8 +95,16 @@ WORKS: tuple[CorpusWork, ...] = (
     # fables, because the extractor's all-caps-title detector misses
     # OCR-mangled title lines". Right symptom, wrong component: fable
     # boundaries are the Perry-index lines, and it was ``_PERRY_REF``
-    # that dropped them. Loosening it recovers **131**. The ~12 still
-    # missing carry no usable Perry reference in this scan (#399).
+    # that dropped them. Loosening it recovers **131** (#399).
+    #
+    # KNOWN COVERAGE: **131 of Babrius's ~143 fables.** The remainder
+    # carry no usable Perry reference in this scan, and 11 of the 131
+    # have no recoverable title. This is a property of the source, not a
+    # bug to fix: Gutenberg has no Babrius, and archive.org's only other
+    # English is the 1965 Loeb, still in copyright — Davies 1860 is the
+    # only public-domain English text there is. Recorded here rather than
+    # left in an issue because ~143 is the number a reader would
+    # otherwise assume (#412, closed on that basis 2026-08-15).
     CorpusWork(
         code="babrius_eng",
         title="Fables (Babrius)",
