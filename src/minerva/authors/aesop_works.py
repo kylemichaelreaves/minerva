@@ -89,10 +89,14 @@ WORKS: tuple[CorpusWork, ...] = (
     # edition says roughly 72,000 are (#398).
     #
     # The English is still Davies 1860 (``bib_fict_4103078``) via
-    # archive.org OCR; First1KGreek carries no translation. Its known
-    # limitation stands: 92 of the expected ~143 fables, because the
-    # extractor's all-caps-title detector misses OCR-mangled title
-    # lines — and it is chunked one verse line per chunk (#399).
+    # archive.org OCR; First1KGreek carries no translation.
+    #
+    # **Corrected 2026-08-15.** This block said "92 of the expected ~143
+    # fables, because the extractor's all-caps-title detector misses
+    # OCR-mangled title lines". Right symptom, wrong component: fable
+    # boundaries are the Perry-index lines, and it was ``_PERRY_REF``
+    # that dropped them. Loosening it recovers **131**. The ~12 still
+    # missing carry no usable Perry reference in this scan (#399).
     CorpusWork(
         code="babrius_eng",
         title="Fables (Babrius)",
@@ -100,7 +104,11 @@ WORKS: tuple[CorpusWork, ...] = (
         edition_year="1860",
         filenames=("babrius_eng.txt",),
         fmt="txt",
-        locator="chapter",
+        # `fable`, not `chapter`: the scan's OCR-inserted blank lines made
+        # the paragraph splitter emit one chunk per verse line — 2,139
+        # chunks at a 44-character median. The extractor marks each fable
+        # at its Perry-index reference; that is the citable unit (#399).
+        locator="fable",
         lang="eng",
         corpus="aesop",
         author="Aesop",

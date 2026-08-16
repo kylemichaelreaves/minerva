@@ -30,7 +30,12 @@ from .split_hegel_pr_de import split_hegel_pr_de
 from .split_hegel_pr_epub import split_hegel_pr_epub
 from .split_kant import split_by_kant_ab
 from .split_kapital_mew import split_kapital_mew
-from .split_paragraphic import split_by_chapter, split_by_paragraph, split_by_section
+from .split_paragraphic import (
+    split_by_chapter,
+    split_by_fable,
+    split_by_paragraph,
+    split_by_section,
+)
 from .split_platon_werke import split_platon_werke
 from .split_spinoza import split_spinoza
 from .split_spinoza_ethica import split_spinoza_ethica
@@ -88,6 +93,7 @@ _SPLITTERS = {
     "section": split_by_section,
     "paragraph": split_by_paragraph,
     "chapter": split_by_chapter,
+    "fable": split_by_fable,
     "kant_ab": split_by_kant_ab,
     "descartes": split_descartes,
     "descartes_articles": split_descartes_articles,
