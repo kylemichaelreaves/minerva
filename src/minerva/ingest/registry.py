@@ -71,6 +71,19 @@ def _module_parse_dir(module: str, attr: str = "parse_dir") -> ParseFn:
     return parse
 
 
+def _aesop_tei_p5(path: Path) -> Iterator[tei.Chunk]:
+    """`tei_p5.parse_dir` for `data/aesop`, carrying the work-title
+    overrides. Babrius's Greek would otherwise be titled from its file
+    stem and stop matching the `Fables (Babrius)` its English half
+    carries — see `aesop_works.TEI_P5_WORK_TITLES` for why Phaedrus is
+    not in that map."""
+
+    from minerva.authors.aesop_works import TEI_P5_WORK_TITLES
+    from minerva.sources import tei_p5
+
+    yield from tei_p5.parse_dir(path, work_titles=TEI_P5_WORK_TITLES)
+
+
 def _corpus_label(label: str, works_module: str) -> ParseFn:
     def parse(path: Path) -> Iterator[tei.Chunk]:
         import importlib
@@ -400,18 +413,22 @@ INGEST_SOURCES: tuple[IngestSource, ...] = (
     IngestSource(
         "aesop",
         _P / "data" / "aesop",
-        _module_parse_dir("sources.tei_p5"),
-        help="Directory of Aesop's Fables — Phaedrus Latin + English (Perseus TEI P5).",
+        _aesop_tei_p5,
+        help=(
+            "Directory of Aesop's Fables — Phaedrus Latin + English (Perseus "
+            "TEI P5) and Babrius Greek (First1KGreek tlg0614)."
+        ),
     ),
-    # Babrius Greek verse + Davies English — archive.org OCR
-    # extracted by perseus/download_babrius.py into plain .txt.
-    # Mirrors the Origen pattern (two parsers, same data dir,
-    # each handling its own file types).
+    # Davies 1860 English Babrius — archive.org OCR extracted by
+    # perseus/download_babrius.py into plain .txt. Mirrors the Origen
+    # pattern (two parsers, same data dir, each handling its own file
+    # types). The Greek half moved to the TEI P5 entry above when it was
+    # re-sourced from First1KGreek (#398); only the English is left here.
     IngestSource(
         "aesop_babrius",
         _P / "data" / "aesop",
         _corpus_label("aesop", "aesop_works"),
-        help="Directory of Aesop's Fables — Babrius (archive.org OCR plain text).",
+        help="Directory of Aesop's Fables — Babrius English (archive.org OCR plain text).",
     ),
     # ─── Patristic ─────────────────────────────────────────────
     # Origen *Contra Celsum*: First1KGreek TLG 2042 (Koetschau GCS

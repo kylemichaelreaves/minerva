@@ -1057,7 +1057,6 @@ granularity:
     "Hegel|Elements of the Philosophy of Right|eng": {max: 24251, mean: 1052}  # 961 chunks
     "Nietzsche|Unzeitgemäße Betrachtungen|deu": {max: 24140, mean: 2152}  # 321 chunks
     "Hegel|Grundlinien der Philosophie des Rechts|deu": {max: 23444, mean: 992}  # 742 chunks
-    "Aesop|Fables (Babrius)|grc": {max: 22615, mean: 1008}  # 498 chunks
     "Kant|Critique of Pure Reason|eng": {max: 19470, mean: 1422}  # 1138 chunks
     "Aquinas|Sentencia libri De anima|lat": {max: 18488, mean: 11142}  # 56 chunks
     "Aristotle|Generation of Animals|grc": {max: 17051, mean: 4885}  # 60 chunks

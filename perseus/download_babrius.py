@@ -1,40 +1,43 @@
 #!/usr/bin/env python3
-"""Source Babrius (Greek verse Aesop) — Crusius 1897 + Davies 1860.
+"""Source Babrius (Greek verse Aesop) — First1KGreek + Davies 1860.
 
-Per [[add-aesop-plan]] memory, Phaedrus was sourced from
-PerseusDL/canonical-latinLit on 2026-05-29 (already in corpus).
-Babrius was a known gap — no TLG 1670 file in PerseusDL/canonical-
-greekLit, First1KGreek, Diorisis, or Scaife CTS catalogs as of
-2026-06-01 probes.
+**Corrected 2026-08-15.** This script used to say Babrius was "a known
+gap — no TLG 1670 file in PerseusDL/canonical-greekLit, First1KGreek,
+Diorisis, or Scaife CTS catalogs as of 2026-06-01 probes", and fell back
+to archive.org OCR of Crusius's critical edition for the Greek. The
+probes were real; the conclusion was not. **Babrius is tlg0614, not
+tlg1670** — under the number probed, both repos genuinely 404, and under
+the right one First1KGreek has carried a hand-encoded EpiDoc TEI text
+all along.
 
-The remaining options were all archive.org OCR:
+What the error cost: Crusius prints his apparatus criticus beneath each
+fable, the OCR could not tell it from verse, and the heuristic filter
+below let most of it through. 498 chunks and 501,783 characters were
+indexed as Babrius; the Greek text itself is about 72,000 (#398).
 
-* **Greek**: Crusius 1897 *Babrii Fabulae Aesopeae* (the standard
-  critical edition; archive.org ``babriifabvlaeaes00babruoft``).
-  Clean polytonic Greek OCR. Critical apparatus is interleaved
-  with verses (numbered notes referencing line numbers in each
-  fable); we filter those out by detecting their characteristic
-  shape.
+* **Greek**: First1KGreek ``tlg0614.tlg001.1st1K-grc1`` — Schneidewin's
+  *Fabulae Aesopeae*, EpiDoc TEI P5, Harvard/Leipzig encoded, no
+  apparatus in the text stream. 147 ``<div subtype="section">`` fables.
+  Licence: CC-BY-SA-4.0 per First1KGreek's standard header.
 * **English**: J. Davies 1860 *The Fables of Babrius* (archive.org
-  ``bib_fict_4103078``). Complete English verse translation in
-  the standard format (``FABLE I.`` / ``FABLE II.`` headers).
-  Clean OCR.
-
-The Crusius Greek text is organized as two collections (Part I
-fables 1-122, Part II fables 123-143ish, plus fragments). Davies
-also has two parts. Output preserves the fable numbers as anchors.
+  ``bib_fict_4103078``). Complete English verse translation in the
+  standard format (``FABLE I.`` / ``FABLE II.`` headers). Unchanged —
+  First1KGreek carries no translation. Its own defects are #399.
 
 Output:
 
-    data/aesop/babrius_grc.txt       # Greek verses by Crusius fable num
+    data/aesop/babrius_grc.xml       # First1KGreek TEI P5, parsed by tei_p5
     data/aesop/babrius_eng.txt       # Davies's verse translations
 
-Both are plain text. ``aesop_works.py`` will be wired to parse
-them via the same path used for ``theognidea_*.txt``.
+The Greek is parsed by ``sources.tei_p5.parse_dir`` (the same path as
+the Phaedrus half of this corpus); the English still goes through the
+``corpus``-label ``.txt`` pipeline. ``--keep-crusius`` re-fetches the old
+OCR to ``babrius_grc_crusius.txt`` for comparison; nothing ingests it.
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -44,7 +47,14 @@ from _download import fetch_with_retry
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = REPO_ROOT / "data" / "aesop"
 
-GREEK_URL = (
+# First1KGreek tlg0614 = Babrius. NOT tlg1670, which is what the
+# 2026-06-01 probes searched and is why this fetched OCR for two months.
+GREEK_TEI_URL = (
+    "https://raw.githubusercontent.com/OpenGreekAndLatin/First1KGreek/master/"
+    "data/tlg0614/tlg001/tlg0614.tlg001.1st1K-grc1.xml"
+)
+# Retained for `--keep-crusius` only; not ingested.
+CRUSIUS_OCR_URL = (
     "https://archive.org/download/babriifabvlaeaes00babruoft/"
     "babriifabvlaeaes00babruoft_djvu.txt"
 )
@@ -285,18 +295,38 @@ def _extract_english(raw: str) -> str:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description="Source Babrius (Greek + English).")
+    ap.add_argument(
+        "--keep-crusius",
+        action="store_true",
+        help=(
+            "Also fetch the superseded Crusius archive.org OCR to "
+            "babrius_grc_crusius.txt for comparison. Not ingested."
+        ),
+    )
+    args = ap.parse_args()
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Fetching Crusius 1897 Greek ...", file=sys.stderr)
-    greek_raw = _fetch(GREEK_URL)
-    greek_text = _extract_greek(greek_raw)
-    greek_out = OUT_DIR / "babrius_grc.txt"
-    greek_out.write_text(greek_text, encoding="utf-8")
-    n_fables_grc = greek_text.count("[Fable ")
+    print("Fetching First1KGreek tlg0614 (Schneidewin, TEI P5) ...", file=sys.stderr)
+    greek_tei = _fetch(GREEK_TEI_URL)
+    greek_out = OUT_DIR / "babrius_grc.xml"
+    greek_out.write_text(greek_tei, encoding="utf-8")
+    n_sections = greek_tei.count('subtype="section"')
     print(
-        f"  → {greek_out} ({len(greek_text):,} chars; ~{n_fables_grc} fables)",
+        f"  → {greek_out} ({len(greek_tei):,} chars; {n_sections} sections)",
         file=sys.stderr,
     )
+    stale = OUT_DIR / "babrius_grc.txt"
+    if stale.exists():
+        stale.unlink()
+        print(f"  removed superseded {stale.name}", file=sys.stderr)
+
+    if args.keep_crusius:
+        print("Fetching superseded Crusius OCR (comparison only) ...", file=sys.stderr)
+        crusius = _extract_greek(_fetch(CRUSIUS_OCR_URL))
+        (OUT_DIR / "babrius_grc_crusius.txt").write_text(crusius, encoding="utf-8")
+        print(f"  → babrius_grc_crusius.txt ({len(crusius):,} chars)", file=sys.stderr)
 
     print("Fetching Davies 1860 English ...", file=sys.stderr)
     eng_raw = _fetch(ENGLISH_URL)
@@ -309,9 +339,9 @@ def main() -> int:
         file=sys.stderr,
     )
     print(
-        "\nDone. Crusius critical-apparatus filtering is heuristic;\n"
-        "expect some bleed-through. Davies's English is the cleaner side.\n"
-        "See add-aesop-plan memory.",
+        "\nDone. The Greek needs no apparatus filtering — First1KGreek's\n"
+        "text stream carries none. Davies's English still emits ~92 of the\n"
+        "expected ~143 fables and is chunked one verse line per chunk (#399).",
         file=sys.stderr,
     )
     return 0

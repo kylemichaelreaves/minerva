@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import sys
 import xml.etree.ElementTree as ET
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 from minerva.tei import (
@@ -281,9 +281,21 @@ def parse_file(
             )
 
 
-def parse_dir(directory: Path) -> Iterator[Chunk]:
+def parse_dir(
+    directory: Path,
+    work_titles: Mapping[str, str] | None = None,
+) -> Iterator[Chunk]:
     """Walk a First1KGreek download directory layout
     (``<canonical_title>/grc.xml`` per work) and yield Chunks.
+
+    ``work_titles`` maps a **file name** to the work title it should
+    carry, overriding the stem derivation in the flat layout below. Keyed
+    by file rather than applied per-corpus on purpose: Babrius and
+    Phaedrus share ``data/aesop``, Babrius's Greek needs to match the
+    ``Fables (Babrius)`` its English half already carries, and Phaedrus
+    has been ingested as ``Phaedrus`` since 2026-05-29 — retitling it
+    would move every one of its ``chunk_id``s for a cosmetic gain (#398).
+    Ignored by the Aristotle layout, which has its own title lookup.
 
     Two layouts are supported:
 
@@ -337,7 +349,7 @@ def parse_dir(directory: Path) -> Iterator[Chunk]:
             if stem.endswith(suffix):
                 stem = stem.removesuffix(suffix)
                 break
-        work_title = stem.replace("_", " ").title()
+        work_title = (work_titles or {}).get(xml_file.name) or stem.replace("_", " ").title()
         yield from guarded_parse_file(
             corpus,
             xml_file,

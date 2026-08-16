@@ -72,34 +72,27 @@ WORKS: tuple[CorpusWork, ...] = (
     ),
 
     # ─── Babrius (Greek verse + English) ──────────────────────────
-    # Sourced 2026-06-01 from archive.org OCR — Crusius 1897 critical
-    # edition (``babriifabvlaeaes00babruoft``) for the Greek and
-    # Davies 1860 (``bib_fict_4103078``) for English verse. No clean
-    # TEI source exists on PerseusDL / First1KGreek / Diorisis /
-    # Scaife CTS for TLG 1670; archive.org OCR is the only PD path.
+    # The Greek is First1KGreek ``tlg0614.tlg001.1st1K-grc1`` —
+    # Schneidewin's *Fabulae Aesopeae*, EpiDoc TEI P5, re-sourced
+    # 2026-08-15. It is parsed by ``tei_p5.parse_dir`` (the same path as
+    # the Phaedrus half) and so has NO ``CorpusWork`` entry here; only
+    # its title override lives below, in ``TEI_P5_WORK_TITLES``.
     #
-    # KNOWN LIMITATIONS:
-    #   * Crusius's critical apparatus interleaves with verses and
-    #     leaks through the extractor's heuristic filter; Greek file
-    #     ships with ~496 "fables" vs ~143 real ones, the surplus
-    #     being apparatus-block fragments mistaken for fable starts.
-    #     Hand-curation is the safety net.
-    #   * Davies 1860 emits 92 of the expected ~143 fables — the
-    #     extractor's all-caps-title detector misses cases where
-    #     OCR mangled the title line. Better-than-zero coverage.
-    CorpusWork(
-        code="babrius_grc",
-        title="Fables (Babrius)",
-        translator="(Babrius, Greek verse)",
-        edition_year="2nd c. CE (Crusius ed., 1897)",
-        filenames=("babrius_grc.txt",),
-        fmt="txt",
-        locator="chapter",
-        lang="grc",
-        corpus="aesop",
-        author="Aesop",
-        citation_system="paragraph",
-    ),
+    # **Correction, 2026-08-15.** This block used to read "No clean TEI
+    # source exists on PerseusDL / First1KGreek / Diorisis / Scaife CTS
+    # for TLG 1670; archive.org OCR is the only PD path." The probes were
+    # real and the conclusion was wrong, because **Babrius is tlg0614,
+    # not tlg1670** — under the number searched, both repos genuinely
+    # 404. Cost of the error: the archive.org Crusius OCR carried its
+    # critical apparatus into the corpus as text. 498 chunks and 501,783
+    # characters were indexed as Babrius, of which the Schneidewin
+    # edition says roughly 72,000 are (#398).
+    #
+    # The English is still Davies 1860 (``bib_fict_4103078``) via
+    # archive.org OCR; First1KGreek carries no translation. Its known
+    # limitation stands: 92 of the expected ~143 fables, because the
+    # extractor's all-caps-title detector misses OCR-mangled title
+    # lines — and it is chunked one verse line per chunk (#399).
     CorpusWork(
         code="babrius_eng",
         title="Fables (Babrius)",
@@ -117,3 +110,15 @@ WORKS: tuple[CorpusWork, ...] = (
 
 
 find_work = make_find_work(WORKS)
+
+#: Work titles for `tei_p5.parse_dir`'s flat layout, which otherwise
+#: derives the title from the file stem. Babrius's Greek needs to match
+#: the `Fables (Babrius)` its English half carries, or the two halves
+#: stop grouping as one work in the Reader and the citation graph.
+#:
+#: Phaedrus is deliberately absent. `phaedrus_lat.xml` derives
+#: `Phaedrus`, which is what it has been ingested as since 2026-05-29;
+#: aligning it with the `Fables (Phaedrus)` in `WORKS` above would move
+#: all 232 of its `chunk_id`s for a cosmetic gain. That mismatch between
+#: config and index predates this file's re-source and is left alone.
+TEI_P5_WORK_TITLES: dict[str, str] = {"babrius_grc.xml": "Fables (Babrius)"}
