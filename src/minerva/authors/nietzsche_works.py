@@ -204,6 +204,12 @@ WORKS: tuple[CorpusWork, ...] = (
         filenames=("dionysos_dithyramben.html",),
         fmt="html",
         locator="chapter",
+        # Verse: every line is a "paragraph" to the chapter splitter, so
+        # this came out as 783 chunks at a 27-character median and 779 of
+        # them fell below the 60-char retrieval floor — the work was in
+        # the index and unreachable (#417). 600 gives 40 chunks at a
+        # 610-char median; the only Nietzsche work that needs this.
+        min_paragraph_chars=600,
         lang="deu",
         corpus="nietzsche",
         author="Nietzsche",

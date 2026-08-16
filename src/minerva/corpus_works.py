@@ -41,6 +41,18 @@ class CorpusWork:
     # do not consult it, so setting it on a `section` or `paragraph` work
     # is silently inert — wire it through there before relying on it.
     max_paragraph_chars: int | None = None
+    # The mirror of the cap above: pack CONSECUTIVE paragraphs within a
+    # heading until they reach this many characters, then emit. For verse
+    # run through a prose splitter, where every line is a "paragraph" —
+    # the Dionysos-Dithyramben came out as 783 chunks at a 27-character
+    # median, 99% of the work below the retrieval floor and so unreachable
+    # (#417). Packing never crosses a heading, so a poem's tail cannot
+    # merge into the next poem's head.
+    #
+    # Same reading as the cap: `locator="chapter"` only, and a work only
+    # gets a floor once someone has looked at why its paragraphs are
+    # short. Short paragraphs are usually correct.
+    min_paragraph_chars: int | None = None
     # ISO 639-3 language code stored on every chunk (default English;
     # override for German/Greek/etc. originals).
     lang: str = "eng"

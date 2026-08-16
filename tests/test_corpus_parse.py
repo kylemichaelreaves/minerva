@@ -1261,3 +1261,70 @@ def test_split_by_fable_skips_a_fable_with_neither_title_nor_words(tmp_path: Pat
     path = tmp_path / "babrius_eng.txt"
     chunks = list(corpus_parse.split_by_fable(text, _fable_work(), path))
     assert [c.section for c in chunks] == ["Fable 5"]
+
+
+# ---------- min_paragraph_chars (#417) ----------
+
+
+def _verse_work(floor: int | None) -> corpus_works.CorpusWork:
+    return corpus_works.CorpusWork(
+        code="dionysos_dithyramben",
+        title="Dionysos-Dithyramben",
+        translator="(Original)",
+        edition_year="1888",
+        filenames=("dionysos_dithyramben.html",),
+        fmt="html",
+        locator="chapter",
+        lang="deu",
+        corpus="nietzsche",
+        author="Nietzsche",
+        min_paragraph_chars=floor,
+    )
+
+
+_VERSE_BLOCK = (
+    "NUR NARR! NUR DICHTER!\n\n"
+    "Bei abgehellter Luft,\n\n"
+    "wenn schon des Taus Tröstung\n\n"
+    "zur Erde niederquillt,\n\n"
+    "unsichtbar, auch ungehört\n\n"
+    "denn zartes Schuhwerk trägt\n\n"
+    "der Tröster Tau gleich allen Trostmilden\n\n"
+)
+
+
+def test_short_paragraphs_are_packed_up_to_the_floor(tmp_path: Path):
+    """A verse text run through the paragraph splitter yields one chunk
+    per line — 783 of them at a 27-character median for the
+    *Dionysos-Dithyramben*, 99% of the work below the retrieval floor.
+    The mirror of `max_paragraph_chars` (#397): pack rather than split."""
+
+    path = tmp_path / "dionysos_dithyramben.html"
+    chunks = list(corpus_parse.split_by_chapter(_VERSE_BLOCK, _verse_work(80), path))
+    assert len(chunks) < 7  # one per line would be 7
+    assert all(len(c.text) >= 60 for c in chunks[:-1])
+    joined = " ".join(c.text for c in chunks)
+    for line in ("Bei abgehellter Luft", "zur Erde niederquillt", "der Tröster Tau"):
+        assert joined.count(line) == 1
+
+
+def test_packing_never_crosses_a_heading(tmp_path: Path):
+    """Each dithyramb is its own heading. A packer that ran past one
+    would merge the end of one poem into the start of the next."""
+
+    text = _VERSE_BLOCK + "\nKLAGE DER ARIADNE\n\n" + "Wer wärmt mich, wer liebt mich noch?\n\n"
+    path = tmp_path / "dionysos_dithyramben.html"
+    chunks = list(corpus_parse.split_by_chapter(text, _verse_work(4000), path))
+    assert "Klage der Ariadne" in {c.book for c in chunks}
+    ariadne = [c for c in chunks if "Ariadne" in (c.book or "")]
+    assert ariadne and all("Trostmilden" not in c.text for c in ariadne)
+
+
+def test_no_floor_leaves_paragraph_chunking_untouched(tmp_path: Path):
+    """The churn guard. Every other `chapter` work must keep one chunk
+    per paragraph, or setting this knob on one work moves every
+    `chunk_id` in the corpus."""
+
+    path = tmp_path / "dionysos_dithyramben.html"
+    chunks = list(corpus_parse.split_by_chapter(_VERSE_BLOCK, _verse_work(None), path))
+    assert len(chunks) == 7
