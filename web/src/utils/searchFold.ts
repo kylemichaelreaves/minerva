@@ -8,7 +8,7 @@
 // `hebrew.ts` and `arabic.ts`. This module only chooses between them and folds
 // the result.
 
-import { fold, stripMarks } from "~/utils/fold";
+import { fold } from "~/utils/fold";
 import { containsArabic, romanize as romanizeArabic } from "~/utils/arabic";
 import { containsGreek, romanize as romanizeGreek } from "~/utils/greek";
 import { containsHebrew, romanize as romanizeHebrew } from "~/utils/hebrew";
@@ -27,26 +27,25 @@ const SCRIPTS: Script[] = [
 /** Every form `s` can be matched by: the folded original, plus a folded
  *  romanization for each non-Latin script it is written in.
  *
- *  Two details are load-bearing.
- *
- *  **Detection runs on the mark-stripped string** (#367). All three detectors
- *  are `/[\p{Script=X}\p{M}]/u`, and that `\p{M}` arm answers `true` for any
- *  combining mark whatever its script — so decomposed Latin reads as Greek,
- *  Hebrew and Arabic at once and would collect three junk romanizations.
- *  Stripping marks first means only the `\p{Script=…}` arm can fire. That is a
- *  workaround for the detectors, not a fix; #367 is the fix.
+ *  **Detection runs on the original string.** It used to run on the
+ *  mark-stripped one, because all three detectors were
+ *  `/[\p{Script=X}\p{M}]/u` and that `\p{M}` arm answered `true` for any
+ *  combining mark whatever its script — decomposed Latin read as Greek, Hebrew
+ *  and Arabic at once and collected three junk romanizations. Stripping first
+ *  meant only the `\p{Script=…}` arm could fire. #367 fixed the detectors, so
+ *  the workaround is gone; the guarantee it bought is asserted in
+ *  `searchFold.test.ts` rather than defended here.
  *
  *  **Romanization runs on the original, per whitespace token.** The marks carry
  *  the vowels — Greek's rough breathing becomes an `h`, Hebrew's shuruq a `u` —
- *  so romanizing the stripped form would throw them away. And `romanize()` is
+ *  so romanizing a stripped form would throw them away. And `romanize()` is
  *  documented for a single *word*: its rough-breathing and initial-ρ rules are
  *  word-initial, so a whole-string call mis-transliterates every word after the
  *  first (`περὶ ῥητορικῆς` → `peri retorikes`, losing the `rh`). */
 export function foldForms(s: string): string[] {
   const forms = [fold(s)];
-  const bare = stripMarks(s);
   for (const script of SCRIPTS) {
-    if (!script.detect(bare)) continue;
+    if (!script.detect(s)) continue;
     forms.push(
       fold(s.split(/(\s+)/).map((tok) => script.romanize(tok)).join("")),
     );

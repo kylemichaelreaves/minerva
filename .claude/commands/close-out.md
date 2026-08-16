@@ -105,24 +105,36 @@ the check is wrong.
 
 One exception, measured: `closingIssuesReferences` is **eventually consistent**
 after a body edit. Running the check within a second or two of `gh pr edit` can
-report `[missing]` for a link that does in fact register.
+report `[missing]` for a link that does in fact register — and, after an edit
+that *removes* a keyword, `[unexpected]` for one that has in fact un-registered.
 
 **The check now absorbs this itself.** It reads the field up to three times, a
-second apart, and stops as soon as every expected link is present — so a
-`missing` verdict has already outwaited the lag, and the run prints `read the
-link 2x` (or `3x`) when it had to. The retry is deliberately narrow: `missing` is
-the only verdict the lag can fabricate, so `base`, `unexpected` and `hazard` are
-never re-read.
+second apart, and stops as soon as the answer settles — so those verdicts have
+already outwaited the lag, and the run prints `read the link 2x` (or `3x`) when
+it had to.
 
-If a `missing`-only failure survives all three reads, the summary line hedges
-rather than asserting the PR is broken, and names the re-query:
+The retry covers both directions, because the field is re-derived from the body
+on every edit and a removal propagates on the same delay as an addition (#369
+— this used to retry `missing` only, on the belief that registration was
+monotonic). What keeps it from masking a real defect is the PR's own text:
+an `unexpected` link whose number **still** has a closing keyword somewhere in
+the title, body or commits is real and is never re-read, because the body is
+still asking for it. `base` and `hazard` are never re-read either — both are
+read from text that does not change between attempts.
+
+If a `missing`-only or `unexpected`-only failure survives all three reads, the
+summary line hedges rather than asserting the PR is broken, and names the
+re-query:
 
 ```
 gh pr view <n> --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'
 ```
 
-If the number is there after all, say so — three reads over two seconds were not
-enough and the bound wants raising. Any other defect it reports is real.
+If the number is there after all — or gone, for `unexpected` — say so: three
+reads over two seconds were not enough and the bound wants raising. Any other
+defect it reports is real, including `unexpected` reported alongside its
+`hazard`, which is the pairing that means the keyword really is still in the
+text.
 
 ## Phase 6 — Correct the record
 

@@ -77,3 +77,41 @@ describe("containsGreek", () => {
     expect(containsGreek("1094a")).toBe(false);
   });
 });
+
+describe("containsGreek is a script test, not a combining-mark test (#367)", () => {
+  it("rejects decomposed Latin", () => {
+    // NFD "Schröder": the diaeresis is U+0308, Script=Inherited. The
+    // detector's `\p{M}` arm answered true for it, which is how a German
+    // label in the Concordance got a Greek romanization tooltip.
+    expect(containsGreek("Schröder".normalize("NFD"))).toBe(false);
+  });
+
+  it("rejects pointed Hebrew and vocalized Arabic in NFC", () => {
+    // Niqqud and tashkeel have no precomposed forms, so these carry
+    // combining marks in the form the corpus stores. No NFD involved.
+    expect(containsGreek("שָׁלוֹם")).toBe(false);
+    expect(containsGreek("مُحَمَّد")).toBe(false);
+  });
+
+  it("answers the same for Greek in either normalization form", () => {
+    // The base letters carry Script=Greek either way, so the detector
+    // needs no normalization pass of its own.
+    expect(containsGreek("ἄνθρωπος".normalize("NFC"))).toBe(true);
+    expect(containsGreek("ἄνθρωπος".normalize("NFD"))).toBe(true);
+  });
+});
+
+describe("tokenizeGreek's word flag (#367)", () => {
+  it("does not call a bare combining mark a Greek word", () => {
+    // TOKEN_RE splits NFD "Schröder" into "Schro" / "̈" / "der";
+    // the middle run is a lone Inherited mark and is not a word.
+    const tokens = tokenizeGreek("Schröder".normalize("NFD"));
+    expect(tokens.filter((t) => t.word)).toEqual([]);
+  });
+
+  it("still keeps a Greek word whole across its own accents", () => {
+    const nfd = "ἄνθρωπος".normalize("NFD");
+
+    expect(tokenizeGreek(nfd)).toEqual([{ word: true, s: nfd, offset: 0 }]);
+  });
+});

@@ -193,11 +193,18 @@ export function romanize(word: string): string {
   return out;
 }
 
-// Arabic-script + combining-mark ranges:
+// Arabic-script ranges:
 //   U+0600–U+06FF  Arabic + Arabic supplement
 //   U+0750–U+077F  Arabic supplement
 //   U+FB50–U+FEFF  Arabic presentation forms
-const ARABIC_RE = /[\p{Script=Arabic}\p{M}]/u;
+//
+// No `\p{M}` arm (#367). This regex has one consumer — the detector
+// below — and there "has a combining mark" is not "is Arabic": with it,
+// decomposed Latin and pointed Hebrew both read as Arabic. Harakat are
+// Script=Inherited and so match nothing here on their own, which is
+// correct: vocalized text matches on its base letters, and a bare
+// fatha is no script at all.
+const ARABIC_RE = /\p{Script=Arabic}/u;
 
 /** Quick sniff for the Reader: only wrap words when the chunk
  *  actually contains Arabic script. */

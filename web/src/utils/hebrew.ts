@@ -183,9 +183,16 @@ export function romanize(word: string): string {
   return out;
 }
 
-// Hebrew + Hebrew-points + combining-mark ranges.
+// Hebrew + Hebrew-points ranges.
 //   U+0590–U+05FF  Hebrew + Hebrew-extended (letters + points)
-const HEBREW_RE = /[\p{Script=Hebrew}\p{M}]/u;
+//
+// No `\p{M}` arm (#367). This regex has one consumer — the detector
+// below — and there "has a combining mark" is not "is Hebrew": with it,
+// decomposed Latin and decomposed Greek both read as Hebrew. Nothing
+// is lost by dropping it, because Hebrew points carry Script=Hebrew
+// themselves (unlike Greek accents and Arabic harakat, which are
+// Script=Inherited), so pointed text still matches on its own marks.
+const HEBREW_RE = /\p{Script=Hebrew}/u;
 
 /** Quick sniff for the Reader: only wrap words when the chunk
  *  actually contains Hebrew script. */

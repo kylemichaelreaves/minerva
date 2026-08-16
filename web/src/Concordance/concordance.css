@@ -1267,12 +1267,18 @@
   .fbar-search {
     width: 100%;
   }
-  /* The fbar dropdown panel in the sheet should never escape the
-     sheet's body — explicit positioning keeps it clipped. Retargeted from
-     `.fbar-drop .menu` to `Select`'s panel with the #364 port; without this
-     the three controls would have lost the containment they already had.
-     (The Author/Work `Select`s in the same bar still lack it — #365.) */
-  .fbar-drop .minerva-select__panel {
+  /* No picker panel in the sheet should escape the sheet's body — explicit
+     positioning keeps it clipped. Retargeted from `.fbar-drop .menu` to
+     `Select`'s panel with the #364 port; without this the three controls
+     would have lost the containment they already had.
+
+     Scoped to `.fbar` rather than `.fbar-drop` (#365). Only Language, Sort
+     and POS carry that wrapper — it comes from `FbarSelect`, and the Author
+     and Work pickers are bare `<Select>`s in a `.grp`. So the narrower
+     selector missed the two `filterable` pickers, which are the tall ones
+     and the ones containment matters most for. `.fbar-drop` sits inside
+     `.fbar`, so this still covers the original three. */
+  .fbar .minerva-select__panel {
     position: static;
     width: auto;
     box-shadow: none;
