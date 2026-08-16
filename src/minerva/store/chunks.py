@@ -108,6 +108,36 @@ def _resolve_work_refs(
             if title_local is not None:
                 conn.execute("UPDATE editions SET title_local = ? WHERE id = ?", (title_local, eid))
             return work_id, eid, None
+        # A re-source: same work and language, different edition. The
+        # lookup above matches on all four of (work_id, name, language,
+        # year), but `editions_canonical_unique` covers only (work_id,
+        # language) — so the miss above turns into a collision here and
+        # aborts the whole re-ingest (#410, hit moving Babrius's Greek
+        # from Crusius to Schneidewin in #398).
+        #
+        # Replace rather than demote-and-add. A re-source swaps the text
+        # in the same pass, so keeping the old row would keep an edition
+        # with zero chunks. Adding a *parallel* edition is a different
+        # operation, and the one #50's switcher wants; nothing has ever
+        # performed it — all 827 editions are canonical and alone in
+        # their language.
+        #
+        # Editions only. `translations` has no equivalent unique index
+        # and one work legitimately carries two in a language, so the
+        # same rewrite there would silently merge them.
+        canonical = conn.execute(
+            "SELECT id FROM editions "
+            "WHERE work_id = ? AND language = ? AND is_canonical = 1",
+            (work_id, lang),
+        ).fetchone()
+        if canonical is not None:
+            eid = int(canonical[0])
+            conn.execute(
+                "UPDATE editions SET name = ?, year = ?, title_local = COALESCE(?, title_local) "
+                "WHERE id = ?",
+                (name, year, title_local, eid),
+            )
+            return work_id, eid, None
         cur = conn.execute(
             "INSERT INTO editions (work_id, name, language, year, notes, title_local) "
             "VALUES (?, ?, ?, ?, ?, ?)",

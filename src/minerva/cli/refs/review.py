@@ -145,7 +145,15 @@ def _print_row(row: sqlite3.Row, ordinal: int) -> None:
         f"method={row['source_method']}"
     )
     if row["source_form_snapshot"]:
-        print(f"form   : {row['source_form_snapshot']!r}")
+        # Labelled "matched", not "form", because it is deliberately a
+        # WIDER extent than the highlight below: the rule matches the
+        # whole construction (`in Psalmo: <quote>.`) and spans only the
+        # quotation. 212 scripture references in Aquinas and Augustine
+        # differ this way and none of them is misanchored (#414). The
+        # snapshot cannot simply be narrowed to agree — it is a column of
+        # the shadow address that makes references recoverable across a
+        # re-ingest (`refs/schema.py:165-181`).
+        print(f"matched: {row['source_form_snapshot']!r}  {_dim('(may exceed the highlight)')}")
     if row["quoted_phrase"]:
         print(f"quoted : {row['quoted_phrase']!r}")
     if row["curator_note"]:
