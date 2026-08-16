@@ -411,10 +411,37 @@ def _merge_continuation_headings(
     return out
 
 
+def _packed_paragraphs(paragraphs: list[str], floor: int | None) -> list[str]:
+    """Join consecutive paragraphs until each run reaches `floor` chars.
+
+    Called per heading, so a run never spans two of them — the tail of one
+    dithyramb cannot merge into the head of the next. The final run is
+    emitted short rather than folded backwards: it is the end of the
+    poem, and folding would make the last chunk the largest.
+    """
+
+    if floor is None:
+        return paragraphs
+    out: list[str] = []
+    run: list[str] = []
+    size = 0
+    for para in paragraphs:
+        run.append(para)
+        size += len(para) + 1
+        if size >= floor:
+            out.append("\n\n".join(run))
+            run, size = [], 0
+    if run:
+        out.append("\n\n".join(run))
+    return out
+
+
 def _split_chapter_block(work: CorpusWork, path: Path, heading: str, body: str) -> Iterator[Chunk]:
-    """Inside a chapter, emit one chunk per blank-line-separated paragraph."""
+    """Inside a chapter, emit one chunk per blank-line-separated paragraph
+    — or per packed run of them, when the work sets a floor (#417)."""
 
     paragraphs = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
+    paragraphs = _packed_paragraphs(paragraphs, work.min_paragraph_chars)
     for idx, para in enumerate(paragraphs, 1):
         for label, piece in _paragraph_pieces(work, idx, para):
             section = f"{heading}, {label}" if heading else label
