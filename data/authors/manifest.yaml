@@ -1046,7 +1046,22 @@ expected_chunks:
 granularity:
   max_chunk_chars: 8000
   max_mean_chunk_chars: 3000
+  # The floor (#404). Every other threshold here bounds coarseness, so a
+  # work could fragment without limit and pass — Babrius eng sat at a
+  # 44-character median across 2,139 chunks and never appeared. Verse-
+  # addressed works are exempt on `works.citation_system`, the same
+  # signal retrieve.py uses for its own floor; without that exemption
+  # this lists 110 pairs, most of them Quran suras that are correct.
+  min_mean_chunk_chars: 100
   tolerance_pct: 5
+  # Pairs below `min_mean_chunk_chars`. Both entries are defects, not
+  # structural levels: their body text was never ingested and the files
+  # on disk are zeno.org landing pages (#420). They are baselined so the
+  # floor can land on the corpus it already violates, and the gate's
+  # stale-entry check forces their removal the day #420 is fixed.
+  known_fine:
+    "Kant|Über den Gemeinspruch: Das mag in der Theorie richtig sein, taugt aber nicht für die Praxis|deu": {mean: 52}  # 2 chunks — #420
+    "Kant|Einleitung in die Kritik der Urteilskraft (1. Fassung)|deu": {mean: 23}  # 3 chunks — #420
   known_coarse:
     "Epictetus|The Discourses of Epictetus|eng": {max: 42683, mean: 3257}  # 176 chunks
     "Hobbes|Leviathan|lat": {max: 127001, mean: 17632}  # 47 chunks

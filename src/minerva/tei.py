@@ -303,6 +303,35 @@ def _detect_chunk_boundary_units(body: ET.Element) -> frozenset[str]:
     return frozenset(seen & _NAMED_SERIES_UNITS)
 
 
+# Units this parser knows but deliberately does not chunk on — they are
+# secondary locators, not boundaries. Kept apart from the boundary sets
+# so the diagnostic below can tell "known, not a boundary" from "never
+# heard of it".
+_NON_BOUNDARY_UNITS = frozenset({"page", "bekker line", "para"})
+
+
+def _unrecognized_boundary_units(body: ET.Element) -> frozenset[str]:
+    """Units present in a body that nothing knows what to do with, when
+    the body has no boundary unit at all.
+
+    `_detect_chunk_boundary_units` returns an empty set for two different
+    bodies — one with no milestones, and one whose milestones all carry
+    an unknown unit — and #395 was misdiagnosed on exactly that ambiguity:
+    its author read the empty return as "these milestones have no
+    ``unit``" when the *Fragmenta* had 111 that did. Empty here means the
+    first case; non-empty means the second, and is worth a line on stderr.
+
+    Deliberately silent when the body chunks fine. A stray unknown unit
+    inside a section-chunked work is the allowlist working as intended —
+    warning there would bury the case that matters.
+    """
+
+    if _detect_chunk_boundary_units(body):
+        return frozenset()
+    seen = {(ms.get("unit") or "").lower() for ms in body.iter("milestone")}
+    return frozenset(seen - _NON_BOUNDARY_UNITS - {""})
+
+
 # `<div1>`/`<div2>`/`<div3>` — TEI.2 numbers its division levels rather
 # than nesting one `<div>`, so the chapter level sits at a different depth
 # per work (Epictetus's *Discourses* at `div2`, its *Enchiridion* at
@@ -480,6 +509,14 @@ class _ChunkBuilder:
         # Pre-scan to pick the milestone units that drive chunking for
         # this body. See _detect_chunk_boundary_units for the policy.
         self._chunk_boundary_units = _detect_chunk_boundary_units(body)
+        unrecognized = _unrecognized_boundary_units(body)
+        if unrecognized:
+            print(
+                f"tei: {self.meta_common['source_file']!r} "
+                f"{self.meta_common['work']!r}: milestones carry only unrecognized "
+                f"unit(s) {sorted(unrecognized)} — nothing to chunk on. Add them to "
+                f"a boundary set in _detect_chunk_boundary_units if they are one."
+            )
         # Without milestones the only boundary left is `<div1 type="book">`,
         # which made whole books single chunks: the English *Discourses*
         # ran to 151,427 characters against a 125-char median. Chapters are

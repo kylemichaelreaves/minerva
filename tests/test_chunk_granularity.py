@@ -46,7 +46,8 @@ def conn() -> sqlite3.Connection:
     c = sqlite3.connect(":memory:")
     c.executescript(
         """
-        CREATE TABLE works (id INTEGER PRIMARY KEY, author TEXT, title TEXT);
+        CREATE TABLE works (id INTEGER PRIMARY KEY, author TEXT, title TEXT,
+                            citation_system TEXT DEFAULT 'paragraph');
         CREATE TABLE editions (id INTEGER PRIMARY KEY, work_id INTEGER);
         CREATE TABLE translations (id INTEGER PRIMARY KEY, work_id INTEGER);
         CREATE TABLE chunks (
@@ -70,8 +71,11 @@ def _add_work(
     lang: str,
     lengths: list[int],
     as_translation: bool = False,
+    citation_system: str = "paragraph",
 ) -> None:
-    conn.execute("INSERT INTO works VALUES (?, ?, ?)", (work_id, author, title))
+    conn.execute(
+        "INSERT INTO works VALUES (?, ?, ?, ?)", (work_id, author, title, citation_system)
+    )
     table = "translations" if as_translation else "editions"
     conn.execute(f"INSERT INTO {table} VALUES (?, ?)", (work_id, work_id))
     for i, n in enumerate(lengths):
@@ -385,3 +389,60 @@ def test_granularity_errors_demands_a_snapshot_rather_than_passing_silently():
         cg.SNAPSHOT_PATH = real
     assert len(errs) == 1
     assert "no granularity snapshot" in errs[0]
+
+
+# ---------- the fineness floor (#404) ----------
+
+
+def test_measure_records_a_pair_whose_mean_is_under_the_floor(conn, manifest):
+    """Every threshold in the block was a ceiling, so a work could
+    fragment without limit and pass. Babrius eng sat at a 44-character
+    median across 2,139 chunks and never appeared (#404)."""
+
+    _add_work(conn, 1, "Kant", "Über den Gemeinspruch", lang="deu", lengths=[13, 91])
+    _add_work(conn, 2, "Plato", "Politeia", lang="eng", lengths=[400, 500, 600])
+    got = cg.measure(conn, cg.granularity_policy(manifest))
+    assert "Kant|Über den Gemeinspruch|deu" in got
+    assert "Plato|Politeia|eng" not in got
+
+
+def test_verse_addressed_works_are_exempt_from_the_floor(conn, manifest):
+    """A Quran sura is one āyah per chunk at a 26-character mean, and
+    that is correct. `retrieve.py` already exempts verse-addressed works
+    from its own length floor on `works.citation_system`; reusing the
+    same signal means a new scripture edition is exempt the day it is
+    ingested, with no second list to remember (#268)."""
+
+    _add_work(conn, 1, "Quran", "An-Nas", lang="ara", lengths=[26, 27, 25],
+              citation_system="surah_ayah")
+    _add_work(conn, 2, "Bible", "Genesis", lang="heb", lengths=[30, 28], citation_system="bcv")
+    assert cg.measure(conn, cg.granularity_policy(manifest)) == {}
+
+
+def test_a_too_fine_pair_not_in_the_baseline_fails(manifest):
+    manifest["granularity"]["known_coarse"] = {}
+    snapshot = {"Kant|Über den Gemeinspruch|deu": {"chunks": 2, "max": 91, "mean": 52}}
+    errs = cg.validate_snapshot(snapshot, manifest)
+    assert len(errs) == 1
+    assert "below" in errs[0]
+    assert "known_fine" in errs[0]
+
+
+def test_a_too_fine_pair_in_the_baseline_passes(manifest):
+    manifest["granularity"]["known_coarse"] = {}
+    manifest["granularity"]["known_fine"] = {
+        "Kant|Über den Gemeinspruch|deu": {"mean": 52},
+    }
+    snapshot = {"Kant|Über den Gemeinspruch|deu": {"chunks": 2, "max": 91, "mean": 52}}
+    assert cg.validate_snapshot(snapshot, manifest) == []
+
+
+def test_a_stale_known_fine_entry_fails(manifest):
+    """Same meta-check the coarse side has: a baseline that only ever
+    grows stops being read. Re-chunking a work must force its removal."""
+
+    manifest["granularity"]["known_coarse"] = {}
+    manifest["granularity"]["known_fine"] = {"Kant|Über den Gemeinspruch|deu": {"mean": 52}}
+    errs = cg.validate_snapshot({}, manifest)
+    assert len(errs) == 1
+    assert "stale" in errs[0]
