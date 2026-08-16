@@ -88,6 +88,7 @@ from .split_paragraphic import (  # noqa: F401
     _merge_continuation_headings,
     _split_chapter_block,
     split_by_chapter,
+    split_by_fable,
     split_by_paragraph,
     split_by_section,
 )

@@ -253,6 +253,45 @@ def split_by_section(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
             yield chunk
 
 
+# `[Fable N]` / `[Fable N: TITLE]`, written by
+# `perseus/download_babrius.py` at each Perry-index reference in the
+# Davies scan. The title is optional: 11 of the 131 fables have an
+# all-caps title the OCR mangled past recovery.
+_FABLE_RE = re.compile(r"(?m)^\s*\[Fable\s+(\d+)(?::\s*([^\]]*))?\]\s*$")
+
+
+def split_by_fable(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
+    """One chunk per fable, for the verse collections whose extractor
+    marks fable boundaries explicitly.
+
+    The generic paragraph splitter cannot be used here: the Davies scan
+    carries OCR-inserted blank lines through the verse — 2,307 breaks in
+    6,171 lines — so `\\n\\s*\\n` finds a "paragraph" every line or two and
+    the work came out as 2,139 chunks at a 44-character median (#399).
+    The fable is the citable unit, and it is already delimited.
+
+    The title is prepended to the body rather than put in `book`: it is
+    Davies's text, not a container, and one distinct `book` per fable
+    would be 131 of them.
+    """
+
+    matches = list(_FABLE_RE.finditer(text))
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        title = (m.group(2) or "").strip()
+        body = text[m.end() : end]
+        # Everything before the first marker is the extractor's own
+        # provenance header, not Babrius.
+        chunk = _emit(
+            work,
+            path,
+            section=f"Fable {m.group(1)}",
+            text=f"{title}\n{body}" if title else body,
+        )
+        if chunk is not None:
+            yield chunk
+
+
 def split_by_paragraph(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
     """Split on `\\nN. ` paragraph numbering. Drops front matter before ¶1."""
 

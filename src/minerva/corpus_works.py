@@ -21,7 +21,7 @@ class CorpusWork:
     edition_year: str  # year of the translation (or "1820" / "(Original)")
     filenames: tuple[str, ...]  # any of these in the corpus directory matches
     fmt: str  # "pdf" | "epub" | "html" (informational; dispatch is by extension)
-    locator: str  # "section" | "paragraph" | "chapter"
+    locator: str  # "section" | "paragraph" | "chapter" | "fable"
     # Hard cap for `paragraph` / `section` locators: any detected number
     # above this is rejected as a spurious match against page numbers or
     # footnote ordinals. None disables the cap.

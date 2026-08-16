@@ -20,9 +20,11 @@ indexed as Babrius; the Greek text itself is about 72,000 (#398).
   apparatus in the text stream. 147 ``<div subtype="section">`` fables.
   Licence: CC-BY-SA-4.0 per First1KGreek's standard header.
 * **English**: J. Davies 1860 *The Fables of Babrius* (archive.org
-  ``bib_fict_4103078``). Complete English verse translation in the
-  standard format (``FABLE I.`` / ``FABLE II.`` headers). Unchanged —
-  First1KGreek carries no translation. Its own defects are #399.
+  ``bib_fict_4103078``); First1KGreek carries no translation. **Not**
+  in a ``FABLE I.`` / ``FABLE II.`` header format, as this docstring
+  used to claim — the string ``FABLE <roman>`` occurs exactly twice in
+  the whole scan. Fable boundaries are the Perry-index lines under each
+  title, which is why ``_PERRY_REF`` matters so much (#399).
 
 Output:
 
@@ -179,10 +181,32 @@ def _extract_greek(raw: str) -> str:
 _DAVIES_FABLE = re.compile(
     r"^\s*FABLE\s+([IVXLC]+)\.?\s*$", re.IGNORECASE
 )
-# Perry / Babrian cross-references appear in parens like "(P. F. 403.)"
-# OCR sometimes renders parens as "( ", "(", "(p.", "(v.", etc.
+# Perry / Babrian cross-reference, printed under every fable's title:
+# "(P. F. 403.)". These lines ARE the fable boundaries, so a variant this
+# pattern misses is a fable the corpus loses silently.
+#
+# The scan damages roughly half of them, and the previous pattern —
+# `[\(\{][PpVvy]\.?\s*[Ff][.,]` — required the P-token to be one letter
+# followed by at most one dot, and the F to be followed by a dot or
+# comma. Measured against the raw text, that matched 81 of 142; the 61 it
+# dropped are all real, just mangled: `(Pp. F. 28.)` (P read twice),
+# `(P..F. 26.)` (doubled dot), `(Pp. ‘F. 10.)` (stray quote), `(p. F.
+# 237+)` (terminal `.` read as `+`), `(P.. F174.)` (space eaten). So the
+# separators are now "a short run of non-alphanumerics" rather than an
+# enumerated set (#399).
+#
+# What still bounds it, and what keeps `(P. 63.)` and `(See Plat. Phaedr.
+# p. 203.)` out: the line must be bracketed, start with a P/V-ish token,
+# carry an F before the digits, and contain nothing else.
 _PERRY_REF = re.compile(
-    r"^\s*[\(\{][PpVvy]\.?\s*[Ff][.,]\s*[\dvi\.,—\-]+[.,]?\s*[\)\}]\s*$"
+    r"^\s*[\(\{\[]\s*"  # opening bracket
+    r"[PpVvy]{1,2}"  # P, Pp, vp — the OCR's readings of "P"
+    r"[^A-Za-z0-9\n]{0,4}\s*"  # ". ", "..", ". ‘"
+    r"[Ff]"  # the "F" of "P. F."
+    r"[^0-9\n]{0,4}"  # ". ", ", ", "" (F174)
+    r"(?P<perry>\d{1,3})"  # Davies's Perry-index number
+    r"[^0-9\n]{0,4}"  # ".", "+", ".,"
+    r"[\)\}\]]\s*$"  # closing bracket
 )
 # All-caps title line — Davies's fable titles. At least 3 letters,
 # mostly uppercase, no terminal period (the title ends with "." but
@@ -211,10 +235,15 @@ def _extract_english(raw: str) -> str:
     if start is None:
         raise RuntimeError("Davies 1860: 'FABLE I' header not found")
 
+    # End of the fables. "NOTES TO" is the one that actually fires on
+    # this scan — `INDEX TO`, `FINIS` and `PRINTED BY` occur nowhere in
+    # it, so `end` stayed at `len(lines)` and Davies's 14,891-character
+    # commentary was swallowed into the last fable (#399). The others are
+    # kept: they cost nothing and other printings use them.
     end = len(lines)
     for i in range(start, len(lines)):
         s = lines[i].strip()
-        if "INDEX TO" in s or "FINIS" in s or "PRINTED BY" in s:
+        if "NOTES TO" in s or "INDEX TO" in s or "FINIS" in s or "PRINTED BY" in s:
             end = i
             break
 
@@ -340,8 +369,9 @@ def main() -> int:
     )
     print(
         "\nDone. The Greek needs no apparatus filtering — First1KGreek's\n"
-        "text stream carries none. Davies's English still emits ~92 of the\n"
-        "expected ~143 fables and is chunked one verse line per chunk (#399).",
+        "text stream carries none. The English recovers 131 fables from the\n"
+        "Perry-reference lines; ~12 of Babrius's ~143 carry no usable ref in\n"
+        "this scan and are still missing (#399).",
         file=sys.stderr,
     )
     return 0

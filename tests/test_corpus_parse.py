@@ -1167,3 +1167,97 @@ def test_a_front_matter_heading_that_never_appears_is_skipped(tmp_path: Path):
     chunks = list(corpus_parse.split_by_section(text, _front_matter_work(), tmp_path / "x.pdf"))
     assert [c.section for c in chunks] == ["§1", "§2"]
     assert all(c.book is None for c in chunks)
+
+
+# ---------- split_by_fable (#399) ----------
+
+
+def _fable_work() -> corpus_works.CorpusWork:
+    return corpus_works.CorpusWork(
+        code="babrius_eng",
+        title="Fables (Babrius)",
+        translator="J. Davies",
+        edition_year="1860",
+        filenames=("babrius_eng.txt",),
+        fmt="txt",
+        locator="fable",
+        lang="eng",
+        corpus="aesop",
+        author="Aesop",
+        citation_system="paragraph",
+    )
+
+
+_FABLE_TEXT = (
+    "# Babrius — Davies 1860 English verse\n"
+    "\n[Fable 1: THE HUSBANDMAN WHO HAD LOST HIS MATTOCK]\n"
+    "TRENCHING his vineyard once a husbandman\n"
+    "\n"
+    "His mattock lost ; and to inquire began,\n"
+    "\n[Fable 2: THE GOATHERD AND THE SHE GOAT]\n"
+    "A goatherd tried to bring his she-goat back,\n"
+    "\n"
+    "And, when she would not come, he threw a stone.\n"
+)
+
+
+def test_split_by_fable_emits_one_chunk_per_fable(tmp_path: Path):
+    """Davies's scan carries OCR-inserted blank lines through the verse —
+    2,307 of them in 6,171 lines — so the paragraph splitter emitted one
+    chunk per line: 2,139 chunks at a 44-character median, none of which
+    carries enough context to retrieve on. The fable is the citable unit
+    and the extractor already marks it."""
+
+    path = tmp_path / "babrius_eng.txt"
+    path.write_text(_FABLE_TEXT)
+    chunks = list(corpus_parse.split_by_fable(_FABLE_TEXT, _fable_work(), path))
+    assert [c.section for c in chunks] == ["Fable 1", "Fable 2"]
+    assert "TRENCHING his vineyard" in chunks[0].text
+    assert "His mattock lost" in chunks[0].text
+    assert "goatherd" not in chunks[0].text
+
+
+def test_split_by_fable_keeps_the_title_with_its_fable(tmp_path: Path):
+    """The title is Davies's, part of the work rather than apparatus, and
+    it is the most retrievable line in a short verse fable."""
+
+    path = tmp_path / "babrius_eng.txt"
+    chunks = list(corpus_parse.split_by_fable(_FABLE_TEXT, _fable_work(), path))
+    assert chunks[0].text.startswith("THE HUSBANDMAN WHO HAD LOST HIS MATTOCK")
+    assert "GOATHERD" in chunks[1].text
+
+
+def test_split_by_fable_drops_the_preamble_before_the_first_marker(tmp_path: Path):
+    """The extractor's provenance header is not Babrius."""
+
+    path = tmp_path / "babrius_eng.txt"
+    chunks = list(corpus_parse.split_by_fable(_FABLE_TEXT, _fable_work(), path))
+    assert all("Davies 1860 English verse" not in c.text for c in chunks)
+
+
+def test_split_by_fable_handles_an_untitled_fable(tmp_path: Path):
+    """11 of the 131 have no title the extractor could recover; they must
+    still be emitted, and still under their own number."""
+
+    text = "\n[Fable 7]\nA fable whose all-caps title the scan lost entirely.\n"
+    path = tmp_path / "babrius_eng.txt"
+    chunks = list(corpus_parse.split_by_fable(text, _fable_work(), path))
+    assert [c.section for c in chunks] == ["Fable 7"]
+    assert chunks[0].text == "A fable whose all-caps title the scan lost entirely."
+
+
+def test_split_by_fable_skips_a_fable_with_neither_title_nor_words(tmp_path: Path):
+    """`_emit` drops letter-free text — the lines of stars and glyph soup
+    a bad page produces. A marker with no recoverable title over a body
+    of nothing else yields no chunk, rather than a locator pointing at
+    debris.
+
+    A fable whose *title* survived is kept even if its body is debris:
+    the title is Davies's text and prepending it is what makes the chunk
+    non-empty. That asymmetry is deliberate, and neither case occurs in
+    the current scan — the smallest real fable is 216 characters."""
+
+    text = "\n[Fable 4]\n* * * * *\n. , ;\n\n[Fable 5: THE REAL ONE]\nA fable with actual words in it.\n"
+    path = tmp_path / "babrius_eng.txt"
+    chunks = list(corpus_parse.split_by_fable(text, _fable_work(), path))
+    assert [c.section for c in chunks] == ["Fable 5"]

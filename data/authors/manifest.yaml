@@ -995,9 +995,14 @@ expected_chunks:
   theognis:
     min: 1214
     max: 1861
+  # Rebased 2026-08-15 from a 2,869-chunk nominal. The corpus lost 77%
+  # of its chunks legitimately across #398 and #399: the Greek shed
+  # ~430k characters of Crusius apparatus on re-sourcing, and the
+  # English went from 2,139 one-verse-line chunks to 131 fables. Same
+  # 0.85/1.10 band as quran, boulainvilliers and hegel.
   aesop:
-    min: 2438
-    max: 3155
+    min: 551
+    max: 713
   origen:
     min: 1185
     max: 1818
