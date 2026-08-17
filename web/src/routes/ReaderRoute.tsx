@@ -41,6 +41,40 @@ export function ReaderRoute(props: RouteContextProps) {
     const r = props.routing.route();
     return r.kind === "reader" && r.syntaxChunkId !== undefined;
   };
+
+  /** Seed the chat scope with the work being read, for either exit (#428).
+   *
+   *  Both exits used to do this synchronously off `currentWork()`, which reads
+   *  the LAZILY-loaded `works()` list while the Reader renders straight off the
+   *  route. Leaving inside the `/api/works` round-trip therefore seeded `null`
+   *  and dropped the work with no sign it had happened.
+   *
+   *  So: seed now if the list can answer, and otherwise fall back to
+   *  `resolveWork`, which awaits the list. Nothing here is awaited by the
+   *  caller — the navigation happens immediately either way, and the chip
+   *  appears a moment later in the cold case. An exit keypress must not wait on
+   *  a network round-trip.
+   *
+   *  The late path only writes when the scope is *still* what this function
+   *  left it. Between the two, the user has a landing (or a conversation) in
+   *  front of them with a working scope control, and a late resolution that
+   *  overwrote their choice would be a worse bug than the one being fixed. */
+  const seedScopeFromReader = () => {
+    const loc = props.reader.readerWork();
+    const w = props.reader.currentWork();
+    props.conversations.setChatScope(
+      w ? { workId: w.work_id, title: w.display_title } : null,
+    );
+    if (w || !loc) return;
+    void props.reader.resolveWork(loc).then((late) => {
+      if (!late) return;
+      if (props.conversations.chatScope() !== null) return;
+      props.conversations.setChatScope({
+        workId: late.work_id,
+        title: late.display_title,
+      });
+    });
+  };
   return (
     <Show when={work() !== null}>
       <Reader
@@ -66,20 +100,14 @@ export function ReaderRoute(props: RouteContextProps) {
           // `ChatRoute` passes `WorkScopeControl` to `<Landing>` when a scope
           // is set, and `startFromLanding` keeps it. So seeding here is now
           // visible and survives, which is what the agreed design asked for.
-          const w = props.reader.currentWork();
-          props.conversations.setChatScope(
-            w ? { workId: w.work_id, title: w.display_title } : null,
-          );
+          seedScopeFromReader();
           props.routing.navigate({ kind: "landing" });
         }}
         onClose={() => {
           // Seed the chat scope with the work being read, so a question
           // asked right after closing the Reader is scoped to it. Shown
           // as a dismissible composer chip — never silent.
-          const w = props.reader.currentWork();
-          props.conversations.setChatScope(
-            w ? { workId: w.work_id, title: w.display_title } : null,
-          );
+          seedScopeFromReader();
           void props.reader.switchMode("chat");
         }}
       />

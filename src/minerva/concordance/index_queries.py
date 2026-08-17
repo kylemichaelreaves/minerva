@@ -132,25 +132,18 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     _scope_clause(scope, authors, works)  # validates scope/author/work pairing
 
 
-    # The A–Z rail's letter filter folds diacritics for EVERY language
-    # (#381), not just Greek. Greek got the fold first because polytonic
-    # lemmas begin with precomposed forms (ἀ / ἄ / Ἀ) and an ASCII
-    # ``LIKE 'Α%'`` prefix missed almost all of them — the gap was
-    # impossible to overlook. The Latin-script languages have the same gap,
-    # just smaller: SQLite's ``LIKE`` is case-insensitive for ASCII only and
-    # folds nothing, so ``LIKE 'A%'`` never matched ``Ähnlich``. Measured
-    # over the whole live index: 914 German rows, 1,344 French and 571
-    # English began with a character that had no rail key at all and were
-    # unreachable from the rail.
+    # The A–Z rail's letter filter folds diacritics for EVERY language (#381),
+    # not just Greek. Greek got the fold first because polytonic lemmas begin
+    # with precomposed forms (ἀ / ἄ / Ἀ) and an ASCII `LIKE 'Α%'` prefix missed
+    # almost all of them; the Latin-script languages had the same gap, just
+    # smaller — 914 German rows, 1,344 French and 571 English were unreachable
+    # from the rail entirely.
     #
-    # This is also what makes display and filter agree at last. The frontend
-    # already folds initials client-side for its alpha-sort section headers
-    # (``foldInitial`` in ``Concordance/constants.ts``), so a reader saw
-    # ``Ähnlich`` under an ``A`` heading, clicked ``A``, and did not get it.
-    #
-    # Registered unconditionally now, so it is on the page's own load
-    # request. It is `lru_cache`d for the same reason `lower_uni` is.
-    conn.create_function("fold_initial", 1, _fold_initial_cached, deterministic=True)
+    # There is no `fold_initial` SQL function registered any more (#425). The
+    # fold now lives in the stored `lemma_initial` column, written at aggregate
+    # time by the same `_fold_initial`, so neither the letter filter nor the
+    # rail's own GROUP BY calls into Python per row. `_fold_initial` is still
+    # applied here in Python — once, to the request parameter.
     # The `q` filter folds the whole lemma, for every language rather than just
     # Greek: German umlauts and the eszett want it as much as polytonic accents
     # do, and gating it would mean two `q` semantics to document. Registered
@@ -281,26 +274,40 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # and the odd one out counted `DISTINCT lemma` while its rows were per
     # `(lemma, pos)` (#377); with that corrected, `merge_case` off is just
     # `group_expr = "lemma"` and the branches collapse.
-    conn.create_function("fold_initial", 1, _fold_initial_cached, deterministic=True)
     group_expr = _lemma_group_expr(merge_case=merge_case)
-    letter_expr = _letter_key_expr("lemma_key")
-
     def _scan(parts: list[str], params: list[Any]) -> list[sqlite3.Row]:
         """One grouped pass: per-letter totals, and per-letter counts
-        inside the frequency range."""
+        inside the frequency range.
+
+        Buckets on the **stored** `lemma_initial` (#425). This query groups every
+        row in the language partition, so when the bucket was
+        `fold_initial(lemma_key)` it paid a SQLite->Python callback per row on
+        the page's own load request — the ~24 ms #425 measured on the unfiltered
+        read, on top of the ~200 ms it cost the letter-filtered one. Reading the
+        column removes the callback from both.
+
+        `MIN(lemma_initial)` rather than adding it to the GROUP BY: every lemma
+        sharing a `lemma_key` necessarily shares an initial, because `lemma_key`
+        is `lower_uni(lemma)` and `_fold_initial` upper-cases — so the group is
+        constant in this column and MIN just picks it out without widening the
+        grouping.
+        """
         freq_parts = ["n >= ?"]
         freq_params: list[Any] = [min_count]
         if max_count is not None:
             freq_parts.append("n <= ?")
             freq_params.append(max_count)
         sql = f"""
-            SELECT {letter_expr} AS letter,
+            SELECT letter,
                    COUNT(*) AS n_lemmas,
                    COALESCE(SUM(n), 0) AS n_tokens,
                    SUM(CASE WHEN {" AND ".join(freq_parts)} THEN 1 ELSE 0 END)
                        AS n_in_range
             FROM (
-                SELECT {group_expr} AS lemma_key, pos, SUM(count) AS n
+                SELECT {group_expr} AS lemma_key,
+                       MIN(lemma_initial) AS letter,
+                       pos,
+                       SUM(count) AS n
                 FROM lemma_counts
                 WHERE {" AND ".join(parts)}
                 GROUP BY lemma_key, pos
@@ -401,27 +408,6 @@ def _lemma_group_expr(*, merge_case: bool) -> str:
     """
 
     return "lower_uni(lemma)" if merge_case else "lemma"
-
-
-def _letter_key_expr(col: str = "lemma") -> str:
-    """The A–Z rail's bucket for ``col``.
-
-    Deliberately the same key the ``letter`` filter matches on, so a dot on
-    the rail means "clicking here returns rows" rather than something close
-    to it. One expression for every language since #381: ``fold_initial``,
-    which is what ``grc`` always used.
-
-    It used to branch, and the non-Greek arm broke the invariant this
-    docstring claims. ``UPPER(SUBSTR(col, 1, 1))`` was chosen to bucket
-    "exactly what ``LIKE 'A%'`` matches", but the two ran on *different
-    strings*: this key is computed on ``lemma_key`` (i.e. ``lower_uni(lemma)``
-    when ``merge_case`` is on) while the filter ran ``LIKE`` against raw
-    ``lemma``. So ``Ähnlich`` bucketed under ``ä`` — a key the rail does not
-    have — while ``letter=Ä`` matched rows the rail reported as zero. Both
-    sides now fold, so both sides agree, and every bucket is a rail key.
-    """
-
-    return f"fold_initial({col})"
 
 
 def _fetch_aggregate_page(
@@ -582,10 +568,12 @@ def _counts_where(
         where_params.extend(scope_values)
 
     if letter:
-        # Folded equality for every language since #381 — see
-        # `_letter_key_expr`. Both sides go through the same `_fold_initial`,
-        # via the SQL function on the column and directly on the parameter,
-        # so the two cannot drift.
+        # Folded equality for every language since #381, against the **stored**
+        # fold since #425 — see migration 0031. `lemma_initial` is written by
+        # `aggregate.build` with this same `_fold_initial`, so the two sides
+        # cannot drift, and comparing a column instead of calling a Python
+        # callback per row is what lets `lemma_counts_by_initial` serve this as
+        # an indexed seek rather than a full scan of the language partition.
         #
         # This also retires #120's escaping concern for `letter` rather than
         # working around it: an equality test on a folded single character
@@ -593,7 +581,7 @@ def _counts_where(
         # matches nothing instead of needing `escape_like_substring` to stop
         # it matching the whole index. The `q` filter still needs that
         # escape, and still has it.
-        where_parts.append("fold_initial(lemma) = ?")
+        where_parts.append("lemma_initial = ?")
         where_params.append(_fold_initial(letter))
     if pos_in is not None:
         placeholders = ",".join("?" * len(pos_in))
@@ -740,14 +728,6 @@ def _fold_initial(s: str | None) -> str:
 
     return _fold_text(s[:1] if s else s)[:1]
 
-
-# Memoized for the same reason `_lower_unicode_cached` is, and it matters more
-# here than it did when this was Greek-only: since #381 the letter key runs on
-# every language's page-load request, not just `grc`'s. The cache is far more
-# effective than the other two — the key space is the 26-key rail plus a short
-# tail, so after the first rows every call is a hit regardless of vocabulary
-# size.
-_fold_initial_cached = functools.lru_cache(maxsize=200_000)(_fold_initial)
 
 
 def _corpus_label(lang: str) -> str:

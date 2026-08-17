@@ -17,6 +17,22 @@ import { okResponse } from "./helpers/testRouting";
 // surfaces. These are the wiring: that the gate is fed the real state, and
 // that a surface with its own listener wins the keypress.
 
+// Complete on purpose. A partial payload used to crash `Atlas`'s caption
+// (`undefined.toLocaleString()`), and because the throw escaped mid-render it
+// left the DOM frozen with the composer — and its scope chip — still present.
+// A test asserting on the chip then passed over a broken landing.
+const LANDING_STATS = { authors: 48, works: 866, xrefs: 54155 };
+
+const KAPITAL_WORK = {
+  work_id: 781,
+  corpus: "marx",
+  author: "Marx",
+  work: "Das Kapital, Band I",
+  display_title: "Das Kapital, Band I",
+  lang: "deu",
+  chunks: 1,
+};
+
 const RANGE = {
   work_id: 781,
   corpus: "marx",
@@ -271,6 +287,97 @@ describe("Escape in the Reader", () => {
     await waitFor(() => {
       expect(document.querySelector(".chat-scope")).toBeNull();
     });
+  });
+
+  it("carries the work even when /api/works is still in flight (#428)", async () => {
+    // The race #428 was filed on. `currentWork()` reads the lazily-loaded works
+    // list while the Reader renders off the route, so leaving inside the
+    // `/api/works` round-trip used to seed `null` and drop the work silently.
+    //
+    // Hold `/api/works` open across the Escape, then release it: the chip must
+    // still arrive. Note this cannot be fixed by *retaining* a resolved work —
+    // in this state nothing has ever resolved.
+    let releaseWorks: (() => void) | undefined;
+    const worksGate = new Promise<void>((r) => {
+      releaseWorks = r;
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/syntax")) return okResponse(SYNTAX);
+      if (url.includes("/api/terms/")) return okResponse(TERM);
+      if (url.includes("occurrence_map") || url.includes("references_map")) {
+        return okResponse({ work_id: 781, lang: "deu", by_chunk: {} });
+      }
+      if (url.includes("/api/works/")) return okResponse(RANGE);
+      if (url.includes("/api/works")) {
+        await worksGate;
+        return okResponse({ works: [KAPITAL_WORK] });
+      }
+      if (url.includes("/api/conversations")) return okResponse({ conversations: [] });
+      if (url.includes("/api/landing/stats")) return okResponse(LANDING_STATS);
+      return okResponse({});
+    });
+
+    await mountReader();
+    escape();
+
+    // Left the Reader immediately — the exit did not block on the network.
+    await waitFor(() => {
+      expect(document.querySelector(".reader")).toBeNull();
+    });
+    // And no chip yet, because the list has not arrived. This is the state that
+    // used to be permanent.
+    expect(document.querySelector(".chat-scope")).toBeNull();
+
+    releaseWorks!();
+
+    await waitFor(() => {
+      expect(document.querySelector(".chat-scope")).not.toBeNull();
+    });
+    expect(document.querySelector(".chat-scope")?.textContent).toMatch(
+      /Das Kapital, Band I/,
+    );
+  });
+
+  it("does not re-seed a scope the reader cleared while it resolved (#428)", async () => {
+    // The late write is only correct while it is still filling the hole it
+    // left. Here the reader gets a chip from a warm list, clears it with the
+    // ×, and a second exit's late resolution must not put it back — otherwise
+    // dismissing the chip would be undone by a race the reader cannot see.
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/syntax")) return Promise.resolve(okResponse(SYNTAX));
+      if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
+      if (url.includes("occurrence_map") || url.includes("references_map")) {
+        return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
+      }
+      if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
+      if (url.includes("/api/works")) {
+        return Promise.resolve(okResponse({ works: [KAPITAL_WORK] }));
+      }
+      if (url.includes("/api/conversations")) {
+        return Promise.resolve(okResponse({ conversations: [] }));
+      }
+      if (url.includes("/api/landing/stats")) return Promise.resolve(okResponse(LANDING_STATS));
+      return Promise.resolve(okResponse({}));
+    });
+
+    await mountReader();
+    escape();
+    await waitFor(() => {
+      expect(document.querySelector(".chat-scope")).not.toBeNull();
+    });
+
+    document.querySelector<HTMLButtonElement>(".chat-scope__clear")!.click();
+    await waitFor(() => {
+      expect(document.querySelector(".chat-scope")).toBeNull();
+    });
+
+    // Nothing may re-seed it afterwards.
+    await new Promise((r) => setTimeout(r, 80));
+    expect(document.querySelector(".chat-scope")).toBeNull();
   });
 
   it("closes the term card instead of leaving", async () => {

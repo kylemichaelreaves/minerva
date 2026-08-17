@@ -37,6 +37,25 @@ export function ConcordanceTabPanel(props: Props) {
     },
   );
 
+  /** The resource's value, or `undefined` when it failed.
+   *
+   *  Reading `data()` on an errored resource **throws** — Solid rethrows so an
+   *  `ErrorBoundary` can catch it. Every read below went through the raw
+   *  accessor, so on a failed fetch the throw escaped the update the rejection
+   *  triggered, abandoned it, and left this panel on "Loading lemma index…"
+   *  forever: the error branch beneath it never mounted, and its remedy line
+   *  (`minerva terms lemmatize`) never reached the screen (#426).
+   *
+   *  The guard at the old `:75` looked like it covered this —
+   *  `data() && !data.error && …` — but `&&` evaluates left to right, so
+   *  `data()` threw before `!data.error` was ever reached. Order was the whole
+   *  bug.
+   *
+   *  Same shape as `Syntax/index.tsx`'s `loaded()`, which fixed the identical
+   *  defect in the syntax overlay under #235 — deliberately the same spelling
+   *  rather than a third one. */
+  const loaded = () => (data.error === undefined ? data() : undefined);
+
   return (
     <div class="rail-concord">
       <Show when={props.workTitle} fallback={
@@ -72,9 +91,9 @@ export function ConcordanceTabPanel(props: Props) {
         {/* `rows?.` is defensive against a malformed server payload —
             the response type claims it's always present. */}
         {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-        <Show when={data() && !data.error && (data()?.rows?.length ?? 0) > 0}>
+        <Show when={(loaded()?.rows?.length ?? 0) > 0}>
           <ul class="rail-concord-list">
-            <For each={data()!.rows}>
+            <For each={loaded()!.rows}>
               {(row: LemmaIndexRow) => (
                 <li
                   class="rail-concord-row"
@@ -91,8 +110,11 @@ export function ConcordanceTabPanel(props: Props) {
           </ul>
         </Show>
 
+        {/* Gated on `loaded()` rather than `data()` so a *failed* fetch does
+            not claim the work has no lemmas — that is a different statement,
+            and the error branch above is what should speak for it. */}
         {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-        <Show when={data() && (data()?.rows?.length ?? 0) === 0 && !data.loading}>
+        <Show when={loaded() && (loaded()?.rows?.length ?? 0) === 0 && !data.loading}>
           <div class="rail-concord-empty">
             No content lemmas in this work.
           </div>

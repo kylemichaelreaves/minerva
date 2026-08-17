@@ -64,8 +64,14 @@ export interface ReaderApi {
   ensureWorks: () => Promise<void>;
   /** The full Work for the current reader location, or null. Resolves
    *  the route's work string + lang against the `works()` list — used to
-   *  seed the chat scope chip when leaving the Reader. */
+   *  seed the chat scope chip when leaving the Reader.
+   *
+   *  Returns null while `works()` is still loading; use `resolveWork` for the
+   *  case where that matters (#428). */
   currentWork: () => Work | null;
+  /** Resolve a reader location to its Work, awaiting the lazy works list if
+   *  needed. Resolves null on no match or a failed fetch, never rejects. */
+  resolveWork: (loc: ReaderLocation) => Promise<Work | null>;
   /** Navigate to a specific work in Reader mode. */
   openWork: (work: Work) => void;
   /** Open / close the term-card for the current reader URL. Writing
@@ -106,18 +112,46 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     if (!keepsReaderAlive(routing.route())) setRetainedWork(null);
   });
 
+  /** Match a reader location against a loaded works list. */
+  const matchWork = (loc: ReaderLocation, list: Work[]): Work | null =>
+    list.find(
+      (w) =>
+        w.work === loc.workId &&
+        (loc.sourceLang == null || w.lang === loc.sourceLang) &&
+        (loc.author == null || w.author === loc.author),
+    ) ?? null;
+
   const currentWork = (): Work | null => {
     const loc = readerWork();
     if (!loc) return null;
-    return (
-      works().find(
-        (w) =>
-          w.work === loc.workId &&
-          (loc.sourceLang == null || w.lang === loc.sourceLang) &&
-          (loc.author == null || w.author === loc.author),
-      ) ?? null
-    );
+    return matchWork(loc, works());
   };
+
+  /** Resolve a reader location to its `Work`, **awaiting the works list** if it
+   *  has not arrived yet.
+   *
+   *  `currentWork()` is synchronous and reads `works()`, which is populated
+   *  lazily — while the Reader itself renders straight off the route. So a
+   *  reader who opened a work by URL and left again inside the `/api/works`
+   *  round-trip got `null`, and both Reader exits collapse a null lookup to "no
+   *  scope": the work was dropped, silently (#428).
+   *
+   *  Retaining the last resolved `Work` would not have fixed that — in the cold
+   *  case nothing has ever resolved, so there is nothing to retain. Awaiting
+   *  the existing single-flight loader is what actually closes it. Callers use
+   *  this as a *late* fallback: seed synchronously from `currentWork()` when it
+   *  can answer, navigate immediately either way, and let this fill the scope in
+   *  a moment later. Nothing blocks on it, so an exit keypress stays instant.
+   *
+   *  Resolves `null` rather than rejecting when the list cannot be fetched — an
+   *  exit gesture must not become an unhandled rejection, and "no scope" is the
+   *  correct outcome when the corpus is unreachable. */
+  async function resolveWork(loc: ReaderLocation): Promise<Work | null> {
+    const warm = matchWork(loc, works());
+    if (warm) return warm;
+    await ensureWorks();
+    return matchWork(loc, works());
+  }
 
   function openAtChunk(workId: string, sourceLang: string | undefined, chunkId: string) {
     abortChat();
@@ -251,6 +285,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     retainedWork,
     mode,
     currentWork,
+    resolveWork,
     switchMode,
     openAtChunk,
     works,

@@ -29,6 +29,8 @@ import sqlite3
 import time
 from collections import defaultdict
 
+from minerva.concordance.index_queries import _fold_initial
+
 
 def build(conn: sqlite3.Connection, *, verbose: bool = False) -> dict[str, int]:
     """Rebuild ``lemma_counts`` from ``chunk_lemmas`` + ``chunks_full``.
@@ -213,11 +215,18 @@ def _bulk_insert(
 
     if not rows:
         return
+    # `lemma_initial` is derived here rather than at the three `append` sites
+    # (#425). One place means the corpus, author and work scopes cannot disagree
+    # about a row's rail bucket, and it is derived with the very function the
+    # read path folds its request parameter with — imported, not reimplemented,
+    # because a second copy of the fold is exactly how the stored value and the
+    # query drift apart. See migration 0031 for why the column exists.
     for i in range(0, len(rows), _INSERT_BATCH):
+        batch = [(*r, _fold_initial(r[3])) for r in rows[i : i + _INSERT_BATCH]]
         conn.executemany(
             "INSERT INTO lemma_counts "
             "(lang, scope_kind, scope_value, lemma, pos, "
-            " count, distinct_works, per_work_json) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            rows[i : i + _INSERT_BATCH],
+            " count, distinct_works, per_work_json, lemma_initial) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            batch,
         )

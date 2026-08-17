@@ -8,6 +8,7 @@ import {
   onCleanup,
   onMount,
 } from "solid-js";
+import SurfaceErrorBoundary from "~/components/SurfaceErrorBoundary";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
@@ -136,7 +137,12 @@ export function AppRoutes(props: AppRoutesProps) {
               this wrapper so the concordance rendered in the sibling `<Switch>`
               below reads the default and stays live (#352). */}
           <SuspendedSubtreeProvider suspended={() => !readerShowing()}>
-            <ReaderRoute {...ctx} />
+            {/* Per-surface boundaries (#426). Inside the provider, so a Reader
+                failure does not tear down the suspended-subtree context the
+                sibling concordance depends on (#352). */}
+            <SurfaceErrorBoundary label="The reader">
+              <ReaderRoute {...ctx} />
+            </SurfaceErrorBoundary>
           </SuspendedSubtreeProvider>
         </div>
       </Show>
@@ -144,15 +150,27 @@ export function AppRoutes(props: AppRoutesProps) {
           condition the removed `<Match>` used — without it the switch would
           fall through to `ChatRoute` and render the chat under the Reader. */}
       <Show when={!readerShowing()}>
-        <Switch fallback={<ChatRoute {...ctx} />}>
+        <Switch
+          fallback={
+            <SurfaceErrorBoundary label="Chat">
+              <ChatRoute {...ctx} />
+            </SurfaceErrorBoundary>
+          }
+        >
           <Match when={props.onConcordance()}>
-            <ConcordanceRoute {...ctx} />
+            <SurfaceErrorBoundary label="The concordance">
+              <ConcordanceRoute {...ctx} />
+            </SurfaceErrorBoundary>
           </Match>
           <Match when={props.onNetwork()}>
-            <NetworkRoute {...ctx} />
+            <SurfaceErrorBoundary label="The network view">
+              <NetworkRoute {...ctx} />
+            </SurfaceErrorBoundary>
           </Match>
           <Match when={props.onRefs()}>
-            <RefsRoute {...ctx} />
+            <SurfaceErrorBoundary label="Cross-references">
+              <RefsRoute {...ctx} />
+            </SurfaceErrorBoundary>
           </Match>
         </Switch>
       </Show>

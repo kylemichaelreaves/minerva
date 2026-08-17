@@ -248,4 +248,98 @@ describe("useReader()", () => {
     expect(localStorage.getItem("minerva:last-conversation")).toBe("saved-thread");
     dispose();
   });
+  describe("resolveWork — surviving the /api/works round-trip (#428)", () => {
+    // Both Reader exits seed the chat scope from `currentWork()`, which
+    // resolves the route against the LAZILY-loaded `works()` list while the
+    // Reader itself renders from the route. Leaving inside that round-trip
+    // therefore seeded `null` and silently dropped the work — the exact
+    // outcome #350 set out to stop.
+    //
+    // Note what this does NOT claim to fix by retaining alone: if the list
+    // never loaded, nothing was ever resolved, so there is nothing retained
+    // to fall back on. `resolveWork` closes it by awaiting the single-flight
+    // loader instead, which is why it returns a promise.
+    const READER_ROUTE = {
+      kind: "reader" as const,
+      workId: "Republic",
+      sourceLang: "grc",
+    };
+
+    it("resolves the Work once the list arrives, from a cold works() list", async () => {
+      // Hold /api/works open so `works()` is still empty when we ask.
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      fetchMock.mockImplementation(async () => {
+        await gate;
+        return okResponse({ works: WORKS });
+      });
+
+      const routing = createTestRouting(READER_ROUTE);
+      const { api, dispose } = runReader(routing);
+      await flush();
+
+      // The pre-existing accessor cannot answer yet — this is the defect.
+      expect(api.works()).toEqual([]);
+      expect(api.currentWork()).toBeNull();
+
+      const loc = api.readerWork();
+      expect(loc).not.toBeNull();
+      const pending = api.resolveWork(loc!);
+
+      release!();
+      await expect(pending).resolves.toMatchObject({
+        work_id: 1,
+        display_title: "Republic",
+      });
+      dispose();
+    });
+
+    it("returns the same Work currentWork() would, once warm", async () => {
+      const routing = createTestRouting(READER_ROUTE);
+      const { api, dispose } = runReader(routing);
+      await flush();
+      await api.ensureWorks();
+      const direct = api.currentWork();
+      expect(direct).not.toBeNull();
+      await expect(api.resolveWork(api.readerWork()!)).resolves.toEqual(direct);
+      dispose();
+    });
+
+    it("honours sourceLang so it does not return the wrong edition", async () => {
+      // `Republic` exists in grc and eng; the scope must get the one being read.
+      const routing = createTestRouting({ ...READER_ROUTE, sourceLang: "eng" });
+      const { api, dispose } = runReader(routing);
+      await flush();
+      await expect(api.resolveWork(api.readerWork()!)).resolves.toMatchObject({
+        work_id: 2,
+        lang: "eng",
+      });
+      dispose();
+    });
+
+    it("resolves null for a location with no matching work", async () => {
+      const routing = createTestRouting({
+        kind: "reader",
+        workId: "Nonexistent",
+        sourceLang: "grc",
+      });
+      const { api, dispose } = runReader(routing);
+      await flush();
+      await expect(api.resolveWork(api.readerWork()!)).resolves.toBeNull();
+      dispose();
+    });
+
+    it("resolves null rather than rejecting when the works fetch fails", async () => {
+      // A failed list must not turn an exit gesture into an unhandled
+      // rejection — the caller's job is to leave the scope alone.
+      fetchMock.mockRejectedValue(new Error("offline"));
+      const routing = createTestRouting(READER_ROUTE);
+      const { api, dispose } = runReader(routing);
+      await flush();
+      await expect(api.resolveWork(api.readerWork()!)).resolves.toBeNull();
+      dispose();
+    });
+  });
 });
