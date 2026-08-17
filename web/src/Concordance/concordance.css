@@ -1267,35 +1267,24 @@
   .fbar-search {
     width: 100%;
   }
-  /* INERT — kept, with its reason recorded, pending the decision in #365.
-     Do not widen this to reach a picker that appears uncontained; that was
-     tried in PR #423 and changed nothing.
+  /* No panel-containment rule here, on purpose (#365). `Select`'s panel in
+     this bar is contained by `styles/mobile.css:1119`, which forces every
+     `.minerva-select__panel` to `position: fixed !important` with a
+     full-viewport `inset` under this same `(max-width: 768px)` breakpoint —
+     a full-screen sheet, and `!important` beats any specificity reachable
+     from here.
 
-     It once did real work. As `.fbar-drop .menu` it contained the local
-     `Dropdown`'s menu, and `mobile.css` has no `.menu` rule, so nothing
-     overrode it. The #364 port retargeted it onto `Select`'s panel — and
-     `mobile.css:1119` already forces EVERY `.minerva-select__panel` to
-     `position: fixed !important` with a full-viewport `inset`, turning it
-     into a full-screen sheet. Same `(max-width: 768px)` breakpoint as this
-     block, and `!important` beats specificity, so this rule cannot win
-     below 768px and does not apply above it.
+     A `.fbar-drop .minerva-select__panel { position: static; … }` rule used
+     to sit at this spot. It was load-bearing as `.fbar-drop .menu` (there
+     is no `.menu` rule in `mobile.css` to override it), but #364's port
+     retargeted it onto a class `mobile.css` already takes over, and it had
+     been dead at every width ever since. PR #423 widened its selector to
+     reach the Author/Work pickers and changed nothing; #424 reverted that,
+     and it is deleted here rather than kept as a no-op that reads as
+     protection.
 
-     Measured in the running app at 375×812, computed style, with the
-     filter sheet open: the Work picker's panel (no `.fbar-drop`) is
-     `fixed`, z-index 80, 375×764 at top 48 — and Language's (inside
-     `.fbar-drop`) is `fixed`, z-index 80, 375×764 at top 45. Identical.
-     Containment comes from `mobile.css`, not from here.
-
-     So #364's note that "without this the three controls would have lost
-     the containment they already had" is wrong: they gained `Select`'s
-     full-screen sheet, which supersedes this. */
-  .fbar-drop .minerva-select__panel {
-    position: static;
-    width: auto;
-    box-shadow: none;
-    border-radius: 0;
-    margin-top: 4px;
-  }
+     So if a picker's panel ever escapes this sheet, `mobile.css` is where
+     to look — not here. */
   /* AZ rail in mobile concordance: 9-wide grid so all 26 letters
      fit on three rows without scrolling. */
   .az-rail.az-rail-grid {

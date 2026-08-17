@@ -3,7 +3,9 @@
    stylesheets; nothing inside this file should leak above 768px
    (every rule is wrapped in the media query).
 
-   Mobile model (from mobile-wireframes.html design):
+   Mobile model — the design of record, since the wireframe file this was
+   ported from was a local scratch file and never entered the repository
+   (#360). The list below is the spec, not a summary of one:
    - Sidebar is hidden by default and reveals as a left-edge drawer
      overlay when `body[data-mobile-drawer="open"]`.
    - A 44px MobileTopBar replaces the desktop sidebar's nav on

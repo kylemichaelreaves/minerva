@@ -215,6 +215,36 @@ describe("useConversations()", () => {
     dispose();
   });
 
+  it("startFromLanding KEEPS a scope that was seeded before submit (#350)", async () => {
+    // The half of "leaving the Reader for the landing" that was
+    // unbuildable: the back arrow could hand the work to a conversation,
+    // and the landing could not receive it, because this cleared the scope
+    // unconditionally ("Landing is the global entry point — unscoped").
+    //
+    // Now the landing renders the same dismissible `WorkScopeControl` chip
+    // when a scope is set, so keeping it is visible rather than silent —
+    // which is what makes carrying it honest.
+    const routing = createTestRouting({ kind: "landing" });
+    const { api, dispose } = runConversations(routing);
+    await flush();
+    api.setChatScope({ workId: 781, title: "Das Kapital, Band I" });
+    api.startFromLanding("what is the commodity form?");
+    expect(api.chatScope()).toEqual({ workId: 781, title: "Das Kapital, Band I" });
+    dispose();
+  });
+
+  it("startFromLanding stays unscoped when no scope was seeded (#350)", async () => {
+    // The cold landing — app start, or "New question" — is still the
+    // global unscoped entry point. Nothing to keep, nothing to clear.
+    const routing = createTestRouting({ kind: "landing" });
+    const { api, dispose } = runConversations(routing);
+    await flush();
+    expect(api.chatScope()).toBeNull();
+    api.startFromLanding("hello");
+    expect(api.chatScope()).toBeNull();
+    dispose();
+  });
+
   it("sendMessage appends a user turn and calls askMinerva", async () => {
     const routing = createTestRouting({ kind: "conversation", id: "abc" });
     const { api, dispose } = runConversations(routing);

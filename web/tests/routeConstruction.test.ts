@@ -2,6 +2,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { blankComments } from "./helpers/blankComments";
+
 // Two properties about how the app builds navigations, checked against the
 // source rather than against behaviour — because both failure modes are
 // silent. A hand-built hash that has drifted from `readRoute` is a link that
@@ -27,12 +29,57 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
+// Comments are blanked, not stripped (#349). Both properties below are
+// regexes over source text, and without this a **commented-out**
+// constructor satisfies the reachability half — which is the state #232
+// was filed on, one comment marker away. `blankComments` preserves every
+// character position, so the `file:line` these guards report stays true.
+//
+// The blindness was one-directional and only the reachability half was
+// unsafe: a commented-out hand-built hash made the drift half report a
+// false positive, which fails loudly. Both are fixed here anyway, because
+// a guard that reports a line nobody needs to fix trains people to ignore
+// it.
 const files = sourceFiles(SRC).map((path) => ({
   rel: relative(SRC, path),
-  text: readFileSync(path, "utf8"),
+  text: blankComments(readFileSync(path, "utf8")),
 }));
 
 const appFiles = files.filter((f) => !ROUTING_PLUMBING.includes(f.rel));
+
+describe("the guards read code, not comments (#349)", () => {
+  // Guards the guard. Both properties below are regexes over source text,
+  // and the blanking that makes them comment-aware is one `.map` away from
+  // being silently dropped in a refactor — at which point every case here
+  // goes back to passing on commented-out source, which is how #232's
+  // unreachable route stayed green.
+  //
+  // Verified by mutation as well as by this test: with
+  // `syntaxChunkId: chunkId` commented out in `Reader/index.tsx`, the
+  // modifier case below failed. Before the blanking it passed.
+  const readerRaw = readFileSync(join(SRC, "Reader", "index.tsx"), "utf8");
+  const readerBlanked = appFiles.find((f) => f.rel === join("Reader", "index.tsx"));
+
+  it("blanks comment text out of the sources it scans", () => {
+    expect(readerBlanked).toBeDefined();
+    // A phrase that exists only inside a comment in the raw file.
+    const commentOnly = "which is the failure the old peer route caused";
+    expect(readerRaw).toContain(commentOnly);
+    expect(readerBlanked!.text).not.toContain(commentOnly);
+  });
+
+  it("keeps every character position while doing it", () => {
+    // The reported `file:line` is derived from a character offset, so a
+    // transform that shifted anything would send readers to the wrong line.
+    expect(readerBlanked!.text).toHaveLength(readerRaw.length);
+    expect(readerBlanked!.text.split("\n")).toHaveLength(readerRaw.split("\n").length);
+  });
+
+  it("leaves live code intact", () => {
+    // The constructor the modifier case depends on must survive blanking.
+    expect(readerBlanked!.text).toContain("syntaxChunkId: chunkId,");
+  });
+});
 
 describe("every hash assignment goes through routeHash", () => {
   // `routing.ts` owns both the construction and the parsing of every hash.
@@ -68,7 +115,11 @@ describe("every route kind has a constructor outside the router", () => {
   // Every kind named in routing.ts, however it is written — the union spells
   // some on their own line (`kind: "network-arc";`) and some inline
   // (`| { kind: "landing" }`), and `readRoute` repeats them all.
-  const union = readFileSync(join(SRC, "routing.ts"), "utf8");
+  // Blanked too (#349): a kind commented out of the union is not a route,
+  // and demanding a constructor for it would fail this suite for a screen
+  // that no longer exists. `kinds.length` is asserted below, so blanking
+  // cannot quietly shrink what this checks either.
+  const union = blankComments(readFileSync(join(SRC, "routing.ts"), "utf8"));
   const kinds = [...new Set([...union.matchAll(/kind: "([a-z-]+)"/g)].map((m) => m[1] ?? ""))];
 
   it("reads every kind out of the Route union", () => {

@@ -65,6 +65,21 @@ export function ChatRoute(props: RouteContextProps) {
       >
         <Landing
           onSubmit={props.conversations.startFromLanding}
+          scopeChip={
+            // Only when a scope is actually set (#350), so the cold landing
+            // stays the uncluttered brand screen. `WorkScopeControl` is the
+            // same dismissible chip the conversation composer uses above, so
+            // a work carried out of the Reader is visible and droppable
+            // rather than a hidden filter on the first question.
+            <Show when={props.conversations.chatScope()}>
+              <WorkScopeControl
+                scope={props.conversations.chatScope}
+                works={props.reader.works}
+                ensureWorks={props.reader.ensureWorks}
+                onSet={props.conversations.setChatScope}
+              />
+            </Show>
+          }
           onOpenRead={() => {
             void props.reader.switchMode("reader");
           }}

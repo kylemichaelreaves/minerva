@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import Landing from "~/Landing";
 
-function renderLanding() {
+function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
   const onSubmit = vi.fn();
   const onOpenRead = vi.fn();
   const onOpenRefs = vi.fn();
@@ -15,6 +16,7 @@ function renderLanding() {
       onOpenRefs={onOpenRefs}
       onOpenNetwork={onOpenNetwork}
       onOpenConcordance={onOpenConcordance}
+      scopeChip={opts.scopeChip}
     />
   ));
   return {
@@ -101,5 +103,48 @@ describe("<Landing />", () => {
       target: { value: "x" },
     });
     expect(btn.classList.contains("disabled")).toBe(false);
+  });
+  describe("the work-scope chip (#350)", () => {
+    // Leaving the Reader for the landing used to drop the work: the back
+    // arrow could hand it to a conversation, the landing had nowhere to
+    // render the chip, and `startFromLanding` cleared the scope on submit.
+    // The chip is optional so the cold landing — app start, "New question" —
+    // stays the unscoped global entry point it was designed as.
+    it("renders a scope chip when one is passed", () => {
+      renderLanding({
+        scopeChip: <div data-testid="scope-chip">Das Kapital, Band I</div>,
+      });
+      expect(screen.getByTestId("scope-chip")).toBeInTheDocument();
+    });
+
+    it("renders no chip when none is passed", () => {
+      renderLanding();
+      expect(screen.queryByTestId("scope-chip")).toBeNull();
+    });
+
+    it("puts the chip above the input, not below it", () => {
+      // `ComposeField` renders `scopeChip` inside the sticky wrap above the
+      // box. Asserted by document order so a CSS-only reflow cannot make
+      // this pass while the chip reads as belonging to the mode row.
+      const { container } = renderLanding({
+        scopeChip: <div data-testid="scope-chip">Das Kapital, Band I</div>,
+      });
+      const chip = screen.getByTestId("scope-chip");
+      const input = container.querySelector(".landing-input");
+      expect(input).not.toBeNull();
+      expect(chip.compareDocumentPosition(input!)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it("still submits normally with a chip present", () => {
+      const { onSubmit } = renderLanding({
+        scopeChip: <div data-testid="scope-chip">Das Kapital, Band I</div>,
+      });
+      const ta = screen.getByPlaceholderText(/what would you like/i);
+      fireEvent.input(ta, { target: { value: "what is the commodity form?" } });
+      fireEvent.keyDown(ta, { key: "Enter" });
+      expect(onSubmit).toHaveBeenCalledWith("what is the commodity form?");
+    });
   });
 });

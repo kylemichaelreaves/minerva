@@ -1,7 +1,8 @@
 // Stories for ReferenceCard — the cross-reference popover.
 //
-// Three variants × two themes, mirroring the design canvas at
-// project/reference-card/ReferenceCard.html. Each story renders the
+// Three variants × two themes. These stories ARE the design of record for
+// the card: they began as a mirror of a static HTML design canvas that was
+// never committed, and this file replaced it (#360). Each story renders the
 // card pinned to a fake gutter-marker anchor at known viewport
 // coordinates so the popover positioning machinery exercises but
 // doesn't fall to (0, 0). The toolbar Theme global toggles light /

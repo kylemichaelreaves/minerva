@@ -146,4 +146,86 @@ describe("<TermCard />", () => {
     const whos = container.querySelectorAll(".termcard-who");
     expect(Array.from(whos, (w) => w.textContent)).toEqual(["Pinkard", "Inwood"]);
   });
+  describe("the load-error state (#361)", () => {
+    // #358 gave `PopoverCard` an unconditional `×`, which subsumed the
+    // recovery affordance `.termcard-close` was written to be back when the
+    // shell had no close control at all. In the error state the card then
+    // showed two controls doing the same thing — both calling `onClose()`
+    // with no other effect — and `useDialogFocus` trapped Tab between them.
+    //
+    // That was true of the SOURCE and never of the running card, which is
+    // #361's correction: the error branch was unreachable. Solid rethrows a
+    // rejection when the errored resource is read, so the sibling
+    // `<Show when={term()}>` threw inside the update the rejection
+    // triggered, aborting it. Measured before the fix: `.termcard-error`
+    // absent, `.termcard-loading` still mounted, one button, and an uncaught
+    // "boom" escaping the render.
+    //
+    // The first test below is therefore the one that matters most — it is
+    // the reachability regression guard, and it failed before this change
+    // for a completely different reason than the duplicate control.
+    const renderFailed = async () => {
+      fetchMock.mockRejectedValueOnce(new Error("boom"));
+      const onClose = vi.fn();
+      const { container } = render(() => (
+        <TermCard termId={9} anchor={fakeRect()} onClose={onClose} />
+      ));
+      await waitFor(() => {
+        expect(container.querySelector(".termcard-error")).not.toBeNull();
+      });
+      return { container, onClose };
+    };
+
+    it("reaches the error state at all, and stops showing Loading…", async () => {
+      const { container } = await renderFailed();
+      expect(container.querySelector(".termcard-error")?.textContent).toMatch(
+        /Could not load this term/,
+      );
+      // The stuck-spinner half. Before the fix this stayed mounted forever,
+      // so a reader whose fetch failed saw "Loading…" and nothing else.
+      expect(container.querySelector(".termcard-loading")).toBeNull();
+    });
+
+    it("does not let the rejection escape the component", async () => {
+      // The uncaught error was the other half of the same defect, and the
+      // app mounts no ErrorBoundary to catch it.
+      const onError = vi.fn();
+      window.addEventListener("error", onError);
+      const onRejection = vi.fn();
+      window.addEventListener("unhandledrejection", onRejection);
+      try {
+        await renderFailed();
+        await new Promise((r) => setTimeout(r, 50));
+        expect(onError).not.toHaveBeenCalled();
+        expect(onRejection).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener("error", onError);
+        window.removeEventListener("unhandledrejection", onRejection);
+      }
+    });
+
+    it("offers exactly one dismiss control", async () => {
+      const { container } = await renderFailed();
+      // Every button inside the card, error state included. The shell's `×`
+      // is the only one that should be here.
+      const buttons = Array.from(container.querySelectorAll("button"));
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]!.className).toContain("popover-close");
+      expect(buttons[0]!.getAttribute("aria-label")).toBe("Close");
+    });
+
+    it("no longer renders the redundant Dismiss button", async () => {
+      const { container } = await renderFailed();
+      expect(container.querySelector(".termcard-close")).toBeNull();
+      expect(container.textContent).not.toMatch(/Dismiss/);
+    });
+
+    it("dismisses through the shell control", async () => {
+      const { container, onClose } = await renderFailed();
+      const close = container.querySelector<HTMLButtonElement>(".popover-close");
+      expect(close).not.toBeNull();
+      close!.click();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
 });

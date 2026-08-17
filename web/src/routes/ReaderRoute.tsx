@@ -53,19 +53,23 @@ export function ReaderRoute(props: RouteContextProps) {
         syntaxOpen={syntaxOpen()}
         suspended={props.reader.mode() !== "reader"}
         onExit={() => {
-          // Escape leaves for the landing, unscoped — the same state
-          // `newConversation` produces. Deliberately NOT `onClose`: the back
-          // arrow resumes the last conversation, and "escape out of the
+          // Escape leaves for the landing. Deliberately NOT `onClose`: the
+          // back arrow resumes the last conversation, and "escape out of the
           // Reader" should not drop the user into a thread they did not ask
           // for. The passage is not lost either way; `minerva:last-reader`
           // brings Read back to it.
           //
-          // No chat scope is seeded here, unlike `onClose`. The landing has
-          // no scope chip to show one — `WorkScopeControl` lives in
-          // `ChatRoute`'s conversation branch — and `startFromLanding`
-          // clears the scope on submit by design ("the global entry point —
-          // unscoped"), so seeding it would be invisible and then discarded.
-          props.conversations.setChatScope(null);
+          // The work IS carried over now, the same way `onClose` carries it
+          // (#350). This used to clear the scope, and said so because the
+          // landing had no chip to render one and `startFromLanding` cleared
+          // it on submit anyway — both of which were true and are no longer:
+          // `ChatRoute` passes `WorkScopeControl` to `<Landing>` when a scope
+          // is set, and `startFromLanding` keeps it. So seeding here is now
+          // visible and survives, which is what the agreed design asked for.
+          const w = props.reader.currentWork();
+          props.conversations.setChatScope(
+            w ? { workId: w.work_id, title: w.display_title } : null,
+          );
           props.routing.navigate({ kind: "landing" });
         }}
         onClose={() => {

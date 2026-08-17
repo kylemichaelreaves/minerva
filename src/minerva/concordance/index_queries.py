@@ -132,15 +132,25 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     _scope_clause(scope, authors, works)  # validates scope/author/work pairing
 
 
-    # Polytonic Greek lemmas begin with *precomposed* diacritic forms
-    # (ἀ / ἄ / Ἀ), so the ASCII ``LIKE 'Α%' NOCASE`` letter filter used
-    # for Latin-script langs would miss almost everything. For Greek we
-    # match on a diacritic-folded, case-folded leading letter instead
-    # (registered as a SQLite scalar fn below). Gated to ``grc`` so the
-    # German Ä/Ö/Ü/ß bucketing the LIKE path gives is left untouched.
-    fold_letter = lang == "grc"
-    if fold_letter:
-        conn.create_function("fold_initial", 1, _fold_initial, deterministic=True)
+    # The A–Z rail's letter filter folds diacritics for EVERY language
+    # (#381), not just Greek. Greek got the fold first because polytonic
+    # lemmas begin with precomposed forms (ἀ / ἄ / Ἀ) and an ASCII
+    # ``LIKE 'Α%'`` prefix missed almost all of them — the gap was
+    # impossible to overlook. The Latin-script languages have the same gap,
+    # just smaller: SQLite's ``LIKE`` is case-insensitive for ASCII only and
+    # folds nothing, so ``LIKE 'A%'`` never matched ``Ähnlich``. Measured
+    # over the whole live index: 914 German rows, 1,344 French and 571
+    # English began with a character that had no rail key at all and were
+    # unreachable from the rail.
+    #
+    # This is also what makes display and filter agree at last. The frontend
+    # already folds initials client-side for its alpha-sort section headers
+    # (``foldInitial`` in ``Concordance/constants.ts``), so a reader saw
+    # ``Ähnlich`` under an ``A`` heading, clicked ``A``, and did not get it.
+    #
+    # Registered unconditionally now, so it is on the page's own load
+    # request. It is `lru_cache`d for the same reason `lower_uni` is.
+    conn.create_function("fold_initial", 1, _fold_initial_cached, deterministic=True)
     # The `q` filter folds the whole lemma, for every language rather than just
     # Greek: German umlauts and the eszett want it as much as polytonic accents
     # do, and gating it would mean two `q` semantics to document. Registered
@@ -189,7 +199,6 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         scope_kind,
         scope_values,
         letter=letter,
-        fold_letter=fold_letter,
         pos_in=pos_in,
         q=q,
     )
@@ -272,10 +281,9 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # and the odd one out counted `DISTINCT lemma` while its rows were per
     # `(lemma, pos)` (#377); with that corrected, `merge_case` off is just
     # `group_expr = "lemma"` and the branches collapse.
-    if fold_letter:
-        conn.create_function("fold_initial", 1, _fold_initial, deterministic=True)
+    conn.create_function("fold_initial", 1, _fold_initial_cached, deterministic=True)
     group_expr = _lemma_group_expr(merge_case=merge_case)
-    letter_expr = _letter_key_expr(fold_letter, "lemma_key")
+    letter_expr = _letter_key_expr("lemma_key")
 
     def _scan(parts: list[str], params: list[Any]) -> list[sqlite3.Row]:
         """One grouped pass: per-letter totals, and per-letter counts
@@ -306,7 +314,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
 
     totals_where_parts, totals_where_params = _counts_where(
         lang, scope_kind, scope_values,
-        letter=letter, fold_letter=fold_letter, pos_in=pos_in, q=q,
+        letter=letter, pos_in=pos_in, q=q,
     )
     totals_rows = _scan(totals_where_parts, totals_where_params)
     total_lemmas = sum(int(r["n_lemmas"]) for r in totals_rows)
@@ -315,7 +323,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     if letter:
         rail_where_parts, rail_where_params = _counts_where(
             lang, scope_kind, scope_values,
-            letter="", fold_letter=fold_letter, pos_in=pos_in, q=q,
+            letter="", pos_in=pos_in, q=q,
         )
         rail_rows = _scan(rail_where_parts, rail_where_params)
     else:
@@ -395,20 +403,25 @@ def _lemma_group_expr(*, merge_case: bool) -> str:
     return "lower_uni(lemma)" if merge_case else "lemma"
 
 
-def _letter_key_expr(fold_letter: bool, col: str = "lemma") -> str:
+def _letter_key_expr(col: str = "lemma") -> str:
     """The A–Z rail's bucket for ``col``.
 
-    Deliberately the same key the ``letter`` filter matches on, so a dot
-    on the rail means "clicking here returns rows" rather than something
-    close to it. For Greek that is ``fold_initial`` (ἄ/ἀ/Ἀ → Α); for
-    everything else the filter is ``lemma LIKE 'A%'``, which SQLite
-    evaluates case-insensitively for ASCII and not at all for anything
-    else — so ``UPPER(SUBSTR(...))`` buckets exactly what that matches,
-    and ``Ähnlich`` lands under ``Ä`` rather than ``A`` because the
-    filter would not return it under ``A`` either.
+    Deliberately the same key the ``letter`` filter matches on, so a dot on
+    the rail means "clicking here returns rows" rather than something close
+    to it. One expression for every language since #381: ``fold_initial``,
+    which is what ``grc`` always used.
+
+    It used to branch, and the non-Greek arm broke the invariant this
+    docstring claims. ``UPPER(SUBSTR(col, 1, 1))`` was chosen to bucket
+    "exactly what ``LIKE 'A%'`` matches", but the two ran on *different
+    strings*: this key is computed on ``lemma_key`` (i.e. ``lower_uni(lemma)``
+    when ``merge_case`` is on) while the filter ran ``LIKE`` against raw
+    ``lemma``. So ``Ähnlich`` bucketed under ``ä`` — a key the rail does not
+    have — while ``letter=Ä`` matched rows the rail reported as zero. Both
+    sides now fold, so both sides agree, and every bucket is a rail key.
     """
 
-    return f"fold_initial({col})" if fold_letter else f"UPPER(SUBSTR({col}, 1, 1))"
+    return f"fold_initial({col})"
 
 
 def _fetch_aggregate_page(
@@ -541,7 +554,6 @@ def _counts_where(
     scope_values: list[str],
     *,
     letter: str,
-    fold_letter: bool,
     pos_in: tuple[str, ...] | None,
     q: str,
 ) -> tuple[list[str], list[Any]]:
@@ -570,15 +582,19 @@ def _counts_where(
         where_params.extend(scope_values)
 
     if letter:
-        if fold_letter:
-            where_parts.append("fold_initial(lemma) = ?")
-            where_params.append(_fold_initial(letter))
-        else:
-            # `letter` is a user-supplied prefix, so its own `%` / `_`
-            # must be escaped or they act as wildcards and match the
-            # whole index instead of nothing (#120).
-            where_parts.append("lemma LIKE ? ESCAPE '\\'")
-            where_params.append(escape_like_substring(letter) + "%")
+        # Folded equality for every language since #381 — see
+        # `_letter_key_expr`. Both sides go through the same `_fold_initial`,
+        # via the SQL function on the column and directly on the parameter,
+        # so the two cannot drift.
+        #
+        # This also retires #120's escaping concern for `letter` rather than
+        # working around it: an equality test on a folded single character
+        # has no pattern syntax to abuse, so a `letter` of `%` or `_` now
+        # matches nothing instead of needing `escape_like_substring` to stop
+        # it matching the whole index. The `q` filter still needs that
+        # escape, and still has it.
+        where_parts.append("fold_initial(lemma) = ?")
+        where_params.append(_fold_initial(letter))
     if pos_in is not None:
         placeholders = ",".join("?" * len(pos_in))
         where_parts.append(f"pos IN ({placeholders})")
@@ -710,14 +726,28 @@ _lower_unicode_cached = functools.lru_cache(maxsize=200_000)(_lower_unicode)
 def _fold_initial(s: str | None) -> str:
     """Fold a string's first character to its base capital letter.
 
-    ``ἄ`` → ``Α``, ``ὁ`` → ``Ο``, ``Ἀθηνᾶ`` → ``Α``: the concordance
-    letter rail buckets polytonic forms under their bare capital.
-    Registered as a SQLite scalar function for the Greek leading-letter
-    filter, and exactly ``_fold_text`` over the first character — the
-    empty-string case included.
+    ``ἄ`` → ``Α``, ``ὁ`` → ``Ο``, ``Ἀθηνᾶ`` → ``Α``, and since #381 the
+    Latin-script cases too: ``Ähnlich`` → ``A``, ``über`` → ``U``. The
+    concordance letter rail buckets on this and its ``letter`` filter matches
+    on it, which is what makes every bucket a rail key.
+
+    Truncated to one character AFTER folding, which is not redundant: ``ß``
+    upper-cases to ``SS`` (German eszett expands), and a two-character bucket
+    is not on a 26-key rail — so a ``ß``-initial lemma would be unreachable
+    without the trailing slice. Every other case folds 1→1, so this is a
+    no-op for them, Greek included.
     """
 
-    return _fold_text(s[:1] if s else s)
+    return _fold_text(s[:1] if s else s)[:1]
+
+
+# Memoized for the same reason `_lower_unicode_cached` is, and it matters more
+# here than it did when this was Greek-only: since #381 the letter key runs on
+# every language's page-load request, not just `grc`'s. The cache is far more
+# effective than the other two — the key space is the 26-key rail plus a short
+# tail, so after the first rows every call is a hit regardless of vocabulary
+# size.
+_fold_initial_cached = functools.lru_cache(maxsize=200_000)(_fold_initial)
 
 
 def _corpus_label(lang: str) -> str:

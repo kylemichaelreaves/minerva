@@ -8,7 +8,7 @@
 // un-anchored thematic questions — the shape this corpus answers worst,
 // since there is no locus to retrieve — and was removed in #258.
 
-import { Show, createSignal, onMount } from "solid-js";
+import { Show, createSignal, onMount, type JSX } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/ComposeField";
@@ -28,6 +28,18 @@ interface LandingProps {
   onOpenConcordance: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
+  /** Optional work-scope chip, rendered above the composer input (#350).
+   *
+   *  Optional rather than always-on because the *cold* landing — app start,
+   *  or "New question" — really is the unscoped global entry point this
+   *  screen was designed as. What it could not express before was a landing
+   *  arrived at **from a work**, where the scope is known and wanted: the
+   *  Reader's back arrow could hand the work to a conversation and this
+   *  screen had nowhere to show it, so leaving the Reader dropped it.
+   *
+   *  `ChatRoute` passes this only when `chatScope()` is set, so the brand
+   *  screen stays uncluttered in the common case. */
+  scopeChip?: JSX.Element;
 }
 
 // Alternate landing logo. The owl-of-Athena is the default mark; on
@@ -131,6 +143,7 @@ export default function Landing(props: LandingProps) {
             variant="landing"
             c={c}
             sendLabel="Begin"
+            scopeChip={props.scopeChip}
             hint={
               isMobile() ? (
                 <span class="landing-mobile-hint">ask about a passage, a work, an author</span>
