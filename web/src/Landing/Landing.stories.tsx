@@ -27,8 +27,11 @@ export const Dark: Story = {
 
 // Mobile (iPhone 14, 390×844). Atlas moves to TOP per design 1a, the
 // hero collapses to the Π monogram, the composer pills wrap to two
-// rows, and the three-mode entry stacks vertically. See
-// mobile-wireframes.html section 01.
+// rows, and the three-mode entry stacks vertically. Those four changes
+// are the whole of what "design 1a" specified for this surface, recorded
+// here because the wireframe file they came from was a local scratch file
+// and never entered the repository — this story is the design of record
+// (#360).
 export const Mobile: Story = {
   parameters: {
     viewport: { defaultViewport: "iphone14" },

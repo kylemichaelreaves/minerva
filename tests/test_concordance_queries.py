@@ -1074,6 +1074,41 @@ def test_fold_initial_still_folds_only_the_first_character() -> None:
     assert index_queries._fold_initial(None) == ""
 
 
+def test_fold_initial_collapses_multi_character_upper_case_expansions() -> None:
+    """``_fold_initial`` truncates to one character AFTER folding (#381).
+
+    Not redundant: upper-casing expands some single characters, and a
+    two-character bucket is not a key on a 26-letter rail — so without the
+    trailing slice these lemmas would bucket under ``SS`` / ``FI`` and be
+    unreachable from the rail entirely.
+    """
+
+    # German eszett expands to SS.
+    assert index_queries._fold_text("\u00df") == "SS"
+    assert index_queries._fold_initial("\u00dfeta") == "S"
+    # Latin ligatures expand under upper-casing too. These are an OCR
+    # artifact in the English-language editions (76 `ﬁ`-initial and 42
+    # `ﬂ`-initial rows in the live index) and this is what makes them
+    # reachable under F.
+    assert index_queries._fold_initial("\ufb01nis") == "F"
+    assert index_queries._fold_initial("\ufb02ower") == "F"
+
+
+def test_fold_initial_does_not_transliterate_across_scripts() -> None:
+    """The fold strips diacritics; it does not romanize.
+
+    A Greek-script lemma keeps a Greek bucket even in an English-language
+    partition, which is correct — ``Επιστήμη`` is not an English ``E`` — and
+    is why folding alone does not make every row reachable from an A–Z rail.
+    The residue is a cross-script problem, tracked separately.
+    """
+
+    assert index_queries._fold_initial("\u0395\u03c0\u03b9\u03c3\u03c4\u03ae\u03bc\u03b7") == "\u0395"
+    assert index_queries._fold_initial("sibi") == "S"
+    # `Œ` has no NFD decomposition, so it stays its own letter.
+    assert index_queries._fold_initial("\u0152uvre") == "\u0152"
+
+
 def test_q_folds_greek_diacritics(
     greek_concordance_db: sqlite3.Connection,
 ) -> None:
@@ -1412,3 +1447,178 @@ def test_tied_rows_are_ordered_by_pos_so_the_sort_is_total(
     )
     tied = [(r["lemma"], r["pos"], r["count"]) for r in out["rows"] if r["lemma"] == "recht"]
     assert tied == [("recht", "ADJ", 2), ("recht", "VERB", 2)]
+
+
+# ── the A–Z rail must be able to address every initial (#381) ─────────
+#
+# The rail offers 26 keys; the corpus has more initials than that. Measured
+# over the whole live index when this was filed: 914 German rows, 1,344
+# French and 571 English begin with a character that has no rail key, and
+# `lemma LIKE 'A%'` cannot reach them because SQLite's LIKE is
+# case-insensitive for ASCII only and folds nothing.
+#
+# Greek already had the fold (`fold_initial`), because polytonic forms made
+# the gap impossible to miss. These tests hold every other language to the
+# same rule.
+
+
+@pytest.fixture
+def umlaut_concordance_db(tmp_path: Path) -> sqlite3.Connection:
+    """German chunks whose lemmas start with umlauts, both cases.
+
+    ``Ähnlich`` / ``ähnlich`` are the pair that proves the fold: the
+    frontend already buckets them under ``A`` for its alpha-sort section
+    headers, so before this fix display and filter disagreed — a reader saw
+    ``Ähnlich`` under an ``A`` heading, clicked ``A``, and did not get it.
+
+    ``Apfel`` is the ASCII control that must keep working, and ``Bild`` is
+    the negative control that ``A`` must never return.
+
+    Every seeded lemma is a CONTENT word (NOUN/ADJ) on purpose. The
+    leaderboard's default POS set strips function words — DET/ADP/CCONJ/
+    SCONJ/PRON/AUX/PART/PUNCT/SYM/SPACE (``_scope.py:15``) — so seeding the
+    umlaut cases as ``ADP`` (``über``) makes them vanish for a reason that
+    has nothing to do with the letter fold, and the test then fails while
+    the fold works.
+    """
+
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="uml-1",
+            corpus="hegel",
+            author="Hegel",
+            work="Test",
+            lang="deu",
+            section="A",
+            text="Ähnlich ähnlich Übel übel Apfel Bild",
+        ),
+        make_chunk(
+            chunk_id="uml-2",
+            corpus="hegel",
+            author="Hegel",
+            work="Test",
+            lang="deu",
+            section="B",
+            text="Ähnlich Übel Apfel Bild Öl",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "uml.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    seed = [
+        ("uml-1", 0, "Ähnlich", "ADJ"),
+        ("uml-1", 1, "ähnlich", "ADJ"),
+        ("uml-1", 2, "Übel", "NOUN"),
+        ("uml-1", 3, "übel", "ADJ"),
+        ("uml-1", 4, "Apfel", "NOUN"),
+        ("uml-1", 5, "Bild", "NOUN"),
+        ("uml-2", 0, "Ähnlich", "ADJ"),
+        ("uml-2", 1, "Übel", "NOUN"),
+        ("uml-2", 2, "Apfel", "NOUN"),
+        ("uml-2", 3, "Bild", "NOUN"),
+        ("uml-2", 4, "Öl", "NOUN"),
+    ]
+    for chunk_id, idx, lemma, pos in seed:
+        _insert_lemma(
+            conn,
+            chunk_id=chunk_id,
+            token_index=idx,
+            surface=lemma,
+            lemma=lemma,
+            pos=pos,
+        )
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def test_letter_A_reaches_umlaut_initial_german(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """``letter=A`` returns ``Ähnlich``, which is what the frontend's own
+    alpha-sort headers already claim."""
+
+    out = concordance_queries.lemma_index(
+        umlaut_concordance_db,
+        {"lang": "deu", "letter": "A", "min_count": "1"},
+    )
+    lemmas = {r["lemma"] for r in out["rows"]}
+    assert "Ähnlich" in lemmas
+    assert "Apfel" in lemmas, "the ASCII case must keep working"
+    assert "Bild" not in lemmas, "the fold must not widen the filter to everything"
+
+
+def test_letter_A_folds_both_cases_of_the_umlaut(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """``Ä`` and ``ä`` both belong to ``A``. With ``merge_case`` on they are
+    one lemma anyway; this asserts the letter filter agrees."""
+
+    out = concordance_queries.lemma_index(
+        umlaut_concordance_db,
+        {"lang": "deu", "letter": "A", "min_count": "1"},
+    )
+    assert any(r["lemma"].lower().startswith("ähnlich") for r in out["rows"])
+
+
+def test_letter_U_reaches_umlaut_initial_german(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """Not just ``A``: ``Ü`` folds to ``U`` as well. ``ü`` was the largest
+    off-rail bucket in the live index (610 rows)."""
+
+    out = concordance_queries.lemma_index(
+        umlaut_concordance_db,
+        {"lang": "deu", "letter": "U", "min_count": "1"},
+    )
+    assert any(r["lemma"].lower().startswith("übel") for r in out["rows"])
+
+
+def test_letter_O_reaches_umlaut_initial_german(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    out = concordance_queries.lemma_index(
+        umlaut_concordance_db,
+        {"lang": "deu", "letter": "O", "min_count": "1"},
+    )
+    assert any(r["lemma"] == "Öl" for r in out["rows"])
+
+
+def test_letter_counts_buckets_agree_with_what_the_letter_returns(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """The rail's own invariant, stated in ``_letter_key_expr``'s docstring:
+    a dot on the rail means clicking there returns rows.
+
+    This is what the pre-fix code could not honour for non-ASCII. The bucket
+    key ran on ``lower_uni(lemma)`` while the filter ran ``LIKE`` on raw
+    ``lemma``, so ``Ä``-initial rows bucketed under ``ä`` — a key not on the
+    rail — while ``letter=Ä`` matched rows the rail said were zero.
+    """
+
+    out = concordance_queries.lemma_index(
+        umlaut_concordance_db,
+        {"lang": "deu", "min_count": "1"},
+    )
+    counts = out["letter_counts"]
+
+    # Every bucket must be an A–Z key now: nothing off-rail is left.
+    assert set(counts) <= set("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), (
+        f"off-rail buckets remain: {sorted(set(counts) - set('ABCDEFGHIJKLMNOPQRSTUVWXYZ'))}"
+    )
+
+    # And each bucket's count matches what clicking it actually returns.
+    for key, n in counts.items():
+        clicked = concordance_queries.lemma_index(
+            umlaut_concordance_db,
+            {"lang": "deu", "letter": key, "min_count": "1", "limit": "500"},
+        )
+        assert clicked["total_lemmas"] == n, (
+            f"rail says {key}={n} but clicking it returns {clicked['total_lemmas']}"
+        )

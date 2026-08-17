@@ -1041,7 +1041,13 @@
    in `.line` is always present so the page never shifts between a
    row with a marker and one without.
 
-   Faithful port of project/reference-card/ReferenceMarker.html. */
+   These states are a faithful port of a design mockup, which is why they
+   are this specific and why "snap, never fade" is a rule rather than a
+   preference — do not tidy them toward the app's other transitions. The
+   mockup itself was a local scratch file and was never committed, so the
+   design of record is now the Storybook story that renders these states
+   side by side: `Reader/XrefMarker` → Default / Hover / FocusVisible /
+   Active, each with a Dark counterpart (#360). */
 
 .reader .line .line-marker {
   /* The gutter cell; the button (or absence thereof) lives inside. */

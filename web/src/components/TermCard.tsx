@@ -1,12 +1,15 @@
 // Term card — the click-popover for marked Greek words in the
-// Reader. Matches the structure of the term-wireframes design bundle
-// (lemma / renderings grid / "why this rendering?" disclosure /
-// occurrence count / related chips / external links) but uses the
-// app's paper/ink tokens instead of the wireframe's grayscale palette.
+// Reader. Matches the structure of a design bundle (lemma / renderings
+// grid / "why this rendering?" disclosure / occurrence count / related
+// chips / external links) but uses the app's paper/ink tokens instead of
+// that bundle's grayscale palette. The bundle was a local scratch
+// directory and never entered the repository; the design of record is the
+// Storybook story `Reader/TermCard` (#360).
 //
 // Single-translation case is the MVP (current data: Edghill, eng).
 // The renderings grid is structured for multi-translator data so the
-// three-pane variant from the wireframe drops in without rework.
+// three-pane variant drops in without rework — which is why the grid
+// exists at all while only one translator is loaded.
 //
 // Lifecycle:
 //   - The Reader passes a `termId` and an anchor rect (the clicked
@@ -29,8 +32,8 @@ export interface TermCardProps {
   anchor: DOMRect;
   direction?: "ltr" | "rtl";
   /** Called when the user dismisses the card — a click away, Esc, a second
-   *  click on the marked word, or the "Dismiss" button, which renders in the
-   *  load-error state only and is not a general close affordance (#356). The
+   *  click on the marked word, or the shell's `×` (#358), which is the card's
+   *  one visible exit in every state including the load error (#361). The
    *  Reader uses this to clear its selection state. */
   onClose: () => void;
 }
@@ -74,20 +77,23 @@ export default function TermCard(props: TermCardProps) {
         <div class="termcard-loading">Loading…</div>
       </Show>
       <Show when={Boolean(term.error)}>
-        <div class="termcard-error">
-          Could not load this term.
-          <button
-            class="termcard-close"
-            onClick={() => {
-              props.onClose();
-            }}
-          >
-            Dismiss
-          </button>
-        </div>
+        {/* One dismiss control, the shell's `×` (#361). This branch used to
+            carry its own "Dismiss" button as well — written as a recovery
+            affordance back when `PopoverCard` had no close control at all,
+            and left redundant once #358 gave every popover one. Both called
+            `props.onClose()` with nothing else, so the error state put two
+            identical exits in `useDialogFocus`'s tab trap. */}
+        <div class="termcard-error">Could not load this term.</div>
       </Show>
 
-      <Show when={term()}>
+      {/* `!term.error` is load-bearing, not defensive (#361). Solid rethrows
+          the rejection when an errored resource is READ, so an unguarded
+          `when={term()}` threw inside this update — which aborted it, left
+          the card showing "Loading…" forever, and escaped as an uncaught
+          error (the app mounts no ErrorBoundary). The branch above was
+          therefore unreachable: a failed fetch never rendered the error
+          state at all. Measured, not inferred — see the PR. */}
+      <Show when={!term.error && term()}>
         {(t) => (
           <>
             <div class="termcard-head">

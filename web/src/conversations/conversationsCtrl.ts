@@ -205,8 +205,19 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
   }
 
   function startFromLanding(text: string) {
-    // Landing is the global entry point — unscoped.
-    setChatScope(null);
+    // Deliberately does NOT clear the scope (#350). This used to, on the
+    // reasoning that "landing is the global entry point — unscoped", which
+    // is right for a *cold* landing and wrong for one arrived at from a
+    // work: the Reader's exits seed a scope, and clearing it here is what
+    // made leaving the Reader drop the work you were reading.
+    //
+    // Nothing needs clearing for the cold case, because nothing sets a
+    // scope on that path — `newConversation` and `pickHistory` both clear
+    // it above, and app start has none. And a scope that survives to here
+    // is always one the reader can see: `ChatRoute` renders the same
+    // dismissible `WorkScopeControl` chip on the landing whenever
+    // `chatScope()` is set, so this carries a visible filter, never a
+    // silent one.
     const turn: UserTurn = { role: "user", text, time: nowTime() };
     setMessages([turn]);
     void askMinerva(text, sendDeps());

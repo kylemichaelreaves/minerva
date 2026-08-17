@@ -13,7 +13,12 @@
 // owns no state — the parent (Lines.tsx) toggles `.is-active` via
 // the `active` prop when the matching ReferenceCard is open.
 //
-// Faithful port of project/reference-card/ReferenceMarker.html.
+// Faithful port of a design mockup — so the states above are deliberate,
+// including the absence of idle animation and fill. The mockup was a local
+// scratch file and never entered the repository; the design of record is
+// the Storybook story `Reader/XrefMarker`, whose Default / Hover /
+// FocusVisible / Active stories (plus Dark variants) render exactly these
+// states (#360).
 
 import { Show, type JSX } from "solid-js";
 import { xrefSuperscript } from "~/utils/xrefMarkerUtils";

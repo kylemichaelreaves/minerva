@@ -143,10 +143,22 @@ const GREEK_RE = /\p{Script=Greek}/u;
 const TOKEN_RE = /[\p{Script=Greek}\p{M}]+|[^\p{Script=Greek}\p{M}]+/gu;
 
 // Language-agnostic word/non-word split. `\p{L}` covers Latin, Greek,
-// Cyrillic, Hebrew, Arabic, …; including `\p{M}` keeps combining
-// marks attached to their host letter rather than splitting them
-// into their own run.
-const ANY_LETTER_RE = /[\p{L}\p{M}]/u;
+// Cyrillic, Hebrew, Arabic, …
+//
+// The two constants below are deliberately NOT the same class, and the
+// asymmetry is the whole point (#422, generalising #367's split at
+// `GREEK_RE`):
+//
+//   - `ANY_TOKEN_RE` keeps `\p{M}` so a combining mark continues its
+//     host letter's run instead of splitting it. Load-bearing: without
+//     it, vocalized `رَيْبَ` fragments into letter and mark runs.
+//   - `ANY_LETTER_RE` is mark-FREE, because its question is "is this run
+//     a word?" and a run of nothing but marks is not one. A mark
+//     standing between non-letters — a Quranic waqf (pause) mark, say —
+//     is its own run, and `\p{M}` here typed it `word: true`, giving
+//     4,367 recitation signs across the corpus the Reader's per-word
+//     hover affordance.
+const ANY_LETTER_RE = /\p{L}/u;
 const ANY_TOKEN_RE = /[\p{L}\p{M}]+|[^\p{L}\p{M}]+/gu;
 
 export interface GreekToken {

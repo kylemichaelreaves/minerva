@@ -139,6 +139,140 @@ describe("Escape in the Reader", () => {
     expect(window.location.hash).toBe("#/");
   });
 
+  it("carries the work to the landing as a scope chip (#350)", async () => {
+    // `currentWork()` resolves the location against the loaded works list
+    // (`readerCtrl.ts:109`), so this test needs `/api/works` to actually
+    // return the work — with an empty list there is nothing to seed the
+    // scope FROM, and the assertion below would fail for that reason
+    // rather than for the behaviour it is testing.
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/syntax")) return Promise.resolve(okResponse(SYNTAX));
+      if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
+      if (url.includes("occurrence_map") || url.includes("references_map")) {
+        return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
+      }
+      if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
+      if (url.includes("/api/works")) {
+        return Promise.resolve(
+          okResponse({
+            works: [
+              {
+                work_id: 781,
+                corpus: "marx",
+                author: "Marx",
+                work: "Das Kapital, Band I",
+                display_title: "Das Kapital, Band I",
+                lang: "deu",
+                chunks: 1,
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("/api/conversations")) {
+        return Promise.resolve(okResponse({ conversations: [] }));
+      }
+      return Promise.resolve(okResponse({}));
+    });
+
+    // The half of "Escape leaves the Reader for the landing" that was
+    // unbuildable when the Escape gate shipped: the landing composer took
+    // no chip and `startFromLanding` cleared the scope, so the work you
+    // were reading was dropped on the way out. Escape now seeds the scope
+    // the way the back arrow does.
+    //
+    // Asserted on the rendered chip rather than on `chatScope()`, because
+    // the chip being VISIBLE is the whole point — a scope carried silently
+    // would be a hidden filter on the next question.
+    await mountReader();
+
+    escape();
+
+    await waitFor(() => {
+      expect(document.querySelector(".reader")).toBeNull();
+    });
+    const chip = document.querySelector(".chat-scope");
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toMatch(/Das Kapital, Band I/);
+    // And it is dismissible, so the reader is never stuck with it.
+    expect(
+      document.querySelector('.chat-scope__clear[aria-label^="Clear scope"]'),
+    ).not.toBeNull();
+  });
+
+  it("lets the landing chip re-scope through its picker (#350)", async () => {
+    // The chip is not just a label on the landing — it is the same control
+    // as in the conversation composer, so the work can be changed or cleared
+    // before the first question. This exercises the `works` / `ensureWorks`
+    // wiring `ChatRoute` hands it, which a label-only chip would never call.
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/syntax")) return Promise.resolve(okResponse(SYNTAX));
+      if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
+      if (url.includes("occurrence_map") || url.includes("references_map")) {
+        return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
+      }
+      if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
+      if (url.includes("/api/works")) {
+        return Promise.resolve(
+          okResponse({
+            works: [
+              {
+                work_id: 781,
+                corpus: "marx",
+                author: "Marx",
+                work: "Das Kapital, Band I",
+                display_title: "Das Kapital, Band I",
+                lang: "deu",
+                chunks: 1,
+              },
+              {
+                work_id: 99,
+                corpus: "hegel",
+                author: "Hegel",
+                work: "Phänomenologie des Geistes",
+                display_title: "Phänomenologie des Geistes",
+                lang: "deu",
+                chunks: 1,
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("/api/conversations")) {
+        return Promise.resolve(okResponse({ conversations: [] }));
+      }
+      return Promise.resolve(okResponse({}));
+    });
+
+    await mountReader();
+    escape();
+    await waitFor(() => {
+      expect(document.querySelector(".chat-scope")).not.toBeNull();
+    });
+
+    const workBtn = document.querySelector<HTMLButtonElement>(".chat-scope__work");
+    expect(workBtn).not.toBeNull();
+    fireEvent.click(workBtn!);
+
+    // Picker opens and is populated from the works list.
+    await waitFor(() => {
+      expect(document.querySelector(".chat-scope-pop")).not.toBeNull();
+    });
+    await waitFor(() => {
+      expect(document.querySelectorAll(".chat-scope-pop__list button").length).toBeGreaterThan(0);
+    });
+
+    // Clearing drops the chip entirely, so the landing goes back to unscoped.
+    fireEvent.click(document.querySelector<HTMLButtonElement>(".chat-scope__clear")!);
+    await waitFor(() => {
+      expect(document.querySelector(".chat-scope")).toBeNull();
+    });
+  });
+
   it("closes the term card instead of leaving", async () => {
     await mountReader(`${READER_HASH}&term=42`);
     await waitFor(() => {

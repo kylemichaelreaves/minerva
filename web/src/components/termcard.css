@@ -1,8 +1,9 @@
 /* Term card — the click popover for marked Greek terms in the Reader.
-   Adapts the wireframe popover (term-wireframes/index.html) to the
-   app's paper/ink tokens. `position: fixed` because the Reader spans
-   the whole viewport; TermCard computes top/left from the clicked
-   word's bounding rect at mount time and on scroll/resize. */
+   Adapts a wireframe popover to the app's paper/ink tokens; the wireframe
+   was a local scratch file, never committed, so the design of record is the
+   Storybook story `Reader/TermCard` (#360). `position: fixed` because the
+   Reader spans the whole viewport; TermCard computes top/left from the
+   clicked word's bounding rect at mount time and on scroll/resize. */
 .termcard {
   position: fixed;
   background: var(--paper);
@@ -206,15 +207,11 @@
   font-size: 13px;
   color: var(--ink-soft);
 }
-.termcard-close {
-  margin-left: 10px;
-  background: transparent;
-  border: 1px solid var(--rule);
-  color: var(--ink);
-  border-radius: 3px;
-  padding: 2px 8px;
-  cursor: pointer;
-  font: inherit;
-}
+
+/* `.termcard-close` lived here — a bordered pill for the error state's own
+   "Dismiss" button. Deleted with that button in #361: the shell's `×`
+   (#358) is the card's only dismiss control now, so this class had no
+   consumer left, and as a bordered pill sitting under an unbordered glyph
+   it gave the error state two visually unrelated buttons. */
 
 /* Marginal notes column (only on wide layouts) — visually a sibling of

@@ -1,10 +1,11 @@
 // Stories for the XrefMarker gutter glyph.
 //
 // Four states × two themes (eight cells), then a ten-row page-density
-// mockup at the bottom. Faithful port of
-// project/reference-card/ReferenceMarker.html — the storybook canvas
-// is the production-grade visual review surface, replacing the
-// design-bundle's static HTML once the component ships.
+// mockup at the bottom. These stories ARE the design of record for the
+// marker: they began as a port of a static HTML mockup that was never
+// committed, and this canvas replaced it as the visual review surface
+// when the component shipped (#360). Nothing else records what the four
+// states are supposed to look like, so keep all eight cells.
 //
 // The marker is intentionally inert in stories: `onOpen` is a no-op,
 // and the "active" state is rendered via the `active` prop rather
