@@ -504,3 +504,50 @@ body::before {
 [data-theme="dark"] .dialog-btn.danger {
   color: #14110e;
 }
+
+/* Surface error fallback (#426) — what a caught throw looks like.
+   Deliberately plain: it is chrome for a failure, and the one thing it must
+   do well is stay legible when the surface around it is gone. Uses the paper
+   /ink tokens rather than a red alert box, because most of what lands here is
+   a transient backend blip rather than an emergency. */
+.surface-error {
+  margin: 24px auto;
+  max-width: 44ch;
+  padding: 18px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-soft);
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.surface-error__head {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+/* The underlying message. Monospace because it is frequently a server string
+   or an exception text, and wrapped/breakable so a long one cannot widen the
+   box past its container. */
+.surface-error__detail {
+  font-family: var(--r-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}
+.surface-error__retry {
+  font: inherit;
+  padding: 5px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    border-color 140ms,
+    color 140ms;
+}
+.surface-error__retry:hover {
+  border-color: var(--ink);
+}

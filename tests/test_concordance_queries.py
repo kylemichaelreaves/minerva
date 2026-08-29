@@ -1622,3 +1622,110 @@ def test_letter_counts_buckets_agree_with_what_the_letter_returns(
         assert clicked["total_lemmas"] == n, (
             f"rail says {key}={n} but clicking it returns {clicked['total_lemmas']}"
         )
+
+
+# ── the stored folded initial (#425) ──────────────────────────────────
+#
+# #381's fold replaced an indexed prefix predicate with a Python callback, which
+# cost a full scan of the language partition per letter click. The fold is now
+# stored in `lemma_counts.lemma_initial` (migration 0031) and indexed, so the
+# filter is an indexed equality and the rail's GROUP BY reads a column.
+#
+# That buys speed at the price of derived state, so these tests guard the
+# coupling rather than the timing: timings move ~6x with page-cache state (see
+# the correction on #425), the query PLAN does not.
+
+
+def test_stored_lemma_initial_equals_the_fold_for_every_row(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """The stored column must equal what the request folds with.
+
+    This is the invariant the whole optimisation rests on: `aggregate.build`
+    writes `lemma_initial` and the read path compares a folded parameter against
+    it. If the two ever disagree, the letter filter silently returns wrong rows
+    — no error, no empty result, just a different answer. Same hazard class as
+    `chunk_lemma_state`'s `text_hash`.
+    """
+
+    rows = umlaut_concordance_db.execute(
+        "SELECT lemma, lemma_initial FROM lemma_counts"
+    ).fetchall()
+    assert rows, "fixture built no aggregate rows"
+    mismatched = [
+        (r["lemma"], r["lemma_initial"], index_queries._fold_initial(r["lemma"]))
+        for r in rows
+        if r["lemma_initial"] != index_queries._fold_initial(r["lemma"])
+    ]
+    assert mismatched == []
+
+
+def test_no_aggregate_row_is_left_without_an_initial(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """A NULL would be invisible rather than loud: `lemma_initial = ?` matches
+    nothing against NULL, so the letter would return zero rows and look like a
+    letter with no lemmas."""
+
+    (n_null,) = umlaut_concordance_db.execute(
+        "SELECT COUNT(*) FROM lemma_counts WHERE lemma_initial IS NULL"
+    ).fetchone()
+    assert n_null == 0
+
+
+def test_letter_filter_seeks_the_initial_index_instead_of_scanning(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """The point of the column, asserted on the plan rather than the clock.
+
+    Before #425 the plan for a letter-filtered read was
+
+        SEARCH lemma_counts USING COVERING INDEX lemma_counts_by_alpha
+          (lang=? AND scope_kind=? AND scope_value=?)
+
+    — the partition prefix only, with `fold_initial(lemma)` applied to every row
+    in it. With the stored column the equality is part of the index key.
+    """
+
+    plan = "\n".join(
+        str(r[-1])
+        for r in umlaut_concordance_db.execute(
+            "EXPLAIN QUERY PLAN "
+            "SELECT lemma FROM lemma_counts "
+            "WHERE lang=? AND scope_kind=? AND scope_value IS NULL AND lemma_initial=?",
+            ("deu", "corpus", "A"),
+        )
+    )
+    assert "lemma_counts_by_initial" in plan, plan
+    assert "lemma_initial=?" in plan.replace(" ", ""), plan
+    assert "SCAN" not in plan, plan
+
+
+def test_migration_0031_is_idempotent_and_fills_nulls(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """Re-applying is free, and it repairs a row whose initial went missing."""
+
+    import importlib
+
+    mod = importlib.import_module("minerva.migrations.0031_lemma_counts_initial")
+
+    umlaut_concordance_db.execute(
+        "UPDATE lemma_counts SET lemma_initial = NULL WHERE lemma LIKE 'Ä%'"
+    )
+    (n_null,) = umlaut_concordance_db.execute(
+        "SELECT COUNT(*) FROM lemma_counts WHERE lemma_initial IS NULL"
+    ).fetchone()
+    assert n_null > 0, "fixture has no Ä-initial rows to null out"
+
+    mod.apply(umlaut_concordance_db)
+
+    (still_null,) = umlaut_concordance_db.execute(
+        "SELECT COUNT(*) FROM lemma_counts WHERE lemma_initial IS NULL"
+    ).fetchone()
+    assert still_null == 0
+    # And the repaired value is the fold, not a placeholder.
+    (val,) = umlaut_concordance_db.execute(
+        "SELECT DISTINCT lemma_initial FROM lemma_counts WHERE lemma LIKE 'Ä%'"
+    ).fetchone()
+    assert val == "A"

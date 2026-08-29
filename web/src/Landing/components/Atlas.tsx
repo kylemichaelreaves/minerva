@@ -19,6 +19,15 @@ import {
   type Tradition,
 } from "~/data/atlasData";
 
+/** Format one corpus-fact number, tolerating a missing field.
+ *
+ *  Mirrors `fmtNum` in `Landing/index.tsx`, which renders the same three
+ *  numbers in the mode row and has always guarded them. Kept as a local
+ *  function rather than shared because the two differ in the em dash: the mode
+ *  row's `—` sits in its own `.num` span, and here it is inline in a caption. */
+const fmtStat = (n: number | undefined): string =>
+  typeof n === "number" ? n.toLocaleString() : "—";
+
 export function Atlas(props: {
   onPickAuthor: (name: string) => void;
   stats: LandingStats | null;
@@ -164,14 +173,21 @@ export function Atlas(props: {
         </Show>
       </div>
 
+      {/* `<Show when={props.stats}>` proves the object is there, NOT that its
+          fields are — a 200 carrying a partial payload made
+          `undefined.toLocaleString()` throw, which took the whole landing down
+          with it. `Landing/index.tsx` renders these same three numbers through
+          its own `fmtNum` and has always been defensive; this copy was not, so
+          the two disagreed about the same data. Formatted per-field for that
+          reason, not out of superstition. */}
       <div class="landing-atlas-caption">
         <Show when={props.stats}>
           {(s) => (
             <>
               {CORPUS_YEAR_SPAN_LABEL} YEARS<span class="sep">·</span>
-              {s().authors} AUTHORS<span class="sep">·</span>
-              {s().works.toLocaleString()} WORKS<span class="sep">·</span>
-              {s().xrefs.toLocaleString()} VERIFIED CROSS-REFERENCES
+              {fmtStat(s().authors)} AUTHORS<span class="sep">·</span>
+              {fmtStat(s().works)} WORKS<span class="sep">·</span>
+              {fmtStat(s().xrefs)} VERIFIED CROSS-REFERENCES
             </>
           )}
         </Show>

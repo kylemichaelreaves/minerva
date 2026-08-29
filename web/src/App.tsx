@@ -5,6 +5,7 @@ import Sidebar from "~/Sidebar";
 import ConfirmDialog from "~/components/ConfirmDialog";
 import MobileTopBar from "~/components/MobileTopBar";
 import { AppRoutes } from "~/AppRoutes";
+import SurfaceErrorBoundary from "~/components/SurfaceErrorBoundary";
 import { SyntaxLayer } from "~/routes/SyntaxLayer";
 import { MobileShellProvider, useMobileShell } from "~/components/MobileShellContext";
 import { useMobileTopBarConfig } from "~/hooks/useMobileTopBarConfig";
@@ -23,7 +24,17 @@ const MARGIN_NOTES = true;
 export default function App() {
   return (
     <MobileShellProvider>
-      <AppShell />
+      {/* The outermost net (#426). Each route carries its own boundary in
+          `AppRoutes`, which is what keeps the sidebar and nav alive when one
+          surface fails; this one exists for everything those cannot cover —
+          the shell itself, the mobile chrome, a throw in `AppShell`'s own
+          setup — so the worst case is a message with a retry rather than a
+          blank page. Before either existed, the app mounted no
+          `ErrorBoundary` at all and a single throw during render left
+          whatever was on screen frozen where it stood. */}
+      <SurfaceErrorBoundary label="Minerva">
+        <AppShell />
+      </SurfaceErrorBoundary>
     </MobileShellProvider>
   );
 }
