@@ -74,8 +74,14 @@ test-unit:
 # Same suites, instrumented, so `check-diff-coverage` has something to read.
 # `check` uses these rather than the bare ones above: running each suite twice
 # would cost ~50s, while the instrumentation alone costs ~6s (#255).
+#
+# `-n auto` (pytest-xdist): the suite isn't CPU-bound (55% of one core
+# locally with no parallelism), so splitting across workers is close to
+# free. pytest-cov combines per-worker coverage automatically when
+# pytest-xdist is installed -- verified the TOTAL is identical with and
+# without `-n auto` before relying on it.
 test-py-cov:
-	$(PYTEST) --cov --cov-report=xml --cov-report=term:skip-covered
+	$(PYTEST) --cov --cov-report=xml --cov-report=term:skip-covered -n auto
 
 test-unit-cov:
 	$(NPM) run test:coverage
