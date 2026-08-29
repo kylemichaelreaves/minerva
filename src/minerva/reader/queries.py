@@ -10,7 +10,7 @@ from ..author_ordering import author_sort_key, lang_sort_key
 from ..authors.quran_works import find_surah_by_transliteration as _find_surah
 from ..errors import BadRequestError, NotFoundError
 from ..locations import BCV_BOOK_ORDINAL, TANAKH_BOOK_ORDINAL
-from ..text.snippet import build_mark_snippet
+from ..text import build_mark_snippet
 from ..transliterate import display_text, display_title
 from .display import trilingual_display
 from .window import (

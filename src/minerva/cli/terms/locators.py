@@ -16,7 +16,7 @@ import sys
 from typing import Any
 
 from ... import locations, terms
-from ...text.snippet import find_occurrences, plain_window
+from ...text import find_occurrences, plain_window
 from ._io import _emit, _with_db
 
 

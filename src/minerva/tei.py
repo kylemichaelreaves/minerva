@@ -338,6 +338,23 @@ def _unrecognized_boundary_units(body: ET.Element) -> frozenset[str]:
 # `div1`).
 _DIV_TAGS = frozenset({"div1", "div2", "div3"})
 
+#: Size above which a chapter-fallback chunk is split into pieces at `<p>`
+#: boundaries (#394). Same ceiling as `tei_drama.py`'s `MAX_CHUNK_CHARS` —
+#: the granularity gate's own per-chunk limit — and the packer below is the
+#: same greedy algorithm, lifted from that module.
+_MAX_CHAPTER_CHUNK_CHARS = 8000
+
+
+def _letter_suffix(i: int) -> str:
+    """0, 1, 2, ... -> 'a', 'b', ..., 'z', 'aa', 'ab', ... (base-26, a=0)."""
+
+    letters = ""
+    i += 1
+    while i:
+        i, rem = divmod(i - 1, 26)
+        letters = chr(ord("a") + rem) + letters
+    return letters
+
 
 def _has_chapter_divisions(body: ET.Element) -> bool:
     """Whether this body carries `type="chapter"` divisions with numbers.
@@ -414,23 +431,29 @@ class _ChunkBuilder:
         # when no boundary milestone fired for this body, so a work whose
         # milestones work keeps its existing chunk_ids.
         self._chapter_fallback = False
+        # `<p>` starts recorded as an index into `self._buf`, only while
+        # `_chapter_fallback` — lets `_flush` re-split an oversized chapter
+        # at paragraph boundaries (#394) without disturbing the
+        # milestone-driven parsers, which never populate this.
+        self._para_starts: list[int] = []
 
     @property
     def chunks(self) -> list[Chunk]:
         return self._chunks
 
     def _flush(self) -> None:
-        text = _norm_text(" ".join(t for t, _ in self._buf))
-        speaker = _dominant_speaker(self._buf)
-        self._buf.clear()
-        if text:
+        for section, buf in self._chapter_pieces():
+            text = _norm_text(" ".join(t for t, _ in buf))
+            if not text:
+                continue
+            speaker = _dominant_speaker(buf)
             meta = self.meta_common
             chunk_id = _make_chunk_id(
                 meta["source_file"],
                 meta["work"],
                 meta["lang"],
                 self._cur_book or "",
-                self._cur_section or "",
+                section or "",
                 self._cur_page or "",
                 text[:120],
             )
@@ -448,7 +471,7 @@ class _ChunkBuilder:
             self._chunks.append(
                 Chunk(
                     chunk_id=chunk_id,
-                    section=self._cur_section,
+                    section=section,
                     book=self._cur_book,
                     page=self._cur_page,
                     speaker=speaker,
@@ -456,6 +479,8 @@ class _ChunkBuilder:
                     **meta,
                 )
             )
+        self._buf.clear()
+        self._para_starts.clear()
         # Footnotes / cast lists captured during this section, emitted AFTER
         # the main chunk so reading order stays body-then-notes. The main
         # chunk's id is computed without block_type/seq (above), exactly as
@@ -463,6 +488,48 @@ class _ChunkBuilder:
         # the re-ingest unchanged; only these aux chunks are new.
         self._emit_aux(self._pending_notes, "note")
         self._emit_aux(self._pending_casts, "cast")
+
+    def _chapter_pieces(self) -> list[tuple[str | None, list[tuple[str, str | None]]]]:
+        """The section label(s) and buffer slice(s) this flush should emit.
+
+        Outside `_chapter_fallback` (or when the chapter fits) this is just
+        the one `(section, buf)` pair `_flush` always emitted. A chapter
+        over `_MAX_CHAPTER_CHUNK_CHARS` is re-split at its `<p>` boundaries
+        (#394), greedily packed the same way `tei_drama.py` packs oversized
+        drama leaves, and only *then* does each piece get a letter-suffixed
+        section (`1a`, `1b`, ...) — a chapter that turns out to fit in one
+        piece keeps its bare chapter number, so the 156 of 176 Discourses
+        chapters already under budget keep their existing `chunk_id`.
+        """
+
+        if not self._chapter_fallback or not self._para_starts:
+            return [(self._cur_section, self._buf)]
+
+        bounds = sorted({0, *self._para_starts, len(self._buf)})
+        paragraphs = [
+            self._buf[bounds[i] : bounds[i + 1]] for i in range(len(bounds) - 1)
+        ]
+        # `paragraphs` is never empty (bounds always spans >=2 distinct
+        # points), so `current` always holds the last paragraph's slice
+        # when the loop ends — no trailing `if current:` guard needed.
+        groups: list[list[tuple[str, str | None]]] = []
+        current: list[tuple[str, str | None]] = []
+        size = 0
+        for para in paragraphs:
+            para_len = len(_norm_text(" ".join(t for t, _ in para)))
+            if current and size + para_len > _MAX_CHAPTER_CHUNK_CHARS:
+                groups.append(current)
+                current, size = [], 0
+            current.extend(para)
+            size += para_len
+        groups.append(current)
+
+        if len(groups) <= 1:
+            return [(self._cur_section, self._buf)]
+        return [
+            (f"{self._cur_section}{_letter_suffix(i)}", group)
+            for i, group in enumerate(groups)
+        ]
 
     def _emit_aux(self, pending: list[str], block_type: str) -> None:
         meta = self.meta_common
@@ -697,6 +764,13 @@ class _ChunkBuilder:
             finally:
                 self._cur_speaker = previous
             return
+
+        if tag == "p" and self._chapter_fallback:
+            # Record where this paragraph starts in the buffer so `_flush`
+            # can re-split an oversized chapter at these boundaries (#394).
+            # Falls through to the generic handler below — a `<p>` carries
+            # no chunking behaviour of its own outside chapter fallback.
+            self._para_starts.append(len(self._buf))
 
         self._add_text(el.text)
         for child in el:
