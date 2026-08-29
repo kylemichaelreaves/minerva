@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -734,6 +735,144 @@ class TestAccountingRetrofitScripts:
             "--out", tmp_path, [], lambda url, **kw: b"text",
         )
         assert rc == 0
+
+
+class TestDltextIsolationScripts:
+    """#452: `download_perseus_aristotle`, `_homer`, `_plato` and
+    `_tragedy` each re-raised a per-item `HTTPError`/`URLError` instead
+    of isolating it — one dead work aborted the whole batch, losing
+    every work after it (not just the failing one). Reproduced
+    directly in the issue: 0 of 9 Plato Greek volumes written when the
+    first was stubbed to a 500. The fix mirrors the `FailureAccumulator`
+    retrofit #316 already landed on the other eleven downloaders.
+    """
+
+    @staticmethod
+    def _run_dltext(monkeypatch, capsys, modname, tmp_path, argv_extra, fake_download_one):
+        mod = importlib.import_module(modname)
+        monkeypatch.setattr(mod, "download_one", fake_download_one)
+        # aristotle/homer/plato delegate their batch loop to `_dl.py`'s
+        # `run_dltext_batches`, which no longer sleeps via a module-local
+        # `time` import — patch the shared stdlib module directly instead.
+        monkeypatch.setattr(time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            sys, "argv",
+            [f"{modname}.py", "--out", str(tmp_path), "--delay", "0", *argv_extra],
+        )
+        rc = mod.main()
+        return rc, capsys.readouterr().out
+
+    def test_plato_one_http_failure_does_not_abort_the_rest(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        import urllib.error
+
+        def fake_download_one(*, base_url, doc, dest, user_agent, **kw):
+            if doc.endswith(".0169"):
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            dest.write_bytes(b"<TEI/>")
+
+        rc, out = self._run_dltext(
+            monkeypatch, capsys, "download_perseus_plato", tmp_path,
+            ["--lang", "gr"], fake_download_one,
+        )
+        assert rc != 0
+        # The 8 volumes after the failing one must still be written.
+        assert len(list(tmp_path.glob("*.xml"))) == 8
+        assert "perseus_01_euthyphro" in out.rsplit("===", 1)[-1]
+
+    def test_plato_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, out = self._run_dltext(
+            monkeypatch, capsys, "download_perseus_plato", tmp_path,
+            ["--lang", "gr"], lambda *, dest, **kw: dest.write_bytes(b"<TEI/>"),
+        )
+        assert rc == 0
+        assert len(list(tmp_path.glob("*.xml"))) == 9
+        assert "SKIPPED" not in out
+
+    def test_aristotle_one_url_error_does_not_abort_the_rest(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        import urllib.error
+
+        def fake_download_one(*, base_url, doc, dest, user_agent, **kw):
+            if doc.endswith(".0045"):
+                raise urllib.error.URLError("connection reset")
+            dest.write_bytes(b"<TEI/>")
+
+        rc, out = self._run_dltext(
+            monkeypatch, capsys, "download_perseus_aristotle", tmp_path,
+            ["--lang", "gr"], fake_download_one,
+        )
+        assert rc != 0
+        assert len(list(tmp_path.glob("*.xml"))) == 8
+        assert "perseus_aristotle_01_athenian" in out.rsplit("===", 1)[-1]
+
+    def test_homer_one_http_failure_does_not_abort_the_rest(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        import urllib.error
+
+        def fake_download_one(*, base_url, doc, dest, user_agent, **kw):
+            if doc.endswith(".0133"):
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            dest.write_bytes(b"<TEI/>")
+
+        rc, out = self._run_dltext(
+            monkeypatch, capsys, "download_perseus_homer", tmp_path,
+            ["--lang", "gr"], fake_download_one,
+        )
+        assert rc != 0
+        # Odyssey (the volume after the failing Iliad) must still be written.
+        assert len(list(tmp_path.glob("*.xml"))) == 1
+        assert "perseus_homer_01_iliad_gr" in out.rsplit("===", 1)[-1]
+
+    def test_tragedy_one_non_404_failure_does_not_abort_the_rest(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        import urllib.error
+
+        mod = importlib.import_module("download_perseus_tragedy")
+
+        def fake_fetch(url, **kw):
+            if "tlg002" in url:  # Persians
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"<TEI/>"
+
+        monkeypatch.setattr(mod, "_fetch", fake_fetch)
+        monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            sys, "argv",
+            [
+                "download_perseus_tragedy.py", "--out", str(tmp_path),
+                "--delay", "0", "--author", "aeschylus", "--lang", "grc",
+            ],
+        )
+        rc = mod.main()
+        out = capsys.readouterr().out
+
+        assert rc != 0
+        # Suppliants (before) and Prometheus Bound (after) must both
+        # still be attempted — only Persians is lost.
+        assert (tmp_path / "raw_xml_aeschylus" / "suppliants" / "grc.xml").is_file()
+        assert (tmp_path / "raw_xml_aeschylus" / "prometheus_bound" / "grc.xml").is_file()
+        assert not (tmp_path / "raw_xml_aeschylus" / "persians" / "grc.xml").exists()
+        assert "persians" in out.rsplit("===", 1)[-1].lower()
+
+    def test_tragedy_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        mod = importlib.import_module("download_perseus_tragedy")
+        monkeypatch.setattr(mod, "_fetch", lambda url, **kw: b"<TEI/>")
+        monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            sys, "argv",
+            [
+                "download_perseus_tragedy.py", "--out", str(tmp_path),
+                "--delay", "0", "--author", "aeschylus", "--lang", "grc",
+            ],
+        )
+        rc = mod.main()
+        assert rc == 0
+        assert "SKIPPED" not in capsys.readouterr().out
 
 
 def test_every_perseus_module_imports():

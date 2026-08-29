@@ -24,12 +24,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
-import urllib.error
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _dl import doc_id, download_one
+from _dl import download_one, run_dltext_batches
 
 BASE = "https://www.perseus.tufts.edu/hopper/dltext"
 
@@ -48,7 +46,7 @@ ENGLISH_WORKS: list[tuple[str, str]] = [
 ]
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description="Fetch Homer TEI XML from Perseus dltext.")
     ap.add_argument(
         "--lang",
@@ -91,34 +89,17 @@ def main() -> None:
     if args.lang in ("gr", "both"):
         batches.append(("Greek", GREEK_WORKS))
 
-    total = sum(len(vols) for _, vols in batches)
-    n = 0
-    for label, vols in batches:
-        print(f"=== {label} ({len(vols)} works) ===")
-        for suffix, stem in vols:
-            n += 1
-            doc = doc_id(suffix)
-            path = out / f"perseus_homer_{stem}.xml"
-            print(f"[{n}/{total}] {doc} -> {path.name}")
-            if args.skip_existing and path.is_file() and path.stat().st_size > 0:
-                print("  skip (already exists)")
-                if n < total:
-                    time.sleep(args.delay)
-                continue
-            try:
-                download_one(base_url=BASE, doc=doc, dest=path, user_agent=args.user_agent)
-            except urllib.error.HTTPError as e:
-                print(f"  HTTP error {e.code}: {e.reason}")
-                raise
-            except urllib.error.URLError as e:
-                print(f"  URL error: {e.reason}")
-                raise
-            if n < total:
-                time.sleep(args.delay)
-        print()
-
-    print(f"Done. Wrote {total} file(s) under {out.resolve()}")
+    return run_dltext_batches(
+        base_url=BASE,
+        batches=batches,
+        out=out,
+        filename=lambda stem: f"perseus_homer_{stem}.xml",
+        delay=args.delay,
+        user_agent=args.user_agent,
+        skip_existing=args.skip_existing,
+        download_one_fn=download_one,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
