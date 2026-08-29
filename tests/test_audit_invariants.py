@@ -132,6 +132,27 @@ def test_violations_are_grouped_by_language(tmp_path: Path):
     assert result.per_group["deu"] == (1, 0)
 
 
+def test_a_cross_script_row_is_grouped_by_its_own_lang_not_its_chunks(tmp_path: Path):
+    """#430: a Latin phrase found inside a `grc` chunk carries an
+    explicit `chunk_lemmas.lang='lat'` (migration 0032) and must be
+    grouped there, not under the chunk's own `grc`."""
+
+    db = _seed(tmp_path, [make_chunk(chunk_id="g1", lang="grc", text=_TEXT)], [])
+    conn = store.open_db(db)
+    try:
+        conn.execute(
+            "INSERT INTO chunk_lemmas "
+            "(chunk_id, token_index, surface_form, surface_start, surface_end, "
+            " lemma, lang) VALUES ('g1', 0, 'alpha', 0, 5, 'alpha', 'lat')"
+        )
+        conn.commit()
+        result = ai.audit_lemma_surface_offsets(conn)
+    finally:
+        conn.close()
+    assert result.per_group["lat"] == (1, 0)
+    assert "grc" not in result.per_group
+
+
 def test_finding_violations_is_not_a_failure(tmp_path: Path, capsys, monkeypatch):
     """`ara` violates this invariant on purpose. A gate would be silenced,
     and a silenced gate is not run — so violations exit 0."""

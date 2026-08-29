@@ -23,9 +23,12 @@ from ...lemmatize import (
 )
 from ...lemmatize import (
     Lemmatizer,
+    Token,
     UnsupportedLanguageError,
+    find_alt_script_runs,
     is_supported,
     is_valid_lemma,
+    mask_runs,
 )
 from ...sqlite_util import register_text_hash, text_hash
 from ._io import _open
@@ -138,9 +141,13 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         # Tuple shape matches the INSERT in ``_flush`` — the lemma_fold
         # slot was added with migration 0018 so KWIC lookups can seek
         # ``chunk_lemmas_by_fold`` instead of forcing a scan via
-        # ``LOWER(lemma) = LOWER(?)``.
+        # ``LOWER(lemma) = LOWER(?)``. ``lang`` (migration 0032) is NULL
+        # for an ordinary same-script token — meaning "this row's
+        # language is its chunk's language", still true for every row
+        # this pass writes under ``lang`` itself — and is only ever the
+        # OTHER language for a cross-script run (#430).
         inserts: list[
-            tuple[str, int, str, int, int, str, str, str | None, str | None]
+            tuple[str, int, str, int, int, str, str, str | None, str | None, str | None]
         ] = []
         # One row per chunk the lemmatizer was run over, written in the
         # same transaction as that chunk's lemmas so an interrupt can
@@ -154,31 +161,97 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         # Hashed on the way in and popped on the way out, so this holds
         # only the chunks currently inside the spaCy pipe — keeping the
         # text itself would restore the ~200 MB the streaming cursor was
-        # introduced to avoid.
+        # introduced to avoid. ``pending_alt_runs`` is the same shape but
+        # holds only the (small) substrings of chunks that actually carry
+        # a cross-script run — the vast majority of chunks never appear
+        # in it at all.
         pending_hash: dict[str, str] = {}
+        pending_alt_runs: dict[str, list[tuple[str, int, int, str]]] = {}
+        # Lazily constructed — a model load per language, paid only if a
+        # cross-script run is actually found, and only once for the
+        # whole pass, not once per chunk.
+        secondary_lemmatizers: dict[str, Lemmatizer] = {}
 
         def _items():
             for row in cursor:
-                pending_hash[row["chunk_id"]] = text_hash(row["text"])
-                # The stored text, verbatim. This used to yield
-                # `unicodedata.normalize("NFC", ...)`, and the offsets
-                # that came back indexed *that* string while every
-                # consumer slices `chunks.text` — 1,866 rows wrong across
-                # 16,032 non-NFC chunks (#311). The normalization is
-                # still done, and still has to be, but it belongs to
-                # `Lemmatizer`, which maps the offsets back; see
-                # `lemmatize._pipeline_text`.
-                yield row["text"], row["chunk_id"]
+                raw = row["text"]
+                pending_hash[row["chunk_id"]] = text_hash(raw)
+                # #430: find spans whose script doesn't match `lang`
+                # BEFORE this chunk's text reaches the primary model —
+                # blanking them out is what stops e.g. embedded Latin
+                # prose from being tokenized (and mislemmatized) as Greek
+                # in the first place, rather than merely fixing up the
+                # rows afterward.
+                alt_runs = find_alt_script_runs(raw, lang)
+                if alt_runs:
+                    pending_alt_runs[row["chunk_id"]] = [
+                        (alt_lang, start, end, raw[start:end])
+                        for alt_lang, start, end in alt_runs
+                    ]
+                    text = mask_runs(raw, alt_runs)
+                else:
+                    text = raw
+                # The stored text, verbatim (modulo the masking above).
+                # This used to yield `unicodedata.normalize("NFC", ...)`,
+                # and the offsets that came back indexed *that* string
+                # while every consumer slices `chunks.text` — 1,866 rows
+                # wrong across 16,032 non-NFC chunks (#311). The
+                # normalization is still done, and still has to be, but
+                # it belongs to `Lemmatizer`, which maps the offsets
+                # back; see `lemmatize._pipeline_text`.
+                yield text, row["chunk_id"]
+
+        def _secondary_tokens(chunk_id: str) -> list[tuple[Token, str]]:
+            """Cross-script runs for `chunk_id`, each lemmatized under
+            its own alternate-language model and shifted back to the
+            chunk's own offsets. Empty for the overwhelming majority of
+            chunks, which never entered `pending_alt_runs` at all."""
+
+            out: list[tuple[Token, str]] = []
+            for alt_lang, start, _end, substring in pending_alt_runs.pop(chunk_id, []):
+                secondary = secondary_lemmatizers.get(alt_lang)
+                if secondary is None:
+                    try:
+                        secondary = Lemmatizer(alt_lang)
+                    except UnsupportedLanguageError:
+                        # No lemmatizer registered for the alternate
+                        # language — leave the run unlemmatized rather
+                        # than fail the whole pass over it.
+                        continue
+                    secondary_lemmatizers[alt_lang] = secondary
+                for tok in secondary.tokens(substring):
+                    out.append(
+                        (
+                            Token(
+                                surface=tok.surface,
+                                start=tok.start + start,
+                                end=tok.end + start,
+                                lemma=tok.lemma,
+                                pos=tok.pos,
+                                feats=tok.feats,
+                            ),
+                            alt_lang,
+                        )
+                    )
+            return out
 
         for tokens, chunk_id in lm.batch_pipe(
             _items(), batch_size=args.batch_size, n_process=args.n_process
         ):
+            # Primary tokens carry no explicit lang (NULL — "this
+            # chunk's own language"); secondary tokens carry the
+            # alternate language they were actually lemmatized under.
+            # Merged and sorted by surface offset so token_index still
+            # reflects left-to-right reading order across both passes.
+            combined = [(tok, None) for tok in tokens] + _secondary_tokens(chunk_id)
+            combined.sort(key=lambda pair: pair[0].start)
+
             # token_index is 0-based within the chunk and survives
             # filtering — we increment only on valid lemmas so the
             # stored indices stay dense. Original positions in the
             # source text still recover via (surface_start, surface_end).
             kept = 0
-            for tok in tokens:
+            for tok, tok_lang in combined:
                 if not is_valid_lemma(tok.lemma):
                     continue
                 inserts.append(
@@ -186,7 +259,7 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
                         chunk_id, kept,
                         tok.surface, tok.start, tok.end,
                         tok.lemma, tok.lemma.lower(),
-                        tok.pos, tok.feats,
+                        tok.pos, tok.feats, tok_lang,
                     )
                 )
                 kept += 1
@@ -280,7 +353,9 @@ class _NoOpProgress:
 
 def _flush(
     conn: sqlite3.Connection,
-    rows: list[tuple[str, int, str, int, int, str, str, str | None, str | None]],
+    rows: list[
+        tuple[str, int, str, int, int, str, str, str | None, str | None, str | None]
+    ],
     attempts: list[tuple[str, str, int]],
 ) -> None:
     """Delete each attempted chunk's prior lemmas, then bulk-insert the
@@ -319,7 +394,9 @@ def _flush(
 
     Each tuple carries ``lemma_fold`` (added in migration 0018) after
     ``lemma`` so the KWIC index can seek by case-folded value instead
-    of a runtime ``LOWER(lemma)`` that disables the index.
+    of a runtime ``LOWER(lemma)`` that disables the index. ``lang``
+    (migration 0032) is the last column — NULL for an ordinary token,
+    the alternate language for a cross-script run (#430).
 
     ``attempts`` carries the ``chunk_lemma_state`` markers for the same
     chunks and is written in the SAME transaction. A chunk recorded as
@@ -340,8 +417,8 @@ def _flush(
     conn.executemany(
         "INSERT OR REPLACE INTO chunk_lemmas "
         "(chunk_id, token_index, surface_form, surface_start, "
-        " surface_end, lemma, lemma_fold, pos, feats) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " surface_end, lemma, lemma_fold, pos, feats, lang) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         rows,
     )
     conn.executemany(

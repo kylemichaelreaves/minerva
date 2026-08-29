@@ -1,0 +1,35 @@
+-- 0032_chunk_lemmas_lang.sql
+-- ════════════════════════════════════════════════════════════════════
+-- Lets one chunk contribute lemma rows to more than one language (#430).
+--
+-- Non-Greek text inside `grc` works (Diels-Kranz testimonia, the
+-- medieval Latin translation of *Oeconomica* III) was lemmatized under
+-- the Greek model, so `et`, `in`, `ad` entered `lemma_counts` as though
+-- they were Greek vocabulary — 10,474 rows across 60 works, plus the
+-- mirror direction (431 Greek-script lemmas inside English editions).
+-- The cause: every consumer of `chunk_lemmas` derived a row's language
+-- from `chunks.lang` via a join, so a chunk's declared language was
+-- assumed to be every token's language too.
+--
+-- WHY NULLABLE, AND WHY NO BACKFILL
+-- --------------------------------------------------------------------
+-- NULL means "this row's language is its chunk's language" — true of
+-- every row lemmatized before this migration, and still true of every
+-- row a same-script pass writes afterward. Only a cross-script run (an
+-- ASCII-Latin phrase found inside a `grc` chunk, or a Greek phrase found
+-- inside any other chunk) gets an explicit, different value. Consumers
+-- read `COALESCE(chunk_lemmas.lang, chunks.lang)`, so an unbackfilled
+-- NULL is exactly the historical behavior, not a gap to fill in.
+--
+-- WHY `ADD COLUMN` AND NOT A REBUILD
+-- --------------------------------------------------------------------
+-- Same shape as 0028 (`refs_scan_state.rules_hash`): `chunk_lemmas`
+-- carries no view and the column is nullable with no default, so this
+-- is a pure catalogue edit. It is also one of the tables
+-- `store/preserved_state.py` restores across `index --reset`, whose
+-- `_restore_from_snap` already copies only the columns two schemas
+-- share — the same generic handling that carried 0028's `rules_hash`
+-- across an `--reset` taken before this column existed.
+-- ════════════════════════════════════════════════════════════════════
+
+ALTER TABLE chunk_lemmas ADD COLUMN lang TEXT;

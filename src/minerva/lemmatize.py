@@ -356,6 +356,101 @@ def is_valid_lemma(lemma: str) -> bool:
     return True
 
 
+#: Greek script, both the core block and the Extended/polytonic block —
+#: the same range `agent/language.py`'s query-language detector uses.
+_GREEK_LETTER_RE = re.compile(r"[Ͱ-Ͽἀ-῿]")
+#: ASCII Latin letters. Deliberately not "any Latin-alphabet language" —
+#: #430 measured the actual embedded content as Latin prose (Diels-Kranz
+#: testimonia, the medieval Latin translation of *Oeconomica* III), not
+#: French or German wearing the same alphabet, so this only ever routes
+#: to the `lat` model.
+_LATIN_LETTER_RE = re.compile(r"[A-Za-z]")
+_WORD_RE = re.compile(r"\S+")
+
+
+def _word_script(word: str) -> str | None:
+    """'greek' if `word` contains a Greek letter, 'latin' if it contains
+    an ASCII Latin one (and no Greek), else None — a bare number or
+    punctuation run, inconclusive on its own and left to whichever
+    neighboring classification it sits inside."""
+
+    if _GREEK_LETTER_RE.search(word):
+        return "greek"
+    if _LATIN_LETTER_RE.search(word):
+        return "latin"
+    return None
+
+
+def find_alt_script_runs(text: str, own_lang: str) -> list[tuple[str, int, int]]:
+    """Character spans in `text` whose script doesn't match `own_lang`,
+    each tagged with the lemmatizer language that should handle it (#430).
+
+    For a `grc` chunk, the alternate is ASCII-Latin runs, tagged `lat` —
+    embedded Latin prose lemmatized under the Greek model was entering
+    `lemma_counts` as though it were Greek vocabulary. For any other
+    chunk, the alternate is Greek-script runs, tagged `grc` — a Greek
+    quotation inside an English, French, German or Latin edition.
+
+    A run is a maximal sequence of consecutive alt-script words (`\\S+`
+    tokens); a neutral word (digits, bare punctuation) between two
+    alt-script words does not break the run, since it carries no script
+    of its own and reads as part of the same embedded passage — the
+    line-number debris in a Latin apparatus note is the case this
+    matters for. A neutral word is not, on its own, enough to *start* or
+    *extend* a run past the last actual alt-script word, so trailing
+    neutral tokens are excluded — `runs[i][2]` (the end offset) is
+    always the end of an alt-script word, never of the neutral token
+    after it.
+    """
+
+    alt_target = "latin" if own_lang == "grc" else "greek"
+    alt_lang = "lat" if own_lang == "grc" else "grc"
+
+    runs: list[tuple[str, int, int]] = []
+    run_start: int | None = None
+    run_end: int | None = None
+
+    for m in _WORD_RE.finditer(text):
+        script = _word_script(m.group())
+        if script == alt_target:
+            if run_start is None:
+                run_start = m.start()
+            run_end = m.end()
+        elif script is not None and run_start is not None:
+            # A confirmed word of the OTHER script — not a neutral
+            # digit/punctuation run — closes the run.
+            runs.append((alt_lang, run_start, run_end))
+            run_start = run_end = None
+        # script is None (neutral): no-op. The run, if open, stays open
+        # at its last confirmed end; a later alt-script word extends it
+        # across the gap, and a later own-script word still closes it
+        # without ever having grown to include the neutral token.
+    if run_start is not None:
+        runs.append((alt_lang, run_start, run_end))
+    return runs
+
+
+def mask_runs(text: str, runs: list[tuple[str, int, int]]) -> str:
+    """`text` with each run's span blanked to spaces, character offsets
+    preserved, so the primary lemmatizer's tokenizer never sees content
+    that belongs to the alternate-language pass.
+
+    Existing whitespace inside a run stays whitespace rather than being
+    touched twice — irrelevant to the output (a space stays a space
+    either way) but keeps this idempotent if ever called twice on
+    overlapping runs.
+    """
+
+    if not runs:
+        return text
+    chars = list(text)
+    for _, start, end in runs:
+        for i in range(start, end):
+            if not chars[i].isspace():
+                chars[i] = " "
+    return "".join(chars)
+
+
 @dataclass(frozen=True)
 class Token:
     """One token of a lemmatised chunk.

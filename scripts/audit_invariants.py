@@ -133,15 +133,20 @@ def audit_lemma_surface_offsets(conn: sqlite3.Connection) -> Result:
         )
     }
     rows = conn.execute(
-        "SELECT chunk_id, surface_form, surface_start, surface_end FROM chunk_lemmas"
+        "SELECT chunk_id, surface_form, surface_start, surface_end, lang "
+        "FROM chunk_lemmas"
     )
-    for chunk_id, surface_form, start, end in rows:
+    for chunk_id, surface_form, start, end, row_lang in rows:
         found = chunks.get(chunk_id)
         if found is None:
             # An orphaned lemma row — a different invariant's business,
             # and counting it here would understate the language totals.
             continue
-        lang, text = found
+        chunk_lang, text = found
+        # A cross-script run (migration 0032, #430) carries its OWN
+        # language explicitly — group it there, not under the chunk's,
+        # or a Latin phrase inside a `grc` work reports as Greek here.
+        lang = row_lang or chunk_lang
         actual = text[start:end]
         bad = actual != surface_form
         result.record(lang, bad=bad)
