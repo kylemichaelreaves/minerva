@@ -27,7 +27,7 @@ import time
 import urllib.error
 from pathlib import Path
 
-from _download import make_fetcher
+from _download import FailureAccumulator, make_fetcher
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -77,7 +77,7 @@ _VULGATE_FILES: tuple[str, ...] = (
 
 _fetch = make_fetcher()
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--out",
@@ -100,7 +100,7 @@ def main() -> None:
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    failures: list[tuple[str, str]] = []
+    failures = FailureAccumulator()
     print(f"=== Clementine Vulgate ({len(_VULGATE_FILES)} books) ===")
     for i, filename in enumerate(_VULGATE_FILES, 1):
         remote = f"{RAW_BASE}/{filename}"
@@ -114,19 +114,15 @@ def main() -> None:
         try:
             data = _fetch(remote)
         except urllib.error.HTTPError as e:
-            print(f"  HTTP {e.code}: skipping ({remote})")
-            failures.append((filename, str(e)))
+            failures.record(filename, f"HTTP {e.code}: {remote}")
             continue
         dest.write_bytes(data)
         if i < len(_VULGATE_FILES):
             time.sleep(args.delay)
 
     print(f"\nDone. Wrote files under {out.resolve()}")
-    if failures:
-        print(f"\n{len(failures)} failure(s):")
-        for fn, err in failures:
-            print(f"  - {fn}: {err}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

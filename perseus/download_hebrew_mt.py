@@ -18,7 +18,7 @@ import argparse
 import time
 from pathlib import Path
 
-from _download import make_fetcher
+from _download import FailureAccumulator, make_fetcher
 
 # Raw file URL pattern. master branch is stable across the OSHB
 # release cadence; pin to a specific commit if reproducibility ever
@@ -47,7 +47,7 @@ _FILES: tuple[str, ...] = (
 
 _fetch = make_fetcher()
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--data-root",
@@ -78,6 +78,7 @@ def main() -> None:
     only = set(args.only) if args.only else None
 
     total = 0
+    failures = FailureAccumulator()
     for filename in _FILES:
         if only and filename not in only:
             continue
@@ -92,7 +93,7 @@ def main() -> None:
         try:
             data = _fetch(url)
         except Exception as exc:
-            print(f"  [SKIP] {filename}: {type(exc).__name__}: {exc}")
+            failures.record(filename, f"{type(exc).__name__}: {exc}")
             continue
         dest.write_bytes(data)
         print(f"  → {dest} ({len(data):,} bytes)")
@@ -100,7 +101,8 @@ def main() -> None:
         time.sleep(args.delay)
 
     print(f"\nDone: {total}/{len(_FILES)} files in {out_dir}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

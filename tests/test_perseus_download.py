@@ -179,3 +179,44 @@ def test_fetch_bytes_rejects_marker(monkeypatch, download_mod):
             retries=1,
             reject_markers=("Hier entsteht eine neue Homepage",),
         )
+
+
+class TestFailureAccumulator:
+    """The shared collector #316 asks for: a `main()` appends
+    (label, reason) pairs for per-item failures and asks for a summary
+    + exit code, instead of each script hand-writing PR #315's shape.
+    """
+
+    def test_empty_accumulator_exits_zero_and_prints_nothing(self, capsys, download_mod):
+        acc = download_mod.FailureAccumulator()
+        assert acc.exit_code() == 0
+        assert capsys.readouterr().out == ""
+
+    def test_recording_a_failure_prints_it_immediately(self, capsys, download_mod):
+        acc = download_mod.FailureAccumulator()
+        acc.record("Gen.xml", "HTTP 404")
+        out = capsys.readouterr().out
+        assert "Gen.xml" in out
+        assert "HTTP 404" in out
+
+    def test_any_recorded_failure_makes_exit_code_nonzero(self, download_mod):
+        acc = download_mod.FailureAccumulator()
+        acc.record("Gen.xml", "HTTP 404")
+        assert acc.exit_code() != 0
+
+    def test_exit_code_lists_every_failure_not_just_the_count(self, capsys, download_mod):
+        acc = download_mod.FailureAccumulator()
+        acc.record("Gen.xml", "HTTP 404")
+        acc.record("Exod.xml", "HTTP 500")
+        capsys.readouterr()  # drop the per-record prints
+        acc.exit_code()
+        out = capsys.readouterr().out
+        assert "Gen.xml" in out
+        assert "Exod.xml" in out
+        assert "2" in out
+
+    def test_len_reflects_recorded_failures(self, download_mod):
+        acc = download_mod.FailureAccumulator()
+        assert len(acc) == 0
+        acc.record("Gen.xml", "HTTP 404")
+        assert len(acc) == 1
