@@ -255,6 +255,208 @@ def test_the_invariant_registry_is_not_empty():
     assert "lemma_surface_offsets" in names
 
 
+def test_the_invariant_registry_includes_407_and_415():
+    names = [inv.name for inv in ai.INVARIANTS]
+    assert "xref_source_span" in names
+    assert "refs_scan_coverage" in names
+
+
+def _seed_xref(
+    conn,
+    *,
+    source_chunk_id: str,
+    span_start: int | None,
+    span_end: int | None,
+    source_form_snapshot: str | None,
+) -> None:
+    """Insert one `cross_references` row anchored at a byte span into its
+    source chunk. Minimal but schema-valid: `reference_targets` and the
+    NOT NULL columns `cross_references` requires get placeholder values."""
+
+    # canonical_work varies by source chunk so repeated calls in one test
+    # don't collide on reference_targets' (author, work) uniqueness.
+    cur = conn.execute(
+        "INSERT INTO reference_targets (canonical_author, canonical_work) "
+        "VALUES ('Plato', ?)",
+        (f"Republic ({source_chunk_id})",),
+    )
+    target_id = cur.lastrowid
+    conn.execute(
+        "INSERT INTO cross_references ("
+        "  source_chunk_id, target_id, source_span_start, source_span_end, "
+        "  source_form_snapshot, reference_type, source_method, curator_status"
+        ") VALUES (?, ?, ?, ?, ?, 'cites', 'rule_strong', 'approved')",
+        (source_chunk_id, target_id, span_start, span_end, source_form_snapshot),
+    )
+    conn.commit()
+
+
+class TestXrefSourceSpan:
+    """#407: 336 of 66,068 `cross_references` no longer point at the text
+    they record, and nothing checked. Two distinct failure shapes, both
+    caused by #285 (`chunk_id` hashes only `text[:120]`, so a chunk can
+    shrink or shift past that point without its derived rows noticing)."""
+
+    def test_a_clean_span_is_not_a_violation(self, tmp_path: Path):
+        db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
+        conn = store.open_db(db)
+        try:
+            _seed_xref(
+                conn,
+                source_chunk_id="c1",
+                span_start=0,
+                span_end=5,
+                source_form_snapshot="alpha",
+            )
+            result = ai.audit_xref_source_span(conn)
+        finally:
+            conn.close()
+        assert result.rows_checked == 1
+        assert result.violations == 0
+
+    def test_a_span_past_the_end_of_the_chunk_is_a_violation(self, tmp_path: Path):
+        db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
+        conn = store.open_db(db)
+        try:
+            _seed_xref(
+                conn,
+                source_chunk_id="c1",
+                span_start=0,
+                span_end=len(_TEXT) + 50,
+                source_form_snapshot="alpha",
+            )
+            result = ai.audit_xref_source_span(conn)
+        finally:
+            conn.close()
+        assert result.violations == 1
+        assert "past end" in result.examples[0].detail
+
+    def test_an_in_range_span_with_a_mismatched_snapshot_is_a_violation(
+        self, tmp_path: Path
+    ):
+        db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
+        conn = store.open_db(db)
+        try:
+            # [0:5] is "alpha" in _TEXT; claiming the snapshot is "gamma"
+            # is the shape a text edit before the span leaves behind.
+            _seed_xref(
+                conn,
+                source_chunk_id="c1",
+                span_start=0,
+                span_end=5,
+                source_form_snapshot="gamma",
+            )
+            result = ai.audit_xref_source_span(conn)
+        finally:
+            conn.close()
+        assert result.violations == 1
+        assert "gamma" in result.examples[0].detail
+
+    def test_a_row_with_no_span_at_all_is_not_counted(self, tmp_path: Path):
+        """Not every cross_reference is anchored to a byte span — the
+        columns are nullable. An unanchored citation is out of scope for
+        this invariant, not a violation of it."""
+
+        db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
+        conn = store.open_db(db)
+        try:
+            _seed_xref(
+                conn,
+                source_chunk_id="c1",
+                span_start=None,
+                span_end=None,
+                source_form_snapshot=None,
+            )
+            result = ai.audit_xref_source_span(conn)
+        finally:
+            conn.close()
+        assert result.rows_checked == 0
+        assert result.violations == 0
+
+    def test_grouped_by_language(self, tmp_path: Path):
+        db = _seed(
+            tmp_path,
+            [
+                make_chunk(chunk_id="g1", lang="grc", text=_TEXT),
+                make_chunk(chunk_id="d1", lang="deu", text=_TEXT),
+            ],
+            [],
+        )
+        conn = store.open_db(db)
+        try:
+            _seed_xref(
+                conn,
+                source_chunk_id="g1",
+                span_start=0,
+                span_end=999,
+                source_form_snapshot="alpha",
+            )
+            _seed_xref(
+                conn,
+                source_chunk_id="d1",
+                span_start=0,
+                span_end=5,
+                source_form_snapshot="alpha",
+            )
+            result = ai.audit_xref_source_span(conn)
+        finally:
+            conn.close()
+        assert result.per_group["grc"] == (1, 1)
+        assert result.per_group["deu"] == (1, 0)
+
+
+class TestRefsScanCoverage:
+    """#415: chunks that have never been scanned for cross-references in
+    either direction, and nothing reported it — four ingest fixes each said
+    in their own PR body that a refs pass was outstanding, and nothing reads
+    a PR body after the merge."""
+
+    def test_a_scanned_chunk_is_not_a_violation(self, tmp_path: Path):
+        db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
+        conn = store.open_db(db)
+        try:
+            conn.execute(
+                "INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('c1', 'h')"
+            )
+            conn.commit()
+            result = ai.audit_refs_scan_coverage(conn)
+        finally:
+            conn.close()
+        assert result.rows_checked == 1
+        assert result.violations == 0
+
+    def test_an_unscanned_chunk_is_a_violation(self, tmp_path: Path):
+        db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
+        conn = store.open_db(db)
+        try:
+            result = ai.audit_refs_scan_coverage(conn)
+        finally:
+            conn.close()
+        assert result.violations == 1
+        assert result.examples[0].chunk_id == "c1"
+
+    def test_grouped_by_author(self, tmp_path: Path):
+        db = _seed(
+            tmp_path,
+            [
+                make_chunk(chunk_id="a1", author="Aesop", work="Fables", lang="eng", text=_TEXT),
+                make_chunk(chunk_id="h1", author="Hegel", work="Enzyklopädie", lang="deu", text=_TEXT),
+            ],
+            [],
+        )
+        conn = store.open_db(db)
+        try:
+            conn.execute(
+                "INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('h1', 'h')"
+            )
+            conn.commit()
+            result = ai.audit_refs_scan_coverage(conn)
+        finally:
+            conn.close()
+        assert result.per_group["Aesop"] == (1, 1)
+        assert result.per_group["Hegel"] == (1, 0)
+
+
 def test_chunks_without_lemma_rows_are_not_counted(tmp_path: Path):
     """A chunk nothing has lemmatized is not a violation — the invariant
     is about rows that exist, not rows that should."""

@@ -204,6 +204,90 @@ def audit_chunk_work_id(conn: sqlite3.Connection) -> Result:
     return result
 
 
+def audit_xref_source_span(conn: sqlite3.Connection) -> Result:
+    """``cross_references.source_span_end <= LENGTH(chunks.text)``, and
+    where ``source_form_snapshot`` is present, that the slice equals it.
+    Grouped by the source chunk's language (#407).
+
+    Rows with no span at all (``source_span_start``/``source_span_end`` are
+    nullable — not every citation is anchored to a byte range) are out of
+    this invariant's scope, not violations of it, and are not counted.
+
+    Underneath every violation is #285: ``chunk_id`` hashes only
+    ``text[:120]``, so a chunk's text can shrink or shift past that point
+    without its id — and therefore every row keyed on it — noticing. Two
+    distinct shapes follow from the same cause: a span that now runs past
+    the end of a chunk that got shorter, and a span still in range whose
+    slice no longer equals the phrase that was recorded there.
+    """
+
+    result = Result(name="xref_source_span")
+    rows = conn.execute(
+        "SELECT x.source_chunk_id, x.source_span_start, x.source_span_end, "
+        "       x.source_form_snapshot, c.lang, c.text "
+        "FROM cross_references x "
+        "JOIN chunks c ON c.chunk_id = x.source_chunk_id "
+        "WHERE x.source_span_start IS NOT NULL AND x.source_span_end IS NOT NULL"
+    )
+    for chunk_id, start, end, snapshot, lang, text in rows:
+        group = lang or "(null)"
+        if end > len(text):
+            result.record(group, bad=True)
+            if len(result.examples) < _MAX_EXAMPLES:
+                result.examples.append(
+                    Violation(
+                        group=group,
+                        chunk_id=chunk_id,
+                        detail=f"[{start}:{end}] runs past end of chunk (len={len(text)})",
+                    )
+                )
+            continue
+        actual = text[start:end]
+        bad = snapshot is not None and actual != snapshot
+        result.record(group, bad=bad)
+        if bad and len(result.examples) < _MAX_EXAMPLES:
+            result.examples.append(
+                Violation(
+                    group=group,
+                    chunk_id=chunk_id,
+                    detail=f"[{start}:{end}] stored {snapshot!r} but text holds {actual!r}",
+                )
+            )
+    return result
+
+
+def audit_refs_scan_coverage(conn: sqlite3.Connection) -> Result:
+    """Every chunk has a ``refs_scan_state`` row, grouped by author (#415).
+
+    Not a correctness invariant like the other two — a chunk nothing has
+    scanned yet is not a *wrong* chunk, it is unfinished ingest work. Four
+    fixes each said in their own PR body that a refs pass was outstanding;
+    nothing reads a PR body after the merge, which is the gap this closes.
+    Reporting-only, same as its neighbours: 100% here is a milestone to
+    reach after an operator window, not a gate a normal PR must pass.
+    """
+
+    result = Result(name="refs_scan_coverage")
+    rows = conn.execute(
+        "SELECT c.chunk_id, w.author, s.chunk_id IS NOT NULL AS scanned "
+        "FROM chunks c "
+        "JOIN works w ON w.id = c.work_id "
+        "LEFT JOIN refs_scan_state s ON s.chunk_id = c.chunk_id"
+    )
+    for chunk_id, author, scanned in rows:
+        bad = not scanned
+        result.record(author, bad=bad)
+        if bad and len(result.examples) < _MAX_EXAMPLES:
+            result.examples.append(
+                Violation(
+                    group=author,
+                    chunk_id=chunk_id,
+                    detail="never scanned for cross-references",
+                )
+            )
+    return result
+
+
 INVARIANTS: tuple[Invariant, ...] = (
     Invariant(
         name="lemma_surface_offsets",
@@ -225,6 +309,30 @@ INVARIANTS: tuple[Invariant, ...] = (
             "are missing from chunks_full entirely — the view inner-joins works "
             "on this column — so they are absent from the reader, search and "
             "refs with no error raised anywhere."
+        ),
+    ),
+    Invariant(
+        name="xref_source_span",
+        statement="cross_references.source_span_end <= LENGTH(chunks.text), and the slice matches source_form_snapshot",
+        run=audit_xref_source_span,
+        known_exceptions=(
+            "Expected to trend toward zero, not necessarily be it: 336 of "
+            "66,068 rows violated this on 2026-08-15 (#407), underneath which "
+            "is #285 (chunk_id hashes only text[:120], so derived rows survive "
+            "a text change past that point with stale offsets). A repair pass "
+            "(delete and let `refs build` rediscover) is a separate operator "
+            "step, not part of this check."
+        ),
+    ),
+    Invariant(
+        name="refs_scan_coverage",
+        statement="every row of chunks has a refs_scan_state row",
+        run=audit_refs_scan_coverage,
+        known_exceptions=(
+            "Not a correctness invariant — a nonzero count means unfinished "
+            "ingest work (#415), not a wrong chunk. Newly-ingested or "
+            "re-chunked corpora are expected to show violations here until "
+            "the next `refs build` pass runs over them."
         ),
     ),
 )
