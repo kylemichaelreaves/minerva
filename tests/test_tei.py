@@ -447,6 +447,63 @@ def test_a_body_with_milestones_ignores_chapter_divisions(tmp_path: Path):
     assert [c.section for c in chunks] == ["1", "2"]
 
 
+def test_oversized_chapter_splits_at_paragraph_boundaries_with_letter_suffix(
+    tmp_path: Path, monkeypatch
+):
+    """A chapter-fallback chunk over budget splits at `<p>` boundaries and
+    gets a letter-suffixed locator (#394); a chapter that fits keeps its
+    bare chapter number so its `chunk_id` doesn't move."""
+
+    monkeypatch.setattr(tei, "_MAX_CHAPTER_CHUNK_CHARS", 15)
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Discourses</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="4">
+    <div2 type="chapter" n="1">
+      <p>aaaaaaaaaa</p>
+      <p>bbbbbbbbbb</p>
+    </div2>
+    <div2 type="chapter" n="2">
+      <p>cccccccccc</p>
+    </div2>
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "discourses_en.xml", xml)
+    chunks = list(tei.parse_file(path, corpus="epictetus", author="Epictetus"))
+    assert [(c.book, c.section, c.text) for c in chunks] == [
+        ("4", "1a", "aaaaaaaaaa"),
+        ("4", "1b", "bbbbbbbbbb"),
+        ("4", "2", "cccccccccc"),
+    ]
+
+
+def test_oversized_chapter_split_preserves_text_before_first_paragraph(
+    tmp_path: Path, monkeypatch
+):
+    """Text sitting directly in the division before its first `<p>` must not
+    be silently dropped by the paragraph-boundary split."""
+
+    monkeypatch.setattr(tei, "_MAX_CHAPTER_CHUNK_CHARS", 15)
+    xml = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Discourses</title></titleStmt></fileDesc></teiHeader>
+<text><body>
+  <div1 type="book" n="4">
+    <div2 type="chapter" n="1">
+      Loose lead-in text.
+      <p>bbbbbbbbbb</p>
+      <p>cccccccccc</p>
+    </div2>
+  </div1>
+</body></text></TEI.2>
+"""
+    path = _write_xml(tmp_path, "discourses_en.xml", xml)
+    joined = " ".join(
+        c.text for c in tei.parse_file(path, corpus="epictetus", author="Epictetus")
+    )
+    assert "Loose lead-in text." in joined
+
+
 def test_a_milestone_less_body_without_chapters_is_left_alone(tmp_path: Path):
     """A body with nothing to chunk on stays one chunk: the chapter
     fallback is not a licence to invent boundaries.
