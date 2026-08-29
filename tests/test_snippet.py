@@ -3,7 +3,20 @@
 
 from __future__ import annotations
 
-from minerva.text.snippet import find_occurrences, plain_window
+from minerva.text import find_occurrences, plain_window
+
+
+def test_public_surface_importable_from_the_package_facade() -> None:
+    """`text/` follows the same convention as its sibling packages
+    (`docs/BACKEND.md:13`) — importers reach the public surface through
+    `minerva.text`, not `minerva.text.snippet` (#326)."""
+
+    from minerva.text import build_kwic, build_mark_snippet, find_occurrences, plain_window
+
+    assert find_occurrences("aa", "a") == [0, 1]
+    assert plain_window is not None
+    assert build_mark_snippet is not None
+    assert build_kwic is not None
 
 
 class TestFindOccurrences:

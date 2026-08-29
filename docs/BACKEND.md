@@ -11,7 +11,7 @@ For architecture (route tables, DB layout, ChatContext), see
 ## Module layout
 
 - **Top-level packages**: `concordance/`, `reader/`, `refs/`, `ingest/`,
-  `store/`, `agent/`, `http/`, `syntax/`. Each contains a `__init__.py` that re-exports
+  `store/`, `agent/`, `http/`, `syntax/`, `text/`. Each contains a `__init__.py` that re-exports
   the public surface (functions, classes, types). Importers go through the
   package, not the module file.
 - **Chat** lives at the package root (not a `chat/` subpackage):

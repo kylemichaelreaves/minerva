@@ -31,7 +31,7 @@ from . import locations
 from . import terms as terms_mod
 from .glossary_spec import GlossarySpec, Term, WorkApply
 from .lemmatize import is_supported
-from .text.snippet import find_occurrences, plain_window
+from .text import find_occurrences, plain_window
 
 
 @dataclass(frozen=True)
