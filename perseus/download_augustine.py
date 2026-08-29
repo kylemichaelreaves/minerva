@@ -22,10 +22,9 @@ transcriptions of:
     (`== VIII ==`) — those are filled in as (last_para + 1).
 
 Each REST fetch uses the same retry-with-backoff helper shape as
-`download_spinoza.py`; per-book content goes through the same stdlib
-`HTMLParser`-based paragraph extractor (`_ParagraphExtractor`) we
-already use for Spinoza/Descartes. Markers emitted to the raw .txt
-files (one per work):
+`download_spinoza.py`; per-book content goes through the shared
+`_download.ParagraphExtractor` we already use for Spinoza/Descartes.
+Markers emitted to the raw .txt files (one per work):
 
     [CONF.<b>.<c>.<p>]   Confessiones, Liber `b`, Caput `c`, ¶ `p`
     [CIV.<b>.<c>]        De civitate Dei, Liber `b`, Caput `c`
@@ -49,10 +48,9 @@ import argparse
 import re
 import time
 import urllib.error
-from html.parser import HTMLParser
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import ParagraphExtractor, fetch_bytes_with_retry
 
 USER_AGENT = "minerva-research/1.0 (local research; bulk fetch with delays)"
 
@@ -184,46 +182,8 @@ _SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
 _BREAK_END_TAGS = frozenset({"p", "li", "div"})
 
 
-class _ParagraphExtractor(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
-        self._buf: list[str] = []
-        self.paragraphs: list[str] = []
-
-    def _flush(self) -> None:
-        text = " ".join("".join(self._buf).split()).strip()
-        if text:
-            self.paragraphs.append(text)
-        self._buf.clear()
-
-    def handle_starttag(self, tag: str, attrs):
-        if tag in _SKIP_TAGS:
-            self._skip_depth += 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP_TAGS:
-            if self._skip_depth > 0:
-                self._skip_depth -= 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_data(self, data: str) -> None:
-        if self._skip_depth:
-            return
-        self._buf.append(data)
-
-    def close(self) -> None:  # type: ignore[override]
-        super().close()
-        self._flush()
-
-
 def _extract_paragraphs(html: bytes) -> list[str]:
-    p = _ParagraphExtractor()
+    p = ParagraphExtractor(skip_tags=_SKIP_TAGS, break_end_tags=_BREAK_END_TAGS)
     p.feed(html.decode("utf-8"))
     p.close()
     return p.paragraphs

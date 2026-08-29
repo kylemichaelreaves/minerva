@@ -244,7 +244,8 @@ prerequisite is discharged and 4-op is unblocked on that axis.**
 | 4-op-sexies | references anchored to text that is gone | #407 | **backlog** | Found landing 4-op-ter, and it belongs with #404/#405 above by shape rather than by subsystem: a third invariant nothing checks. 336 of 66,068 `cross_references` no longer point at the text they record — 66 whose span runs past the end of their chunk, 270 whose span is in range but whose `source_form_snapshot` no longer matches the slice. `Elements of the Philosophy of Right` `§140` is 850 chars and carries a reference anchored at offset 29,526. Underneath it is #285 (`chunk_id` hashes `text[:120]`, so a chunk can shrink without its derived rows noticing); `chunk_lemmas` has the same exposure and *is* audited, `cross_references` is not. The 44 this batch created were cleaned up in its own PR — the 66 and the 270 predate it and want a repair pass whose shape is unverified, which is why the issue proposes the audit invariant first. |
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
 | 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed; rest backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
-| 5-ter | perseus follow-ups, second round | #316, #317 | **backlog** | Both found working 5-bis, in the files it edited. #316 is #300's accounting fix un-generalized — 12 more downloaders swallow a lost work and exit 0. #317 is the part of #297 that PR #315 scoped out: two private extractor copies that inherit none of the shared class's fixes. Neither touches the DB. |
+| 5-ter | perseus follow-ups, second round | #316, #317 | **in review** | Both found working 5-bis, in the files it edited. **#316's count was wrong twice, both corrected on the issue**: `download_kapital_mew.py` already accumulates failures and calls `raise SystemExit(...)`, so it can already signal — 11 need the fix, not 12 — and four of those eleven (`download_perseus_aristotle/homer/plato/tragedy.py`) don't swallow at all; their per-item `except` re-raises and aborts the whole batch on the first failure, the opposite defect. Spawned as #452 rather than folded in — see 5-ter-bis. PR #453 fixes the remaining 7 and closes #317 (both private extractors retired onto the shared class, verified byte-identical against live Wikisource pages). Neither touches the DB. |
+| 5-ter-bis | the four that don't swallow at all | #452 | **backlog** | Found scoping 5-ter's fix onto all eleven remaining #316 scripts, 2026-08-29. `download_perseus_aristotle.py`, `_homer.py`, `_plato.py` and `_tragedy.py` (on any non-404 error) catch a per-item `HTTPError`/`URLError`, print it, and **re-raise** — reproduced directly, 0 of 9 Plato Greek volumes written when the first is stubbed to a 500. #316's proposed fix (report on isolation that already exists) would have been a no-op here; this needs the isolation added, which is a different, untested change. Neither touches the DB. |
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
 | 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
@@ -1840,15 +1841,17 @@ of failure instead of retrying it.
 
 ## Batch 5-ter — perseus follow-ups, second round (#316, #317)
 
-**Todo.** Both filed 2026-08-09 while working 5-bis, both in files it
-edited, and both are the *un-generalized* half of a 5-bis fix rather than
-a new defect class.
+**Landed as PR #453** (#317 closed; #316 narrowed and partially fixed, the
+rest spawned as #452 / 5-ter-bis). Both filed 2026-08-09 while working
+5-bis, both in files it edited, and both were assumed to be the
+*un-generalized* half of a 5-bis fix rather than a new defect class — true
+for #317, corrected twice for #316 below.
 
 ### #316 — #300's accounting fix reached one script of fourteen
 
 PR #315 taught `download_cicero_wikisource.py` to collect what it
 dropped, print a summary and return non-zero. An AST walk over every
-`main()` in `perseus/` says thirteen other downloaders swallow per-item
+`main()` in `perseus/` said thirteen other downloaders swallow per-item
 failures inside a loop, and **twelve cannot signal failure to their
 caller at all** — no value-returning `return`, no `sys.exit`:
 
@@ -1857,11 +1860,34 @@ downloaders whose main() swallows per-item failures in a loop: 14
 …of those, unable to signal failure to the caller: 12
 ```
 
-Worse here than in the Cicero case, because several feed scripture and
-Perseus corpora where a missing book does not show up in a file count.
-The fix wants a small collector in `perseus/_download.py` rather than
-twelve copies of #315's inline block — and #315's own copy retrofitted
-onto it, so it does not become a thirteenth variant.
+**Corrected twice on the issue while scoping the fix, 2026-08-29.** First,
+the count of 12 is 11: `download_kapital_mew.py` already accumulates
+per-page failures and calls `raise SystemExit(...)` at the end, which is
+exactly `sys.exit()` by another name — the AST walk evidently checked for
+a literal `sys.exit(...)` call and missed the equivalent `raise
+SystemExit(...)` form. Second, and more material: four of the remaining
+eleven — `download_perseus_aristotle.py`, `_homer.py`, `_plato.py` and
+`_tragedy.py` (on any non-404 error) — do not match this row's diagnosis
+at all. Their per-item `except` prints a message and **re-raises**, so one
+dead work aborts the entire remaining batch rather than being isolated —
+the opposite of "swallows and exits 0". Reproduced directly: stubbing the
+first of nine Plato Greek volumes to a 500 wrote **0 of 9** files,
+including the eight that never touch the failing URL. Applying this row's
+proposed fix (add a summary + exit code to an already-isolated loop) would
+have been a silent no-op for these four, since there is no isolation to
+summarize. Filed separately as **#452** (5-ter-bis) rather than folded in,
+since it needs a different fix — adding isolation, not reporting on
+isolation that already exists.
+
+**Landed for the real remaining seven** in PR #453: `download_descartes_objections`,
+`download_first1kgreek_aristotle`, `download_first1kgreek_lxx`,
+`download_hebrew_mt`, `download_ica_aristotle`, `download_sblgnt_nt`,
+`download_vulgate` — via a new `_download.FailureAccumulator` (record +
+summary + exit code), the shared collector this row asked for.
+`download_kapital_mew.py` and `download_cicero_wikisource.py` were left on
+their existing (already-correct) accounting rather than retrofitted onto
+the new collector — that would be cosmetic consistency, not a fix, so it
+is out of scope here.
 
 ### #317 — the two private extractor copies, and what they are *not*
 
@@ -1889,6 +1915,54 @@ private copies: `download_spinoza.py` imports the shared class and has
 none — the grep hit its call site. And the copies were assumed to carry
 #297's bug; they do not, which is why this is tech-debt rather than a
 second instance of it.
+
+**Landed in PR #453.** Verified against the real thing rather than only
+the synthetic no-defect markup above: fetched the live Wikisource pages
+(Latin/French *Principia*/*Principes*, Augustine *Confessiones* Liber I)
+and compared old-vs-migrated extraction. `download_augustine.py`'s output
+is identical, as expected (its start/end flush was already symmetric with
+the shared class). `download_descartes_wikisource.py` diverges by exactly
+one paragraph-list split — its private class flushed only on a `<p>`
+*start* tag, never `<li>`/`<div>` starts, though all three are in its own
+`_BREAK_END_TAGS` — but the split lands in page-title front matter with no
+article marker, so the rendered `.txt` output is byte-identical before and
+after (`_render_latin_principia`/`_render_french_principes` discard both
+halves the same way). Both private `_ParagraphExtractor` classes deleted;
+both scripts now call `_download.ParagraphExtractor(skip_tags=..., break_end_tags=...)`.
+
+---
+
+## Batch 5-ter-bis — the four that don't swallow at all (#452)
+
+**Backlog.** Found scoping 5-ter's fix onto all eleven scripts #316 still
+named, 2026-08-29 — see the correction above. `download_perseus_aristotle.py`,
+`download_perseus_homer.py` and `download_perseus_plato.py` share the
+identical shape:
+
+```python
+try:
+    download_one(base_url=BASE, doc=doc, dest=path, user_agent=args.user_agent)
+except urllib.error.HTTPError as e:
+    print(f"  HTTP error {e.code}: {e.reason}")
+    raise
+except urllib.error.URLError as e:
+    print(f"  URL error: {e.reason}")
+    raise
+```
+
+`raise` re-raises the caught exception with no outer handler in `main()`,
+so it propagates and kills the whole run. Reproduced against the real
+`main()` with `download_one` stubbed to fail on the first of 9 Plato Greek
+volumes: `files written: []` — zero, not eight. `download_perseus_tragedy.py`
+is the same for any *non*-404 error; its per-language candidate loop
+correctly treats 404 as "try the next edition," but a 500 on the first
+candidate still aborts the run (reproduced: 1 of 7 Aeschylus plays written
+before the abort).
+
+Proposed fix — untested: wrap each per-item fetch in the same
+`record-and-continue` shape 5-ter just retrofitted, using
+`_download.FailureAccumulator`. For `_tragedy.py` the fix is narrower —
+only the non-404 branch of the candidate loop needs to stop re-raising.
 
 ---
 

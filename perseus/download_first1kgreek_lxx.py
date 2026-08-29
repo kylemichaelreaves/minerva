@@ -27,7 +27,7 @@ import time
 import urllib.error
 from pathlib import Path
 
-from _download import make_fetcher
+from _download import FailureAccumulator, make_fetcher
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -39,7 +39,7 @@ RAW_BASE = "https://raw.githubusercontent.com/OpenGreekAndLatin/First1KGreek/mas
 
 _fetch = make_fetcher()
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--out",
@@ -64,7 +64,7 @@ def main() -> None:
 
     books = all_books()
     print(f"=== First1KGreek LXX ({len(books)} books) ===")
-    failures: list[tuple[str, str]] = []
+    failures = FailureAccumulator()
     for i, b in enumerate(books, 1):
         filename = f"tlg0527.{b.tlg}.1st1K-grc1.xml"
         remote = f"{RAW_BASE}/data/tlg0527/{b.tlg}/{filename}"
@@ -81,19 +81,15 @@ def main() -> None:
             # 404 means we got the TLG slot wrong (Swete numbering drift)
             # or the file isn't hosted; record and continue rather than
             # halt the whole batch.
-            print(f"  HTTP {e.code}: skipping ({remote})")
-            failures.append((b.title, str(e)))
+            failures.record(b.title, f"HTTP {e.code}: {remote}")
             continue
         dest.write_bytes(data)
         if i < len(books):
             time.sleep(args.delay)
 
     print(f"\nDone. Wrote files under {out.resolve()}")
-    if failures:
-        print(f"\n{len(failures)} failure(s):")
-        for title, err in failures:
-            print(f"  - {title}: {err}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

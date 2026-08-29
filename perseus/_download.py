@@ -470,6 +470,39 @@ def render_chunks(chunks: list[tuple[str, str]]) -> str:
     return "\n".join(pieces).strip() + "\n"
 
 
+class FailureAccumulator:
+    """Collects per-item failures inside a batch loop and turns them
+    into a summary and a process exit code.
+
+    PR #315 wrote this shape inline for one script after a lost work
+    exited 0 with no trace but a line in the middle of a long log
+    (#300); #316 found eleven more with the same gap and this is the
+    shared version, so a `main()` call site is three lines instead of
+    a hand-written copy of the block.
+    """
+
+    def __init__(self) -> None:
+        self._failures: list[tuple[str, str]] = []
+
+    def __len__(self) -> int:
+        return len(self._failures)
+
+    def record(self, label: str, reason: str) -> None:
+        print(f"  [SKIPPED] {label}: {reason}")
+        self._failures.append((label, reason))
+
+    def exit_code(self) -> int:
+        """Print a summary (only if anything failed) and return the
+        exit code the caller's `main()` should return."""
+
+        if not self._failures:
+            return 0
+        print(f"\n=== {len(self._failures)} ITEM(S) NOT WRITTEN ===")
+        for label, reason in self._failures:
+            print(f"  {label}: {reason}")
+        return 1
+
+
 _ROMAN_DIGIT = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
 
 

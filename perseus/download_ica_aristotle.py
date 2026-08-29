@@ -41,7 +41,7 @@ import time
 import urllib.error
 from pathlib import Path
 
-from _download import make_fetcher
+from _download import FailureAccumulator, make_fetcher
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -162,7 +162,7 @@ def _fetch_via_html_fallback(slug: str, canonical_title: str) -> bytes | None:
     return text.encode("utf-8")
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--out",
@@ -182,6 +182,7 @@ def main() -> None:
 
     works = works_with_ica()
     print(f"=== ICA Aristotle ({len(works)} works) ===")
+    failures = FailureAccumulator()
     for i, w in enumerate(works, 1):
         url = f"{BASE}/{w.ica_slug}.mb.txt"
         slug = _slug_for(w.canonical_title)
@@ -205,21 +206,22 @@ def main() -> None:
                 print(f"  no .mb.txt ({e.code}); trying HTML fallback")
                 data = _fetch_via_html_fallback(w.ica_slug, w.canonical_title)
                 if data is None:
-                    print("  HTML fallback also failed; skipping")
+                    failures.record(w.ica_slug, "no .mb.txt and HTML fallback failed")
                     if i < len(works):
                         time.sleep(args.delay)
                     continue
                 # Smaller polite-delay budget already consumed by the
                 # text-mirror miss; fall through to write.
             else:
-                print(f"  HTTP {e.code}: skipping (ICA slug may be wrong)")
+                failures.record(w.ica_slug, f"HTTP {e.code} (ICA slug may be wrong)")
                 continue
         dest.write_bytes(data)
         if i < len(works):
             time.sleep(args.delay)
 
     print(f"\nDone. Wrote files under {out.resolve()}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

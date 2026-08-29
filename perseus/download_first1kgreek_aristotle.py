@@ -35,7 +35,7 @@ import time
 import urllib.error
 from pathlib import Path
 
-from _download import make_fetcher
+from _download import FailureAccumulator, make_fetcher
 
 # Make src/minerva importable when run from the repo root.
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -53,7 +53,7 @@ def _slug_for(title: str) -> str:
     return "".join(c.lower() if c.isalnum() else "_" for c in title).strip("_")
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--out",
@@ -78,6 +78,7 @@ def main() -> None:
 
     works = works_with_first1k()
     print(f"=== First1KGreek Aristotle ({len(works)} works) ===")
+    failures = FailureAccumulator()
     for i, w in enumerate(works, 1):
         # First1KGreek file naming: tlg0086.<tlg>.1st1K-grc1.xml
         remote = f"{RAW_BASE}/data/tlg0086/{w.first1k_tlg}/tlg0086.{w.first1k_tlg}.1st1K-grc1.xml"
@@ -94,7 +95,9 @@ def main() -> None:
         try:
             data = _fetch(remote)
         except urllib.error.HTTPError as e:
-            print(f"  HTTP {e.code}: skipping (likely a TLG slot we got wrong)")
+            failures.record(
+                w.first1k_tlg, f"HTTP {e.code} (likely a TLG slot we got wrong)"
+            )
             continue
         dest.write_bytes(data)
         # Also fetch the __cts__.xml sidecar — it carries the canonical
@@ -109,7 +112,8 @@ def main() -> None:
             time.sleep(args.delay)
 
     print(f"\nDone. Wrote files under {out.resolve()}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

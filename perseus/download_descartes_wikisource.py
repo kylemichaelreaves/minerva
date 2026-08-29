@@ -31,10 +31,9 @@ from __future__ import annotations
 
 import argparse
 import re
-from html.parser import HTMLParser
 from pathlib import Path
 
-from _download import make_fetcher
+from _download import ParagraphExtractor, make_fetcher
 
 _LATIN_URL = (
     "https://la.wikisource.org/api/rest_v1/page/html/Principia_philosophiae"
@@ -54,59 +53,8 @@ _SKIP_TAGS = frozenset({"script", "style", "table", "sup", "noscript"})
 _BREAK_END_TAGS = frozenset({"p", "li", "div"})
 
 
-class _ParagraphExtractor(HTMLParser):
-    """HTMLParser that extracts text from `<p>` blocks in document
-    order, dropping `<script>` / `<style>` / `<sup>` / `<table>`
-    content. Output is a list of paragraph strings, each
-    whitespace-collapsed.
-
-    We don't try to preserve any inline formatting (italics, sup-
-    indices, etc.) — for Descartes' prose the visible text alone is
-    enough to round-trip Latin / French faithfully.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
-        self._buf: list[str] = []
-        self.paragraphs: list[str] = []
-
-    def _flush(self) -> None:
-        text = " ".join("".join(self._buf).split()).strip()
-        if text:
-            self.paragraphs.append(text)
-        self._buf.clear()
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in _SKIP_TAGS:
-            self._skip_depth += 1
-            return
-        if tag == "p":
-            # New paragraph — close out any accumulated buffer first.
-            self._flush()
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP_TAGS:
-            # Defensive: HTMLParser sometimes sees an end-tag without
-            # a matching start (broken markup). Don't underflow.
-            if self._skip_depth > 0:
-                self._skip_depth -= 1
-            return
-        if tag in _BREAK_END_TAGS:
-            self._flush()
-
-    def handle_data(self, data: str) -> None:
-        if self._skip_depth:
-            return
-        self._buf.append(data)
-
-    def close(self) -> None:  # type: ignore[override]
-        super().close()
-        self._flush()
-
-
 def _extract_paragraphs(html: bytes) -> list[str]:
-    p = _ParagraphExtractor()
+    p = ParagraphExtractor(skip_tags=_SKIP_TAGS, break_end_tags=_BREAK_END_TAGS)
     p.feed(html.decode("utf-8"))
     p.close()
     return p.paragraphs

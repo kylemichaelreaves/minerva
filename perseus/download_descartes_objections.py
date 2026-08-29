@@ -28,7 +28,7 @@ import urllib.error
 from pathlib import Path
 from urllib.parse import quote
 
-from _download import make_fetcher
+from _download import FailureAccumulator, make_fetcher
 
 # (output code, fr.wikisource page title). NB the curly apostrophe
 # (U+2019) in the "Réponses de l’auteur" titles — the straight-quote
@@ -55,7 +55,7 @@ def _rest_url(title: str) -> str:
     return "https://fr.wikisource.org/api/rest_v1/page/html/" + quote(title, safe="")
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--data-root",
@@ -72,13 +72,18 @@ def main() -> None:
     out_dir = args.data_root / "descartes" / "raw_fr" / "objections"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # One dead piece must not lose the other nine; accumulating and
+    # reporting them at the end is what a scripted run can actually
+    # notice (#316 — a per-item `except: continue` that never says
+    # what it dropped still exits 0).
+    failures = FailureAccumulator()
     for code, title in PIECES:
         dest = out_dir / f"{code}.html"
         print(f"=== {code}: {title}")
         try:
             html = _fetch(_rest_url(title))
         except urllib.error.HTTPError as e:
-            print(f"  [SKIPPED] HTTP {e.code}")
+            failures.record(code, f"HTTP {e.code}")
             continue
         # fr.wikisource serves rate-limit pages as HTTP 200 — a real
         # transcription is tens of KB; refuse suspicious dwarfs. See
@@ -93,6 +98,8 @@ def main() -> None:
         print(f"  saved {len(html):,} bytes -> {dest}")
         time.sleep(args.delay)
 
+    return failures.exit_code()
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

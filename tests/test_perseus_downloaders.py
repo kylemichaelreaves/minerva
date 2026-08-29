@@ -46,6 +46,7 @@ _URLLIB_USERS = [
 _EXTRACTOR_USERS = [
     "download_cicero_wikisource",
     "download_descartes_wikisource",
+    "download_augustine",
     "download_marx_archive",
     "download_marx_pgde",
     "download_pascal_fr",
@@ -394,6 +395,56 @@ class TestCiceroSectionMarkers:
         assert not mod._is_marker(text)
 
 
+class TestPrivateParagraphExtractorsAreRetired:
+    """#317: `download_descartes_wikisource.py` and `download_augustine.py`
+    each carried a private `_ParagraphExtractor` predating
+    `_download.ParagraphExtractor` and duplicating it — every fix the
+    shared class has received (#152, #297) stopped at the module
+    boundary. Both now delegate instead of defining their own.
+    """
+
+    @pytest.mark.parametrize(
+        "modname", ["download_descartes_wikisource", "download_augustine"]
+    )
+    def test_module_no_longer_defines_its_own_extractor_class(self, modname):
+        mod = importlib.import_module(modname)
+        assert not hasattr(mod, "_ParagraphExtractor")
+
+    def test_descartes_extraction_is_unchanged_on_real_markup(self):
+        """`download_descartes_wikisource`'s private class flushed only
+        on a `<p>` *start* tag, never on `<li>`/`<div>` starts, even
+        though both are in its own `_BREAK_END_TAGS`. The shared class
+        flushes on any break_end_tag start (like `download_augustine`
+        already does). Verified against the real Wikisource page
+        (2026-08-29) that this divergence changes the paragraph *list*
+        by exactly one split in page-title front matter and does not
+        change either script's rendered `.txt` output, because that
+        paragraph has no article marker and is dropped either way —
+        this pins the same property with synthetic markup so it does
+        not depend on network access.
+        """
+
+        mod = importlib.import_module("download_descartes_wikisource")
+        # A <div> start tag between two would-be-joined text runs: the
+        # private class's old `tag == "p"`-only start flush would have
+        # kept these one paragraph; the shared class (like augustine)
+        # flushes on any break_end_tag start and splits them. Neither
+        # half carries an article marker, so `_render_latin_principia`
+        # discards both — pinning that the split is invisible past the
+        # article-marker filter, not that no split occurs.
+        html = "<p>Title text<div>trailing chrome</div></p>"
+        paragraphs = mod._extract_paragraphs(html.encode())
+        rendered = mod._render_latin_principia(paragraphs)
+        assert rendered == "\n"
+
+    def test_augustine_extraction_is_unchanged_on_real_markup(self):
+        mod = importlib.import_module("download_augustine")
+        html = "<p>[1] Confiteor tibi, Domine.</p>"
+        assert mod._extract_paragraphs(html.encode()) == [
+            "[1] Confiteor tibi, Domine."
+        ]
+
+
 def test_descartes_reuses_shared_gutenberg_helpers():
     """`download_descartes` duplicated `_gutenberg`'s boilerplate
     stripper minus its `_PG_START`/`_PG_END` constants. It now imports
@@ -505,6 +556,184 @@ class TestCiceroBatchReportsWhatItLost:
         tail = out.rsplit("===", 1)[-1]
         assert "de_officiis_lat.txt" in tail
         assert "de_re_publica_lat.txt" in tail
+
+
+class TestAccountingRetrofitScripts:
+    """The eleven downloaders #316 found swallowing per-item failures
+    silently and exiting 0 — minus the four (#452) whose per-item
+    `except` re-raises instead of swallowing, which is a different
+    defect and out of scope here. Each of these must, after the fix:
+    exit non-zero when anything fails, name what failed in the
+    summary, and still exit 0 on a clean run.
+    """
+
+    @staticmethod
+    def _run(monkeypatch, capsys, modname, out_flag, out_dir, argv_extra, fake_fetch):
+        mod = importlib.import_module(modname)
+        monkeypatch.setattr(mod, "_fetch", fake_fetch)
+        monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            sys, "argv",
+            [f"{modname}.py", out_flag, str(out_dir), "--delay", "0", *argv_extra],
+        )
+        rc = mod.main()
+        return rc, capsys.readouterr().out
+
+    def test_descartes_objections_reports_a_lost_piece(self, monkeypatch, tmp_path, capsys):
+        import urllib.error
+
+        def fake_fetch(url, **kw):
+            if "Caterus" in url:
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"x" * 20_000
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_descartes_objections",
+            "--data-root", tmp_path, [], fake_fetch,
+        )
+        assert rc != 0
+        assert "obj1" in out.rsplit("===", 1)[-1]
+
+    def test_descartes_objections_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, out = self._run(
+            monkeypatch, capsys, "download_descartes_objections",
+            "--data-root", tmp_path, [], lambda url, **kw: b"x" * 20_000,
+        )
+        assert rc == 0
+        assert "SKIPPED" not in out
+
+    def test_first1kgreek_aristotle_reports_a_lost_work(self, monkeypatch, tmp_path, capsys):
+        import urllib.error
+
+        def fake_fetch(url, **kw):
+            if "tlg006" in url:
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"<TEI/>"
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_first1kgreek_aristotle",
+            "--out", tmp_path, [], fake_fetch,
+        )
+        assert rc != 0
+        assert "tlg006" in out.rsplit("===", 1)[-1]
+
+    def test_first1kgreek_aristotle_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, out = self._run(
+            monkeypatch, capsys, "download_first1kgreek_aristotle",
+            "--out", tmp_path, [], lambda url, **kw: b"<TEI/>",
+        )
+        assert rc == 0
+        assert "SKIPPED" not in out
+
+    def test_first1kgreek_lxx_reports_a_lost_book(self, monkeypatch, tmp_path, capsys):
+        import urllib.error
+
+        def fake_fetch(url, **kw):
+            if "tlg001" in url:
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"<TEI/>"
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_first1kgreek_lxx",
+            "--out", tmp_path, [], fake_fetch,
+        )
+        assert rc != 0
+        assert "Genesis" in out.rsplit("===", 1)[-1]
+
+    def test_first1kgreek_lxx_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, _out = self._run(
+            monkeypatch, capsys, "download_first1kgreek_lxx",
+            "--out", tmp_path, [], lambda url, **kw: b"<TEI/>",
+        )
+        assert rc == 0
+
+    def test_hebrew_mt_reports_a_lost_book(self, monkeypatch, tmp_path, capsys):
+        def fake_fetch(url, **kw):
+            if "Gen.xml" in url:
+                raise RuntimeError("boom")
+            return b"<osis/>"
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_hebrew_mt",
+            "--data-root", tmp_path, ["--only", "Gen.xml", "Exod.xml"], fake_fetch,
+        )
+        assert rc != 0
+        assert "Gen.xml" in out.rsplit("===", 1)[-1]
+
+    def test_hebrew_mt_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, out = self._run(
+            monkeypatch, capsys, "download_hebrew_mt",
+            "--data-root", tmp_path, ["--only", "Gen.xml"], lambda url, **kw: b"<osis/>",
+        )
+        assert rc == 0
+        assert "SKIPPED" not in out
+
+    def test_ica_aristotle_reports_a_lost_work(self, monkeypatch, tmp_path, capsys):
+        import urllib.error
+
+        def fake_fetch(url, **kw):
+            if "categories" in url:
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"SECTION 1\nPart 1\ntext"
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_ica_aristotle",
+            "--out", tmp_path, [], fake_fetch,
+        )
+        assert rc != 0
+        assert "categories" in out.rsplit("===", 1)[-1]
+
+    def test_ica_aristotle_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, out = self._run(
+            monkeypatch, capsys, "download_ica_aristotle",
+            "--out", tmp_path, [], lambda url, **kw: b"SECTION 1\nPart 1\ntext",
+        )
+        assert rc == 0
+        assert "SKIPPED" not in out
+
+    def test_sblgnt_nt_reports_a_lost_book(self, monkeypatch, tmp_path, capsys):
+        import urllib.error
+
+        def fake_fetch(url, **kw):
+            if "Matt.xml" in url:
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"<xml/>"
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_sblgnt_nt",
+            "--out", tmp_path, [], fake_fetch,
+        )
+        assert rc != 0
+        assert "Matt" in out.rsplit("===", 1)[-1]
+
+    def test_sblgnt_nt_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, _out = self._run(
+            monkeypatch, capsys, "download_sblgnt_nt",
+            "--out", tmp_path, [], lambda url, **kw: b"<xml/>",
+        )
+        assert rc == 0
+
+    def test_vulgate_reports_a_lost_book(self, monkeypatch, tmp_path, capsys):
+        import urllib.error
+
+        def fake_fetch(url, **kw):
+            if "Gn.lat" in url:
+                raise urllib.error.HTTPError("u", 500, "Internal Server Error", {}, None)
+            return b"text"
+
+        rc, out = self._run(
+            monkeypatch, capsys, "download_vulgate",
+            "--out", tmp_path, [], fake_fetch,
+        )
+        assert rc != 0
+        assert "Gn.lat" in out.rsplit("===", 1)[-1]
+
+    def test_vulgate_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
+        rc, _out = self._run(
+            monkeypatch, capsys, "download_vulgate",
+            "--out", tmp_path, [], lambda url, **kw: b"text",
+        )
+        assert rc == 0
 
 
 def test_every_perseus_module_imports():
