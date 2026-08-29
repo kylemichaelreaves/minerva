@@ -1116,7 +1116,6 @@ granularity:
     "Euripides|Heracles|grc": {max: 8050, mean: 548}  # 87 chunks
     "Hegel|Enzyklopädie der philosophischen Wissenschaften im Grundrisse|deu": {max: 8316, mean: 734}  # 1383 chunks
     "Nietzsche|Jenseits von Gut und Böse|deu": {max: 8149, mean: 880}  # 441 chunks
-    "Theognis|Theognidea|grc": {max: 8111, mean: 1380}  # 127 chunks
     "Aristotle|On Memory and Reminiscence|grc": {max: 8037, mean: 4827}  # 3 chunks
     "Aristotle|On Sleep and Sleeplessness|grc": {max: 7629, mean: 5965}  # 3 chunks
     "Aristotle|On the Soul|grc": {max: 7109, mean: 3261}  # 36 chunks
