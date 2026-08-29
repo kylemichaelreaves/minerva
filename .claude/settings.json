@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".venv/bin/python scripts/hook_require_fresh_check.py 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".venv/bin/python scripts/hook_commit_hazard.py 2>/dev/null || true",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": ".venv/bin/python scripts/hook_mark_check_passed.py 2>/dev/null || true",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": ".venv/bin/python scripts/hook_pr_link_autocheck.py 2>/dev/null || true",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".venv/bin/python scripts/hook_mark_dirty.py 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
