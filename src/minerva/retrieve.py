@@ -515,14 +515,14 @@ def search(
     """Hybrid search returning at most `top_k` hits, optionally with neighbors.
 
     ``min_chunk_chars`` filters out chunks below that length from BOTH
-    BM25 and vector retrieval. Default 60 excludes scraper boilerplate
-    (navigation breadcrumbs, single-line signatures, section banners
-    like "ETHICS BOOK I", repeated work titles) that otherwise dominate
-    vector retrieval on author-named queries — e.g., "Friedrich
-    Nietzsche" letter signatures outranked his actual philosophical
-    passages on queries containing the name "Nietzsche". Pass 0 to
-    disable when you specifically want to see those chunks (e.g.,
-    a curation pass surfacing scrape garbage to delete).
+    BM25 and vector retrieval. Default 60 excludes short scraper
+    boilerplate below that length — navigation breadcrumbs, bare section
+    banners like "ETHICS BOOK I", running heads. It does **not** exclude
+    title-page lines or letter valedictions ("Von Friedrich Nietzsche")
+    that happen to land at 66+ characters; those are a `block_type`
+    problem the length floor cannot reach, not this one (#291). Pass 0 to
+    disable when you specifically want to see the chunks under the floor
+    (e.g., a curation pass surfacing scrape garbage to delete).
 
     Works addressed by verse (``works.citation_system`` in
     ``_VERSE_CITATION_SYSTEMS``) are exempt from the floor: their short
