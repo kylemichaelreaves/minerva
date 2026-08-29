@@ -153,7 +153,24 @@ jobs:
         # pyproject.toml. `xml:coverage.xml` emits the artifact in a
         # format any future Codecov-style action can pick up; the
         # terminal report goes to the action log for at-a-glance review.
-        run: uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml
+        #
+        # `-n auto` (pytest-xdist): this step ran fully serial despite
+        # using only ~55% of one core locally -- it isn't CPU-bound, so
+        # splitting across workers is close to free. pytest-cov combines
+        # per-worker coverage automatically when pytest-xdist is
+        # installed; verified locally that the coverage TOTAL is
+        # identical with and without `-n auto` before relying on it.
+        #
+        # This shrinks the `python` job itself (measured ~1.7x with 2
+        # workers, this repo's private-runner core count), but the
+        # `python` and `web` jobs run in parallel and were within 5s of
+        # each other before this change -- so it does NOT proportionally
+        # shrink total CI wall-clock, which stays bounded by whichever
+        # job is slower (currently `web`, which already parallelizes
+        # vitest across cores by default). Worth having regardless: it
+        # makes a red `python` job fail faster, and removes the risk of
+        # this job becoming the long pole as the backend suite grows.
+        run: uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml -n auto
 
       - name: Upload coverage report
         if: always()
