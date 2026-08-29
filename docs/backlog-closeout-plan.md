@@ -245,7 +245,7 @@ prerequisite is discharged and 4-op is unblocked on that axis.**
 | 5 | perseus verification | #151, #152 | **landed** | Network-only, `perseus/**` is coverage-excluded, no gate risk. |
 | 5-bis | perseus follow-ups | ~~#297~~, #298, #299, ~~#300~~ | **part landed; rest backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. |
 | 5-ter | perseus follow-ups, second round | #316, #317 | **in review** | Both found working 5-bis, in the files it edited. **#316's count was wrong twice, both corrected on the issue**: `download_kapital_mew.py` already accumulates failures and calls `raise SystemExit(...)`, so it can already signal — 11 need the fix, not 12 — and four of those eleven (`download_perseus_aristotle/homer/plato/tragedy.py`) don't swallow at all; their per-item `except` re-raises and aborts the whole batch on the first failure, the opposite defect. Spawned as #452 rather than folded in — see 5-ter-bis. PR #453 fixes the remaining 7 and closes #317 (both private extractors retired onto the shared class, verified byte-identical against live Wikisource pages). Neither touches the DB. |
-| 5-ter-bis | the four that don't swallow at all | #452 | **backlog** | Found scoping 5-ter's fix onto all eleven remaining #316 scripts, 2026-08-29. `download_perseus_aristotle.py`, `_homer.py`, `_plato.py` and `_tragedy.py` (on any non-404 error) catch a per-item `HTTPError`/`URLError`, print it, and **re-raise** — reproduced directly, 0 of 9 Plato Greek volumes written when the first is stubbed to a 500. #316's proposed fix (report on isolation that already exists) would have been a no-op here; this needs the isolation added, which is a different, untested change. Neither touches the DB. |
+| 5-ter-bis | the four that don't swallow at all | ~~#452~~ | **landed** | Found scoping 5-ter's fix onto all eleven remaining #316 scripts, 2026-08-29. `download_perseus_aristotle.py`, `_homer.py`, `_plato.py` and `_tragedy.py` (on any non-404 error) caught a per-item `HTTPError`/`URLError`, printed it, and **re-raised** — reproduced directly, 0 of 9 Plato Greek volumes written when the first is stubbed to a 500. #316's proposed fix (report on isolation that already exists) would have been a no-op here; this needed the isolation added, a different change from 5-ter's. **Landed in PR #454**: same `FailureAccumulator` record-and-continue shape 5-ter retrofitted onto the other eleven; `_tragedy.py`'s 404-candidate fallback is untouched, only its non-404/`URLError` branch stops re-raising. Same PR corrects 11-octies's `#430` strikethrough (found while touching this file's neighbor in the plan). Neither touches the DB. |
 | 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
 | 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
@@ -1934,10 +1934,10 @@ both scripts now call `_download.ParagraphExtractor(skip_tags=..., break_end_tag
 
 ## Batch 5-ter-bis — the four that don't swallow at all (#452)
 
-**Backlog.** Found scoping 5-ter's fix onto all eleven scripts #316 still
-named, 2026-08-29 — see the correction above. `download_perseus_aristotle.py`,
-`download_perseus_homer.py` and `download_perseus_plato.py` share the
-identical shape:
+**Landed in PR #454.** Found scoping 5-ter's fix onto all eleven scripts
+#316 still named, 2026-08-29 — see the correction above.
+`download_perseus_aristotle.py`, `download_perseus_homer.py` and
+`download_perseus_plato.py` shared the identical shape:
 
 ```python
 try:
@@ -1950,19 +1950,25 @@ except urllib.error.URLError as e:
     raise
 ```
 
-`raise` re-raises the caught exception with no outer handler in `main()`,
-so it propagates and kills the whole run. Reproduced against the real
+`raise` re-raised the caught exception with no outer handler in `main()`,
+so it propagated and killed the whole run. Reproduced against the real
 `main()` with `download_one` stubbed to fail on the first of 9 Plato Greek
 volumes: `files written: []` — zero, not eight. `download_perseus_tragedy.py`
-is the same for any *non*-404 error; its per-language candidate loop
+was the same for any *non*-404 error; its per-language candidate loop
 correctly treats 404 as "try the next edition," but a 500 on the first
-candidate still aborts the run (reproduced: 1 of 7 Aeschylus plays written
+candidate still aborted the run (reproduced: 1 of 7 Aeschylus plays written
 before the abort).
 
-Proposed fix — untested: wrap each per-item fetch in the same
-`record-and-continue` shape 5-ter just retrofitted, using
-`_download.FailureAccumulator`. For `_tragedy.py` the fix is narrower —
-only the non-404 branch of the candidate loop needs to stop re-raising.
+Fixed by wrapping each per-item fetch in the same `record-and-continue`
+shape 5-ter retrofitted onto the other eleven, using
+`_download.FailureAccumulator`: record the failure, exit non-zero, name
+what was lost. `_tragedy.py`'s fix is narrower, as planned — only the
+non-404/`URLError` branch of the candidate loop stops re-raising; its 404
+fallback is untouched. `tests/test_perseus_downloaders.py::TestDltextIsolationScripts`
+covers all four (one failure test each, plus a clean-run-exits-0 test for
+plato and tragedy), watched fail against the pre-fix code first. Found
+landing it: 11-octies's `~~#430~~` strikethrough was wrong (#430 is still
+open), corrected in the same PR.
 
 ---
 
