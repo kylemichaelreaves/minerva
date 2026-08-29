@@ -37,7 +37,7 @@ lemma = [
     # `blis<0.8`, which fails to compile against 3.13's longobject API).
     # The models it loads — de/fr/en/grc/la — install from
     # `lemma-models.txt`.
-    "spacy>=3.8.15",
+    "spacy>=3.8.16",
     # Stanza: fallback for grc/lat when the LatinCy wheels are missing;
     # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
     # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
@@ -50,7 +50,7 @@ all = [
     "ebooklib>=0.20",
     "beautifulsoup4>=4.15.0",
 ]
-dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.16.3", "pyyaml>=6.0.3"]
+dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.16.4", "pyyaml>=6.0.3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
