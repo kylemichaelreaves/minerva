@@ -48,8 +48,16 @@ _HREF_RE = re.compile(r'href="([^"]+)"', re.IGNORECASE)
 
 
 def title_to_path(title: str) -> str:
-    """Work title → zeno URL path (under the Schiller theoretical-works root)."""
-    return SCHILLER_PREFIX + "/" + urllib.parse.quote(title.replace(" ", "+"), safe="+,:./[]")
+    """Work title → zeno URL path (under the Schiller theoretical-works root).
+
+    ``:``, ``[`` and ``]`` are excluded from `safe` to match zeno.org's
+    own outbound-href encoding (``%3A``/``%5B``/``%5D``) — see
+    `download_kant_de.title_to_path` (issue #420) for the mechanism.
+    Currently latent here: `kallias_de.html`'s bracketed title is the
+    only affected entry, and that work fits on zeno's single root page
+    so there are no un-discovered children to lose.
+    """
+    return SCHILLER_PREFIX + "/" + urllib.parse.quote(title.replace(" ", "+"), safe="+,./")
 
 
 def fetch(url: str, *, timeout: float = 30, retries: int = 8) -> str:

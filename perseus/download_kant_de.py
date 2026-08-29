@@ -46,10 +46,18 @@ _HREF_RE = re.compile(r'href="([^"]+)"', re.IGNORECASE)
 
 
 def title_to_path(title: str) -> str:
-    """German title → zeno URL path (under the Kant root)."""
+    """German title → zeno URL path (under the Kant root).
+
+    ``:``, ``[`` and ``]`` are deliberately excluded from `safe` —
+    zeno.org percent-encodes those three in its own outbound hrefs
+    (``%3A``, ``%5B``, ``%5D``), and `extract_links` matches children
+    by `path.startswith(root_path)`, so leaving them literal here
+    silently stops the BFS crawl at the first page for any title that
+    contains one (issue #420).
+    """
     # zeno uses `+` for spaces; non-ASCII is percent-encoded.
     return KANT_PREFIX + "/" + urllib.parse.quote(
-        title.replace(" ", "+"), safe="+,:./[]"
+        title.replace(" ", "+"), safe="+,./"
     )
 
 
