@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 embed = ["sentence-transformers>=5.7.0"]
-hegel = ["pymupdf>=1.28.2", "ebooklib>=0.20", "beautifulsoup4>=4.15.0", "lxml>=6.1.1"]
+hegel = ["pymupdf>=1.28.2", "ebooklib>=0.20", "beautifulsoup4>=4.15.0", "lxml>=6.1.2"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
 # Install both halves:
@@ -50,7 +50,7 @@ all = [
     "ebooklib>=0.20",
     "beautifulsoup4>=4.15.0",
 ]
-dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.16.2", "pyyaml>=6.0.3"]
+dev = ["pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.16.3", "pyyaml>=6.0.3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
