@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _dl import doc_id, download_one
+from _download import FailureAccumulator
 
 BASE = "https://www.perseus.tufts.edu/hopper/dltext"
 
@@ -51,7 +52,7 @@ GREEK_VOLUMES: list[tuple[str, str]] = [
 ]
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description="Fetch Plato TEI XML from Perseus dltext.")
     ap.add_argument(
         "--lang",
@@ -96,6 +97,7 @@ def main() -> None:
 
     total = sum(len(vols) for _, vols in batches)
     n = 0
+    failures = FailureAccumulator()
     for label, vols in batches:
         print(f"=== {label} ({len(vols)} volumes) ===")
         for suffix, stem in vols:
@@ -111,17 +113,18 @@ def main() -> None:
             try:
                 download_one(base_url=BASE, doc=doc, dest=path, user_agent=args.user_agent)
             except urllib.error.HTTPError as e:
-                print(f"  HTTP error {e.code}: {e.reason}")
-                raise
+                failures.record(path.name, f"HTTP {e.code}: {e.reason}")
+                continue
             except urllib.error.URLError as e:
-                print(f"  URL error: {e.reason}")
-                raise
+                failures.record(path.name, f"URL error: {e.reason}")
+                continue
             if n < total:
                 time.sleep(args.delay)
         print()
 
     print(f"Done. Wrote {total} file(s) under {out.resolve()}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -41,7 +41,7 @@ import time
 import urllib.error
 from pathlib import Path
 
-from _download import fetch_bytes_with_retry
+from _download import FailureAccumulator, fetch_bytes_with_retry
 
 USER_AGENT = (
     "minerva-corpus-fetch/1.0 (+personal research; "
@@ -135,7 +135,7 @@ def _fetch(url: str, *, retries: int = 8, timeout: float = 90.0) -> bytes:
     )
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(
         description="Fetch Greek tragedy TEI from PerseusDL/canonical-greekLit.",
     )
@@ -187,6 +187,7 @@ def main() -> None:
 
     total = sum(len(plays) * len(langs) for _, _, plays in authors)
     n = 0
+    failures = FailureAccumulator()
     for author_urn, raw_dir_name, plays in authors:
         print(f"=== {raw_dir_name} ({len(plays)} plays × {len(langs)} langs) ===")
         out_root = args.out / raw_dir_name
@@ -213,6 +214,7 @@ def main() -> None:
 
                 data: bytes | None = None
                 tried: list[str] = []
+                failure: str | None = None
                 for file_suffix in LANG_SUFFIX_CANDIDATES[lang]:
                     url = (
                         f"{RAW_BASE}/{author_urn}/{work_urn}/"
@@ -225,8 +227,17 @@ def main() -> None:
                     except urllib.error.HTTPError as e:
                         if e.code == 404:
                             continue  # try next candidate edition
-                        print(f"  HTTP error {e.code}: {e.reason}")
-                        raise
+                        failure = f"HTTP {e.code}: {e.reason}"
+                        break
+                    except urllib.error.URLError as e:
+                        failure = f"URL error: {e.reason}"
+                        break
+
+                if failure is not None:
+                    failures.record(str(rel), failure)
+                    if n < total:
+                        time.sleep(args.delay)
+                    continue
 
                 if data is None:
                     # No edition variant matched — likely canonical-
@@ -247,7 +258,8 @@ def main() -> None:
         print()
 
     print(f"Done. {total} attempted; output under {args.out.resolve()}")
+    return failures.exit_code()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
