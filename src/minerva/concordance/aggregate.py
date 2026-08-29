@@ -121,10 +121,15 @@ def _build_all(conn: sqlite3.Connection, *, verbose: bool) -> tuple[int, int, in
     # work: (lang, work, lemma, pos) → count
     work_buckets: dict[tuple[str, str, str, str], int] = defaultdict(int)
 
+    # COALESCE(cl.lang, cf.lang), not cf.lang alone: `chunk_lemmas.lang`
+    # (migration 0032) is NULL for an ordinary same-script token but
+    # explicit for a cross-script run — an embedded Latin phrase inside
+    # a `grc` chunk, tagged 'lat' by the lemmatizer, must count as
+    # Latin vocabulary in every scope, not as Greek (#430).
     t_scan = time.time()
     for lang, author, work, lemma, pos in conn.execute(
         """
-        SELECT cf.lang, cf.author, cf.work, cl.lemma, cl.pos
+        SELECT COALESCE(cl.lang, cf.lang), cf.author, cf.work, cl.lemma, cl.pos
         FROM chunk_lemmas cl
         JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
         """

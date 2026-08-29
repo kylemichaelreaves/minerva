@@ -363,7 +363,7 @@ def test_a_chunk_outside_the_pass_keeps_its_rows(tmp_path):
         # whose candidate set is a subset of the corpus.
         lemmatize_mod._flush(
             conn,
-            [("a", 0, "zzz", 0, 3, "zzz", "zzz", None, None)],
+            [("a", 0, "zzz", 0, 3, "zzz", "zzz", None, None, None)],
             [("a", "hash-a", 1)],
         )
     finally:
