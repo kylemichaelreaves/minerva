@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -750,7 +751,10 @@ class TestDltextIsolationScripts:
     def _run_dltext(monkeypatch, capsys, modname, tmp_path, argv_extra, fake_download_one):
         mod = importlib.import_module(modname)
         monkeypatch.setattr(mod, "download_one", fake_download_one)
-        monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
+        # aristotle/homer/plato delegate their batch loop to `_dl.py`'s
+        # `run_dltext_batches`, which no longer sleeps via a module-local
+        # `time` import — patch the shared stdlib module directly instead.
+        monkeypatch.setattr(time, "sleep", lambda _s: None)
         monkeypatch.setattr(
             sys, "argv",
             [f"{modname}.py", "--out", str(tmp_path), "--delay", "0", *argv_extra],

@@ -135,6 +135,66 @@ def _fetch(url: str, *, retries: int = 8, timeout: float = 90.0) -> bytes:
     )
 
 
+def _fetch_play(
+    *, author_urn: str, work_urn: str, lang: str
+) -> tuple[bytes | None, str | None, list[str]]:
+    """Try each candidate edition suffix for ``lang`` in preference order.
+
+    Returns ``(data, failure, tried)``. ``data`` is ``None`` with no
+    ``failure`` when no candidate 404s cleanly — a real situation for some
+    satyr/fragmentary plays. ``failure`` is set on the first non-404 error,
+    which stops the probe rather than trying further candidates.
+    """
+
+    tried: list[str] = []
+    for file_suffix in LANG_SUFFIX_CANDIDATES[lang]:
+        url = (
+            f"{RAW_BASE}/{author_urn}/{work_urn}/"
+            f"{author_urn}.{work_urn}.{file_suffix}.xml"
+        )
+        tried.append(file_suffix)
+        try:
+            return _fetch(url), None, tried
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                continue  # try next candidate edition
+            return None, f"HTTP {e.code}: {e.reason}", tried
+        except urllib.error.URLError as e:
+            return None, f"URL error: {e.reason}", tried
+    return None, None, tried
+
+
+def _process_play_lang(
+    *,
+    author_urn: str,
+    work_urn: str,
+    lang: str,
+    dest: Path,
+    rel: Path,
+    skip_existing: bool,
+    failures: FailureAccumulator,
+) -> None:
+    if skip_existing and dest.is_file() and dest.stat().st_size > 0:
+        print("  skip (already exists)")
+        return
+
+    data, failure, tried = _fetch_play(author_urn=author_urn, work_urn=work_urn, lang=lang)
+
+    if failure is not None:
+        failures.record(str(rel), failure)
+        return
+
+    if data is None:
+        # No edition variant matched — likely canonical-greekLit doesn't
+        # carry this play in this language. Skip rather than abort.
+        print(f"  ✗ 404 — tried {tried}, no edition available")
+        return
+
+    dest.write_bytes(data)
+    size_kb = len(data) // 1024
+    print(f"  ✓ {size_kb} KB ({tried[-1]})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Fetch Greek tragedy TEI from PerseusDL/canonical-greekLit.",
@@ -202,57 +262,15 @@ def main() -> int:
                 dest = play_dir / f"{lang}.xml"
                 rel = dest.relative_to(args.out)
                 print(f"[{n}/{total}] {title} ({lang}) -> {rel}")
-                if (
-                    args.skip_existing
-                    and dest.is_file()
-                    and dest.stat().st_size > 0
-                ):
-                    print("  skip (already exists)")
-                    if n < total:
-                        time.sleep(args.delay)
-                    continue
-
-                data: bytes | None = None
-                tried: list[str] = []
-                failure: str | None = None
-                for file_suffix in LANG_SUFFIX_CANDIDATES[lang]:
-                    url = (
-                        f"{RAW_BASE}/{author_urn}/{work_urn}/"
-                        f"{author_urn}.{work_urn}.{file_suffix}.xml"
-                    )
-                    tried.append(file_suffix)
-                    try:
-                        data = _fetch(url)
-                        break
-                    except urllib.error.HTTPError as e:
-                        if e.code == 404:
-                            continue  # try next candidate edition
-                        failure = f"HTTP {e.code}: {e.reason}"
-                        break
-                    except urllib.error.URLError as e:
-                        failure = f"URL error: {e.reason}"
-                        break
-
-                if failure is not None:
-                    failures.record(str(rel), failure)
-                    if n < total:
-                        time.sleep(args.delay)
-                    continue
-
-                if data is None:
-                    # No edition variant matched — likely canonical-
-                    # greekLit doesn't carry this play in this language
-                    # (a real situation for some satyr/fragmentary
-                    # plays). Skip rather than abort.
-                    print(f"  ✗ 404 — tried {tried}, no edition available")
-                    if n < total:
-                        time.sleep(args.delay)
-                    continue
-
-                dest.write_bytes(data)
-                size_kb = len(data) // 1024
-                used = tried[-1]
-                print(f"  ✓ {size_kb} KB ({used})")
+                _process_play_lang(
+                    author_urn=author_urn,
+                    work_urn=work_urn,
+                    lang=lang,
+                    dest=dest,
+                    rel=rel,
+                    skip_existing=args.skip_existing,
+                    failures=failures,
+                )
                 if n < total:
                     time.sleep(args.delay)
         print()
