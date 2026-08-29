@@ -49,23 +49,38 @@ REPO = Path(__file__).resolve().parent.parent
 #: `PR #N` or `PRs #N`, the form this repo uses to attribute work to a PR.
 _PR_CITATION = re.compile(r"\bPRs?\s+#(\d+)")
 
+#: The mirror form (#337): `Issue #N` or `Issues #N`, attributing work to an
+#: issue. A PR number standing in for the issue it closed is the same
+#: confusion as `PR #N` standing in for the PR that closed an issue — just
+#: read backwards.
+_ISSUE_CITATION = re.compile(r"\bIssues?\s+#(\d+)")
+
 
 def scan_pr_citations(text: str) -> set[int]:
     """Every number `text` attributes to a pull request."""
     return {int(m.group(1)) for m in _PR_CITATION.finditer(text)}
 
 
+def scan_issue_citations(text: str) -> set[int]:
+    """Every number `text` attributes to an issue."""
+    return {int(m.group(1)) for m in _ISSUE_CITATION.finditer(text)}
+
+
 @dataclass(frozen=True)
 class Citation:
-    """One `PR #N` occurrence, located well enough to fix without searching."""
+    """One `PR #N` or `Issue #N` occurrence, located well enough to fix
+    without searching. `kind` defaults to `"pr"` — the direction this gate
+    originally checked (#335) — so existing call sites are unaffected."""
 
     path: str
     line: int
     number: int
+    kind: str = "pr"
 
 
 def scan_paths(paths: list[Path], *, root: Path) -> list[Citation]:
-    """Every `PR #N` in `paths`, located by repo-relative path and line.
+    """Every `PR #N` and `Issue #N` in `paths`, located by repo-relative path
+    and line.
 
     Line-by-line rather than whole-file, because the only useful thing a gate
     over prose can say is *which sentence* — a bare number sends the reader
@@ -77,8 +92,12 @@ def scan_paths(paths: list[Path], *, root: Path) -> list[Citation]:
         text = path.read_text(encoding="utf-8", errors="replace")
         for lineno, line in enumerate(text.splitlines(), start=1):
             cites.extend(
-                Citation(path=rel, line=lineno, number=n)
+                Citation(path=rel, line=lineno, number=n, kind="pr")
                 for n in sorted(scan_pr_citations(line))
+            )
+            cites.extend(
+                Citation(path=rel, line=lineno, number=n, kind="issue")
+                for n in sorted(scan_issue_citations(line))
             )
     return cites
 
@@ -125,27 +144,44 @@ def evaluate(
     real_prs: set[int],
     exempt: dict[tuple[str, int], str],
 ) -> list[Failure]:
-    """Every citation that names a number GitHub does not know as a PR."""
+    """Every citation that names the wrong kind of number — a `PR #N` GitHub
+    does not know as a PR, or the mirror (#337): an `Issue #N` that is
+    actually a merged PR. The second direction reuses `real_prs` rather than
+    a separate issue-number fetch: an issue citation is wrong precisely when
+    its number *is* a known PR."""
     failures: list[Failure] = []
 
     for cite in citations:
-        if (
-            cite.number >= _FIXTURE_FLOOR
-            or cite.number in real_prs
-            or (cite.path, cite.number) in exempt
-        ):
+        if cite.number >= _FIXTURE_FLOOR or (cite.path, cite.number) in exempt:
             continue
-        failures.append(
-            Failure(
-                "not-a-pr",
-                f"{cite.path}:{cite.line} cites `PR #{cite.number}`, which is not a "
-                "pull request in this repo. The usual cause is an issue number "
-                "standing in for the PR that closed it — check with "
-                f"`gh issue view {cite.number}` and cite the PR instead. If the "
-                "sentence is *about* a wrong number rather than using one, exempt "
-                "it in `_EXEMPT` with a reason.",
+        if cite.kind == "pr":
+            if cite.number in real_prs:
+                continue
+            failures.append(
+                Failure(
+                    "not-a-pr",
+                    f"{cite.path}:{cite.line} cites `PR #{cite.number}`, which is not "
+                    "a pull request in this repo. The usual cause is an issue number "
+                    "standing in for the PR that closed it — check with "
+                    f"`gh issue view {cite.number}` and cite the PR instead. If the "
+                    "sentence is *about* a wrong number rather than using one, exempt "
+                    "it in `_EXEMPT` with a reason.",
+                )
             )
-        )
+        else:
+            if cite.number not in real_prs:
+                continue
+            failures.append(
+                Failure(
+                    "not-an-issue",
+                    f"{cite.path}:{cite.line} cites `Issue #{cite.number}`, which is a "
+                    "pull request in this repo, not an issue. The usual cause is a PR "
+                    "number standing in for the issue it closed — check with "
+                    f"`gh pr view {cite.number}` and cite the issue instead. If the "
+                    "sentence is *about* a wrong number rather than using one, exempt "
+                    "it in `_EXEMPT` with a reason.",
+                )
+            )
 
     present = {(c.path, c.number) for c in citations}
     for path, number in sorted(exempt.keys() - present):
@@ -247,10 +283,24 @@ def run(
     return 0
 
 
-#: Files whose prose attributes work to a PR. Deliberately not the whole tree:
-#: this scans what a reader is expected to trust, which is documentation, the
-#: gate scripts, and the comments in the tests that justify them.
-_SCANNED_GLOBS = ("docs/**/*.md", "*.md", "scripts/*.py", "tests/*.py", ".claude/**/*.md")
+#: Files whose prose attributes work to a PR or issue. Widened by #337, which
+#: measured two live citations sitting outside the original five globs —
+#: `src/minerva/refs/rules/quran_cite_fr.py:7` and `.github/dependabot.yml:34`
+#: — and a third landed later, un-scanned, before the widening: `PR #347` in
+#: `web/src/routes/ReaderRoute.tsx:34`.
+_SCANNED_GLOBS = (
+    "docs/**/*.md",
+    "*.md",
+    "scripts/*.py",
+    "scripts/*.sh",
+    "tests/*.py",
+    ".claude/**/*.md",
+    "src/**/*.py",
+    "web/src/**/*.ts",
+    "web/src/**/*.tsx",
+    "perseus/**/*.py",
+    ".github/**/*.yml",
+)
 
 
 def tracked_paths(root: Path) -> list[Path]:
