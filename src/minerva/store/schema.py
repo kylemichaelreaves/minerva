@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from .. import migrations
-from ..sqlite_util import open_sqlite
+from ..sqlite_util import open_sqlite, register_text_hash
 from .ddl import CHUNKS_FTS_NORM_CREATE, chunks_fts_trigger_creates
 
 _CHUNKS_FTS_TRIGGERS = "\n\n".join(
@@ -84,12 +84,20 @@ CREATE TABLE IF NOT EXISTS meta (
 
 
 def open_db(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
-    return open_sqlite(
+    conn = open_sqlite(
         path,
         SCHEMA,
         check_same_thread=check_same_thread,
         post_open=migrations.apply,
     )
+    # Registered once per connection, here rather than at each call site
+    # in store/embeddings.py: re-registering mid-stream collides with an
+    # open cursor on the same connection (`cmd_embed` interleaves reading
+    # `iter_chunks_without_embeddings`'s cursor with writing through
+    # `upsert_embeddings` on every batch) and raises "Error creating
+    # function".
+    register_text_hash(conn)
+    return conn
 
 
 def reset_db(path: Path) -> None:

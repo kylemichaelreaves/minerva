@@ -27,9 +27,20 @@ actually delete. Take a snapshot first::
     ./.venv/bin/python scripts/repair_stale_xrefs.py --execute
 
 Run `refs build --strategy rules --source-author <X>` afterward for each
-affected author — `refs_scan_state.text_hash` already mismatches the
+affected author to rediscover whatever the deletion made room for.
+`delete_stale_xrefs` drops the touched chunks' `refs_scan_state` rows
+alongside their stale xrefs (#459) — a plain `refs build`, no
+`--rescan-all` needed, is enough to pick them back up.
+
+This used to say `refs_scan_state.text_hash` would already mismatch the
 current text for every chunk this script touches, so the existing skip
-cache re-scans them without needing `--rescan-all`.
+cache would re-scan them unprompted. Wrong: that's only true when the
+chunk's text is what changed. An in-range snapshot mismatch can be stale
+for another reason on a chunk nobody edited, in which case
+`refs_scan_state` still reads as current and a plain `refs build` would
+have skipped it forever — measured on Aristotle, where a normal build
+reported "0 chunks scanned" while `--rescan-all` recovered 58 rows the
+skip cache had been silently withholding (#459).
 """
 
 from __future__ import annotations
@@ -109,6 +120,22 @@ def find_stale_xrefs(conn: sqlite3.Connection) -> list[StaleXref]:
 def delete_stale_xrefs(conn: sqlite3.Connection, stale: list[StaleXref]) -> None:
     conn.executemany(
         "DELETE FROM cross_references WHERE id = ?", [(s.id,) for s in stale]
+    )
+    # #459: this module's own docstring used to assume a deleted xref's
+    # `refs_scan_state` row would already read as stale — true only when
+    # the chunk's *text* changed. An in-range snapshot mismatch can be
+    # stale for another reason entirely, on a chunk nobody edited, and
+    # then `refs_scan_state` still matches the chunk's current text and
+    # rules exactly. Left alone, that row makes `refs build` skip the
+    # chunk forever, silently withholding whatever a rescan would
+    # rediscover (measured on Aristotle: a normal build reported "0
+    # chunks scanned" while `--rescan-all` found 58 rows the skip cache
+    # had been withholding). Deleting the marker here removes the
+    # reliance on that assumption — the next `refs build` treats every
+    # touched chunk as unscanned, whether or not its text moved.
+    conn.executemany(
+        "DELETE FROM refs_scan_state WHERE chunk_id = ?",
+        sorted({(s.source_chunk_id,) for s in stale}),
     )
     conn.commit()
 

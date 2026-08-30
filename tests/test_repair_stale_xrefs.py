@@ -181,6 +181,47 @@ def test_execute_deletes_only_the_stale_rows(tmp_path: Path, monkeypatch):
     assert stale_id not in remaining
 
 
+def test_execute_invalidates_refs_scan_state_for_touched_chunks(tmp_path: Path, monkeypatch):
+    """#459: the script's own docstring assumes deleting a stale xref
+    means `refs_scan_state.text_hash` already mismatches the chunk's
+    current text, so the existing skip cache re-scans it unprompted.
+    That's false whenever the row was stale for a reason other than the
+    chunk's own text changing (e.g. an in-range snapshot mismatch on a
+    chunk nobody edited) — in that case `refs_scan_state` still reads as
+    current and `refs build` skips the chunk forever, silently
+    withholding whatever a rescan would rediscover. Deleting the
+    chunk's `refs_scan_state` row alongside the stale xref removes that
+    reliance: the next `refs build` treats the chunk as unscanned."""
+
+    db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)])
+    conn = store.open_db(db)
+    try:
+        _seed_xref(conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma")
+        # A scan_state row whose hash matches c1's *current* text — the
+        # "nothing has changed since we scanned" case #459 measured on
+        # the live Aristotle rows, not a chunk whose text actually moved.
+        conn.execute(
+            "INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('c1', text_hash(?))",
+            (_TEXT,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setenv("MINERVA_DB", str(db))
+    rc = rx.main(["--execute"])
+    assert rc == 0
+
+    conn = store.open_db(db)
+    try:
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM refs_scan_state WHERE chunk_id = 'c1'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert remaining == 0
+
+
 def test_no_database_is_a_failure(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setenv("MINERVA_DB", str(tmp_path / "nope.sqlite"))
     rc = rx.main([])
