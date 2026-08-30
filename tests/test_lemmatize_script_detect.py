@@ -17,6 +17,7 @@ from __future__ import annotations
 from minerva.lemmatize import (
     find_alt_script_runs,
     fix_grc_ascii_prefix_confusables,
+    fix_grc_lemma_ascii_prefix,
     mask_runs,
 )
 
@@ -201,3 +202,27 @@ class TestFixGrcAsciiPrefixConfusables:
         # function's.
         text = "λόγος PLUT. quaest. ἐστίν"
         assert fix_grc_ascii_prefix_confusables(text) == text
+
+
+class TestFixGrcLemmaAsciiPrefix:
+    """#456: the mirror direction of #446, baked into `grc_dep_web_sm`'s
+    own lemma dictionary rather than a corpus text. A clean, all-Greek
+    surface form (`νησαίων`) can still come back with an ASCII-confusable
+    leading character in its *lemma* (`Nησαῖος`) — #446's text-side fix
+    cannot touch this, since there is no ASCII anywhere in the input for
+    it to find."""
+
+    def test_ascii_confusable_lemma_on_a_clean_surface_is_remapped(self):
+        assert fix_grc_lemma_ascii_prefix("νησαίων", "Nησαῖος") == "Νησαῖος"
+
+    def test_a_clean_lemma_is_untouched(self):
+        assert fix_grc_lemma_ascii_prefix("λόγος", "λόγος") == "λόγος"
+
+    def test_an_ascii_surface_form_is_left_to_446s_own_territory(self):
+        # If the surface form itself carries the ASCII character, this is
+        # #446's direction (input-side), not #456's — leave it alone here
+        # so the two fixes don't compete over the same row.
+        assert fix_grc_lemma_ascii_prefix("Aχεικὰμ", "Aχεικάμ") == "Aχεικάμ"
+
+    def test_an_empty_lemma_is_untouched(self):
+        assert fix_grc_lemma_ascii_prefix("νησαίων", "") == ""

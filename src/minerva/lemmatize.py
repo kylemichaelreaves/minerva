@@ -514,6 +514,28 @@ def fix_grc_ascii_prefix_confusables(text: str) -> str:
     )
 
 
+def fix_grc_lemma_ascii_prefix(surface: str, lemma: str) -> str:
+    """#456: the mirror direction of #446, baked into `grc_dep_web_sm`'s
+    own lemma dictionary instead of a corpus text. A clean, all-Greek
+    `surface` can still come back from the model with an ASCII-confusable
+    leading character in its `lemma` (`νησαίων` → `Nησαῖος`) — #446's
+    :func:`fix_grc_ascii_prefix_confusables` runs on the *input* text and
+    cannot touch this, since there is no ASCII anywhere in the surface
+    form for it to find.
+
+    Only fires when `surface` is entirely non-ASCII: an ASCII-bearing
+    surface form is #446's own territory (the confusable is in the input,
+    not manufactured by the model), so leaving it alone here keeps the
+    two fixes from double-guessing the same row.
+    """
+
+    if not lemma or lemma[0] not in _GRC_ASCII_CONFUSABLES:
+        return lemma
+    if any(ch.isascii() and ch.isalpha() for ch in surface):
+        return lemma
+    return _GRC_ASCII_CONFUSABLES[lemma[0]] + lemma[1:]
+
+
 @dataclass(frozen=True)
 class Token:
     """One token of a lemmatised chunk.
@@ -1006,6 +1028,12 @@ class Lemmatizer:
             # capitalises nouns and the lemmatizer's case carries
             # that signal (`Geist` vs `geist`).
             lemma = unicodedata.normalize("NFC", t.lemma_ or t.text)
+            # getattr, not self.lang: several tests construct a
+            # Lemmatizer via __new__ to skip the model-loading __init__,
+            # which never sets .lang — treat that as "not grc" rather
+            # than raise, since production always goes through __init__.
+            if getattr(self, "lang", None) == "grc":
+                lemma = fix_grc_lemma_ascii_prefix(surface, lemma)
             # spaCy returns morph as a special MorphAnalysis object
             # whose str() round-trips to the UD `Key=Val|...` shape
             # Stanza emits natively. None when empty.

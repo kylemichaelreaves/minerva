@@ -96,9 +96,16 @@ source = ["src/minerva"]
 # migration paid for it against the 80%-on-new-code bar. The two configs
 # now agree. If migrations should genuinely be exempt, the exemption
 # belongs in BOTH files — see #339.
-omit = [
-    "src/minerva/cli/__init__.py",  # thin dispatch shim
-]
+#
+# `src/minerva/cli/__init__.py` was omitted here too, on the same
+# unmeasured "thin dispatch shim" premise, and had the same effect:
+# Sonar (which never listed it in `sonar.coverage.exclusions` either)
+# scored it 0/45 lines while the suite actually ran it to 100%. Removed
+# 2026-08-30 (#345) rather than added to Sonar's list, since the
+# measurement said the file is well covered, not exempt-worthy — same
+# resolution #339 gave migrations, for the same reason: an empty `omit`
+# list means every file either has a real coverage number or is
+# exempted in BOTH configs at once, never silently zeroed in one.
 branch = true
 
 [tool.coverage.report]

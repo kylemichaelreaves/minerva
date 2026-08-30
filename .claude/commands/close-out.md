@@ -147,25 +147,37 @@ A correction goes **on the thing that was wrong**, never into a new issue.
 **Exit condition:** every `CORRECTED` or `NOT-REPRODUCED` verdict from phase 1
 has both its comment and its line in the PR body.
 
-## Phase 7 — File and slot what you found
+## Phase 7 — File, and slot into an active plan if one exists
 
 Anything discovered along the way that is not already tracked gets its own
 issue, before you finish. A bug you noticed but did not cause; a fix you scoped
 down and the part you left out; a guard that is inert; a value you had to
 reverse-engineer. Not: things already tracked (link them), or things you fixed
-in this change.
+in this change. **This half never expires** — it is CLAUDE.md's standing
+"record what you find" rule, not specific to this command or to any one plan.
 
 Each issue carries evidence — the command and its output, or `file:line` and the
 lines themselves — split under `## Measured` and `## Hypothesis`, with the cause
 and the proposed fix under the second. Add how you found it, the precedent
 PR/issue, and labels.
 
-Then **slot it into a batch** in `docs/backlog-closeout-plan.md`, in this PR. A
-found issue is filed *and* placed; a landed batch takes an `N-bis` follow-up
-rather than a new number at the end. If nothing groups, say so explicitly and
-give it its own row with a reason.
+**Slotting is separate, and conditional.** Look for a plan-of-record document
+covering the area you were working (a plan doc's own text says what it's
+scoped to — check whether it names a closed set of issues, or a date, that has
+since passed). Slot the finding into it, in this PR, if one is both discoverable
+and still active for that area — a landed batch takes an `N-bis` follow-up
+rather than a new number at the end, and if nothing groups, say so explicitly
+and give it its own row with a reason. **If no such document exists, or the
+only candidate has scoped itself to something already finished, say that
+explicitly instead of slotting** — do not invent a row in a closed plan, and
+do not treat this phase's exit condition as unmeetable because one is missing.
+(#433: an earlier revision of this phase named a specific plan document by
+path; that document scopes itself to a closed set of issues, which made the
+exit condition below unmeetable on any issue outside it. Discover the
+document, don't hardcode it.)
 
-**Exit condition:** every finding has both an issue number and a batch row.
+**Exit condition:** every finding has an issue number, **and** either a batch
+row in an active plan or an explicit note that no active plan covers it.
 
 ## Finally
 
