@@ -26,6 +26,7 @@ from ...lemmatize import (
     Token,
     UnsupportedLanguageError,
     find_alt_script_runs,
+    fix_grc_ascii_prefix_confusables,
     is_supported,
     is_valid_lemma,
     mask_runs,
@@ -176,6 +177,13 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
             for row in cursor:
                 raw = row["text"]
                 pending_hash[row["chunk_id"]] = text_hash(raw)
+                # #446: repair a glued ASCII prefix (numeral marker or
+                # misencoded initial letter) before #430's alt-script
+                # detection runs — the words this fixes contain a Greek
+                # letter, so they classify as 'greek' and would reach
+                # the primary model untouched otherwise.
+                if lang == "grc":
+                    raw = fix_grc_ascii_prefix_confusables(raw)
                 # #430: find spans whose script doesn't match `lang`
                 # BEFORE this chunk's text reaches the primary model —
                 # blanking them out is what stops e.g. embedded Latin

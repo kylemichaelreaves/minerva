@@ -451,6 +451,69 @@ def mask_runs(text: str, runs: list[tuple[str, int, int]]) -> str:
     return "".join(chars)
 
 
+#: Greek letters visually confusable with an ASCII Latin letter in a
+#: broken-serif OCR scan (#446). The 13 capitals are the standard
+#: Greek/Latin confusable set (Α/A, Β/B, Ε/E, Ζ/Z, Η/H, Ι/I, Κ/K, Μ/M,
+#: Ν/N, Ο/O, Τ/T, Υ/Y, Χ/X). `l`/`o` are added because sampling #446's
+#: 251-row residue showed those two lowercase letters land, every time,
+#: on the head of a capitalized proper name (Ισραήλ, Ιωσήφ, Οζειήλ) —
+#: a broken capital Ι or Ο read as lowercase Latin rather than as the
+#: correct uppercase Greek letter. The other nine lowercase letters
+#: found as glued prefixes (a, b, c, d, e, g, m, n, s, v) did NOT
+#: support a confident 1:1 mapping on inspection — some prefix ordinary
+#: words, not names, and Greek's lowercase forms don't visually
+#: resemble most of them — so they are deliberately left unmapped.
+_GRC_ASCII_CONFUSABLES: dict[str, str] = {
+    "A": "Α", "B": "Β", "E": "Ε", "H": "Η", "I": "Ι", "K": "Κ",
+    "M": "Μ", "N": "Ν", "O": "Ο", "T": "Τ", "X": "Χ", "Y": "Υ", "Z": "Ζ",
+    "l": "Ι", "o": "Ο",
+}  # fmt: skip
+#: A `\S+` word's "real" start — whitespace, start-of-string, or one of
+#: the apostrophe-shaped marks the Septuagint uses with no space before
+#: a Hebrew name starting with a guttural (ʾAleph/ʿAyin), and that also
+#: opens direct speech: "’Aχεικὰμ" (Achim), "‘Yμεῖς", "'Aλλʼ". Written
+#: as a negative lookbehind on the complement so start-of-string works
+#: for free (nothing there to violate the assertion).
+_WORD_START_RE = r"(?<![^\s'ʼ’‘])"
+_ASCII_CONFUSABLE_PREFIX_RE = re.compile(
+    _WORD_START_RE + "([" + "".join(_GRC_ASCII_CONFUSABLES) + r"])(?=[Ͱ-Ͽἀ-῿])"
+)
+#: A run of Roman-numeral characters glued directly onto a Greek word
+#: with no separating space — a Septuagint chapter/verse marker, mostly,
+#: occasionally a book/act marker in Aristotle or Euripides. Two or more
+#: characters is unambiguous citation debris regardless of which letters
+#: they are; a bare single V, C or L is also unambiguous, since none of
+#: the three has a Greek homoglyph. A bare single I or X is claimed by
+#: `_GRC_ASCII_CONFUSABLES` above instead — #446's sample showed those
+#: are always a name's initial letter, never a citation on their own.
+_GLUED_NUMERAL_RE = re.compile(_WORD_START_RE + r"((?:[IVXLC]{2,})|[VCL])(?=[Ͱ-Ͽἀ-῿])")
+
+
+def fix_grc_ascii_prefix_confusables(text: str) -> str:
+    """`text` with a leading ASCII run glued onto a Greek word repaired
+    (#446). `find_alt_script_runs` never sees these: the word contains a
+    Greek letter, so it classifies as `'greek'` (own script) and is fed
+    to the primary model whole, prefix and all.
+
+    A glued numeral run is blanked to spaces — citation debris, not
+    vocabulary. A single Latin/Greek-confusable letter is remapped to
+    its Greek codepoint in place, since it is almost always the Greek
+    word's own initial letter, misencoded — stripping it (as a naive
+    "any leading ASCII" rule would) truncates a proper name instead of
+    recovering it. Both substitutions are character-for-character, so
+    offsets into `text` stay valid without remapping.
+
+    The numeral pass runs first: it only ever matches characters absent
+    from the confusables map (a 2+-run of `[IVXLC]`, or a bare V/C/L),
+    so the two passes never compete for the same character.
+    """
+
+    text = _GLUED_NUMERAL_RE.sub(lambda m: " " * len(m.group(1)), text)
+    return _ASCII_CONFUSABLE_PREFIX_RE.sub(
+        lambda m: _GRC_ASCII_CONFUSABLES[m.group(1)], text
+    )
+
+
 @dataclass(frozen=True)
 class Token:
     """One token of a lemmatised chunk.
