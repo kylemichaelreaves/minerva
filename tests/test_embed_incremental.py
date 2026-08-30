@@ -82,6 +82,37 @@ def test_model_change_forces_reencode(tmp_path: Path):
     assert store.count_chunks_without_embeddings(conn, model="m2") == 3
 
 
+def test_text_change_past_id_hash_forces_reencode(tmp_path: Path):
+    """#285: `chunk_id` hashes only `text[:120]`, so a chunk edited past
+    that point keeps its id. Before this fix, `iter_chunks_without_embeddings`
+    only checked `(chunk_id, model)` existence, so an edit like that left
+    the chunk's stale vector in place forever with nothing to notice."""
+
+    db = tmp_path / "embed-stale.sqlite"
+    jsonl, _chunks = _seed_chunks(tmp_path)
+    conn = store.open_db(db)
+    store.insert_chunks(conn, jsonl)
+
+    fake = np.ones((4,), dtype=np.float32)
+    store.upsert_embeddings(conn, model="m1", dim=4, items=[("a", fake)])
+    assert store.count_chunks_without_embeddings(conn, model="m1") == 2
+
+    # Simulate a #285-shaped edit: the chunk's text changes but its id
+    # (content-derived from a 120-char prefix) does not, because this
+    # text is short enough that the whole thing sits inside that prefix
+    # in both versions — the same shape as an edit past character 120 on
+    # a longer chunk.
+    conn.execute(
+        "UPDATE chunks SET text = ? WHERE chunk_id = ?",
+        ("The first English chunk, revised.", "a"),
+    )
+    conn.commit()
+
+    pending = [r["chunk_id"] for r in store.iter_chunks_without_embeddings(conn, model="m1")]
+    assert pending == ["a", "b", "c"]
+    assert store.count_chunks_without_embeddings(conn, model="m1") == 3
+
+
 def test_lang_filter_narrows_pending(tmp_path: Path):
     db = tmp_path / "embed-lang.sqlite"
     jsonl, _chunks = _seed_chunks(tmp_path)

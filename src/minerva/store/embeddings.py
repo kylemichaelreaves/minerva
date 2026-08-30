@@ -41,11 +41,12 @@ def upsert_embeddings(
     embedding row).
     """
 
-    rows = [(cid, model, dim, vector_to_blob(v)) for cid, v in items]
+    rows = [(cid, model, dim, vector_to_blob(v), cid) for cid, v in items]
     if not rows:
         return 0
     conn.executemany(
-        "INSERT OR REPLACE INTO embeddings(chunk_id, model, dim, vector) VALUES (?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO embeddings(chunk_id, model, dim, vector, text_hash) "
+        "VALUES (?, ?, ?, ?, (SELECT text_hash(text) FROM chunks WHERE chunk_id = ?))",
         rows,
     )
     _set_meta(conn, "embeddings.model", model)
@@ -70,18 +71,27 @@ def iter_chunks_without_embeddings(
     model: str,
     lang: str | None = None,
 ) -> Iterator[sqlite3.Row]:
-    """Stream chunks that don't yet have an embedding under ``model``.
+    """Stream chunks that don't yet have a *current* embedding under ``model``.
 
-    Skips a chunk when ``embeddings.chunk_id = chunks_full.chunk_id``
-    AND ``embeddings.model = ?``. A model change therefore forces
-    re-encoding — the ``INSERT OR REPLACE`` in ``upsert_embeddings``
-    overwrites the old vector. Pairs with ``count_chunks_without_embeddings``
-    so ``cmd_embed`` can show progress against a known total without
-    materializing every row in memory.
+    Skips a chunk when ``embeddings.chunk_id = chunks_full.chunk_id``,
+    ``embeddings.model = ?``, AND ``embeddings.text_hash`` matches the
+    chunk's current text. A model change therefore forces re-encoding —
+    the ``INSERT OR REPLACE`` in ``upsert_embeddings`` overwrites the old
+    vector — and so does a text edit, including one past character 120,
+    where ``tei._make_chunk_id`` keeps the chunk's id and a bare
+    ``(chunk_id, model)`` check would otherwise miss it forever (#285).
+    Pairs with ``count_chunks_without_embeddings`` so ``cmd_embed`` can
+    show progress against a known total without materializing every row
+    in memory.
 
     Closes the ``embeddings`` doc/code mismatch documented in
     ``docs/INGESTION.md`` and called out in the 2026-05-29 ingestion-
     bottleneck remediation plan as Phase 1a.
+
+    Relies on ``store.open_db`` having registered the ``text_hash()``
+    SQL function on ``conn`` — not repeated here, because re-registering
+    it while a caller (``cmd_embed``) still has an open cursor from a
+    prior call to this generator raises "Error creating function".
     """
 
     if lang is None:
@@ -89,7 +99,8 @@ def iter_chunks_without_embeddings(
             "SELECT cf.* FROM chunks_full cf "
             "WHERE NOT EXISTS ("
             "  SELECT 1 FROM embeddings e "
-            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ?"
+            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ? "
+            "        AND e.text_hash = text_hash(cf.text)"
             ") "
             "ORDER BY cf.chunk_id",
             (model,),
@@ -99,7 +110,8 @@ def iter_chunks_without_embeddings(
             "SELECT cf.* FROM chunks_full cf "
             "WHERE cf.lang = ? AND NOT EXISTS ("
             "  SELECT 1 FROM embeddings e "
-            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ?"
+            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ? "
+            "        AND e.text_hash = text_hash(cf.text)"
             ") "
             "ORDER BY cf.chunk_id",
             (lang, model),
@@ -115,14 +127,16 @@ def count_chunks_without_embeddings(
 ) -> int:
     """Cheap COUNT(*) twin of ``iter_chunks_without_embeddings``. Used
     by ``cmd_embed`` to print "{n}/{total}" progress without holding
-    the whole result set in memory."""
+    the whole result set in memory. Same reliance on ``store.open_db``
+    having registered ``text_hash()`` as its neighbour above."""
 
     if lang is None:
         row = conn.execute(
             "SELECT COUNT(*) FROM chunks_full cf "
             "WHERE NOT EXISTS ("
             "  SELECT 1 FROM embeddings e "
-            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ?"
+            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ? "
+            "        AND e.text_hash = text_hash(cf.text)"
             ")",
             (model,),
         ).fetchone()
@@ -131,7 +145,8 @@ def count_chunks_without_embeddings(
             "SELECT COUNT(*) FROM chunks_full cf "
             "WHERE cf.lang = ? AND NOT EXISTS ("
             "  SELECT 1 FROM embeddings e "
-            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ?"
+            "  WHERE e.chunk_id = cf.chunk_id AND e.model = ? "
+            "        AND e.text_hash = text_hash(cf.text)"
             ")",
             (lang, model),
         ).fetchone()
