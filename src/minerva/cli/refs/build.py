@@ -74,10 +74,17 @@ def cmd_refs_build(args: argparse.Namespace) -> int:
     )
 
     # Per-author throttling: skip a chunk when the source author has
-    # no rule module (Plato, Aristotle, Descartes today). The runner
-    # returns an empty candidate list for those, but we want the
-    # report to show "scanned 0" rather than "scanned N, candidates 0"
-    # which is misleading.
+    # no rule module. The runner returns an empty candidate list for
+    # those, but we want the report to show "scanned 0" rather than
+    # "scanned N, candidates 0" which is misleading.
+    #
+    # This used to name Plato, Aristotle and Descartes as examples —
+    # wrong by the time #459 found it: all three have real modules, and
+    # the wrong example is what let Aristotle's `refs_scan_state` cache
+    # sit falsely "current" (hash and rules fingerprint both matching)
+    # for 17,095 chunks, silently withholding 58 detectable references
+    # that only `--rescan-all` surfaced. Naming specific authors here
+    # invites the same drift; check `_rules_for_author` directly.
     rules_seen_for: dict[str, bool] = {}
 
     # Batch the scan-state upserts — record_scan_state issues one
