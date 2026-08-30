@@ -28,7 +28,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
-        check-pr-link check-pr-citations check-diff-coverage \
+        check-pr-link check-pr-citations check-diff-coverage check-coverage-exclusions \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -160,6 +160,14 @@ check-api-types:
 check-author-imports:
 	$(PYTHON) scripts/check_author_imports.py
 
+# pyproject.toml's [tool.coverage.run].omit and sonar-project.properties's
+# sonar.coverage.exclusions must agree on src/minerva/ entries, or a file
+# omitted from one but not the other gets a manufactured 0% from Sonar's
+# blocking gate — happened twice (migrations, #339; cli/__init__.py, #345)
+# before either was noticed.
+check-coverage-exclusions:
+	$(PYTHON) scripts/check_coverage_exclusions.py
+
 # Verify a PR's closing links actually registered (#321). Deliberately NOT part
 # of `make check` — it needs a PR that already exists.
 #
@@ -193,7 +201,7 @@ DIFF_BASE ?= origin/main
 check-diff-coverage:
 	$(PYTHON) scripts/check_diff_coverage.py --base $(DIFF_BASE)
 
-check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports
+check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.

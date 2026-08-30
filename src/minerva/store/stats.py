@@ -2,29 +2,78 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
 from .chunks import chunk_count
 from .embeddings import has_embeddings
-from .schema import get_meta
+from .schema import _set_meta, get_meta
+
+# meta keys for the cached corpus/lang breakdown (#344).
+_STATS_CACHE_KEY = "stats.chunks_by_corpus_lang"
+_STATS_CACHE_TOTAL_KEY = "stats.chunks_by_corpus_lang.total"
 
 
 def stats(conn: sqlite3.Connection) -> dict[str, object]:
-    by_corpus = conn.execute(
-        "SELECT corpus, lang, COUNT(*) FROM chunks_full GROUP BY corpus, lang ORDER BY 1, 2"
-    ).fetchall()
     return {
         "chunks_total": chunk_count(conn),
-        "chunks_by_corpus_lang": [
-            {"corpus": c, "lang": lang, "count": n} for (c, lang, n) in by_corpus
-        ],
+        "chunks_by_corpus_lang": _chunks_by_corpus_lang_cached(conn),
         "embeddings_present": has_embeddings(conn),
         "embeddings_model": get_meta(conn, "embeddings.model"),
         "embeddings_dim": get_meta(conn, "embeddings.dim"),
         "ingest_source": get_meta(conn, "ingest.source"),
         "timing": _read_timing(conn),
     }
+
+
+def _chunks_by_corpus_lang_cached(conn: sqlite3.Connection) -> list[dict[str, object]]:
+    """The `GROUP BY corpus, lang` breakdown `/api/health` exposes,
+    cached in `meta` rather than recomputed on every call (#344).
+
+    `corpus` is a computed column (`LOWER(w.author)`) joined through
+    three tables, so nothing indexes it and the query full-scans all of
+    `chunks` — ~210 ms against the live corpus, next to sub-millisecond
+    for every other statement on this read path.
+
+    Cache-invalidation is read-side rather than write-side: `chunks`
+    has more than one writer (`insert_chunks`, plus at least one
+    operator script — `clean-hegel-lectures-glossary.py` — that deletes
+    rows directly), so pinning the cache to a single writer would leave
+    it stale after the other. Instead the cached total is checked
+    against a fresh `chunk_count()` — `SELECT COUNT(*) FROM chunks`,
+    ~1 ms via a covering index — on every read; a mismatch means
+    something changed the table since the cache was written, so the
+    breakdown is recomputed and the cache refreshed. A cache hit costs
+    the 1 ms count; a miss costs the ~200 ms scan once, not every call.
+
+    Not caught: a write that deletes N rows and inserts N *different*
+    rows outside `insert_chunks`, which would leave the total matching
+    by coincidence. No such path exists today (grep for `INSERT.*INTO
+    chunks` and `DELETE FROM chunks` in `src/`, `scripts/`, `perseus/`).
+    """
+
+    current_total = chunk_count(conn)
+    cached_total = get_meta(conn, _STATS_CACHE_TOTAL_KEY)
+    cached_json = get_meta(conn, _STATS_CACHE_KEY)
+    if cached_json is not None and cached_total == str(current_total):
+        return json.loads(cached_json)
+
+    rows = conn.execute(
+        "SELECT corpus, lang, COUNT(*) FROM chunks_full GROUP BY corpus, lang ORDER BY 1, 2"
+    ).fetchall()
+    breakdown = [{"corpus": c, "lang": lang, "count": n} for (c, lang, n) in rows]
+    try:
+        _set_meta(conn, _STATS_CACHE_KEY, json.dumps(breakdown))
+        _set_meta(conn, _STATS_CACHE_TOTAL_KEY, str(current_total))
+        conn.commit()
+    except sqlite3.OperationalError:
+        # A read-only connection (`PRAGMA query_only = ON`, as the
+        # audit scripts use) can't write the cache back. Still return
+        # the freshly-computed answer — the cache is an optimization
+        # for repeated calls, not a correctness requirement for this one.
+        conn.rollback()
+    return breakdown
 
 
 def _read_timing(conn: sqlite3.Connection) -> dict[str, float]:

@@ -164,6 +164,27 @@ def test_tokens_from_doc_report_source_spans_and_source_surfaces():
         assert source[t.start : t.end] == t.surface
 
 
+def test_grc_lemma_ascii_prefix_is_fixed_only_for_the_grc_backend():
+    """#456: wiring, not just the standalone function — a `grc`-tagged
+    Lemmatizer repairs an ASCII-confusable lemma on a clean Greek
+    surface; the same token through a Lemmatizer with no `.lang` set
+    (the `__new__`-bypass tests elsewhere in this file) is untouched."""
+
+    source = "νησαίων"
+    tok = _FakeToken(source, 0)
+    tok.lemma_ = "Nησαῖος"
+    doc = _FakeDoc(source, [tok])
+
+    lm = Lemmatizer.__new__(Lemmatizer)
+    lm.lang = "grc"
+    (fixed,) = list(lm._tokens_from_spacy_doc(doc, source))
+    assert fixed.lemma == "Νησαῖος"
+
+    lm_no_lang = Lemmatizer.__new__(Lemmatizer)
+    (unfixed,) = list(lm_no_lang._tokens_from_spacy_doc(doc, source))
+    assert unfixed.lemma == "Nησαῖος"
+
+
 def test_tokens_from_doc_skip_when_the_source_cannot_be_mapped():
     lm = Lemmatizer.__new__(Lemmatizer)
     # Processed text has a word the source does not — the map refuses,
