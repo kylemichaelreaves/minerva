@@ -167,8 +167,9 @@ def _extract_english(raw: str) -> str:
     """Pull the Theognis section out of the Banks 1856 bundle.
 
     Strategy: start at "THEOGNIS THE MEGAREAN", end at the next
-    work boundary (we look for "INDEX" / "FINIS" / END marker
-    after that point). Within the section, drop OCR-detected
+    work boundary (we look for "THE END." / "INDEX" / "FINIS" / END
+    marker after that point), cutting out a misplaced appendix in
+    between (see below). Within what's left, drop OCR-detected
     page-header lines and footnote blocks.
 
     Footnote heuristic: lines starting with a digit + space
@@ -187,21 +188,51 @@ def _extract_english(raw: str) -> str:
     if start is None:
         raise RuntimeError("Banks 1856: Theognis section start not found")
 
-    # The Theognis section runs through the end of the volume.
-    # Banks orders Hesiod → Callimachus → Theognis. End markers
-    # may include INDEX, FINIS, or copyright pages.
+    # The Theognis section runs through the end of the volume. Banks
+    # orders Hesiod → Callimachus → Theognis. "THE END." is this
+    # volume's own close and comes before any of the other markers —
+    # they stay as a fallback for a printing where it reads differently.
     end = len(lines)
     for i in range(start, len(lines)):
         if any(
             tok in lines[i]
-            for tok in ("INDEX TO", "FINIS.", "PRINTED BY", "BOHN'S CLASSICAL")
+            for tok in (
+                "THE END.",
+                "INDEX TO",
+                "FINIS.",
+                "PRINTED BY",
+                "BOHN'S CLASSICAL",
+            )
         ):
             end = i
             break
 
+    # #448: Banks appends Elton's *Remains of Hesiod* verse translation
+    # — a different poet, a different translator — between the
+    # biography above and the actual "FRAGMENTS OF THEOGNIS" elegies.
+    # It's ordinary English prose, so nothing below catches it; it has
+    # to be cut by name. Both markers have to appear, in order, inside
+    # the section already found, or nothing is cut.
+    appendix_start = appendix_end = None
+    for i in range(start, end):
+        if "REMAINS OF HESIOD" in lines[i]:
+            appendix_start = i
+            break
+    if appendix_start is not None:
+        for i in range(appendix_start + 1, end):
+            if "FRAGMENTS OF THEOGNIS" in lines[i]:
+                appendix_end = i
+                break
+
     out_lines: list[str] = []
-    for ln in lines[start:end]:
-        s = ln.rstrip()
+    for idx in range(start, end):
+        if (
+            appendix_start is not None
+            and appendix_end is not None
+            and appendix_start <= idx < appendix_end
+        ):
+            continue
+        s = lines[idx].rstrip()
         stripped = s.strip()
         # Page headers (e.g. "218 MAXIMS OF THEOGNIS. 13—26,").
         # Replace with a section anchor only when we recovered the
@@ -262,12 +293,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Also re-fetch theognidea_eng.txt. OFF BY DEFAULT (#448): "
-            "_extract_english() does not reproduce the 1,492-chunk file "
-            "the 2026-06-06 manual trim curated — it regenerates the "
-            "untrimmed ~14,805-line original, silently reintroducing the "
-            "Hesiod/Callimachus/publisher-catalog pollution that trim "
-            "removed. Only pass this once #448's fix lands, or if you "
-            "have independently reconstructed and diffed the trim."
+            "_extract_english() now cuts the misplaced Elton's-Remains-"
+            "of-Hesiod appendix and stops at 'THE END.', which closes "
+            "99.6% of the gap against the 2026-06-06 manual trim's "
+            "curated 1,492-chunk file (a fresh extraction now diffs "
+            "~197 words / 0.46%% from it, down from ~48,980 / 54%%) — "
+            "but it is still not byte-identical, so this stays opt-in "
+            "until someone reviews that residual and decides to "
+            "re-ingest, rather than silently re-fetching on every run."
         ),
     )
     args = ap.parse_args(argv)

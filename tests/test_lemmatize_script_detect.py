@@ -14,7 +14,11 @@ it never tokenizes content it would only mangle.
 
 from __future__ import annotations
 
-from minerva.lemmatize import find_alt_script_runs, mask_runs
+from minerva.lemmatize import (
+    find_alt_script_runs,
+    fix_grc_ascii_prefix_confusables,
+    mask_runs,
+)
 
 
 class TestFindAltScriptRunsGrc:
@@ -114,3 +118,86 @@ class TestMaskRuns:
         assert text[start:end] == "PLUT."
         masked = mask_runs(text, runs)
         assert masked[start:end].strip() == ""
+
+
+class TestFixGrcAsciiPrefixConfusables:
+    """#446: a `grc` word can carry an ASCII run glued to its front with
+    no separating space — either a citation marker (numeral) or the
+    word's own initial capital letter, misencoded as its ASCII look-alike
+    rather than the correct Greek codepoint. Both are found by #430's
+    `find_alt_script_runs` as ordinary Greek words (they contain a Greek
+    letter), so they never reach this repair via the alt-script path.
+    """
+
+    def test_no_glued_prefix_is_unchanged(self):
+        assert fix_grc_ascii_prefix_confusables("λόγος ἐστίν") == "λόγος ἐστίν"
+
+    def test_single_confusable_letter_is_remapped_not_stripped(self):
+        # "Aχεικὰμ" is the Septuagint genealogy name Achim — the leading
+        # ASCII "A" is a misencoded Greek capital alpha, not debris to
+        # discard. Stripping it (rather than remapping) would truncate
+        # the name to "χεικὰμ".
+        text = "καὶ Aχεικὰμ ἐγέννησεν"
+        fixed = fix_grc_ascii_prefix_confusables(text)
+        assert "Αχεικὰμ" in fixed
+        assert len(fixed) == len(text)
+
+    def test_lowercase_l_and_o_confusables_are_remapped(self):
+        # Sampling (#446) found these two lowercase ASCII letters always
+        # sitting at the head of a capitalized Greek word (Ι and Ο have a
+        # broken/faded capital form an OCR pass reads as lowercase Latin),
+        # never elsewhere — unlike the other nine lowercase ASCII letters
+        # that also turned up as prefixes, which stay unhandled residue.
+        assert fix_grc_ascii_prefix_confusables("lσραήλ") == "Ισραήλ"
+        assert fix_grc_ascii_prefix_confusables("oζειήλ") == "Οζειήλ"
+
+    def test_multichar_roman_numeral_run_is_blanked(self):
+        # "VIIτόν" — a chapter/verse marker glued to a Greek word, not a
+        # letter of it. Blanked (not deleted) so offsets stay aligned.
+        text = "VIIτόν λόγον"
+        fixed = fix_grc_ascii_prefix_confusables(text)
+        assert fixed == "   τόν λόγον"
+        assert len(fixed) == len(text)
+
+    def test_single_v_c_l_are_numerals_not_confusables(self):
+        # V, C, L have no Greek homoglyph — a bare one of these is
+        # unambiguously the numeral, unlike bare I or X below.
+        assert fix_grc_ascii_prefix_confusables("Vκαί") == " καί"
+        assert fix_grc_ascii_prefix_confusables("Cλόγος") == " λόγος"
+
+    def test_single_i_and_x_are_confusables_not_numerals(self):
+        # Both letters are valid Roman numerals on their own (1, 10), but
+        # #446's sample showed every single-character "I"/"X" prefix in
+        # the live corpus is a proper name's initial letter (Ιεβουσαῖος,
+        # Χανανείς) — never a citation. A 2+-character run stays a
+        # numeral (test_multichar_roman_numeral_run_is_blanked above).
+        assert fix_grc_ascii_prefix_confusables("Iεβουσαῖος") == "Ιεβουσαῖος"
+        assert fix_grc_ascii_prefix_confusables("Xανανείς") == "Χανανείς"
+
+    def test_unmapped_lowercase_prefix_is_left_alone(self):
+        # "a", "b", "c", "d", "e", "g", "m", "n", "s", "v" also turned up
+        # as glued prefixes but sampling didn't support a confident
+        # mapping for any of them (some are common words, not names;
+        # Greek lowercase doesn't visually resemble most of them) —
+        # accepted residue, not silently guessed at.
+        assert fix_grc_ascii_prefix_confusables("aὁδός") == "aὁδός"
+
+    def test_confusable_after_a_transliteration_apostrophe_is_remapped(self):
+        # The Septuagint's convention for a Hebrew name starting with a
+        # guttural (ʾAleph/ʿAyin) prefixes it with a rough-breathing-like
+        # apostrophe with no space — "’Aχεικὰμ" (Achim), "‘Yμεῖς" — so the
+        # glued ASCII letter isn't always at the very start of a `\S+`
+        # run. Found live: 53 of 98 chunk_lemmas residue rows after the
+        # first cut of this fix were exactly this shape.
+        assert fix_grc_ascii_prefix_confusables("’Aχεικὰμ") == "’Αχεικὰμ"
+        assert fix_grc_ascii_prefix_confusables("‘Yμεῖς") == "‘Υμεῖς"
+        # A plain ASCII quote opening direct speech behaves the same way.
+        assert fix_grc_ascii_prefix_confusables("'Aλλʼ") == "'Αλλʼ"
+
+    def test_ordinary_ascii_word_elsewhere_in_the_text_is_untouched(self):
+        # The confusable/numeral repair only ever touches a prefix glued
+        # directly onto a Greek letter — an ordinary embedded Latin word
+        # is #430's job (find_alt_script_runs + mask_runs), not this
+        # function's.
+        text = "λόγος PLUT. quaest. ἐστίν"
+        assert fix_grc_ascii_prefix_confusables(text) == text
