@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import Composer from "~/Composer";
+import Composer from "~/features/Composer";
 
 const meta: Meta<typeof Composer> = {
   title: "Chat/Composer",

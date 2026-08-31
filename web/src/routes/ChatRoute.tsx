@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import Landing from "~/Landing";
-import Composer from "~/Composer";
-import WorkScopeControl from "~/Composer/WorkScopeControl";
+import Composer from "~/features/Composer";
+import WorkScopeControl from "~/features/Composer/WorkScopeControl";
 import Thread from "~/Thread";
 import Topbar from "~/components/Topbar";
 import { ThreadSearchSheet } from "~/Thread/components/ThreadSearchSheet";
