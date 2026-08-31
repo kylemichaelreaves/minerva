@@ -158,6 +158,22 @@ def test_format_locator_attributes_apparatus_to_translator():
     assert retrieve.format_locator(body_meta).startswith("Plato, Republic 327a")
 
 
+def test_format_locator_does_not_misattribute_signature_lines():
+    """A 'signature' chunk is Nietzsche's own draft title/valediction, not
+    editorial apparatus (#291) — it must cite him normally, not the
+    'editorial note (translator)' form note/cast get."""
+    sig_meta = {
+        "author": "Nietzsche",
+        "work": "Briefe",
+        "section": "¶12",
+        "translator": "(Original)",
+        "block_type": "signature",
+    }
+    loc = retrieve.format_locator(sig_meta)
+    assert loc.startswith("Nietzsche, Briefe")
+    assert "editorial" not in loc
+
+
 def test_format_locator_attributes_objection_to_objector():
     """An objection locator names the objector (chunks.speaker) — never
     Descartes, whose work merely hosts the exchange. See
@@ -557,6 +573,21 @@ def test_apparatus_beyond_the_top_k_window_is_still_counted():
     got = retrieve._cap_apparatus(conn, ordered, top_k=3)
     assert got[0] == "t0"
     assert sum(1 for c in got if c.startswith("n")) <= 2
+
+
+def test_signature_lines_count_toward_the_apparatus_cap():
+    # #291: Nachlass title-page drafts and Briefe valedictions are typed
+    # block_type='signature'. They're the author's own words, unlike
+    # note/cast, but must still be capped — a signature line is what
+    # outranked Nietzsche's actual philosophy on a query containing his
+    # name in the first place.
+    ordered = [f"s{i}" for i in range(6)] + ["t0", "t1", "t2", "t3"]
+    conn = _apparatus_conn(
+        [(f"s{i}", "signature") for i in range(6)] + [(f"t{i}", None) for i in range(4)]
+    )
+    got = retrieve._cap_apparatus(conn, ordered, top_k=6)
+    assert sum(1 for c in got if c.startswith("s")) == 2  # 6 // 3
+    assert got == ["s0", "s1", "t0", "t1", "t2", "t3"]
 
 
 # ---------- deterministic ranking (#165) ----------
