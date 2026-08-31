@@ -1,10 +1,11 @@
 """`minerva terms lemmatize` — populate the chunk_lemmas cache.
 
-One row per (chunk, token) for every grc/deu chunk; downstream the
-glossary importer joins this against `terms.lemma` to find term
-occurrences. Designed to be run once after a fresh ingest and then
-left alone — re-runs skip chunks already present unless ``--all`` is
-passed.
+One row per (chunk, token) for every chunk of a supported language
+(``SUPPORTED_LANGUAGES`` in ``lemmatize.py`` — grc, deu, fra, eng, lat,
+heb, ara); downstream the glossary importer joins this against
+`terms.lemma` to find term occurrences. Designed to be run once per
+language after a fresh ingest and then left alone — re-runs skip
+chunks already present unless ``--all`` is passed.
 
 The expensive step is loading the spaCy model (~1-2 s for
 ``de_core_news_sm``) and running it over thousands of chunks (~10 k
