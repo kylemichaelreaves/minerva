@@ -1,7 +1,7 @@
 import { type JSX } from "solid-js";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/ComposeField";
-import "~/Composer/composer.css";
+import "~/features/Composer/composer.css";
 
 interface ComposerProps {
   onSend: (text: string) => void;

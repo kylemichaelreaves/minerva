@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
-import Composer from "~/Composer";
+import Composer from "~/features/Composer";
 
 function renderComposer() {
   const onSend = vi.fn();
