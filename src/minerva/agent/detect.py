@@ -134,6 +134,41 @@ _ALL_TITLES_SQL = """
 """
 
 
+# Labels a passage is known by that its own text never uses — "the
+# divided line" for Politeia 509d-511e (#182). Deliberately NOT part of
+# `_TITLES_SQL`/`work_titles`: a named passage is not another name FOR
+# the work (what `work_titles` answers, and what `eval_runner` scores
+# `expected_works` against), it names one passage of it. Consulted only
+# where `_best_title_matches` resolves a name to a work id, so corpus
+# detection's work-title fallback (#194) gets it for free.
+_NAMED_PASSAGES_SQL = """
+    SELECT w.id, n.label FROM works w JOIN named_passages n ON n.work_id = w.id
+     WHERE LOWER(w.author) IN ({p})
+"""
+
+_ALL_NAMED_PASSAGES_SQL = """
+    SELECT w.id, n.label FROM works w JOIN named_passages n ON n.work_id = w.id
+"""
+
+
+def named_passage_labels(conn: sqlite3.Connection, corpus: str | None) -> list[tuple[int, str]]:
+    """Every ``(work_id, label)`` pair a passage of *corpus* is known by.
+
+    Mirrors :func:`work_titles`' corpus-scoping, but reads
+    ``named_passages`` rather than titles/aliases — kept separate so a
+    passage label never answers `eval_runner`'s "what names this work"
+    question, only `_best_title_matches`' "what work does this name".
+    """
+
+    if corpus in {None, "any"}:
+        rows = conn.execute(_ALL_NAMED_PASSAGES_SQL)
+    else:
+        authors = corpus_authors(corpus) or (corpus.lower(),)
+        placeholders = ",".join("?" * len(authors))
+        rows = conn.execute(_NAMED_PASSAGES_SQL.format(p=placeholders), authors)
+    return [(int(wid), label) for wid, label in rows if (label or "").strip()]
+
+
 def work_titles(conn: sqlite3.Connection, corpus: str | None) -> list[tuple[int, str]]:
     """Every ``(work_id, name)`` pair a work of *corpus* answers to.
 
@@ -199,6 +234,11 @@ def _best_title_matches(
     what a tie means, which differs: two works are ambiguous for work
     detection, but two works of one *author* are not ambiguous for
     corpus detection.
+
+    Named-passage labels (#182) compete in the same race as titles and
+    aliases: a query naming "the divided line" resolves Politeia exactly
+    as one naming "the Republic" would, so the same specificity and
+    stopword rules govern both without a second copy of them.
     """
 
     query_tokens = set(_WORD_RE.findall(query.lower()))
@@ -206,7 +246,8 @@ def _best_title_matches(
     capitalised = {t.lower() for t in _WORD_RE.findall(query) if t[:1].isupper()}
     best_ids: set[int] = set()
     best_n = 0
-    for work_id, title in work_titles(conn, corpus):
+    names = list(work_titles(conn, corpus)) + list(named_passage_labels(conn, corpus))
+    for work_id, title in names:
         sig = [t for t in _WORD_RE.findall(title.lower()) if t not in _TITLE_STOPWORDS]
         if not sig or not all(t in query_tokens for t in sig):
             continue

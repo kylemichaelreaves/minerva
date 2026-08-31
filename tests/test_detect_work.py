@@ -7,7 +7,7 @@ import sqlite3
 import pytest
 
 from minerva.agent import detect_corpus, detect_work
-from minerva.agent.detect import work_titles
+from minerva.agent.detect import named_passage_labels, work_titles
 
 
 @pytest.fixture
@@ -30,6 +30,15 @@ def conn():
     c.execute(
         "CREATE TABLE work_aliases "
         "(work_id INTEGER NOT NULL, alias TEXT NOT NULL, PRIMARY KEY (work_id, alias))"
+    )
+    # Passages known by a label their own text never uses (migration
+    # 0034, #182) — a separate table from `work_aliases` because a label
+    # names one passage of a work, not another name FOR the work.
+    c.execute(
+        "CREATE TABLE named_passages "
+        "(work_id INTEGER NOT NULL, label TEXT NOT NULL, "
+        "section_start TEXT, section_end TEXT, tradition TEXT NOT NULL, "
+        "PRIMARY KEY (work_id, label))"
     )
     c.executemany(
         "INSERT INTO works (id, author, title) VALUES (?, ?, ?)",
@@ -116,6 +125,23 @@ def conn():
         [
             (10, "deu", "Der Staat"),
             (11, "grc", None),
+        ],
+    )
+    c.executemany(
+        "INSERT INTO named_passages "
+        "(work_id, label, section_start, section_end, tradition) VALUES (?, ?, ?, ?, ?)",
+        [
+            (10, "the divided line", "509d", "511e", "scholarly"),
+            # Same shape as Kant's Kritik/Critique pair (#182): one label
+            # seeded on two works of the SAME author must not let
+            # `detect_work` guess between them, while `detect_corpus`'s
+            # same-author-tie fallback still resolves.
+            (32, "the twin doctrine", None, None, "scholarly"),
+            (33, "the twin doctrine", None, None, "scholarly"),
+            # And the cross-author case: two DIFFERENT authors must stay
+            # genuinely ambiguous.
+            (34, "the paradox", None, None, "scholarly"),
+            (35, "the paradox", None, None, "scholarly"),
         ],
     )
     return c
@@ -450,3 +476,72 @@ def test_work_titles_includes_aliases(conn):
     assert "Phenomenology of Spirit (Pinkard)" in names   # canonical
     assert "Phenomenology of Spirit" in names             # alias
     assert "Phänomenologie des Geistes" in names          # cross-language alias
+
+
+# ── named passages: a label the text never uses (#182) ─────────────────
+
+
+def test_named_passage_label_resolves_the_work(conn):
+    """The bare label, with the work correctly scoped already, resolves
+    the passage's own work — the failure #182 measured is that nothing
+    upstream ever gets this far, not that this step is unreachable."""
+
+    assert detect_work(conn, "the divided line", "plato") == 10
+
+
+def test_named_passage_label_resolves_the_corpus(conn):
+    """Naming only the label, no author or work — #182's actual gap.
+    Goes through the same work-title fallback #194 built for corpus
+    detection, so a passage label gets it for free."""
+
+    assert detect_corpus("the divided line", conn) == "plato"
+
+
+def test_named_passage_label_is_corpus_scoped(conn):
+    """A label lives on one author's work; it must not leak into a
+    different corpus's title matching."""
+
+    assert detect_work(conn, "the divided line", "kant") is None
+
+
+def test_named_passage_label_needs_every_significant_token(conn):
+    """"Line" alone is not the passage; both words have to be present,
+    same conservatism `detect_work` already applies to titles."""
+
+    assert detect_work(conn, "draw me a line", "plato") is None
+
+
+def test_named_passage_labels_are_not_work_titles(conn):
+    """A label is not another name FOR the work — `work_titles` (what
+    `eval_runner` scores `expected_works` against, #183) must not carry
+    it, even though `_best_title_matches` (via `detect_work`) does."""
+
+    names = {name for _wid, name in work_titles(conn, "plato")}
+    assert "the divided line" not in names
+
+
+def test_named_passage_labels_function_scopes_to_corpus(conn):
+    assert (10, "the divided line") in named_passage_labels(conn, "plato")
+    assert named_passage_labels(conn, "hegel") == []
+
+
+def test_named_passage_labels_function_unscoped_spans_every_author(conn):
+    assert (10, "the divided line") in named_passage_labels(conn, None)
+    assert sorted(named_passage_labels(conn, "any")) == sorted(named_passage_labels(conn, None))
+
+
+def test_named_passage_tie_across_same_author_works_refuses_work_but_resolves_corpus(conn):
+    """The Kant Kritik/Critique shape: one label on two works of the same
+    author must not let `detect_work` guess between them — but the
+    corpus is still unambiguous, so the #194 fallback resolves it."""
+
+    q = "consider the twin doctrine here"
+    assert detect_work(conn, q, "plato") is None
+    assert detect_corpus(q, conn) == "plato"
+
+
+def test_named_passage_cross_author_tie_refuses_to_scope(conn):
+    """Two different authors' works sharing a label is genuine
+    ambiguity, same as two authors sharing a `title_local`."""
+
+    assert detect_corpus("a question about the paradox", conn) is None

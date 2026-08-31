@@ -126,6 +126,10 @@ def cmd_index(args: argparse.Namespace) -> int:
             # run after the insert has rebuilt `works`, and again after
             # every re-ingest, because --reset reassigns those ids (#195).
             store.sync_work_aliases(conn)
+            # Same reasoning, for passages known by a label their own
+            # text never uses (#182): `authors/named_passages.py` is
+            # keyed the same natural way and needs the same re-resolve.
+            store.sync_named_passages(conn)
             # The glossary restore runs HERE, not next to the pre-insert
             # restore above: it rebinds `edition_id`/`translation_id`
             # through natural keys, and those rows only exist once
