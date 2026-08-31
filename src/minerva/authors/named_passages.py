@@ -30,10 +30,10 @@ co-occurring in Plato's *Nomoi* (26 chunks), Epictetus's *Discourses*
 more, all discussing literal slavery rather than Hegel's dialectic.
 Seeding it today would misattribute an unrelated question about
 Aristotle or Locke to Hegel every time neither author is named — a
-regression, not a fix. See the follow-up issue this spawned for what
-seeding it needs first: a distinctiveness check before a *label* is
-seeded, not just before a single common *word* is — `detect_work`
-already guards that narrower case with `_COMMON_TITLE_TOKENS`.
+regression, not a fix. See #463 for what seeding it needs first: a
+distinctiveness check before a *label* is seeded, not just before a
+single common *word* is — `detect_work` already guards that narrower
+case with `_COMMON_TITLE_TOKENS`.
 """
 
 from __future__ import annotations
