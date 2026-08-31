@@ -255,8 +255,9 @@ than by re-reading the table.
 | 5-bis | perseus follow-ups | ~~#297~~, ~~#298~~, #299, ~~#300~~ | **part landed; #299 backlog** | All four found in batch 5. #297 is shared-extractor code every scraper depends on; #298 is chrome in 18 live chunks, whose source was **not** the sibling scraper this row assumed; #300 is the batch loop that loses a work at exit 0. #299 is a **decision, not a fix** — do not close it with code, and its premise moved: see batch 5-bis. **#298's corpus half — the part its own section below says "did not land" — landed after all, inside PR #403's 4-op window** (Marx mlwerke-note chrome measured at 0 corpus-wide there), rather than riding #285 as predicted; see the correction on that section. |
 | 5-ter | perseus follow-ups, second round | ~~#316~~, ~~#317~~ | **landed** | Both found working 5-bis, in the files it edited. **#316's count was wrong twice, both corrected on the issue**: `download_kapital_mew.py` already accumulates failures and calls `raise SystemExit(...)`, so it can already signal — 11 need the fix, not 12 — and four of those eleven (`download_perseus_aristotle/homer/plato/tragedy.py`) don't swallow at all; their per-item `except` re-raises and aborts the whole batch on the first failure, the opposite defect. Spawned as #452 rather than folded in — see 5-ter-bis. **PR #453 (merged 2026-08-29) fixes the remaining 7 and closes #317** (both private extractors retired onto the shared class, verified byte-identical against live Wikisource pages). **#316 closed 2026-08-29 by comment** once 5-ter-bis (PR #454) landed the remaining four — neither landing PR carried a direct `Closes #316`, both used `Refs #316` deliberately while scope remained. Neither touches the DB. |
 | 5-ter-bis | the four that don't swallow at all | ~~#452~~ | **landed** | Found scoping 5-ter's fix onto all eleven remaining #316 scripts, 2026-08-29. `download_perseus_aristotle.py`, `_homer.py`, `_plato.py` and `_tragedy.py` (on any non-404 error) caught a per-item `HTTPError`/`URLError`, printed it, and **re-raised** — reproduced directly, 0 of 9 Plato Greek volumes written when the first is stubbed to a 500. #316's proposed fix (report on isolation that already exists) would have been a no-op here; this needed the isolation added, a different change from 5-ter's. **Landed 2026-08-29 as PR #454**: same `FailureAccumulator` record-and-continue shape 5-ter retrofitted onto the other eleven; `_tragedy.py`'s fix is narrower, as planned — only the non-404/`URLError` branch of the candidate loop stops re-raising, its 404 fallback untouched. Same PR corrects 11-octies's `#430` strikethrough (found while touching this file's neighbor in the plan). **The push itself found a second thing**: SonarCloud's gate failed on cognitive complexity and duplication in all four scripts — three of the four were pre-existing debt on `main`, flagged as "new" only because the diff touched those functions, so most of it was not caused by this PR at all. Fixed by extracting the shared batch loop into `perseus/_dl.py` and splitting `tragedy.py`'s `main()`; see batch 5-ter-bis below for the full account. Neither touches the DB. |
-| 6 | named-passage index | #182 | todo | Largest design surface; nothing depends on it. Phase 0 measured — see batch 6. |
-| 6-bis | content-derived `chunk_id` | ~~#285~~ | **landed** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. **Landed 2026-08-30 as PR #461, on its own rather than paired with 4-op** — the pairing this document's "Corrected 2026-08-15" note (above) already found notional gets confirmed notional in practice: `embeddings` got the same `text_hash` treatment `chunk_lemma_state` (#263) already has, no `chunk_id` rehashing, no corpus-wide rebuild. `iter_chunks_without_embeddings`/`count_chunks_without_embeddings` now require the hash to match, not just existence, before skipping a chunk. Live: 425,532 embeddings backfilled, 0 mismatches. |
+| 6 | named-passage index | ~~#182~~ | **landed** | Largest design surface; nothing depends on it. Phase 0 measured: absent corpus-wide under every unscoped phrasing, rank 3–6 once the work resolves — work resolution is necessary and sufficient, so Phase 1's design stood (a `named_passages` label consulted where `_best_title_matches` runs, section range kept out of the retrieval filter). **Landed 2026-08-30**: migration 0034 mirrors `work_aliases`'s natural-key materialization, seeded with 3 of the issue's 4 labels — "the divided line" (Politeia), "the slave boy" (Menon), "the Copernican revolution" (Kant). Two things caught only by re-measuring live before shipping: Kant's *Critique of Pure Reason* is a SEPARATE `works` row from its German original (not one work with a `translations.title_local` pair, like Politeia/Menon) — seeding the label on the German row alone pinned `detect_work` to a work with zero English chunks and returned nothing under the default `lang="eng"`, an active regression; fixed by seeding both rows, which makes `detect_work` correctly refuse to pick one (same-author tie) while `detect_corpus`'s tie fallback still resolves the corpus. And Hegel's "master and slave" — unmeasurable per Phase 0's own note (no range-selectable locator) — turned out to also collide broadly with literal-slavery discussions in Aristotle, Locke, Epictetus and others; seeding it as designed would have been a regression, not a fix, so it was filed as #463 rather than shipped. Re-verified live through the real `prepare_chat_turn` sequence: all nine phrasings in the issue's own table now resolve the corpus and (where unambiguous) the work, with the target passage inside `top_k=6` in every case. |
+| 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
+| 6-ter | a passage label needs its own distinctiveness check, not a title's | #463 | **backlog** | Found seeding batch 6's fourth label. `_best_title_matches`'s "every significant token must appear" conservatism is tuned for work *titles*, which are close to proper nouns; a passage *label* has no such constraint, and "master and slave" is ordinary prose that Aristotle's *Politics* (18 chunks), Locke's *Second Treatise* (9) and others use literally. `_COMMON_TITLE_TOKENS` (#168) already guards the single-ordinary-token case; nothing generalizes it to a multi-token phrase. Not fixed here — `named_passages` has only 3 entries and does not yet need a general guard, so the specific label stays unseeded rather than the mechanism being built for one row. |
 | 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
 | 8 | PR-gate tooling | ~~#320~~, ~~#321~~, ~~#322~~, ~~#330~~, ~~#331~~ | **landed** | **Groups with nothing in batches 1–7** — it is the harness those batches are worked *with*, not a defect in the corpus. A tollgate, like batch 0, and numbered 8 rather than `N-bis` for that reason: no batch above it found it. **#322 landed as PR #441** (2026-08-29): five hooks in `.claude/settings.json` — a commit-hazard warning for the #176 closing-keyword shape, an automatic `check-pr-link` run after `gh pr create`, and a staleness gate reproducing #254's post-check-edit failure mode. Same PR closes #337 (batch 8-quater). See batch 8. |
 | 8-bis | the gate's own blind spots | #333, ~~#334~~ | **part landed; #333 backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured. #334 was `main()`, where the retry's only real caller sat untested — landed as PR #336, and its verdict was `CORRECTED` because one of the four risks it listed does not exist. Neither touches the DB or the coverage gate. |
@@ -2115,6 +2116,56 @@ Do not curate broadly on the first pass. Seed the four labels the issue
 names — divided line, Meno's slave boy, Kant's "Copernican revolution",
 Hegel's "master and slave" — and measure the last two, which have never
 been tested. Curation scope is a decision for after those numbers.
+
+**Landed 2026-08-30.** Built as designed above — migration 0034
+(`named_passages`), `authors/named_passages.py`, a full-replace sync
+next to `sync_work_aliases`, and the Phase 1 hook in
+`_best_title_matches`. Two things the design above did not anticipate,
+both caught by re-measuring live before shipping rather than trusting
+the design:
+
+- **Kant's Kritik/Critique is two `works` rows, not one.** Unlike
+  Politeia/Menon, whose English lives in `translations.title_local` on
+  the same row, "Kritik der reinen Vernunft" (deu, 1489 chunks) and
+  "Critique of Pure Reason" (eng, 1138 chunks) are separate rows with no
+  `work_aliases` link. Seeding the label on the German row alone pinned
+  `detect_work` to a `work_id` with zero English chunks — under the
+  default `lang="eng"` this returned nothing at all, worse than the
+  pre-fix behaviour of searching unscoped. Fixed by seeding both rows:
+  `detect_work` now ties across them and correctly refuses to pick one
+  (the same-author-tie case `test_work_title_fallback_resolves_a_same_author_tie`
+  already covers for titles), while `detect_corpus`'s tie fallback still
+  resolves "kant" — exactly matching how the already-working
+  author-named phrasing behaves.
+- **Hegel's "master and slave" is not just unmeasurable, it is unsafe.**
+  The design above already flagged it "unmeasured" for lack of a
+  range-selectable locator. A corpus-wide collision check — run because
+  the Kant finding above raised the question of what else the design
+  hadn't priced — found "master" and "slave" co-occurring in Plato's
+  *Nomoi* (26 chunks), Epictetus (20), Aristotle's *Politics* (18),
+  Locke's *Second Treatise* (9) and more, none of it Hegel's dialectic.
+  `_COMMON_TITLE_TOKENS` guards the analogous single-ordinary-word case
+  for titles; nothing generalizes it to a multi-token phrase, and
+  `named_passages` is 3 entries — not yet enough to justify building
+  that guard for one row. Filed as #463 instead of seeded.
+
+Live re-measurement through the real `prepare_chat_turn` sequence, all
+nine phrasings from #182's own evidence table, against a clone of
+`data/index.sqlite`:
+
+| query | corpus | work_id | rank in top 6 |
+|---|---|---|---:|
+| `the divided line` | plato | 941 | 3 |
+| `the divided line in the Republic` | plato | 941 | 4 |
+| `Where does Plato set out the divided line?` | plato | 941 | 5 |
+| `Plato's divided line` | plato | 941 | 3 |
+| `the slave boy` | plato | 919 | 1 |
+| `Meno's slave boy` | plato | 919 | 1 |
+| `Where does Socrates question the slave boy?` | plato | 919 | 1 |
+| `the Copernican revolution` | kant | None (correct tie-refusal) | 2 |
+| `Kant's Copernican revolution` | kant | None (correct tie-refusal) | 2 |
+
+Every previously-absent case now resolves; nothing regressed.
 
 ---
 

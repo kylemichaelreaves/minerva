@@ -18,6 +18,7 @@ from .embeddings import (
     upsert_embeddings,
     vector_to_blob,
 )
+from .named_passage_sync import sync_named_passages
 from .schema import SCHEMA, get_meta, open_db, reset_db
 from .stats import db_inspect, stats, tables_summary, to_meta_dict
 from .work_alias_sync import sync_work_aliases
@@ -41,6 +42,7 @@ __all__ = [
     "open_db",
     "reset_db",
     "stats",
+    "sync_named_passages",
     "sync_work_aliases",
     "tables_summary",
     "to_meta_dict",
