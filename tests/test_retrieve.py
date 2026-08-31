@@ -203,6 +203,73 @@ def test_format_locator_attributes_objection_to_objector():
     assert retrieve.format_locator(rep_meta).startswith("Descartes, Objections et Réponses")
 
 
+def test_default_fetch_pool_still_finds_primary_text_past_a_dominant_apparatus_share(
+    tmp_path: Path,
+):
+    """#468: a bare-name query whose candidate pool is otherwise dominated by
+    short apparatus/signature-typed chunks must still surface enough primary
+    text within `search()`'s DEFAULT fetch_pool for the #165 cap to hold —
+    not just when a caller passes a wide `fetch_pool` explicitly. 40 short
+    signature lines all outscore 5 much longer body chunks under BM25's
+    length normalization (same shape #291 found live: Nietzsche's own
+    signature lines outrank his philosophy on a bare-name query)."""
+
+    def sig(cid: str, n: int) -> dict:
+        return {
+            "chunk_id": cid,
+            "corpus": "author",
+            "author": "Author",
+            "work": "Test Work",
+            "lang": "eng",
+            "section": f"sig{n}",
+            "book": None,
+            "page": None,
+            "speaker": None,
+            "text": f"This is a short signature line naming its author, Author, number {n}.",
+            "source_file": "x",
+            "translator": None,
+            "edition_year": None,
+            "block_type": "signature",
+        }
+
+    def body(cid: str, n: int) -> dict:
+        return {
+            "chunk_id": cid,
+            "corpus": "author",
+            "author": "Author",
+            "work": "Test Work",
+            "lang": "eng",
+            "section": f"body{n}",
+            "book": None,
+            "page": None,
+            "speaker": None,
+            "text": (
+                f"Author wrote at considerable length here about a real philosophical "
+                f"topic numbered {n}, developing the argument across many clauses and "
+                f"sentences so that this passage is substantially longer than a bare "
+                f"signature line, the way genuine discursive prose actually reads."
+            ),
+            "source_file": "x",
+            "translator": None,
+            "edition_year": None,
+            "block_type": None,
+        }
+
+    rows = [sig(f"s{i}", i) for i in range(40)] + [body(f"b{i}", i) for i in range(5)]
+    jsonl = tmp_path / "c.jsonl"
+    jsonl.write_text("\n".join(json.dumps(r) for r in rows))
+    conn = store.open_db(tmp_path / "pool.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    # No fetch_pool passed — exercises search()'s own default.
+    hits = retrieve.search(conn, "Author", top_k=8, lang="eng")
+    n_sig = sum(1 for h in hits if h.meta.get("block_type") == "signature")
+    # cap(2) + at most one reserved-term seat (#291's own live measurement:
+    # exactly 2/8 at a wide-enough pool, one more when the term is also rare
+    # enough to reserve a seat) — never the whole page.
+    assert n_sig <= 3
+
+
 def test_search_readmits_apparatus_with_attribution(tmp_path: Path):
     """Apparatus is retrievable again (2b), but its citation attributes it to
     the responsible translator/editor — never the philosopher."""
