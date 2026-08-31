@@ -36,6 +36,7 @@ def _extract_greek_wikisource(wikitext: str) -> str:
 
     return download_theognis._extract_greek_wikisource(wikitext)
 
+
 # A trimmed but structurally faithful excerpt of the real page's
 # wikitext (fetched and inspected directly against the live page).
 _SAMPLE_WIKITEXT = """{{κεφαλίδα

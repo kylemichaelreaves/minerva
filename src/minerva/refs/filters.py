@@ -32,10 +32,12 @@ def parse_filters(query: dict[str, str]) -> tuple[tuple[str, ...], float]:
         try:
             min_confidence = float(raw_min)
         except ValueError:
-            raise BadRequestError("invalid 'min_confidence' query param",
+            raise BadRequestError(
+                "invalid 'min_confidence' query param",
             ) from None
         if not (0.0 <= min_confidence <= 1.0):
-            raise BadRequestError("'min_confidence' must be in 0..1",
+            raise BadRequestError(
+                "'min_confidence' must be in 0..1",
             )
 
     return statuses, min_confidence
@@ -65,8 +67,7 @@ def parse_limit_offset(
     return limit, offset
 
 
-def status_clause(statuses: tuple[str, ...],
-                  min_confidence: float) -> tuple[str, list[Any]]:
+def status_clause(statuses: tuple[str, ...], min_confidence: float) -> tuple[str, list[Any]]:
     """Compose the SQL fragment + params for the standard visibility
     filter: ``approved`` / ``manual`` always visible; ``auto`` rows
     visible only when confidence >= threshold."""

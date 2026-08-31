@@ -140,8 +140,7 @@ def _pgde_page(*bodies: str) -> bytes:
     """A PG-DE chapter page: chrome, then one wrapper region per body."""
 
     regions = "".join(
-        f'<div class="book-reader__chapter-text">'
-        f'<div class="{_PGDE_WRAPPER}">{b}</div></div>'
+        f'<div class="book-reader__chapter-text"><div class="{_PGDE_WRAPPER}">{b}</div></div>'
         for b in bodies
     )
     return (
@@ -263,9 +262,7 @@ def test_marx_archive_drops_mlwerke_native_chrome():
             "Die Voraussetzungen, mit denen wir beginnen, sind keine willkürlichen.",
         ]
     )
-    assert kept == [
-        "Die Voraussetzungen, mit denen wir beginnen, sind keine willkürlichen."
-    ]
+    assert kept == ["Die Voraussetzungen, mit denen wir beginnen, sind keine willkürlichen."]
 
 
 def test_marx_archive_keeps_marxists_org_body_and_notes():
@@ -404,9 +401,7 @@ class TestPrivateParagraphExtractorsAreRetired:
     boundary. Both now delegate instead of defining their own.
     """
 
-    @pytest.mark.parametrize(
-        "modname", ["download_descartes_wikisource", "download_augustine"]
-    )
+    @pytest.mark.parametrize("modname", ["download_descartes_wikisource", "download_augustine"])
     def test_module_no_longer_defines_its_own_extractor_class(self, modname):
         mod = importlib.import_module(modname)
         assert not hasattr(mod, "_ParagraphExtractor")
@@ -441,9 +436,7 @@ class TestPrivateParagraphExtractorsAreRetired:
     def test_augustine_extraction_is_unchanged_on_real_markup(self):
         mod = importlib.import_module("download_augustine")
         html = "<p>[1] Confiteor tibi, Domine.</p>"
-        assert mod._extract_paragraphs(html.encode()) == [
-            "[1] Confiteor tibi, Domine."
-        ]
+        assert mod._extract_paragraphs(html.encode()) == ["[1] Confiteor tibi, Domine."]
 
 
 def test_descartes_reuses_shared_gutenberg_helpers():
@@ -515,23 +508,29 @@ class TestCiceroBatchReportsWhatItLost:
         monkeypatch.setattr(mod, "fetch_work", _fake_fetch_work)
         monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
         monkeypatch.setattr(
-            sys, "argv",
-            ["download_cicero_wikisource.py", "--data-root", str(tmp_path),
-             "--delay", "0", "--only", "de_officiis_lat.txt",
-             "de_re_publica_lat.txt"],
+            sys,
+            "argv",
+            [
+                "download_cicero_wikisource.py",
+                "--data-root",
+                str(tmp_path),
+                "--delay",
+                "0",
+                "--only",
+                "de_officiis_lat.txt",
+                "de_re_publica_lat.txt",
+            ],
         )
         rc = mod.main()
         return rc, capsys.readouterr().out
 
-    def test_a_lost_work_makes_the_run_exit_non_zero(
-        self, monkeypatch, tmp_path, capsys
-    ):
+    def test_a_lost_work_makes_the_run_exit_non_zero(self, monkeypatch, tmp_path, capsys):
         import urllib.error
 
         rc, out = self._run(
-            monkeypatch, tmp_path,
-            {"De re publica": urllib.error.HTTPError(
-                "u", 301, "Moved Permanently", {}, None)},
+            monkeypatch,
+            tmp_path,
+            {"De re publica": urllib.error.HTTPError("u", 301, "Moved Permanently", {}, None)},
             capsys,
         )
         assert rc != 0
@@ -544,13 +543,11 @@ class TestCiceroBatchReportsWhatItLost:
         assert rc == 0
         assert "SKIPPED" not in out
 
-    def test_every_skipped_work_is_listed_not_just_the_count(
-        self, monkeypatch, tmp_path, capsys
-    ):
+    def test_every_skipped_work_is_listed_not_just_the_count(self, monkeypatch, tmp_path, capsys):
         rc, out = self._run(
-            monkeypatch, tmp_path,
-            {"De officiis": RuntimeError("boom"),
-             "De re publica": RuntimeError("bang")},
+            monkeypatch,
+            tmp_path,
+            {"De officiis": RuntimeError("boom"), "De re publica": RuntimeError("bang")},
             capsys,
         )
         assert rc != 0
@@ -574,7 +571,8 @@ class TestAccountingRetrofitScripts:
         monkeypatch.setattr(mod, "_fetch", fake_fetch)
         monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             [f"{modname}.py", out_flag, str(out_dir), "--delay", "0", *argv_extra],
         )
         rc = mod.main()
@@ -589,16 +587,26 @@ class TestAccountingRetrofitScripts:
             return b"x" * 20_000
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_descartes_objections",
-            "--data-root", tmp_path, [], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_descartes_objections",
+            "--data-root",
+            tmp_path,
+            [],
+            fake_fetch,
         )
         assert rc != 0
         assert "obj1" in out.rsplit("===", 1)[-1]
 
     def test_descartes_objections_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, out = self._run(
-            monkeypatch, capsys, "download_descartes_objections",
-            "--data-root", tmp_path, [], lambda url, **kw: b"x" * 20_000,
+            monkeypatch,
+            capsys,
+            "download_descartes_objections",
+            "--data-root",
+            tmp_path,
+            [],
+            lambda url, **kw: b"x" * 20_000,
         )
         assert rc == 0
         assert "SKIPPED" not in out
@@ -612,16 +620,26 @@ class TestAccountingRetrofitScripts:
             return b"<TEI/>"
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_first1kgreek_aristotle",
-            "--out", tmp_path, [], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_first1kgreek_aristotle",
+            "--out",
+            tmp_path,
+            [],
+            fake_fetch,
         )
         assert rc != 0
         assert "tlg006" in out.rsplit("===", 1)[-1]
 
     def test_first1kgreek_aristotle_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, out = self._run(
-            monkeypatch, capsys, "download_first1kgreek_aristotle",
-            "--out", tmp_path, [], lambda url, **kw: b"<TEI/>",
+            monkeypatch,
+            capsys,
+            "download_first1kgreek_aristotle",
+            "--out",
+            tmp_path,
+            [],
+            lambda url, **kw: b"<TEI/>",
         )
         assert rc == 0
         assert "SKIPPED" not in out
@@ -635,16 +653,26 @@ class TestAccountingRetrofitScripts:
             return b"<TEI/>"
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_first1kgreek_lxx",
-            "--out", tmp_path, [], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_first1kgreek_lxx",
+            "--out",
+            tmp_path,
+            [],
+            fake_fetch,
         )
         assert rc != 0
         assert "Genesis" in out.rsplit("===", 1)[-1]
 
     def test_first1kgreek_lxx_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, _out = self._run(
-            monkeypatch, capsys, "download_first1kgreek_lxx",
-            "--out", tmp_path, [], lambda url, **kw: b"<TEI/>",
+            monkeypatch,
+            capsys,
+            "download_first1kgreek_lxx",
+            "--out",
+            tmp_path,
+            [],
+            lambda url, **kw: b"<TEI/>",
         )
         assert rc == 0
 
@@ -655,16 +683,26 @@ class TestAccountingRetrofitScripts:
             return b"<osis/>"
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_hebrew_mt",
-            "--data-root", tmp_path, ["--only", "Gen.xml", "Exod.xml"], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_hebrew_mt",
+            "--data-root",
+            tmp_path,
+            ["--only", "Gen.xml", "Exod.xml"],
+            fake_fetch,
         )
         assert rc != 0
         assert "Gen.xml" in out.rsplit("===", 1)[-1]
 
     def test_hebrew_mt_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, out = self._run(
-            monkeypatch, capsys, "download_hebrew_mt",
-            "--data-root", tmp_path, ["--only", "Gen.xml"], lambda url, **kw: b"<osis/>",
+            monkeypatch,
+            capsys,
+            "download_hebrew_mt",
+            "--data-root",
+            tmp_path,
+            ["--only", "Gen.xml"],
+            lambda url, **kw: b"<osis/>",
         )
         assert rc == 0
         assert "SKIPPED" not in out
@@ -678,16 +716,26 @@ class TestAccountingRetrofitScripts:
             return b"SECTION 1\nPart 1\ntext"
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_ica_aristotle",
-            "--out", tmp_path, [], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_ica_aristotle",
+            "--out",
+            tmp_path,
+            [],
+            fake_fetch,
         )
         assert rc != 0
         assert "categories" in out.rsplit("===", 1)[-1]
 
     def test_ica_aristotle_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, out = self._run(
-            monkeypatch, capsys, "download_ica_aristotle",
-            "--out", tmp_path, [], lambda url, **kw: b"SECTION 1\nPart 1\ntext",
+            monkeypatch,
+            capsys,
+            "download_ica_aristotle",
+            "--out",
+            tmp_path,
+            [],
+            lambda url, **kw: b"SECTION 1\nPart 1\ntext",
         )
         assert rc == 0
         assert "SKIPPED" not in out
@@ -701,16 +749,26 @@ class TestAccountingRetrofitScripts:
             return b"<xml/>"
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_sblgnt_nt",
-            "--out", tmp_path, [], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_sblgnt_nt",
+            "--out",
+            tmp_path,
+            [],
+            fake_fetch,
         )
         assert rc != 0
         assert "Matt" in out.rsplit("===", 1)[-1]
 
     def test_sblgnt_nt_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, _out = self._run(
-            monkeypatch, capsys, "download_sblgnt_nt",
-            "--out", tmp_path, [], lambda url, **kw: b"<xml/>",
+            monkeypatch,
+            capsys,
+            "download_sblgnt_nt",
+            "--out",
+            tmp_path,
+            [],
+            lambda url, **kw: b"<xml/>",
         )
         assert rc == 0
 
@@ -723,16 +781,26 @@ class TestAccountingRetrofitScripts:
             return b"text"
 
         rc, out = self._run(
-            monkeypatch, capsys, "download_vulgate",
-            "--out", tmp_path, [], fake_fetch,
+            monkeypatch,
+            capsys,
+            "download_vulgate",
+            "--out",
+            tmp_path,
+            [],
+            fake_fetch,
         )
         assert rc != 0
         assert "Gn.lat" in out.rsplit("===", 1)[-1]
 
     def test_vulgate_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, _out = self._run(
-            monkeypatch, capsys, "download_vulgate",
-            "--out", tmp_path, [], lambda url, **kw: b"text",
+            monkeypatch,
+            capsys,
+            "download_vulgate",
+            "--out",
+            tmp_path,
+            [],
+            lambda url, **kw: b"text",
         )
         assert rc == 0
 
@@ -756,15 +824,14 @@ class TestDltextIsolationScripts:
         # `time` import — patch the shared stdlib module directly instead.
         monkeypatch.setattr(time, "sleep", lambda _s: None)
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             [f"{modname}.py", "--out", str(tmp_path), "--delay", "0", *argv_extra],
         )
         rc = mod.main()
         return rc, capsys.readouterr().out
 
-    def test_plato_one_http_failure_does_not_abort_the_rest(
-        self, monkeypatch, tmp_path, capsys
-    ):
+    def test_plato_one_http_failure_does_not_abort_the_rest(self, monkeypatch, tmp_path, capsys):
         import urllib.error
 
         def fake_download_one(*, base_url, doc, dest, user_agent, **kw):
@@ -773,8 +840,12 @@ class TestDltextIsolationScripts:
             dest.write_bytes(b"<TEI/>")
 
         rc, out = self._run_dltext(
-            monkeypatch, capsys, "download_perseus_plato", tmp_path,
-            ["--lang", "gr"], fake_download_one,
+            monkeypatch,
+            capsys,
+            "download_perseus_plato",
+            tmp_path,
+            ["--lang", "gr"],
+            fake_download_one,
         )
         assert rc != 0
         # The 8 volumes after the failing one must still be written.
@@ -783,16 +854,18 @@ class TestDltextIsolationScripts:
 
     def test_plato_clean_run_exits_zero(self, monkeypatch, tmp_path, capsys):
         rc, out = self._run_dltext(
-            monkeypatch, capsys, "download_perseus_plato", tmp_path,
-            ["--lang", "gr"], lambda *, dest, **kw: dest.write_bytes(b"<TEI/>"),
+            monkeypatch,
+            capsys,
+            "download_perseus_plato",
+            tmp_path,
+            ["--lang", "gr"],
+            lambda *, dest, **kw: dest.write_bytes(b"<TEI/>"),
         )
         assert rc == 0
         assert len(list(tmp_path.glob("*.xml"))) == 9
         assert "SKIPPED" not in out
 
-    def test_aristotle_one_url_error_does_not_abort_the_rest(
-        self, monkeypatch, tmp_path, capsys
-    ):
+    def test_aristotle_one_url_error_does_not_abort_the_rest(self, monkeypatch, tmp_path, capsys):
         import urllib.error
 
         def fake_download_one(*, base_url, doc, dest, user_agent, **kw):
@@ -801,16 +874,18 @@ class TestDltextIsolationScripts:
             dest.write_bytes(b"<TEI/>")
 
         rc, out = self._run_dltext(
-            monkeypatch, capsys, "download_perseus_aristotle", tmp_path,
-            ["--lang", "gr"], fake_download_one,
+            monkeypatch,
+            capsys,
+            "download_perseus_aristotle",
+            tmp_path,
+            ["--lang", "gr"],
+            fake_download_one,
         )
         assert rc != 0
         assert len(list(tmp_path.glob("*.xml"))) == 8
         assert "perseus_aristotle_01_athenian" in out.rsplit("===", 1)[-1]
 
-    def test_homer_one_http_failure_does_not_abort_the_rest(
-        self, monkeypatch, tmp_path, capsys
-    ):
+    def test_homer_one_http_failure_does_not_abort_the_rest(self, monkeypatch, tmp_path, capsys):
         import urllib.error
 
         def fake_download_one(*, base_url, doc, dest, user_agent, **kw):
@@ -819,8 +894,12 @@ class TestDltextIsolationScripts:
             dest.write_bytes(b"<TEI/>")
 
         rc, out = self._run_dltext(
-            monkeypatch, capsys, "download_perseus_homer", tmp_path,
-            ["--lang", "gr"], fake_download_one,
+            monkeypatch,
+            capsys,
+            "download_perseus_homer",
+            tmp_path,
+            ["--lang", "gr"],
+            fake_download_one,
         )
         assert rc != 0
         # Odyssey (the volume after the failing Iliad) must still be written.
@@ -842,10 +921,18 @@ class TestDltextIsolationScripts:
         monkeypatch.setattr(mod, "_fetch", fake_fetch)
         monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             [
-                "download_perseus_tragedy.py", "--out", str(tmp_path),
-                "--delay", "0", "--author", "aeschylus", "--lang", "grc",
+                "download_perseus_tragedy.py",
+                "--out",
+                str(tmp_path),
+                "--delay",
+                "0",
+                "--author",
+                "aeschylus",
+                "--lang",
+                "grc",
             ],
         )
         rc = mod.main()
@@ -864,10 +951,18 @@ class TestDltextIsolationScripts:
         monkeypatch.setattr(mod, "_fetch", lambda url, **kw: b"<TEI/>")
         monkeypatch.setattr(mod.time, "sleep", lambda _s: None)
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             [
-                "download_perseus_tragedy.py", "--out", str(tmp_path),
-                "--delay", "0", "--author", "aeschylus", "--lang", "grc",
+                "download_perseus_tragedy.py",
+                "--out",
+                str(tmp_path),
+                "--delay",
+                "0",
+                "--author",
+                "aeschylus",
+                "--lang",
+                "grc",
             ],
         )
         rc = mod.main()

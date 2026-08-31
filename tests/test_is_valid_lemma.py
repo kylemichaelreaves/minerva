@@ -95,6 +95,4 @@ def test_concordance_alpha_sort_head_is_clean() -> None:
 
     user_reported_junk = ("$", "'s", "(=", "+20", "--", "-begriff", "-instinkt")
     for lemma in user_reported_junk:
-        assert not is_valid_lemma(lemma), (
-            f"Regression: {lemma!r} crept back into the concordance"
-        )
+        assert not is_valid_lemma(lemma), f"Regression: {lemma!r} crept back into the concordance"

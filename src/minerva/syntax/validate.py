@@ -134,8 +134,7 @@ def validate_head(
         incumbent = sent[other_roots[0]]
         return Refusal(
             "two-roots",
-            f"{incumbent.form} is already the root of this sentence. "
-            "A sentence has exactly one.",
+            f"{incumbent.form} is already the root of this sentence. A sentence has exactly one.",
             (tok_id, *other_roots),
         )
 

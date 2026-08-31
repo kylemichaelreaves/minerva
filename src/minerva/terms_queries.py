@@ -30,8 +30,7 @@ def term_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def terms_list(conn: sqlite3.Connection,
-               query: dict[str, str]) -> dict[str, Any]:
+def terms_list(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, Any]:
     """List terms with an occurrence count alongside each row. Filters
     accept ``lang`` (exact match on `source_language`) and ``like``
     (case-insensitive substring on `source_form` for fuzzy lookup)."""
@@ -54,7 +53,12 @@ def terms_list(conn: sqlite3.Connection,
     if where:
         sql += " WHERE " + " AND ".join(where)
     limit = parse_int_param(
-        query, "limit", _DEFAULT_TERMS_LIMIT, lo=1, hi=_MAX_TERMS_LIMIT, clamp=True,
+        query,
+        "limit",
+        _DEFAULT_TERMS_LIMIT,
+        lo=1,
+        hi=_MAX_TERMS_LIMIT,
+        clamp=True,
     )
     offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
     sql += " ORDER BY t.source_language, t.source_form LIMIT ? OFFSET ?"
@@ -74,8 +78,7 @@ def term_by_id(conn: sqlite3.Connection, term_id: int) -> dict[str, Any]:
     `translator` name and target `language` so the UI can group by
     translator without an extra round trip."""
 
-    term = conn.execute("SELECT * FROM terms WHERE id = ?",
-                        (term_id,)).fetchone()
+    term = conn.execute("SELECT * FROM terms WHERE id = ?", (term_id,)).fetchone()
     if term is None:
         raise NotFoundError("unknown term id")
     renderings = conn.execute(
@@ -184,7 +187,11 @@ def work_occurrence_map(
 
     window = parse_window_params(query)
     chunk_ids = fetch_chunk_ids_in_window(
-        conn, work_id, window.lang, window.from_ord, window.limit,
+        conn,
+        work_id,
+        window.lang,
+        window.from_ord,
+        window.limit,
     )
     if not chunk_ids:
         return empty_window_response(work_id, window)
@@ -203,17 +210,17 @@ def work_occurrence_map(
     by_chunk: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
         by_chunk.setdefault(r["source_chunk_id"], []).append(
-        {
-            "id": r["id"],
-            "term_id": r["term_id"],
-            "source_start": r["source_start"],
-            "source_end": r["source_end"],
-            "source_form": r["source_form_snapshot"],
-            "lemma": r["source_form"],
-            "transliteration": r["transliteration"],
-            "short_gloss": r["short_gloss"],
-        }
-    )
+            {
+                "id": r["id"],
+                "term_id": r["term_id"],
+                "source_start": r["source_start"],
+                "source_end": r["source_end"],
+                "source_form": r["source_form_snapshot"],
+                "lemma": r["source_form"],
+                "transliteration": r["transliteration"],
+                "short_gloss": r["short_gloss"],
+            }
+        )
     return {
         "work_id": work_id,
         "lang": window.lang,
@@ -258,14 +265,10 @@ def work_occurrences(
         except ValueError:
             raise BadRequestError("edition_id must be an integer") from None
 
-    term = conn.execute(
-        "SELECT source_language FROM terms WHERE id = ?", (term_id,)
-    ).fetchone()
+    term = conn.execute("SELECT source_language FROM terms WHERE id = ?", (term_id,)).fetchone()
     if term is None:
         raise NotFoundError("unknown term id")
-    work = conn.execute(
-        "SELECT id, author, title FROM works WHERE id = ?", (work_id,)
-    ).fetchone()
+    work = conn.execute("SELECT id, author, title FROM works WHERE id = ?", (work_id,)).fetchone()
     if work is None:
         raise NotFoundError("unknown work id")
 
@@ -279,7 +282,8 @@ def work_occurrences(
             (edition_filter, work_id, term["source_language"]),
         ).fetchall()
         if not editions:
-            raise NotFoundError("edition_id does not belong to this work/source-language pair",
+            raise NotFoundError(
+                "edition_id does not belong to this work/source-language pair",
             )
     else:
         editions = conn.execute(
@@ -336,8 +340,7 @@ def work_occurrences(
             f"WHERE occurrence_id IN ({placeholders2})",
             occ_ids,
         ):
-            overrides[(row["occurrence_id"], row["translation_id"])
-                      ] = row["rendered_text"]
+            overrides[(row["occurrence_id"], row["translation_id"])] = row["rendered_text"]
 
     def _renderings_for(occ_id: int) -> list[dict[str, Any]]:
         out = []

@@ -70,11 +70,7 @@ def test_backfill_marks_chunks_that_already_have_lemmas(tmp_path: Path):
 
     conn = store.open_db(path)  # applies 0027
     try:
-        rows = dict(
-            conn.execute(
-                "SELECT chunk_id, token_count FROM chunk_lemma_state"
-            ).fetchall()
-        )
+        rows = dict(conn.execute("SELECT chunk_id, token_count FROM chunk_lemma_state").fetchall())
         stored_hash = conn.execute(
             "SELECT text_hash FROM chunk_lemma_state WHERE chunk_id = 'has-lemmas'"
         ).fetchone()[0]
@@ -128,10 +124,7 @@ def test_cascade_reaps_state_when_its_chunk_is_deleted(tmp_path: Path):
 def test_fresh_database_gets_the_table(tmp_path: Path):
     conn: sqlite3.Connection = store.open_db(tmp_path / "fresh.sqlite")
     try:
-        names = {
-            r[0]
-            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        }
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     finally:
         conn.close()
     assert "chunk_lemma_state" in names

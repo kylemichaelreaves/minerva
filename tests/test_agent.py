@@ -11,8 +11,7 @@ from minerva import agent, llm
 
 def test_strip_reply_directive_removes_trailing_answer_directive():
     out = agent.strip_reply_directive(
-        "What is the difference between Vorstellung and Darstellung for Hegel? "
-        "Answer in English"
+        "What is the difference between Vorstellung and Darstellung for Hegel? Answer in English"
     )
     assert out == "What is the difference between Vorstellung and Darstellung for Hegel?"
     assert "English" not in out
@@ -117,7 +116,9 @@ def test_rewrite_query_skips_null_backend_without_calling():
 
 def test_concept_expand_parses_clean_json():
     backend = StubBackend(reply='{"terms": ["Mißratenen", "die Gescheiterten"]}')
-    out = agent.concept_expand(backend, "Who are the failures?", corpus="nietzsche", target_lang="deu")
+    out = agent.concept_expand(
+        backend, "Who are the failures?", corpus="nietzsche", target_lang="deu"
+    )
     assert out == ["Mißratenen", "die Gescheiterten"]
 
 
@@ -128,7 +129,9 @@ def test_concept_expand_strips_markdown_fences():
 
 
 def test_concept_expand_tolerates_prose_around_json():
-    backend = StubBackend(reply='Sure! Here are the terms: {"terms": ["substantia"]} Hope that helps.')
+    backend = StubBackend(
+        reply='Sure! Here are the terms: {"terms": ["substantia"]} Hope that helps.'
+    )
     out = agent.concept_expand(backend, "What is substance?", corpus="aquinas", target_lang="lat")
     assert out == ["substantia"]
 
@@ -152,7 +155,7 @@ def test_concept_expand_empty_terms_returns_empty():
 
 
 def test_concept_expand_malformed_json_returns_empty():
-    backend = StubBackend(reply='this is not json at all')
+    backend = StubBackend(reply="this is not json at all")
     out = agent.concept_expand(backend, "q", corpus="aristotle", target_lang="grc")
     assert out == []
 

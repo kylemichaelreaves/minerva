@@ -100,9 +100,7 @@ class TestOwnerAttribution:
     CLI handlers while #246 was being fixed.
     """
 
-    def test_a_connection_a_test_opens_through_store_open_db_is_swept(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_connection_a_test_opens_through_store_open_db_is_swept(self, tmp_path: Path) -> None:
         # `store.open_db` → `store.schema` → `sqlite_util.open_sqlite` →
         # `sqlite3.connect`. Every frame in that chain is plumbing, so
         # the owner is this test.

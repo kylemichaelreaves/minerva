@@ -145,9 +145,9 @@ class _ProgressBar:
         eta = (self.total - self.n) / rate if rate > 0 and self.n < self.total else 0.0
         line = (
             f"  {self.label} [{bar}] "
-            f"{self.n:>5d}/{self.total} ({frac*100:5.1f}%)  "
+            f"{self.n:>5d}/{self.total} ({frac * 100:5.1f}%)  "
             f"+{self.n_promoted} −{self.n_rejected} err={self.n_errors}  "
-            f"{rate*60:.1f}/min  ETA {_format_eta(eta)}"
+            f"{rate * 60:.1f}/min  ETA {_format_eta(eta)}"
         )
         # On tty: overwrite the same line via \r; no newline.
         # On piped: write a complete line with a newline so log files
@@ -558,7 +558,6 @@ def verify_rows_with_llm(
     checkpoint is updated after every batch so an interrupted run
     only re-does at most one batch's worth of rows.
     """
-
 
     resume_from_id: int | None = None
     if resume:

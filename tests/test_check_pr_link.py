@@ -147,9 +147,7 @@ class TestScanClosingRefs:
         assert cpl.scan_closing_refs("Closes: #999001") == {999001}
         assert cpl.scan_closing_refs("CLOSES: #999001") == {999001}
         assert cpl.scan_closing_refs("Fixes octo-org/octo-repo#100") == {100}
-        assert cpl.scan_closing_refs(
-            "Fixes kylemichaelreaves/minerva#999001"
-        ) == {999001}
+        assert cpl.scan_closing_refs("Fixes kylemichaelreaves/minerva#999001") == {999001}
 
 
 def _evaluate(**overrides):
@@ -305,9 +303,7 @@ class TestResolveClosingRefs:
         fetch, calls = self._fetch_returning(set(), {999001})
         slept: list[float] = []
 
-        resolved, attempts = cpl.resolve_closing_refs(
-            fetch, {999001}, sleep=slept.append
-        )
+        resolved, attempts = cpl.resolve_closing_refs(fetch, {999001}, sleep=slept.append)
 
         assert resolved == {999001}
         assert attempts == 2
@@ -321,9 +317,7 @@ class TestResolveClosingRefs:
         fetch, calls = self._fetch_returning({999001})
         slept: list[float] = []
 
-        resolved, attempts = cpl.resolve_closing_refs(
-            fetch, {999001}, sleep=slept.append
-        )
+        resolved, attempts = cpl.resolve_closing_refs(fetch, {999001}, sleep=slept.append)
 
         assert (resolved, attempts) == ({999001}, 1)
         assert len(calls) == 1
@@ -413,9 +407,7 @@ class TestResolveClosingRefs:
         fetch, _ = self._fetch_returning(set())
         slept: list[float] = []
 
-        cpl.resolve_closing_refs(
-            fetch, {999001}, attempts=2, delay=0.25, sleep=slept.append
-        )
+        cpl.resolve_closing_refs(fetch, {999001}, attempts=2, delay=0.25, sleep=slept.append)
 
         assert slept == [0.25]
 
@@ -443,15 +435,11 @@ class TestFailureSummary:
         """If anything else is wrong, the PR is broken regardless of whether the
         link has propagated, and the run should say so."""
 
-        summary = cpl.failure_summary(
-            [cpl.Failure("base", "d"), cpl.Failure("missing", "d")], 328
-        )
+        summary = cpl.failure_summary([cpl.Failure("base", "d"), cpl.Failure("missing", "d")], 328)
         assert "not in the check" in summary
 
     def test_the_defect_count_is_reported(self):
-        summary = cpl.failure_summary(
-            [cpl.Failure("base", "d"), cpl.Failure("hazard", "d")], 328
-        )
+        summary = cpl.failure_summary([cpl.Failure("base", "d"), cpl.Failure("hazard", "d")], 328)
         assert "2 defect(s)" in summary
 
 
@@ -644,9 +632,7 @@ class TestRun:
         calls a repo whose default branch cannot be resolved a "no data" path
         that must never read as fine."""
 
-        gh = FakeGitHub(
-            pr=_pr_payload(), default_branch=cpl.Problem("gh repo view failed: nope")
-        )
+        gh = FakeGitHub(pr=_pr_payload(), default_branch=cpl.Problem("gh repo view failed: nope"))
 
         code = cpl.run(pr=332, issues=[999001], github=gh, sleep=lambda _: None)
 
@@ -773,9 +759,7 @@ class TestUnexpectedIsAlsoHedged:
         "bug in the PR" verdict honest."""
 
         gh = FakeGitHub(
-            pr=_pr_payload(
-                body="Closes #999001. Closes #999002.", resolved=(999001, 999002)
-            ),
+            pr=_pr_payload(body="Closes #999001. Closes #999002.", resolved=(999001, 999002)),
             later_refs={999001},
         )
 

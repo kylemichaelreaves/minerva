@@ -130,7 +130,7 @@ def test_every_ocr_variant_of_the_watermark_is_stripped(tmp_path: Path):
         for i, v in enumerate(_OCR_VARIANTS, 1)
     )
     (tmp_path / "pr_de.html").write_text(
-        "".join(f"<h4>§ {i}</h4>\n<p class=\"zenoPLm4n0\">Hauptsatz {i}.</p>\n" for i in range(1, 8)),
+        "".join(f'<h4>§ {i}</h4>\n<p class="zenoPLm4n0">Hauptsatz {i}.</p>\n' for i in range(1, 8)),
         encoding="utf-8",
     )
     (tmp_path / "pr_de_zusaetze.txt").write_text(zusaetze, encoding="utf-8")

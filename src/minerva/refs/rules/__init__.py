@@ -531,7 +531,9 @@ def iter_chunks_for_rules(
         # ~344K-chunk corpus the table is three TEXT columns; ~50 MB
         # max, comfortably small.
         cols = "chunk_id, text_hash, " + ("rules_hash" if has_rules_hash else "NULL")
-        stored = {row[0]: (row[1], row[2]) for row in conn.execute(f"SELECT {cols} FROM refs_scan_state")}
+        stored = {
+            row[0]: (row[1], row[2]) for row in conn.execute(f"SELECT {cols} FROM refs_scan_state")
+        }
 
     import hashlib
 
@@ -551,8 +553,7 @@ def iter_chunks_for_rules(
                 # is the intended one-time rescan per author rather than
                 # a migration that synthesises hashes for 428,606 rows.
                 if prior[0] == cur_hash and (
-                    not has_rules_hash
-                    or prior[1] == _fingerprint_for(row["author"], fp_by_author)
+                    not has_rules_hash or prior[1] == _fingerprint_for(row["author"], fp_by_author)
                 ):
                     continue
         yield ChunkInfo(

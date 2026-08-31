@@ -39,18 +39,38 @@ from .index_queries import _corpus_label
 # not. Ordered by corpus frequency.
 _MORPH_FEATURE_KEYS = frozenset(
     {
-        "Number", "Gender", "Case", "VerbForm", "PronType", "Person",
-        "Tense", "Mood", "Definite", "Voice", "Aspect", "Degree",
-        "ConjType", "Poss", "Polarity", "Reflex", "NumType", "HebBinyan",
-        "VerbType", "Foreign", "AdpType", "PunctType", "Abbr", "Hyph",
-        "PunctSide", "ExtPos", "Prefix",
+        "Number",
+        "Gender",
+        "Case",
+        "VerbForm",
+        "PronType",
+        "Person",
+        "Tense",
+        "Mood",
+        "Definite",
+        "Voice",
+        "Aspect",
+        "Degree",
+        "ConjType",
+        "Poss",
+        "Polarity",
+        "Reflex",
+        "NumType",
+        "HebBinyan",
+        "VerbType",
+        "Foreign",
+        "AdpType",
+        "PunctType",
+        "Abbr",
+        "Hyph",
+        "PunctSide",
+        "ExtPos",
+        "Prefix",
     }
 )
 
 
-def lemma_detail(
-    conn: sqlite3.Connection, query: dict[str, str]
-) -> dict[str, Any]:
+def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, Any]:
     """For one lemma, return all occurrence rows with KWIC snippets.
 
     Query params:
@@ -116,15 +136,28 @@ def lemma_detail(
     # "Herr" in the leaderboard fetches HErr+Herr+HERR+HERRN. Pass
     # merge_case=0 to retrieve only exact-lemma occurrences.
     merge_case = query.get("merge_case", "1").strip().lower() not in (
-        "0", "false", "no", "off",
+        "0",
+        "false",
+        "no",
+        "off",
     )
 
     limit = parse_int_param(
-        query, "limit", _DEFAULT_KWIC_LIMIT, lo=1, hi=_MAX_KWIC_LIMIT, clamp=True,
+        query,
+        "limit",
+        _DEFAULT_KWIC_LIMIT,
+        lo=1,
+        hi=_MAX_KWIC_LIMIT,
+        clamp=True,
     )
     offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
     radius = parse_int_param(
-        query, "radius", _KWIC_CONTEXT_RADIUS, lo=20, hi=240, clamp=True,
+        query,
+        "radius",
+        _KWIC_CONTEXT_RADIUS,
+        lo=20,
+        hi=240,
+        clamp=True,
     )
 
     morph_filters: dict[str, str] = {}
@@ -183,10 +216,7 @@ def lemma_detail(
     # to "any row carrying this feature" instead of narrowing it (#120).
     for k, v in morph_filters.items():
         extra_sql += " AND cl.feats LIKE ? ESCAPE '\\'"
-        extra_params.append(
-            f"%{escape_like_substring(k)}={escape_like_substring(v)}%"
-        )
-
+        extra_params.append(f"%{escape_like_substring(k)}={escape_like_substring(v)}%")
 
     # Total + breakdowns. Two extra aggregate queries; both hit the
     # same index path so they're cheap.
@@ -205,17 +235,26 @@ def lemma_detail(
         # filtered* scope so the empty-state UI can suggest broadening
         # moves (the wireframe's F6 "Drop Number — 3 hits" affordance).
         breakdowns = _lemma_breakdowns(
-            conn, lemma, lang, scope_sql, scope_params, lemma_match_sql,
+            conn,
+            lemma,
+            lang,
+            scope_sql,
+            scope_params,
+            lemma_match_sql,
         )
         return {
             "lemma": lemma,
             "lang": lang,
             "scope": scope,
-            "scope_label": {"corpus": _corpus_label(lang),
-                            "author": author_label,
-                            "work": work_label}[scope],
+            "scope_label": {
+                "corpus": _corpus_label(lang),
+                "author": author_label,
+                "work": work_label,
+            }[scope],
             "filters": {
-                "pos": pos, "morph": morph_filters, "surface": surface,
+                "pos": pos,
+                "morph": morph_filters,
+                "surface": surface,
             },
             "total": 0,
             "limit": limit,
@@ -226,7 +265,12 @@ def lemma_detail(
         }
 
     breakdowns = _lemma_breakdowns(
-        conn, lemma, lang, scope_sql, scope_params, lemma_match_sql,
+        conn,
+        lemma,
+        lang,
+        scope_sql,
+        scope_params,
+        lemma_match_sql,
     )
 
     # Main page query — joins to chunks_full for section/work/author
@@ -259,19 +303,21 @@ def lemma_detail(
     for r in page:
         morph = _parse_morph_feats(r["feats"])
         kwic = build_kwic(r["text"], r["s_start"], r["s_end"], radius)
-        out.append({
-            "chunk_id": r["chunk_id"],
-            "section": r["section"] or "",
-            "book": r["book"] or "",
-            "work": r["work"] or "",
-            "author": r["author"] or "",
-            "ord": int(r["ord"]) if r["ord"] is not None else 0,
-            "surface": r["surface"],
-            "pos": r["pos"] or "",
-            "morph": morph,
-            "morph_str": _morph_short(morph),
-            **kwic,
-        })
+        out.append(
+            {
+                "chunk_id": r["chunk_id"],
+                "section": r["section"] or "",
+                "book": r["book"] or "",
+                "work": r["work"] or "",
+                "author": r["author"] or "",
+                "ord": int(r["ord"]) if r["ord"] is not None else 0,
+                "surface": r["surface"],
+                "pos": r["pos"] or "",
+                "morph": morph,
+                "morph_str": _morph_short(morph),
+                **kwic,
+            }
+        )
 
     next_offset = offset + limit if offset + limit < total else None
 
@@ -279,11 +325,13 @@ def lemma_detail(
         "lemma": lemma,
         "lang": lang,
         "scope": scope,
-        "scope_label": {"corpus": _corpus_label(lang),
-                        "author": author_label,
-                        "work": work_label}[scope],
+        "scope_label": {"corpus": _corpus_label(lang), "author": author_label, "work": work_label}[
+            scope
+        ],
         "filters": {
-            "pos": pos, "morph": morph_filters, "surface": surface,
+            "pos": pos,
+            "morph": morph_filters,
+            "surface": surface,
         },
         "total": total,
         "limit": limit,
@@ -374,10 +422,7 @@ def _lemma_breakdowns(
     work_b = {wr["work"]: int(wr["n"]) for wr in work_rows}
 
     def _top(d: dict[str, int], n: int = 12) -> list[dict[str, Any]]:
-        return [
-            {"value": k, "count": v}
-            for k, v in sorted(d.items(), key=lambda x: -x[1])[:n]
-        ]
+        return [{"value": k, "count": v} for k, v in sorted(d.items(), key=lambda x: -x[1])[:n]]
 
     return {
         "pos_breakdown": _top(pos_b),
@@ -393,12 +438,21 @@ def _lemma_breakdowns(
 # Matches the German-philology convention (Case · Number · Gender for
 # nouns; Person · Number · Tense · Mood for verbs).
 _MORPH_ORDER = (
-    "Case", "Number", "Gender",      # nouns/adj
-    "Person", "Tense", "Mood",       # verbs
-    "Degree", "VerbForm",            # adj / participle
+    "Case",
+    "Number",
+    "Gender",  # nouns/adj
+    "Person",
+    "Tense",
+    "Mood",  # verbs
+    "Degree",
+    "VerbForm",  # adj / participle
 )
 _CASE_SHORT = {
-    "Nom": "Nom", "Acc": "Akk", "Gen": "Gen", "Dat": "Dat", "Voc": "Vok",
+    "Nom": "Nom",
+    "Acc": "Akk",
+    "Gen": "Gen",
+    "Dat": "Dat",
+    "Voc": "Vok",
 }
 _NUMBER_SHORT = {"Sing": "Sg", "Plur": "Pl"}
 _GENDER_SHORT = {"Masc": "Mask", "Fem": "Fem", "Neut": "Neut"}

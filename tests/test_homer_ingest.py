@@ -102,9 +102,7 @@ def _write_fixture(tmp_path: Path) -> Path:
 
 
 class TestHomerCardChunking:
-    def test_emits_one_chunk_per_card_with_book_line_section(
-        self, tmp_path: Path
-    ) -> None:
+    def test_emits_one_chunk_per_card_with_book_line_section(self, tmp_path: Path) -> None:
         path = _write_fixture(tmp_path)
         chunks = list(tei.parse_file(path, corpus="homer", author="Homer"))
 
@@ -177,9 +175,7 @@ class TestHomerCardChunking:
         for chunk in chunks:
             assert chunk.section.startswith(f"{chunk.book}.")
 
-    def test_re_entering_the_same_book_number_does_not_split_a_chunk(
-        self, tmp_path: Path
-    ) -> None:
+    def test_re_entering_the_same_book_number_does_not_split_a_chunk(self, tmp_path: Path) -> None:
         """The `n != _cur_book` guard on the #207 flush, which real data
         needs: `data/epictetus/raw/discourses_en.xml` has two consecutive
         `<div1 n="0">` siblings. Without the guard, entering the second
@@ -188,9 +184,7 @@ class TestHomerCardChunking:
         removes.
         """
 
-        xml = _TAIL_FIXTURE_XML.replace(
-            '<div1 type="Book" n="2">', '<div1 type="Book" n="1">'
-        )
+        xml = _TAIL_FIXTURE_XML.replace('<div1 type="Book" n="2">', '<div1 type="Book" n="1">')
         path = tmp_path / "hom_repeat_gr.xml"
         path.write_text(xml, encoding="utf-8")
 
@@ -257,10 +251,7 @@ class TestChunkBoundaryDetection:
         import xml.etree.ElementTree as ET
 
         body = ET.fromstring(
-            "<body>"
-            "<milestone unit='card' n='1'/>"
-            "<milestone unit='card' n='8'/>"
-            "</body>"
+            "<body><milestone unit='card' n='1'/><milestone unit='card' n='8'/></body>"
         )
         units = tei._detect_chunk_boundary_units(body)
         assert units == frozenset({"card"})
@@ -272,10 +263,7 @@ class TestChunkBoundaryDetection:
         import xml.etree.ElementTree as ET
 
         body = ET.fromstring(
-            "<body>"
-            "<milestone unit='section' n='327a'/>"
-            "<milestone unit='card' n='1'/>"
-            "</body>"
+            "<body><milestone unit='section' n='327a'/><milestone unit='card' n='1'/></body>"
         )
         units = tei._detect_chunk_boundary_units(body)
         assert units == frozenset({"section"})
@@ -283,7 +271,5 @@ class TestChunkBoundaryDetection:
     def test_no_boundary_units_when_neither_present(self) -> None:
         import xml.etree.ElementTree as ET
 
-        body = ET.fromstring(
-            "<body><milestone unit='page' n='12'/></body>"
-        )
+        body = ET.fromstring("<body><milestone unit='page' n='12'/></body>")
         assert tei._detect_chunk_boundary_units(body) == frozenset()

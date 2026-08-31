@@ -15,9 +15,7 @@ def _handle_works_list(deps: ServerDeps) -> dict[str, Any]:
 
 
 @with_corpus_lock
-def _handle_work_range(
-    deps: ServerDeps, work_id: str, query: dict[str, str]
-) -> dict[str, Any]:
+def _handle_work_range(deps: ServerDeps, work_id: str, query: dict[str, str]) -> dict[str, Any]:
     return reader_queries.work_range(deps.conn, work_id, query)
 
 

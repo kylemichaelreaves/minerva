@@ -478,9 +478,7 @@ def test_oversized_chapter_splits_at_paragraph_boundaries_with_letter_suffix(
     ]
 
 
-def test_oversized_chapter_split_preserves_text_before_first_paragraph(
-    tmp_path: Path, monkeypatch
-):
+def test_oversized_chapter_split_preserves_text_before_first_paragraph(tmp_path: Path, monkeypatch):
     """Text sitting directly in the division before its first `<p>` must not
     be silently dropped by the paragraph-boundary split."""
 
@@ -498,9 +496,7 @@ def test_oversized_chapter_split_preserves_text_before_first_paragraph(
 </body></text></TEI.2>
 """
     path = _write_xml(tmp_path, "discourses_en.xml", xml)
-    joined = " ".join(
-        c.text for c in tei.parse_file(path, corpus="epictetus", author="Epictetus")
-    )
+    joined = " ".join(c.text for c in tei.parse_file(path, corpus="epictetus", author="Epictetus"))
     assert "Loose lead-in text." in joined
 
 

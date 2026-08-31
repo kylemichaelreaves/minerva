@@ -122,7 +122,6 @@ def test_lang_filter_narrows_pending(tmp_path: Path):
     assert store.count_chunks_without_embeddings(conn, model="m1", lang="eng") == 2
     assert store.count_chunks_without_embeddings(conn, model="m1", lang="grc") == 1
     pending_grc = [
-        r["chunk_id"]
-        for r in store.iter_chunks_without_embeddings(conn, model="m1", lang="grc")
+        r["chunk_id"] for r in store.iter_chunks_without_embeddings(conn, model="m1", lang="grc")
     ]
     assert pending_grc == ["c"]

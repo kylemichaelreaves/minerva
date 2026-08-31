@@ -231,9 +231,7 @@ def test_work_id_invariant_catches_a_row_the_view_hides(tmp_path: Path):
     assert "invisible in chunks_full" in result.examples[0].detail
 
 
-def test_a_known_exception_is_reported_beside_the_number(
-    tmp_path: Path, capsys, monkeypatch
-):
+def test_a_known_exception_is_reported_beside_the_number(tmp_path: Path, capsys, monkeypatch):
     """`ara`'s 17% is explained in `_tokens_from_stanza_doc` and in #314.
     Printing the explanation next to the count is what stops the next
     operator re-investigating it."""
@@ -297,8 +295,7 @@ def _seed_xref(
     # canonical_work varies by source chunk so repeated calls in one test
     # don't collide on reference_targets' (author, work) uniqueness.
     cur = conn.execute(
-        "INSERT INTO reference_targets (canonical_author, canonical_work) "
-        "VALUES ('Plato', ?)",
+        "INSERT INTO reference_targets (canonical_author, canonical_work) VALUES ('Plato', ?)",
         (f"Republic ({source_chunk_id})",),
     )
     target_id = cur.lastrowid
@@ -352,9 +349,7 @@ class TestXrefSourceSpan:
         assert result.violations == 1
         assert "past end" in result.examples[0].detail
 
-    def test_an_in_range_span_with_a_mismatched_snapshot_is_a_violation(
-        self, tmp_path: Path
-    ):
+    def test_an_in_range_span_with_a_mismatched_snapshot_is_a_violation(self, tmp_path: Path):
         db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
         conn = store.open_db(db)
         try:
@@ -436,9 +431,7 @@ class TestRefsScanCoverage:
         db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)], [])
         conn = store.open_db(db)
         try:
-            conn.execute(
-                "INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('c1', 'h')"
-            )
+            conn.execute("INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('c1', 'h')")
             conn.commit()
             result = ai.audit_refs_scan_coverage(conn)
         finally:
@@ -461,15 +454,15 @@ class TestRefsScanCoverage:
             tmp_path,
             [
                 make_chunk(chunk_id="a1", author="Aesop", work="Fables", lang="eng", text=_TEXT),
-                make_chunk(chunk_id="h1", author="Hegel", work="Enzyklopädie", lang="deu", text=_TEXT),
+                make_chunk(
+                    chunk_id="h1", author="Hegel", work="Enzyklopädie", lang="deu", text=_TEXT
+                ),
             ],
             [],
         )
         conn = store.open_db(db)
         try:
-            conn.execute(
-                "INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('h1', 'h')"
-            )
+            conn.execute("INSERT INTO refs_scan_state (chunk_id, text_hash) VALUES ('h1', 'h')")
             conn.commit()
             result = ai.audit_refs_scan_coverage(conn)
         finally:

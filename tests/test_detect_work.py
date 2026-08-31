@@ -13,9 +13,7 @@ from minerva.agent.detect import named_passage_labels, work_titles
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
-    c.execute(
-        "CREATE TABLE works (id INTEGER PRIMARY KEY, author TEXT, title TEXT)"
-    )
+    c.execute("CREATE TABLE works (id INTEGER PRIMARY KEY, author TEXT, title TEXT)")
     c.execute(
         "CREATE TABLE translations "
         "(id INTEGER PRIMARY KEY, work_id INTEGER, language TEXT, title_local TEXT)"
@@ -473,9 +471,9 @@ def test_aliases_are_corpus_scoped_like_every_other_name(conn):
 
 def test_work_titles_includes_aliases(conn):
     names = {name for wid, name in work_titles(conn, "hegel") if wid == 40}
-    assert "Phenomenology of Spirit (Pinkard)" in names   # canonical
-    assert "Phenomenology of Spirit" in names             # alias
-    assert "Phänomenologie des Geistes" in names          # cross-language alias
+    assert "Phenomenology of Spirit (Pinkard)" in names  # canonical
+    assert "Phenomenology of Spirit" in names  # alias
+    assert "Phänomenologie des Geistes" in names  # cross-language alias
 
 
 # ── named passages: a label the text never uses (#182) ─────────────────
@@ -505,7 +503,7 @@ def test_named_passage_label_is_corpus_scoped(conn):
 
 
 def test_named_passage_label_needs_every_significant_token(conn):
-    """"Line" alone is not the passage; both words have to be present,
+    """ "Line" alone is not the passage; both words have to be present,
     same conservatism `detect_work` already applies to titles."""
 
     assert detect_work(conn, "draw me a line", "plato") is None

@@ -44,9 +44,7 @@ class UnsupportedSyntaxLanguage(Exception):
     """
 
     def __init__(self, chunk_id: str, lang: str) -> None:
-        super().__init__(
-            f"syntax parsing is {SUPPORTED_LANG}-only; chunk {chunk_id!r} is {lang!r}"
-        )
+        super().__init__(f"syntax parsing is {SUPPORTED_LANG}-only; chunk {chunk_id!r} is {lang!r}")
         self.chunk_id = chunk_id
         self.lang = lang
 
@@ -251,9 +249,7 @@ def load_or_parse(conn: sqlite3.Connection, chunk_id: str) -> list[SyntaxToken] 
     # load (`parse.py:_pipeline()` / `_stanza_version()` import stanza
     # lazily, never at module scope) — a guard placed after it would pass
     # locally and fail in CI, which has no `[lemma]` extra.
-    row = conn.execute(
-        "SELECT text, lang FROM chunks WHERE chunk_id = ?", (chunk_id,)
-    ).fetchone()
+    row = conn.execute("SELECT text, lang FROM chunks WHERE chunk_id = ?", (chunk_id,)).fetchone()
     if row is None:
         return None
     lang = str(row["lang"])

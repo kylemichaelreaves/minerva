@@ -26,9 +26,7 @@ def _db_at_0032(tmp_path: Path) -> Path:
 
     path = tmp_path / "pre-0033.sqlite"
     jsonl = tmp_path / "seed.jsonl"
-    jsonl.write_text(
-        json.dumps(make_chunk(chunk_id="a", lang="eng", text="alpha beta"))
-    )
+    jsonl.write_text(json.dumps(make_chunk(chunk_id="a", lang="eng", text="alpha beta")))
     conn = store.open_db(path)
     store.insert_chunks(conn, jsonl)
 
@@ -54,9 +52,7 @@ def test_backfill_hashes_existing_rows_from_current_text(tmp_path: Path):
 
     conn = store.open_db(path)  # applies 0033
     try:
-        stored = conn.execute(
-            "SELECT text_hash FROM embeddings WHERE chunk_id = 'a'"
-        ).fetchone()[0]
+        stored = conn.execute("SELECT text_hash FROM embeddings WHERE chunk_id = 'a'").fetchone()[0]
     finally:
         conn.close()
 
@@ -76,9 +72,9 @@ def test_backfill_is_re_entrant(tmp_path: Path):
 
     conn = store.open_db(path)  # replays 0033 over its own output
     try:
-        n = conn.execute(
-            "SELECT COUNT(*) FROM embeddings WHERE text_hash IS NOT NULL"
-        ).fetchone()[0]
+        n = conn.execute("SELECT COUNT(*) FROM embeddings WHERE text_hash IS NOT NULL").fetchone()[
+            0
+        ]
         assert migrations.current_version(conn) >= 33
     finally:
         conn.close()

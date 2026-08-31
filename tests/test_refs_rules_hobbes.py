@@ -39,9 +39,7 @@ def _candidates_for(text: str, **kw: object) -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
     for rule in RULES:
         for cand in rule.scan(chunk):
-            out.append(
-                (rule.name, cand.target_author, cand.source_form_snapshot)
-            )
+            out.append((rule.name, cand.target_author, cand.source_form_snapshot))
     return out
 
 
@@ -51,7 +49,6 @@ def _candidates_for(text: str, **kw: object) -> list[tuple[str, str, str]]:
 
 
 class TestHobbesEnglish:
-
     def test_aristotle_named(self) -> None:
         cands = _candidates_for(
             "as Aristotle saith in his Politiques",
@@ -111,7 +108,6 @@ class TestHobbesEnglish:
 
 
 class TestHobbesLatin:
-
     def test_aristoteles_declined(self) -> None:
         cands = _candidates_for(
             "ut docet Aristoteles in libro de Anima",
@@ -155,7 +151,6 @@ class TestHobbesLatin:
 
 
 class TestHobbesLangFiltering:
-
     def test_english_only_rule_skips_latin(self) -> None:
         # "Schoolmen" is English-only; a Latin chunk shouldn't fire it.
         cands = _candidates_for(

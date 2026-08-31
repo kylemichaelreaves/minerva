@@ -107,9 +107,7 @@ def normalize_latin(text: str) -> str:
         text = text.replace(lig, expansion)
     # NFD splits 'é' into 'e' + combining acute; drop the marks.
     decomposed = unicodedata.normalize("NFD", text)
-    stripped = "".join(
-        ch for ch in decomposed if not unicodedata.combining(ch)
-    )
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
     folded = stripped.lower().translate(_LETTER_FOLD)
     return _NON_LETTER_RE.sub(" ", folded).strip()
 
@@ -222,22 +220,16 @@ def all_lexical_matches(
         # makes such phrases rare rather than impossible, and a wrong
         # binding is the expensive failure here.
         if n >= min_token_run and norm_phrase in norm_text:
-            found = LexicalMatch(
-                chunk_id=chunk_id, exact=True, run=n, coverage=1.0
-            )
+            found = LexicalMatch(chunk_id=chunk_id, exact=True, run=n, coverage=1.0)
         else:
             text_tokens = _tokens(norm_text)
             run = _longest_common_run(phrase_tokens, text_tokens)
             coverage = _subsequence_coverage(phrase_tokens, text_tokens) / n
             anchored = run >= min_token_run and coverage >= min_coverage
-            near_total = (
-                coverage >= _NEAR_TOTAL_COVERAGE and run >= _NEAR_TOTAL_MIN_RUN
-            )
+            near_total = coverage >= _NEAR_TOTAL_COVERAGE and run >= _NEAR_TOTAL_MIN_RUN
             if not (anchored or near_total):
                 continue
-            found = LexicalMatch(
-                chunk_id=chunk_id, exact=False, run=run, coverage=coverage
-            )
+            found = LexicalMatch(chunk_id=chunk_id, exact=False, run=run, coverage=coverage)
         # Strongest wins. Equal strength is kept rather than discarded:
         # the string alone cannot choose between two verses that contain
         # the quotation identically, and pretending otherwise is what

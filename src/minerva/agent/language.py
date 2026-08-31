@@ -21,7 +21,25 @@ _FRENCH_CHARS_RE = re.compile(r"[àâäçéèêëïîôùûüÿœæ]", re.IGNORE
 _GERMAN_CHARS_RE = re.compile(r"[äöüß]", re.IGNORECASE)
 
 _FRENCH_WORDS = frozenset(
-    {"le", "la", "les", "des", "une", "est", "que", "pour", "dans", "avec", "sur", "pas", "comment", "quoi", "pourquoi", "et", "bien"}
+    {
+        "le",
+        "la",
+        "les",
+        "des",
+        "une",
+        "est",
+        "que",
+        "pour",
+        "dans",
+        "avec",
+        "sur",
+        "pas",
+        "comment",
+        "quoi",
+        "pourquoi",
+        "et",
+        "bien",
+    }
 )
 _GERMAN_WORDS = frozenset(
     {"der", "die", "das", "und", "ist", "nicht", "was", "wie", "auch", "sich", "über", "für"}

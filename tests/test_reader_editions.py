@@ -22,15 +22,24 @@ from minerva.reader.queries import work_range
 
 def _grc(section: str, i: int) -> dict:
     return make_chunk(
-        chunk_id=f"grc-{i}", lang="grc", section=section, translator=None,
-        edition_year=None, text=f"greek {section}", book=None,
+        chunk_id=f"grc-{i}",
+        lang="grc",
+        section=section,
+        translator=None,
+        edition_year=None,
+        text=f"greek {section}",
+        book=None,
     )
 
 
 def _trans(translator: str, year: str, section: str, i: int) -> dict:
     return make_chunk(
-        chunk_id=f"{translator[:3].lower()}-{i}", lang="eng", section=section,
-        translator=translator, edition_year=year, book=None,
+        chunk_id=f"{translator[:3].lower()}-{i}",
+        lang="eng",
+        section=section,
+        translator=translator,
+        edition_year=year,
+        book=None,
         text=f"{translator} {section}",
     )
 
@@ -40,7 +49,9 @@ def editions_db(tmp_path: Path) -> sqlite3.Connection:
     # Republic: Greek (Burnet edition, no translator) + Jowett 1892 +
     # Shorey 1930. Both English translations share (work_id, lang=eng).
     chunks = [
-        _grc("327a", 1), _grc("327b", 2), _grc("327c", 3),
+        _grc("327a", 1),
+        _grc("327b", 2),
+        _grc("327c", 3),
         _trans("Benjamin Jowett", "1892", "327a", 1),
         _trans("Benjamin Jowett", "1892", "327b", 2),
         _trans("Paul Shorey", "1930", "327a", 1),

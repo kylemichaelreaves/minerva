@@ -61,7 +61,9 @@ def cmd_embed(args: argparse.Namespace) -> int:
             mode_label = "all chunks"
         else:
             total = store.count_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
-            row_source = store.iter_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
+            row_source = store.iter_chunks_without_embeddings(
+                conn, model=args.model, lang=lang_filter
+            )
             mode_label = "missing chunks"
 
         if total == 0:

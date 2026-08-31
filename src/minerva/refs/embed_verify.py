@@ -187,9 +187,7 @@ def _tie_note(
     return f" {labels} also contain the phrase; {how}."
 
 
-def _chunk_sections(
-    conn: sqlite3.Connection, chunk_ids: Sequence[str]
-) -> list[str | None]:
+def _chunk_sections(conn: sqlite3.Connection, chunk_ids: Sequence[str]) -> list[str | None]:
     """Section locators for ``chunk_ids``, in the order given.
 
     ``chunk_ids`` must be non-empty — the sole caller only builds a note
@@ -264,9 +262,7 @@ def _work_texts(
     return cached
 
 
-def _load_embedding_for_chunk(
-    conn: sqlite3.Connection, chunk_id: str
-) -> np.ndarray | None:
+def _load_embedding_for_chunk(conn: sqlite3.Connection, chunk_id: str) -> np.ndarray | None:
     row = conn.execute(
         "SELECT vector FROM embeddings WHERE chunk_id = ?",
         (chunk_id,),
@@ -408,9 +404,7 @@ def verify_quoted_references(
                 # word — Ps 113:12 and Ps 134:15 do. The string has
                 # nothing left to say at that point, so cosine settles it
                 # among those verses only (issue #276).
-                lex, runners_up, by_cosine = _adjudicate_tie(
-                    conn, phrase_vecs[i], tied
-                )
+                lex, runners_up, by_cosine = _adjudicate_tie(conn, phrase_vecs[i], tied)
                 note = _lexical_note(lex)
                 if runners_up:
                     note += _tie_note(conn, runners_up, by_cosine=by_cosine)
@@ -451,7 +445,10 @@ def verify_quoted_references(
                     (in_corpus_work_id,),
                 ).fetchall()
                 if not w_rows:
-                    target_matrix_cache[in_corpus_work_id] = ([], np.zeros((0, 0), dtype=np.float32))
+                    target_matrix_cache[in_corpus_work_id] = (
+                        [],
+                        np.zeros((0, 0), dtype=np.float32),
+                    )
                 else:
                     cids = [r[0] for r in w_rows]
                     mat = np.stack([store.blob_to_vector(r[1]) for r in w_rows])
@@ -665,8 +662,7 @@ def find_cross_author_allusions(
             continue
         if verbose:
             print(
-                f"  [pair] {source_author} ({len(src_ids)}) → "
-                f"{target_author} ({len(tgt_ids)}) ..."
+                f"  [pair] {source_author} ({len(src_ids)}) → {target_author} ({len(tgt_ids)}) ..."
             )
 
         # Full cosine matrix. Both src and tgt are L2-normalized so
@@ -768,5 +764,3 @@ __all__ = [
     "find_cross_author_allusions",
     "verify_quoted_references",
 ]
-
-

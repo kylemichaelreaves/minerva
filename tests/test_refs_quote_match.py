@@ -94,9 +94,7 @@ class TestBestLexicalMatch:
         via the near-total-coverage path.
         """
 
-        m = best_lexical_match(
-            "cor meum et caro mea exultaverunt in Deum vivum", PSALTER
-        )
+        m = best_lexical_match("cor meum et caro mea exultaverunt in Deum vivum", PSALTER)
         assert m is not None
         assert m.chunk_id == "ps-83-3"
         assert not m.exact
@@ -105,9 +103,7 @@ class TestBestLexicalMatch:
     def test_tolerates_a_reordered_tail(self):
         """'quo nos fecit' against the Vulgate's 'qui fecit nos'."""
 
-        m = best_lexical_match(
-            "Quoniam angelis suis mandavit de te, ut custodiant te", PSALTER
-        )
+        m = best_lexical_match("Quoniam angelis suis mandavit de te, ut custodiant te", PSALTER)
         assert m is not None
         assert m.chunk_id == "ps-90-11"
 
@@ -117,9 +113,7 @@ class TestBestLexicalMatch:
         would be a guess, and #269's whole point is that an unresolved
         target beats a confidently wrong one."""
 
-        m = best_lexical_match(
-            "Gustate et uidete quam dulcis est Dominus", PSALTER
-        )
+        m = best_lexical_match("Gustate et uidete quam dulcis est Dominus", PSALTER)
         assert m is None
 
     def test_refuses_a_phrase_absent_from_every_candidate(self):
@@ -164,14 +158,15 @@ class TestBestLexicalMatch:
         dupes = [("zzz", PS_103_24), ("aaa", PS_103_24)]
         assert best_lexical_match("omnia in sapientia fecisti", dupes).chunk_id == "aaa"
         # Order of the candidate iterable must not matter.
-        assert best_lexical_match(
-            "omnia in sapientia fecisti", list(reversed(dupes))
-        ).chunk_id == "aaa"
+        assert (
+            best_lexical_match("omnia in sapientia fecisti", list(reversed(dupes))).chunk_id
+            == "aaa"
+        )
 
     def test_returns_only_the_winner_when_the_match_is_unique(self):
-        assert [m.chunk_id for m in all_lexical_matches(
-            "omnia in sapientia fecisti", PSALTER
-        )] == ["ps-103-24"]
+        assert [m.chunk_id for m in all_lexical_matches("omnia in sapientia fecisti", PSALTER)] == [
+            "ps-103-24"
+        ]
 
     def test_returns_every_candidate_tied_at_the_winning_strength(self):
         """#276: the quotation really does occur in two verses, so the
@@ -202,9 +197,7 @@ class TestBestLexicalMatch:
         # Same clause, one word in a different orthography: clears the
         # bar by coverage but is not a verbatim containment. Listed last
         # so it is compared against an already-established exact winner.
-        variant = (
-            "Simulachra gentium argentum et aurum, opera manuum hominum."
-        )
+        variant = "Simulachra gentium argentum et aurum, opera manuum hominum."
         mixed = [*IDOL_PSALMS, ("ps-999-9", variant)]
         tied = all_lexical_matches(
             "simulacra gentium argentum et aurum, opera manuum hominum", mixed
@@ -212,10 +205,13 @@ class TestBestLexicalMatch:
         assert [m.chunk_id for m in tied] == ["ps-113-12", "ps-134-15"]
         # Sanity: on its own the variant does clear the bar, so it really
         # was dropped for being weaker rather than for not matching.
-        assert all_lexical_matches(
-            "simulacra gentium argentum et aurum, opera manuum hominum",
-            [("ps-999-9", variant)],
-        )[0].exact is False
+        assert (
+            all_lexical_matches(
+                "simulacra gentium argentum et aurum, opera manuum hominum",
+                [("ps-999-9", variant)],
+            )[0].exact
+            is False
+        )
 
     def test_returns_empty_when_nothing_clears_the_bar(self):
         assert all_lexical_matches("de rerum natura lucretius", PSALTER) == []
@@ -234,8 +230,6 @@ class TestBestLexicalMatch:
 
         phrase = "Gustate et uidete quam dulcis est Dominus"
         assert best_lexical_match(phrase, PSALTER) is None
-        loose = best_lexical_match(
-            phrase, PSALTER, min_token_run=3, min_coverage=0.5
-        )
+        loose = best_lexical_match(phrase, PSALTER, min_token_run=3, min_coverage=0.5)
         assert loose is not None
         assert loose.chunk_id == "ps-33-9"

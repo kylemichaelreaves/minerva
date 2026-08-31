@@ -254,5 +254,3 @@ def retrieve_passages(
     # Pins keep us in scope even when fresh retrieval is empty.
     abstain = retrieval_weak and not pinned
     return RetrievalResult(hits=hits, pinned=pinned, abstain=abstain)
-
-

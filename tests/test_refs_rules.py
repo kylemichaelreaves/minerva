@@ -184,10 +184,7 @@ class TestFormulaicQuoteRule:
             target_work="Psalms",
             introducer_patterns=(r"in\s+Psalmo", r"Psalmista"),
         )
-        text = (
-            "ut dicit in Psalmo: tu autem domine in aeternum permanes. "
-            "Et sequitur..."
-        )
+        text = "ut dicit in Psalmo: tu autem domine in aeternum permanes. Et sequitur..."
         cands = list(rule.scan(_chunk(text)))
         assert len(cands) == 1
         c = cands[0]
@@ -327,9 +324,7 @@ def _make_candidate(**overrides: object) -> Candidate:
 
 
 class TestInsertCandidate:
-    def test_insert_creates_row_and_resolves_target(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_insert_creates_row_and_resolves_target(self, populated_db: sqlite3.Connection) -> None:
         new_id = insert_candidate(populated_db, _make_candidate())
         assert new_id is not None
         row = populated_db.execute(
@@ -345,9 +340,7 @@ class TestInsertCandidate:
         assert target is not None
         assert target.canonical_author == "Aristotle"
 
-    def test_dedup_on_content_key_returns_none(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_dedup_on_content_key_returns_none(self, populated_db: sqlite3.Connection) -> None:
         cand = _make_candidate()
         first = insert_candidate(populated_db, cand)
         assert first is not None
@@ -393,9 +386,7 @@ class TestInsertCandidate:
         )
         assert insert_candidate(populated_db, auto) is None
 
-    def test_manual_protection_can_be_disabled(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_manual_protection_can_be_disabled(self, populated_db: sqlite3.Connection) -> None:
         target = refs_schema.ensure_target(
             populated_db,
             canonical_author="Aristotle",

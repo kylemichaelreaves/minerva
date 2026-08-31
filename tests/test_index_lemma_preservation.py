@@ -127,12 +127,8 @@ def test_chunk_lemmas_orphan_sweep_on_text_change(tmp_path: Path):
     _run_index(db, jsonl2, reset=True)
 
     conn = store.open_db(db)
-    rows = conn.execute(
-        "SELECT chunk_id FROM chunk_lemmas ORDER BY chunk_id"
-    ).fetchall()
-    assert [r[0] for r in rows] == ["stable"], (
-        f"expected only 'stable' to survive, got {rows!r}"
-    )
+    rows = conn.execute("SELECT chunk_id FROM chunk_lemmas ORDER BY chunk_id").fetchall()
+    assert [r[0] for r in rows] == ["stable"], f"expected only 'stable' to survive, got {rows!r}"
     bad = conn.execute("PRAGMA foreign_key_check(chunk_lemmas)").fetchall()
     assert bad == [], f"orphan sweep left FK violations: {bad}"
 

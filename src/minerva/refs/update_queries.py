@@ -59,8 +59,7 @@ def update_reference(
         raise NotFoundError(f"reference {reference_id} not found")
     if update_note:
         conn.execute(
-            "UPDATE cross_references SET curator_status = ?, curator_note = ? "
-            "WHERE id = ?",
+            "UPDATE cross_references SET curator_status = ?, curator_note = ? WHERE id = ?",
             (status, note, reference_id),
         )
     else:

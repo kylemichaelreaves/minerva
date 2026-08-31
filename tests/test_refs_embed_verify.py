@@ -49,9 +49,7 @@ class FakeEmbedder:
         phrases = list(phrases)
         if not phrases:
             return np.zeros((0, 4), dtype=np.float32)
-        out = np.stack(
-            [self._table.get(p, np.zeros(4, dtype=np.float32)) for p in phrases]
-        )
+        out = np.stack([self._table.get(p, np.zeros(4, dtype=np.float32)) for p in phrases])
         return out.astype(np.float32)
 
 
@@ -61,16 +59,13 @@ def _norm(v: list[float]) -> np.ndarray:
     return arr / n if n else arr
 
 
-def _seed_embeddings(
-    conn: sqlite3.Connection, chunk_vectors: dict[str, np.ndarray]
-) -> None:
+def _seed_embeddings(conn: sqlite3.Connection, chunk_vectors: dict[str, np.ndarray]) -> None:
     """Write embeddings directly to the embeddings table. Bypasses
     `store.upsert_embeddings` because we want bespoke vectors and the
     upsert helper would coerce the dim through model metadata."""
 
     conn.executemany(
-        "INSERT OR REPLACE INTO embeddings(chunk_id, model, dim, vector) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO embeddings(chunk_id, model, dim, vector) VALUES (?, ?, ?, ?)",
         [
             (cid, "fake", int(v.shape[0]), v.astype(np.float32).tobytes())
             for cid, v in chunk_vectors.items()
@@ -92,9 +87,7 @@ V_MID = _norm([0.7, 0.7, 0, 0])  # cosine 0.7 with V_X — sits in mid band
 
 
 class TestVerifyQuotedReferences:
-    def test_promote_when_cosine_above_threshold(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_promote_when_cosine_above_threshold(self, populated_db: sqlite3.Connection) -> None:
         # Seed: target chunk ne-1097b's embedding == V_X; phrase
         # embedding also V_X → cosine 1.0 → promote.
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
@@ -134,9 +127,7 @@ class TestVerifyQuotedReferences:
         assert row[2] == "ne-1097b"  # already set; preserved
         assert row[3] == "auto"  # promote does NOT touch curator_status
 
-    def test_reject_when_cosine_below_threshold(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_reject_when_cosine_below_threshold(self, populated_db: sqlite3.Connection) -> None:
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
         target = refs_schema.ensure_target(
             populated_db,
@@ -169,9 +160,7 @@ class TestVerifyQuotedReferences:
         assert row[0] == "rejected"
         assert row[1] == "rule+embed"
 
-    def test_mid_band_left_untouched(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_mid_band_left_untouched(self, populated_db: sqlite3.Connection) -> None:
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
         target = refs_schema.ensure_target(
             populated_db,
@@ -200,16 +189,13 @@ class TestVerifyQuotedReferences:
         assert stats.promoted == 0
         assert stats.rejected == 0
         row = populated_db.execute(
-            "SELECT confidence, source_method, curator_status "
-            "FROM cross_references WHERE id = ?",
+            "SELECT confidence, source_method, curator_status FROM cross_references WHERE id = ?",
             (xref_id,),
         ).fetchone()
         assert row[1] == "rule_weak"  # unchanged
         assert row[2] == "auto"
 
-    def test_skip_no_target_when_out_of_corpus(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_skip_no_target_when_out_of_corpus(self, populated_db: sqlite3.Connection) -> None:
         # Out-of-corpus target: ensure_target with an author/work that
         # doesn't match a `works` row leaves in_corpus_work_id NULL.
         target = refs_schema.ensure_target(
@@ -239,9 +225,7 @@ class TestVerifyQuotedReferences:
         assert stats.promoted == 0
         assert stats.rejected == 0
 
-    def test_skip_no_embedding_for_pinned_target(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_skip_no_embedding_for_pinned_target(self, populated_db: sqlite3.Connection) -> None:
         # target_chunk_id is set but the target has no embedding row.
         target = refs_schema.ensure_target(
             populated_db,
@@ -269,9 +253,7 @@ class TestVerifyQuotedReferences:
         assert stats.skipped_no_embedding == 1
         assert stats.promoted == 0
 
-    def test_manual_rows_not_examined(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_manual_rows_not_examined(self, populated_db: sqlite3.Connection) -> None:
         _seed_embeddings(populated_db, {"ne-1097b": V_X})
         target = refs_schema.ensure_target(
             populated_db,
@@ -345,9 +327,7 @@ class TestFindCrossAuthorAllusions:
         assert rows[0][2] == "alludes"
         assert rows[0][4] == "auto"
 
-    def test_no_emit_when_all_below_threshold(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_no_emit_when_all_below_threshold(self, populated_db: sqlite3.Connection) -> None:
         # All Plato chunks orthogonal to the Aristotle chunk → no emits.
         _seed_embeddings(
             populated_db,
@@ -370,9 +350,7 @@ class TestFindCrossAuthorAllusions:
         assert stats.candidates_inserted == 0
         assert stats.candidates_emitted == 0
 
-    def test_missing_embeddings_skips_pair_silently(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_missing_embeddings_skips_pair_silently(self, populated_db: sqlite3.Connection) -> None:
         # No embeddings at all → both author matrices are empty → pair
         # silently skipped (pairs_examined still ticks).
         stats = embed_verify.find_cross_author_allusions(
@@ -441,9 +419,7 @@ class TestPassASkipsAlreadyProcessedRows:
         assert stats.examined == 0
         methods = {
             r[0]
-            for r in populated_db.execute(
-                "SELECT source_method FROM cross_references"
-            ).fetchall()
+            for r in populated_db.execute("SELECT source_method FROM cross_references").fetchall()
         }
         assert "rule+embed+llm" in methods  # provenance preserved
         assert "rule+embed" in methods
@@ -476,9 +452,7 @@ class TestInsertCandidateAllusionDedup:
             target_chunk_id=target_chunk_id,
         )
 
-    def test_distinct_target_chunks_each_insert(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_distinct_target_chunks_each_insert(self, populated_db: sqlite3.Connection) -> None:
         id1 = refs_rules.insert_candidate(populated_db, self._allusion("ne-1097b"))
         id2 = refs_rules.insert_candidate(populated_db, self._allusion("phaedo-72e"))
         assert id1 is not None
@@ -522,8 +496,7 @@ def psalter_db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
             lang="lat",
             section="I q1 a1 co.",
             book=None,
-            text="Respondeo dicendum quod, sicut dicitur in Psalmo: omnia in "
-            "sapientia fecisti.",
+            text="Respondeo dicendum quod, sicut dicitur in Psalmo: omnia in sapientia fecisti.",
         ),
         make_chunk(
             chunk_id="ps-103-24",
@@ -557,15 +530,11 @@ def psalter_db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
     conn.close()
 
 
-def _work_level_quote(
-    conn: sqlite3.Connection, phrase: str
-) -> int:
+def _work_level_quote(conn: sqlite3.Connection, phrase: str) -> int:
     """Insert the row FormulaicQuoteRule produces: work-level Psalms
     target, quoted phrase, no locator and no bound chunk."""
 
-    target = refs_schema.ensure_target(
-        conn, canonical_author="Vulgate", canonical_work="Psalms"
-    )
+    target = refs_schema.ensure_target(conn, canonical_author="Vulgate", canonical_work="Psalms")
     assert target.in_corpus_work_id is not None, (
         "the Psalms target must resolve to an in-corpus work or the "
         "work-level branch is never reached"
@@ -587,9 +556,7 @@ def _work_level_quote(
 
 
 class TestWorkLevelLexicalBinding:
-    def test_lexical_match_beats_the_cosine_attractor(
-        self, psalter_db: sqlite3.Connection
-    ) -> None:
+    def test_lexical_match_beats_the_cosine_attractor(self, psalter_db: sqlite3.Connection) -> None:
         """The headline regression for #269.
 
         Embeddings are rigged so cosine prefers Ps 135:7 — exactly what
@@ -615,8 +582,7 @@ class TestWorkLevelLexicalBinding:
             (xref_id,),
         ).fetchone()
         assert row[0] == "ps-103-24", (
-            "bound the cosine attractor instead of the verse that "
-            "contains the quotation"
+            "bound the cosine attractor instead of the verse that contains the quotation"
         )
         assert row[1] == pytest.approx(0.98)
         assert row[2] == "rule+embed"
@@ -631,9 +597,7 @@ class TestWorkLevelLexicalBinding:
 
         _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
         # Not in either verse: a different Psalter recension's wording.
-        xref_id = _work_level_quote(
-            psalter_db, "Gustate et uidete quam dulcis est Dominus"
-        )
+        xref_id = _work_level_quote(psalter_db, "Gustate et uidete quam dulcis est Dominus")
 
         embedder = FakeEmbedder(
             {"Gustate et uidete quam dulcis est Dominus": V_X}  # cosine 1.0
@@ -720,9 +684,7 @@ class TestWorkLevelTieAdjudication:
         exhausted and cosine is legitimate — the choice is between two
         known-correct texts, not a search over the whole Psalter."""
 
-        _seed_embeddings(
-            tied_psalms_db, {"ps-113-12": V_X, "ps-134-15": V_Y}
-        )
+        _seed_embeddings(tied_psalms_db, {"ps-113-12": V_X, "ps-134-15": V_Y})
         xref_id = _work_level_quote(tied_psalms_db, _IDOL_QUOTE)
         # Source context embeds onto the HIGHER chunk_id, which the
         # stable tie-break would never have picked.
@@ -744,9 +706,7 @@ class TestWorkLevelTieAdjudication:
         """A pick made by cosine must be visible as one, or the reader
         has no way to know an equally-good verse was passed over."""
 
-        _seed_embeddings(
-            tied_psalms_db, {"ps-113-12": V_X, "ps-134-15": V_Y}
-        )
+        _seed_embeddings(tied_psalms_db, {"ps-113-12": V_X, "ps-134-15": V_Y})
         xref_id = _work_level_quote(tied_psalms_db, _IDOL_QUOTE)
         embedder = FakeEmbedder({_IDOL_QUOTE: V_Y})
 
@@ -758,9 +718,7 @@ class TestWorkLevelTieAdjudication:
         assert "ps-113-12" in note
         assert "Ps 113:12" in note
 
-    def test_a_unique_match_carries_no_tie_note(
-        self, psalter_db: sqlite3.Connection
-    ) -> None:
+    def test_a_unique_match_carries_no_tie_note(self, psalter_db: sqlite3.Connection) -> None:
         """The note only widens when there was actually a choice."""
 
         _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
@@ -811,9 +769,7 @@ class TestWorkLevelTieAdjudication:
         ).fetchone()[0]
         assert target == "ps-113-12"
 
-    def test_unlocatable_and_low_cosine_still_rejects(
-        self, psalter_db: sqlite3.Connection
-    ) -> None:
+    def test_unlocatable_and_low_cosine_still_rejects(self, psalter_db: sqlite3.Connection) -> None:
         """The reject band is unchanged: no lexical match AND no cosine
         signal means the rule fired on something that isn't a quotation
         of this work at all."""
@@ -827,8 +783,7 @@ class TestWorkLevelTieAdjudication:
         assert stats.rejected == 1
         assert stats.bound_lexically == 0
         row = psalter_db.execute(
-            "SELECT curator_status, target_chunk_id FROM cross_references "
-            "WHERE id = ?",
+            "SELECT curator_status, target_chunk_id FROM cross_references WHERE id = ?",
             (xref_id,),
         ).fetchone()
         assert row[0] == "rejected"
@@ -842,17 +797,14 @@ class TestWorkLevelTieAdjudication:
 
         _seed_embeddings(psalter_db, {"ps-135-7": V_X, "ps-103-24": V_Y})
         # 'magnificata' → 'magnifica': same verse, differing token.
-        xref_id = _work_level_quote(
-            psalter_db, "Quam magnifica sunt opera tua Domine"
-        )
+        xref_id = _work_level_quote(psalter_db, "Quam magnifica sunt opera tua Domine")
 
         embedder = FakeEmbedder({"Quam magnifica sunt opera tua Domine": V_X})
         stats = embed_verify.verify_quoted_references(psalter_db, embedder)
 
         assert stats.bound_lexically == 1
         row = psalter_db.execute(
-            "SELECT target_chunk_id, confidence, curator_note "
-            "FROM cross_references WHERE id = ?",
+            "SELECT target_chunk_id, confidence, curator_note FROM cross_references WHERE id = ?",
             (xref_id,),
         ).fetchone()
         assert row[0] == "ps-103-24"

@@ -137,9 +137,7 @@ def test_undo_answers_204_with_no_body(deps) -> None:
             f"{base}/api/chunks/{CHUNK}/syntax/corrections",
             body={"sent_ord": 0, "tok_id": 1, "kind": "deprel", "to_val": "nmod"},
         )
-        status, _ = request(
-            f"{base}/api/syntax/corrections/{created['id']}", method="DELETE"
-        )
+        status, _ = request(f"{base}/api/syntax/corrections/{created['id']}", method="DELETE")
 
     assert status == 204
 
@@ -216,9 +214,7 @@ def test_the_correction_post_is_rate_limited(deps, monkeypatch: pytest.MonkeyPat
     would never match a fixed string in `_RATE_LIMITS`.
     """
 
-    monkeypatch.setitem(
-        server_core._RATE_LIMITS, "syntax correction create", (2, 60.0)
-    )
+    monkeypatch.setitem(server_core._RATE_LIMITS, "syntax correction create", (2, 60.0))
 
     codes = []
     with running(deps) as base:

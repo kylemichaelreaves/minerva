@@ -34,9 +34,7 @@ def _write(jsonl: Path, chunks: list[dict]) -> None:
 
 
 def _scan_state(conn) -> set[str]:
-    return {
-        row[0] for row in conn.execute("SELECT chunk_id FROM refs_scan_state")
-    }
+    return {row[0] for row in conn.execute("SELECT chunk_id FROM refs_scan_state")}
 
 
 def test_index_reaps_scan_state_for_deleted_chunks(tmp_path: Path):
@@ -102,9 +100,9 @@ def test_recreated_chunk_does_not_inherit_stale_scanned_marker(tmp_path: Path):
     _run_index(db, jsonl)
 
     conn = store.open_db(db)
-    assert conn.execute(
-        "SELECT 1 FROM chunks WHERE chunk_id = 'cycles'"
-    ).fetchone() is not None, "test precondition: the chunk came back"
+    assert conn.execute("SELECT 1 FROM chunks WHERE chunk_id = 'cycles'").fetchone() is not None, (
+        "test precondition: the chunk came back"
+    )
     assert "cycles" not in _scan_state(conn), (
         "the re-created chunk inherited its old scanned marker, so a rules "
         "module edited in between would never fire for it"
@@ -122,9 +120,7 @@ def test_reap_is_a_noop_when_every_chunk_survives(tmp_path: Path):
     _run_index(db, jsonl)
 
     conn = store.open_db(db)
-    conn.execute(
-        "INSERT INTO refs_scan_state(chunk_id, text_hash) VALUES ('c1', 'h1')"
-    )
+    conn.execute("INSERT INTO refs_scan_state(chunk_id, text_hash) VALUES ('c1', 'h1')")
     conn.commit()
     conn.close()
 

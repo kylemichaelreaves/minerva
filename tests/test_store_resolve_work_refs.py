@@ -58,9 +58,7 @@ def test_resolve_work_refs_original_marker_is_edition(tmp_path: Path):
     )
     assert edition_id is not None
     assert translation_id is None
-    name = conn.execute(
-        "SELECT name FROM editions WHERE id = ?", (edition_id,)
-    ).fetchone()[0]
+    name = conn.execute("SELECT name FROM editions WHERE id = ?", (edition_id,)).fetchone()[0]
     assert name == "Phänomenologie des Geistes"
 
 
@@ -81,9 +79,7 @@ def test_resolve_work_refs_reuses_existing_rows(tmp_path: Path):
     )
     conn = store.open_db(db)
     store.insert_chunks(conn, jsonl)
-    first_ed = conn.execute(
-        "SELECT edition_id FROM chunks WHERE chunk_id = 'p1'"
-    ).fetchone()[0]
+    first_ed = conn.execute("SELECT edition_id FROM chunks WHERE chunk_id = 'p1'").fetchone()[0]
 
     _work_id, edition_id, translation_id = _resolve_work_refs(
         conn,
@@ -127,13 +123,14 @@ def test_a_re_source_replaces_the_canonical_edition_rather_than_colliding(tmp_pa
     )
     assert work_id_2 == work_id
     assert second == first  # the row is updated, not duplicated
-    name, year = conn.execute(
-        "SELECT name, year FROM editions WHERE id = ?", (first,)
-    ).fetchone()
+    name, year = conn.execute("SELECT name, year FROM editions WHERE id = ?", (first,)).fetchone()
     assert (name, year) == ("Friedrich Schneidewin", 1865)
-    assert conn.execute(
-        "SELECT COUNT(*) FROM editions WHERE work_id = ? AND language = 'grc'", (work_id,)
-    ).fetchone()[0] == 1
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM editions WHERE work_id = ? AND language = 'grc'", (work_id,)
+        ).fetchone()[0]
+        == 1
+    )
 
 
 def test_an_unchanged_edition_is_reused_without_a_write(tmp_path: Path):

@@ -50,8 +50,7 @@ JOIN works w ON w.id = COALESCE(e.work_id, t.work_id)
 # `reader.window.fetch_chunk_ids_in_window` — the query both companion maps
 # issue, measured at 79.9 ms with 0029 alone.
 WINDOW_SQL = (
-    "SELECT chunk_id FROM chunks_full WHERE work_id = ? AND lang = ? "
-    "ORDER BY ord LIMIT ? OFFSET ?"
+    "SELECT chunk_id FROM chunks_full WHERE work_id = ? AND lang = ? ORDER BY ord LIMIT ? OFFSET ?"
 )
 
 # `reader.queries._default_edition` — the most expensive statement left on
@@ -72,8 +71,7 @@ DEFAULT_EDITION_SQL = (
 # without it the planner cannot pin a single `works` row from the unique
 # (author, title) autoindex.
 RESOLVE_WORK_SQL = (
-    "SELECT DISTINCT work_id FROM chunks_full WHERE work=? AND lang=? AND author=? "
-    "ORDER BY work_id"
+    "SELECT DISTINCT work_id FROM chunks_full WHERE work=? AND lang=? AND author=? ORDER BY work_id"
 )
 RESOLVE_WORK_NO_AUTHOR_SQL = (
     "SELECT DISTINCT work_id FROM chunks_full WHERE work=? AND lang=? ORDER BY work_id"
@@ -188,9 +186,9 @@ def test_ingest_populates_work_id_for_every_chunk(populated_db: sqlite3.Connecti
     A NULL here does not degrade a row, it deletes it — `chunks_full` inner-
     joins `works` on this column."""
 
-    missing = populated_db.execute(
-        "SELECT COUNT(*) FROM chunks WHERE work_id IS NULL"
-    ).fetchone()[0]
+    missing = populated_db.execute("SELECT COUNT(*) FROM chunks WHERE work_id IS NULL").fetchone()[
+        0
+    ]
     disagreeing = populated_db.execute(
         "SELECT COUNT(*) FROM chunks c "
         "LEFT JOIN editions e ON e.id = c.edition_id "
@@ -218,15 +216,15 @@ def test_the_backfill_reaches_rows_that_predate_the_migration(
     populated_db: sqlite3.Connection,
 ):
     _undo_0030(populated_db)
-    assert populated_db.execute(
-        "SELECT COUNT(*) FROM chunks"
-    ).fetchone()[0] > 0, "fixture must have rows for the backfill to reach"
+    assert populated_db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] > 0, (
+        "fixture must have rows for the backfill to reach"
+    )
 
     migrations.apply(populated_db)
 
-    missing = populated_db.execute(
-        "SELECT COUNT(*) FROM chunks WHERE work_id IS NULL"
-    ).fetchone()[0]
+    missing = populated_db.execute("SELECT COUNT(*) FROM chunks WHERE work_id IS NULL").fetchone()[
+        0
+    ]
     disagreeing = populated_db.execute(
         "SELECT COUNT(*) FROM chunks c "
         "LEFT JOIN editions e ON e.id = c.edition_id "
@@ -287,13 +285,9 @@ def test_applying_twice_is_a_no_op(populated_db: sqlite3.Connection):
     _apply_0030_again(populated_db)
 
     assert _fts_rows(populated_db) == expected_fts
+    assert populated_db.execute("SELECT COUNT(*) FROM chunks_full").fetchone()[0] == expected_rows
     assert (
-        populated_db.execute("SELECT COUNT(*) FROM chunks_full").fetchone()[0]
-        == expected_rows
-    )
-    assert (
-        populated_db.execute("SELECT COUNT(*) FROM chunks WHERE work_id IS NULL").fetchone()[0]
-        == 0
+        populated_db.execute("SELECT COUNT(*) FROM chunks WHERE work_id IS NULL").fetchone()[0] == 0
     )
 
 

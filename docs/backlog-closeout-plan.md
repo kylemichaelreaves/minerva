@@ -258,7 +258,7 @@ than by re-reading the table.
 | 6 | named-passage index | ~~#182~~ | **landed** | Largest design surface; nothing depends on it. Phase 0 measured: absent corpus-wide under every unscoped phrasing, rank 3–6 once the work resolves — work resolution is necessary and sufficient, so Phase 1's design stood (a `named_passages` label consulted where `_best_title_matches` runs, section range kept out of the retrieval filter). **Landed 2026-08-30**: migration 0034 mirrors `work_aliases`'s natural-key materialization, seeded with 3 of the issue's 4 labels — "the divided line" (Politeia), "the slave boy" (Menon), "the Copernican revolution" (Kant). Two things caught only by re-measuring live before shipping: Kant's *Critique of Pure Reason* is a SEPARATE `works` row from its German original (not one work with a `translations.title_local` pair, like Politeia/Menon) — seeding the label on the German row alone pinned `detect_work` to a work with zero English chunks and returned nothing under the default `lang="eng"`, an active regression; fixed by seeding both rows, which makes `detect_work` correctly refuse to pick one (same-author tie) while `detect_corpus`'s tie fallback still resolves the corpus. And Hegel's "master and slave" — unmeasurable per Phase 0's own note (no range-selectable locator) — turned out to also collide broadly with literal-slavery discussions in Aristotle, Locke, Epictetus and others; seeding it as designed would have been a regression, not a fix, so it was filed as #463 rather than shipped. Re-verified live through the real `prepare_chat_turn` sequence: all nine phrasings in the issue's own table now resolve the corpus and (where unambiguous) the work, with the target passage inside `top_k=6` in every case. |
 | 6-bis | content-derived `chunk_id` | #285 | **backlog** | **Groups only loosely.** `chunk_id` hashes `text[:120]`, so derived rows survive an edit past that point with stale offsets. Placed here because batch 6 is the last batch that adds a table keyed on `chunk_id`, and because #263's `text_hash` column exists precisely to work around it — but it is a schema change with its own blast radius and may deserve to stand alone. |
 | 6-ter | a passage label needs its own distinctiveness check, not a title's | #463 | **backlog** | Found seeding batch 6's fourth label. `_best_title_matches`'s "every significant token must appear" conservatism is tuned for work *titles*, which are close to proper nouns; a passage *label* has no such constraint, and "master and slave" is ordinary prose that Aristotle's *Politics* (18 chunks), Locke's *Second Treatise* (9) and others use literally. `_COMMON_TITLE_TOKENS` (#168) already guards the single-ordinary-token case; nothing generalizes it to a multi-token phrase. Not fixed here — `named_passages` has only 3 entries and does not yet need a general guard, so the specific label stays unseeded rather than the mechanism being built for one row. |
-| 7 | ruff reformat tranches | #136 | todo | Last, deliberately — see batch 7. |
+| 7 | ruff reformat tranches | #136 | **tranche 1 landed (PR #465); tranche 2 + CI gate open** | Last, deliberately — see batch 7. Tranche split re-measured 2026-08-30 (drift had grown to 160 files; split moved from 48/21 to 52/21). |
 | 8 | PR-gate tooling | ~~#320~~, ~~#321~~, ~~#322~~, ~~#330~~, ~~#331~~ | **landed** | **Groups with nothing in batches 1–7** — it is the harness those batches are worked *with*, not a defect in the corpus. A tollgate, like batch 0, and numbered 8 rather than `N-bis` for that reason: no batch above it found it. **#322 landed as PR #441** (2026-08-29): five hooks in `.claude/settings.json` — a commit-hazard warning for the #176 closing-keyword shape, an automatic `check-pr-link` run after `gh pr create`, and a staleness gate reproducing #254's post-check-edit failure mode. Same PR closes #337 (batch 8-quater). See batch 8. |
 | 8-bis | the gate's own blind spots | #333, ~~#334~~ | **part landed; #333 backlog** | Both found working #330/#331 as PR #332, in the file it edited. #333 is the merge-commit question that PR deliberately left unmeasured. #334 was `main()`, where the retry's only real caller sat untested — landed as PR #336, and its verdict was `CORRECTED` because one of the four risks it listed does not exist. Neither touches the DB or the coverage gate. |
 | 8-quinquies | a guard satisfied by commented-out source | ~~#349~~ | **landed (PR #429)** | Found working #342 as PR #347, and grouped **by theme rather than by file** — it is in `web/tests/`, not `scripts/`, but it is the 8-series question ("does this gate check what it claims?") rather than a frontend defect. `routeConstruction.test.ts` decides reachability by regex over source text with no comment stripping, so commenting out the one line that navigates to a route keeps it green — measured, on the case PR #347 added. One-directional: the reachability half can pass on dead code, the hash-drift half can only over-report. |
@@ -2269,6 +2269,25 @@ One caveat to state in the PR: file-level coverage ≥80% is a strong
 predictor, not a guarantee. Sonar measures the *changed lines*, and a
 well-covered file's reformatted lines could still be its uncovered ones.
 `check-diff-coverage` settles it per tranche before pushing.
+
+**Tranche 1 landed 2026-08-30 as PR #465.** Re-measured from scratch
+against `main` rather than reused from the 2026-08-08 numbers above, per
+this section's own instruction — the drift had grown again, to **160
+files** (73 `src/`, 87 `tests/`), and the 48/21 split had moved to
+**52/21**: several files crossed 80% since filing (`lemmatize.py`
+22.7%→74%, most `authors/*_works.py` modules 0%→100%), a couple stayed
+just under (`cli/terms/lemmatize.py` 68.4%→79%, `reader/queries.py`
+78.7%→79%), and three `corpus/split_*.py` scripts crossed into tranche 1
+that weren't named as examples before. Tranche 1 is exactly the 52
+`src/` files at ≥80% plus all 87 `tests/` files; `check-diff-coverage`
+against `origin/main` landed at 89.7% (gate ≥80%) — the predicted-not-
+guaranteed caveat above did materialize on six individually-≥80% files
+(a handful of their own reformatted lines sit on uncovered branches),
+but not enough to threaten the aggregate. The two codegen-owned files
+stayed excluded (verified via empty `git diff --stat`), and the
+`ruff format --check` CI gate still isn't added — 21 files remain.
+**Tranche 2 (21 files) and the CI gate are still open** and need a
+follow-up once those files carry more coverage.
 
 ---
 

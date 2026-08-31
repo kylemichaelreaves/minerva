@@ -21,12 +21,9 @@ def _write_pyproject(tmp_path: Path, omit: list[str]) -> Path:
     items = ",\n    ".join(f'"{o}"' for o in omit)
     path = tmp_path / "pyproject.toml"
     path.write_text(
-        "[tool.coverage.run]\n"
-        'source = ["src/minerva"]\n'
-        f"omit = [\n    {items}\n]\n" if omit else
-        "[tool.coverage.run]\n"
-        'source = ["src/minerva"]\n'
-        "omit = []\n"
+        f'[tool.coverage.run]\nsource = ["src/minerva"]\nomit = [\n    {items}\n]\n'
+        if omit
+        else '[tool.coverage.run]\nsource = ["src/minerva"]\nomit = []\n'
     )
     return path
 
@@ -34,7 +31,11 @@ def _write_pyproject(tmp_path: Path, omit: list[str]) -> Path:
 def _write_sonar_properties(tmp_path: Path, exclusions: list[str]) -> Path:
     path = tmp_path / "sonar-project.properties"
     body = ",\\\n  ".join(exclusions)
-    path.write_text(f"sonar.coverage.exclusions=\\\n  {body}\n" if exclusions else "sonar.coverage.exclusions=\n")
+    path.write_text(
+        f"sonar.coverage.exclusions=\\\n  {body}\n"
+        if exclusions
+        else "sonar.coverage.exclusions=\n"
+    )
     return path
 
 
@@ -75,11 +76,7 @@ def test_entries_outside_src_minerva_are_irrelevant(tmp_path: Path):
     sonar = _write_sonar_properties(
         tmp_path, ["scripts/**", "perseus/**", "web/src/**/*.stories.tsx"]
     )
-    excl = {
-        e
-        for e in cce.sonar_coverage_exclusions(sonar)
-        if e.startswith("src/minerva/")
-    }
+    excl = {e for e in cce.sonar_coverage_exclusions(sonar) if e.startswith("src/minerva/")}
     assert excl == set()
 
 

@@ -70,9 +70,7 @@ def test_alias_follows_the_work_across_an_id_reshuffle(db: Path, tmp_path: Path)
     reproduce it."""
 
     conn = store.open_db(db)
-    before = conn.execute(
-        "SELECT work_id FROM work_aliases"
-    ).fetchone()[0]
+    before = conn.execute("SELECT work_id FROM work_aliases").fetchone()[0]
     conn.close()
 
     jsonl2 = tmp_path / "seed2.jsonl"

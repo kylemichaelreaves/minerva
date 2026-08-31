@@ -76,9 +76,7 @@ def test_cross_references_survive_index_reset(tmp_path: Path):
 
     conn = store.open_db(db)
     _seed_xref(conn, source_chunk_id="src", target_chunk_id="tgt")
-    old_edition_id = conn.execute(
-        "SELECT source_edition_id FROM cross_references"
-    ).fetchone()[0]
+    old_edition_id = conn.execute("SELECT source_edition_id FROM cross_references").fetchone()[0]
     assert old_edition_id is not None
     conn.close()
 
@@ -98,16 +96,17 @@ def test_cross_references_survive_index_reset(tmp_path: Path):
     assert status == "approved"  # curation survives
     # Rebound to a LIVE edition id (the surrogate may or may not have
     # the same integer value; what matters is that it resolves).
-    live = conn.execute(
-        "SELECT edition_id FROM chunks WHERE chunk_id = 'src'"
-    ).fetchone()[0]
+    live = conn.execute("SELECT edition_id FROM chunks WHERE chunk_id = 'src'").fetchone()[0]
     assert new_edition_id == live
     # reference_targets came back too (alongside the ~20 out-of-corpus
     # targets a fresh open_db seeds via migrations).
-    assert conn.execute(
-        "SELECT COUNT(*) FROM reference_targets "
-        "WHERE canonical_author = 'Plato' AND canonical_work = 'Republic'"
-    ).fetchone()[0] == 1
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM reference_targets "
+            "WHERE canonical_author = 'Plato' AND canonical_work = 'Republic'"
+        ).fetchone()[0]
+        == 1
+    )
     bad = conn.execute("PRAGMA foreign_key_check(cross_references)").fetchall()
     assert bad == [], f"FK violations after reset: {bad}"
 
@@ -156,9 +155,7 @@ def test_reference_targets_survive_reset_with_zero_xrefs(tmp_path: Path):
     # The 0012 seeds come back alongside it rather than being doubled or
     # displaced: the snapshot's version of the table replaces the freshly
     # migrated one wholesale.
-    assert conn.execute(
-        "SELECT COUNT(*) FROM reference_targets"
-    ).fetchone()[0] == seeded
+    assert conn.execute("SELECT COUNT(*) FROM reference_targets").fetchone()[0] == seeded
     conn.close()
 
 
@@ -199,9 +196,7 @@ def test_in_corpus_work_id_survives_works_id_reassignment(tmp_path: Path):
     ).fetchone()[0]
     # Create the target the way the refs builder does — ensure_target
     # snapshots the current works.id into in_corpus_work_id.
-    target = refs_schema.ensure_target(
-        conn, canonical_author="Plato", canonical_work="Republic"
-    )
+    target = refs_schema.ensure_target(conn, canonical_author="Plato", canonical_work="Republic")
     conn.commit()
     assert target.in_corpus_work_id == republic_id
     # Hang an xref off it, so this stays the production shape — targets
@@ -211,9 +206,7 @@ def test_in_corpus_work_id_survives_works_id_reassignment(tmp_path: Path):
     # xref the test failed on that gate rather than on the stale
     # `in_corpus_work_id` it is about. The targets-only path now has its
     # own test above.
-    ed_id = conn.execute(
-        "SELECT edition_id FROM chunks WHERE chunk_id = 'law'"
-    ).fetchone()[0]
+    ed_id = conn.execute("SELECT edition_id FROM chunks WHERE chunk_id = 'law'").fetchone()[0]
     conn.execute(
         "INSERT INTO cross_references ("
         "  source_chunk_id, target_id, reference_type, confidence, "
@@ -278,21 +271,16 @@ def test_rebind_reference_targets_is_a_noop_when_already_correct(tmp_path: Path)
     _run_index(db, jsonl, reset=False)
 
     conn = store.open_db(db)
-    refs_schema.ensure_target(
-        conn, canonical_author="Plato", canonical_work="Republic"
-    )
+    refs_schema.ensure_target(conn, canonical_author="Plato", canonical_work="Republic")
     # An out-of-corpus target: canonical_work matches no works row, so it
     # must stay NULL rather than being churned to a value or back.
-    refs_schema.ensure_target(
-        conn, canonical_author="Plotinus", canonical_work="Enneads"
-    )
+    refs_schema.ensure_target(conn, canonical_author="Plotinus", canonical_work="Enneads")
     conn.commit()
 
     assert store_chunks._rebind_reference_targets(conn) == 0
 
     stayed_null = conn.execute(
-        "SELECT in_corpus_work_id FROM reference_targets "
-        "WHERE canonical_author = 'Plotinus'"
+        "SELECT in_corpus_work_id FROM reference_targets WHERE canonical_author = 'Plotinus'"
     ).fetchone()[0]
     assert stayed_null is None
     conn.close()
@@ -308,9 +296,7 @@ def test_rebind_reference_targets_nulls_a_work_that_left_the_corpus(tmp_path: Pa
     _run_index(db, jsonl, reset=False)
 
     conn = store.open_db(db)
-    target = refs_schema.ensure_target(
-        conn, canonical_author="Plato", canonical_work="Republic"
-    )
+    target = refs_schema.ensure_target(conn, canonical_author="Plato", canonical_work="Republic")
     conn.commit()
     assert target.in_corpus_work_id is not None
 
@@ -318,10 +304,12 @@ def test_rebind_reference_targets_nulls_a_work_that_left_the_corpus(tmp_path: Pa
     # canonicalization does.
     conn.execute("UPDATE works SET title = 'Politeia' WHERE title = 'Republic'")
     assert store_chunks._rebind_reference_targets(conn) == 1
-    assert conn.execute(
-        "SELECT in_corpus_work_id FROM reference_targets "
-        "WHERE canonical_work = 'Republic'"
-    ).fetchone()[0] is None
+    assert (
+        conn.execute(
+            "SELECT in_corpus_work_id FROM reference_targets WHERE canonical_work = 'Republic'"
+        ).fetchone()[0]
+        is None
+    )
     conn.close()
 
 
@@ -343,20 +331,15 @@ def test_assert_reference_targets_resolve_raises_on_wrong_work(tmp_path: Path):
     _run_index(db, jsonl, reset=False)
 
     conn = store.open_db(db)
-    refs_schema.ensure_target(
-        conn, canonical_author="Plato", canonical_work="Republic"
-    )
-    laws_id = conn.execute(
-        "SELECT id FROM works WHERE title = 'Laws'"
-    ).fetchone()[0]
+    refs_schema.ensure_target(conn, canonical_author="Plato", canonical_work="Republic")
+    laws_id = conn.execute("SELECT id FROM works WHERE title = 'Laws'").fetchone()[0]
     # Consistent state passes.
     store_chunks._assert_reference_targets_resolve(conn)
 
     # Point the Republic target at Laws — a real works row, so
     # foreign_key_check still sees nothing wrong.
     conn.execute(
-        "UPDATE reference_targets SET in_corpus_work_id = ? "
-        "WHERE canonical_work = 'Republic'",
+        "UPDATE reference_targets SET in_corpus_work_id = ? WHERE canonical_work = 'Republic'",
         (laws_id,),
     )
     conn.commit()
@@ -391,9 +374,7 @@ def test_xref_source_orphans_dropped_target_orphans_nulled(tmp_path: Path):
     _seed_xref(conn, source_chunk_id="src-stays", target_chunk_id="tgt-goes")
     # Second xref whose source chunk will vanish. Vary the shadow key
     # so the UNIQUE constraint doesn't collide.
-    ed_id = conn.execute(
-        "SELECT edition_id FROM chunks WHERE chunk_id = 'src-goes'"
-    ).fetchone()[0]
+    ed_id = conn.execute("SELECT edition_id FROM chunks WHERE chunk_id = 'src-goes'").fetchone()[0]
     conn.execute(
         "INSERT INTO cross_references ("
         "  source_chunk_id, target_id, reference_type, source_edition_id, "
@@ -419,9 +400,7 @@ def test_xref_source_orphans_dropped_target_orphans_nulled(tmp_path: Path):
     _run_index(db, jsonl2, reset=True)
 
     conn = store.open_db(db)
-    rows = conn.execute(
-        "SELECT source_chunk_id, target_chunk_id FROM cross_references"
-    ).fetchall()
+    rows = conn.execute("SELECT source_chunk_id, target_chunk_id FROM cross_references").fetchall()
     assert [(r[0], r[1]) for r in rows] == [("src-stays", None)], (
         f"expected src-goes dropped and tgt-goes NULL'd, got {rows!r}"
     )
@@ -451,9 +430,7 @@ def test_from_ingest_only_scopes_incremental_index(tmp_path: Path):
     import sqlite3
 
     conn = sqlite3.connect(db)
-    conn.execute(
-        "INSERT OR REPLACE INTO meta(key, value) VALUES('ingest.only', 'plato')"
-    )
+    conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('ingest.only', 'plato')")
     conn.commit()
     conn.close()
 
@@ -480,7 +457,5 @@ def test_from_ingest_only_scopes_incremental_index(tmp_path: Path):
     assert rc == 0
 
     conn = store.open_db(db)
-    ids = sorted(
-        r[0] for r in conn.execute("SELECT chunk_id FROM chunks").fetchall()
-    )
+    ids = sorted(r[0] for r in conn.execute("SELECT chunk_id FROM chunks").fetchall())
     assert ids == ["h1", "p2"], f"incremental scope wrong: {ids!r}"

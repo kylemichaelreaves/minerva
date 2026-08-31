@@ -60,9 +60,7 @@ def plain_window(
     return window
 
 
-def _window_bounds(
-    text: str, start: int, end: int, radius: int
-) -> tuple[int, int, str, str, str]:
+def _window_bounds(text: str, start: int, end: int, radius: int) -> tuple[int, int, str, str, str]:
     lo = max(0, start - radius)
     hi = min(len(text), end + radius)
     before = " ".join(text[lo:start].split())
@@ -98,9 +96,7 @@ def build_mark_snippet(
     }
 
 
-def build_kwic(
-    text: str, start: int, end: int, radius: int
-) -> dict[str, str]:
+def build_kwic(text: str, start: int, end: int, radius: int) -> dict[str, str]:
     """Return left / match / right KWIC columns with truncation ellipses."""
 
     if start < 0 or end < start or end > len(text):

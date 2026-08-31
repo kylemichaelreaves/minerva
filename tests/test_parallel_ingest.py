@@ -109,7 +109,7 @@ def test_overlay_shards_replaces_touched_corpora_wholesale(tmp_path: Path):
 
     total, touched, counts = _overlay_shards([shard], output)
     assert touched == 2  # new chunks added
-    assert total == 3    # hegel-1 + new-b1 + new-b2
+    assert total == 3  # hegel-1 + new-b1 + new-b2
 
     rows = [json.loads(line) for line in output.read_text().splitlines() if line]
     ids = {r["chunk_id"] for r in rows}
@@ -122,9 +122,7 @@ def test_overlay_shards_first_time_writes_fresh(tmp_path: Path):
 
     output = tmp_path / "fresh.jsonl"
     shard = tmp_path / "s.jsonl"
-    shard.write_text(
-        json.dumps({"chunk_id": "x", "corpus": "plato", "lang": "eng"}) + "\n"
-    )
+    shard.write_text(json.dumps({"chunk_id": "x", "corpus": "plato", "lang": "eng"}) + "\n")
     total, touched, counts = _overlay_shards([shard], output)
     assert total == 1 and touched == 1
     assert counts == {"plato/eng": 1}

@@ -38,7 +38,11 @@ def parse_window_params(
     lang = query.get("lang", default_lang)
     from_ord = parse_int_param(query, "from", 0, lo=0)
     limit = parse_int_param(
-        query, "limit", default_limit, lo=1, hi=max_limit,
+        query,
+        "limit",
+        default_limit,
+        lo=1,
+        hi=max_limit,
     )
     return WindowParams(from_ord=from_ord, limit=limit, lang=lang)
 
@@ -53,7 +57,11 @@ def parse_limit_only(
     ``from`` / ``around`` handling."""
 
     return parse_int_param(
-        query, "limit", default_limit, lo=1, hi=max_limit,
+        query,
+        "limit",
+        default_limit,
+        lo=1,
+        hi=max_limit,
     )
 
 

@@ -41,8 +41,7 @@ class TestChunksByCorpusLangCache:
         # count path: if the second call actually re-ran the GROUP BY
         # query it would see this row and disagree with `first`.
         populated_db.execute(
-            "UPDATE chunks SET lang = 'zzz' WHERE chunk_id = "
-            "(SELECT chunk_id FROM chunks LIMIT 1)"
+            "UPDATE chunks SET lang = 'zzz' WHERE chunk_id = (SELECT chunk_id FROM chunks LIMIT 1)"
         )
         populated_db.commit()
 
@@ -54,8 +53,7 @@ class TestChunksByCorpusLangCache:
         before_total = get_meta(populated_db, _STATS_CACHE_TOTAL_KEY)
 
         populated_db.execute(
-            "DELETE FROM chunks WHERE chunk_id = "
-            "(SELECT chunk_id FROM chunks LIMIT 1)"
+            "DELETE FROM chunks WHERE chunk_id = (SELECT chunk_id FROM chunks LIMIT 1)"
         )
         populated_db.commit()
 
@@ -64,9 +62,7 @@ class TestChunksByCorpusLangCache:
         assert get_meta(populated_db, _STATS_CACHE_TOTAL_KEY) != before_total
         assert get_meta(populated_db, _STATS_CACHE_TOTAL_KEY) == "5"
 
-    def test_a_read_only_connection_still_answers_without_caching(
-        self, populated_db
-    ):
+    def test_a_read_only_connection_still_answers_without_caching(self, populated_db):
         populated_db.execute("PRAGMA query_only = ON")
         result = _chunks_by_corpus_lang_cached(populated_db)
         assert isinstance(result, list)

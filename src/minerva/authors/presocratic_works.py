@@ -37,27 +37,25 @@ from ..corpus_works import CorpusWork
 # 1912 numbers verified against the TOC in the OCR source.
 # Modern DK numbers are from Kranz 1951 (universal scholarly standard).
 _PHASE_1: tuple[tuple[int, int, str, str], ...] = (
-    (1,  11, "THALES",       "Thales"),
-    (2,  12, "ANAXIMANDROS", "Anaximander"),
-    (3,  13, "ANAXIMENES",   "Anaximenes"),
-    (4,  14, "PYTHAGORAS",   "Pythagoras"),
-    (11, 21, "XENOPHANES",   "Xenophanes"),
-    (12, 22, "HERAKLEITOS",  "Heraclitus"),
-    (18, 28, "PARMENIDES",   "Parmenides"),
-    (19, 29, "ZENON",        "Zeno of Elea"),
-    (20, 30, "MELISSOS",     "Melissus"),
-    (21, 31, "EMPEDOKLES",   "Empedocles"),
-    (46, 59, "ANAXAGORAS",   "Anaxagoras"),
-    (51, 64, "DIOGENES",     "Diogenes of Apollonia"),
+    (1, 11, "THALES", "Thales"),
+    (2, 12, "ANAXIMANDROS", "Anaximander"),
+    (3, 13, "ANAXIMENES", "Anaximenes"),
+    (4, 14, "PYTHAGORAS", "Pythagoras"),
+    (11, 21, "XENOPHANES", "Xenophanes"),
+    (12, 22, "HERAKLEITOS", "Heraclitus"),
+    (18, 28, "PARMENIDES", "Parmenides"),
+    (19, 29, "ZENON", "Zeno of Elea"),
+    (20, 30, "MELISSOS", "Melissus"),
+    (21, 31, "EMPEDOKLES", "Empedocles"),
+    (46, 59, "ANAXAGORAS", "Anaxagoras"),
+    (51, 64, "DIOGENES", "Diogenes of Apollonia"),
 )
 
 
 _SOURCE_FILE = "diefragmentederv12diel_hocr_searchtext.txt"
 
 
-def _make_corpuswork(
-    entry: tuple[int, int, str, str], lang: str
-) -> CorpusWork:
+def _make_corpuswork(entry: tuple[int, int, str, str], lang: str) -> CorpusWork:
     _, dk_mod, _, canonical = entry
     return CorpusWork(
         code=f"dk_{dk_mod}_{lang}",
@@ -83,12 +81,8 @@ WORKS: tuple[CorpusWork, ...] = tuple(
 # integers (e.g., 32→92, 38→98), so the parser's primary key is the
 # uppercase source name — but it'll cross-check the integer when the
 # OCR got it right.
-_BY_SOURCE_NAME: dict[str, tuple[int, int, str, str]] = {
-    e[2]: e for e in _PHASE_1
-}
-_BY_1912_CHAPTER: dict[int, tuple[int, int, str, str]] = {
-    e[0]: e for e in _PHASE_1
-}
+_BY_SOURCE_NAME: dict[str, tuple[int, int, str, str]] = {e[2]: e for e in _PHASE_1}
+_BY_1912_CHAPTER: dict[int, tuple[int, int, str, str]] = {e[0]: e for e in _PHASE_1}
 
 
 def find_by_chapter_heading(

@@ -25,9 +25,7 @@ def _chunk_obj(**overrides) -> tei.Chunk:
     (``citation_system`` was added later than the test fixture, etc.)."""
 
     d = make_chunk(**overrides)
-    kwargs = {
-        k: d[k] for k in tei.Chunk.__dataclass_fields__ if k in d
-    }
+    kwargs = {k: d[k] for k in tei.Chunk.__dataclass_fields__ if k in d}
     return tei.Chunk(**kwargs)
 
 

@@ -47,12 +47,9 @@ def chunks_fts_trigger_drops() -> tuple[str, ...]:
 def chunks_fts_trigger_creates(*, if_not_exists: bool = False) -> tuple[str, ...]:
     kw = "IF NOT EXISTS " if if_not_exists else ""
     return (
-        f"CREATE TRIGGER {kw}chunks_ai AFTER INSERT ON chunks BEGIN\n"
-        f"{_CHUNKS_AI_BODY}\nEND;",
-        f"CREATE TRIGGER {kw}chunks_ad AFTER DELETE ON chunks BEGIN\n"
-        f"{_CHUNKS_AD_BODY}\nEND;",
-        f"CREATE TRIGGER {kw}chunks_au AFTER UPDATE ON chunks BEGIN\n"
-        f"{_CHUNKS_AU_BODY}\nEND;",
+        f"CREATE TRIGGER {kw}chunks_ai AFTER INSERT ON chunks BEGIN\n{_CHUNKS_AI_BODY}\nEND;",
+        f"CREATE TRIGGER {kw}chunks_ad AFTER DELETE ON chunks BEGIN\n{_CHUNKS_AD_BODY}\nEND;",
+        f"CREATE TRIGGER {kw}chunks_au AFTER UPDATE ON chunks BEGIN\n{_CHUNKS_AU_BODY}\nEND;",
     )
 
 

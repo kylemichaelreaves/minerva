@@ -105,9 +105,7 @@ def test_writes_an_embedding_row_for_every_pending_chunk(tmp_path, embedder, cap
     assert "Done." in out
 
 
-def test_batch_size_controls_how_many_texts_reach_the_encoder_at_once(
-    tmp_path, embedder, capsys
-):
+def test_batch_size_controls_how_many_texts_reach_the_encoder_at_once(tmp_path, embedder, capsys):
     db = _seed(tmp_path, 5)
 
     assert embed_cmd.cmd_embed(_args(db, batch_size=2)) == 0
@@ -127,9 +125,7 @@ def test_encode_batch_size_is_passed_through_to_the_encoder(tmp_path, embedder, 
     assert embedder.encode_batch_sizes == [8]
 
 
-def test_periodic_commit_fires_and_prints_progress_every_ten_batches(
-    tmp_path, embedder, capsys
-):
+def test_periodic_commit_fires_and_prints_progress_every_ten_batches(tmp_path, embedder, capsys):
     """`commit_every = 10` is expressed as `(written // batch) % 10 == 0`,
     so at batch=1 the branch fires on the 10th and 20th row. Twelve rows
     reach it once — the only shape short of 640 chunks that does."""
@@ -145,9 +141,7 @@ def test_periodic_commit_fires_and_prints_progress_every_ten_batches(
     assert len(_embedded_ids(db)) == 12
 
 
-def test_every_row_is_committed_when_the_final_drain_is_empty(
-    tmp_path, embedder, capsys
-):
+def test_every_row_is_committed_when_the_final_drain_is_empty(tmp_path, embedder, capsys):
     """Regression: `total` an exact multiple of `batch` lost the tail.
 
     Every row is flushed inside the loop, so `pending` is empty at the

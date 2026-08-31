@@ -19,9 +19,7 @@ def test_full_ingest_clears_stale_ingest_only_meta(tmp_path: Path, monkeypatch):
     jsonl.write_text(json.dumps(make_chunk(chunk_id="p1")) + "\n")
 
     conn = store.open_db(db)
-    conn.execute(
-        "INSERT OR REPLACE INTO meta(key, value) VALUES('ingest.only', 'plato')"
-    )
+    conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('ingest.only', 'plato')")
     conn.commit()
     conn.close()
 
@@ -46,9 +44,7 @@ def test_full_ingest_clears_stale_ingest_only_meta(tmp_path: Path, monkeypatch):
     assert rc == 0
 
     conn = store.open_db(db)
-    row = conn.execute(
-        "SELECT value FROM meta WHERE key='ingest.only'"
-    ).fetchone()
+    row = conn.execute("SELECT value FROM meta WHERE key='ingest.only'").fetchone()
     assert row is None
 
 
@@ -78,8 +74,6 @@ def test_partial_ingest_records_ingest_only_meta(tmp_path: Path, monkeypatch):
     assert rc == 0
 
     conn = store.open_db(db)
-    row = conn.execute(
-        "SELECT value FROM meta WHERE key='ingest.only'"
-    ).fetchone()
+    row = conn.execute("SELECT value FROM meta WHERE key='ingest.only'").fetchone()
     assert row is not None
     assert row[0] == "plato"

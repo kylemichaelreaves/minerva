@@ -64,7 +64,11 @@ def work_references_map(
     status_sql, status_params = status_clause(statuses, min_conf)
 
     chunk_ids = fetch_chunk_ids_in_window(
-        conn, work_id, window.lang, window.from_ord, window.limit,
+        conn,
+        work_id,
+        window.lang,
+        window.from_ord,
+        window.limit,
     )
     if not chunk_ids:
         return empty_window_response(work_id, window)

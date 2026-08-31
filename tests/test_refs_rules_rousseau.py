@@ -34,9 +34,7 @@ def _candidates_for(text: str, **kw: object) -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
     for rule in RULES:
         for cand in rule.scan(chunk):
-            out.append(
-                (rule.name, cand.target_author, cand.source_form_snapshot)
-            )
+            out.append((rule.name, cand.target_author, cand.source_form_snapshot))
     return out
 
 
@@ -46,23 +44,16 @@ def _candidates_for(text: str, **kw: object) -> list[tuple[str, str, str]]:
 
 
 class TestRousseauRules:
-
     def test_hobbes_named(self) -> None:
-        cands = _candidates_for(
-            "Hobbes a fondé sa théorie sur cette même supposition"
-        )
+        cands = _candidates_for("Hobbes a fondé sa théorie sur cette même supposition")
         assert any(c[1] == "Hobbes" for c in cands)
 
     def test_grotius_strong_mention(self) -> None:
-        cands = _candidates_for(
-            "Grotius soutient que les peuples peuvent s'aliéner à un roi"
-        )
+        cands = _candidates_for("Grotius soutient que les peuples peuvent s'aliéner à un roi")
         assert any(c[0] == "rousseau_grotius" and c[1] == "Grotius" for c in cands)
 
     def test_locke_named(self) -> None:
-        cands = _candidates_for(
-            "comme Locke l'a démontré dans son traité du gouvernement"
-        )
+        cands = _candidates_for("comme Locke l'a démontré dans son traité du gouvernement")
         assert any(c[1] == "Locke" for c in cands)
 
     def test_aristote_named(self) -> None:
@@ -72,27 +63,19 @@ class TestRousseauRules:
         assert any(c[1] == "Aristotle" and c[2] == "Aristote" for c in cands)
 
     def test_platon_named(self) -> None:
-        cands = _candidates_for(
-            "Platon, dans son Politique, soutient une opinion semblable"
-        )
+        cands = _candidates_for("Platon, dans son Politique, soutient une opinion semblable")
         assert any(c[1] == "Plato" and c[2] == "Platon" for c in cands)
 
     def test_pufendorf_named(self) -> None:
-        cands = _candidates_for(
-            "Pufendorf dit qu'on peut se dépouiller de sa liberté"
-        )
+        cands = _candidates_for("Pufendorf dit qu'on peut se dépouiller de sa liberté")
         assert any(c[1] == "Pufendorf" for c in cands)
 
     def test_barbeyrac_named(self) -> None:
-        cands = _candidates_for(
-            "le savant Barbeyrac a marqué dans ses notes sur Grotius"
-        )
+        cands = _candidates_for("le savant Barbeyrac a marqué dans ses notes sur Grotius")
         assert any(c[1] == "Barbeyrac" for c in cands)
 
     def test_montesquieu_named(self) -> None:
-        cands = _candidates_for(
-            "selon Montesquieu, l'esprit des lois est variable"
-        )
+        cands = _candidates_for("selon Montesquieu, l'esprit des lois est variable")
         assert any(c[1] == "Montesquieu" for c in cands)
 
 
@@ -102,7 +85,6 @@ class TestRousseauRules:
 
 
 class TestRousseauLangFiltering:
-
     def test_english_chunk_skipped(self) -> None:
         cands = _candidates_for(
             "Hobbes argued in Leviathan that the state of nature is war",
