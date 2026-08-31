@@ -38,8 +38,7 @@ def sync_named_passages(conn: sqlite3.Connection) -> int:
             continue
         work_id = int(found[0])
         rows.extend(
-            (work_id, p.label, p.section_start, p.section_end, p.tradition)
-            for p in passages
+            (work_id, p.label, p.section_start, p.section_end, p.tradition) for p in passages
         )
 
     conn.execute("DELETE FROM named_passages")

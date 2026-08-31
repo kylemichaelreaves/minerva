@@ -58,15 +58,11 @@ NAMED_PASSAGES: dict[tuple[str, str], tuple[NamedPassage, ...]] = {
     # nor in `_COMMON_TITLE_TOKENS`, and the pair together is specific
     # enough not to need that guard (`_COMMON_TITLE_TOKENS` only fires
     # for a title with exactly one significant token).
-    ("Plato", "Politeia"): (
-        NamedPassage("the divided line", "509d", "511e", "scholarly"),
-    ),
+    ("Plato", "Politeia"): (NamedPassage("the divided line", "509d", "511e", "scholarly"),),
     # Measured #182: "the slave boy" alone is absent corpus-wide;
     # "Meno's slave boy" already resolves via `title_local` today, this
     # closes the one phrasing that named neither the work nor "Meno".
-    ("Plato", "Menon"): (
-        NamedPassage("the slave boy", "82b", "85b", "scholarly"),
-    ),
+    ("Plato", "Menon"): (NamedPassage("the slave boy", "82b", "85b", "scholarly"),),
     # Measured #182: absent corpus-wide, rank 3-4 once the work
     # resolves — the third confirmed instance, and the first evidence
     # the failure generalises beyond Plato.
