@@ -48,8 +48,7 @@ def test_attempt_state_survives_reset_when_content_unchanged(tmp_path: Path):
         "VALUES ('productive', 0, 'alpha', 0, 5, 'alpha')"
     )
     conn.executemany(
-        "INSERT INTO chunk_lemma_state (chunk_id, text_hash, token_count) "
-        "VALUES (?, ?, ?)",
+        "INSERT INTO chunk_lemma_state (chunk_id, text_hash, token_count) VALUES (?, ?, ?)",
         [("productive", "hash-p", 1), ("barren", "hash-b", 0)],
     )
     conn.commit()
@@ -59,11 +58,7 @@ def test_attempt_state_survives_reset_when_content_unchanged(tmp_path: Path):
 
     conn = store.open_db(db)
     try:
-        rows = dict(
-            conn.execute(
-                "SELECT chunk_id, token_count FROM chunk_lemma_state"
-            ).fetchall()
-        )
+        rows = dict(conn.execute("SELECT chunk_id, token_count FROM chunk_lemma_state").fetchall())
         bad = conn.execute("PRAGMA foreign_key_check(chunk_lemma_state)").fetchall()
     finally:
         conn.close()
@@ -90,8 +85,7 @@ def test_attempt_state_for_a_vanished_chunk_is_swept(tmp_path: Path):
 
     conn = store.open_db(db)
     conn.executemany(
-        "INSERT INTO chunk_lemma_state (chunk_id, text_hash, token_count) "
-        "VALUES (?, ?, ?)",
+        "INSERT INTO chunk_lemma_state (chunk_id, text_hash, token_count) VALUES (?, ?, ?)",
         [("stable", "hash-s", 2), ("old_id", "hash-o", 0)],
     )
     conn.commit()

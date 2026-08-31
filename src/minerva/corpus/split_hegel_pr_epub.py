@@ -103,9 +103,7 @@ def _make_chunk(
     text = "\n\n".join(p for p in (_norm_text(t) for t in paragraphs) if p)
     if not text:
         return None
-    chunk_id = _make_chunk_id(
-        path.name, work.title, work.lang, book or "", section, "", text[:120]
-    )
+    chunk_id = _make_chunk_id(path.name, work.title, work.lang, book or "", section, "", text[:120])
     return Chunk(
         chunk_id=chunk_id,
         corpus=work.corpus,
@@ -151,8 +149,12 @@ def _flush_section(
         seen_suffix[key] = seen_suffix.get(key, 0) + 1
         section = key if seen_suffix[key] == 1 else f"{key} ({seen_suffix[key]})"
         chunk = _make_chunk(
-            work, path, section=section, book=None,
-            block_type=_BLOCK_TYPE[mode], paragraphs=run,
+            work,
+            path,
+            section=section,
+            book=None,
+            block_type=_BLOCK_TYPE[mode],
+            paragraphs=run,
         )
         if chunk is not None:
             yield chunk
@@ -221,9 +223,12 @@ def split_hegel_pr_epub(path: Path, work: CorpusWork) -> Iterator[Chunk]:
                 elif cur_front is not None:
                     front_idx += 1
                     chunk = _make_chunk(
-                        work, path,
+                        work,
+                        path,
                         section=f"{cur_front}, ¶{front_idx}",
-                        book=cur_front, block_type=None, paragraphs=[txt],
+                        book=cur_front,
+                        block_type=None,
+                        paragraphs=[txt],
                     )
                     if chunk is not None:
                         yield chunk

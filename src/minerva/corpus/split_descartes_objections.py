@@ -84,8 +84,7 @@ def split_descartes_objections(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         from ..corpus_extract import IngestDepsMissing
 
         raise IngestDepsMissing(
-            "descartes objections ingest needs beautifulsoup4 "
-            "(pip install 'minerva[hegel]')"
+            "descartes objections ingest needs beautifulsoup4 (pip install 'minerva[hegel]')"
         ) from e
 
     piece = _piece_for_path(path)

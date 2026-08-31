@@ -224,7 +224,9 @@ def test_search_readmits_apparatus_with_attribution(tmp_path: Path):
     store.insert_chunks(conn, jsonl)
 
     # The note IS retrievable again (re-admitted) on a phrase only it carries.
-    hits = retrieve.search(conn, "Socrates narrates first person", top_k=5, lang="eng", corpus="plato")
+    hits = retrieve.search(
+        conn, "Socrates narrates first person", top_k=5, lang="eng", corpus="plato"
+    )
     by_id = {h.chunk_id: h for h in hits}
     assert "note1" in by_id
     # But its citation attributes it to the translator + "editorial note",
@@ -495,7 +497,9 @@ def test_apparatus_may_not_take_more_than_a_third():
     # Republic's notes outnumber its English text 2:1 and are shorter,
     # which both halves of retrieval reward.
     ordered = [f"n{i}" for i in range(6)] + ["t0", "t1", "t2", "t3"]
-    conn = _apparatus_conn([(f"n{i}", "note") for i in range(6)] + [(f"t{i}", None) for i in range(4)])
+    conn = _apparatus_conn(
+        [(f"n{i}", "note") for i in range(6)] + [(f"t{i}", None) for i in range(4)]
+    )
     got = retrieve._cap_apparatus(conn, ordered, top_k=6)
     assert len(got) == 6
     assert sum(1 for c in got if c.startswith("n")) == 2  # 6 // 3
@@ -507,7 +511,9 @@ def test_cap_keeps_the_highest_scoring_apparatus():
     # Order is never reshuffled — the notes that survive are the two the
     # ranking liked best, not an arbitrary pair.
     ordered = ["n0", "t0", "n1", "n2", "t1"]
-    conn = _apparatus_conn([("n0", "note"), ("n1", "note"), ("n2", "cast"), ("t0", None), ("t1", None)])
+    conn = _apparatus_conn(
+        [("n0", "note"), ("n1", "note"), ("n2", "cast"), ("t0", None), ("t1", None)]
+    )
     assert retrieve._cap_apparatus(conn, ordered, top_k=3) == ["n0", "t0", "t1"]
 
 

@@ -146,9 +146,7 @@ def test_cmd_embed_closes_its_connection_on_the_empty_lang_exit(
     _assert_all_closed(opened)
 
 
-def test_cmd_refs_load_spec_closes_its_connection_on_a_missing_path(
-    seeded_index, opened, capsys
-):
+def test_cmd_refs_load_spec_closes_its_connection_on_a_missing_path(seeded_index, opened, capsys):
     """The `path does not exist` guard returns 2 from inside the loop,
     well after `_open` — a `close()` at the end of the body misses it."""
 

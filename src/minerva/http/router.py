@@ -132,8 +132,16 @@ def build_get_routes(
         ),
         (_REVIEW_QUEUE_PATH, "review queue", lambda: _handle_review_queue(deps, qs())),
         (_NETWORK_SUMMARY_PATH, "network summary", lambda: _handle_network_summary(deps, qs())),
-        (_CONCORDANCE_INDEX_PATH, "concordance index", lambda: _handle_concordance_index(deps, qs())),
-        (_CONCORDANCE_LEMMA_PATH, "concordance lemma", lambda: _handle_concordance_lemma(deps, qs())),
+        (
+            _CONCORDANCE_INDEX_PATH,
+            "concordance index",
+            lambda: _handle_concordance_index(deps, qs()),
+        ),
+        (
+            _CONCORDANCE_LEMMA_PATH,
+            "concordance lemma",
+            lambda: _handle_concordance_lemma(deps, qs()),
+        ),
         (
             _TERMS_BY_CHUNK_RE,
             "terms-by-chunk",
@@ -180,9 +188,7 @@ def build_post_routes(deps: ServerDeps) -> tuple[Route, ...]:
         (
             _CHUNK_SYNTAX_CORRECTIONS_RE,
             "syntax correction create",
-            lambda m, payload: _handle_syntax_correction_create(
-                deps, unquote(m.group(1)), payload
-            ),
+            lambda m, payload: _handle_syntax_correction_create(deps, unquote(m.group(1)), payload),
         ),
     )
 

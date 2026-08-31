@@ -82,10 +82,7 @@ class TestVoidTagsDoNotStrandTheSkipDepth:
         assert "REAL TEXT" in p.paragraphs
 
     def test_many_bare_void_tags_do_not_accumulate(self):
-        html = (
-            '<div class="chrome"><br><br><img><input>junk</div>'
-            "<p>FIRST</p><p>SECOND</p>"
-        )
+        html = '<div class="chrome"><br><br><img><input>junk</div><p>FIRST</p><p>SECOND</p>'
         assert _extract(html, skip_class_tokens={"chrome"}) == ["FIRST", "SECOND"]
 
 
@@ -108,9 +105,7 @@ class TestUnbalancedEndTagsDoNotEndTheSkipEarly:
         assert _extract(html, skip_id_tokens={"wm-ipp-base"}) == ["REAL"]
 
     def test_several_stray_end_tags_do_not_accumulate(self):
-        html = (
-            '<div id="wm-ipp-base">a</form>b</table>c</tr></div><p>REAL</p>'
-        )
+        html = '<div id="wm-ipp-base">a</form>b</table>c</tr></div><p>REAL</p>'
         assert _extract(html, skip_id_tokens={"wm-ipp-base"}) == ["REAL"]
 
     def test_unclosed_children_do_not_outlive_their_skipped_parent(self):
@@ -121,9 +116,7 @@ class TestUnbalancedEndTagsDoNotEndTheSkipEarly:
         assert _extract(html, skip_class_tokens={"chrome"}) == ["REAL"]
 
     def test_the_innermost_element_of_a_name_is_the_one_closed(self):
-        html = (
-            '<div class="chrome"><div>inner</div>still chrome</div><p>REAL</p>'
-        )
+        html = '<div class="chrome"><div>inner</div>still chrome</div><p>REAL</p>'
         assert _extract(html, skip_class_tokens={"chrome"}) == ["REAL"]
 
     def test_a_stray_end_tag_outside_any_skip_still_breaks_a_paragraph(self):
@@ -149,14 +142,8 @@ class TestSkipByIdToken:
         assert _extract(html, skip_id_tokens={"wm-ipp"}) == ["REAL TEXT"]
 
     def test_id_and_class_sets_compose(self):
-        html = (
-            '<div id="wm-ipp">TOOLBAR</div>'
-            '<p class="toplink">BREADCRUMB</p>'
-            "<p>REAL TEXT</p>"
-        )
-        got = _extract(
-            html, skip_class_tokens={"toplink"}, skip_id_tokens={"wm-ipp"}
-        )
+        html = '<div id="wm-ipp">TOOLBAR</div><p class="toplink">BREADCRUMB</p><p>REAL TEXT</p>'
+        got = _extract(html, skip_class_tokens={"toplink"}, skip_id_tokens={"wm-ipp"})
         assert got == ["REAL TEXT"]
 
     def test_id_set_alone_enables_the_attribute_aware_path(self):

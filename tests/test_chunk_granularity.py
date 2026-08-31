@@ -73,9 +73,7 @@ def _add_work(
     as_translation: bool = False,
     citation_system: str = "paragraph",
 ) -> None:
-    conn.execute(
-        "INSERT INTO works VALUES (?, ?, ?, ?)", (work_id, author, title, citation_system)
-    )
+    conn.execute("INSERT INTO works VALUES (?, ?, ?, ?)", (work_id, author, title, citation_system))
     table = "translations" if as_translation else "editions"
     conn.execute(f"INSERT INTO {table} VALUES (?, ?)", (work_id, work_id))
     for i, n in enumerate(lengths):
@@ -136,9 +134,7 @@ def test_measure_reaches_chunks_on_the_translation_side(conn, manifest):
     `translation_id`; a measurement joining only editions would report a
     translated work as having no chunks at all."""
 
-    _add_work(
-        conn, 1, "Hegel", "Encyclopaedia", lang="eng", lengths=[66265], as_translation=True
-    )
+    _add_work(conn, 1, "Hegel", "Encyclopaedia", lang="eng", lengths=[66265], as_translation=True)
     got = cg.measure(conn, cg.granularity_policy(manifest))
     assert got["Hegel|Encyclopaedia|eng"]["max"] == 66265
 
@@ -413,8 +409,9 @@ def test_verse_addressed_works_are_exempt_from_the_floor(conn, manifest):
     same signal means a new scripture edition is exempt the day it is
     ingested, with no second list to remember (#268)."""
 
-    _add_work(conn, 1, "Quran", "An-Nas", lang="ara", lengths=[26, 27, 25],
-              citation_system="surah_ayah")
+    _add_work(
+        conn, 1, "Quran", "An-Nas", lang="ara", lengths=[26, 27, 25], citation_system="surah_ayah"
+    )
     _add_work(conn, 2, "Bible", "Genesis", lang="heb", lengths=[30, 28], citation_system="bcv")
     assert cg.measure(conn, cg.granularity_policy(manifest)) == {}
 

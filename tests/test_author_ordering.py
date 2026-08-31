@@ -57,9 +57,8 @@ def test_canonical_chronological_sequence() -> None:
         "Hegel",
     ]
     keys = [author_sort_key(a) for a in sequence]
-    assert keys == sorted(keys), (
-        "expected sequence to be strictly chronological; got "
-        + repr(list(zip(sequence, keys, strict=True)))
+    assert keys == sorted(keys), "expected sequence to be strictly chronological; got " + repr(
+        list(zip(sequence, keys, strict=True))
     )
 
 

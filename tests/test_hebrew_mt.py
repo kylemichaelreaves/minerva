@@ -132,11 +132,7 @@ def test_all_books_have_bcv_alignment() -> None:
     # Every Hebrew MT book name must resolve in BCV_BOOK_ORDINAL —
     # that's the cross-corpus alignment contract that makes the
     # LXX ↔ MT ↔ Vulgate joins on `chunks.section` work.
-    missing = [
-        b.english
-        for b in hebrew_mt_works.BOOKS
-        if b.english not in BCV_BOOK_ORDINAL
-    ]
+    missing = [b.english for b in hebrew_mt_works.BOOKS if b.english not in BCV_BOOK_ORDINAL]
     assert missing == [], (
         f"hebrew_mt_works references books absent from BCV_BOOK_ORDINAL: "
         f"{missing} (add to locations._BCV_BOOKS before ingesting)"
@@ -147,14 +143,8 @@ def test_tanakh_ordinal_covers_all_mt_books() -> None:
     # Sidebar order needs an ordinal for every MT book; verify
     # coverage so a future book add doesn't end up in the "9999"
     # fallback bucket and visually re-sort the sidebar mid-author.
-    missing = [
-        b.english
-        for b in hebrew_mt_works.BOOKS
-        if b.english not in TANAKH_BOOK_ORDINAL
-    ]
-    assert missing == [], (
-        f"hebrew_mt books absent from TANAKH_BOOK_ORDINAL: {missing}"
-    )
+    missing = [b.english for b in hebrew_mt_works.BOOKS if b.english not in TANAKH_BOOK_ORDINAL]
+    assert missing == [], f"hebrew_mt books absent from TANAKH_BOOK_ORDINAL: {missing}"
 
 
 def test_tanakh_order_torah_first() -> None:

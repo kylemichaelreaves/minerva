@@ -43,8 +43,7 @@ def _seed_xref(
     source_form_snapshot: str | None,
 ) -> int:
     cur = conn.execute(
-        "INSERT INTO reference_targets (canonical_author, canonical_work) "
-        "VALUES ('Plato', ?)",
+        "INSERT INTO reference_targets (canonical_author, canonical_work) VALUES ('Plato', ?)",
         (f"Republic ({source_chunk_id}-{span_start}-{span_end}-{source_form_snapshot})",),
     )
     target_id = cur.lastrowid
@@ -63,7 +62,9 @@ def test_a_clean_span_is_not_stale(tmp_path: Path):
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)])
     conn = store.open_db(db)
     try:
-        _seed_xref(conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="alpha")
+        _seed_xref(
+            conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="alpha"
+        )
         stale = rx.find_stale_xrefs(conn)
     finally:
         conn.close()
@@ -75,7 +76,10 @@ def test_a_span_past_the_end_of_the_chunk_is_stale(tmp_path: Path):
     conn = store.open_db(db)
     try:
         xid = _seed_xref(
-            conn, source_chunk_id="c1", span_start=0, span_end=len(_TEXT) + 50,
+            conn,
+            source_chunk_id="c1",
+            span_start=0,
+            span_end=len(_TEXT) + 50,
             source_form_snapshot="alpha",
         )
         stale = rx.find_stale_xrefs(conn)
@@ -93,7 +97,10 @@ def test_a_genuine_in_range_mismatch_is_stale(tmp_path: Path):
     conn = store.open_db(db)
     try:
         xid = _seed_xref(
-            conn, source_chunk_id="c1", span_start=0, span_end=5,
+            conn,
+            source_chunk_id="c1",
+            span_start=0,
+            span_end=5,
             source_form_snapshot="gamma",
         )
         stale = rx.find_stale_xrefs(conn)
@@ -131,7 +138,9 @@ def test_a_row_with_no_span_is_not_a_candidate(tmp_path: Path):
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)])
     conn = store.open_db(db)
     try:
-        _seed_xref(conn, source_chunk_id="c1", span_start=None, span_end=None, source_form_snapshot=None)
+        _seed_xref(
+            conn, source_chunk_id="c1", span_start=None, span_end=None, source_form_snapshot=None
+        )
         stale = rx.find_stale_xrefs(conn)
     finally:
         conn.close()
@@ -142,7 +151,9 @@ def test_dry_run_does_not_delete(tmp_path: Path, monkeypatch, capsys):
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)])
     conn = store.open_db(db)
     try:
-        _seed_xref(conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma")
+        _seed_xref(
+            conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma"
+        )
     finally:
         conn.close()
 
@@ -163,8 +174,12 @@ def test_execute_deletes_only_the_stale_rows(tmp_path: Path, monkeypatch):
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)])
     conn = store.open_db(db)
     try:
-        clean_id = _seed_xref(conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="alpha")
-        stale_id = _seed_xref(conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma")
+        clean_id = _seed_xref(
+            conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="alpha"
+        )
+        stale_id = _seed_xref(
+            conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma"
+        )
     finally:
         conn.close()
 
@@ -196,7 +211,9 @@ def test_execute_invalidates_refs_scan_state_for_touched_chunks(tmp_path: Path, 
     db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="grc", text=_TEXT)])
     conn = store.open_db(db)
     try:
-        _seed_xref(conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma")
+        _seed_xref(
+            conn, source_chunk_id="c1", span_start=0, span_end=5, source_form_snapshot="gamma"
+        )
         # A scan_state row whose hash matches c1's *current* text — the
         # "nothing has changed since we scanned" case #459 measured on
         # the live Aristotle rows, not a chunk whose text actually moved.

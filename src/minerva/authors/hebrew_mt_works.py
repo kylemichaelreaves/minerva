@@ -45,12 +45,12 @@ class _MTBook:
     user sees both the romanization and the cross-corpus English id.
     """
 
-    osis_filename: str             # OSHB filename (Gen.xml, 1Sam.xml, …)
-    osis_id: str                    # osisID prefix on each verse (Gen, 1Sam, …)
-    english: str                    # canonical BCV book name (Genesis, 1 Samuel, …)
-    hebrew_script: str              # Hebrew script title (בראשית, שמות, …)
-    hebrew_transliterated: str      # Latin-script transliteration (Bereshit, …)
-    section: str                    # Tanakh canon section: torah | neviim | ketuvim
+    osis_filename: str  # OSHB filename (Gen.xml, 1Sam.xml, …)
+    osis_id: str  # osisID prefix on each verse (Gen, 1Sam, …)
+    english: str  # canonical BCV book name (Genesis, 1 Samuel, …)
+    hebrew_script: str  # Hebrew script title (בראשית, שמות, …)
+    hebrew_transliterated: str  # Latin-script transliteration (Bereshit, …)
+    section: str  # Tanakh canon section: torah | neviim | ketuvim
 
 
 # 39 books in Tanakh canonical order: Torah → Nevi'im (Former, then
@@ -61,50 +61,50 @@ class _MTBook:
 # themselves.
 _BOOKS: tuple[_MTBook, ...] = (
     # ───────── Torah (Pentateuch) ─────────
-    _MTBook("Gen.xml",  "Gen",  "Genesis",      "בראשית",    "Bereshit",  "torah"),
-    _MTBook("Exod.xml", "Exod", "Exodus",       "שמות",      "Shemot",    "torah"),
-    _MTBook("Lev.xml",  "Lev",  "Leviticus",    "ויקרא",     "Vayikra",   "torah"),
-    _MTBook("Num.xml",  "Num",  "Numbers",      "במדבר",     "Bamidbar",  "torah"),
-    _MTBook("Deut.xml", "Deut", "Deuteronomy",  "דברים",     "Devarim",   "torah"),
+    _MTBook("Gen.xml", "Gen", "Genesis", "בראשית", "Bereshit", "torah"),
+    _MTBook("Exod.xml", "Exod", "Exodus", "שמות", "Shemot", "torah"),
+    _MTBook("Lev.xml", "Lev", "Leviticus", "ויקרא", "Vayikra", "torah"),
+    _MTBook("Num.xml", "Num", "Numbers", "במדבר", "Bamidbar", "torah"),
+    _MTBook("Deut.xml", "Deut", "Deuteronomy", "דברים", "Devarim", "torah"),
     # ───────── Nevi'im — Former Prophets ─────────
-    _MTBook("Josh.xml", "Josh", "Joshua",       "יהושע",     "Yehoshua",  "neviim"),
-    _MTBook("Judg.xml", "Judg", "Judges",       "שופטים",    "Shofetim",  "neviim"),
-    _MTBook("1Sam.xml", "1Sam", "1 Samuel",     "שמואל א",   "Shmuel I",  "neviim"),
-    _MTBook("2Sam.xml", "2Sam", "2 Samuel",     "שמואל ב",   "Shmuel II", "neviim"),
-    _MTBook("1Kgs.xml", "1Kgs", "1 Kings",      "מלכים א",   "Melakhim I","neviim"),
-    _MTBook("2Kgs.xml", "2Kgs", "2 Kings",      "מלכים ב",   "Melakhim II","neviim"),
+    _MTBook("Josh.xml", "Josh", "Joshua", "יהושע", "Yehoshua", "neviim"),
+    _MTBook("Judg.xml", "Judg", "Judges", "שופטים", "Shofetim", "neviim"),
+    _MTBook("1Sam.xml", "1Sam", "1 Samuel", "שמואל א", "Shmuel I", "neviim"),
+    _MTBook("2Sam.xml", "2Sam", "2 Samuel", "שמואל ב", "Shmuel II", "neviim"),
+    _MTBook("1Kgs.xml", "1Kgs", "1 Kings", "מלכים א", "Melakhim I", "neviim"),
+    _MTBook("2Kgs.xml", "2Kgs", "2 Kings", "מלכים ב", "Melakhim II", "neviim"),
     # ───────── Nevi'im — Latter Prophets (Major) ─────────
-    _MTBook("Isa.xml",  "Isa",  "Isaiah",       "ישעיה",     "Yeshayahu", "neviim"),
-    _MTBook("Jer.xml",  "Jer",  "Jeremiah",     "ירמיה",     "Yirmeyahu", "neviim"),
-    _MTBook("Ezek.xml", "Ezek", "Ezekiel",      "יחזקאל",    "Yechezkel", "neviim"),
+    _MTBook("Isa.xml", "Isa", "Isaiah", "ישעיה", "Yeshayahu", "neviim"),
+    _MTBook("Jer.xml", "Jer", "Jeremiah", "ירמיה", "Yirmeyahu", "neviim"),
+    _MTBook("Ezek.xml", "Ezek", "Ezekiel", "יחזקאל", "Yechezkel", "neviim"),
     # ───────── Nevi'im — The Twelve (Latter Minor) ─────────
-    _MTBook("Hos.xml",  "Hos",  "Hosea",        "הושע",      "Hoshea",    "neviim"),
-    _MTBook("Joel.xml", "Joel", "Joel",         "יואל",      "Yoel",      "neviim"),
-    _MTBook("Amos.xml", "Amos", "Amos",         "עמוס",      "Amos",      "neviim"),
-    _MTBook("Obad.xml", "Obad", "Obadiah",      "עבדיה",     "Ovadyah",   "neviim"),
-    _MTBook("Jonah.xml","Jonah","Jonah",        "יונה",      "Yonah",     "neviim"),
-    _MTBook("Mic.xml",  "Mic",  "Micah",        "מיכה",      "Mikhah",    "neviim"),
-    _MTBook("Nah.xml",  "Nah",  "Nahum",        "נחום",      "Nachum",    "neviim"),
-    _MTBook("Hab.xml",  "Hab",  "Habakkuk",     "חבקוק",     "Chavakuk",  "neviim"),
-    _MTBook("Zeph.xml", "Zeph", "Zephaniah",    "צפניה",     "Tzefanyah", "neviim"),
-    _MTBook("Hag.xml",  "Hag",  "Haggai",       "חגי",       "Chaggai",   "neviim"),
-    _MTBook("Zech.xml", "Zech", "Zechariah",    "זכריה",     "Zekharyah", "neviim"),
-    _MTBook("Mal.xml",  "Mal",  "Malachi",      "מלאכי",     "Malakhi",   "neviim"),
+    _MTBook("Hos.xml", "Hos", "Hosea", "הושע", "Hoshea", "neviim"),
+    _MTBook("Joel.xml", "Joel", "Joel", "יואל", "Yoel", "neviim"),
+    _MTBook("Amos.xml", "Amos", "Amos", "עמוס", "Amos", "neviim"),
+    _MTBook("Obad.xml", "Obad", "Obadiah", "עבדיה", "Ovadyah", "neviim"),
+    _MTBook("Jonah.xml", "Jonah", "Jonah", "יונה", "Yonah", "neviim"),
+    _MTBook("Mic.xml", "Mic", "Micah", "מיכה", "Mikhah", "neviim"),
+    _MTBook("Nah.xml", "Nah", "Nahum", "נחום", "Nachum", "neviim"),
+    _MTBook("Hab.xml", "Hab", "Habakkuk", "חבקוק", "Chavakuk", "neviim"),
+    _MTBook("Zeph.xml", "Zeph", "Zephaniah", "צפניה", "Tzefanyah", "neviim"),
+    _MTBook("Hag.xml", "Hag", "Haggai", "חגי", "Chaggai", "neviim"),
+    _MTBook("Zech.xml", "Zech", "Zechariah", "זכריה", "Zekharyah", "neviim"),
+    _MTBook("Mal.xml", "Mal", "Malachi", "מלאכי", "Malakhi", "neviim"),
     # ───────── Ketuvim — Poetic ─────────
-    _MTBook("Ps.xml",   "Ps",   "Psalms",       "תהלים",     "Tehillim",  "ketuvim"),
-    _MTBook("Prov.xml", "Prov", "Proverbs",     "משלי",      "Mishlei",   "ketuvim"),
-    _MTBook("Job.xml",  "Job",  "Job",          "איוב",      "Iyov",      "ketuvim"),
+    _MTBook("Ps.xml", "Ps", "Psalms", "תהלים", "Tehillim", "ketuvim"),
+    _MTBook("Prov.xml", "Prov", "Proverbs", "משלי", "Mishlei", "ketuvim"),
+    _MTBook("Job.xml", "Job", "Job", "איוב", "Iyov", "ketuvim"),
     # ───────── Ketuvim — Five Megillot ─────────
-    _MTBook("Song.xml", "Song", "Song of Songs","שיר השירים", "Shir haShirim", "ketuvim"),
-    _MTBook("Ruth.xml", "Ruth", "Ruth",         "רות",       "Ruth",      "ketuvim"),
-    _MTBook("Lam.xml",  "Lam",  "Lamentations", "איכה",      "Eikhah",    "ketuvim"),
-    _MTBook("Eccl.xml", "Eccl", "Ecclesiastes", "קהלת",      "Kohelet",   "ketuvim"),
-    _MTBook("Esth.xml", "Esth", "Esther",       "אסתר",      "Esther",    "ketuvim"),
+    _MTBook("Song.xml", "Song", "Song of Songs", "שיר השירים", "Shir haShirim", "ketuvim"),
+    _MTBook("Ruth.xml", "Ruth", "Ruth", "רות", "Ruth", "ketuvim"),
+    _MTBook("Lam.xml", "Lam", "Lamentations", "איכה", "Eikhah", "ketuvim"),
+    _MTBook("Eccl.xml", "Eccl", "Ecclesiastes", "קהלת", "Kohelet", "ketuvim"),
+    _MTBook("Esth.xml", "Esth", "Esther", "אסתר", "Esther", "ketuvim"),
     # ───────── Ketuvim — Later Books ─────────
-    _MTBook("Dan.xml",  "Dan",  "Daniel",       "דניאל",     "Daniel",    "ketuvim"),
-    _MTBook("Ezra.xml", "Ezra", "Ezra",         "עזרא",      "Ezra",      "ketuvim"),
-    _MTBook("Neh.xml",  "Neh",  "Nehemiah",     "נחמיה",     "Nechemyah", "ketuvim"),
-    _MTBook("1Chr.xml", "1Chr", "1 Chronicles", "דברי הימים א", "Divrei haYamim I",  "ketuvim"),
+    _MTBook("Dan.xml", "Dan", "Daniel", "דניאל", "Daniel", "ketuvim"),
+    _MTBook("Ezra.xml", "Ezra", "Ezra", "עזרא", "Ezra", "ketuvim"),
+    _MTBook("Neh.xml", "Neh", "Nehemiah", "נחמיה", "Nechemyah", "ketuvim"),
+    _MTBook("1Chr.xml", "1Chr", "1 Chronicles", "דברי הימים א", "Divrei haYamim I", "ketuvim"),
     _MTBook("2Chr.xml", "2Chr", "2 Chronicles", "דברי הימים ב", "Divrei haYamim II", "ketuvim"),
 )
 

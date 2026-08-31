@@ -131,8 +131,23 @@ class TestValidation:
     def test_every_ud_tag_is_accepted(self) -> None:
         # The closed 17. If this list ever needs an entry, UD changed.
         for tag in (
-            "ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN", "NUM",
-            "PART", "PRON", "PROPN", "PUNCT", "SCONJ", "SYM", "VERB", "X",
+            "ADJ",
+            "ADP",
+            "ADV",
+            "AUX",
+            "CCONJ",
+            "DET",
+            "INTJ",
+            "NOUN",
+            "NUM",
+            "PART",
+            "PRON",
+            "PROPN",
+            "PUNCT",
+            "SCONJ",
+            "SYM",
+            "VERB",
+            "X",
         ):
             assert v.validate_upos(tag) is None, tag
 
@@ -157,8 +172,12 @@ class TestReplay:
             tokens,
             [
                 q.Correction(
-                    id=1, sent_ord=0, tok_id=1, kind="upos",
-                    from_val="DET", to_val="PRON",
+                    id=1,
+                    sent_ord=0,
+                    tok_id=1,
+                    kind="upos",
+                    from_val="DET",
+                    to_val="PRON",
                 )
             ],
         )
@@ -186,10 +205,10 @@ class TestReplay:
         out = q.materialise(
             fake_tokens(),
             [
-                q.Correction(id=1, sent_ord=0, tok_id=2, kind="upos",
-                             from_val="NOUN", to_val="PROPN"),
-                q.Correction(id=2, sent_ord=0, tok_id=2, kind="head",
-                             from_val="3", to_val="0"),
+                q.Correction(
+                    id=1, sent_ord=0, tok_id=2, kind="upos", from_val="NOUN", to_val="PROPN"
+                ),
+                q.Correction(id=2, sent_ord=0, tok_id=2, kind="head", from_val="3", to_val="0"),
             ],
         )
 

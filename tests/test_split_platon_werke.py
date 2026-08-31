@@ -44,9 +44,7 @@ def test_emit_sections_reconstructs_stephanus():
         "[C]\nEin Prozess, sagst du? "
         "[3 St.1 A]\nEin ganz neuer."
     )
-    chunks = list(
-        _emit_sections(body, work_title="Euthyphron", source_file="Platon_Werke.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Euthyphron", source_file="Platon_Werke.pdf"))
     locs = [c.section for c in chunks]
     assert locs == ["2a", "2b", "2c", "3a"]
     first = chunks[0]
@@ -67,9 +65,7 @@ def test_emit_sections_reconstructs_stephanus():
 def test_emit_sections_newline_split_marker():
     # markers broken across a line break (the PDF's text layer does this)
     body = "[2 \nSt.1 A]\nHallo Welt. [B]\nmehr Text."
-    chunks = list(
-        _emit_sections(body, work_title="Kriton", source_file="x.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Kriton", source_file="x.pdf"))
     assert [c.section for c in chunks] == ["2a", "2b"]
 
 
@@ -93,9 +89,7 @@ def test_single_book_dialogue_has_no_book():
     Greek and English sides store for it too."""
 
     body = "[2 St.1 A]\nWas hat sich ereignet? [B]\nDenn du pflegst doch."
-    chunks = list(
-        _emit_sections(body, work_title="Euthyphron", source_file="x.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Euthyphron", source_file="x.pdf"))
     assert [c.book for c in chunks] == [None, None]
 
 
@@ -106,9 +100,7 @@ def test_book_headings_stamp_and_are_stripped_from_prose():
         "Zweites Buch vom Staate.\n"
         "[357 St.2 A]\nAls ich dies gesagt hatte."
     )
-    chunks = list(
-        _emit_sections(body, work_title="Politeia", source_file="x.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Politeia", source_file="x.pdf"))
     by_section = {c.section: c for c in chunks}
     assert by_section["327a"].book == "1"
     # The heading sits inside 327b's segment, closing book 1 — the section
@@ -140,8 +132,7 @@ def test_politeia_chunks_carry_the_translator_of_their_own_book():
         for i, (ordinal, page) in enumerate(zip(ordinals, pages, strict=True))
     )
     by_section = {
-        c.section: c
-        for c in _emit_sections(body, work_title="Politeia", source_file="x.pdf")
+        c.section: c for c in _emit_sections(body, work_title="Politeia", source_file="x.pdf")
     }
 
     assert by_section["449a"].book == "5"
@@ -173,9 +164,7 @@ def test_table_of_contents_lines_are_not_book_boundaries():
         "Erstes Buch vom Staate.\n"
         "[327 St.2 A]\nIch ging gestern hinab."
     )
-    chunks = list(
-        _emit_sections(body, work_title="Politeia", source_file="x.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Politeia", source_file="x.pdf"))
     assert [c.book for c in chunks] == ["1"]
 
 
@@ -189,9 +178,7 @@ def test_repeated_heading_does_not_advance_the_book():
         "Erstes Buch vom Staate.\n"
         "[328 St.2 A]\nUnd wir gingen hinab."
     )
-    chunks = list(
-        _emit_sections(body, work_title="Politeia", source_file="x.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Politeia", source_file="x.pdf"))
     assert [c.book for c in chunks] == ["1", "1"]
 
 
@@ -205,7 +192,5 @@ def test_nomoi_heading_form_is_recognized():
         "ZWEITES BUCH ÜBER DIE GESETZE\n"
         "[652 St.2 A]\nWas nun folgt."
     )
-    chunks = list(
-        _emit_sections(body, work_title="Nomoi", source_file="x.pdf")
-    )
+    chunks = list(_emit_sections(body, work_title="Nomoi", source_file="x.pdf"))
     assert [(c.section, c.book) for c in chunks] == [("624a", "1"), ("652a", "2")]

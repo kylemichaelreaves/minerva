@@ -26,6 +26,7 @@ def download_mod():
     sys.path.insert(0, str(perseus_dir))
     try:
         import _download  # type: ignore
+
         yield _download
     finally:
         sys.path.remove(str(perseus_dir))
@@ -47,12 +48,10 @@ def test_rate_limiter_separates_same_host_calls(download_mod):
     elapsed_other = time.monotonic() - t1
 
     assert elapsed_same >= 0.045, (
-        f"second same-host acquire returned in {elapsed_same:.3f}s; "
-        "expected at least min_interval"
+        f"second same-host acquire returned in {elapsed_same:.3f}s; expected at least min_interval"
     )
     assert elapsed_other < 0.02, (
-        f"different-host acquire blocked for {elapsed_other:.3f}s; "
-        "limiters should be per-host"
+        f"different-host acquire blocked for {elapsed_other:.3f}s; limiters should be per-host"
     )
 
 
@@ -81,9 +80,7 @@ def test_fetch_parallel_preserves_input_order(monkeypatch, download_mod):
 def test_fetch_with_retry_decodes(monkeypatch, download_mod):
     """``fetch_with_retry`` is a thin decode wrapper over bytes fetch."""
 
-    monkeypatch.setattr(
-        download_mod, "fetch_bytes_with_retry", lambda url, **kw: b"hello"
-    )
+    monkeypatch.setattr(download_mod, "fetch_bytes_with_retry", lambda url, **kw: b"hello")
     assert download_mod.fetch_with_retry("http://x", encoding="utf-8") == "hello"
 
 
@@ -148,13 +145,9 @@ def test_fetch_bytes_rejects_small_body(monkeypatch, download_mod):
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(
-        download_mod.urllib.request, "urlopen", lambda req, timeout: FakeResp()
-    )
+    monkeypatch.setattr(download_mod.urllib.request, "urlopen", lambda req, timeout: FakeResp())
     with pytest.raises(RuntimeError, match="too small"):
-        download_mod.fetch_bytes_with_retry(
-            "http://example.test/x", retries=1, min_bytes=100
-        )
+        download_mod.fetch_bytes_with_retry("http://example.test/x", retries=1, min_bytes=100)
 
 
 def test_fetch_bytes_rejects_marker(monkeypatch, download_mod):
@@ -170,9 +163,7 @@ def test_fetch_bytes_rejects_marker(monkeypatch, download_mod):
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(
-        download_mod.urllib.request, "urlopen", lambda req, timeout: FakeResp()
-    )
+    monkeypatch.setattr(download_mod.urllib.request, "urlopen", lambda req, timeout: FakeResp())
     with pytest.raises(RuntimeError, match="rejected"):
         download_mod.fetch_bytes_with_retry(
             "http://example.test/x",

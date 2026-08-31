@@ -396,9 +396,7 @@ def _vector_search(
         # metadata arrays. Without it the two halves of hybrid retrieval
         # disagree about which chunks exist, which is worse than either
         # policy alone.
-        keep &= (meta.text_lens >= min_chunk_chars) | np.isin(
-            meta.work_ids, _verse_work_ids(conn)
-        )
+        keep &= (meta.text_lens >= min_chunk_chars) | np.isin(meta.work_ids, _verse_work_ids(conn))
     if work_id is not None:
         keep &= meta.work_ids == work_id
     if not keep.any():

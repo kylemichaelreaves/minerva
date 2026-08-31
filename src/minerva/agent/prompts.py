@@ -57,4 +57,3 @@ def _compose_messages(
         *(history or []),
         llm.Message(role="user", content=user_block),
     ]
-

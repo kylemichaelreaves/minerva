@@ -116,7 +116,9 @@ def test_vulgate_daniel_includes_chapter_13_susanna() -> None:
     )
     sections = {c.section for c in chunks}
     assert "Dan 13:1" in sections, "Susanna missing — Vulgate Daniel must run through ch. 13"
-    assert "Dan 14:1" in sections, "Bel & the Dragon missing — Vulgate Daniel must run through ch. 14"
+    assert "Dan 14:1" in sections, (
+        "Bel & the Dragon missing — Vulgate Daniel must run through ch. 14"
+    )
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -262,10 +264,7 @@ def test_sblgnt_john_1_1() -> None:
     assert first.lang == "grc"
     assert first.citation_system == "bcv"
     # The exact verse: spacing between words is the regression target.
-    assert first.text == (
-        "Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν, "
-        "καὶ θεὸς ἦν ὁ λόγος."
-    )
+    assert first.text == ("Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν, καὶ θεὸς ἦν ὁ λόγος.")
 
 
 @pytest.mark.skipif(

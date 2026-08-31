@@ -22,14 +22,12 @@ def _seed_auto_xref(
         "SELECT edition_id FROM chunks WHERE chunk_id = ?", (source_chunk_id,)
     ).fetchone()[0]
     row = conn.execute(
-        "SELECT id FROM reference_targets "
-        "WHERE canonical_author = ? AND canonical_work = ?",
+        "SELECT id FROM reference_targets WHERE canonical_author = ? AND canonical_work = ?",
         (target_author, target_work),
     ).fetchone()
     if row is None:
         cur = conn.execute(
-            "INSERT INTO reference_targets (canonical_author, canonical_work) "
-            "VALUES (?, ?)",
+            "INSERT INTO reference_targets (canonical_author, canonical_work) VALUES (?, ?)",
             (target_author, target_work),
         )
         target_id = cur.lastrowid
@@ -105,9 +103,12 @@ def test_refs_review_quit_leaves_remaining_auto(tmp_path, review_db, db_path):
         rc = cmd_refs_review(args)
 
     assert rc == 0
-    assert review_db.execute(
-        "SELECT COUNT(*) FROM cross_references WHERE curator_status='auto'"
-    ).fetchone()[0] == 3
+    assert (
+        review_db.execute(
+            "SELECT COUNT(*) FROM cross_references WHERE curator_status='auto'"
+        ).fetchone()[0]
+        == 3
+    )
 
 
 def test_review_labels_the_matched_form_as_wider_than_the_highlight(capsys):

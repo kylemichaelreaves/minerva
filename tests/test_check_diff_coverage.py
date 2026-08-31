@@ -103,11 +103,7 @@ class TestWebReader:
 
     def test_folds_brda_records_into_condition_coverage(self, tmp_path):
         lcov = tmp_path / "lcov.info"
-        lcov.write_text(
-            "TN:\nSF:src/x.ts\nDA:5,2\n"
-            "BRDA:5,0,0,2\nBRDA:5,0,1,-\n"
-            "end_of_record\n"
-        )
+        lcov.write_text("TN:\nSF:src/x.ts\nDA:5,2\nBRDA:5,0,0,2\nBRDA:5,0,1,-\nend_of_record\n")
 
         _hits, cond = cdc.read_web_lcov(lcov)["web/src/x.ts"][5]
         assert cond == "50% (1/2)"
@@ -183,10 +179,10 @@ class TestRefValidation:
     @pytest.mark.parametrize(
         "ref",
         [
-            "--output=/tmp/pwned",   # the actual vector: git reads it as an option
+            "--output=/tmp/pwned",  # the actual vector: git reads it as an option
             "-U9",
             "--exec=sh",
-            "main;rm -rf /",         # no shell is used, but shape-refuse anyway
+            "main;rm -rf /",  # no shell is used, but shape-refuse anyway
             "main branch",
             "$(whoami)",
             "`id`",

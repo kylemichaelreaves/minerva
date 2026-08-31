@@ -181,24 +181,53 @@ BCV_ABBR_TO_BOOK: dict[str, str] = {abbr: name for name, _ordinal, abbr in _BCV_
 # appendices) are simply absent from this table.
 _TANAKH_BOOKS: tuple[str, ...] = (
     # Torah
-    "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy",
+    "Genesis",
+    "Exodus",
+    "Leviticus",
+    "Numbers",
+    "Deuteronomy",
     # Nevi'im — Former Prophets
-    "Joshua", "Judges", "1 Samuel", "2 Samuel", "1 Kings", "2 Kings",
+    "Joshua",
+    "Judges",
+    "1 Samuel",
+    "2 Samuel",
+    "1 Kings",
+    "2 Kings",
     # Nevi'im — Latter Prophets (Major)
-    "Isaiah", "Jeremiah", "Ezekiel",
+    "Isaiah",
+    "Jeremiah",
+    "Ezekiel",
     # Nevi'im — The Twelve (Latter Minor)
-    "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah",
-    "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+    "Hosea",
+    "Joel",
+    "Amos",
+    "Obadiah",
+    "Jonah",
+    "Micah",
+    "Nahum",
+    "Habakkuk",
+    "Zephaniah",
+    "Haggai",
+    "Zechariah",
+    "Malachi",
     # Ketuvim — Poetic
-    "Psalms", "Proverbs", "Job",
+    "Psalms",
+    "Proverbs",
+    "Job",
     # Ketuvim — Five Megillot
-    "Song of Songs", "Ruth", "Lamentations", "Ecclesiastes", "Esther",
+    "Song of Songs",
+    "Ruth",
+    "Lamentations",
+    "Ecclesiastes",
+    "Esther",
     # Ketuvim — Later books
-    "Daniel", "Ezra", "Nehemiah", "1 Chronicles", "2 Chronicles",
+    "Daniel",
+    "Ezra",
+    "Nehemiah",
+    "1 Chronicles",
+    "2 Chronicles",
 )
-TANAKH_BOOK_ORDINAL: dict[str, int] = {
-    name: i for i, name in enumerate(_TANAKH_BOOKS, start=1)
-}
+TANAKH_BOOK_ORDINAL: dict[str, int] = {name: i for i, name in enumerate(_TANAKH_BOOKS, start=1)}
 
 
 # ---------- per-kind formatters ----------
@@ -262,9 +291,7 @@ def _surah_ayah(p: dict[str, Any]) -> str:
     ayah = _require_int(p, "ayah", minimum=0, maximum=300)
     suffix = p.get("ayah_suffix") or ""
     if suffix and not isinstance(suffix, str):
-        raise LocationError(
-            f"surah_ayah ayah_suffix must be a string, got {type(suffix).__name__}"
-        )
+        raise LocationError(f"surah_ayah ayah_suffix must be a string, got {type(suffix).__name__}")
     return f"Q{surah:03d}{ayah:04d}{suffix}"
 
 
@@ -282,16 +309,13 @@ def _bcv(p: dict[str, Any]) -> str:
     ordinal = BCV_BOOK_ORDINAL.get(book)
     if ordinal is None:
         raise LocationError(
-            f"bcv book {book!r} not in canonical table; "
-            f"valid books: {sorted(BCV_BOOK_ORDINAL)}"
+            f"bcv book {book!r} not in canonical table; valid books: {sorted(BCV_BOOK_ORDINAL)}"
         )
     chapter = _require_int(p, "chapter", minimum=0, maximum=200)
     verse = _require_int(p, "verse", minimum=0, maximum=300)
     suffix = p.get("verse_suffix") or ""
     if suffix and not isinstance(suffix, str):
-        raise LocationError(
-            f"bcv verse_suffix must be a string, got {type(suffix).__name__}"
-        )
+        raise LocationError(f"bcv verse_suffix must be a string, got {type(suffix).__name__}")
     return f"V{ordinal:03d}{chapter:04d}{verse:04d}{suffix}"
 
 
@@ -323,9 +347,7 @@ _PARAGRAPH_RE = re.compile(r"^\s*([§¶])\s*(\d+)([a-z]?)\s*$")
 # bcv section strings: "Gen 1:1", "1Cor 13:4", "Esth A:1". The book
 # token is alphanumeric (digits may prefix or suffix); chapter:verse
 # is two integers with an optional alpha verse suffix.
-_BCV_SECTION_RE = re.compile(
-    r"^\s*([1-4]?[A-Za-z]+)\s+(\d+)\s*:\s*(\d+)([a-z]?)\s*$"
-)
+_BCV_SECTION_RE = re.compile(r"^\s*([1-4]?[A-Za-z]+)\s+(\d+)\s*:\s*(\d+)([a-z]?)\s*$")
 # surah_ayah section strings: "Q 2:255", "2:255", "Surah 2:255". An
 # optional Q/Quran/Surah prefix is accepted because Arabic-philosophy
 # citations to the Quran are conventionally written "Q 2:255" — the
@@ -391,16 +413,13 @@ def parse_section(kind: str, section: str) -> dict[str, Any]:
         m = _SURAH_AYAH_SECTION_RE.match(section)
         if m is None:
             raise LocationError(
-                f"can't parse {section!r} as surah_ayah "
-                "(expected '2:255' or 'Q 2:255')"
+                f"can't parse {section!r} as surah_ayah (expected '2:255' or 'Q 2:255')"
             )
         return {
             "kind": "surah_ayah",
             "surah": int(m.group(1)),
             "ayah": int(m.group(2)),
-            **(
-                {"ayah_suffix": m.group(3)} if m.group(3) else {}
-            ),
+            **({"ayah_suffix": m.group(3)} if m.group(3) else {}),
         }
 
     if kind == "bcv":

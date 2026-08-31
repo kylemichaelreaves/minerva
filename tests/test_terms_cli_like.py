@@ -40,8 +40,7 @@ def terms_db(tmp_path: Path) -> Path:
         ],
     )
     conn.executemany(
-        "INSERT INTO works (author, title, original_language, citation_system) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT INTO works (author, title, original_language, citation_system) VALUES (?, ?, ?, ?)",
         [
             ("Hegel", "Phänomenologie des Geistes", "deu", "paragraph"),
             ("Plato", "Politeia", "grc", "stephanus"),

@@ -130,9 +130,7 @@ def _print_row(row: sqlite3.Row, ordinal: int) -> None:
     )
     print(sep)
     src_loc = (
-        f"{row['source_work']}  {_dim(row['source_section'] or '')}"
-        if row["source_work"]
-        else "?"
+        f"{row['source_work']}  {_dim(row['source_section'] or '')}" if row["source_work"] else "?"
     )
     print(f"source : {src_loc}")
     print(
@@ -176,13 +174,17 @@ def _prompt() -> str:
     exits cleanly without leaving an uncommitted transaction."""
 
     try:
-        raw = input(
-            f"\n{_accent('[a]')}pprove  "
-            f"{_accent('[r]')}eject  "
-            f"{_accent('[s]')}kip  "
-            f"{_accent('[q]')}uit  "
-            f"› "
-        ).strip().lower()
+        raw = (
+            input(
+                f"\n{_accent('[a]')}pprove  "
+                f"{_accent('[r]')}eject  "
+                f"{_accent('[s]')}kip  "
+                f"{_accent('[q]')}uit  "
+                f"› "
+            )
+            .strip()
+            .lower()
+        )
     except EOFError:
         return "q"
     if not raw:

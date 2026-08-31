@@ -64,18 +64,14 @@ def test_insert_chunks_commits_on_clean_load(tmp_path: Path):
 
 
 def test_fetch_chunk_context_unknown_id(populated_db):
-    focus, before, after = store.fetch_chunk_context(
-        populated_db, "missing", radius=1
-    )
+    focus, before, after = store.fetch_chunk_context(populated_db, "missing", radius=1)
     assert focus is None
     assert before == []
     assert after == []
 
 
 def test_fetch_chunk_context_radius_zero(populated_db):
-    focus, before, after = store.fetch_chunk_context(
-        populated_db, "rep-510a", radius=0
-    )
+    focus, before, after = store.fetch_chunk_context(populated_db, "rep-510a", radius=0)
     assert focus is not None
     assert focus["chunk_id"] == "rep-510a"
     assert before == []
@@ -83,9 +79,7 @@ def test_fetch_chunk_context_radius_zero(populated_db):
 
 
 def test_fetch_chunk_context_neighbors_ordered(populated_db):
-    focus, before, after = store.fetch_chunk_context(
-        populated_db, "rep-510a", radius=1
-    )
+    focus, before, after = store.fetch_chunk_context(populated_db, "rep-510a", radius=1)
     assert focus["chunk_id"] == "rep-510a"
     assert len(before) == 1
     assert before[0]["chunk_id"] == "rep-509d"

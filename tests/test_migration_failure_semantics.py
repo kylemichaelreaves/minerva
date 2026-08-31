@@ -50,8 +50,7 @@ def test_sql_migration_failure_rolls_back_completely(tmp_path: Path, monkeypatch
 
     bad = _probe_entry(
         9900,
-        "CREATE TABLE probe_ok (x INTEGER);\n"
-        "INSERT INTO no_such_table VALUES (1);\n",
+        "CREATE TABLE probe_ok (x INTEGER);\nINSERT INTO no_such_table VALUES (1);\n",
     )
     monkeypatch.setattr(migrations, "_discover", lambda: [*real_entries, bad])
     with pytest.raises(sqlite3.OperationalError):

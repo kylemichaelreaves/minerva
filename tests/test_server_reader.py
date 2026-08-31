@@ -230,9 +230,7 @@ def test_handle_translate_refusal_is_not_cached(populated_db, translations_conn)
 
     backend = StubBackend(reply="The source passage seems incomplete.")
     deps = _make_deps(populated_db, backend, translations_conn=translations_conn)
-    body = server._handle_translate(
-        deps, {"source_text": "Μῆνιν ἄειδε θεὰ", "target_lang": "eng"}
-    )
+    body = server._handle_translate(deps, {"source_text": "Μῆνιν ἄειδε θεὰ", "target_lang": "eng"})
     assert body["translated_text"] == ""
     assert body["cached"] is False
     row = translations_conn.execute(
@@ -243,8 +241,6 @@ def test_handle_translate_refusal_is_not_cached(populated_db, translations_conn)
 
     # The model recovers → next request retries and lands a real row.
     backend.reply = "Sing, goddess, the wrath"
-    body = server._handle_translate(
-        deps, {"source_text": "Μῆνιν ἄειδε θεὰ", "target_lang": "eng"}
-    )
+    body = server._handle_translate(deps, {"source_text": "Μῆνιν ἄειδε θεὰ", "target_lang": "eng"})
     assert body["translated_text"] == "Sing, goddess, the wrath"
     assert body["cached"] is False

@@ -66,14 +66,14 @@ _BOOKS: tuple[_LXXBook, ...] = (
     _LXXBook("joshua", "Joshua", "tlg006"),
     _LXXBook("judges", "Judges", "tlg008"),
     _LXXBook("ruth", "Ruth", "tlg010"),
-    _LXXBook("1samuel", "1 Samuel", "tlg011"),     # Regnorum I
-    _LXXBook("2samuel", "2 Samuel", "tlg012"),     # Regnorum II
-    _LXXBook("1kings", "1 Kings", "tlg013"),       # Regnorum III
-    _LXXBook("2kings", "2 Kings", "tlg014"),       # Regnorum IV
+    _LXXBook("1samuel", "1 Samuel", "tlg011"),  # Regnorum I
+    _LXXBook("2samuel", "2 Samuel", "tlg012"),  # Regnorum II
+    _LXXBook("1kings", "1 Kings", "tlg013"),  # Regnorum III
+    _LXXBook("2kings", "2 Kings", "tlg014"),  # Regnorum IV
     _LXXBook("1chronicles", "1 Chronicles", "tlg015"),  # Paralipomenon I
     _LXXBook("2chronicles", "2 Chronicles", "tlg016"),  # Paralipomenon II
     _LXXBook("ezra_nehemiah", "Ezra-Nehemiah", "tlg018"),  # Esdras II = Ezra+Neh
-    _LXXBook("esther", "Esther", "tlg019"),        # Greek Esther w/ additions
+    _LXXBook("esther", "Esther", "tlg019"),  # Greek Esther w/ additions
     _LXXBook("judith", "Judith", "tlg020"),
     _LXXBook("tobit", "Tobit", "tlg021"),
     _LXXBook("1maccabees", "1 Maccabees", "tlg023"),
@@ -95,8 +95,8 @@ _BOOKS: tuple[_LXXBook, ...] = (
     _LXXBook("lamentations", "Lamentations", "tlg051"),
     _LXXBook("letter_of_jeremiah", "Letter of Jeremiah", "tlg052"),
     _LXXBook("ezekiel", "Ezekiel", "tlg053"),
-    _LXXBook("daniel", "Daniel", "tlg057"),        # Theodotion recension
-    _LXXBook("susanna", "Susanna", "tlg055"),      # Theodotion (Dan 13 in Vg)
+    _LXXBook("daniel", "Daniel", "tlg057"),  # Theodotion recension
+    _LXXBook("susanna", "Susanna", "tlg055"),  # Theodotion (Dan 13 in Vg)
     _LXXBook("bel", "Bel and the Dragon", "tlg059"),  # Theodotion (Dan 14 in Vg)
     # ----- Minor prophets (LXX printing order, but stored canonically) -----
     _LXXBook("hosea", "Hosea", "tlg036"),

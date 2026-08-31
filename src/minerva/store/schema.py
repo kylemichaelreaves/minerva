@@ -9,9 +9,7 @@ from .. import migrations
 from ..sqlite_util import open_sqlite, register_text_hash
 from .ddl import CHUNKS_FTS_NORM_CREATE, chunks_fts_trigger_creates
 
-_CHUNKS_FTS_TRIGGERS = "\n\n".join(
-    chunks_fts_trigger_creates(if_not_exists=True)
-) + "\n\n"
+_CHUNKS_FTS_TRIGGERS = "\n\n".join(chunks_fts_trigger_creates(if_not_exists=True)) + "\n\n"
 
 SCHEMA = f"""
 -- Bootstrap shape for a brand-new database. The 0003 migration may

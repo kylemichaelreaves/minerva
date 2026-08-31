@@ -42,9 +42,7 @@ class SequenceStubBackend(llm.LLMBackend):
         self.call_count = 0
         self.name = "seq-stub"
 
-    def complete(
-        self, messages: list[llm.Message], *, temperature: float = 0.2
-    ) -> str:
+    def complete(self, messages: list[llm.Message], *, temperature: float = 0.2) -> str:
         self.call_count += 1
         if not self._replies:
             raise RuntimeError("SequenceStubBackend ran out of replies")
@@ -154,7 +152,7 @@ class TestParseVerdicts:
         assert out == [{"id": 1, "references": True}]
 
     def test_fenced_json_block(self) -> None:
-        raw = "```json\n[{\"id\": 1, \"references\": false}]\n```"
+        raw = '```json\n[{"id": 1, "references": false}]\n```'
         out = _parse_verdicts(raw)
         assert out == [{"id": 1, "references": False}]
 
@@ -215,9 +213,7 @@ class TestVerifyRowsPromote:
         assert row[3] == "auto"  # curator still decides
         assert row[4] == "strong paraphrase"
 
-    def test_invalid_type_falls_back_to_existing(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_invalid_type_falls_back_to_existing(self, populated_db: sqlite3.Connection) -> None:
         rid = _seed_auto_row(populated_db, reference_type="quotes")
         # LLM returns a type that's not in the allowed enum — coerce
         # back to the row's existing type to keep the CHECK happy.
@@ -233,15 +229,11 @@ class TestVerifyRowsPromote:
         ).fetchone()
         assert row[0] == "quotes"
 
-    def test_confidence_never_decreases(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_confidence_never_decreases(self, populated_db: sqlite3.Connection) -> None:
         rid = _seed_auto_row(populated_db, confidence=0.95)
         # LLM returns a lower confidence — promote should preserve the
         # higher of (current, llm).
-        backend = SequenceStubBackend(
-            [_verdict_json(row_id=rid, references=True, confidence=0.7)]
-        )
+        backend = SequenceStubBackend([_verdict_json(row_id=rid, references=True, confidence=0.7)])
         llm_verify.verify_rows_with_llm(
             populated_db, backend, max_llm_calls=5, skip_short_chunks=False
         )
@@ -249,7 +241,6 @@ class TestVerifyRowsPromote:
             "SELECT confidence FROM cross_references WHERE id = ?", (rid,)
         ).fetchone()
         assert row[0] == pytest.approx(0.95)
-
 
     def test_non_numeric_confidence_keeps_the_row_value(
         self, populated_db: sqlite3.Connection
@@ -279,19 +270,14 @@ class TestVerifyRowsReject:
     ) -> None:
         rid = _seed_auto_row(populated_db)
         backend = SequenceStubBackend(
-            [
-                _verdict_json(
-                    row_id=rid, references=False, notes="false positive — name match only"
-                )
-            ]
+            [_verdict_json(row_id=rid, references=False, notes="false positive — name match only")]
         )
         stats = llm_verify.verify_rows_with_llm(
             populated_db, backend, max_llm_calls=5, skip_short_chunks=False
         )
         assert stats.rejected == 1
         row = populated_db.execute(
-            "SELECT curator_status, source_method, curator_note "
-            "FROM cross_references WHERE id = ?",
+            "SELECT curator_status, source_method, curator_note FROM cross_references WHERE id = ?",
             (rid,),
         ).fetchone()
         assert row[0] == "rejected"
@@ -300,9 +286,7 @@ class TestVerifyRowsReject:
 
 
 class TestEligibilityFilter:
-    def test_rule_strong_rows_skipped_by_default(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_rule_strong_rows_skipped_by_default(self, populated_db: sqlite3.Connection) -> None:
         _seed_auto_row(populated_db, source_method="rule_strong")
         # No backend calls expected.
         backend = SequenceStubBackend([])
@@ -312,13 +296,9 @@ class TestEligibilityFilter:
         assert stats.examined == 0
         assert backend.call_count == 0
 
-    def test_rule_strong_can_be_opted_in(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_rule_strong_can_be_opted_in(self, populated_db: sqlite3.Connection) -> None:
         rid = _seed_auto_row(populated_db, source_method="rule_strong")
-        backend = SequenceStubBackend(
-            [_verdict_json(row_id=rid, references=True)]
-        )
+        backend = SequenceStubBackend([_verdict_json(row_id=rid, references=True)])
         stats = llm_verify.verify_rows_with_llm(
             populated_db,
             backend,
@@ -329,9 +309,7 @@ class TestEligibilityFilter:
         assert stats.examined == 1
         assert stats.promoted == 1
 
-    def test_already_llm_verified_rows_skipped(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_already_llm_verified_rows_skipped(self, populated_db: sqlite3.Connection) -> None:
         # Re-running the verifier shouldn't re-process rows already
         # tagged with `rule+embed+llm`.
         _seed_auto_row(populated_db, source_method="rule+embed+llm")
@@ -343,9 +321,7 @@ class TestEligibilityFilter:
 
 
 class TestBudgetAndErrorHandling:
-    def test_max_llm_calls_caps_examined(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_max_llm_calls_caps_examined(self, populated_db: sqlite3.Connection) -> None:
         # Seed 3 rows; cap budget to 1 call with batch_size=1 → only 1 examined.
         # Each row needs a distinct (source, target, form) so the dedup
         # in insert_cross_reference doesn't collide via UNIQUE constraints.
@@ -371,9 +347,7 @@ class TestBudgetAndErrorHandling:
         populated_db.commit()
 
         # Budget = 1 call → only the first row examined.
-        backend = SequenceStubBackend(
-            [_verdict_json(row_id=ids[0], references=True)]
-        )
+        backend = SequenceStubBackend([_verdict_json(row_id=ids[0], references=True)])
         stats = llm_verify.verify_rows_with_llm(
             populated_db,
             backend,
@@ -544,9 +518,7 @@ class TestBudgetAndErrorHandling:
         assert "transient 503" in out
         assert "attempt 1 of 2" in out
 
-    def test_retries_respect_the_call_budget(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_retries_respect_the_call_budget(self, populated_db: sqlite3.Connection) -> None:
         """Retries are ordinary API calls and are billed as such, or
         `--max-llm-calls` stops bounding what a run costs."""
 
@@ -577,9 +549,7 @@ class TestBudgetAndErrorHandling:
         ).fetchone()
         assert row[0] == "rule_weak"
 
-    def test_missing_verdict_for_row_counts_missing(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_missing_verdict_for_row_counts_missing(self, populated_db: sqlite3.Connection) -> None:
         rid = _seed_auto_row(populated_db)
         # Response omits the row's id entirely.
         backend = SequenceStubBackend(['[{"id": 99999, "references": true}]'])
@@ -608,9 +578,7 @@ class TestShortChunkFilter:
     verified as citation targets. See issue #265.
     """
 
-    def test_short_target_is_eligible(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_short_target_is_eligible(self, populated_db: sqlite3.Connection) -> None:
         # ne-1097b is 69 chars — a plausible verse-length target.
         assert (
             populated_db.execute(
@@ -627,9 +595,7 @@ class TestShortChunkFilter:
 
         assert stats.examined == 1
 
-    def test_short_source_is_still_skipped(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_short_source_is_still_skipped(self, populated_db: sqlite3.Connection) -> None:
         # hegel-p17 is 41 chars — too little context to judge a citation.
         assert (
             populated_db.execute(
@@ -647,9 +613,7 @@ class TestShortChunkFilter:
         assert stats.examined == 0
         assert backend.call_count == 0
 
-    def test_short_source_included_with_flag_off(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_short_source_included_with_flag_off(self, populated_db: sqlite3.Connection) -> None:
         rid = _seed_auto_row(populated_db, source_chunk_id="hegel-p17")
         backend = SequenceStubBackend([_verdict_json(row_id=rid, references=True)])
 
@@ -678,9 +642,7 @@ class TestParseFailureRetry:
     re-issued as halves, and whatever still fails is named by row id.
     """
 
-    def test_failed_batch_is_re_issued_as_halves(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_failed_batch_is_re_issued_as_halves(self, populated_db: sqlite3.Connection) -> None:
         ids = _seed_rows(populated_db, 4)
         backend = SequenceStubBackend(
             [
@@ -704,9 +666,7 @@ class TestParseFailureRetry:
         assert stats.lost_rows == 0
         assert backend.call_count == 3
 
-    def test_halves_split_again_until_single_rows(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_halves_split_again_until_single_rows(self, populated_db: sqlite3.Connection) -> None:
         # Depth-first, left to right: [a,b,c,d] → [a,b] → [a], [b] → [c,d].
         ids = _seed_rows(populated_db, 4)
         backend = SequenceStubBackend(
@@ -759,9 +719,7 @@ class TestParseFailureRetry:
         self, populated_db: sqlite3.Connection
     ) -> None:
         ids = _seed_rows(populated_db, 2)
-        backend = SequenceStubBackend(
-            ["slop", _verdicts_json([ids[0]]), _verdicts_json([ids[1]])]
-        )
+        backend = SequenceStubBackend(["slop", _verdicts_json([ids[0]]), _verdicts_json([ids[1]])])
 
         stats = llm_verify.verify_rows_with_llm(
             populated_db,
@@ -777,9 +735,7 @@ class TestParseFailureRetry:
         assert stats.lost_rows == 0
         assert stats.examined == 2
 
-    def test_retries_consume_the_call_budget(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_retries_consume_the_call_budget(self, populated_db: sqlite3.Connection) -> None:
         ids = _seed_rows(populated_db, 4)
         # Budget of 2: the failed full batch, then one half. The second
         # half never gets a call.
@@ -804,9 +760,7 @@ class TestParseFailureRetry:
         self, populated_db: sqlite3.Connection
     ) -> None:
         ids = _seed_rows(populated_db, 2)
-        backend = SequenceStubBackend(
-            ["slop", _verdicts_json([ids[0]]), _verdicts_json([ids[1]])]
-        )
+        backend = SequenceStubBackend(["slop", _verdicts_json([ids[0]]), _verdicts_json([ids[1]])])
 
         llm_verify.verify_rows_with_llm(
             populated_db,

@@ -197,9 +197,16 @@ _APPARATUS_TEXT_IDS = frozenset(
 )
 _APPARATUS_TITLES = frozenset(
     {
-        "index", "indices", "general index", "index of names",
-        "index of passages", "contents", "table of contents",
-        "errata", "corrigenda", "addenda",
+        "index",
+        "indices",
+        "general index",
+        "index of names",
+        "index of passages",
+        "contents",
+        "table of contents",
+        "errata",
+        "corrigenda",
+        "addenda",
     }
 )
 
@@ -506,9 +513,7 @@ class _ChunkBuilder:
             return [(self._cur_section, self._buf)]
 
         bounds = sorted({0, *self._para_starts, len(self._buf)})
-        paragraphs = [
-            self._buf[bounds[i] : bounds[i + 1]] for i in range(len(bounds) - 1)
-        ]
+        paragraphs = [self._buf[bounds[i] : bounds[i + 1]] for i in range(len(bounds) - 1)]
         # `paragraphs` is never empty (bounds always spans >=2 distinct
         # points), so `current` always holds the last paragraph's slice
         # when the loop ends — no trailing `if current:` guard needed.
@@ -527,8 +532,7 @@ class _ChunkBuilder:
         if len(groups) <= 1:
             return [(self._cur_section, self._buf)]
         return [
-            (f"{self._cur_section}{_letter_suffix(i)}", group)
-            for i, group in enumerate(groups)
+            (f"{self._cur_section}{_letter_suffix(i)}", group) for i, group in enumerate(groups)
         ]
 
     def _emit_aux(self, pending: list[str], block_type: str) -> None:

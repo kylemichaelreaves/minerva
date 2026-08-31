@@ -36,17 +36,9 @@ def test_work_match_is_exact_not_substring():
     # A title that merely *contains* an expected name is a different work.
     assert eval_runner._hit_matches(hit, ["polite"], ["509d"])[0] is False
     assert (
-        eval_runner._hit_matches(
-            make_hit(work="Alkibiades II"), ["alkibiades i"], []
-        )[0]
-        is False
+        eval_runner._hit_matches(make_hit(work="Alkibiades II"), ["alkibiades i"], [])[0] is False
     )
-    assert (
-        eval_runner._hit_matches(
-            make_hit(work="Athenian Constitution"), ["ion"], []
-        )[0]
-        is False
-    )
+    assert eval_runner._hit_matches(make_hit(work="Athenian Constitution"), ["ion"], [])[0] is False
 
 
 def test_work_match_refuses_a_title_containing_an_alias_as_a_whole_word():
@@ -73,9 +65,7 @@ def test_work_match_normalizes_case_and_padding():
 
 def test_hit_matches_returns_work_and_section_flags():
     hit = make_hit(work="Republic", section="509d")
-    work_ok, sec_ok, book_ok = eval_runner._hit_matches(
-        hit, ["Republic"], ["509d", "510a"]
-    )
+    work_ok, sec_ok, book_ok = eval_runner._hit_matches(hit, ["Republic"], ["509d", "510a"])
     assert (work_ok, sec_ok) == (True, True)
     # No expected_book supplied, so the row is not scored on one.
     assert book_ok is None
@@ -198,9 +188,7 @@ def _rename_republic_to_politeia(conn) -> None:
 
     work_id = conn.execute("SELECT id FROM works WHERE title = 'Republic'").fetchone()[0]
     conn.execute("UPDATE works SET title = 'Politeia' WHERE id = ?", (work_id,))
-    conn.execute(
-        "UPDATE translations SET title_local = 'Republic' WHERE work_id = ?", (work_id,)
-    )
+    conn.execute("UPDATE translations SET title_local = 'Republic' WHERE work_id = ?", (work_id,))
     conn.commit()
 
 

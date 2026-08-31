@@ -214,7 +214,6 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="nietzsche",
         author="Nietzsche",
     ),
-
     # ─── Nachlass (1) ─────────────────────────────────────────────
     CorpusWork(
         code="nachlass_achtzigerjahre",
@@ -228,7 +227,6 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="nietzsche",
         author="Nietzsche",
     ),
-
     # ─── Early essays / lectures / "early Nachlass" (8) ───────────
     CorpusWork(
         code="wahrheit_luege",
@@ -326,7 +324,6 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="nietzsche",
         author="Nietzsche",
     ),
-
     # ─── Correspondence (1) ──────────────────────────────────────
     CorpusWork(
         code="briefe",
@@ -340,7 +337,6 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="nietzsche",
         author="Nietzsche",
     ),
-
     # ─── KGW Nachlass — hand-curated eKGWB notebooks ──────────────
     # Individual Nachgelassene-Fragmente notebook groups saved by hand
     # from nietzschesource.org (eKGWB) for personal research, parsed by

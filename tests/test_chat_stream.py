@@ -149,9 +149,7 @@ def test_handle_chat_stream_keeps_turn_on_client_disconnect(populated_db, conver
         next(gen)
     gen.close()
 
-    rows = conversations_conn.execute(
-        "SELECT role FROM messages ORDER BY id"
-    ).fetchall()
+    rows = conversations_conn.execute("SELECT role FROM messages ORDER BY id").fetchall()
     assert [r[0] for r in rows] == ["user", "assistant"]
 
 

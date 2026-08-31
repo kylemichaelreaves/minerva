@@ -110,9 +110,9 @@ def test_source_note_is_stripped_when_it_sits_inside_a_paragraph(
     """
 
     html = _PAGE.replace(
-        '<SMALL>Seitenzahlen verweisen auf: Karl Marx - Friedrich Engels - '
+        "<SMALL>Seitenzahlen verweisen auf: Karl Marx - Friedrich Engels - "
         "Werke, Band 23, Berlin/DDR 1968</SMALL>",
-        '<FONT SIZE=2><P>Seitenzahlen verweisen auf: Karl Marx - Friedrich '
+        "<FONT SIZE=2><P>Seitenzahlen verweisen auf: Karl Marx - Friedrich "
         'Engels - Werke, Band 25, "Das Kapital", Bd. III, Sechster '
         "Abschnitt, S. 627 - 652<BR>\nDietz Verlag, Berlin/DDR 1983</FONT> </P>",
     )
@@ -131,8 +131,7 @@ def test_a_paragraph_merely_mentioning_the_note_is_kept(tmp_path: Path) -> None:
 
     html = _PAGE.replace(
         "Der Reichtum der Gesellschaften",
-        "Die Seitenzahlen verweisen auf eine Ausgabe, die Der Reichtum "
-        "der Gesellschaften",
+        "Die Seitenzahlen verweisen auf eine Ausgabe, die Der Reichtum der Gesellschaften",
     )
     chunks = _split(tmp_path, html=html)
     assert any("Der Reichtum der Gesellschaften" in c.text for c in chunks)

@@ -63,9 +63,7 @@ class TestResolutionGraphHasNoUrlDependencies:
         data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
         offenders = [
             (extra, req)
-            for extra, reqs in data["project"]
-            .get("optional-dependencies", {})
-            .items()
+            for extra, reqs in data["project"].get("optional-dependencies", {}).items()
             for req in reqs
             if "@ http" in req
         ]

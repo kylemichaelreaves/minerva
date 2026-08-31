@@ -120,8 +120,7 @@ def references_sources(
         f"WHERE {status_sql} AND rt.canonical_author IS NOT NULL"
     )
 
-    sources = [row[0]
-               for row in conn.execute(src_sql, status_params).fetchall()]
+    sources = [row[0] for row in conn.execute(src_sql, status_params).fetchall()]
     targets = [row[0] for row in conn.execute(tgt_sql, status_params).fetchall()]
 
     sources.sort(key=author_sort_key)

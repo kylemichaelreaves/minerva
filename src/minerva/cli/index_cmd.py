@@ -221,9 +221,7 @@ def _sweep_orphan_refs_scan_state(conn: sqlite3.Connection) -> None:
 
     dropped = sweep_orphan_chunk_ids(conn, "refs_scan_state")
     if dropped:
-        remaining = conn.execute(
-            "SELECT COUNT(*) FROM refs_scan_state"
-        ).fetchone()[0]
+        remaining = conn.execute("SELECT COUNT(*) FROM refs_scan_state").fetchone()[0]
         print(
             f"Dropped {dropped:,} orphan refs_scan_state rows (chunks no "
             f"longer in the corpus); {remaining:,} scan markers preserved.",
@@ -311,9 +309,7 @@ def _read_ingest_only_meta(db_path: Path) -> set[str]:
 
     probe = sqlite3.connect(db_path)
     try:
-        row = probe.execute(
-            "SELECT value FROM meta WHERE key='ingest.only'"
-        ).fetchone()
+        row = probe.execute("SELECT value FROM meta WHERE key='ingest.only'").fetchone()
     except sqlite3.OperationalError:
         # Fresh DB / meta table missing.
         row = None

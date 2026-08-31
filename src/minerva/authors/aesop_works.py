@@ -70,7 +70,6 @@ WORKS: tuple[CorpusWork, ...] = (
         author="Aesop",
         citation_system="paragraph",
     ),
-
     # ─── Babrius (Greek verse + English) ──────────────────────────
     # The Greek is First1KGreek ``tlg0614.tlg001.1st1K-grc1`` —
     # Schneidewin's *Fabulae Aesopeae*, EpiDoc TEI P5, re-sourced

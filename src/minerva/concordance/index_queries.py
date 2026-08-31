@@ -110,7 +110,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     )
 
     limit = parse_int_param(
-        query, "limit", _DEFAULT_INDEX_LIMIT, lo=1, hi=_MAX_INDEX_LIMIT, clamp=True,
+        query,
+        "limit",
+        _DEFAULT_INDEX_LIMIT,
+        lo=1,
+        hi=_MAX_INDEX_LIMIT,
+        clamp=True,
     )
     offset = parse_int_param(query, "offset", 0, lo=0, clamp=True)
     min_count = parse_int_param(query, "min_count", 2, lo=1, clamp=True)
@@ -130,7 +135,6 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     q = (query.get("q") or "").strip()
 
     _scope_clause(scope, authors, works)  # validates scope/author/work pairing
-
 
     # The A–Z rail's letter filter folds diacritics for EVERY language (#381),
     # not just Greek. Greek got the fold first because polytonic lemmas begin
@@ -232,9 +236,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
             ORDER BY {order_clause}
             LIMIT ? OFFSET ?
         """
-        raw_rows = conn.execute(
-            sql_main, [*where_params, limit, offset]
-        ).fetchall()
+        raw_rows = conn.execute(sql_main, [*where_params, limit, offset]).fetchall()
         rows = [
             {
                 "lemma": r["lemma"],
@@ -275,6 +277,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # `(lemma, pos)` (#377); with that corrected, `merge_case` off is just
     # `group_expr = "lemma"` and the branches collapse.
     group_expr = _lemma_group_expr(merge_case=merge_case)
+
     def _scan(parts: list[str], params: list[Any]) -> list[sqlite3.Row]:
         """One grouped pass: per-letter totals, and per-letter counts
         inside the frequency range.
@@ -320,8 +323,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         return conn.execute(sql, [*freq_params, *params]).fetchall()
 
     totals_where_parts, totals_where_params = _counts_where(
-        lang, scope_kind, scope_values,
-        letter=letter, pos_in=pos_in, q=q,
+        lang,
+        scope_kind,
+        scope_values,
+        letter=letter,
+        pos_in=pos_in,
+        q=q,
     )
     totals_rows = _scan(totals_where_parts, totals_where_params)
     total_lemmas = sum(int(r["n_lemmas"]) for r in totals_rows)
@@ -329,8 +336,12 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
 
     if letter:
         rail_where_parts, rail_where_params = _counts_where(
-            lang, scope_kind, scope_values,
-            letter="", pos_in=pos_in, q=q,
+            lang,
+            scope_kind,
+            scope_values,
+            letter="",
+            pos_in=pos_in,
+            q=q,
         )
         rail_rows = _scan(rail_where_parts, rail_where_params)
     else:
@@ -727,7 +738,6 @@ def _fold_initial(s: str | None) -> str:
     """
 
     return _fold_text(s[:1] if s else s)[:1]
-
 
 
 def _corpus_label(lang: str) -> str:

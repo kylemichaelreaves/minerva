@@ -97,8 +97,11 @@ class TestTheRecordedAttributions:
     def test_no_entry_is_the_old_flat_default(self) -> None:
         """A regression guard with teeth: the bug was 41 works sharing
         ("Friedrich Schleiermacher", "1818"). Only two should now."""
-        flat = [w for w, a in _ATTRIBUTION.items()
-                if a.translator == "Friedrich Schleiermacher" and a.year == "1818"]
+        flat = [
+            w
+            for w, a in _ATTRIBUTION.items()
+            if a.translator == "Friedrich Schleiermacher" and a.year == "1818"
+        ]
         assert sorted(flat) == ["Apologia", "Euthyphron"]
 
 

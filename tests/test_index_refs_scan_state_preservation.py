@@ -54,9 +54,7 @@ def _mark_scanned(db: Path, rows: list[tuple[str, str]]) -> None:
 def _scan_state(db: Path) -> dict[str, str]:
     conn = store.open_db(db)
     try:
-        return dict(
-            conn.execute("SELECT chunk_id, text_hash FROM refs_scan_state").fetchall()
-        )
+        return dict(conn.execute("SELECT chunk_id, text_hash FROM refs_scan_state").fetchall())
     finally:
         conn.close()
 
@@ -130,9 +128,7 @@ def test_scan_state_only_db_is_snapshotted_and_survives_reset(tmp_path: Path):
 
     _run_index(db, jsonl, reset=True)
 
-    assert _scan_state(db) == {"c1": "hash-1"}, (
-        "scan-marker-only DB lost its cache across --reset"
-    )
+    assert _scan_state(db) == {"c1": "hash-1"}, "scan-marker-only DB lost its cache across --reset"
 
 
 def test_restore_survives_a_snapshot_taken_one_migration_back(tmp_path: Path):
@@ -167,9 +163,12 @@ def test_restore_survives_a_snapshot_taken_one_migration_back(tmp_path: Path):
     assert _scan_state(db) == {"c1": "hash-1"}
     conn = store.open_db(db)
     try:
-        assert conn.execute(
-            "SELECT rules_hash FROM refs_scan_state WHERE chunk_id = 'c1'"
-        ).fetchone()[0] is None, (
+        assert (
+            conn.execute("SELECT rules_hash FROM refs_scan_state WHERE chunk_id = 'c1'").fetchone()[
+                0
+            ]
+            is None
+        ), (
             "a marker restored from a pre-0028 snapshot carries no rules "
             "hash — NULL is what buys it exactly one rescan"
         )

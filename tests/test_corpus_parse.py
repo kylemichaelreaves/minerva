@@ -1011,7 +1011,7 @@ def test_edition_note_is_stripped_from_a_chunk_that_also_has_text(tmp_path: Path
     the note runs to the end of the paragraph (longest tail 162 chars), so
     stripping it leaves the title rather than cutting real prose."""
 
-    title = "Einleitung [zu Karl Marx' \"Lohnarbeit und Kapital\" (Ausgabe 1891)]"
+    title = 'Einleitung [zu Karl Marx\' "Lohnarbeit und Kapital" (Ausgabe 1891)]'
     text = f"CHAPTER ONE\n\n{title} {_EDITION_NOTE}\n"
     chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
     assert [c.text for c in chunks] == [title]
@@ -1151,7 +1151,7 @@ def test_front_matter_headings_match_across_the_fi_ligature(tmp_path: Path):
     so a literal `first` never matches and the preface is silently not
     captured — the same failure as not configuring the heading at all."""
 
-    text = "Preface to the ﬁrst edition\n" f"{_BODY_A}\n\n" f"§1\n{_BODY_B}\n"
+    text = f"Preface to the ﬁrst edition\n{_BODY_A}\n\n§1\n{_BODY_B}\n"
     chunks = list(corpus_parse.split_by_section(text, _front_matter_work(), tmp_path / "x.pdf"))
     assert [c.book for c in chunks] == ["Preface to the first edition", None]
     assert chunks[0].text == _BODY_A

@@ -71,17 +71,17 @@ def _args(db: Path, **over) -> argparse.Namespace:
 def _seed(tmp_path: Path, texts: dict[str, str]) -> Path:
     db = tmp_path / "lemma_state.sqlite"
     jsonl = tmp_path / "seed.jsonl"
-    chunks = [
-        make_chunk(chunk_id=cid, lang="deu", text=text) for cid, text in texts.items()
-    ]
+    chunks = [make_chunk(chunk_id=cid, lang="deu", text=text) for cid, text in texts.items()]
     jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
     cmd_index(argparse.Namespace(db=db, input=jsonl, reset=False))
     return db
 
 
 def _run(db: Path, **over) -> int:
-    with patch.object(lemmatize_mod, "Lemmatizer", _CountingLemmatizer), \
-         patch.object(lemmatize_mod, "is_supported", lambda lang: True):
+    with (
+        patch.object(lemmatize_mod, "Lemmatizer", _CountingLemmatizer),
+        patch.object(lemmatize_mod, "is_supported", lambda lang: True),
+    ):
         return lemmatize_mod.cmd_terms_lemmatize(_args(db, **over))
 
 
@@ -120,13 +120,10 @@ def test_attempt_state_records_the_token_count_it_produced(tmp_path):
     try:
         rows = dict(
             conn.execute(
-                "SELECT chunk_id, token_count FROM chunk_lemma_state "
-                "ORDER BY chunk_id"
+                "SELECT chunk_id, token_count FROM chunk_lemma_state ORDER BY chunk_id"
             ).fetchall()
         )
-        hashes = dict(
-            conn.execute("SELECT chunk_id, text_hash FROM chunk_lemma_state").fetchall()
-        )
+        hashes = dict(conn.execute("SELECT chunk_id, text_hash FROM chunk_lemma_state").fetchall())
         texts = dict(conn.execute("SELECT chunk_id, text FROM chunks").fetchall())
     finally:
         conn.close()
@@ -200,10 +197,7 @@ def test_flush_writes_attempt_markers_for_a_wholly_barren_batch(tmp_path):
     try:
         lemmatize_mod._flush(conn, [], [("a", "hash-a", 0)])
         rows = [
-            tuple(r)
-            for r in conn.execute(
-                "SELECT chunk_id, token_count FROM chunk_lemma_state"
-            )
+            tuple(r) for r in conn.execute("SELECT chunk_id, token_count FROM chunk_lemma_state")
         ]
         lemmas = conn.execute("SELECT COUNT(*) FROM chunk_lemmas").fetchone()[0]
     finally:
@@ -240,24 +234,29 @@ class _VariableLemmatizer:
 
     def batch_pipe(self, items, *, batch_size, n_process):
         for _text, ctx in items:
-            yield [
-                # Offsets encode the pass as well as the index, so a
-                # surviving row is identifiable as stale rather than
-                # merely surplus.
-                Token(
-                    surface="abcdefghij"[i] * 3,
-                    start=i * 10 + type(self).tokens_per_chunk,
-                    end=i * 10 + type(self).tokens_per_chunk + 3,
-                    lemma="abcdefghij"[i] * 3,
-                )
-                for i in range(type(self).tokens_per_chunk)
-            ], ctx
+            yield (
+                [
+                    # Offsets encode the pass as well as the index, so a
+                    # surviving row is identifiable as stale rather than
+                    # merely surplus.
+                    Token(
+                        surface="abcdefghij"[i] * 3,
+                        start=i * 10 + type(self).tokens_per_chunk,
+                        end=i * 10 + type(self).tokens_per_chunk + 3,
+                        lemma="abcdefghij"[i] * 3,
+                    )
+                    for i in range(type(self).tokens_per_chunk)
+                ],
+                ctx,
+            )
 
 
 def _run_variable(db: Path, *, tokens: int, **over) -> int:
     _VariableLemmatizer.tokens_per_chunk = tokens
-    with patch.object(lemmatize_mod, "Lemmatizer", _VariableLemmatizer), \
-         patch.object(lemmatize_mod, "is_supported", lambda lang: True):
+    with (
+        patch.object(lemmatize_mod, "Lemmatizer", _VariableLemmatizer),
+        patch.object(lemmatize_mod, "is_supported", lambda lang: True),
+    ):
         return lemmatize_mod.cmd_terms_lemmatize(_args(db, **over))
 
 

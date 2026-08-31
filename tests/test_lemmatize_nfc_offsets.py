@@ -91,11 +91,7 @@ def test_tokens_feed_the_pipeline_nfc_and_index_the_caller_text():
 
 def test_batch_pipe_feeds_the_pipeline_nfc_and_indexes_the_caller_text():
     nlp = _RecordingNlp()
-    out = list(
-        _spacy_lemmatizer(nlp).batch_pipe(
-            [(DECOMPOSED, "c1")], batch_size=4, n_process=1
-        )
-    )
+    out = list(_spacy_lemmatizer(nlp).batch_pipe([(DECOMPOSED, "c1")], batch_size=4, n_process=1))
 
     assert nlp.seen == [COMPOSED]
     ((toks, ctx),) = out
@@ -225,11 +221,7 @@ def test_stanza_batch_pipe_pairs_each_doc_with_its_own_source(monkeypatch):
     lm.lang = "ara"
     lm._backend = "stanza"
     lm._nlp = _Bulk()
-    out = list(
-        lm.batch_pipe(
-            [(DECOMPOSED, "c1"), (COMPOSED, "c2")], batch_size=2, n_process=1
-        )
-    )
+    out = list(lm.batch_pipe([(DECOMPOSED, "c1"), (COMPOSED, "c2")], batch_size=2, n_process=1))
 
     assert [ctx for _, ctx in out] == ["c1", "c2"]
     for toks, ctx in out:
@@ -275,12 +267,20 @@ def test_the_cli_hands_the_lemmatizer_the_stored_text(tmp_path: Path):
     cmd_index(argparse.Namespace(db=db, input=jsonl, reset=False))
 
     args = argparse.Namespace(
-        db=db, lang="grc", edition_id=None, all=False, dry_run=False,
-        skip_aggregate=True, batch_size=4, n_process=1,
+        db=db,
+        lang="grc",
+        edition_id=None,
+        all=False,
+        dry_run=False,
+        skip_aggregate=True,
+        batch_size=4,
+        n_process=1,
     )
     _RecordingLemmatizer.instances = []
-    with patch.object(lemmatize_mod, "Lemmatizer", _RecordingLemmatizer), \
-         patch.object(lemmatize_mod, "is_supported", lambda lang: True):
+    with (
+        patch.object(lemmatize_mod, "Lemmatizer", _RecordingLemmatizer),
+        patch.object(lemmatize_mod, "is_supported", lambda lang: True),
+    ):
         assert lemmatize_mod.cmd_terms_lemmatize(args) == 0
 
     # What reached the pipeline is composed; what reached the table is
@@ -321,8 +321,8 @@ def test_stanza_surface_comes_from_the_source_even_when_no_mapping_is_needed():
     # doc.text == source, so the mapped branch is skipped entirely — the
     # `ara` case. The pipeline "rewrote" the word (dropped a diacritic); the
     # stored surface must still be what the edition prints.
-    source = "حُرُمٌ"          # حُرُمٌ
-    rewritten = "حرُم"                    # حرُم
+    source = "حُرُمٌ"  # حُرُمٌ
+    rewritten = "حرُم"  # حرُم
     doc = _FakeStanzaDoc(source, [_FakeWord(rewritten, 0, len(source))])
 
     lm = Lemmatizer.__new__(Lemmatizer)
@@ -335,7 +335,7 @@ def test_stanza_surface_comes_from_the_source_even_when_no_mapping_is_needed():
 def test_stanza_fast_path_keeps_an_inherited_span_on_its_own_surface():
     # The MWT exception has to survive on the fast path as well: sub-words
     # sharing the parent's span must NOT each be handed the whole parent.
-    source = "والكتاب"     # والكتاب
+    source = "والكتاب"  # والكتاب
     parent = _FakeWord(source, 0, len(source))
     doc = _FakeStanzaDoc(
         source,
@@ -358,7 +358,7 @@ def test_stanza_subword_with_a_real_span_is_sliced_from_the_source():
     # that is the correct key either way: a word with a span of its own is
     # addressed by that span, whether or not it has a parent. Pinned so the
     # answer is defined rather than assumed.
-    source = "والكتاب"     # والكتاب
+    source = "والكتاب"  # والكتاب
     parent = _FakeWord(source, 0, len(source))
     doc = _FakeStanzaDoc(source, [_FakeWord("REWRITTEN", 1, len(source), parent=parent)])
 

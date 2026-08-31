@@ -106,11 +106,11 @@ def test_meccan_vs_medinan_counts() -> None:
 @pytest.mark.parametrize(
     "number,transliteration,english",
     [
-        (1,   "Al-Fatihah",  "The Opening"),
-        (2,   "Al-Baqarah",  "The Cow"),
-        (36,  "Ya-Sin",      "Ya-Sin"),
-        (112, "Al-Ikhlas",   "The Sincerity"),
-        (114, "An-Nas",      "Mankind"),
+        (1, "Al-Fatihah", "The Opening"),
+        (2, "Al-Baqarah", "The Cow"),
+        (36, "Ya-Sin", "Ya-Sin"),
+        (112, "Al-Ikhlas", "The Sincerity"),
+        (114, "An-Nas", "Mankind"),
     ],
 )
 def test_landmark_surahs(number: int, transliteration: str, english: str) -> None:

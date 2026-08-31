@@ -241,10 +241,7 @@ def greek_concordance_db(tmp_path: Path) -> sqlite3.Connection:
             work="Respublica",
             lang="grc",
             section="327a",
-            text=(
-                "ἄνθρωπος ἄνθρωπος ἀγαθός ἀγαθός Ἀθηνᾶ Ἀθηνᾶ λόγος λόγος "
-                "ἀρχή ἀρχή Λόγος"
-            ),
+            text=("ἄνθρωπος ἄνθρωπος ἀγαθός ἀγαθός Ἀθηνᾶ Ἀθηνᾶ λόγος λόγος ἀρχή ἀρχή Λόγος"),
         ),
     ]
     import json
@@ -1047,6 +1044,7 @@ def test_merge_case_pagination_honors_offset(case_merge_db: sqlite3.Connection) 
     assert second["rows"][0]["lemma"] == "Gott"
     assert second["rows"][0]["count"] == 2
 
+
 # ── q — diacritic + case folding (#363) ──────────────────────────────
 
 
@@ -1056,8 +1054,14 @@ def test_fold_text_folds_the_whole_string() -> None:
     ``LOWER()`` it is Unicode-aware, which is what makes the ``q``
     filter work for every script in the corpus rather than Latin only."""
 
-    assert index_queries._fold_text("\u03bb\u03cc\u03b3\u03bf\u03c2") == "\u039b\u039f\u0393\u039f\u03a3"
-    assert index_queries._fold_text("\u1f08\u03b8\u03b7\u03bd\u1fb6") == "\u0391\u0398\u0397\u039d\u0391"
+    assert (
+        index_queries._fold_text("\u03bb\u03cc\u03b3\u03bf\u03c2")
+        == "\u039b\u039f\u0393\u039f\u03a3"
+    )
+    assert (
+        index_queries._fold_text("\u1f08\u03b8\u03b7\u03bd\u1fb6")
+        == "\u0391\u0398\u0397\u039d\u0391"
+    )
     # German eszett expands under upper-casing, so Strasse ↔ Straße fold
     # together. Surprising but wanted for a substring search field.
     assert index_queries._fold_text("Gr\u00f6\u00dfe") == "GROSSE"
@@ -1069,7 +1073,9 @@ def test_fold_initial_still_folds_only_the_first_character() -> None:
     """The letter-rail folder keeps its contract while sharing the
     whole-string implementation. Guards the refactor, not new behaviour."""
 
-    assert index_queries._fold_initial("\u1f04\u03bd\u03b8\u03c1\u03c9\u03c0\u03bf\u03c2") == "\u0391"
+    assert (
+        index_queries._fold_initial("\u1f04\u03bd\u03b8\u03c1\u03c9\u03c0\u03bf\u03c2") == "\u0391"
+    )
     assert index_queries._fold_initial("") == ""
     assert index_queries._fold_initial(None) == ""
 
@@ -1103,7 +1109,9 @@ def test_fold_initial_does_not_transliterate_across_scripts() -> None:
     The residue is a cross-script problem, tracked separately.
     """
 
-    assert index_queries._fold_initial("\u0395\u03c0\u03b9\u03c3\u03c4\u03ae\u03bc\u03b7") == "\u0395"
+    assert (
+        index_queries._fold_initial("\u0395\u03c0\u03b9\u03c3\u03c4\u03ae\u03bc\u03b7") == "\u0395"
+    )
     assert index_queries._fold_initial("sibi") == "S"
     # `Œ` has no NFD decomposition, so it stays its own letter.
     assert index_queries._fold_initial("\u0152uvre") == "\u0152"
@@ -1181,6 +1189,8 @@ def test_q_folded_wildcards_do_not_bypass_the_filter(
         )
         assert out["rows"] == [], pattern
         assert out["total_lemmas"] == 0, pattern
+
+
 # ── next_offset — the pagination cursor (#371) ────────────────────────
 
 
@@ -1190,7 +1200,8 @@ def test_next_offset_walks_then_stops(concordance_db: sqlite3.Connection) -> Non
     ``total_lemmas``, which cannot be trusted as a row count."""
 
     first = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "limit": "1", "offset": "0"},
+        concordance_db,
+        {"lang": "deu", "limit": "1", "offset": "0"},
     )
     assert len(first["rows"]) == 1
     assert first["next_offset"] == 1
@@ -1325,10 +1336,12 @@ def test_total_lemmas_counts_lemma_pos_pairs_on_both_branches(
     rather than the divergence: the two branches must agree on the unit."""
 
     merged = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "merge_case": "1", "min_count": "1"},
+        concordance_db,
+        {"lang": "deu", "merge_case": "1", "min_count": "1"},
     )
     unmerged = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "merge_case": "0", "min_count": "1"},
+        concordance_db,
+        {"lang": "deu", "merge_case": "0", "min_count": "1"},
     )
 
     # No case variants in this fixture, so merging changes nothing — and with
@@ -1343,7 +1356,8 @@ def test_total_lemmas_splits_a_lemma_carrying_two_pos_tags(
     rows; the header must say two, not one."""
 
     out = concordance_queries.lemma_index(
-        pos_split_db, {"lang": "deu", "merge_case": "0", "min_count": "1"},
+        pos_split_db,
+        {"lang": "deu", "merge_case": "0", "min_count": "1"},
     )
 
     assert [(r["lemma"], r["pos"]) for r in out["rows"]] == [
@@ -1394,7 +1408,8 @@ def test_next_offset_survives_case_merging(
     merge, which would over-report."""
 
     page = concordance_queries.lemma_index(
-        concordance_db, {"lang": "deu", "limit": "1", "offset": "0", "merge_case": "1"},
+        concordance_db,
+        {"lang": "deu", "limit": "1", "offset": "0", "merge_case": "1"},
     )
     assert page["next_offset"] == 1
 
@@ -1417,7 +1432,8 @@ def test_paging_one_row_at_a_time_visits_every_row_exactly_once(
     ``LOWER()`` splitting ``merge_case`` groups)."""
 
     unpaged = concordance_queries.lemma_index(
-        tie_concordance_db, {"lang": "deu", "limit": "50", "min_count": "1"},
+        tie_concordance_db,
+        {"lang": "deu", "limit": "50", "min_count": "1"},
     )
     expected = [(r["lemma"], r["pos"]) for r in unpaged["rows"]]
     assert len(expected) == len(set(expected)), "fixture itself has duplicate rows"
@@ -1443,7 +1459,8 @@ def test_tied_rows_are_ordered_by_pos_so_the_sort_is_total(
     rather than silently reintroducing unstable paging."""
 
     out = concordance_queries.lemma_index(
-        tie_concordance_db, {"lang": "deu", "limit": "50", "min_count": "1"},
+        tie_concordance_db,
+        {"lang": "deu", "limit": "50", "min_count": "1"},
     )
     tied = [(r["lemma"], r["pos"], r["count"]) for r in out["rows"] if r["lemma"] == "recht"]
     assert tied == [("recht", "ADJ", 2), ("recht", "VERB", 2)]
@@ -1648,9 +1665,7 @@ def test_stored_lemma_initial_equals_the_fold_for_every_row(
     `chunk_lemma_state`'s `text_hash`.
     """
 
-    rows = umlaut_concordance_db.execute(
-        "SELECT lemma, lemma_initial FROM lemma_counts"
-    ).fetchall()
+    rows = umlaut_concordance_db.execute("SELECT lemma, lemma_initial FROM lemma_counts").fetchall()
     assert rows, "fixture built no aggregate rows"
     mismatched = [
         (r["lemma"], r["lemma_initial"], index_queries._fold_initial(r["lemma"]))

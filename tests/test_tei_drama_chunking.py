@@ -33,9 +33,7 @@ _TEI_NS = "http://www.tei-c.org/ns/1.0"
 
 
 def _speech(speaker: str, first: int, count: int, line_text: str) -> str:
-    lines = "\n".join(
-        f'<l n="{first + i}">{line_text} {first + i}</l>' for i in range(count)
-    )
+    lines = "\n".join(f'<l n="{first + i}">{line_text} {first + i}</l>' for i in range(count))
     return f"<sp><speaker>{speaker}</speaker>\n{lines}\n</sp>"
 
 
@@ -44,7 +42,7 @@ def _play(inner: str) -> str:
         f'<TEI xmlns="{_TEI_NS}">'
         "<teiHeader><fileDesc><titleStmt><editor>E. Ditor</editor></titleStmt>"
         "<sourceDesc><date>1913</date></sourceDesc></fileDesc></teiHeader>"
-        f"<text><body><div type=\"edition\">{inner}</div></body></text>"
+        f'<text><body><div type="edition">{inner}</div></body></text>'
         "</TEI>"
     )
 
@@ -94,9 +92,9 @@ def test_an_oversized_leaf_splits_at_speech_boundaries(tmp_path: Path) -> None:
     chunks = _parse(_write(tmp_path, inner))
 
     assert len(chunks) > 1, "oversized leaf was not split"
-    assert all(
-        len(c.text) <= tei_drama.MAX_CHUNK_CHARS for c in chunks
-    ), [len(c.text) for c in chunks]
+    assert all(len(c.text) <= tei_drama.MAX_CHUNK_CHARS for c in chunks), [
+        len(c.text) for c in chunks
+    ]
     # Every line stays addressable: the ranges tile the leaf without gaps.
     assert chunks[0].section is not None and chunks[0].section.startswith("episode 1-")
     assert chunks[-1].section is not None and chunks[-1].section.endswith("-36")
@@ -162,9 +160,7 @@ def test_a_speechless_sp_does_not_invent_a_speaker(tmp_path: Path) -> None:
     does name one."""
 
     long_line = "ΓΡΑΜΜΗ " * 60
-    anon = "<sp>" + "\n".join(
-        f'<l n="{i}">{long_line} {i}</l>' for i in range(1, 13)
-    ) + "</sp>"
+    anon = "<sp>" + "\n".join(f'<l n="{i}">{long_line} {i}</l>' for i in range(1, 13)) + "</sp>"
     inner = (
         '<div type="textpart" subtype="episode" n="1">'
         + anon

@@ -116,7 +116,10 @@ def _ns(db: Path, **kw) -> argparse.Namespace:
 def _canonical_flags(db: Path) -> dict[int, int]:
     conn = store.open_db(db)
     try:
-        return {r["id"]: r["is_canonical"] for r in conn.execute("SELECT id, is_canonical FROM editions")}
+        return {
+            r["id"]: r["is_canonical"]
+            for r in conn.execute("SELECT id, is_canonical FROM editions")
+        }
     finally:
         conn.close()
 
@@ -241,9 +244,7 @@ def test_add_reads_description_from_file(curator_db, tmp_path, capsys):
     capsys.readouterr()
 
     conn = store.open_db(curator_db)
-    row = conn.execute(
-        "SELECT long_description FROM terms WHERE source_form='Wesen'"
-    ).fetchone()
+    row = conn.execute("SELECT long_description FROM terms WHERE source_form='Wesen'").fetchone()
     conn.close()
     assert row["long_description"] == "From a file."
 
@@ -314,9 +315,7 @@ def test_editions_filter_by_work_id(curator_db, capsys):
     )
     assert len(all_rows) == 3
 
-    work1 = json.loads(
-        _run_ok(cmd_terms_editions, _ns(curator_db, work_id=1, json=True), capsys)
-    )
+    work1 = json.loads(_run_ok(cmd_terms_editions, _ns(curator_db, work_id=1, json=True), capsys))
     assert {r["name"] for r in work1} == {"Hoffmeister", "Bonsiepen-Heede"}
 
 
@@ -371,9 +370,7 @@ def test_render_inserts_then_updates(curator_db, capsys):
     assert "updated rendering id=" in capsys.readouterr().out
 
     conn = store.open_db(curator_db)
-    rows = conn.execute(
-        "SELECT default_rendering FROM term_renderings WHERE term_id=2"
-    ).fetchall()
+    rows = conn.execute("SELECT default_rendering FROM term_renderings WHERE term_id=2").fetchall()
     conn.close()
     assert [r["default_rendering"] for r in rows] == ["Supersession"]
 
@@ -387,9 +384,7 @@ def test_render_update_keeps_existing_note_when_none_passed(curator_db, capsys):
     capsys.readouterr()
 
     conn = store.open_db(curator_db)
-    row = conn.execute(
-        "SELECT translator_note FROM term_renderings WHERE term_id=2"
-    ).fetchone()
+    row = conn.execute("SELECT translator_note FROM term_renderings WHERE term_id=2").fetchone()
     conn.close()
     assert row["translator_note"] == "first note"
 

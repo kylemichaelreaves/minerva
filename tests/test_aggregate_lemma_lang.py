@@ -35,9 +35,14 @@ def _seed_lemma(
         " lemma, lemma_fold, pos, feats, lang) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, 'NOUN', NULL, ?)",
         (
-            chunk_id, token_index, surface,
-            token_index * 10, token_index * 10 + len(surface),
-            lemma, lemma.lower(), lang,
+            chunk_id,
+            token_index,
+            surface,
+            token_index * 10,
+            token_index * 10 + len(surface),
+            lemma,
+            lemma.lower(),
+            lang,
         ),
     )
 
@@ -94,7 +99,11 @@ def test_an_explicit_lang_row_aggregates_under_that_language_not_the_chunks(tmp_
 def test_author_and_work_scopes_also_follow_the_row_lang(tmp_path: Path):
     db = _build_index(
         tmp_path,
-        [make_chunk(chunk_id="g1", lang="grc", text="λόγος PLUT", author="Aristotle", work="Economics")],
+        [
+            make_chunk(
+                chunk_id="g1", lang="grc", text="λόγος PLUT", author="Aristotle", work="Economics"
+            )
+        ],
     )
     conn = store.open_db(db)
     try:

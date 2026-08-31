@@ -65,9 +65,7 @@ class TestSyntheticFixture:
             assert c.section is not None
             assert " B " in c.section, f"unexpected non-B section {c.section!r}"
 
-    def test_heraclitus_b1_greek_and_german_paired(
-        self, synthetic_path: Path
-    ) -> None:
+    def test_heraclitus_b1_greek_and_german_paired(self, synthetic_path: Path) -> None:
         chunks = list(presocratic.parse_file(synthetic_path))
         by_section_lang = {(c.section, c.lang): c for c in chunks}
 
@@ -94,9 +92,7 @@ class TestSyntheticFixture:
         for c in chunks:
             assert c.section != "22 B 5", "apparatus line spawned chunk"
 
-    def test_chapter_heading_with_trailing_comma_recognised(
-        self, synthetic_path: Path
-    ) -> None:
+    def test_chapter_heading_with_trailing_comma_recognised(self, synthetic_path: Path) -> None:
         # `21. EMPEDOKLES,.` is an OCR quirk in the real source; the
         # parser must still recognise Empedocles and emit its B 1.
         chunks = list(presocratic.parse_file(synthetic_path))
@@ -144,9 +140,7 @@ class TestCrammedLines:
     its Greek continuation, and OCR-confused Latin Roman numerals
     leaking into the Greek body."""
 
-    def test_crammed_greek_line_splits_into_multiple_fragments(
-        self, tmp_path: Path
-    ) -> None:
+    def test_crammed_greek_line_splits_into_multiple_fragments(self, tmp_path: Path) -> None:
         # Two Greek B-fragments crammed onto one OCR line, both with
         # `[cross-ref]` brackets. The parser must split them into B 1
         # and B 2.
@@ -170,9 +164,7 @@ class TestCrammedLines:
         # And the Greek text of B 1 must NOT contain B 2's body.
         assert "διὸ δεῖ" not in secs[("22 B 1", "grc")].text
 
-    def test_crammed_german_line_splits_into_multiple_fragments(
-        self, tmp_path: Path
-    ) -> None:
+    def test_crammed_german_line_splits_into_multiple_fragments(self, tmp_path: Path) -> None:
         # Two German translations crammed on one OCR line. The
         # discriminator is `N. <Capital><lowercase>` patterns.
         src = (
@@ -191,9 +183,7 @@ class TestCrammedLines:
         # B 1 German must not contain B 2's body.
         assert "Zweite" not in secs[("22 B 1", "deu")].text
 
-    def test_source_cite_with_ocr_roman_numerals_lands_in_book(
-        self, tmp_path: Path
-    ) -> None:
+    def test_source_cite_with_ocr_roman_numerals_lands_in_book(self, tmp_path: Path) -> None:
         # The Latin source citation `Sext. adv. math. vii 132` OCRs
         # `vii` as `ναι` (pseudo-Greek). The improved
         # `_strip_source_citation` looks for the first PAIR of pure-
@@ -211,9 +201,7 @@ class TestCrammedLines:
         b1_grc = next(
             c
             for c in chunks
-            if c.author == "Heraclitus"
-            and c.section == "22 B 1"
-            and c.lang == "grc"
+            if c.author == "Heraclitus" and c.section == "22 B 1" and c.lang == "grc"
         )
         # Body starts at the first long Greek run, not at the OCR'd
         # `ναι` (which is really `vii`).
@@ -304,13 +292,9 @@ class TestRealFile:
         chunks = list(presocratic.parse_file(_OCR_FILE))
         # Sample one Heraclitus section. The modern DK number for
         # Heraclitus is 22 (not 12, which is the 1912 source's number).
-        her_section = next(
-            c.section for c in chunks if c.author == "Heraclitus"
-        )
+        her_section = next(c.section for c in chunks if c.author == "Heraclitus")
         assert her_section is not None
-        assert her_section.startswith("22 B "), (
-            f"expected modern DK 22 prefix, got {her_section!r}"
-        )
+        assert her_section.startswith("22 B "), f"expected modern DK 22 prefix, got {her_section!r}"
 
     def test_phase_1_table_consistency(self) -> None:
         # Sanity check: the table itself should be sane (no duplicate

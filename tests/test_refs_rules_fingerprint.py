@@ -142,9 +142,7 @@ class _ClassConfiguredRule:
 
 def test_fingerprint_covers_classvar_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     before = fingerprint_rules((_ClassConfiguredRule(),))
-    monkeypatch.setattr(
-        _ClassConfiguredRule, "lexicon", {"Matth": "Matthaeus", "Marc": "Marcus"}
-    )
+    monkeypatch.setattr(_ClassConfiguredRule, "lexicon", {"Matth": "Matthaeus", "Marc": "Marcus"})
     assert fingerprint_rules((_ClassConfiguredRule(),)) != before
 
 
@@ -600,9 +598,7 @@ def test_edited_rules_reyield_only_that_authors_chunks(tmp_path: Path) -> None:
         original = refs_rules._rules_for_author("Aquinas")
         refs_rules._AUTHOR_RULES_CACHE["Aquinas"] = (
             *original,
-            AuthorMentionRule(
-                name="aquinas_new", target_author="Averroes", forms=("Commentator",)
-            ),
+            AuthorMentionRule(name="aquinas_new", target_author="Averroes", forms=("Commentator",)),
         )
 
         again = list(iter_chunks_for_rules(conn))
@@ -653,9 +649,7 @@ def test_record_scan_state_writes_the_fingerprint(tmp_path: Path) -> None:
         refs_rules._reset_rules_caches()
         record_scan_state(conn, list(iter_chunks_for_rules(conn)))
         conn.commit()
-        stored = dict(
-            conn.execute("SELECT chunk_id, rules_hash FROM refs_scan_state")
-        )
+        stored = dict(conn.execute("SELECT chunk_id, rules_hash FROM refs_scan_state"))
         assert stored["aq-1"] == rules_fingerprint("Aquinas")
         assert stored["ni-1"] == rules_fingerprint("Nietzsche")
         assert stored["aq-1"] != stored["ni-1"]
@@ -680,9 +674,7 @@ def test_pre_0028_db_falls_back_to_the_text_only_predicate(tmp_path: Path) -> No
             "CREATE TABLE chunks_full (chunk_id TEXT, author TEXT, work TEXT, "
             "lang TEXT, section TEXT, text TEXT)"
         )
-        conn.execute(
-            "INSERT INTO chunks_full VALUES ('c1', 'Aquinas', 'ST', 'lat', NULL, 'x')"
-        )
+        conn.execute("INSERT INTO chunks_full VALUES ('c1', 'Aquinas', 'ST', 'lat', NULL, 'x')")
         conn.execute(
             "CREATE TABLE refs_scan_state (chunk_id TEXT PRIMARY KEY, "
             "text_hash TEXT NOT NULL, scanned_at TEXT DEFAULT CURRENT_TIMESTAMP)"

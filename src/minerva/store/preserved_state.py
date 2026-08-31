@@ -139,9 +139,7 @@ def _count_or_zero(conn: sqlite3.Connection, table: str) -> int:
     return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
-def _maybe_restore_preserved_state_from_snapshot(
-    conn: sqlite3.Connection, db_path: Path
-) -> None:
+def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_path: Path) -> None:
     """Replay the pre-index snapshot's preserved rows — xrefs, targets,
     lemmas and their attempt markers, syntax corrections, embeddings and
     the rules-scan cache — into the freshly-migrated DB."""
@@ -262,8 +260,7 @@ def _maybe_restore_preserved_state_from_snapshot(
                 )
             if syntax_restored:
                 print(
-                    f"Restored {syntax_restored:,} chunk_syntax_corrections "
-                    f"from {backup}.",
+                    f"Restored {syntax_restored:,} chunk_syntax_corrections from {backup}.",
                     file=sys.stderr,
                 )
             if lemma_restored:
@@ -518,9 +515,7 @@ def _unrestorable_occurrences(conn: sqlite3.Connection) -> dict[str, int]:
     }
 
 
-def _report_glossary_restore(
-    counts: dict[str, int], dropped: dict[str, int], backup: Path
-) -> None:
+def _report_glossary_restore(counts: dict[str, int], dropped: dict[str, int], backup: Path) -> None:
     """Print what came back and what didn't. Silent when the snapshot
     added nothing and lost nothing — the common non-reset case."""
 
@@ -562,7 +557,5 @@ def _restore_from_snap(conn: sqlite3.Connection, table: str) -> int:
     live = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
     snapped = {row[1] for row in conn.execute(f"PRAGMA snap.table_info({table})")}
     cols = ", ".join(name for name in live if name in snapped)
-    conn.execute(
-        f"INSERT INTO {table} ({cols}) SELECT {cols} FROM snap.{table}"
-    )
+    conn.execute(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM snap.{table}")
     return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
