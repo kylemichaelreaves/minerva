@@ -581,6 +581,61 @@ def test_split_zeno_pages_emits_clean_chapter_labels(tmp_path: Path):
     assert any(s.startswith("A. Bewußtsein,") for s in sections)
 
 
+def test_split_zeno_pages_types_briefe_valedictions_as_signature(tmp_path: Path):
+    # #291: Briefe's raw source is a zeno.org dump (ZENO_PAGE markers), so
+    # it goes through split_zeno_pages, not split_by_chapter — a letter
+    # closing ending "... Friedrich Nietzsche" is his own words, not
+    # editorial apparatus, but is structurally a valediction and must be
+    # typed so retrieval caps it like one.
+    html = (
+        "<!-- ZENO_PAGE: /Philosophie/M/Nietzsche,+Friedrich/Briefe -->\n"
+        '<div id="zenoCOText">root landing — drop me</div>\n\n'
+        "<!-- ZENO_PAGE: /Philosophie/M/Nietzsche,+Friedrich/Briefe/An+Carl+von+Gersdorff -->\n"
+        '<div id="zenoCOText">'
+        "<p>Lieber Freund, ich danke Dir herzlich für Deinen Brief und die Nachricht, "
+        "die er brachte, hat mich sehr gefreut.</p>"
+        "<p>Mit den herzlichsten Wünschen allezeit der Ihrige Friedrich Nietzsche</p>"
+        "</div>\n"
+    )
+    p = tmp_path / "briefe.html"
+    p.write_text(html, encoding="utf-8")
+    work = corpus_works.CorpusWork(
+        code="briefe",
+        title="Briefe",
+        translator="(Original)",
+        edition_year="1858-1889",
+        filenames=("briefe.html",),
+        fmt="html",
+        locator="chapter",
+        lang="deu",
+        corpus="nietzsche",
+        author="Nietzsche",
+    )
+    chunks = list(corpus_parse.split_zeno_pages(html, work, p))
+    by_text = {c.text: c.block_type for c in chunks}
+    assert (
+        by_text["Mit den herzlichsten Wünschen allezeit der Ihrige Friedrich Nietzsche"]
+        == "signature"
+    )
+    assert all(bt is None for text_, bt in by_text.items() if "Friedrich Nietzsche" not in text_)
+
+
+def test_split_zeno_pages_does_not_type_signature_for_other_works(tmp_path: Path):
+    # The gate is the Briefe work code, not the phrase alone — an
+    # unrelated work whose text happens to end in the same words is left
+    # untouched.
+    html = (
+        "<!-- ZENO_PAGE: /Philosophie/M/Hegel,+Georg+Wilhelm+Friedrich/Test+Werk -->\n"
+        '<div id="zenoCOText">root landing — drop me</div>\n\n'
+        "<!-- ZENO_PAGE: /Philosophie/M/Hegel,+Georg+Wilhelm+Friedrich/Test+Werk/A -->\n"
+        '<div id="zenoCOText"><p>This body ends with the words Friedrich Nietzsche for testing.</p></div>\n'
+    )
+    p = tmp_path / "test.html"
+    p.write_text(html, encoding="utf-8")
+    chunks = list(corpus_parse.split_zeno_pages(html, _make_work("chapter"), p))
+    assert all(c.block_type is None for c in chunks)
+
+
 def test_split_zeno_pages_returns_nothing_when_no_markers(tmp_path: Path):
     chunks = list(
         corpus_parse.split_zeno_pages(

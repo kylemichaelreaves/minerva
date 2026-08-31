@@ -18,7 +18,7 @@ from ..corpus_extract import IngestDepsMissing
 from ..corpus_works import CorpusWork
 from ..heading_clean import _is_editorial_heading
 from ..tei import Chunk
-from .split_paragraphic import _split_chapter_block
+from .split_paragraphic import _split_chapter_block, _type_signature_lines
 
 # zeno.org HTML dumps from `perseus/download_hegel_de.py` are
 # concatenations of subpages, each preceded by a marker comment like
@@ -158,5 +158,11 @@ def split_zeno_pages(html: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
             # Remark-mode state is per page — a new ZENO_PAGE always
             # starts back in the main voice.
             yield from _type_kant_remarks(page_chunks)
+        elif work.code == "briefe":
+            # Letter closings ending "... Friedrich Nietzsche" are his own
+            # words but paratextual, not discursive (#291) — gated on the
+            # work rather than the phrase alone, since this splitter is
+            # shared across authors.
+            yield from _type_signature_lines(page_chunks)
         else:
             yield from page_chunks

@@ -160,6 +160,16 @@ def _verse_work_ids(conn: sqlite3.Connection) -> np.ndarray:
 _APPARATUS_TYPES = ("note", "cast")
 _APPARATUS_LABEL = {"note": "editorial note", "cast": "cast list"}
 
+# The author's OWN words, but paratextual rather than discursive — Nachlass
+# title-page drafts and Briefe valedictions that end "... Von Friedrich
+# Nietzsche." (#291). Unlike note/cast, `format_locator` must NOT reattribute
+# these away from the author (he wrote them), so they stay out of
+# `_APPARATUS_TYPES`; they still need to be capped like apparatus, because a
+# 66-character signature line outranks his actual philosophical passages on
+# any query containing his name. `_PARATEXT_TYPES` is the set the cap
+# consults; `_APPARATUS_TYPES` stays the set `format_locator` consults.
+_PARATEXT_TYPES = ("signature",)
+
 # The most of a result set that may be apparatus (#165). Notes are short
 # and numerous — the Republic carries 2,767 of them against 1,355
 # English text chunks — and both halves of retrieval independently
@@ -432,17 +442,21 @@ def _rank_ids(ids: Iterable[str], fused: dict[str, float]) -> list[str]:
     return sorted(ids, key=lambda c: (-fused.get(c, 0.0), c))
 
 
+_CAPPED_TYPES = _APPARATUS_TYPES + _PARATEXT_TYPES
+
+
 def _apparatus_ids(conn: sqlite3.Connection, ids: list[str]) -> set[str]:
-    """Which of *ids* are editorial apparatus rather than primary text."""
+    """Which of *ids* are apparatus or paratext rather than discursive
+    primary text — i.e. everything `_cap_apparatus` may skip."""
 
     if not ids:
         return set()
     placeholders = ",".join("?" * len(ids))
-    type_slots = ",".join("?" * len(_APPARATUS_TYPES))
+    type_slots = ",".join("?" * len(_CAPPED_TYPES))
     rows = conn.execute(
         f"SELECT chunk_id FROM chunks_full WHERE chunk_id IN ({placeholders}) "
         f"AND block_type IN ({type_slots})",
-        (*ids, *_APPARATUS_TYPES),
+        (*ids, *_CAPPED_TYPES),
     )
     return {r[0] for r in rows}
 
@@ -518,9 +532,11 @@ def search(
     banners like "ETHICS BOOK I", running heads. It does **not** exclude
     title-page lines or letter valedictions ("Von Friedrich Nietzsche")
     that happen to land at 66+ characters; those are a `block_type`
-    problem the length floor cannot reach, not this one (#291). Pass 0 to
-    disable when you specifically want to see the chunks under the floor
-    (e.g., a curation pass surfacing scrape garbage to delete).
+    problem the length floor cannot reach, not this one (#291) — they're
+    typed `block_type='signature'` at ingest and capped by
+    `_PARATEXT_TYPES` instead. Pass 0 to disable when you specifically
+    want to see the chunks under the floor (e.g., a curation pass
+    surfacing scrape garbage to delete).
 
     Works addressed by verse (``works.citation_system`` in
     ``_VERSE_CITATION_SYSTEMS``) are exempt from the floor: their short

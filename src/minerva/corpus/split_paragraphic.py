@@ -9,6 +9,7 @@ zeno.org HTML dumps).
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import unicodedata
 from collections.abc import Iterator
@@ -61,6 +62,35 @@ def _has_letter(text: str) -> bool:
     """At least one Unicode letter anywhere in the text."""
 
     return any(unicodedata.category(ch).startswith("L") for ch in text)
+
+
+# A Nachlass title-page draft or Briefe valediction ending in the author's
+# own name — "Der Spiegel. Versuch einer Selbstabschätzung. Von Friedrich
+# Nietzsche." / "Mit den herzlichsten Wünschen allezeit der Ihrige Friedrich
+# Nietzsche". Real text (he wrote it), but paratextual rather than
+# discursive, and it outranks his actual philosophy on any query containing
+# his name unless typed (#291). Anchored to end-of-string so a chunk that
+# merely MENTIONS the name mid-text (a real excerpt from Ecce homo, say) is
+# untouched.
+_SIGNATURE_LINE_RE = re.compile(r"(?:von\s+)?friedrich nietzsche\.?\s*$", re.I)
+
+
+def _is_signature_line(text: str) -> bool:
+    return bool(_SIGNATURE_LINE_RE.search(text.strip()))
+
+
+def _type_signature_lines(chunks: Iterator[Chunk]) -> Iterator[Chunk]:
+    """Post-pass: type paragraphs matching `_is_signature_line` as
+    block_type='signature'. Typing-only — `dataclasses.replace` runs after
+    `chunk_id` is already computed from the text, so ids don't move and
+    embeddings/lemmas/xrefs survive a re-ingest byte-identical, same as
+    `split_zeno._type_kant_remarks`."""
+
+    for chunk in chunks:
+        if _is_signature_line(chunk.text):
+            yield dataclasses.replace(chunk, block_type="signature")
+        else:
+            yield chunk
 
 
 def _emit(

@@ -17,6 +17,7 @@ cross-references at fragment granularity.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -24,7 +25,7 @@ from pathlib import Path
 from ..corpus_extract import IngestDepsMissing
 from ..corpus_works import CorpusWork
 from ..tei import Chunk
-from .split_paragraphic import _emit
+from .split_paragraphic import _emit, _is_signature_line
 
 # The page-level group header, e.g. "[25 = W I 1. Frühjahr 1884]" or
 # "[25 = W I 1. Frühjahr 1884 — Herbst 1885]". We pull the group number
@@ -101,5 +102,13 @@ def split_ekgwb(html: str, work: CorpusWork, path: Path) -> Iterator[Chunk]:
             continue
 
         chunk = _emit(work, path, siglum, text, book_label=book_label)
-        if chunk is not None:
-            yield chunk
+        if chunk is None:
+            continue
+        # Some notebook fragments ARE Nietzsche drafting a book title —
+        # "Der Spiegel. Versuch einer Selbstabschätzung. Von Friedrich
+        # Nietzsche." — real text, but paratextual rather than
+        # discursive, and it outranks his actual philosophy on any query
+        # containing his name (#291).
+        if _is_signature_line(chunk.text):
+            chunk = dataclasses.replace(chunk, block_type="signature")
+        yield chunk

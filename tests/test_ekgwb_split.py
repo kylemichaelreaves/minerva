@@ -77,6 +77,52 @@ def test_split_ekgwb_strips_apparatus() -> None:
     assert "25[1]" not in chunks[0].text
 
 
+def test_split_ekgwb_skips_fragments_emit_drops() -> None:
+    # A fragment whose body is letter-free (a bare separator) is dropped by
+    # `_emit`; the splitter must skip it rather than yield None.
+    fixture = """
+    <html><body>
+    <div class="divided">
+     <div class="txt_block">
+      <div class="header_text">[25 = W I 1. Frühjahr 1884]</div>
+      <div class="div1"><div class="head">25[1]</div>
+        <div class="p">----</div>
+      </div>
+      <div class="div1"><div class="head">25[2]</div>
+        <div class="p">Die ewige Wiederkunft. Eine Wahrsagung.</div>
+      </div>
+     </div>
+    </div>
+    </body></html>
+    """
+    chunks = list(split_ekgwb(fixture, _work(), Path("nachlass_kgw_1884_25.html")))
+    assert [c.section for c in chunks] == ["NF-1884,25[2]"]
+
+
+def test_split_ekgwb_types_title_draft_fragments_as_signature() -> None:
+    # #291: a fragment that IS a draft book-title line ending in his own
+    # name ranks over Nietzsche's actual philosophy on any query
+    # containing "Nietzsche" unless typed and capped like apparatus.
+    fixture = """
+    <html><body>
+    <div class="divided">
+     <div class="txt_block">
+      <div class="header_text">[25 = W I 1. Frühjahr 1884]</div>
+      <div class="div1"><div class="head">25[1]</div>
+        <div class="p">Die ewige Wiederkunft. Eine Wahrsagung.</div>
+      </div>
+      <div class="div1"><div class="head">25[2]</div>
+        <div class="p">Der Spiegel. Versuch einer Selbstabschätzung. Von Friedrich Nietzsche.</div>
+      </div>
+     </div>
+    </div>
+    </body></html>
+    """
+    chunks = list(split_ekgwb(fixture, _work(), Path("nachlass_kgw_1884_25.html")))
+    assert chunks[0].block_type is None
+    assert chunks[1].block_type == "signature"
+
+
 def test_find_work_recognises_dropped_notebook() -> None:
     # Drop-and-go: a not-yet-listed notebook filename still resolves.
     w = find_work("nachlass_kgw_1888_14.html")
