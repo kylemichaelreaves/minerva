@@ -516,7 +516,7 @@ def search(
     corpus: str | None = None,
     speaker: str | None = None,
     embedder: embed.Embedder | None = None,
-    fetch_pool: int = 32,
+    fetch_pool: int = 100,
     bm25_weight: float = 0.5,
     vector_weight: float = 0.5,
     expand_neighbors: int = 1,
@@ -543,6 +543,16 @@ def search(
     chunks are whole verses, not boilerplate, and the filter made 17,905
     of them — including all 1,937 Quran chunks — unreachable rather than
     down-ranked (#268).
+
+    ``fetch_pool`` bounds the BM25/vector candidate pool `_cap_apparatus`
+    walks (#165). Raised from 32 to 100 (#468): a bare author-name query
+    can have its entire top-32 pool be apparatus/signature-typed chunks —
+    they win BM25's length normalization over genuine discursive
+    passages that merely mention the name once — leaving nothing for
+    the cap to admit, so its "not enough primary text" fallback conceded
+    the whole page instead of holding the 1/3 share. Cheap either way:
+    vector search's cost is a full matrix product independent of
+    ``top_k``, and 100 vs 32 measured flat (~50ms) end to end.
     """
 
     bm25_raw = _bm25_search(
