@@ -1,5 +1,5 @@
 // Arabic helpers for the Reader's hover-to-transliterate affordance.
-// Mirror of `lib/greek.ts` and `lib/hebrew.ts` for the ara-language
+// Mirror of `utils/greek.ts` and `utils/hebrew.ts` for the ara-language
 // Quran (Tanzil Uthmani) chunks. Tashkeel (fatha / kasra / damma /
 // sukun / shadda) is dense on the indexed text; the romanizer reads
 // the diacritics to produce vowels and to double shadda-marked

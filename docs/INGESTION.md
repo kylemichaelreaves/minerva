@@ -1073,7 +1073,7 @@ tracks page-running-head transitions in the 1642 De Cive.
 - **Downloader:** `perseus/download_hebrew_mt.py` → `data/hebrew_mt/raw/`.
 - **Works:** `src/minerva/hebrew_mt_works.py`; corpus slug `hebrew_mt`.
 - **Citation:** `bcv` (book:chapter:verse). Reader uses RTL layout and
-  transliteration hover (`web/src/lib/hebrew.ts`).
+  transliteration hover (`web/src/utils/hebrew.ts`).
 - **Chat:** `AUTHOR_KEYWORDS` includes `tanakh`, `torah`, `masoretic`
   (see `corpus_registry.py`). Serve with `--lang any` (default).
 - **FTS caveat:** niqqud/te'amim are part of the indexed token — lexical
@@ -1085,7 +1085,7 @@ tracks page-running-head transitions in the 1642 De Cive.
 
 - **Downloader:** `perseus/download_quran.py` (Uthmani XML).
 - **Works:** `src/minerva/quran_works.py`; citation system `surah_ayah`.
-- **Reader:** RTL + Arabic transliteration (`web/src/lib/arabic.ts`).
+- **Reader:** RTL + Arabic transliteration (`web/src/utils/arabic.ts`).
 - **Chat:** keywords `quran`, `koran`, `surah`, `quranic`, etc.
 
 ## Marx, Cicero, and Stoics (brief)

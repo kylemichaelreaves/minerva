@@ -29,7 +29,7 @@ Hash-based routing ([`web/src/routing.ts`](../web/src/routing.ts)) — no pathna
 `index.tsx`, sibling `*.tsx` files (JSX + colocated hooks/helpers), feature-level
 `.css`. No `hooks/` or `utils/` `.ts` trees under surfaces. Wire types in
 [`web/src/api/types/`](../web/src/api/types/); UI types in
-[`web/src/lib/uiTypes.ts`](../web/src/lib/uiTypes.ts). Routes live under
+[`web/src/utils/uiTypes.ts`](../web/src/utils/uiTypes.ts). Routes live under
 [`web/src/routes/`](../web/src/routes/). See [FRONTEND.md](FRONTEND.md).
 
 **Backend:** Author metadata is authored in [`data/authors/manifest.yaml`](../data/authors/manifest.yaml) and codegen'd into `corpus_registry.py`, `author_ordering.py`, and `web/src/data/atlasData.ts` (`make generate-authors` / `make check-authors`). Corpus ingest is declarative via [`src/minerva/ingest/registry.py`](../src/minerva/ingest/registry.py). Per-author work tables live under [`src/minerva/authors/`](../src/minerva/authors/). Concordance SQL is split across `concordance/_scope.py`, `index_queries.py`, and `kwic_queries.py` (re-exported from `concordance/queries.py`). Domain chat logic uses [`ChatContext`](../src/minerva/chat_context.py) (not HTTP `ServerDeps`). `store/` and `agent/` are subpackages with `__init__` re-exports.

@@ -16,7 +16,7 @@ surfaces.
 
 | Rule | Detail |
 |------|--------|
-| **Extension** | `.tsx` under `src/<Surface>/` and for UI hooks in `src/lib/`. |
+| **Extension** | `.tsx` under `src/<Surface>/` and for UI hooks in `src/hooks/`. |
 | **Colocation** | `interface Props`, `function useFoo()`, pure helpers in the **same** file as the component. |
 | **Named exports** | Export testable helpers from the SFC (e.g. `export function selectArcPairs`). |
 | **Large files** | Split into **child component SFCs**, not `.ts` util modules. |
@@ -25,8 +25,9 @@ surfaces.
 
 **Exceptions (`.ts` allowed):** `src/api/` and `src/api/types/` (wire clients);
 root controllers (`routing.ts`, `*Ctrl.ts`, `conversationsSend.ts`); `routes/routeUtils.ts`;
-generated/data (`atlasData.ts`, `data.ts`); `util.ts`; shared pure libs in `lib/`
-(`renumber.ts`, `popoverPosition.ts`, …). Shared hooks use `lib/use*.tsx`.
+generated data (`src/data/atlasData.ts`); shared pure libs in `src/utils/`
+(`util.ts`, `renumber.ts`, `popoverPosition.ts`, …). Shared hooks use
+`src/hooks/use*.tsx`.
 
 **`src/Syntax/` is a deliberate structural exception.** It carries
 `conllu/`, `layout/` and `corrections/` subtrees of pure `.ts` modules plus a
@@ -36,12 +37,14 @@ testable, and the thing most likely to be subtly wrong: arc levels,
 projectivity, row wrapping, the CoNLL-U round trip, and the correction replay
 are all cheap to unit-test in isolation and expensive to debug through a
 rendered SVG. Note the subtree names — `conllu`, `layout`, `corrections`, not
-`hooks` or `utils` — which is what clears the `no-restricted-syntax` rule at
-`eslint.config.js:70-96`. Don't read this as a general licence: it applies to
+`hooks` or `utils` — which is what clears the `no-restricted-syntax` rule in
+`eslint.config.js`. That rule matches `src/**/hooks/**/*.ts` and
+`src/**/utils/**/*.ts` structurally, so `Syntax/` needs no exception and a
+surface added tomorrow is guarded without editing it (#477). Don't read this as a general licence: it applies to
 provably pure geometry and format code, not to component state.
 
-**Types:** API wire shapes in `src/api/types/`; UI domain types in `src/lib/uiTypes.ts`.
-The barrel `src/lib/types.ts` re-exports both for legacy imports. Change Python
+**Types:** API wire shapes in `src/api/types/`; UI domain types in `src/utils/uiTypes.ts`.
+The barrel `src/utils/types.ts` re-exports both for legacy imports. Change Python
 handlers, JSON fixtures (`tests/fixtures/api/*.keys.json`), and TS types together;
 `make check` runs `scripts/check_api_types.py` and `tests/test_api_contract.py`.
 
@@ -129,7 +132,7 @@ The project's pattern (not a strict WCAG ramp, but consistent):
 - Clickable `<span>` / `<div>` carry `role="link"` or `role="button"` — see
   `Concordance/components/LbRow.tsx`.
 - Real `<button type="button">` is used for actions that submit, close, or
-  open a sheet — see `lib/MobileSheet.tsx`.
+  open a sheet — see `src/components/shell/MobileSheet.tsx`.
 - Dialog-role containers carry `aria-label`.
 - Keyboard nav: every page-level shortcut lives in the owning SFC (e.g.
   `LemmaDetail.tsx`) with cleanup via `onCleanup`. Don't sprinkle ad-hoc
@@ -206,8 +209,9 @@ Tests live under `web/tests/` (flat layout, not co-located).
 **Required for every PR that touches `web/src/`:**
 - A hook with non-trivial logic ships with a `<Name>.test.ts` (memo derivations,
   keyboard handlers, debouncing, reactive composition).
-- A util / data-shaping function (named export on an SFC, or `lib/popoverPosition`,
-  `lib/renumber`) ships with `<Name>.test.ts`.
+- A util / data-shaping function (named export on an SFC, or
+  `src/utils/popoverPosition`, `src/utils/renumber`) ships with
+  `<Name>.test.ts`.
 - A component with behavior beyond "render props as-is" ships with
   `<Name>.test.tsx`. "Behavior" includes: conditional rendering thresholds
   (e.g. the `LemmaIdentityCard` 95% gender-lock heuristic), local state
@@ -231,8 +235,8 @@ E2E (`make test-e2e`) is on-push-to-main only.
 | Pattern you need                | Look at                                            |
 |---------------------------------|----------------------------------------------------|
 | Hook backed by `createResource` | `src/Concordance/IndexPage.tsx`                    |
-| Mobile breakpoint signal        | `src/lib/useMobile.tsx`                            |
-| Bottom-sheet (portal + scrim)   | `src/lib/MobileSheet.tsx`                          |
+| Mobile breakpoint signal        | `src/hooks/useMobile.tsx`                          |
+| Bottom-sheet (portal + scrim)   | `src/components/shell/MobileSheet.tsx`             |
 | Clickable row with `role`       | `src/Concordance/components/LbRow.tsx`             |
 | Route shape + URL serializer    | `src/routing.ts`                                   |
 | Allow-clear route patch         | `src/routes/routeUtils.ts` `mergeRoutePatchAllowClear` |
