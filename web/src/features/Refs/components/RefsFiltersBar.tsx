@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import type { SelectOption } from "~/components/Select";
+import type { SelectOption } from "~/components/primitives/Select";
 import { referenceTypeSelectOptions } from "~/utils/referenceTypes";
 import { RefsFilterField } from "~/features/Refs/components/RefsFilterField";
 import { stringsToSelectOptions } from "~/features/Refs/components/refsList";

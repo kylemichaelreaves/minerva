@@ -24,7 +24,16 @@ export function MobileSheet(props: MobileSheetProps) {
   return (
     <Show when={props.open}>
       <Portal>
-        <div class="mobile-sheet-scrim" onClick={() => props.onClose()} />
+        {/* A real button, not a <div onClick>: the scrim was the only
+            pointer-driven dismissal and reached nothing else
+            (typescript:S6848 + typescript:S1082). Escape closes the sheet too,
+            via useEscape above. */}
+        <button
+          type="button"
+          class="mobile-sheet-scrim"
+          aria-label="Dismiss"
+          onClick={() => props.onClose()}
+        />
         <div
           ref={setDialogRef}
           class="mobile-sheet"

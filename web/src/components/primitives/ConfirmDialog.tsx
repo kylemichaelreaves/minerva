@@ -55,21 +55,28 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
 
   return (
     <Show when={props.open}>
-      <div
-        class="dialog-scrim"
-        onClick={() => {
-          props.onCancel();
-        }}
-      >
+      <div class="dialog-scrim">
+        {/* The outside-click dismissal lives on a real button laid over the
+            scrim, not on the scrim div itself. As a <div onClick> it was
+            mouse-only (typescript:S6848 + typescript:S1082); as a sibling of
+            the dialog rather than its parent, it also removes the need for
+            the `stopPropagation` shim the dialog used to carry to survive it
+            (typescript:S6847 + typescript:S1082). Named "Dismiss" rather than
+            "Cancel" so it does not collide with the visible ghost button. */}
+        <button
+          type="button"
+          class="dialog-scrim-hit"
+          aria-label="Dismiss"
+          onClick={() => {
+            props.onCancel();
+          }}
+        />
         <div
           ref={dialogRef}
           class="dialog"
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-dialog-title"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
         >
           <div class="dialog-title" id="confirm-dialog-title">
             {props.title}

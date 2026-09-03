@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import SurfaceErrorBoundary from "~/components/SurfaceErrorBoundary";
+import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 
 // #426. The app mounted no `ErrorBoundary` anywhere, so anything that threw
 // during a render escaped the tree entirely: no fallback, no message, and

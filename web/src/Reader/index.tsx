@@ -20,9 +20,9 @@
 
 import { Show, createEffect, onMount } from "solid-js";
 import { classnames } from "~/utils/util";
-import ReferenceCard from "~/components/ReferenceCard";
-import TermCard from "~/components/TermCard";
-import { useMobileShell } from "~/components/MobileShellContext";
+import ReferenceCard from "~/components/cards/ReferenceCard";
+import TermCard from "~/components/cards/TermCard";
+import { useMobileShell } from "~/components/shell/MobileShellContext";
 import { useEscape } from "~/hooks/useEscape";
 import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
 import { routeHash } from "~/routing";

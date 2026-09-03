@@ -3,9 +3,9 @@ import Landing from "~/features/Landing";
 import Composer from "~/features/Composer";
 import WorkScopeControl from "~/features/Composer/WorkScopeControl";
 import Thread from "~/Thread";
-import Topbar from "~/components/Topbar";
+import Topbar from "~/components/shell/Topbar";
 import { ThreadSearchSheet } from "~/Thread/components/ThreadSearchSheet";
-import { useMobileShell } from "~/components/MobileShellContext";
+import { useMobileShell } from "~/components/shell/MobileShellContext";
 import type { RouteContextProps } from "~/routes/types";
 
 export function ChatRoute(props: RouteContextProps) {

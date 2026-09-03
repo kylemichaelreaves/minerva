@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import Landing from "~/features/Landing";
@@ -30,6 +30,19 @@ function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
 }
 
 describe("<Landing />", () => {
+  // `web/tests/setup.ts` installs a desktop `window.matchMedia`
+  // (`matches: false`). One test below replaces it to assert the mobile
+  // branch, by direct assignment rather than `vi.stubGlobal` — so nothing
+  // undoes it, and every test declared after that one used to render in
+  // mobile mode without saying so (#476). Restore the shim after each test so
+  // the file stops depending on declaration order.
+  // `.bind` rather than a bare reference: @typescript-eslint/unbound-method
+  // flags capturing a method off its object, and the restore works the same.
+  const desktopMatchMedia = window.matchMedia.bind(window);
+  afterEach(() => {
+    window.matchMedia = desktopMatchMedia;
+  });
+
   it("renders the monogram and the composer", () => {
     renderLanding();
     expect(screen.getByAltText("Minerva")).toBeInTheDocument();
@@ -181,20 +194,9 @@ describe("<Landing />", () => {
   // Making the spacing explicit must not move a pixel, so this pins the exact
   // rendered string — including the two non-breaking spaces — across that edit.
   it("renders the desktop key hint with its exact spacing", () => {
-    // Set explicitly rather than inherited: the mobile test above assigns
-    // `window.matchMedia` with no restore, so every test declared after it
-    // runs in mobile mode by default. Filed separately; this test states the
-    // viewport it means instead of depending on declaration order.
-    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => undefined,
-      removeListener: () => undefined,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-      dispatchEvent: () => false,
-    }));
+    // No viewport stub of its own: #476's `afterEach` restores the desktop
+    // default after the mobile test above, so this inherits it. The explicit
+    // stub PR #473 needed here is what that fix removes.
     const { container } = renderLanding();
     const kbds = Array.from(container.querySelectorAll(".kbd"));
     expect(kbds.map((k) => k.textContent)).toEqual(["\u21b5", "\u21e7 \u21b5"]);

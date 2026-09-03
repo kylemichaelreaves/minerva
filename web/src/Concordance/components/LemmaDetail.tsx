@@ -11,7 +11,7 @@ import { KwicRowEl } from "~/Concordance/components/KwicRow";
 import { KwicSkeleton } from "~/Concordance/components/KwicSkeleton";
 import { LemmaIdentityCard } from "~/Concordance/components/LemmaIdentityCard";
 import { useMobile } from "~/hooks/useMobile";
-import { MobileSheet } from "~/components/MobileSheet";
+import { MobileSheet } from "~/components/shell/MobileSheet";
 import "~/Concordance/concordance.css";
 
 export interface LemmaDetailProps {

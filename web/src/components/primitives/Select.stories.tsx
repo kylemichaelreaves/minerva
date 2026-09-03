@@ -15,8 +15,8 @@
 
 import { createSignal } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { Select, type SelectOption } from "~/components/Select";
-import { withTheme } from "../../.storybook/decorators";
+import { Select, type SelectOption } from "~/components/primitives/Select";
+import { withTheme } from "../../../.storybook/decorators";
 
 // ─── fixtures ──────────────────────────────────────────────────────
 

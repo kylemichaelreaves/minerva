@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, waitFor } from "@solidjs/testing-library";
-import TermCard from "~/components/TermCard";
+import TermCard from "~/components/cards/TermCard";
 
 let fetchMock: MockedFunction<typeof fetch>;
 

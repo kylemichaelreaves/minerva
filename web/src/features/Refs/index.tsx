@@ -9,9 +9,9 @@ import {
   fetchReferencesSources,
   type ReferencesListRow,
 } from "~/api/refsApi";
-import { LoadingDots } from "~/components/LoadingDots";
-import { FilterSheet } from "~/components/FilterSheet";
-import { useMobileShell } from "~/components/MobileShellContext";
+import { LoadingDots } from "~/components/primitives/LoadingDots";
+import { FilterSheet } from "~/components/shell/FilterSheet";
+import { useMobileShell } from "~/components/shell/MobileShellContext";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
 import { usePaginatedAppend } from "~/hooks/usePaginatedAppend";

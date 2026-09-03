@@ -10,7 +10,7 @@
 
 import { Show, createEffect, createSignal } from "solid-js";
 import { classnames } from "~/utils/util";
-import { LoadingDots } from "~/components/LoadingDots";
+import { LoadingDots } from "~/components/primitives/LoadingDots";
 import type { TargetLang } from "~/utils/types";
 import { TargetLangToggle, disabledLangFor } from "~/Reader/components/TargetLangToggle";
 import { RailDismissFooter } from "~/Reader/components/RailDismissFooter";

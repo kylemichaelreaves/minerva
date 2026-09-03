@@ -13,7 +13,7 @@ import {
 } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Refs, { type RefsProps } from "~/features/Refs";
-import { MobileShellProvider } from "~/components/MobileShellContext";
+import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import type {
   ReferencesListResponse,
   ReferencesListRow,

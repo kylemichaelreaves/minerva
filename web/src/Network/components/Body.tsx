@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import type { NetworkSummary } from "~/api/networkApi";
-import { useMobileShellOptional } from "~/components/MobileShellContext";
+import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { ArcPanel } from "~/Network/components/ArcPanel";
 import { HeatmapPanel } from "~/Network/components/HeatmapPanel";
 import { LeaderboardPanel } from "~/Network/components/LeaderboardPanel";

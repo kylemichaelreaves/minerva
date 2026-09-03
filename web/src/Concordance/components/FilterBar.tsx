@@ -5,7 +5,7 @@
 
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { isConcSort, type ConcScope, type ConcSort } from "~/api/concordanceApi";
-import { Select, type SelectOption } from "~/components/Select";
+import { Select, type SelectOption } from "~/components/primitives/Select";
 
 /** Debounce window for the lemma search box. Each commit patches the
  *  URL and refetches the lemma index, so per-keystroke commits were a

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import Topbar from "~/components/Topbar";
-import { withTheme } from "../../.storybook/decorators";
+import Topbar from "~/components/shell/Topbar";
+import { withTheme } from "../../../.storybook/decorators";
 
 const meta: Meta<typeof Topbar> = {
   title: "Shell/Topbar",

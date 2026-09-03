@@ -3,8 +3,8 @@
 import { Show, createEffect, createSignal, onMount } from "solid-js";
 import { fetchNetworkSummary } from "~/api/networkApi";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
-import { MobileSheet } from "~/components/MobileSheet";
-import { useMobileShell } from "~/components/MobileShellContext";
+import { MobileSheet } from "~/components/shell/MobileSheet";
+import { useMobileShell } from "~/components/shell/MobileShellContext";
 import { NetworkBody } from "~/Network/components/Body";
 import { NetworkHeader } from "~/Network/components/Header";
 import { NetworkFiltersBar } from "~/Network/components/NetworkFiltersBar";

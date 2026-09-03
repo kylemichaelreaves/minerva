@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Review, { type ReviewProps } from "~/features/Refs/components/Review";
-import { MobileShellProvider } from "~/components/MobileShellContext";
+import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import type { ReviewQueueResponse, ReviewQueueRow } from "~/api/refsApi";
 import { okResponse } from "./helpers/testRouting";
 

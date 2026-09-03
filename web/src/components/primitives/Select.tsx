@@ -38,7 +38,7 @@ import {
 import { useClickOutside } from "~/hooks/useClickOutside";
 import { useMobile } from "~/hooks/useMobile";
 import { matchesQuery } from "~/utils/searchFold";
-import "~/components/Select.css";
+import "~/components/primitives/Select.css";
 
 export interface SelectOption {
   value: string;
@@ -430,6 +430,27 @@ export function Select(props: SelectProps): JSX.Element {
     return selected() !== undefined;
   });
 
+  /** Shared by the pointer and keyboard paths so the two cannot drift. */
+  const clearSelection = (): void => {
+    if (props.disabled) return;
+    props.onChange("");
+    // If the panel happens to be open when the user clears, close it —
+    // they almost certainly want to start over rather than browse the
+    // list with a now-empty value.
+    if (isOpen()) closePanel(false);
+  };
+
+  // `role="button"` without key handling is mouse-only (typescript:S1082).
+  // The span carries `tabindex="-1"` so it is not a tab stop, but it is still
+  // reachable programmatically and by assistive tech, both of which expect the
+  // two activation keys a native button answers.
+  const onClearKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    e.stopPropagation();
+    clearSelection();
+  };
+
   const onClearClick = (e: MouseEvent): void => {
     // Stop the click from bubbling to the trigger, which would open / close
     // the panel. We deliberately don't preventDefault on pointerdown because
@@ -444,12 +465,7 @@ export function Select(props: SelectProps): JSX.Element {
     // caller combines `filterable` with a clearable value — and not testable in
     // jsdom either, which does not implement label activation.
     e.stopPropagation();
-    if (props.disabled) return;
-    props.onChange("");
-    // If the panel happens to be open when the user clears, close it —
-    // they almost certainly want to start over rather than browse the
-    // list with a now-empty value.
-    if (isOpen()) closePanel(false);
+    clearSelection();
   };
 
   /** One set of props, spread into whichever site renders the field, so the
@@ -513,6 +529,7 @@ export function Select(props: SelectProps): JSX.Element {
             tabindex="-1"
             aria-label="Clear selection"
             onClick={onClearClick}
+            onKeyDown={onClearKeyDown}
             onPointerDown={(e) => {
               // Prevent the trigger from grabbing focus before our
               // click fires; without this, in some browsers the

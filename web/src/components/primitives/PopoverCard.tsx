@@ -1,5 +1,5 @@
 import { type JSX, createSignal } from "solid-js";
-import "~/components/popovercard.css";
+import "~/components/primitives/popovercard.css";
 import { POPOVER_CARD_WIDTH } from "~/utils/popoverPosition";
 import { useClickOutside } from "~/hooks/useClickOutside";
 import { useDialogFocus } from "~/hooks/useDialogFocus";

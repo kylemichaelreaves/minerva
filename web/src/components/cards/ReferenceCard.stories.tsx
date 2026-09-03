@@ -16,8 +16,8 @@
 
 import type { Component } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import ReferenceCard, { type Reference } from "~/components/ReferenceCard";
-import { withTheme } from "../../.storybook/decorators";
+import ReferenceCard, { type Reference } from "~/components/cards/ReferenceCard";
+import { withTheme } from "../../../.storybook/decorators";
 
 // ─── mock references ─────────────────────────────────────────────
 

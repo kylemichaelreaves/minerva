@@ -14,7 +14,7 @@
 
 import { For } from "solid-js";
 import { dismissToast, useToasts } from "~/utils/apiError";
-import "~/components/Toasts.css";
+import "~/components/primitives/Toasts.css";
 
 export default function Toasts() {
   const toasts = useToasts();

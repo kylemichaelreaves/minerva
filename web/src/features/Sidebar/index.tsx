@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { classnames } from "~/utils/util";
-import { SidebarIcon, PlusIcon } from "~/components/Icons";
+import { SidebarIcon, PlusIcon } from "~/components/primitives/Icons";
 import type { HistoryItem, Work } from "~/utils/types";
 import {
   loadCollapsedAuthors,
@@ -8,7 +8,7 @@ import {
 } from "~/features/Sidebar/collapsedAuthorsStorage";
 import { SidebarHistorySection } from "~/features/Sidebar/components/SidebarHistorySection";
 import { SidebarWorkItem } from "~/features/Sidebar/components/WorkItem";
-import { ThemeToggle } from "~/components/ThemeToggle";
+import { ThemeToggle } from "~/components/shell/ThemeToggle";
 import "~/features/Sidebar/sidebar.css";
 
 export type AppMode = "chat" | "reader";

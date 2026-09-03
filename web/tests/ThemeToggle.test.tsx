@@ -13,8 +13,8 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
-import { ThemeToggle } from "~/components/ThemeToggle";
-import { SunIcon, MoonIcon } from "~/components/Icons";
+import { ThemeToggle } from "~/components/shell/ThemeToggle";
+import { SunIcon, MoonIcon } from "~/components/primitives/Icons";
 
 afterEach(cleanup);
 
@@ -96,6 +96,22 @@ describe("ThemeToggle other variants", () => {
     ));
     expect(container.querySelector("span.sun")).toBeTruthy();
     expect(container.querySelector("svg")).toBeNull();
+  });
+
+  // Characterization, not a fix — the same shape as Landing's key-hint test
+  // (PR #473). JSX collapses the newline between `<span class="sun" />` and
+  // the `&nbsp;light` text node, which is what Sonar flags as ambiguous
+  // spacing (typescript:S6772, twice). Making the spacing explicit must not
+  // move a pixel, so this pins the exact rendered string — including the
+  // non-breaking space — across that edit.
+  it("renders variant=text with its exact spacing", () => {
+    render(() => <ThemeToggle theme="light" onToggle={noop} variant="text" />);
+    expect(screen.getByRole("button").textContent).toBe("\u00a0light");
+  });
+
+  it("renders the dark variant=text label with its exact spacing", () => {
+    render(() => <ThemeToggle theme="dark" onToggle={noop} variant="text" />);
+    expect(screen.getByRole("button").textContent).toBe("\u00a0dark");
   });
 
   it("variant=cog renders the gear character", () => {

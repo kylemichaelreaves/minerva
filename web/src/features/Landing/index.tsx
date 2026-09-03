@@ -11,9 +11,9 @@
 import { Show, createSignal, onMount, type JSX } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { createComposer } from "~/utils/composer";
-import ComposeField from "~/components/ComposeField";
-import { ThemeToggle } from "~/components/ThemeToggle";
-import { useMobileShellOptional } from "~/components/MobileShellContext";
+import ComposeField from "~/components/cards/ComposeField";
+import { ThemeToggle } from "~/components/shell/ThemeToggle";
+import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
 import { Atlas } from "~/features/Landing/components/Atlas";
 import "~/features/Landing/landing.css";

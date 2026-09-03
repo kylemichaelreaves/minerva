@@ -1,8 +1,15 @@
+/* A <button>, not a <div> — see MobileSheet.tsx. The UA button styling is
+   reset so it stays the flat scrim it has always looked like. */
 .mobile-sheet-scrim {
   position: fixed;
   inset: 0;
   z-index: 70;
   background: rgba(0, 0, 0, 0.35);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: default;
+  appearance: none;
 }
 
 .mobile-sheet {

@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
-import ReferenceCard from "~/components/ReferenceCard";
+import ReferenceCard from "~/components/cards/ReferenceCard";
 import type { Reference, ReferenceTarget } from "~/utils/types";
 
 function makeTarget(overrides: Partial<ReferenceTarget> = {}): ReferenceTarget {

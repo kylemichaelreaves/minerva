@@ -2,16 +2,16 @@
 
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
 import Sidebar from "~/features/Sidebar";
-import ConfirmDialog from "~/components/ConfirmDialog";
-import MobileTopBar from "~/components/MobileTopBar";
+import ConfirmDialog from "~/components/primitives/ConfirmDialog";
+import MobileTopBar from "~/components/shell/MobileTopBar";
 import { AppRoutes } from "~/AppRoutes";
-import SurfaceErrorBoundary from "~/components/SurfaceErrorBoundary";
+import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 import { SyntaxLayer } from "~/routes/SyntaxLayer";
-import { MobileShellProvider, useMobileShell } from "~/components/MobileShellContext";
+import { MobileShellProvider, useMobileShell } from "~/components/shell/MobileShellContext";
 import { useMobileTopBarConfig } from "~/hooks/useMobileTopBarConfig";
 import "~/styles/mobile.css";
 import "~/styles/mobile-sheet.css";
-import Toasts from "~/components/Toasts";
+import Toasts from "~/components/primitives/Toasts";
 import { useTheme } from "~/theme";
 import { useRouting } from "~/routing";
 import { useConversations } from "~/features/conversations/conversationsCtrl";

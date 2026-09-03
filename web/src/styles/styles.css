@@ -422,7 +422,27 @@ body::before {
   }
 }
 
+/* The outside-click dismissal, laid over the scrim rather than on it, so the
+   control is a real <button> — focusable and Enter/Space-operable. Invisible
+   and inert-looking: it must read as the scrim it replaces, not as a control. */
+.dialog-scrim-hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: default;
+  appearance: none;
+}
+.dialog-scrim-hit:focus-visible {
+  outline: 2px solid var(--accent, #c97a65);
+  outline-offset: -4px;
+}
+
 .dialog {
+  /* Stacks above `.dialog-scrim-hit`, which fills the same box. */
+  position: relative;
   background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: 4px;

@@ -8,7 +8,7 @@ import {
   SidebarIcon,
   SunIcon,
   TrashIcon,
-} from "~/components/Icons";
+} from "~/components/primitives/Icons";
 
 const ICONS: { label: string; Icon: (props: JSX.SvgSVGAttributes<SVGSVGElement>) => JSX.Element }[] =
   [

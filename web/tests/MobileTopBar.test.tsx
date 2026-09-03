@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
-import MobileTopBar from "~/components/MobileTopBar";
+import MobileTopBar from "~/components/shell/MobileTopBar";
 
 // MobileTopBar is a thin presentational shell — the value of these
 // tests is pinning the prop wiring (hamburger fires, action renders

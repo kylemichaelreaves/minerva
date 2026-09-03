@@ -11,7 +11,7 @@
 // flow is unaffected.
 
 import { For, Show, type JSX } from "solid-js";
-import { HoverTip } from "~/components/HoverTip";
+import { HoverTip } from "~/components/primitives/HoverTip";
 import { detectAnchorDirection } from "~/utils/popoverPosition";
 import { romanize as romanizeArabic } from "~/utils/arabic";
 import { romanize as romanizeGreek, tokenizeWords } from "~/utils/greek";

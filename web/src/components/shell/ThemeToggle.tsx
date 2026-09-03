@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import { MoonIcon, SunIcon } from "~/components/Icons";
+import { MoonIcon, SunIcon } from "~/components/primitives/Icons";
 import type { Theme } from "~/utils/types";
 
 export type ThemeToggleVariant = "icon" | "text" | "cog";
@@ -64,12 +64,12 @@ export function ThemeToggle(props: {
         fallback={
           <>
             <span class="sun" aria-hidden="true" />
-            &nbsp;light
+            {"\u00a0light"}
           </>
         }
       >
         <span class="moon" aria-hidden="true" />
-        &nbsp;dark
+        {"\u00a0dark"}
       </Show>
     </button>
   );
