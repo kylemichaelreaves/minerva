@@ -235,7 +235,7 @@ export const BANDS: { key: Tradition; yStart: number; yEnd: number }[] = [
 ];
 
 // YEAR_TICKS + fmtYear + layoutLabelsGreedy live in the shared
-// `lib/atlasGeometry` module so this file (horizontal landing strip)
+// `utils/atlasGeometry` module so this file (horizontal landing strip)
 // and `Network/NetworkArc` (vertical chronology) don't drift apart.
 import {
   YEAR_TICKS as SHARED_YEAR_TICKS,

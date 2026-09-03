@@ -1,5 +1,5 @@
 // Hebrew helpers for the Reader's hover-to-transliterate affordance.
-// Mirror of `lib/greek.ts` for the heb-language Hebrew Masoretic Text
+// Mirror of `utils/greek.ts` for the heb-language Hebrew Masoretic Text
 // chunks (OSHB / WLC). Cantillation (te'amim) and niqqud (vowel
 // pointing) on the indexed chunks are dense; the romanizer strips
 // cantillation and reads niqqud to produce vowels.

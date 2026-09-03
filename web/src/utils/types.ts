@@ -1,4 +1,4 @@
-/** Barrel re-exports — prefer `api/types/*` or `lib/uiTypes` for new code. */
+/** Barrel re-exports — prefer `api/types/*` or `utils/uiTypes` for new code. */
 
 export type {
   ChatHistoryMessage,

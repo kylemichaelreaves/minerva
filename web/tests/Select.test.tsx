@@ -1,5 +1,5 @@
 // Tests for `<Select>` — the keyboard-friendly combobox + listbox in
-// lib/Select.tsx. Covers the click + keyboard interaction surfaces
+// src/components/primitives/Select.tsx. Covers the click + keyboard surfaces
 // the FiltersBar (in /refs) and other call sites depend on.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -207,6 +207,40 @@ describe("<Select />", () => {
     )!;
     fireEvent.click(trigger);
     expect(container.querySelector(".minerva-select__listbox")).toBeNull();
+  });
+
+  it("a disabled Select with a value renders no clear control (#478)", () => {
+    // `showClear()` is the single owner of the disabled rule — the handlers
+    // behind the clear control carry no second copy of it, so this is the
+    // only thing standing between a disabled Select and a clearable one.
+    // The control renders under the same props without `disabled`, which is
+    // what makes the null below about `disabled` rather than about a
+    // mistyped selector or an unselected value.
+    const enabled = render(() => (
+      <Select options={OPTS} value="b" onChange={() => undefined} />
+    ));
+    expect(
+      enabled.container.querySelector(".minerva-select__clear"),
+    ).not.toBeNull();
+
+    const onChange = vi.fn();
+    const { container } = render(() => (
+      <Select options={OPTS} value="b" onChange={onChange} disabled />
+    ));
+    expect(container.querySelector(".minerva-select__clear")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("a disabled Select's caret replaces the clear control, not just hides it (#478)", () => {
+    // The <Show> swaps in the caret fallback rather than rendering an
+    // invisible span, so there is no element left for assistive tech or a
+    // programmatic .click() to activate. That is the property the deleted
+    // guard in `clearSelection` was standing in for.
+    const { container } = render(() => (
+      <Select options={OPTS} value="b" onChange={() => undefined} disabled />
+    ));
+    expect(container.querySelector('[role="button"]')).toBeNull();
+    expect(container.querySelector(".minerva-select__caret")).not.toBeNull();
   });
 
   it("disabled options are skipped by arrow navigation", () => {

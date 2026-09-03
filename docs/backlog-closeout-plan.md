@@ -3591,3 +3591,124 @@ each other.
 - `web/tests/Landing.test.tsx:55` assigns `window.matchMedia` with no restore,
   so the eight tests declared after it run in mobile mode (#476). Not a #324
   defect; found because a new test passed alone and failed in sequence.
+
+## Batch 12-bis — the two findings the split left behind (#477, #478)
+
+Both were filed by batch 12 rather than fixed in it, and both turned out to be
+exactly what they said they were. Every number under each `## Measured`
+reproduced on `main` at `c4fce19`. What did not survive contact was a
+parenthetical in each `## Hypothesis` — which is the same split the twelve
+close-out issues showed and CLAUDE.md now codifies: the pointer is durable,
+the diagnosis is a guess.
+
+### #477 — an inert guard, and it was inert in one more place than filed
+
+The SFC-migration rule in `web/eslint.config.js` enumerated twelve globs
+across six feature directories. Four went dead when PR #473 moved `Refs/` and
+`Landing/` under `features/`. Demonstrated rather than inferred — two probe
+files, one at a dead path and one at a live twin:
+
+```
+$ npx eslint src/features/Refs/hooks/probeDead.ts src/Reader/hooks/probeLive.ts
+  src/Reader/hooks/probeLive.ts
+    1:1  error  Use SFC .tsx colocation …  no-restricted-syntax
+  ✖ 1 problem
+```
+
+The file at the dead path lints clean. After the fix the same command reports
+**2 problems**.
+
+The issue undercounted the gap. It named the five `features/` surfaces; the
+test written to pin the fix failed **13 of 31** assertions, and two of those
+were `src/Syntax/hooks` and `src/Syntax/utils` — a sixth surface that never
+had a glob in any version of the rule. `Syntax/` is a documented structural
+exception for `conllu/`, `layout/` and `corrections/`, and that exception was
+silently doing more work than the doc claims: nothing stopped a
+`Syntax/hooks/useThing.ts` either.
+
+**The correction that would have cost something.** The issue proposed the
+broad glob pair and said `src/Syntax/` and the top-level `src/hooks/` +
+`src/utils/` "both would need excluding". Only the second does:
+
+```
+$ find web/src/Syntax -type d
+  Syntax/{components,conllu,corrections,layout}      <- no hooks/, no utils/
+```
+
+An `ignores: ["src/Syntax/**"]` entry would have matched nothing the rule
+could ever flag — a dead exception shipped inside the rewrite whose entire
+purpose is to stop the rule accumulating dead entries, and one that would read
+to the next maintainer as evidence that `Syntax/` had been flagged and let
+off. Two ignores, not three.
+
+Enumerating what the globs actually hit across the tracked tree is what
+settles it: 20 files, all in `src/utils/`, none in `Syntax/`, and none in
+`src/hooks/` — every file there is `.tsx`, which the `*.ts` globs miss, though
+the ignore is still needed for a future `.ts` sibling.
+
+### #478 — the guard was unreachable, and deleting it needed a different kind of test
+
+`clearSelection()`'s `props.disabled` check sat behind a control that
+`showClear()` already refuses to render while disabled. `BRDA:435,58,0,0` in
+the lcov — false side taken zero times, true side four. After the deletion the
+entry is gone entirely and `showClear()`'s own disabled branch went 2 → 4 on
+its false side.
+
+The issue left the choice open — delete, or keep and mark — and named the
+reason for caution: a `role="button"` with `tabindex="-1"` is programmatically
+focusable and activatable by `.click()`. True of the span **when rendered**,
+and it is not: the `<Show>` swaps in the caret fallback, and Solid's memo
+updates synchronously on the signal write, so no stale handler stays bound.
+
+**No red-first test was possible, and pretending otherwise would have been the
+lie.** Deleting unreachable code changes no observable behaviour by
+construction, so any test written for it passes before the change. The
+substitute was a mutation check: the two new tests were written first, watched
+to pass, then `showClear()`'s `props.disabled` line was removed and they were
+watched to fail — **exactly those two and nothing else in a 46-test file**.
+That is what establishes they are the sole holder of the invariant the
+deletion now rests on, which a green-only test never could.
+
+The issue's open question — whether `PopoverCard`/`ConfirmDialog` carry the
+same doubled guard, and whether one answer should cover all three — has a
+cheap answer that closes it: neither takes a `disabled` prop at all. Population
+of one. Acting on the question as written would have meant surveying two files
+for a pattern that cannot be there.
+
+### The doc rot found on the way, and why it was fixed rather than filed
+
+`docs/FRONTEND.md` names `src/lib/` as the home for UI hooks. That directory
+does not exist and `git log -- 'web/src/lib'` is empty — it has never existed
+in this repo's history. Ten mentions across the file, plus the same stale
+prefix in `ARCHITECTURE.md`, `INGESTION.md` and four source comments,
+including `data/atlasData.ts:238`, whose comment named `lib/atlasGeometry`
+**two lines above an import reading `~/utils/atlasGeometry`**.
+
+`docs/CODE_AUDIT_2026-07-03.md:327` had already recorded the FRONTEND.md half
+of this on 2026-07-03 and no issue was ever filed from it, so it sat for two
+months and was rediscovered by accident. Fixed here rather than re-filed,
+per CLAUDE.md — a wrong claim in a doc goes back on the doc. The audit's own
+count is corrected in place: **ten**, not six, and it missed everything
+outside FRONTEND.md.
+
+That accident is the more valuable finding and it did get an issue (#481): the
+audit holds ~30 findings, **none** was ever converted to an issue, and of five
+re-run here two had been fixed silently while three are still live — with
+nothing recording which is which. A doc is a snapshot; the backlog is the
+thing with state.
+
+### What was deliberately not fixed
+
+- **#480** — `web/.storybook/`'s three TS files are covered by neither
+  `npm run lint` (`eslint src tests`) nor `tsc --noEmit` (tsconfig `include`
+  is `src`, `tests`, `vite.config.ts`), and `npx eslint .` **crashes** on
+  them rather than reporting: `strictTypeChecked` is spread with no `files:`
+  key while `parserOptions.project` is scoped to `src`/`tests`, so they get
+  type-aware rules with no type information. Found because `make check` failed
+  on four errors in a new test file and `npx eslint .` was the reflex for
+  seeing them in isolation. Left out because widening the gates means deciding
+  whether Storybook glue should answer `eslint-plugin-solid`'s reactivity
+  rules — a scope decision, not a one-line fix.
+- **#481** — the audit triage pass above. Deliberately not started here: its
+  value is in knowing the remainder is empty, which means one pass over ~30
+  findings, not an incremental trickle.

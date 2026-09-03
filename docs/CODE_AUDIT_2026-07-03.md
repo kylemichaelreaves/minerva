@@ -324,7 +324,11 @@ Note: shortlist #5 now enforced at the registry layer too —
   documents 4 of ~26 scripts.
 
 ### Docs
-- `FRONTEND.md` references non-existent `web/src/lib/` six times (actual: `utils/`, `hooks/`).
+- ~~`FRONTEND.md` references non-existent `web/src/lib/` six times (actual: `utils/`,
+  `hooks/`).~~ Fixed in #477's PR. The count was **ten**, not six — five spelled
+  `src/lib/` and five bare `lib/` — and the same stale prefix also sat in
+  `ARCHITECTURE.md`, `INGESTION.md` and four source comments, all corrected there.
+  `MobileSheet.tsx` resolves to `components/shell/`, not `utils/` or `hooks/`.
 - `block-structure-remediation-plan.md:3` says IN PROGRESS; tracker shows all 8 items ✅ → flip to
   DONE. Archivable: `CODE_AUDIT_2026-06-10.md`, `orthography-normalization-plan.md`,
   `aquinas_cite_survey.md`, stale `corpus-quality-audit.md` + `dashboard_aggregates.json`.

@@ -68,21 +68,22 @@ export default tseslint.config(
     },
   },
   // SFC migration: forbid new hooks/*.ts and utils/*.ts under feature surfaces.
+  //
+  // Matched structurally, not by enumerating the surfaces. The previous
+  // version listed twelve globs naming six directories by hand, and four of
+  // them went dead the moment `Refs/` and `Landing/` moved under `features/`
+  // — a guard that reports zero errors because there is nothing left at the
+  // paths it names (#477). Three more surfaces under `features/`, and
+  // `Syntax/`, had never been named at all.
+  //
+  // `src/hooks/` and `src/utils/` are the two exceptions: top-level shared
+  // infrastructure, which the convention puts there on purpose, rather than
+  // feature subtrees. `src/Syntax/` needs no exception — its subtrees are
+  // named `conllu`, `layout`, `corrections` and `components`, which is
+  // precisely what clears this rule (docs/FRONTEND.md).
   {
-    files: [
-      "src/Reader/hooks/**/*.ts",
-      "src/Reader/utils/**/*.ts",
-      "src/Concordance/hooks/**/*.ts",
-      "src/Concordance/utils/**/*.ts",
-      "src/Network/hooks/**/*.ts",
-      "src/Network/utils/**/*.ts",
-      "src/Refs/hooks/**/*.ts",
-      "src/Refs/utils/**/*.ts",
-      "src/Thread/hooks/**/*.ts",
-      "src/Thread/utils/**/*.ts",
-      "src/Landing/hooks/**/*.ts",
-      "src/Landing/utils/**/*.ts",
-    ],
+    files: ["src/**/hooks/**/*.ts", "src/**/utils/**/*.ts"],
+    ignores: ["src/hooks/**", "src/utils/**"],
     rules: {
       "no-restricted-syntax": [
         "error",

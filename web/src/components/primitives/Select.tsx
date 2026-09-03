@@ -430,9 +430,18 @@ export function Select(props: SelectProps): JSX.Element {
     return selected() !== undefined;
   });
 
-  /** Shared by the pointer and keyboard paths so the two cannot drift. */
+  /** Shared by the pointer and keyboard paths so the two cannot drift.
+   *
+   *  Deliberately does not re-check `props.disabled`: `showClear()` above is
+   *  the single owner of that rule, and the `<Show>` it gates swaps in the
+   *  caret fallback, so while disabled there is no element for either handler
+   *  to be bound to — not for a pointer, not for assistive tech, not for a
+   *  programmatic `.click()`. A second copy here was unreachable and left its
+   *  false branch permanently uncovered on a gate that counts branches
+   *  (#478, #250). The invariant it stood in for is pinned by
+   *  "a disabled Select with a value renders no clear control" in
+   *  tests/Select.test.tsx. */
   const clearSelection = (): void => {
-    if (props.disabled) return;
     props.onChange("");
     // If the panel happens to be open when the user clears, close it —
     // they almost certainly want to start over rather than browse the
