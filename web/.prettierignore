@@ -1,3 +1,16 @@
 dist/
 node_modules/
 package-lock.json
+
+# Generated coverage report — written by `npm run test:coverage`, which
+# `make check` runs. Prettier walked it before this line existed, the same
+# way `eslint .` did before `coverage/**` joined its ignores (#480).
+coverage/
+
+# Codegen-owned: `data/authors/manifest.yaml` owns blocks inside these two,
+# and `scripts/generate_author_artifacts.py --check` re-emits them verbatim.
+# Prettier re-wraps inside the sentinels, the codegen check reads that as
+# manifest drift, and `make check` dies in pytest before it reaches any
+# frontend target (#486).
+src/data/atlasData.ts
+src/utils/dominantPhil.ts
