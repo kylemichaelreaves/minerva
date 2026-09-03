@@ -200,7 +200,7 @@ Single source of truth for:
 
 - `corpus_registry.CORPORA` (slug, lang, citation system, dominant glyph, chat keywords)
 - `author_ordering.AUTHOR_ORDINAL` (sidebar chronological order)
-- `web/src/Landing/atlasData.ts` `ATLAS_AUTHORS` (landing timeline)
+- `web/src/data/atlasData.ts` `ATLAS_AUTHORS` (landing timeline)
 
 After adding or editing an author entry:
 

@@ -12,7 +12,7 @@ import {
   type MockedFunction,
 } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
-import Refs, { type RefsProps } from "~/Refs";
+import Refs, { type RefsProps } from "~/features/Refs";
 import { MobileShellProvider } from "~/components/MobileShellContext";
 import type {
   ReferencesListResponse,
@@ -225,5 +225,54 @@ describe("<Refs />", () => {
     });
     fireEvent.click(container.querySelector(".refs-review-link")!);
     expect(onOpenReview).toHaveBeenCalled();
+  });
+
+  // A reference row opens its source passage. Until #324's batch it was a
+  // bare `<li onClick>` — no name, no tab stop, no key handling — so a mouse
+  // was the only way to reach it (typescript:S6847, typescript:S1082). The
+  // click path is already covered above; these cover what it lacked.
+  async function renderOneRow() {
+    fetchMock.mockResolvedValueOnce(okResponse(makeResponse([makeRow()])));
+    const props = defaultProps();
+    const { container } = renderRefs(props);
+    await waitFor(() => {
+      expect(container.querySelector(".ref-row")).not.toBeNull();
+    });
+    return { props, row: container.querySelector<HTMLElement>(".ref-row")! };
+  }
+
+  it("gives a reference row a tab stop", async () => {
+    const { row } = await renderOneRow();
+    row.focus();
+    expect(document.activeElement).toBe(row);
+  });
+
+  it("makes a reference row a native button", async () => {
+    // Asserted as an element type rather than by simulating Enter, because
+    // Enter- and Space-to-activate is the platform's behaviour for a
+    // <button> and jsdom does not implement it — a `fireEvent.keyDown` test
+    // here would pass only against a hand-rolled key handler, i.e. it would
+    // pin the workaround instead of the fix. A native button is also what
+    // typescript:S6819 asks for over `role="button"`.
+    const { row } = await renderOneRow();
+    expect(row.tagName).toBe("BUTTON");
+    expect(row.getAttribute("type")).toBe("button");
+  });
+
+  it("does not open a source the row has no chunk for", async () => {
+    fetchMock.mockResolvedValueOnce(
+      okResponse(
+        makeResponse([
+          makeRow({ source: { author: "Plato", work: null, section: null } }),
+        ]),
+      ),
+    );
+    const props = defaultProps();
+    const { container } = renderRefs(props);
+    await waitFor(() => {
+      expect(container.querySelector(".ref-row")).not.toBeNull();
+    });
+    fireEvent.click(container.querySelector(".ref-row")!);
+    expect(props.onOpenSource).not.toHaveBeenCalled();
   });
 });

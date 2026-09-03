@@ -2,7 +2,7 @@
 //
 // Two surfaces grew this independently — the concordance KWIC grid
 // (Concordance/components/LemmaDetail.tsx) and the curator review
-// queue (Refs/components/Review.tsx) — each with its own incomplete
+// queue (features/Refs/components/Review.tsx) — each with its own incomplete
 // form-element guard (input/textarea only: selects, buttons, and
 // contenteditable regions lost their arrow keys, and Escape fought the
 // mobile filter sheet). This hook owns:

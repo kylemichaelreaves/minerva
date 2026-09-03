@@ -1,8 +1,8 @@
 import { Show } from "solid-js";
 import type { SelectOption } from "~/components/Select";
 import { referenceTypeSelectOptions } from "~/utils/referenceTypes";
-import { RefsFilterField } from "~/Refs/components/RefsFilterField";
-import { stringsToSelectOptions } from "~/Refs/components/refsList";
+import { RefsFilterField } from "~/features/Refs/components/RefsFilterField";
+import { stringsToSelectOptions } from "~/features/Refs/components/refsList";
 
 export interface RefsFiltersBarProps {
   variant?: "browse" | "review";

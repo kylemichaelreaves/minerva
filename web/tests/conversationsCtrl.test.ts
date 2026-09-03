@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createRoot } from "solid-js";
 import { ApiError } from "~/api/client";
-import { useConversations } from "~/conversations/conversationsCtrl";
-import type { askMinerva } from "~/conversations/conversationsSend";
+import { useConversations } from "~/features/conversations/conversationsCtrl";
+import type { askMinerva } from "~/features/conversations/conversationsSend";
 import type {
   listConversations,
   getConversation,
@@ -17,7 +17,7 @@ const listConversationsMock = vi.fn<typeof listConversations>();
 const getConversationMock = vi.fn<typeof getConversation>();
 const deleteConversationMock = vi.fn<typeof deleteConversation>();
 
-vi.mock("~/conversations/conversationsSend", () => ({
+vi.mock("~/features/conversations/conversationsSend", () => ({
   askMinerva: (...args: Parameters<typeof askMinerva>) => askMinervaMock(...args),
 }));
 

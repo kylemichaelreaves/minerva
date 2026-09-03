@@ -8,7 +8,7 @@ import {
   type MockedFunction,
 } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
-import Review, { type ReviewProps } from "~/Refs/components/Review";
+import Review, { type ReviewProps } from "~/features/Refs/components/Review";
 import { MobileShellProvider } from "~/components/MobileShellContext";
 import type { ReviewQueueResponse, ReviewQueueRow } from "~/api/refsApi";
 import { okResponse } from "./helpers/testRouting";

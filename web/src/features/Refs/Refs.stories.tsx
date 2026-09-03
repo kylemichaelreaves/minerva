@@ -8,9 +8,9 @@
 // re-fetch the mocked endpoint.
 
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import Refs from "~/Refs";
+import Refs from "~/features/Refs";
 import type { ReferencesListResponse } from "~/api/refsApi";
-import { withTheme } from "../../.storybook/decorators";
+import { withTheme } from "../../../.storybook/decorators";
 
 // ─── fixture data ─────────────────────────────────────────────────
 

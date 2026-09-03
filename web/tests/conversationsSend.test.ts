@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createSignal } from "solid-js";
-import { askMinerva, type AskMinervaDeps } from "~/conversations/conversationsSend";
+import { askMinerva, type AskMinervaDeps } from "~/features/conversations/conversationsSend";
 import type { chatStream } from "~/api/chatApi";
 import type { ChatStreamMeta, MinervaTurn, Turn, UserTurn } from "~/utils/types";
 

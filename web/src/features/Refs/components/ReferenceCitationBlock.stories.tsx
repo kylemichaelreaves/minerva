@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { ReferenceCitationBlock } from "~/Refs/components/ReferenceCitationBlock";
+import { ReferenceCitationBlock } from "~/features/Refs/components/ReferenceCitationBlock";
 
 const meta: Meta<typeof ReferenceCitationBlock> = {
   title: "Refs/ReferenceCitationBlock",

@@ -282,7 +282,7 @@ than by re-reading the table.
 | 11-sexies | the mark the split did not reach | ~~#422~~ | **landed (PR #429)** | Found verifying 11-bis's #367 fix, in the file it edited and fourteen lines below the line it changed — the same splitter/classifier pair, for the any-script tokenizer rather than the Greek one. `ANY_LETTER_RE` and `ANY_TOKEN_RE` are both `[\p{L}\p{M}]`, so a mark standing between non-letters becomes its own run and `tokenizeWords` types it `word: true`. Measured over every chunk in the live index rather than sampled: **4,367 such runs across 2,643 of 426,514 chunks**, and the examples are all Quran waqf marks (U+06DB, U+06D6, U+06D7, U+06DA) — recitation pause signs getting the Reader's per-word hover affordance. **Deliberately left out of the PR that fixed #367**, which is a detector change with no rendering consequence; this is a change to the Reader's hover model on one corpus and wants its own before/after rather than riding a PR whose evidence is a truth table. The open question the issue names, and the reason it is not a one-liner despite reading like one: an all-mark run rendered as punctuation is right for a waqf mark and may be wrong for a mark orphaned by upstream mis-encoding, and the two are indistinguishable at this layer. All 4,367 measured are the first kind. |
 | 11-septies | what the fold cost and what it could not reach | ~~#425~~, ~~#427~~ | **landed (PR #432); #427 closed as mis-scoped** | Both found working 11-quinquies' #381, and they are the two halves of what that fix did not settle. **#425 is a regression the fix caused**: `fold_initial(lemma) = ?` cannot use `lemma_counts_by_alpha`'s `lemma` range the way `LIKE 'A%'` could, so a letter click scanned the whole partition — the query plan lost exactly its `lemma>? AND lemma<?` bounds. **The millisecond figures this row used to quote (272.5 → 475.1 ms, 1.74×) were taken on a warm page cache and do not reproduce**; re-measured cold the same SQL reads 2.75 vs 56.88 ms, a 20.7× gap rather than 8.5×, so the plan is the durable evidence and the clock is not. Correction on the issue. Fixed by storing the fold: migration 0031 adds an indexed `lemma_counts.lemma_initial`, taking the raw SQL to **3.23 ms (17.6×)** and deu `letter=A` end-to-end to **364.0 ms from 449.3**, with byte-identical output. ~0.9 µs/row is SQLite→Python callback overhead, not folding work, so the fix is a stored folded-initial column, not a faster fold. **#427 is what the fold correctly does not reach**: the residue is now **cross-script, not cross-diacritic** — 892 Latin lemmas in `grc` (`sibi`, `sed`, `Solon`) and 431 Greek-script lemmas in `eng`, where `_fold_initial('Επιστήμη')` is `Ε` and should be. The fold recovered the diacritic cases and only those: deu 914 → 8, fra 1,344 → 23, eng 571 → 431, grc 905 → 905. **#427 turned out not to be a rail problem, and is closed as mis-scoped.** Its own investigation step answered neither of its two hypotheses: the Latin is *clustered* (Theognidea 24.2%, Economics 21.2%, DK fragments 11–20%, against 0.1% for Physics) and it is *legitimate content* — DK prints its testimonia in Latin and *Oeconomica* III survives only in Latin — so nothing is mis-partitioned and nothing should move. The defect is that this text is **lemmatized under the Greek model**, which is #430; Theognidea additionally has OCR corruption unrelated to script, which is #431. Building #427's own option 2 — a script-aware rail — would have made `et`/`in`/`ad` first-class navigable vocabulary in a Greek concordance and legitimised 10,474 rows of apparatus and OCR noise. The `Œ` tail (12 French rows) is accepted and recorded on the issue rather than tracked.
 | 11-octies | what the cross-script residue really was | ~~#430~~, ~~#431~~ | **landed** | Both extracted from #427 when its investigation showed the rail was the messenger, not the defect — so this row **replaces** that half of 11-septies rather than following from it. They are grouped because one measurement produced both and separated because they share no cause. **#430 is a policy question at the lemmatize stage**: non-Greek text inside `grc` works is lemmatized under the Greek model, so `et`, `in`, `ad`, `ut`, `est` enter `lemma_counts` as Greek vocabulary — 10,474 `grc` rows across 60 of 202 works, plus the `eng` mirror (431 Greek-script lemmas in English editions). The text is legitimate (DK testimonia; *Oeconomica* III survives only in Latin), so the three options are skip non-dominant-script runs, lemmatize them under the right model, or tag and exclude — and it moves user-visible counts for 60 works, so it wants its own before/after. **Landed 2026-08-29**, option (b): mask cross-script runs before the primary model sees them, lemmatize each under its own alternate-language model (PR #445), migration 0032 adds `chunk_lemmas.lang`. The `grc` operator window (`terms lemmatize --lang grc --all`) ran the same day: 10,474 → **251** Latin-initial `grc` rows, 13,511 rows correctly reclassified `lang='lat'`. The `eng` mirror direction (431 rows) did not ride this window — a much larger corpus pass, left for its own decision, which is why #430 is still open and this row's own strikethrough on it (corrected 2026-08-29) was wrong: both landing PRs (#445, #447) carry `Refs #430`, not `Closes`, exactly because that scope remained — and the 251 residue turned out to be a different defect (Roman-numeral chapter markers glued onto Greek words with no space, mostly in the Septuagint), filed as #446. **#431 is a source-quality defect**: *Theognidea* is OCR-corrupted, with Latin letters and digits substituted into Greek words (`vívovra` for γίνονται, `oÀfog` for ὄλβος, `xar&` for κατὰ) and Welcker's 1826 Latin apparatus interleaved with the poems. **26.9% of its letters are Latin against 0.0–0.1% for a clean `grc` work**, and it alone supplies 5,553 of #430's original 10,474 rows — more than the next four works combined. **Corrected on the issue** 2026-08-29: its own proposed fix named a Perseus/First1KGreek TEI source that a prior session (2026-05/06) already confirmed does not exist, re-verified empty today. A different source neither investigation checked — [el.wikisource.org's Ἐλεγεῖαι Θεόγνιδος](https://el.wikisource.org/wiki/Ελεγείαι_Θεόγνιδος), complete (lines 1–1389, both books), clean, stable since 2017 — is the re-source target, same site this corpus already uses for Marcus Aurelius's Greek text. **Landed 2026-08-29**: `make reingest-only ONLY=theognis` (snapshot taken first) — grc chunks 127 → 329, Latin character share 26.9% → 0.0%, `foreign_key_check` clean, `terms lemmatize --lang grc` 329/329 productive. English (Banks 1856) untouched, deliberately — #431 is specifically about the Greek text. Found landing it: running `download_theognis.py`'s `main()` also regenerates the English file, which does not reproduce a 2026-06-06 manual trim (`data/*` is gitignored, so nothing in git preserved it) — caught before any reingest by reconstructing the trimmed file from the live DB's own chunks, verified it reproduces exactly the same 1,492 chunks, and filed the reproducibility gap as #448 (`main()` now defaults to Greek-only, requiring `--include-english` to force the regression). **#430's mirror direction landed 2026-08-31.** Re-scoped before running: the "431 eng rows" this row's own text still quoted was #427's rail-derived number, never re-measured at the same raw-row granularity #430 uses for the `grc` side, and had grown besides — corrected on the issue rather than trusted. The population-level, same-methodology count was **eng 3,007 rows/30 works, deu 288/9, fra 80/5, lat 74/9** (heb/ara clean, 0 each) — `eng` alone ~7x the stale figure, and the defect was never eng-only. No new code was needed: `find_alt_script_runs`'s `alt_lang = "lat" if own_lang == "grc" else "grc"` already covers every non-`grc` language generically (PR #445's own mechanism), so this was four operator passes, not a design task. Snapshot first (`data/snapshots/20260831T042512Z-430-cross-script-lemmatize-eng-deu-fra-lat`), then `terms lemmatize --lang {eng,deu,fra,lat} --all --skip-aggregate` followed by one `terms aggregate-lemmas` (4,474,306 rows, 190.5s). `deu`'s first attempt was killed mid-run before any chunk committed (verified: row count and `PRAGMA integrity_check` both unchanged from before), re-ran clean. Result: **0** unreclassified Greek-initial rows remain in any of the four languages (was eng 3,007/deu 288/fra 80/lat 74); **eng 3,679/33, deu 258/9, fra 100/5, lat 74/9** rows now correctly carry `chunk_lemmas.lang='grc'` — the `eng` count is higher than the pre-fix Greek-initial count because a cross-script *run* can contain non-initial-Greek tokens the initial-letter proxy missed. Spot-checked Cicero's *Academica* (73% of the `eng` total on its own): `lemma_counts` now reports Greek vocabulary (τις, εἰμί, καταληψις, …) under `lang='grc'`/`scope=work`, and zero Greek-lemma rows remain under `lang='eng'` for the same work. `grc`'s own 45-row accepted residue (#446/#456) untouched, as intended. `foreign_key_check` clean, `PRAGMA integrity_check` clean.
-| 12 | `web/src`'s missing pages layer | #324 | **backlog — probed twice, still blocked** | **Groups with nothing above** — added 2026-08-29, filed 2026-08-10 and never previously slotted. Nine feature modules and seven infrastructure directories sit as undifferentiated peers at `web/src`'s top level; `routes/` is the de-facto pages layer already but is 8 files / 605 LOC, too thin to carry the name. Pure restructuring, no data risk, but real *gate* risk the issue itself flagged as the blocker: does SonarCloud treat a renamed file as new code? **Probed twice**, three weeks apart, with opposite answers on the same move (`Composer/` → `features/Composer/`, 494 LOC): PR #325 (2026-08-10) recorded quality-gate ERROR at 44.3% new-coverage and was closed unmerged; re-probing while closing this out found PR #325's existence only after re-running the identical move as PR #471, which passed at 80.2% — a duplicate-effort miss corrected on the issue rather than filed as new. Reconciled: **the mechanism is unchanged** (same 106-unit denominator both times — Sonar still counts a renamed file's whole surface as new regardless of git's rename detection), what moved is `WorkScopeControl.tsx`'s own test coverage (38.9%→88.4%, from unrelated work) crossing the gate on its own. Project coverage rose 70.7%→75.6% in the same window, but `Network/index.tsx` — one of the three worst files #325 named — is still far under 80% (55.9%) despite the same improvement. **PR #471 merged** (the one-module move is real and safe on its own), but the full nine-module regroup remains gated per-module, same conclusion as three weeks ago. |
+| 12 | `web/src`'s missing pages layer | #324, #474, #475, #476 | **first tranche landed (PR #473); five dirs blocked** | **Groups with nothing above** — added 2026-08-29, filed 2026-08-10 and never previously slotted. Nine feature modules and seven infrastructure directories sit as undifferentiated peers at `web/src`'s top level; `routes/` is the de-facto pages layer already but is 8 files / 605 LOC, too thin to carry the name. Pure restructuring, no data risk, but real *gate* risk the issue itself flagged as the blocker: does SonarCloud treat a renamed file as new code? **Probed twice**, three weeks apart, with opposite answers on the same move (`Composer/` → `features/Composer/`, 494 LOC): PR #325 (2026-08-10) recorded quality-gate ERROR at 44.3% new-coverage and was closed unmerged; re-probing while closing this out found PR #325's existence only after re-running the identical move as PR #471, which passed at 80.2% — a duplicate-effort miss corrected on the issue rather than filed as new. Reconciled: **the mechanism is unchanged** (same 106-unit denominator both times — Sonar still counts a renamed file's whole surface as new regardless of git's rename detection), what moved is `WorkScopeControl.tsx`'s own test coverage (38.9%→88.4%, from unrelated work) crossing the gate on its own. Project coverage rose 70.7%→75.6% in the same window, but `Network/index.tsx` — one of the three worst files #325 named — is still far under 80% (55.9%) despite the same improvement. **PR #471 merged** (the one-module move is real and safe on its own). **"Gated per-module" is the one thing this row still had wrong, and PR #473 disproves it** — the gate is per *PR*, over the aggregate of everything that PR moves, so a dir under 80% on its own can still move inside a batch that clears it. Measured 2026-09-02 by reproducing Sonar's arithmetic from the `lcov.info` CI uploads (`(lines_hit+branches_hit)/(lines_found+branches_found)` over the moved files); the model returns 80.2% for `Composer/`, matching PR #471's published figure to the decimal, and predicted **81.0%** for PR #473's four dirs against an **actual 81.5%**. Per dir: `Landing` 89.5%, `conversations` 85.1%, `Sidebar` 81.0%, `Refs` **76.5%**, `Reader` 75.9%, `Syntax` 70.9%, `Concordance` 66.8%, `Thread` 63.5%, `Network` 48.6% — all nine at once is **68.9%**. So PR #473 moved the first four together, `Refs` carried by the batch, and that tranche **must not be split further**. The other five are blocked on ~840 covered units (#474). **The second correction is larger**: PR #473 cleared six reliability findings first, on the reasoning that #471 could not have learned what a rename does to a file's *existing* issues, `Composer/` having had none. Fifteen further open issues rode the same rename untouched and **none re-registered** — so Sonar's issue tracking survives a rename even though its coverage blame does not, the two behaving oppositely on the same event, and **coverage is the only gate that blocks a move**. See batch 12. Also from PR #473: #475 (#324's `components/` split names 15 of 20 modules) and #476 (a `matchMedia` leak in `Landing.test.tsx`, not a #324 defect). |
 | 13 | `text/`'s missing facade | ~~#326~~ | **landed (PR #450)** | **Groups with nothing above** — added 2026-08-29, filed 2026-08-10 and never previously slotted. `text/` is the only one of nine top-level `src/minerva/` packages with an empty `__init__.py` (0 lines against 5–176 elsewhere), so its five importers reach past the facade `docs/BACKEND.md:13-16` requires. Mechanical: re-export `find_occurrences`, `plain_window`, `build_mark_snippet`, `build_kwic` and update five import sites. **PR #450** does exactly that, and adds `text/` to `BACKEND.md`'s package list (previously omitted, likely why the convention was never applied here). |
 | 14 | `/close-out`'s phase 7 names a shrinking plan | ~~#433~~ | **landed** | **Groups loosely with batch 8** (the harness these batches are worked with) but shares no file with it — `.claude/commands/close-out.md` phase 7, not `scripts/*`. Phase 7 requires every finding to get "an issue number and a batch row" in *this* document, but this document's own header scopes it to the twelve issues open on 2026-08-08, nine of which are done. The rows this session added (8-quater, 12, 13, this row) show the obligation is still being honoured by convention rather than by what phase 7 actually says — worth resolving before the next `/close-out` run needs a plan-of-record for an issue this document was never scoped to hold. **Landed 2026-08-30 (PR #460)**, exactly as this row anticipated: the #407/#415/#459 PR earlier in this same session hit precisely this wall and worked around it by editing this document anyway, which is what made the fix concrete rather than theoretical. Phase 7 now discovers an active plan rather than naming one, and accepts an explicit "no active plan covers this" note as meeting its exit condition — this document's own scope note (line 3) is exactly the kind of thing a future session should read before assuming a plan applies. |
 | 11-octies-bis | what #430's window left behind | #446 | **landed** | Found verifying #430's `grc` operator window: 251 of the post-fix Latin-initial rows survive, and they are not #430's defect. **Corrected 2026-08-29, before implementation**: the issue's own proposed fix (a Roman-numeral-strip rule, `\b[IVXLC]{1,4}`) would have caught only 82/251 (33%) — sampling the actual prefix distribution found 196/251 (78%) fall in the classic Greek/Latin capital-confusable charset (Α/A, Β/B, Ε/E, ... Χ/X), and those are the word's own initial letter misencoded, not a marker glued on: stripping `A` from `Aχεικὰμ` (Achim) truncates a name instead of recovering it. Comment posted on the issue before any code was written. **Landed** as two passes in `fix_grc_ascii_prefix_confusables` (`src/minerva/lemmatize.py`): a 2+-char (or bare V/C/L) run of `[IVXLC]` immediately before a Greek letter is blanked as citation debris; a single confusable letter (13 capitals + lowercase `l`/`o`, sampled separately since Greek's lowercase forms mostly don't resemble Latin ones) is remapped to its Greek codepoint. A `\S+`-boundary bug found live mid-fix — the boundary required whitespace immediately before the prefix, but the Septuagint glues a transliteration apostrophe (`’Aχεικὰμ`) or an opening quote (`'Aλλʼ`) with no space — cost 53 of the first pass's 98 residual rows and was fixed before landing. Operator pass (`terms lemmatize --lang grc --all`, snapshot `20260830T001926Z-pre-446-grc-relemmatize`): 251 → 46, `foreign_key_check` clean. 45 of the 46 are the deliberately-unmapped lowercase residue (`a`,`b`,`c`,`d`,`e`,`g`,`m`,`n`,`s`,`v` — some prefix ordinary words rather than names, and don't visually resemble their Greek counterparts); the last is an unrelated model-lemma-dictionary defect on a clean Greek surface form, filed as #456. |
@@ -3480,3 +3480,113 @@ the *display* string, and a display string is not an identity.
 The tie-order tests say out loud that they are a regression net and not a
 reproduction — a four-row fixture cannot make SQLite's planner change its mind.
 Better a test that admits what it does not prove than one that implies it does.
+
+## Batch 12 — the `features/` regroup, first tranche (#324)
+
+`web/src`'s top level has nine feature modules and seven infrastructure
+directories as undifferentiated peers. The regroup is trivial to perform and
+almost entirely constrained by one gate, which is the opposite of what row 12
+said until this batch measured it.
+
+### The gate is the whole problem, and it is predictable
+
+PR #325 and PR #471 both established that Sonar counts a renamed file's
+**entire** surface as new code — 100% git rename-similarity and a zero-line
+diff notwithstanding. That makes any move's `new_coverage` computable before
+writing it: `(lines_hit + branches_hit) / (lines_found + branches_found)` over
+the moved files, from the same `web/coverage/lcov.info` CI uploads.
+
+The model returns 80.2% for `Composer/`, matching PR #471's published figure to
+the decimal, and 81.0% for this batch's four dirs against an **actual 81.5%**
+— the 0.5 is the tranche's own new tests, which the prediction did not include.
+
+```
+dir             files  units  covered    gate
+Landing             3    153      137   89.5%   moved, PR #473
+conversations       3    282      240   85.1%   moved, PR #473
+Sidebar             6    179      145   81.0%   moved, PR #473
+Composer            2    106       85   80.2%   moved, PR #471
+Refs               11    553      423   76.5%   moved, PR #473 — carried by the batch
+Reader             25   1616     1226   75.9%   BLOCKED — #474
+Syntax             24   1831     1299   70.9%   BLOCKED — #474
+Concordance        17   1274      851   66.8%   BLOCKED — #474
+Thread              8    408      259   63.5%   BLOCKED — #474
+Network            19   1177      572   48.6%   BLOCKED — #474
+```
+
+All nine at once — what #324's Hypothesis proposes — is **68.9%**. Ordering
+cannot rescue it; accumulating best-covered-first, the batch stops passing the
+moment `Reader` is added (78.0%). And **`Refs` is under the bar alone** at
+76.5%, so splitting the tranche for reviewability would have failed on the
+third PR. The remaining five need ~840 covered units.
+
+### The correction that matters most for the next tranche
+
+PR #473 spent its first commit clearing the four dirs' six open **reliability**
+findings, on the reasoning that #471 had settled only one of three gates: it
+could not have learned what happens to a renamed file's *existing* issues,
+because `Composer/` had none. That reasoning was sound ex ante and **the
+precaution turned out to be unnecessary**, which is worth writing down before
+#474 budgets for it again.
+
+Measured on the merged analysis. The four moved dirs carried **21 open issues**
+on `main`; the commit cleared six; PR #473's own new-code issue list is
+**empty**, `new_reliability_rating` and `new_maintainability_rating` both A.
+So **fifteen open issues rode a pure rename into new code and none of them
+re-registered** — eleven outside `*.stories.tsx`, across `Review.tsx` (S7766
+×2, S6644), `Atlas.tsx` (S7721), `RefsFiltersBar.tsx` (S4782 ×2),
+`conversationsCtrl.ts` (S6660, S7763) and `conversationsSend.ts` (S7755 ×3).
+
+**Sonar's issue tracking survives a rename even though its coverage blame does
+not.** The two behave oppositely on the same event, which is not obvious and is
+the reason this was worth measuring rather than assuming in either direction.
+For #474 that means **coverage is the only gate that blocks a move** —
+`Syntax/` carrying 18 issues is not an obstacle, and no tranche needs a
+prophylactic issue-clearing commit.
+
+The one thing still unmeasured: every one of the fifteen is MAJOR or MINOR.
+The two CRITICALs were cleared, so whether severity changes the tracking is
+not settled — though nothing in the mechanism suggests it would.
+
+Duplication is a separate constraint and is *not* dissolved by the above.
+`web/src` has exactly two duplicated files, both in `Syntax/corrections/`:
+`relations.ts` (58 lines, 47.2%) and `pos.ts` (24 lines, 25.0%). 82 lines
+against all of `Syntax/` (4,659) is 1.8%, inside the 3% bar; against any
+smaller slice it is not. **`Syntax/` moves whole or not at all.**
+
+### What the first tranche shipped besides the moves
+
+The six cleared findings were not busywork even though the gate did not need
+them. `RefRow.tsx` (S6847 + S1082) was a real defect: the row opens its source
+passage but was a bare `<li onClick>` with no name, no tab stop and no key
+handling, so **a reference's source was reachable only with a mouse.** Verified
+fixed in the running app — Tab to a row, Enter, and the Reader opens at the
+source chunk. `Landing/index.tsx` (S6845) was the same shape one level down: a
+`tabindex="0"` on a role-less, name-less `<div>` beside a `role="tooltip"`
+element nothing referenced.
+
+The two CRITICAL S2871s are **latent, not observable**, and the row says so
+because the severity implies otherwise: all 48 distinct `works.author` and all
+94 distinct `reference_targets.canonical_author` in the live index are ASCII,
+so no reader has seen a mis-sorted dropdown.
+
+**A first attempt was thrown away.** `role="button"` + a hand-rolled
+Enter/Space handler clears S6847 and S1082 and earns `typescript:S6819`
+instead — caught by running SonarQube's analyzer on the candidate file before
+pushing, which is worth doing for any a11y fix, since the rules trade against
+each other.
+
+### Corrections filed
+
+- Row 12 said the regroup "remains gated **per-module**". It is gated per *PR*,
+  over the aggregate of what that PR moves — which is why `Refs` (76.5% alone)
+  could move at all. Corrected in place. (The row's earlier "no gate risk" had
+  already been fixed by `dbe2a83`, landed while this batch was in flight.)
+- #324's `components/` split names 15 of 20 modules; `Topbar`,
+  `topbarStyles` and `ThemeToggle` are a fourth group, not a remainder (#475).
+- `docs/ARCHITECTURE.md` and `docs/INGESTION.md` both named
+  `web/src/Landing/atlasData.ts`; the codegen writes `web/src/data/atlasData.ts`
+  (`generate_author_artifacts.py:16`) and has since `ef71268`. Fixed in PR #473.
+- `web/tests/Landing.test.tsx:55` assigns `window.matchMedia` with no restore,
+  so the eight tests declared after it run in mobile mode (#476). Not a #324
+  defect; found because a new test passed alone and failed in sequence.

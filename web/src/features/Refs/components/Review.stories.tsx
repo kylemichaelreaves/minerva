@@ -7,9 +7,9 @@
 // highlight, and different reference types.
 
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import Review from "~/Refs/components/Review";
+import Review from "~/features/Refs/components/Review";
 import type { ReviewQueueResponse } from "~/api/refsApi";
-import { withTheme } from "../../../.storybook/decorators";
+import { withTheme } from "../../../../.storybook/decorators";
 
 // ─── fixture ──────────────────────────────────────────────────────
 

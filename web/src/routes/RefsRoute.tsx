@@ -1,7 +1,7 @@
 import { Match, Switch } from "solid-js";
 
-import Refs from "~/Refs";
-import Review from "~/Refs/components/Review";
+import Refs from "~/features/Refs";
+import Review from "~/features/Refs/components/Review";
 import type { RouteContextProps } from "~/routes/types";
 import { isRefsReviewRoute, isRefsRoute, type RouteRefs, type RouteRefsReview } from "~/routes/routeUtils";
 

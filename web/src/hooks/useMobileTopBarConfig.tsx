@@ -1,5 +1,5 @@
 import { createMemo, type JSX } from "solid-js";
-import type { useConversations } from "~/conversations/conversationsCtrl";
+import type { useConversations } from "~/features/conversations/conversationsCtrl";
 import type { useReader } from "~/Reader/readerCtrl";
 import type { useRouting } from "~/routing";
 import { useMobileShell } from "~/components/MobileShellContext";

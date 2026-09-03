@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
-import { CORPUS_YEAR_SPAN_LABEL } from "~/Landing/corpusFacts";
+import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import { useElementSize } from "~/hooks/useElementSize";
 
 export function MatrixPanel(props: {

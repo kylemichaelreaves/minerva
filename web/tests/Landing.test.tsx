@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
-import Landing from "~/Landing";
+import Landing from "~/features/Landing";
 
 function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
   const onSubmit = vi.fn();
@@ -146,5 +146,60 @@ describe("<Landing />", () => {
       fireEvent.keyDown(ta, { key: "Enter" });
       expect(onSubmit).toHaveBeenCalledWith("what is the commodity form?");
     });
+  });
+  // The monogram reveals a tooltip on hover and on keyboard focus
+  // (`.landing-monogram:focus-visible + .landing-monogram-tooltip`, in
+  // landing.css). It carried `tabindex="0"` on a plain `<div>` with no role
+  // and no name, so tabbing onto it announced nothing and the `role="tooltip"`
+  // element beside it was orphaned — nothing referenced it. Sonar flagged the
+  // tab stop as typescript:S6845; these pin the behaviour, not the markup.
+  it("names the monogram tooltip trigger for assistive tech", () => {
+    renderLanding();
+    expect(screen.getByRole("button", { name: "Minerva" })).toHaveClass(
+      "landing-monogram",
+    );
+  });
+
+  it("points the monogram at the tooltip it reveals", () => {
+    const { container } = renderLanding();
+    const trigger = screen.getByRole("button", { name: "Minerva" });
+    const describedBy = trigger.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(container.querySelector(`#${describedBy}`)).toHaveClass(
+      "landing-monogram-tooltip",
+    );
+  });
+
+  it("keeps the monogram in the tab order", () => {
+    const { container } = renderLanding();
+    const trigger = container.querySelector<HTMLElement>(".landing-monogram")!;
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+  });
+  // Characterization, not a fix: JSX collapses the newline between the two
+  // `.kbd` spans, which is what Sonar flags as ambiguous (typescript:S6772).
+  // Making the spacing explicit must not move a pixel, so this pins the exact
+  // rendered string — including the two non-breaking spaces — across that edit.
+  it("renders the desktop key hint with its exact spacing", () => {
+    // Set explicitly rather than inherited: the mobile test above assigns
+    // `window.matchMedia` with no restore, so every test declared after it
+    // runs in mobile mode by default. Filed separately; this test states the
+    // viewport it means instead of depending on declaration order.
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }));
+    const { container } = renderLanding();
+    const kbds = Array.from(container.querySelectorAll(".kbd"));
+    expect(kbds.map((k) => k.textContent)).toEqual(["\u21b5", "\u21e7 \u21b5"]);
+    expect(kbds[0]?.parentElement?.textContent).toBe(
+      "\u21b5 begin\u00a0\u00a0\u21e7 \u21b5 new line",
+    );
   });
 });

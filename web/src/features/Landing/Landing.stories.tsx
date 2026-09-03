@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import Landing from "~/Landing";
-import { withTheme } from "../../.storybook/decorators";
+import Landing from "~/features/Landing";
+import { withTheme } from "../../../.storybook/decorators";
 
 const meta: Meta<typeof Landing> = {
   title: "Chat/Landing",

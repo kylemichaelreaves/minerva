@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { SourceWithHighlight } from "~/Refs/components/SourceWithHighlight";
+import { SourceWithHighlight } from "~/features/Refs/components/SourceWithHighlight";
 
 const TEXT =
   "Tertia via est sumpta ex possibili et necessario. Philosophus probat hoc in XII Metaphysicae.";

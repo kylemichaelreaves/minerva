@@ -2,7 +2,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import type { LandingStats } from "~/api/landingApi";
 import { useMobileShellOptional } from "~/components/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
-import { CORPUS_YEAR_SPAN_LABEL } from "~/Landing/corpusFacts";
+import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import {
   ATLAS_AUTHORS,
   BANDS,

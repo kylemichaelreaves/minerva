@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { RefsEmptyState } from "~/Refs/components/RefsEmptyState";
+import { RefsEmptyState } from "~/features/Refs/components/RefsEmptyState";
 
 const meta: Meta<typeof RefsEmptyState> = {
   title: "Refs/RefsEmptyState",

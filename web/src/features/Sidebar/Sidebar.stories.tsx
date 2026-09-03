@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import type { JSX } from "solid-js";
-import Sidebar from "~/Sidebar";
+import Sidebar from "~/features/Sidebar";
 import type { HistoryItem, Work } from "~/utils/types";
-import { withTheme } from "../../.storybook/decorators";
+import { withTheme } from "../../../.storybook/decorators";
 
 const HISTORY: HistoryItem[] = [
   { id: "a", title: "On the divided line", meta: "Today", dominant: "P" },

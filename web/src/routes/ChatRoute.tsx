@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import Landing from "~/Landing";
+import Landing from "~/features/Landing";
 import Composer from "~/features/Composer";
 import WorkScopeControl from "~/features/Composer/WorkScopeControl";
 import Thread from "~/Thread";
