@@ -3824,6 +3824,105 @@ same reason the globs in #477 became structural.
   reformats two files nobody is otherwise touching, which belongs in its own
   diff rather than folded into a behavioural change.
 
+## Batch 12-quater — the formatting gate that could not be added as filed (#483, #486)
+
+#483 was filed by batch 12-ter and is the third consecutive close-out where
+the corrected source was an issue this same session had written an hour
+earlier. The pattern is now firm enough to name: **the `## Measured` halves
+keep holding and the `## Hypothesis` halves keep failing**, because the first
+is written from running something and the second from reading it.
+
+This one was the worst of the three. The count was wrong by 38×.
+
+### The measurement that was never taken
+
+#483 claimed four unformatted files. There are **152 of 352**.
+
+```
+$ cd web && npx prettier --check src tests .storybook vite.config.ts eslint.config.js \
+    | grep -c '^\[warn\] '
+152
+```
+
+The four came from piping `prettier --check` through `tail -2` and reading the
+truncated output as the whole list. `Error occurred when checking code style in
+the above file` is Prettier's summary line, naming the last of 152 — it was
+read as a single-file error report.
+
+A guess about the cause was also wrong, and measuring it took one command:
+`printWidth` had not drifted from 80 to 100. 100 is the *best* of the three
+settings, and none of them is close.
+
+```
+printWidth    unclean
+100           152     <- current config
+90            185
+80            231
+```
+
+The codebase has simply never been Prettier-formatted wholesale.
+
+### Two independent reasons the issue's plan could not land
+
+**One: it breaks the build.** The proposed
+`prettier --write src tests` reformats the generated blocks in
+`src/data/atlasData.ts` and `src/utils/dominantPhil.ts`;
+`generate_author_artifacts.py --check` reads that as manifest drift, and
+`make check` dies in pytest before reaching the frontend gate it was adding.
+Filed as **#486** — it is #136's defect with prettier in place of ruff, a
+connection missed when #483 was written.
+
+**Two: the coverage gate.** Even with those two excluded:
+
+```
+$ git diff --shortstat -- web/src
+ 98 files changed, 749 insertions(+), 1058 deletions(-)
+$ ./.venv/bin/python scripts/check_diff_coverage.py --base origin/main
+diff coverage vs origin/main: 74.4% (314/422 …), gate >= 80%
+```
+
+#483's step ordering calls the reformat "noisy". It is a merge blocker, and
+the same one #324 hit: a mechanical, behaviour-free change constrained
+entirely by the coverage gate rather than by its own risk.
+
+### The shape that did land, and the trap inside it
+
+Baseline-pinned, matching `granularity.known_coarse`. The non-obvious part is
+**where the baseline must not live**: `.prettierignore` is the intuitive home
+and is wrong, because `npm run format` honours it — a pin there could never be
+fixed by the formatter, so the baseline could never shrink and the gate would
+be a permanent amnesty. It lives in `web/.prettier-baseline`, read only by the
+gate; `.prettierignore` carries only genuine exclusions.
+
+Both directions are enforced and both were verified by breaking them on
+purpose rather than by reading the code: drifting an unpinned file fails, and
+formatting a pinned one fails demanding its line be deleted.
+
+Net effect on `web/src`: **2 deleted lines.** No coverage exposure.
+
+### The defect the gate found on its first run
+
+`prettier --list-different` exited 2 rather than 1 — `termcard.css` ends
+mid-comment, `/* Marginal notes column (only on wide layouts) — visually a
+sibling of`, and has since `c30a217`, the initial commit. Nothing had ever
+caught it: ESLint does not lint CSS, and Prettier had never been run.
+
+No rules were lost, because the fragment is the last line — but the next rule
+appended to that file would have been silently swallowed into the comment. The
+fragment is deleted rather than completed; the sentence is unrecoverable and
+no section followed it. Worth noting that the *gate* found this, on its first
+execution, in a file that had been broken for the entire recorded history of
+the repo.
+
+### A correction to batch 12-bis's own PR body
+
+PR #482 said `web/src/lib/` "does not exist and never has in this repo's
+history". Accurate about tracked source — `git log -- 'web/src/lib'` is empty —
+but the initial commit also committed `web/coverage/`, whose report contains
+`lcov-report/src/lib/TermCard.tsx.html`. So the directory did exist upstream of
+the squash, and the docs that named it were correct once rather than invented.
+The fix was right either way; the claim was stronger than the evidence.
+(`web/coverage/` is no longer tracked and is gitignored.)
 ## Batch 12-quinquies — `/close-out` converted from a slash command to a skill
 
 Not a backlog issue. The conversion came out of the three preceding batches,

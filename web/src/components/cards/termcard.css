@@ -213,5 +213,3 @@
    (#358) is the card's only dismiss control now, so this class had no
    consumer left, and as a bordered pill sitting under an unbordered glyph
    it gave the error state two visually unrelated buttons. */
-
-/* Marginal notes column (only on wide layouts) — visually a sibling of

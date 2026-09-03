@@ -29,6 +29,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
         check-pr-link check-pr-citations check-diff-coverage check-coverage-exclusions \
+        check-format-baseline \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -201,7 +202,15 @@ DIFF_BASE ?= origin/main
 check-diff-coverage:
 	$(PYTHON) scripts/check_diff_coverage.py --base $(DIFF_BASE)
 
-check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions
+# Prettier never ran in `make check`, so 152 of 352 files had drifted before
+# this gate existed (#483). Reformatting them all fails the changed-line gate
+# at 74.4%, so the drift is pinned in `web/.prettier-baseline` and everything
+# else is held to the formatter. The baseline is policy — hand-edited, and the
+# gate fails on a *stale* pin too, so it can only shrink.
+check-format-baseline:
+	$(PYTHON) scripts/check_format_baseline.py
+
+check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.

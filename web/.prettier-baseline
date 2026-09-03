@@ -1,0 +1,173 @@
+# Prettier baseline — POLICY, hand-edited, never regenerated (#483).
+#
+# `make check` never ran Prettier, so 152 of the 352 files it considers had
+# drifted by the time this gate landed. Reformatting them all is not
+# available: it churns 98 files under web/src and scores 74.4% (314/422)
+# against the 80% changed-line gate, because re-wrapped lines count as
+# changed lines and the sweep takes untested files along with covered ones.
+#
+# So these are pinned and everything else is gated. Two rules:
+#
+#   * Never add a line here. A newly-drifted file is a failure, not a pin —
+#     run `cd web && npx prettier --write <path>` instead.
+#   * Delete a line as soon as its file is formatted. The gate FAILS on a
+#     stale pin, on purpose: a list that only ever grows is an amnesty, not
+#     a baseline. Same contract as `granularity.known_coarse` in
+#     data/authors/manifest.yaml.
+#
+# This is NOT .prettierignore. `npm run format` honours that file, so a pin
+# there could never be fixed by the formatter and the baseline could never
+# shrink. Genuine exclusions (generated output, the codegen-owned files of
+# #486) live there instead.
+#
+# Count when landed: 150. Expect it to fall.
+.storybook/README.md
+eslint.config.js
+src/api/chatApi.ts
+src/api/client.ts
+src/api/readerApi.ts
+src/App.tsx
+src/components/cards/ReferenceCard.tsx
+src/components/cards/TermCard.tsx
+src/components/cards/XrefMarker.stories.tsx
+src/components/primitives/Icons.stories.tsx
+src/components/primitives/PopoverCard.tsx
+src/components/primitives/Select.css
+src/components/primitives/Select.stories.tsx
+src/components/primitives/Select.tsx
+src/components/primitives/Toasts.tsx
+src/components/shell/FilterSheet.tsx
+src/components/shell/MobileShellContext.tsx
+src/components/shell/MobileTopBar.tsx
+src/components/shell/ThemeToggle.tsx
+src/components/shell/Topbar.tsx
+src/Concordance/components/ActiveFilterStrip.tsx
+src/Concordance/components/FilterBar.tsx
+src/Concordance/components/IndexPage.tsx
+src/Concordance/components/LemmaDetail.tsx
+src/Concordance/concordance.css
+src/features/Composer/composer.css
+src/features/Composer/WorkScopeControl.tsx
+src/features/conversations/conversationsCtrl.ts
+src/features/conversations/conversationsSend.ts
+src/features/Refs/components/ReferenceCitationBlock.tsx
+src/features/Refs/components/RefRow.stories.tsx
+src/features/Refs/components/RefsEmptyState.tsx
+src/features/Refs/components/RefsFiltersBar.tsx
+src/features/Refs/components/Review.tsx
+src/features/Refs/components/ReviewCard.tsx
+src/features/Refs/index.tsx
+src/features/Refs/refs.css
+src/features/Refs/Refs.stories.tsx
+src/features/Sidebar/components/WorkItem.tsx
+src/features/Sidebar/index.tsx
+src/features/Sidebar/sidebar.css
+src/hooks/useDialogFocus.tsx
+src/hooks/useEscape.tsx
+src/hooks/useListKeyboardNav.tsx
+src/hooks/usePaginatedAppend.tsx
+src/hooks/usePopoverPosition.tsx
+src/Network/components/Body.tsx
+src/Network/components/HeatmapPanel.tsx
+src/Network/components/LeaderboardPanel.tsx
+src/Network/components/MatrixPanel.tsx
+src/Network/components/MobileFooterLinks.tsx
+src/Network/components/MobileMostCitedCard.tsx
+src/Network/components/MobileTopPairsCard.tsx
+src/Network/components/NetworkCoverage.tsx
+src/Network/components/NetworkDrilldownShell.tsx
+src/Network/components/NetworkTopNCard.tsx
+src/Network/components/VerificationPanel.tsx
+src/Network/network.css
+src/Reader/components/Chrome.stories.tsx
+src/Reader/components/Chrome.tsx
+src/Reader/components/ConcordanceTabPanel.tsx
+src/Reader/components/Lines.stories.tsx
+src/Reader/components/Rail.tsx
+src/Reader/components/RailDismissFooter.tsx
+src/Reader/components/ReaderMobileSettingsSheet.tsx
+src/Reader/components/SelectionToolbar.tsx
+src/Reader/components/TargetLangToggle.tsx
+src/Reader/components/WordInfoBlock.tsx
+src/Reader/components/WordRun.tsx
+src/Reader/index.tsx
+src/Reader/reader.css
+src/Reader/useSelectionToolbar.tsx
+src/Reader/useTermCard.tsx
+src/Reader/useWordHoverTranslations.tsx
+src/Reader/useWordLookup.tsx
+src/Reader/utils.ts
+src/routes/ChatRoute.tsx
+src/routes/ReaderRoute.tsx
+src/routes/RefsRoute.tsx
+src/routes/routeUtils.ts
+src/routes/SurfaceErrorBoundary.tsx
+src/Syntax/components/ArcDiagram.tsx
+src/Syntax/components/PosPicker.tsx
+src/Syntax/components/RefusalPanel.tsx
+src/Syntax/components/RelationPicker.tsx
+src/Syntax/corrections/pos.ts
+src/Syntax/corrections/store.ts
+src/Syntax/corrections/validate.ts
+src/Syntax/index.tsx
+src/Syntax/syntax.css
+src/Thread/components/MinervaTurnView.tsx
+src/Thread/components/ThreadSearchSheet.tsx
+src/utils/arabic.ts
+src/utils/atlasGeometry.ts
+src/utils/hebrew.ts
+src/utils/highlightStorage.ts
+src/utils/popoverPosition.ts
+src/utils/searchFold.ts
+src/utils/types.ts
+src/utils/util.ts
+tests/ActiveFilterStrip.test.tsx
+tests/apiClient.test.ts
+tests/apiError.test.ts
+tests/App.test.tsx
+tests/Atlas.test.tsx
+tests/blankComments.test.ts
+tests/chat.test.ts
+tests/ConcordanceIndexCounts.test.tsx
+tests/ConcordanceIndexScope.test.tsx
+tests/conversationsCtrl.test.ts
+tests/EditionBar.test.tsx
+tests/FreqRange.test.tsx
+tests/greek.test.ts
+tests/HeatmapPanel.test.tsx
+tests/helpers/testRouting.ts
+tests/highlightStorage.test.ts
+tests/Landing.test.tsx
+tests/LbRow.test.tsx
+tests/LemmaIdentityCard.test.tsx
+tests/MobileShellContext.test.tsx
+tests/MobileTopBar.test.tsx
+tests/PopoverCard.test.tsx
+tests/Reader.test.tsx
+tests/readerCtrl.test.ts
+tests/readerEscape.test.tsx
+tests/readerUtils.test.ts
+tests/ReferenceCard.test.tsx
+tests/Refs.test.tsx
+tests/refsAuthorOptions.test.ts
+tests/Review.test.tsx
+tests/routing-concordance.test.ts
+tests/routing.test.ts
+tests/Select.test.tsx
+tests/selectArcPairs.test.ts
+tests/SelectionToolbar.test.tsx
+tests/Sidebar.test.tsx
+tests/SurfaceErrorBoundary.test.tsx
+tests/suspendedSubtree.test.tsx
+tests/SyntaxOverlay.test.tsx
+tests/syntaxPos.test.ts
+tests/syntaxRetag.test.ts
+tests/syntaxStore.test.ts
+tests/TargetLangToggle.test.tsx
+tests/TermCard.test.tsx
+tests/theme.test.ts
+tests/ThemeToggle.test.tsx
+tests/useAbortableFetch.test.ts
+tests/useClickOutside.test.ts
+tests/useSelectionToolbar.test.ts
+vite.config.ts
