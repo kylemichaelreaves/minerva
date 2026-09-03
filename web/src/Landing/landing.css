@@ -121,7 +121,15 @@
   position: relative;
   display: inline-block;
 }
+/* A <button> so the tab stop carries a role and a name (see the comment in
+   Landing/index.tsx). The first four declarations strip the UA button chrome
+   so it renders exactly as the <div> it replaced: block-level, no padding,
+   no border, no background. */
 .landing-monogram {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
   font-family: var(--serif);
   font-style: italic;
   font-size: 56px;

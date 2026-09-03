@@ -3,7 +3,7 @@
 // useAbortableFetch hook below; an IntersectionObserver sentinel near
 // the bottom of the list fetches further pages and concatenates them.
 
-import { For, Show, createMemo, onMount } from "solid-js";
+import { For, Show, onMount } from "solid-js";
 import {
   fetchReferencesList,
   fetchReferencesSources,
@@ -24,6 +24,7 @@ import {
   buildReferencesListArgs,
   mergeRefsNavigate,
   useRefsSourceAuthors,
+  useRefsTargetAuthors,
 } from "~/Refs/components/refsList";
 import "~/Refs/refs.css";
 
@@ -93,15 +94,7 @@ export default function Refs(props: RefsProps) {
   );
 
   const sourceAuthors = useRefsSourceAuthors(sourcesData, () => data()?.references);
-  const targetAuthors = createMemo<string[]>(() => {
-    const fromEndpoint = sourcesData()?.targets;
-    if (fromEndpoint && fromEndpoint.length > 0) return fromEndpoint;
-    const set = new Set<string>();
-    for (const r of data()?.references ?? []) {
-      if (r.target.author) set.add(r.target.author);
-    }
-    return Array.from(set).sort();
-  });
+  const targetAuthors = useRefsTargetAuthors(sourcesData, () => data()?.references);
 
   const filtersBar = () => (
     <RefsFiltersBar

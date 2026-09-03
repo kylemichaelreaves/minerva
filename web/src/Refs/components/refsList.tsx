@@ -41,20 +41,53 @@ export function mergeRefsNavigate<T extends Record<string, unknown>>(
   return { ...current, ...patch };
 }
 
-export function useRefsSourceAuthors(
-  sourcesData: () => { sources?: string[] } | null | undefined,
-  listRows: () => ReferencesListRow[] | undefined,
+// `Array.prototype.sort()` with no comparator orders by UTF-16 code unit,
+// which files every accented capital after `Z` — `Épictète` (U+00C9) would
+// sort past `Zénon`. The locale is pinned rather than left to the runtime so
+// the order does not depend on the machine's LANG; the UI is English.
+function byAuthorName(a: string, b: string): number {
+  return a.localeCompare(b, "en");
+}
+
+// Shared by both author dropdowns. The endpoint's own ordering is authoritative
+// when it supplies one — for sources that ordering is CHRONOLOGICAL
+// (`author_sort_key`, src/minerva/refs/list_queries.py), not alphabetical, so
+// re-sorting it here would silently override the server. The fallback only
+// runs when the endpoint returns nothing.
+function useAuthorOptions(
+  fromEndpoint: () => string[] | undefined,
+  fromRows: () => (string | null)[],
 ) {
   // Captured in a local rather than returned inline so
   // eslint-plugin-solid can see the memo's identity.
   const authors = createMemo<string[]>(() => {
-    const fromEndpoint = sourcesData()?.sources;
-    if (fromEndpoint && fromEndpoint.length > 0) return fromEndpoint;
+    const supplied = fromEndpoint();
+    if (supplied && supplied.length > 0) return supplied;
     const set = new Set<string>();
-    for (const r of listRows() ?? []) {
-      if (r.source.author) set.add(r.source.author);
+    for (const author of fromRows()) {
+      if (author) set.add(author);
     }
-    return Array.from(set).sort();
+    return Array.from(set).sort(byAuthorName);
   });
   return authors;
+}
+
+export function useRefsSourceAuthors(
+  sourcesData: () => { sources?: string[] } | null | undefined,
+  listRows: () => ReferencesListRow[] | undefined,
+) {
+  return useAuthorOptions(
+    () => sourcesData()?.sources,
+    () => (listRows() ?? []).map((r) => r.source.author),
+  );
+}
+
+export function useRefsTargetAuthors(
+  sourcesData: () => { targets?: string[] } | null | undefined,
+  listRows: () => ReferencesListRow[] | undefined,
+) {
+  return useAuthorOptions(
+    () => sourcesData()?.targets,
+    () => (listRows() ?? []).map((r) => r.target.author),
+  );
 }

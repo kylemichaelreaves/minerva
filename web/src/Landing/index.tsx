@@ -50,6 +50,10 @@ interface LandingProps {
 // a quiet Easter egg rather than a feature.
 const ROSE_LOGO_PROBABILITY = 0.2;
 
+// Landing renders once per app, so a module constant is enough to tie the
+// monogram to the epigraph it describes.
+const TOOLTIP_ID = "landing-monogram-tooltip";
+
 export default function Landing(props: LandingProps) {
   const useRoseLogo = Math.random() < ROSE_LOGO_PROBABILITY;
   const c = createComposer({
@@ -91,14 +95,22 @@ export default function Landing(props: LandingProps) {
       <div class="landing-center">
         <div class="landing-hero">
           <div class="landing-monogram-wrap">
-            <div class="landing-monogram" tabindex="0">
+            {/* A button rather than a `tabindex`-bearing div: the mark is a
+                tab stop only so the epigraph beside it can be reached without
+                a mouse (`.landing-monogram:focus-visible +
+                .landing-monogram-tooltip`, landing.css), and a bare tab stop
+                with no role and no name announces nothing. `aria-describedby`
+                is what actually reads the epigraph out; before it the
+                `role="tooltip"` element was orphaned. */}
+            <button type="button" class="landing-monogram" aria-describedby={TOOLTIP_ID}>
               <img
                 src={useRoseLogo ? "/rose-cross.png" : "/owl.png"}
                 alt="Minerva"
                 class="landing-monogram-owl"
               />
-            </div>
+            </button>
             <div
+              id={TOOLTIP_ID}
               class={`landing-monogram-tooltip${useRoseLogo ? " landing-monogram-tooltip-long" : ""}`}
               role="tooltip"
             >
@@ -149,8 +161,11 @@ export default function Landing(props: LandingProps) {
                 <span class="landing-mobile-hint">ask about a passage, a work, an author</span>
               ) : (
                 <>
-                  <span class="kbd">↵</span> begin&nbsp;&nbsp;
-                  <span class="kbd">⇧ ↵</span> new line
+                  {/* Kept on one line deliberately. Split across two, the
+                      newline between `&nbsp;&nbsp;` and the next `<span>`
+                      collapses to nothing, and whether that was intended is
+                      not readable from the source (typescript:S6772). */}
+                  <span class="kbd">↵</span> begin&nbsp;&nbsp;<span class="kbd">⇧ ↵</span> new line
                 </>
               )
             }
