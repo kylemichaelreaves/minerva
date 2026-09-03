@@ -141,6 +141,24 @@ describe("<Select />", () => {
     expect(onChange).toHaveBeenCalledWith("");
   });
 
+  it("clear control is operable by keyboard, not mouse only (#324)", () => {
+    // `.minerva-select__clear` is a <span role="button"> rather than a
+    // <button> on purpose — the trigger is already a button and nesting them
+    // is invalid HTML. That made it mouse-only (typescript:S1082); it now
+    // answers Enter and Space like the native control it stands in for.
+    const { container, onChange } = harness("b");
+    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    fireEvent.keyDown(clear, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("clear control answers Space as well as Enter (#324)", () => {
+    const { container, onChange } = harness("b");
+    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    fireEvent.keyDown(clear, { key: " " });
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
   it("clearable={false} hides the clear button", () => {
     const [value] = createSignal<string | undefined>("b");
     const { container } = render(() => (

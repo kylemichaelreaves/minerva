@@ -64,12 +64,12 @@ export function ThemeToggle(props: {
         fallback={
           <>
             <span class="sun" aria-hidden="true" />
-            &nbsp;light
+            {"\u00a0light"}
           </>
         }
       >
         <span class="moon" aria-hidden="true" />
-        &nbsp;dark
+        {"\u00a0dark"}
       </Show>
     </button>
   );

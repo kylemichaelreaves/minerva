@@ -61,11 +61,35 @@ describe("<ConfirmDialog />", () => {
     outside.remove();
   });
 
+  // The scrim used to be a bare `<div onClick>` wrapping the dialog, which
+  // reached a mouse and nothing else (typescript:S6848 + typescript:S1082).
+  // The dismissal now lives on a real <button> laid over the scrim, so it is
+  // focusable and Enter/Space-operable for free — and because the dialog is a
+  // sibling rather than a child, the `stopPropagation` shim that used to sit
+  // on it (typescript:S6847 + typescript:S1082) is gone too.
+  it("puts the outside-click cancel on a keyboard-operable control (#324)", () => {
+    renderDialog();
+    const hit = document.querySelector(".dialog-scrim-hit");
+    expect(hit).not.toBeNull();
+    expect(hit!.tagName).toBe("BUTTON");
+    // Named distinctly from the visible ghost button, so `getByRole("button",
+    // { name: "Cancel" })` still resolves to exactly one element.
+    expect(hit!.getAttribute("aria-label")).toBe("Dismiss");
+  });
+
   it("clicking the scrim cancels", () => {
     const { onCancel } = renderDialog();
-    const scrim = document.querySelector(".dialog-scrim")!;
+    const scrim = document.querySelector(".dialog-scrim-hit")!;
     fireEvent.click(scrim);
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("the scrim control carries no click handler on the scrim itself", () => {
+    // Pins the structure the a11y fix depends on: clicking the scrim element
+    // does nothing, because the handler is on the button layered over it.
+    const { onCancel } = renderDialog();
+    fireEvent.click(document.querySelector(".dialog-scrim")!);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it("clicking inside the dialog does not cancel", () => {
