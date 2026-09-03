@@ -1,6 +1,6 @@
 import { For } from "solid-js";
 import type { HistoryItem } from "~/utils/types";
-import { SidebarHistoryItem } from "~/Sidebar/components/HistoryItem";
+import { SidebarHistoryItem } from "~/features/Sidebar/components/HistoryItem";
 
 export function SidebarHistorySection(props: {
   label: string;

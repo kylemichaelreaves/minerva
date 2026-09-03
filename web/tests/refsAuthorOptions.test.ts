@@ -12,7 +12,7 @@ import type { ReferencesListRow } from "~/api/refsApi";
 import {
   useRefsSourceAuthors,
   useRefsTargetAuthors,
-} from "~/Refs/components/refsList";
+} from "~/features/Refs/components/refsList";
 
 // Only the two author fields are read by the memos under test. The rest of
 // `ReferencesListRow` is filled in so the fixture type-checks.

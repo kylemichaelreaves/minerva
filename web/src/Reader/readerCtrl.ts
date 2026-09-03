@@ -11,7 +11,7 @@ import { listWorks } from "~/api/readerApi";
 import { keepsReaderAlive } from "~/routes/routeUtils";
 import { apiError } from "~/utils/apiError";
 import type { RoutingApi } from "~/routing";
-import type { AppMode } from "~/Sidebar";
+import type { AppMode } from "~/features/Sidebar";
 import type { Work } from "~/utils/types";
 
 interface ReaderLocation {

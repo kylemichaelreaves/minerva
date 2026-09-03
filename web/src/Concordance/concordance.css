@@ -1,5 +1,5 @@
 /* Concordance — F1 (index) + F2 (lemma detail / KWIC).
-   Greyscale-first, mirrors .ref-row chrome from Refs/refs.css.
+   Greyscale-first, mirrors .ref-row chrome from features/Refs/refs.css.
    Palette inherits from styles.css :root tokens. */
 
 .conc-stage {

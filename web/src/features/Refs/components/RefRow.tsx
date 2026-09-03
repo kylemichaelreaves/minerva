@@ -1,5 +1,5 @@
 import type { ReferencesListRow } from "~/api/refsApi";
-import { ReferenceCitationBlock } from "~/Refs/components/ReferenceCitationBlock";
+import { ReferenceCitationBlock } from "~/features/Refs/components/ReferenceCitationBlock";
 
 export function RefRow(props: {
   row: ReferencesListRow;

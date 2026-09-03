@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { ReviewCard } from "~/Refs/components/ReviewCard";
+import { ReviewCard } from "~/features/Refs/components/ReviewCard";
 import type { ReviewQueueRow } from "~/api/refsApi";
 
 const ROW: ReviewQueueRow = {

@@ -1,6 +1,6 @@
 import { PHIL_DOMINANT_GLYPH } from "~/utils/dominantPhil";
 import type { Work } from "~/utils/types";
-import { SidebarNavRow } from "~/Sidebar/components/SidebarNavRow";
+import { SidebarNavRow } from "~/features/Sidebar/components/SidebarNavRow";
 
 export function SidebarWorkItem(props: {
   work: Work;

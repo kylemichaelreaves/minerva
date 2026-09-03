@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
-import { Atlas } from "~/Landing/components/Atlas";
+import { Atlas } from "~/features/Landing/components/Atlas";
 import type { LandingStats } from "~/api/landingApi";
 
 // Found by the ErrorBoundary added for #426, which is the point of having one.

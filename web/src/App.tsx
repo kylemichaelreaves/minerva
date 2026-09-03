@@ -1,7 +1,7 @@
 // App composition root. Wires composables into layout; routes live in AppRoutes.
 
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
-import Sidebar from "~/Sidebar";
+import Sidebar from "~/features/Sidebar";
 import ConfirmDialog from "~/components/ConfirmDialog";
 import MobileTopBar from "~/components/MobileTopBar";
 import { AppRoutes } from "~/AppRoutes";
@@ -14,7 +14,7 @@ import "~/styles/mobile-sheet.css";
 import Toasts from "~/components/Toasts";
 import { useTheme } from "~/theme";
 import { useRouting } from "~/routing";
-import { useConversations } from "~/conversations/conversationsCtrl";
+import { useConversations } from "~/features/conversations/conversationsCtrl";
 import { useReader } from "~/Reader/readerCtrl";
 import type { AccentKey } from "~/utils/types";
 

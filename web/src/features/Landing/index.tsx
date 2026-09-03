@@ -15,8 +15,8 @@ import ComposeField from "~/components/ComposeField";
 import { ThemeToggle } from "~/components/ThemeToggle";
 import { useMobileShellOptional } from "~/components/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
-import { Atlas } from "~/Landing/components/Atlas";
-import "~/Landing/landing.css";
+import { Atlas } from "~/features/Landing/components/Atlas";
+import "~/features/Landing/landing.css";
 
 export type { LandingStats } from "~/api/landingApi";
 

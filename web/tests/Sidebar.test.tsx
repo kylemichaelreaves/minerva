@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
-import Sidebar from "~/Sidebar";
+import Sidebar from "~/features/Sidebar";
 import type { HistoryItem, Work } from "~/utils/types";
 
 function makeWork(author: string, work: string, lang = "grc"): Work {

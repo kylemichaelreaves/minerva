@@ -3,8 +3,8 @@ import type { ReviewQueueRow } from "~/api/refsApi";
 import {
   ReferenceCitationBlock,
   ReferenceCitationSourceLine,
-} from "~/Refs/components/ReferenceCitationBlock";
-import { SourceWithHighlight } from "~/Refs/components/SourceWithHighlight";
+} from "~/features/Refs/components/ReferenceCitationBlock";
+import { SourceWithHighlight } from "~/features/Refs/components/SourceWithHighlight";
 
 export function ReviewCard(props: {
   row: ReviewQueueRow;

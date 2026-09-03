@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
-import Landing from "~/Landing";
+import Landing from "~/features/Landing";
 
 function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
   const onSubmit = vi.fn();

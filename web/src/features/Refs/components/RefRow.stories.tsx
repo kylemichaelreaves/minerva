@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { RefRow } from "~/Refs/components/RefRow";
+import { RefRow } from "~/features/Refs/components/RefRow";
 import type { ReferencesListRow } from "~/api/refsApi";
 
 const ROW: ReferencesListRow = {

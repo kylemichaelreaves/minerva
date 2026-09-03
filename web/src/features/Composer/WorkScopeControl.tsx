@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
 import { useEscape } from "~/hooks/useEscape";
-import type { ChatScope } from "~/conversations/conversationsCtrl";
+import type { ChatScope } from "~/features/conversations/conversationsCtrl";
 import type { Work } from "~/utils/types";
 
 /**

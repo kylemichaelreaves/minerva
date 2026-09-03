@@ -19,11 +19,11 @@ import {
 import { isApiErrorWithStatus } from "~/api/client";
 import { apiError } from "~/utils/apiError";
 import { isAbortError } from "~/utils/util";
-import { askMinerva } from "~/conversations/conversationsSend";
+import { askMinerva } from "~/features/conversations/conversationsSend";
 import {
   conversationToHistoryItem,
   persistedToTurn,
-} from "~/conversations/conversationsHydrate";
+} from "~/features/conversations/conversationsHydrate";
 import type { Route, RoutingApi } from "~/routing";
 import type { HistoryItem, Turn, UserTurn } from "~/utils/types";
 
@@ -299,5 +299,5 @@ export {
   conversationToHistoryItem,
   persistedToTurn,
   relativeTime,
-} from "~/conversations/conversationsHydrate";
+} from "~/features/conversations/conversationsHydrate";
 export type { Route };

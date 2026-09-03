@@ -258,7 +258,7 @@ body::before {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   LANDING — see Landing/landing.css for the layout-specific rules.
+   LANDING — see features/Landing/landing.css for the layout-specific rules.
    This section keeps a small set of globally-used utilities and the
    .send-btn baseline used by composer.css (Composer view). The
    landing variant of .send-btn is overridden in landing.css.

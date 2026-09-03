@@ -15,18 +15,18 @@ import { useMobileShell } from "~/components/MobileShellContext";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
 import { usePaginatedAppend } from "~/hooks/usePaginatedAppend";
-import { RefRow } from "~/Refs/components/RefRow";
-import { RefsEmptyState } from "~/Refs/components/RefsEmptyState";
-import { RefsFiltersBar } from "~/Refs/components/RefsFiltersBar";
-import { RefsPageHeader } from "~/Refs/components/RefsPageHeader";
+import { RefRow } from "~/features/Refs/components/RefRow";
+import { RefsEmptyState } from "~/features/Refs/components/RefsEmptyState";
+import { RefsFiltersBar } from "~/features/Refs/components/RefsFiltersBar";
+import { RefsPageHeader } from "~/features/Refs/components/RefsPageHeader";
 import {
   REFS_PAGE_SIZE,
   buildReferencesListArgs,
   mergeRefsNavigate,
   useRefsSourceAuthors,
   useRefsTargetAuthors,
-} from "~/Refs/components/refsList";
-import "~/Refs/refs.css";
+} from "~/features/Refs/components/refsList";
+import "~/features/Refs/refs.css";
 
 const PAGE_SIZE = REFS_PAGE_SIZE;
 

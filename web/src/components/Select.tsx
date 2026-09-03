@@ -607,7 +607,7 @@ export function Select(props: SelectProps): JSX.Element {
             the input's own onClick opens the panel.
 
             Do not let a caller nest this inside another <label>.
-            `Refs/components/RefsFilterField.tsx` wraps Select in a bare one, so
+            `features/Refs/components/RefsFilterField.tsx` wraps Select in a bare one, so
             it must never set `filterable` — there is a test on that. */}
         <label class="minerva-select__trigger minerva-select__trigger--field">
           <input id={baseId} {...fieldProps()} />

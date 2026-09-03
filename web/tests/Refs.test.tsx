@@ -12,7 +12,7 @@ import {
   type MockedFunction,
 } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
-import Refs, { type RefsProps } from "~/Refs";
+import Refs, { type RefsProps } from "~/features/Refs";
 import { MobileShellProvider } from "~/components/MobileShellContext";
 import type {
   ReferencesListResponse,

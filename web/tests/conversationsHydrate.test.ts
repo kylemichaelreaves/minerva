@@ -3,7 +3,7 @@ import {
   conversationToHistoryItem,
   persistedToTurn,
   relativeTime,
-} from "~/conversations/conversationsHydrate";
+} from "~/features/conversations/conversationsHydrate";
 import type { Conversation, PersistedMessage } from "~/utils/types";
 
 describe("relativeTime()", () => {

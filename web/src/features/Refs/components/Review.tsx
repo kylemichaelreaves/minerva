@@ -14,16 +14,16 @@ import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { useListKeyboardNav } from "~/hooks/useListKeyboardNav";
 import { usePaginatedAppend } from "~/hooks/usePaginatedAppend";
 import { errorMessage } from "~/utils/util";
-import { ReviewCard } from "~/Refs/components/ReviewCard";
-import { RefsFiltersBar } from "~/Refs/components/RefsFiltersBar";
-import { RefsPageHeader } from "~/Refs/components/RefsPageHeader";
+import { ReviewCard } from "~/features/Refs/components/ReviewCard";
+import { RefsFiltersBar } from "~/features/Refs/components/RefsFiltersBar";
+import { RefsPageHeader } from "~/features/Refs/components/RefsPageHeader";
 import {
   REFS_PAGE_SIZE,
   mergeRefsNavigate,
   useRefsSourceAuthors,
-} from "~/Refs/components/refsList";
-import "~/Refs/refs.css";
-import "~/Refs/review.css";
+} from "~/features/Refs/components/refsList";
+import "~/features/Refs/refs.css";
+import "~/features/Refs/review.css";
 
 export interface ReviewProps {
   sourceAuthor?: string;

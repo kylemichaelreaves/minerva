@@ -19,7 +19,7 @@ function mockReader(mode: "chat" | "reader") {
 function mockConversations(showLanding: boolean, _title: string | null = null) {
   return {
     showLanding: () => showLanding,
-  } as ReturnType<typeof import("~/conversations/conversationsCtrl").useConversations>;
+  } as ReturnType<typeof import("~/features/conversations/conversationsCtrl").useConversations>;
 }
 
 function runConfig(input: Parameters<typeof useMobileTopBarConfig>[0]) {
