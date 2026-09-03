@@ -3909,9 +3909,20 @@ Both directions, by lookup rather than by re-deriving the rule's purpose. The
 A-halt arm is the control that matters: grading a rule usually costs you the
 cases that must still fire, and here it did not.
 
-- **B**: re-ran fresh, produced a denominator with the command that computed it
-  ("150 of 347"), and — correctly — recognised the finding was already tracked
-  and wrote a correction on #483 rather than a new issue.
+- **B** (phase 7): **3/3 passed.** All three re-ran fresh rather than
+  transcribing the note, all three produced a population with the command that
+  computed it, and all three — unprompted — recognised the finding was already
+  tracked and wrote a correction on #483 instead of a new issue. Two went
+  further than the author had, re-running the cited command at `321be9d` in a
+  disposable worktree to separate *undercounted at filing* from *drift since*.
+  One traced the `termcard.css` syntax error back to `c30a217`, the squashed
+  initial commit.
+
+  Their denominators differ — 150 of 347, 153 of 347, 154 of 347 — because each
+  chose a slightly different file set and warn/error convention. The slot forces
+  a denominator and the command that produced it; it does not standardise the
+  population. That is an acceptable residual: any denominator with its command
+  is recoverable by a reader, and a bare count is not.
 
 ### The blocker that nearly shipped
 
