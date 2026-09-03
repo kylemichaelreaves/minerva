@@ -3712,3 +3712,112 @@ thing with state.
 - **#481** — the audit triage pass above. Deliberately not started here: its
   value is in knowing the remainder is empty, which means one pass over ~30
   findings, not an incremental trickle.
+
+## Batch 12-ter — the lint gate's own blind spot (#480)
+
+#480 was filed by batch 12-bis and left out of it deliberately, on the grounds
+that widening the gates needed a scope decision. It did — and the measuring
+that preceded the decision found the issue wrong on **four** counts, two of
+which would have produced a fix that looked complete and did nothing.
+
+This is the first close-out where the corrected source was **an issue written
+during the previous batch, an hour earlier, by the same session.** Freshness
+is not accuracy. The `## Measured` half held up; the `## Hypothesis` half —
+written from reading the config rather than running it — did not.
+
+### What the issue got wrong
+
+**One.** "Three TypeScript files that neither `make lint-web` nor
+`make typecheck` looks at." `decorators.tsx` *is* typechecked — ten
+`src/**/*.stories.tsx` import it and `tsc` follows imports out of `include`.
+Proved by probe rather than by reading the file list, because being in the
+program and being checked are different claims:
+
+```
+$ # unmodified include: ["src", "tests", "vite.config.ts"]
+$ printf '\nconst _probe: number = "not a number";\n' >> .storybook/decorators.tsx
+$ npx tsc --noEmit
+.storybook/decorators.tsx(56,7): error TS2322: …
+$ # the same probe in preview.tsx AND main.ts:
+$ npx tsc --noEmit ; echo "exit: $?"
+exit: 0
+```
+
+Two files were untypechecked, not three.
+
+**Two.** "The two gates cover every `.ts`/`.tsx` file in `web/` except these
+three." `vite.config.ts` is typechecked but never linted — it is named in
+tsconfig's `include`, and the `ignores` entry `"vite.config.ts.*"` matches
+Vite's `vite.config.ts.timestamp-*.mjs` temp files, not the config. Four files
+unlinted, not three.
+
+**Three.** The crash was attributed to `.storybook/decorators.tsx`. ESLint dies
+on the *first* offender, so that name is an artifact of sort order. Fixing only
+what the issue named moves the crash rather than ending it:
+
+```
+$ npx eslint .                          -> .storybook/decorators.tsx
+  after widening files: to .storybook   -> coverage/lcov-report/block-navigation.js
+  after adding coverage/** to ignores   -> vite.config.ts
+  after adding vite.config.ts to files: -> 376 problems, no crash
+```
+
+`coverage/**` was never in `ignores` at all, and it is written by
+`npm run test:coverage`, which `make check` runs — so anyone reproducing this
+hits an identical-looking crash on a file that is not even tracked.
+
+**Four, and the expensive one.** The proposed fix said "add it to
+`tsconfig.json`'s `include`". Adding the bare string `".storybook"` is a
+**no-op**: TypeScript drops directories beginning with `.` when it expands
+`include`.
+
+```
+include entry                                   .storybook files in program
+".storybook"                                    1     <- decorators.tsx, via import
+".storybook/**/*.ts", ".storybook/**/*.tsx"     3
+```
+
+The natural reading of the issue produces a config that passes `tsc`, looks
+fixed, and leaves `main.ts` and `preview.tsx` exactly as unchecked as before.
+ESLint then reports `The file was not found in any of the provided project(s)`
+for those two — which reads as an ESLint problem, not as a glob that silently
+matched zero files.
+
+### The test had to lint, not resolve
+
+Three of the four assertions can be made against the *resolved* config, which
+is cheap. The dot-directory no-op cannot: `calculateConfigForFile` happily
+returns `project: "./tsconfig.json"` for a file the project does not contain.
+Only `lintFiles` surfaces it. So `tests/eslintConfig.test.ts` (renamed from
+`eslintSfcRule.test.ts`, since it now pins the config generally) carries one
+assertion that lints for real.
+
+**That test flaked on its first `make check` and passed on the next** —
+`lintFiles` builds a TypeScript program, which blew vitest's 5s default while
+98 other files ran alongside it. Given an explicit 60s timeout and then run
+three times consecutively green. A test that fails once and passes on retry is
+worse than no test, and it would have been easy to read the second run as
+proof the first was noise.
+
+The sweep is driven off `git ls-files` rather than a hand-written list — an
+enumeration is the defect #477 fixed one file over, and it would be a poor
+joke to guard against it with one.
+
+### What it surfaced, and what shipped
+
+One real error, in the file that had never been linted: `preview.tsx:75` cast
+`ctx.globals.theme` to `"light" | "dark"` and then applied `?? "light"` — the
+cast asserted away the exact case the `??` exists for, making it dead code.
+The cast was the bug; it now admits `undefined`.
+
+`npm run lint` became `eslint .` rather than a longer enumeration, for the
+same reason the globs in #477 became structural.
+
+### What was deliberately not fixed
+
+- **#483** — `make check` never runs `format:check`, so Prettier drift
+  accumulates unseen; `src/utils/util.ts` has drifted **inside** the
+  formatter's own `src tests` scope, and `.storybook/`, `vite.config.ts` and
+  `eslint.config.js` sit outside it. Left out because fixing it properly
+  reformats two files nobody is otherwise touching, which belongs in its own
+  diff rather than folded into a behavioural change.
