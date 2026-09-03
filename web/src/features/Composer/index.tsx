@@ -1,6 +1,6 @@
 import { type JSX } from "solid-js";
 import { createComposer } from "~/utils/composer";
-import ComposeField from "~/components/ComposeField";
+import ComposeField from "~/components/cards/ComposeField";
 import "~/features/Composer/composer.css";
 
 interface ComposerProps {

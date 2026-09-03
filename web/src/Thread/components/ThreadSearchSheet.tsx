@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, type JSX } from "solid-js";
 import type { Turn } from "~/utils/types";
-import { MobileSheet } from "~/components/MobileSheet";
+import { MobileSheet } from "~/components/shell/MobileSheet";
 import { turnId } from "~/Thread/turnId";
 
 function turnText(msg: Turn): string {

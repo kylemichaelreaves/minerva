@@ -48,8 +48,22 @@ handlers, JSON fixtures (`tests/fixtures/api/*.keys.json`), and TS types togethe
 ## Components
 
 - **One component per file.** PascalCase; file name matches the export.
-- **Co-locate by surface**: `src/<Surface>/<Component>.tsx`. Genuinely cross-surface
-  primitives go in `src/lib/`.
+- **Co-locate by surface**: `src/features/<Surface>/<Component>.tsx`. Genuinely
+  cross-surface components go in `src/components/`, which is grouped by *kind*
+  rather than left flat (#324, #475):
+
+  | group | what belongs there |
+  |---|---|
+  | `components/primitives/` | Surface-agnostic UI with no domain knowledge — `Select`, `HoverTip`, `Icons`, `LoadingDots`, `Toasts`, `PopoverCard`, `ConfirmDialog`, `ExtLinkIcon`. |
+  | `components/shell/` | The app's framing, both viewports: `Topbar`, `topbarStyles`, `ThemeToggle`, `MobileTopBar`, `MobileSheet`, `MobileShellContext`, `FilterSheet`. |
+  | `components/cards/` | Components that know about corpus domain types — `ReferenceCard`, `TermCard`, `XrefMarker`, `ComposeField`. |
+
+  The test for `shell/` is *framing*, not viewport: the desktop `Topbar` and the
+  `MobileTopBar` are the same job answered twice, so they sit together rather
+  than in a `chrome/` and a `mobileShell/` that would have to be read as a pair.
+  `SurfaceErrorBoundary` is deliberately **not** here — it is infrastructure
+  rather than UI, and lives in `src/routes/` beside the route surfaces that
+  mount it.
 - **Pure functions** of `props`: `function X(props: XProps) { … }`.
 - **Never destructure props** — `function X({ a, b })` loses reactivity. The
   destructure happens once at call time; later updates to `a` or `b` are

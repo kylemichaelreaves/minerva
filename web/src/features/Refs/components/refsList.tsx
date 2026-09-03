@@ -1,6 +1,6 @@
 import { createMemo } from "solid-js";
 import type { ReferencesListRow } from "~/api/refsApi";
-import type { SelectOption } from "~/components/Select";
+import type { SelectOption } from "~/components/primitives/Select";
 
 export const REFS_PAGE_SIZE = 50;
 

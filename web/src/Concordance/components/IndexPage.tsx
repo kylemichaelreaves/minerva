@@ -15,14 +15,14 @@ import { listWorks } from "~/api/readerApi";
 import { ActiveFilterStrip } from "~/Concordance/components/ActiveFilterStrip";
 import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
 import { FilterBar } from "~/Concordance/components/FilterBar";
-import type { SelectOption } from "~/components/Select";
+import type { SelectOption } from "~/components/primitives/Select";
 import { LbRow } from "~/Concordance/components/LbRow";
 import { LoadingSkeleton } from "~/Concordance/components/LoadingSkeleton";
 import { ScopePill } from "~/Concordance/components/ScopePill";
 import { alphabetFor, foldInitial } from "~/Concordance/constants";
 import { routeHash } from "~/routing";
 import { useMobile } from "~/hooks/useMobile";
-import { MobileSheet } from "~/components/MobileSheet";
+import { MobileSheet } from "~/components/shell/MobileSheet";
 import "~/Concordance/concordance.css";
 
 /** Allow-clear navigation patch — explicit `undefined` clears that field

@@ -16,8 +16,8 @@
 import type { Component, JSX } from "solid-js";
 import { For } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { XrefMarker } from "~/components/XrefMarker";
-import { withTheme } from "../../.storybook/decorators";
+import { XrefMarker } from "~/components/cards/XrefMarker";
+import { withTheme } from "../../../.storybook/decorators";
 
 // ─── line-row primitive ───────────────────────────────────────────
 //

@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { Select, type SelectOption } from "~/components/Select";
+import { Select, type SelectOption } from "~/components/primitives/Select";
 
 const OPTS: SelectOption[] = [
   { value: "a", label: "Alpha" },
@@ -157,6 +157,26 @@ describe("<Select />", () => {
     const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
     fireEvent.keyDown(clear, { key: " " });
     expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("a key that is not Enter or Space leaves the selection alone (#324)", () => {
+    const { container, onChange } = harness("b");
+    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    fireEvent.keyDown(clear, { key: "a" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("clearing while the panel is open closes it (#324)", () => {
+    // The user almost certainly wants to start over rather than browse the
+    // list with a now-empty value. Shared by the pointer and keyboard paths
+    // via `clearSelection`, so one test covers the branch for both.
+    const { container, trigger, onChange } = harness("b");
+    fireEvent.click(trigger());
+    expect(container.querySelector(".minerva-select__panel")).not.toBeNull();
+    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    fireEvent.keyDown(clear, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("");
+    expect(container.querySelector(".minerva-select__panel")).toBeNull();
   });
 
   it("clearable={false} hides the clear button", () => {

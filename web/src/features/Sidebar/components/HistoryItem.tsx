@@ -1,5 +1,5 @@
 import { PHIL_DOMINANT_GLYPH } from "~/utils/dominantPhil";
-import { TrashIcon } from "~/components/Icons";
+import { TrashIcon } from "~/components/primitives/Icons";
 import type { HistoryItem } from "~/utils/types";
 import { SidebarNavRow } from "~/features/Sidebar/components/SidebarNavRow";
 

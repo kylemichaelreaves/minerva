@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import type { NetworkSummary } from "~/api/networkApi";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
-import { useMobileShellOptional } from "~/components/MobileShellContext";
+import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { NetworkFiltersBar } from "~/Network/components/NetworkFiltersBar";
 
 export function NetworkHeader(props: {

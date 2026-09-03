@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
-import { MobileSheet } from "~/components/MobileSheet";
+import { MobileSheet } from "~/components/shell/MobileSheet";
 
 afterEach(cleanup);
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import MobileTopBar from "~/components/MobileTopBar";
+import MobileTopBar from "~/components/shell/MobileTopBar";
 
 // MobileTopBar lives at the top of every non-landing mobile surface.
 // The three stories below mirror the three contextual right-actions

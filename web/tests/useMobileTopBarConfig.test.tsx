@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRoot } from "solid-js";
-import { MobileShellProvider } from "~/components/MobileShellContext";
+import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import { useMobileTopBarConfig } from "~/hooks/useMobileTopBarConfig";
 
 function mockRouting(kind: string) {

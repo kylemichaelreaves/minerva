@@ -14,7 +14,7 @@
 
 import { render, fireEvent } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
-import PopoverCard from "~/components/PopoverCard";
+import PopoverCard from "~/components/primitives/PopoverCard";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
 
 const ANCHOR = new DOMRect(100, 200, 20, 16);

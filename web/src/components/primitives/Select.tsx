@@ -38,7 +38,7 @@ import {
 import { useClickOutside } from "~/hooks/useClickOutside";
 import { useMobile } from "~/hooks/useMobile";
 import { matchesQuery } from "~/utils/searchFold";
-import "~/components/Select.css";
+import "~/components/primitives/Select.css";
 
 export interface SelectOption {
   value: string;

@@ -1,6 +1,6 @@
 import { Show, type JSX } from "solid-js";
-import { MobileSheet } from "~/components/MobileSheet";
-import { useMobileShell } from "~/components/MobileShellContext";
+import { MobileSheet } from "~/components/shell/MobileSheet";
+import { useMobileShell } from "~/components/shell/MobileShellContext";
 
 /** Desktop: inline filters. Mobile: same content in a bottom sheet. */
 export function FilterSheet(props: {

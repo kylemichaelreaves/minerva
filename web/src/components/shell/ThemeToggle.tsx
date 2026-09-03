@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import { MoonIcon, SunIcon } from "~/components/Icons";
+import { MoonIcon, SunIcon } from "~/components/primitives/Icons";
 import type { Theme } from "~/utils/types";
 
 export type ThemeToggleVariant = "icon" | "text" | "cog";

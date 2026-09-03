@@ -33,9 +33,9 @@
 // the preview block.
 
 import { For, Show } from "solid-js";
-import PopoverCard from "~/components/PopoverCard";
-import "~/components/referencecard.css";
-import { ExtLinkIcon } from "~/components/ExtLinkIcon";
+import PopoverCard from "~/components/primitives/PopoverCard";
+import "~/components/cards/referencecard.css";
+import { ExtLinkIcon } from "~/components/primitives/ExtLinkIcon";
 import { referenceTypeLabel } from "~/utils/referenceTypes";
 import {
   defaultExternalLinks,

@@ -10,7 +10,7 @@
 // rows without threading the page language down to every cell.
 
 import { Show } from "solid-js";
-import { HoverTip } from "~/components/HoverTip";
+import { HoverTip } from "~/components/primitives/HoverTip";
 import { containsGreek, romanize } from "~/utils/greek";
 
 export function Romanizable(props: { text: string }) {

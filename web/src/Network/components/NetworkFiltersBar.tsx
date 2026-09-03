@@ -1,5 +1,5 @@
 import { Show, createMemo } from "solid-js";
-import { useMobileShellOptional } from "~/components/MobileShellContext";
+import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { CORPUS_BUCKETS, SOURCE_METHODS } from "~/Network/constants";
 import { FilterMenuChip } from "~/Network/components/FilterMenuChip";
 

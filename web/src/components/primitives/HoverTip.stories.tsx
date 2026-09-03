@@ -4,7 +4,7 @@
 // trigger in each story. To see the tip, hover the trigger.
 
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { HoverTip } from "~/components/HoverTip";
+import { HoverTip } from "~/components/primitives/HoverTip";
 
 const meta: Meta<typeof HoverTip> = {
   title: "Primitives/HoverTip",

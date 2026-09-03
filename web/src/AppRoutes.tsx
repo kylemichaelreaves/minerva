@@ -8,7 +8,7 @@ import {
   onCleanup,
   onMount,
 } from "solid-js";
-import SurfaceErrorBoundary from "~/components/SurfaceErrorBoundary";
+import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";

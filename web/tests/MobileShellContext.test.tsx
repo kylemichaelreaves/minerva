@@ -27,7 +27,7 @@ import {
   MobileShellProvider,
   useMobileShell,
   type MobileShellContextValue,
-} from "~/components/MobileShellContext";
+} from "~/components/shell/MobileShellContext";
 import { render, cleanup } from "@solidjs/testing-library";
 
 /** Render the provider and hand back its context value. */

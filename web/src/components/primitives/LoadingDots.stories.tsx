@@ -4,7 +4,7 @@
 // stationary in the canvas, the styles.css import is wrong.
 
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { LoadingDots } from "~/components/LoadingDots";
+import { LoadingDots } from "~/components/primitives/LoadingDots";
 
 const meta: Meta<typeof LoadingDots> = {
   title: "Primitives/LoadingDots",

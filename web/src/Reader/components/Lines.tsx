@@ -4,7 +4,7 @@
 
 import { For, Show } from "solid-js";
 import type { LemmaHighlights, OccurrenceMap, SourceChunk } from "~/utils/types";
-import { XrefMarker } from "~/components/XrefMarker";
+import { XrefMarker } from "~/components/cards/XrefMarker";
 import { classnames } from "~/utils/util";
 import type { PinnedHighlight } from "~/Reader/utils";
 import { WordRun } from "~/Reader/components/WordRun";

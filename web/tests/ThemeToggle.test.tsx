@@ -13,8 +13,8 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
-import { ThemeToggle } from "~/components/ThemeToggle";
-import { SunIcon, MoonIcon } from "~/components/Icons";
+import { ThemeToggle } from "~/components/shell/ThemeToggle";
+import { SunIcon, MoonIcon } from "~/components/primitives/Icons";
 
 afterEach(cleanup);
 

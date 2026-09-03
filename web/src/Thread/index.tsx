@@ -1,6 +1,6 @@
 import { Index, Show } from "solid-js";
 import { classnames } from "~/utils/util";
-import { LoadingDots } from "~/components/LoadingDots";
+import { LoadingDots } from "~/components/primitives/LoadingDots";
 import type { MinervaTurn, Turn, UserTurn } from "~/utils/types";
 import { MinervaTurnView } from "~/Thread/components/MinervaTurnView";
 import { ThreadSkeleton } from "~/Thread/components/ThreadSkeleton";

@@ -1,4 +1,4 @@
-import type { SelectOption } from "~/components/Select";
+import type { SelectOption } from "~/components/primitives/Select";
 import type { ReferenceType } from "~/utils/types";
 
 export const REFERENCE_TYPES: readonly ReferenceType[] = [

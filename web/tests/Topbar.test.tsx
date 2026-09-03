@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
-import Topbar from "~/components/Topbar";
+import Topbar from "~/components/shell/Topbar";
 import type { Theme } from "~/utils/types";
 
 interface OverrideProps {

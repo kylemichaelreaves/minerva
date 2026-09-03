@@ -10,7 +10,7 @@
 
 import { type JSX } from "solid-js";
 import { type Block, parseBlocks, parseRichText, type RichFragment } from "~/utils/markdown";
-import { HoverTip } from "~/components/HoverTip";
+import { HoverTip } from "~/components/primitives/HoverTip";
 import type { Citation } from "~/utils/types";
 
 export function renderRich(

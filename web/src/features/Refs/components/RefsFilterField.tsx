@@ -1,4 +1,4 @@
-import { Select, type SelectOption } from "~/components/Select";
+import { Select, type SelectOption } from "~/components/primitives/Select";
 
 export function RefsFilterField(props: {
   label: string;

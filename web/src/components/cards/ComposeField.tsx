@@ -1,8 +1,8 @@
 import { type JSX } from "solid-js";
 import { classnames } from "~/utils/util";
-import { SendIcon } from "~/components/Icons";
+import { SendIcon } from "~/components/primitives/Icons";
 import type { ComposerState } from "~/utils/composer";
-import { useMobileShellOptional } from "~/components/MobileShellContext";
+import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
 
 export interface ComposeFieldProps {

@@ -1,6 +1,6 @@
 import { For, createSignal, onMount } from "solid-js";
 import type { TargetLang } from "~/utils/types";
-import { MobileSheet } from "~/components/MobileSheet";
+import { MobileSheet } from "~/components/shell/MobileSheet";
 import { TargetLangToggle } from "~/Reader/components/TargetLangToggle";
 
 const STORAGE_KEY = "minerva-reader-text-scale";

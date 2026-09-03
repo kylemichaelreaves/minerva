@@ -16,9 +16,9 @@
 
 import type { Component } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import TermCard from "~/components/TermCard";
+import TermCard from "~/components/cards/TermCard";
 import type { TermDetail } from "~/utils/types";
-import { withTheme } from "../../.storybook/decorators";
+import { withTheme } from "../../../.storybook/decorators";
 
 // ---- mock data ----
 

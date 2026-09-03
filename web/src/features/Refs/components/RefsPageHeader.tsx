@@ -1,5 +1,5 @@
 import { Show, type JSX } from "solid-js";
-import { LoadingDots } from "~/components/LoadingDots";
+import { LoadingDots } from "~/components/primitives/LoadingDots";
 
 export function RefsPageHeader(props: {
   title: string;

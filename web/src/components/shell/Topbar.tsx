@@ -1,9 +1,9 @@
 import { Show } from "solid-js";
 import { classnames } from "~/utils/util";
-import { SidebarIcon } from "~/components/Icons";
-import { ThemeToggle } from "~/components/ThemeToggle";
+import { SidebarIcon } from "~/components/primitives/Icons";
+import { ThemeToggle } from "~/components/shell/ThemeToggle";
 import type { Theme } from "~/utils/types";
-import { smallCapsLabel } from "~/components/topbarStyles";
+import { smallCapsLabel } from "~/components/shell/topbarStyles";
 
 interface TopbarProps {
   scrolled: boolean;

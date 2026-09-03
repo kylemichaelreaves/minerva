@@ -20,8 +20,8 @@
 
 import { Show, For, createResource, createSignal } from "solid-js";
 import { fetchTermDetail } from "~/api/readerApi";
-import PopoverCard from "~/components/PopoverCard";
-import "~/components/termcard.css";
+import PopoverCard from "~/components/primitives/PopoverCard";
+import "~/components/cards/termcard.css";
 import type { TermDetail, TermRenderingRow } from "~/utils/types";
 
 export interface TermCardProps {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import ConfirmDialog from "~/components/ConfirmDialog";
+import ConfirmDialog from "~/components/primitives/ConfirmDialog";
 
 function renderDialog(overrides: Partial<{ open: boolean }> = {}) {
   const onConfirm = vi.fn();

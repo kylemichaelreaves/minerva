@@ -5,7 +5,7 @@
 // the dialog's scrim + paper tokens correctly.
 
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import ConfirmDialog from "~/components/ConfirmDialog";
+import ConfirmDialog from "~/components/primitives/ConfirmDialog";
 
 const meta: Meta<typeof ConfirmDialog> = {
   title: "Dialogs/ConfirmDialog",

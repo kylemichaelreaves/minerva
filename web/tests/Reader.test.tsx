@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Reader from "~/Reader";
-import { MobileShellProvider } from "~/components/MobileShellContext";
+import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import type { JSX } from "solid-js";
 import { readRoute, routeHash } from "~/routing";
 
