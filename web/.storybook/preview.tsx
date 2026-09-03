@@ -72,7 +72,12 @@ const preview: Preview = {
     // and dark-mode blocks already populate `--accent` / `--accent-soft`
     // with the oxblood defaults that match `ACCENTS.oxblood`.
     (Story, ctx) => {
-      const theme = (ctx.globals.theme as "light" | "dark") ?? "light";
+      // The cast must admit `undefined`: a story rendered before the
+      // toolbar global is set has no `theme`, which is exactly what the
+      // `??` is for. Asserting it non-nullable made the `??` dead code and
+      // was the one real finding this file's first-ever lint turned up
+      // (typescript-eslint/no-unnecessary-condition, #480).
+      const theme = (ctx.globals.theme as "light" | "dark" | undefined) ?? "light";
       document.documentElement.setAttribute("data-theme", theme);
       return Story();
     },
