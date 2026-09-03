@@ -166,10 +166,12 @@ before:
   the same PR — never into a new issue. That includes correcting your own
   earlier comment when a later measurement overturns it.
 - Most of these gates are enumerated with their exit conditions in
-  `.claude/commands/close-out.md`; duplication ≤3% and the reliability rating
-  have no exit condition there — the command names them but cannot gate them.
-  The command is the executable form; this list is the reasoning behind it. If
-  they disagree, the disagreement is a bug in one of them — say which.
+  `.claude/skills/close-out/`; duplication ≤3% and the reliability rating have
+  no exit condition there — the skill names them but cannot gate them. The
+  skill is the executable form; this list is the reasoning behind it. If they
+  disagree, the disagreement is a bug in one of them — say which. (It was
+  `.claude/commands/close-out.md` until the conversion; the row at the foot of
+  this document records why it moved.)
 
 ## A found issue joins a batch; it does not join a queue
 
@@ -3821,3 +3823,124 @@ same reason the globs in #477 became structural.
   `eslint.config.js` sit outside it. Left out because fixing it properly
   reformats two files nobody is otherwise touching, which belongs in its own
   diff rather than folded into a behavioural change.
+
+## Batch 12-quinquies — `/close-out` converted from a slash command to a skill
+
+Not a backlog issue. The conversion came out of the three preceding batches,
+each of which corrected an issue the same session had written an hour earlier.
+Three-for-three stopped being a coincidence and started being a property of the
+harness.
+
+### What was actually wrong, and what was not
+
+The command was **not misconfigured.** `.claude/commands/close-out.md` had valid
+frontmatter, `$ARGUMENTS` substituted correctly, and its seven phases matched
+the design spec's table at
+`docs/superpowers/specs/2026-08-10-close-out-command-design.md:162-172`,
+including the one deliberate drift (#433's discover-the-plan change).
+
+The defect was structural. Compare exit conditions:
+
+| Phase | Exit condition |
+|---|---|
+| 1 Verify | "a verdict **backed by output you actually saw**" |
+| 3 `make check` | "green, **and the last run happened after the last edit**" |
+| 5 PR link | "that command **exits 0**" |
+| 7 File findings | "every finding has an issue number, and either a batch row or a note" |
+
+**Phase 7 is the only phase whose exit condition does not require having
+watched anything — and it is the phase that manufactures phase 1's inputs.**
+The least-verified step feeds the most-verified one.
+
+Second: the description was a five-step workflow summary. `superpowers:writing-skills`
+names that exact shape as a trap — "descriptions that summarize workflow create
+a shortcut agents will take; the skill body becomes documentation agents skip."
+Their case study: a description reading "code review between tasks" produced one
+review where the body specified two. Not proven causal here, but the two phases
+compressed into that description are the two that were skipped.
+
+### RED — what agents actually do without the guidance
+
+`superpowers:writing-skills` has an Iron Law: no skill without watching agents
+fail first. Three reps per scenario, sonnet, no close-out guidance.
+
+**Scenario A — a `CORRECTED` verdict that narrows the fix.** Rule in force:
+*any* non-CONFIRMED verdict halts for a go/no-go. **3/3 continued anyway.**
+
+- "The stop-and-ask clause exists to protect a decision the user hasn't made
+  yet — a scope change... That's not what happened here."
+- "There's no real fork in the road to put in front of the user."
+- "Treating every hypothesis correction as a stop is how the rule turns into an
+  excuse to make the user do busywork."
+
+Every one substituted the rule's **purpose** for its **text**, then ruled itself
+outside the purpose. Two pre-empted the charge unprompted — *"What makes this
+safe rather than a rationalization: ..."*. And they were largely right: the
+rule was binary where the world is graded, so it got argued away rather than
+followed. Per writing-skills' form table this is not a discipline failure but a
+**conditional** wanting an observable predicate.
+
+**Scenario B, first attempt — thrown away.** It told the agent outright "you
+ran `| tail -2`". All three still chose to file, but all three explicitly
+labelled the truncation — *"this is a lower bound, not a full count"*. They
+**outperformed the author**, who had written "four files are currently
+unformatted" flat. The scenario leaked the answer: salience of the truncation
+was the very thing missing from the real failure, where it sat hours back in a
+transcript. Textbook "not watching the test fail properly."
+
+**Scenario B, redesigned.** Session notes carrying the finding in recalled form,
+truncation never mentioned, repo access allowed. **1 of 3 failed** — it ran
+`npx prettier --check src/utils/util.ts`, the single filename the note handed
+it, and never asked how many others there were. The other two re-ran in full
+(149 warnings, 6 errors) and one wrote that it "showed far more drift than the
+original working note's single-file claim." Same prompt, same model, opposite
+behaviour. **Intermittent — which is the argument for a required template slot
+over a prose reminder: a slot is either filled or visibly empty.**
+
+### GREEN
+
+- **A-halt** (the correction means the fix cannot land — #483's real shape):
+  **3/3 halted**, every one naming the deciding row, *"The fix cannot land as
+  described — a gate blocks it, or a prerequisite is unfixed."*
+- **A-continue** (the correction only narrows): **2/2 continued**, naming the
+  *scope shrinks* row.
+
+Both directions, by lookup rather than by re-deriving the rule's purpose. The
+A-halt arm is the control that matters: grading a rule usually costs you the
+cases that must still fire, and here it did not.
+
+- **B** (phase 7): **3/3 passed.** All three re-ran fresh rather than
+  transcribing the note, all three produced a population with the command that
+  computed it, and all three — unprompted — recognised the finding was already
+  tracked and wrote a correction on #483 instead of a new issue. Two went
+  further than the author had, re-running the cited command at `321be9d` in a
+  disposable worktree to separate *undercounted at filing* from *drift since*.
+  One traced the `termcard.css` syntax error back to `c30a217`, the squashed
+  initial commit.
+
+  Their denominators differ — 150 of 347, 153 of 347, 154 of 347 — because each
+  chose a slightly different file set and warn/error convention. The slot forces
+  a denominator and the command that produced it; it does not standardise the
+  population. That is an acceptable residual: any denominator with its command
+  is recoverable by a reader, and a bare count is not.
+
+### The blocker that nearly shipped
+
+`.gitignore:68` ignores `.claude/*` with only `!.claude/commands/` and
+`!.claude/settings.json` carved back out. The entire skill directory was
+invisible to git: `git status` showed **only the deletion of the command it
+replaced.** Committing without noticing would have left the repo with no
+close-out workflow at all. `!.claude/skills/` added, and the comment above it
+now says the carve-out is load-bearing.
+
+### Three-for-three, and what it actually means
+
+The pattern across 12-bis, -ter and -quater: **`## Measured` halves keep
+holding; `## Hypothesis` halves keep failing.** That is by design and CLAUDE.md
+says so — a hypothesis is a guess, labelled as one.
+
+What is *not* by design is a wrong `## Measured`, and two of the three had one:
+"three files typechecked by nothing" (two were; a third had been checked all
+along) and "four files unformatted" (152). Both came from reading a truncated
+command output as a complete one. That is what the required population slot in
+`references/filing-findings.md` exists for.

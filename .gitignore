@@ -63,10 +63,17 @@ web/.vite/
 # Claude Code project state, if any lands in-tree. Project slash commands
 # and the project-wide hooks config are the exception: they are checked-in
 # prose/config meant to be shared, not local session state, so
-# .claude/commands/ and .claude/settings.json are carved back out (#322).
-# .claude/state/ (hook marker files) stays ignored via the blanket rule.
+# .claude/skills/, .claude/commands/ and .claude/settings.json are carved
+# back out (#322). .claude/state/ (hook marker files) stays ignored via the
+# blanket rule.
+#
+# The skills carve-out is load-bearing and was nearly missed: `.claude/*`
+# swallowed a whole skill directory silently, so `git status` showed only the
+# deletion of the command it replaced. Anything added under .claude/ that is
+# meant to be shared needs its own `!` line here.
 .claude/*
 !.claude/commands/
+!.claude/skills/
 !.claude/settings.json
 .screenshots/
 # Transient working screenshots (one-off captures during dev review).
