@@ -122,7 +122,12 @@ Corpus metadata (slugs, languages, citation systems, chat keywords) is defined i
 
 ## HTTP API
 
-Stdlib server in [`src/minerva/server.py`](../src/minerva/server.py). Run via `minerva serve`.
+Stdlib server in [`src/minerva/http/`](../src/minerva/http/) — transport in
+[`serve.py`](../src/minerva/http/serve.py), routing in
+[`router.py`](../src/minerva/http/router.py), per-route handlers under
+[`handlers/`](../src/minerva/http/handlers/). Run via `minerva serve`.
+[`src/minerva/server.py`](../src/minerva/server.py) is a re-export shim over that
+package, kept for the import paths a few tests still use; it is not the server (#504).
 
 ### Chat and conversations
 

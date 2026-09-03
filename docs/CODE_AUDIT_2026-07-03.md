@@ -10,6 +10,38 @@ Severity legend: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
 
 ---
 
+## Triage status — re-run 2026-09-03 (#481)
+
+Every finding in §§1–6 was re-run against `main` at `ff6bf9c` and carries an
+inline `>` verdict. Nothing in this document is untracked: each item is either
+struck/marked fixed with the check that shows it, or annotated `**Live** → #NNN`.
+§7 (what's healthy) and §8 (themes) are not findings and were not triaged.
+
+| section | findings | already struck | fixed but unstruck | live |
+|---|---:|---:|---:|---:|
+| §1 fix-first shortlist | 8 | 1 | **7** | 0 |
+| §2 frontend | 15 | 0 | **15** | 0 |
+| §3 backend / API | 11 | 11 | 0 | 0 |
+| §4 data layer / CLI | 11 | 11 | 0 | 0 |
+| §5 ingestion | 26 | 9 | 3 | **14** |
+| §6 cross-cutting | 12 | 3 | 2 | **7** |
+| **total** | **83** | **35** | **27** | **21** |
+
+The 21 live findings are tracked in #492–#505 (fourteen issues, grouped by audit
+bullet). Three of this document's own claims did not survive the re-run and are
+corrected inline: `kant.py`'s "Berkleyan" typo, `scripture_cite/de.py`'s lone
+"V. Mose", and the Latin `ex 3 modis` over-match are all fixed. A fourth — the
+`Recht - Moralität` de-hyphenation example — does not reproduce as described,
+and the fix this document recommends for it does not fix the real defect (#496).
+
+**Do not read a count off this table without re-running it.** It was true on
+2026-09-03 and every row is a snapshot; the point of the `> ` annotations is
+that each one names the check that produced it.
+
+---
+
+---
+
 ## 1. Fix-first shortlist
 
 The eight items most worth fixing before anything else, across all layers:
@@ -21,6 +53,8 @@ The eight items most worth fixing before anything else, across all layers:
    longer than the first 80-chunk page cannot be scrolled past page 1. Fix: use the existing
    `hooks/useInfiniteScrollSentinel` (add a `root` option) or read the signals before the guards.
 
+  > **Fixed** (#481, 2026-09-03): `Reader/index.tsx:27,129` imports and calls `useInfiniteScrollSentinel`; the hand-rolled observer is gone.
+
 2. 🔴 **`.sql` migrations are not transactional despite the runner's docstring.**
    `src/minerva/migrations/__init__.py:22-24,79-80` — `conn.executescript` autocommits per
    statement. A mid-script failure (e.g. `0008`'s two consecutive `ALTER TABLE ADD COLUMN`) leaves
@@ -31,6 +65,8 @@ The eight items most worth fixing before anything else, across all layers:
    guarantee. Fix: no `executescript` in migrations; runner wraps `.sql` files in explicit
    BEGIN/COMMIT via split `execute` calls.
 
+  > **Fixed** (#481, 2026-09-03): `migrations/__init__.py:58,97` routes `.sql` files through `sqlite_util.execute_script_statements`; `:152,158,160` wrap them in an explicit `BEGIN`/`commit`/`rollback`. No migration calls `executescript`.
+
 3. 🔴 **Both DB snapshot mechanisms are WAL-blind on a WAL-mode DB.** `scripts/snapshot-db.sh:64-70`
    and `src/minerva/cli/index_cmd.py:143-144` copy `index.sqlite` alone; unchekpointed WAL frames
    (the newest commits — including LLM-verified xrefs, the exact asset snapshots exist to protect)
@@ -39,11 +75,15 @@ The eight items most worth fixing before anything else, across all layers:
    and `--reset` unlink only the main file, leaving stale `-wal`/`-shm` behind — a documented
    SQLite corruption vector. `store/schema.py:112-114`, `index_cmd.py:67-68`.)
 
+  > **Fixed** (#481, 2026-09-03): `scripts/snapshot-db.sh` runs `sqlite3 "$db" ".backup ..."`; `store/preserved_state.py:48-53` documents the backup-API choice for the pre-index snapshot; `store/schema.py:106-108` unlinks `-wal`/`-shm` alongside the main file.
+
 4. 🔴 **`chunks.jsonl` is overwritten non-atomically while consuming lazy parser iterators.**
    `src/minerva/ingest/__init__.py:47` (`write_jsonl`) and `ingest/parallel.py:248`
    (`concat_shards`) open the canonical file with `"w"` directly; any mid-ingest exception, Ctrl-C,
    or disk-full truncates it, and the next `index --reset` mass-deletes chunks.
    `_merge_dicts_to_jsonl` (`:120-135`) already does temp-file + rename — mirror it.
+
+  > **Fixed** (#481, 2026-09-03): both `ingest/__init__.py:49` (`write_jsonl`) and `ingest/parallel.py:252` (`concat_shards`) write to a `.tmp` sibling and atomically rename.
 
 5. 🟠 ~~**A full ingest silently skips any source whose raw path is missing.**~~
    **Fixed** (`remediation/phase-5-ingestion`): `missing_registered_sources` +
@@ -60,6 +100,8 @@ The eight items most worth fixing before anything else, across all layers:
    by `(work, lang)`, unlike `neighbor_ids` which correctly uses edition/translation id). Fix:
    resolve and filter by `works.id` in the meta, range, and context queries.
 
+  > **Fixed** (#481, 2026-09-03): `reader/queries.py` resolves `work_id` and scopes the range by `_edition_selector` (#50); `store/chunks.py:817-838` scopes `fetch_chunk_context`'s neighbours by the focus chunk's `edition_id`/`translation_id`.
+
 7. 🟠 **The pre-index restore error path masks the real exception and re-triggers the
    PRAGMA-in-transaction trap.** `src/minerva/cli/index_cmd.py:258-338` — a failure in the
    ATTACH-restore DML (realistic: positional `INSERT ... SELECT *` at :275/:287/:302 breaks on any
@@ -68,11 +110,15 @@ The eight items most worth fixing before anything else, across all layers:
    foreign_keys` as a documented no-op inside the still-open transaction. Fix: rollback-and-reraise
    before DETACH; explicit column lists in the restore INSERTs.
 
+  > **Fixed** (#481, 2026-09-03): `store/preserved_state.py:251-253` rolls back and re-raises *before* the `finally` DETACH at `:291-292`; `:557-560` builds an explicit live∩snapshot column list instead of `SELECT *`.
+
 8. 🟠 **`refs verify --strategy llm-verify --resume` permanently skips errored batches.**
    `src/minerva/refs/llm_verify.py:483-503,583` — an errored batch `continue`s without
    checkpointing, but a later success writes `_write_checkpoint(batch[-1].id)`, advancing past the
    failed rows; resume (`xr.id > resume_from_id`) never revisits them. Silent under-verification.
    Fix: never advance the checkpoint past the lowest unprocessed row id.
+
+  > **Fixed** (#481, 2026-09-03): `refs/llm_verify.py:738-741` gates `_write_checkpoint` on `first_failed_id is None or batch[-1]["id"] < first_failed_id`, so the checkpoint can never pass a row an earlier failure left unexamined.
 
 ---
 
@@ -83,47 +129,77 @@ The eight items most worth fixing before anything else, across all layers:
   `appending`; a filter change mid-flight leaves `appending()` stuck true and `loadMore`
   early-returns forever (Refs list + Review queue pagination dead until remount). The existing test
   covers the path but never asserts `appending()`. Fix: reset in `finally` unconditionally.
+
+  > **Fixed** (#481): `usePaginatedAppend.tsx:72-79` resets `appending` in an unconditional `finally`.
 - 🟠 `Reader/useTermCard.tsx:73-81` — URL-resume effect tracks both `props.openTermId()` and
   `openCard()`; Esc/outside-click on a click-opened card re-opens it at the sentinel anchor before
   the URL clears. Fix: `untrack` the `openCard()` read.
+
+  > **Fixed** (#481): `useTermCard.tsx:80` reads `untrack(openCard)`.
 - 🟠 `hooks/usePopoverPosition.tsx:8-10` — position computed once at setup; clicking a second
   marked word while a card is open renders new content anchored at the old word (Reader mounts
   cards in non-keyed `<Show>`, `Reader/index.tsx:328-346`). Fix: effect over `anchor()` or key the
   Show.
 
+  > **Fixed** (#481): `usePopoverPosition.tsx:22-30` recomputes in a `createEffect` over `anchor()`.
+
 ### Medium
 - 🟡 `api/chatApi.ts:213-217` — a stream that ends after `meta` but without `done`/`error` returns
   silently; the placeholder turn stays `streaming: true` forever (stuck cursor, partial text
   dropped). Fix: treat meta-without-done as `onError("Stream ended early.")`.
+
+  > **Fixed** (#481): `chatApi.ts:215-223` — no meta → "Stream ended before any data arrived", meta-without-done → "Stream ended early — the answer was cut off."
 - 🟡 `Refs/components/Review.tsx:136,205,210-268` — cursor increments unboundedly past queue end;
   `goNext`/`goPrev` not gated on `acting()` (wheel flick during in-flight PATCH silently skips a
   row past review); `actionError` banner never cleared on later success.
+
+  > **Fixed** (#481): `features/Refs/components/Review.tsx:206,217-226` gates `goPrev`/`goNext` on `acting()`; `goPrev` bounds at `c <= 0` and `goNext` routes through `advanceAfterWrite`; `:148,178,186` clear `actionError`.
 - 🟡 `Reader/useWordLookup.tsx:122-148` — "Show more samples" passes no AbortSignal (comment
   claiming propagation is false) and the post-await guard doesn't check same-word identity; word
   A's page can merge into word B's panel. Also lacks `onCleanup` abort (sibling
   `useTranslateRail.tsx:88` has it).
+
+  > **Fixed** (#481): `useWordLookup.tsx:93` guards on `wordInfoController === controller && !aborted`; `:171-172` aborts both controllers in `onCleanup`.
 - 🟡 `Concordance/components/IndexPage.tsx:262` — language switch clears `letter` but not
   `scopeAuthors`/`scopeWorks` → permanent "No lemmas in this scope" with a stale invisible filter.
+
+  > **Fixed** (#481): `Concordance/components/IndexPage.tsx:268-274` — `onSetLang` clears `letter`, `scopeAuthors` and `scopeWorks`.
 - 🟡 `Concordance/components/FilterBar.tsx:83-116` — Dropdown has no outside-click/Escape close
   despite `useClickOutside` existing.
+
+  > **Fixed** (#481): the local `Dropdown` was replaced by the shared keyboard-operable `Select` (#364), `Concordance/components/FilterBar.tsx:79-112`.
 - 🟡 `AppRoutes.tsx:40-50` — auto-scroll forces bottom on every SSE delta with no "user scrolled
   up" guard; can't re-read earlier turns while streaming.
+
+  > **Fixed** (#481): `AppRoutes.tsx:43,57,65-72` — a `stickToBottom` signal, cleared by a scroll listener, gates the auto-scroll.
 - 🟡 A11y, systemic: `components/MobileSheet.tsx:21` and `components/PopoverCard.tsx:37-48` —
   `role="dialog"`/`aria-modal` with no focus-in, no trap, no restore. `ThemeToggle.tsx:12-13` —
   `aria-label` frozen at setup.
 
+  > **Fixed** (#481): `components/shell/MobileSheet.tsx:3,22` and `components/primitives/PopoverCard.tsx:5,44` both use `useDialogFocus`; `ThemeToggle.tsx:12` computes `aria-label` in an accessor.
+
 ### Low (selected)
 - ⚪ `MobileSheet.tsx:13-15` — `useEscape` registered without the `active` gate; a closed sheet
   still `preventDefault()`s every Esc on refs/network pages.
+
+  > **Fixed** (#481): `MobileSheet.tsx:16-21` passes `() => props.open` as `useEscape`'s active gate.
 - ⚪ `Network/index.tsx:58-70` — `?source=` deep link leaves the author dropdown filtered;
   `Body.tsx:76` mobile "More views →" wired to a defaulted no-op.
+
+  > **Fixed** (#481): `Network/index.tsx:74-80` seeds the unfiltered author list behind a `?source=` deep link; `:153` wires `onOpenMore` to `shell.setFiltersSheetOpen(true)`.
 - ⚪ `Concordance/components/FilterRail.tsx:241` — `"v" + (p.italic ? "" : "")` italic flag dead in
   both branches. `FilterBar.tsx:150-151` — `NaN%` slider when ceil()===1. `IndexPage.tsx:167` —
   freqCeil ratchet wrong on `sort=alpha|pos` deep links.
+
+  > **Fixed** (#481): `FilterRail.tsx:224` emits `" italic"`; `FilterBar.tsx:154` returns `0` when `ceil() <= 1`; `IndexPage.tsx:181` gates the freqCeil ratchet on `sort() === "freq"`.
 - ⚪ `Reader/useWordHoverTranslations.tsx:40-56` — hover-translation cache grows unboundedly for the
   Reader's lifetime.
+
+  > **Fixed** (#481): `useWordHoverTranslations.tsx:38` caps the cache at `HOVER_TRANSLATION_CACHE_MAX = 500` and evicts oldest-first.
 - ⚪ `utils/popoverPosition.ts:15-19` — RTL placement branch unreachable (no caller passes
   `direction`); Hebrew/Arabic word-cards always get LTR placement.
+
+  > **Fixed** (#481): `detectAnchorDirection` reaches `computePopoverPosition` via `Reader/components/WordRun.tsx:203` → `Reader/index.tsx:447` → `TermCard.tsx:71` → `PopoverCard.tsx:36-38`.
 
 ### Dead code (grep-verified zero importers) — **removed** (`a84ba82` follow-up)
 Whole files removed: `utils/citations.ts` (+ test), drifted `api/types/concordance.ts` (fixture
@@ -247,16 +323,30 @@ Note: shortlist #5 now enforced at the registry layer too —
 ### Refs rules gaps
 - 🟠 `refs/embed_verify.py:232-239` — work-level target matrix joins editions only; translation-only
   target works never resolve (known issue, confirmed still unfixed).
+
+  > **Live** (#481, 2026-09-03) → #492. Now *documented* as deliberate at `refs/embed_verify.py:239-247`; what the docstring does not settle is the translation-only case.
 - 🟡 No `refs/rules/new_testament.py` — NT→OT citations (Matthew→Isaiah/Psalms) never auto-detected.
+
+  > **Live** (#481) → #493.
 - 🟡 `hobbes.py` targets Descartes but `descartes.py` has no Hobbes rule (bidirectional-audit class,
   despite its own docstring citing the Third Objections exchange).
+
+  > **Live** (#481) → #493. `grep -i hobbes src/minerva/refs/rules/descartes.py` finds only a docstring mention at `:25`.
 - 🟡 `scripture_cite/lexicon.py:342` — Latin bare-abbrev regex over-matches (`ex 3 modis` → Exodus 3).
+
+  > **Fixed** (#481, 2026-09-03): `_CITE_RE.finditer("ex 3 modis")` → `[]`. (Capitalised `Ex 3 modis` still matches — a narrower residue than the cited case, unfiled.)
 - 🟡 Rule targets are free-text title literals (`aquinas.py:41-46`, `hegel.py:42-48`, `renan.py`,
   `nietzsche.py`) — a title rename on re-ingest silently orphans edges. Resolve via slugs/IDs.
+
+  > **Live** (#481) → #493.
 - ⚪ `kant.py:113` "Berkleyan" typo never matches; `scripture_cite/de.py:176` lone "V. Mose"
   unreachable; `lexicon.py:345` "Matth. 5-7" parsed as 5:7.
+
+  > **Two of three fixed** (#481, 2026-09-03): `kant.py:110` spells `Berkeleyan`, and `scripture_cite/de.py:21` carries `("V", "Mose"): "Deuteronomy"`. `Matth. 5-7` → 5:7 is **live** → #494.
 - ⚪ `refs/rules/__init__.py:475-518` — scan-state marks chunks scanned even on zero matches; fixed
   rules don't retroactively apply without `--rescan-all`.
+
+  > **Fixed** (#481, 2026-09-03): `refs/rules/__init__.py:477-495` — the skip predicate now also compares the author's rule-set fingerprint, so editing a rules file re-scans that author (#287, #304).
 
 ### Download/extract scripts
 - 🟠 ~~`perseus/download_first1kgreek_lxx.py:79`, `download_first1kgreek_aristotle.py:95,105`,
@@ -269,31 +359,51 @@ Note: shortlist #5 now enforced at the registry layer too —
   substring guard).
 - 🟡 Five byte-identical zeno crawlers (hegel/kant/marx/nietzsche/schiller); four swallow
   exceptions inside BFS, silently truncating whole chapter subtrees. Extract `perseus/_zeno.py`.
+
+  > **Live** (#481) → #501. All five crawlers carry a broad `except Exception`; no shared `perseus/_zeno.py` exists.
 - 🟡 `_gutenberg.py:52-57` — missing `Language:` header bypasses the wrong-ID guard built after the
   Pascal/Rousseau incident.
+
+  > **Live** (#481) → #499. `_gutenberg.py:53-55` is `if m and ...` — a missing header still passes.
 - 🟡 Absolute line offsets sliced into live archive.org OCR (`extract_descartes_principes.py:50`,
   `download_boulainvilliers.py:64`) — regenerated OCR silently shifts the cut.
+
+  > **Live** (#481) → #499. `extract_descartes_principes.py:100` still slices `lines[PART_II_START - 1 : TABLE_START - 1]`.
 
 ### Splitter fragility/duplication
 - 🟡 ~11 copies of the `_make_chunk_id + Chunk(...)` emit recipe across splitters, plus 6 BCV
   parsers hand-constructing the identical verse-chunk block. One shared emit helper + one
   `make_verse_chunk` factory. Byte-identical `_chunk` in `split_hegel_pr_de.py:86-117` ≡
   `split_hegel_pr_epub.py:94-125`.
+
+  > **Live** (#481) → #501. `_make_chunk_id` *is* shared (`tei.py:136`, 13 importers); the call recipe and the BCV verse block are not, and no `make_verse_chunk` factory exists.
 - 🟡 `corpus_works.py:36-37` — `CorpusWork` defaults `corpus="hegel", author="Hegel"`; a forgotten
   override silently files a new author under Hegel. Also `filename_index` (:83-90) last-wins on
   duplicate filenames (the Kapital Band-II collision class) — raise instead.
+
+  > **Live** (#481) → #498. Now at `src/minerva/corpus_works.py:60-61` and `:107-113`.
 - 🟡 `corpus_registry.py:538,543` — unknown corpus id silently returns `"paragraph"`/`"eng"`.
+
+  > **Live** (#481) → #498. Now at `corpus_registry.py:611,616`.
 - 🟡 `split_kant.py:30-33` — A/B page-marker regex matches words like "Bild"; `split_hegel_pr_de.py:63`
   — de-hyphenation `re.sub(r"-\s+", "")` fuses "Recht - Moralität" → "RechtMoralität" (safe variant
   exists at `split_stephanus_de.py:114`); `split_spinoza_ethica.py:95-98` — broad except falls back
   to the parser the docstring says loses 65/73 propositions; `split_descartes.py:119-123` — TOC
   captured as body (first-occurrence slicing).
+
+  > **Split** (#481, 2026-09-03): `split_kant`'s `Bild` match → #495 (demonstrated); the de-hyphenation fusion → #496 (demonstrated — and the `split_stephanus_de.py:114` variant recommended here does **not** fix it); Spinoza's broad `except` and Descartes' TOC slicing → #497.
 - 🟡 `embed.py:17,35` — HF model loaded with no `revision=` pin; an upstream update silently changes
   the embedding space under stored vectors and cosine thresholds (same for spaCy/Stanza loads).
+
+  > **Live** (#481) → #500.
 - 🟡 `ingest/registry.py:474-493` — hand-maintained `INGEST_ID_TO_CORPUS` currently consistent
   (verified) but unenforced; add a sync test.
+
+  > **Live** (#481) → #502. `tests/test_ingest_registry.py` asserts three sentinel keys, not completeness.
 - 🟡 No `make post-ingest` target: embed → lemmatize → refs build → embed-verify → llm-verify
   remains tribal knowledge (the exact gap that left 9 authors / 6k xrefs unverified).
+
+  > **Live** (#481) → #502.
 
 ---
 
@@ -313,15 +423,25 @@ Note: shortlist #5 now enforced at the registry layer too —
   `# BEGIN CORPORA` sentinel is already duplicated in `corpus_registry.py` because
   `_comments_from_corpus_registry` scoops the module header into Plato's comment.
 
+  > **Two of four fixed** (#481, 2026-09-03): the duplicated `BEGIN CORPORA` sentinel is guarded at `:394-399` (#69) and the dead identical-branch conditional is gone. The `re.sub`-replacement defect and the non-atomic write are **live** → #503 — measured, the backslash case *raises* (`re.PatternError: bad escape \d`) rather than corrupting silently.
+
 ### Dead surface
 - Five GET routes with zero frontend callers: `/api/chunks/:id/references`, `/api/terms/by_chunk/:id`,
   `/api/works/:id/term_occurrences`, `/api/translations/:id/renderings`, `/api/terms` (list)
   (`http/router.py:104,124,129,144,148`) — plus their fixtures and `api/types/terms.ts`.
+
+  > **Live** (#481) → #504. Re-verified 2026-09-03: zero frontend callers for all five.
 - `src/minerva/parsers/` and `src/minerva/works/` — migration shims with zero importers; delete.
+
+  > **Fixed** (#481, 2026-09-03): `ls src/minerva/parsers src/minerva/works` → `No such file or directory` for both.
 - `src/minerva/server.py` — 65-line re-export shim of ~50 underscore names; tests split 5/5 between
   the two import paths. Migrate tests to `minerva.http.*`, delete.
+
+  > **Live** (#481) → #504. `wc -l` → 67; `grep -rn 'minerva\.server' tests/ src/` → 9 references.
 - ~12 one-off remediation scripts in `scripts/` → archive under `scripts/oneoff/`; `SCRIPTS.md`
   documents 4 of ~26 scripts.
+
+  > **Live** (#481) → #505. Re-measured 2026-09-03: `SCRIPTS.md` names 4 of **40** scripts, not 4 of ~26, and `scripts/oneoff/` does not exist.
 
 ### Docs
 - ~~`FRONTEND.md` references non-existent `web/src/lib/` six times (actual: `utils/`,
@@ -332,10 +452,27 @@ Note: shortlist #5 now enforced at the registry layer too —
 - `block-structure-remediation-plan.md:3` says IN PROGRESS; tracker shows all 8 items ✅ → flip to
   DONE. Archivable: `CODE_AUDIT_2026-06-10.md`, `orthography-normalization-plan.md`,
   `aquinas_cite_survey.md`, stale `corpus-quality-audit.md` + `dashboard_aggregates.json`.
+
+  > **Split** (#481, 2026-09-03): the plan's stale `IN PROGRESS` header is corrected in #481's PR. The four archivable docs are **live** → #505 — and `CODE_AUDIT_2026-06-10.md` must be triaged before it is archived, not after.
 - `ARCHITECTURE.md:70` still calls `server.py` the stdlib server.
+
+  > **Live** (#481) → #504; the doc line is corrected in #481's PR. Note the audit's own pointer was stale: it is `ARCHITECTURE.md:125`, not `:70`.
 - `pyproject.toml` — `pyyaml` required at runtime by `refs/rules/loader.py` but only in
   `[lemma]`/`[dev]` extras.
+
+  > **Corrected** (#481, 2026-09-03): `pyyaml` is **not** required at runtime as written. All
+  > three `import yaml` sites are lazy and guarded — `glossary_spec.py:125` and
+  > `refs/spec.py:128` raise a `SpecError` naming the extra, and `glossary_spec.py:122-123`
+  > documents the deferral as deliberate ("keeps `import minerva.glossary_spec` cheap on
+  > plain installs"). A base install does not crash on import. The real residue is narrower:
+  > `refs/rules/specs/` holds `boulainvilliers.yaml` and `gobineau.yaml`, so `refs build` for
+  > those two in-corpus authors reaches `loader.load_author_rules_from_yaml` on the default
+  > path. Its error message was the only one of the three that did not name the extra —
+  > aligned with its siblings in #481's PR. Whether that makes `pyyaml` a core dependency
+  > rather than an extra is a packaging decision → #493.
 - `Makefile` — `make test` is frontend-only (python is `test-py`) — naming trap.
+
+  > **Live** (#481) → #502. Renaming `test` is a decision, not a one-line correction, so it is filed rather than folded into #481's PR.
 
 ---
 
