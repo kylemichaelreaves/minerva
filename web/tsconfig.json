@@ -22,5 +22,5 @@
     "jsxImportSource": "solid-js",
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "tests", "vite.config.ts"]
+  "include": ["src", "tests", "vite.config.ts", ".storybook/**/*.ts", ".storybook/**/*.tsx"]
 }

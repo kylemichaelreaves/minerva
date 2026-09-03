@@ -10,13 +10,24 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", "vite.config.ts.*", "eslint.config.js"],
+    ignores: [
+      "dist/**",
+      "coverage/**",
+      "node_modules/**",
+      "vite.config.ts.*",
+      "eslint.config.js",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
-    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    files: [
+      "src/**/*.{ts,tsx}",
+      "tests/**/*.{ts,tsx}",
+      ".storybook/**/*.{ts,tsx}",
+      "vite.config.ts",
+    ],
     languageOptions: {
       parserOptions: {
         project: "./tsconfig.json",
