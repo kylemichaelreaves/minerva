@@ -1,6 +1,9 @@
 # Block-structure preservation (Remarks / Additions / notes) — remediation plan
 
-> **Status (2026-07-01): IN PROGRESS — spine shipped, mid-backlog.**
+> **Status (2026-09-03): DONE — all eight execution-tracker items are ✅.**
+> Flipped from `IN PROGRESS (2026-07-01)` as part of #481's audit triage: the
+> tracker below had shown 8/8 complete since 2026-07-02 (#36) while this header
+> still read mid-backlog. Recorded in `CODE_AUDIT_2026-07-03.md` §6 and never acted on.
 > The `block_type` capability (Phases 0–3) is built and merged, the reader renders
 > it language/work-agnostically, and four backlog corpora are done (Hegel EN+DE,
 > TEI note/cast recovery, Spinoza, scripture MT+LXX). **The live, resumable checklist is the

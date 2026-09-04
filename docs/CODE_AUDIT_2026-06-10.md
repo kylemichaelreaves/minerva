@@ -6,17 +6,64 @@ Severity: **high** = real bug / data loss / security; **medium** = likely bug or
 
 > **Status (2026-06-11):** all high-severity findings were fixed in round 1
 > (PR #9); the medium/low findings were fixed in round 2
-> (`fix/audit-round-2`), with one deliberate deferral:
->
-> * **Neighbor/window scoping standardization** (medium, "Inconsistent
->   neighbor/window scoping") — `fetch_chunk_context` scopes by
->   `(work, lang)` while `neighbor_ids` scopes by edition/translation id;
->   `reader.work_range` resolves works by title; `insert_chunks` keys
->   `ord` on `(work, lang)` without author. Standardizing on
->   `work_id` + edition scoping changes data semantics for same-language
->   multi-edition works and deserves its own focused change (likely with
->   a migration), not a slot in a batch round. Revisit before adding a
->   second same-language edition of any work.
+> (`fix/audit-round-2`), with one deliberate deferral: **neighbor/window
+> scoping standardization**. ~~Revisit before adding a second same-language
+> edition of any work.~~ **That deferral is closed — see the triage below.**
+
+## Triage status — re-run 2026-09-03 (#505)
+
+Every finding in §§1–3 was re-run against `main` at `0e53ae9`. This document
+had never been triaged and no issue was ever filed from it; #505 records why it
+could not be archived until that happened.
+
+**The count first, because this document's own summary above understates it and
+a later note called it "roughly thirty".** 64 findings, counted as `-` and
+numbered bullets across the three severity sections — the same unit the
+2026-07-03 audit's table uses, and it is a floor, not a ceiling: several bullets
+carry more than one defect (the "Stale docstrings" bullet names three sites, the
+dead-code bullet three).
+
+| section | findings | fixed | live |
+|---|---:|---:|---:|
+| High-severity bugs | 13 | 13 | 0 |
+| Medium severity | 27 | 26 | **1** |
+| Low severity (selected) | 24 | 22 | **2** |
+| **total** | **64** | **61** | **3** |
+
+The three live findings:
+
+- **Three async-fetch idioms** (medium, frontend) → **#510**. Still 9 files on
+  `useAbortableFetch`, 11 `createResource` uses, and the `_retry` hack the audit
+  named by that word at `Concordance/components/IndexPage.tsx:623`. Its two
+  sibling findings — `client.ts` losing the status code, and three query-string
+  idioms — *are* fixed (`ApiError` at `client.ts:9`, shared `qs()` at `:29`).
+- **`_roman_to_int` triplicated** (low) → **#509**. Fixed for the three files the
+  finding names: `hobbes_la`, `marx_de` and `ica_parse` all import the shared
+  strict `sources/_roman.roman_to_int`. A **fourth** copy the finding did not
+  name survives at `corpus/split_spinoza_ethica.py:58`, carrying the exact
+  garbage-tolerant bug the shared module's docstring says it was written to
+  remove: `_roman_to_int("DEMONSTRATIO")` returns `1`. Latent — the call sites'
+  regexes never feed it those inputs, and 0 of 1,522 live Spinoza chunks carry a
+  bad locator.
+- **`_DEFAULT_CONTENT_POS` omits ADV** (low). The *defect* is fixed — the
+  `lemma_index` docstring no longer promises ADV, and `index_queries.py:14`
+  imports the tuple rather than restating it. What is live is the `NOTE` at
+  `concordance/_scope.py:21-24`, which still describes `index_queries` as "the
+  drifted side" of a drift that no longer exists. A stale comment is corrected
+  in place, not filed — done in this PR.
+
+**The status note above was wrong in one material way, and it is corrected
+rather than left standing.** It names the neighbor/window scoping deferral as
+outstanding and tells the reader to "revisit before adding a second same-language
+edition of any work". All four of its parts are now done: `fetch_chunk_context`
+scopes by edition/translation with a docstring naming the Luther 1912/1545
+bleed it fixed (`store/chunks.py:815-838`), `ord` is scoped per
+edition/translation (`:783`), and `reader/queries.py` resolves `work_id` rather
+than matching titles. Had that note been trusted, the next person to add a
+same-language edition would have treated a closed prerequisite as a blocker.
+
+**Do not read a count off this table without re-running it.** It was true on
+2026-09-03; each verdict names the check that produced it.
 
 ---
 

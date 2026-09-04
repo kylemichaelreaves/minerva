@@ -18,10 +18,11 @@ _KWIC_CONTEXT_RADIUS = 60  # characters on each side of the match
 # Geist, Wesen, Begriff (DEU); essence, substance (ENG); etc.
 # User can override with ?pos_in=NOUN,VERB,ADJ,DET,...
 #
-# NOTE: index_queries.lemma_index's docstring claims the default also
-# includes ADV — it does not, and adding ADV here would reshuffle the
-# UI leaderboard. The docstring over there is the drifted side; this
-# tuple is the source of truth.
+# NOTE: this tuple is the source of truth for the default POS filter.
+# `index_queries.lemma_index` imports it rather than restating it, so the
+# two cannot drift again — an earlier docstring over there claimed the
+# default included ADV; it does not, and adding ADV here would reshuffle
+# the UI leaderboard.
 _DEFAULT_CONTENT_POS = ("NOUN", "VERB", "ADJ", "PROPN")
 
 # Re-export snippet punctuation constants for legacy imports.

@@ -16,7 +16,10 @@ def load_author_rules_from_yaml(spec_path: Path, *, prefix: str) -> tuple[Rule, 
     try:
         import yaml  # type: ignore[import-untyped]
     except ImportError as exc:
-        raise RuntimeError("PyYAML required for YAML rule specs") from exc
+        raise RuntimeError(
+            "PyYAML not installed; install the lemma extras: "
+            "uv pip install -e '.[lemma]'"
+        ) from exc
 
     data: dict[str, Any] = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     rules: list[Rule] = list(default_scripture_rules(prefix))
