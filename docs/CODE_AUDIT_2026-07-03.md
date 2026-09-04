@@ -10,12 +10,21 @@ Severity legend: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
 
 ---
 
-## Triage status — re-run 2026-09-03 (#481)
+## Triage status — re-run 2026-09-03 (#481), amended 2026-09-03 (#507)
 
-Every finding in §§1–6 was re-run against `main` at `ff6bf9c` and carries an
-inline `>` verdict. Nothing in this document is untracked: each item is either
-struck/marked fixed with the check that shows it, or annotated `**Live** → #NNN`.
-§7 (what's healthy) and §8 (themes) are not findings and were not triaged.
+Every finding in §§1, 2, 5 and 6 was re-run against `main` at `ff6bf9c` and
+carries an inline `>` verdict naming the check that produced it. Each is either
+struck/marked fixed with that check, or annotated `**Live** → #NNN`. §7 (what's
+healthy) and §8 (themes) are not findings and were not triaged.
+
+**§§3 and 4 were not re-run.** All 22 of their findings were already struck when
+the pass began, and they were carried forward on the strength of those strikes —
+which is why they alone carry no `>` verdict. This paragraph used to say all six
+sections were re-run; it was wrong, and the table's `already struck` column was
+the honest half of the same page. Two spot-checks (`ChatHandler.timeout = 60` at
+`http/serve.py:205`, `serve_lock` at `cli/index_cmd.py:74`) do hold, so the
+strikes are not under suspicion — but *already struck* and *verified struck* are
+different claims, and only one of them was made.
 
 | section | findings | already struck | fixed but unstruck | live |
 |---|---:|---:|---:|---:|
@@ -27,12 +36,22 @@ struck/marked fixed with the check that shows it, or annotated `**Live** → #NN
 | §6 cross-cutting | 12 | 3 | 2 | **7** |
 | **total** | **83** | **35** | **27** | **21** |
 
-The 21 live findings are tracked in #492–#505 (fourteen issues, grouped by audit
-bullet). Three of this document's own claims did not survive the re-run and are
-corrected inline: `kant.py`'s "Berkleyan" typo, `scripture_cite/de.py`'s lone
-"V. Mose", and the Latin `ex 3 modis` over-match are all fixed. A fourth — the
-`Recht - Moralität` de-hyphenation example — does not reproduce as described,
-and the fix this document recommends for it does not fix the real defect (#496).
+The `findings` column counts `-` and numbered **bullets**, which is what the
+pass keyed on. §2 carries five further findings as a prose paragraph under
+"Duplication" — they were therefore neither counted nor annotated, and sat
+untracked through a triage whose whole point was that nothing here should. They
+are triaged inline now: three fixed, two live → #507.
+
+The 21 live bullet findings are tracked in #492–#505 (fourteen issues, grouped
+by audit bullet); the two live prose findings are #507. **23 live in all, across
+sixteen issues** — a total no row of the table above carries, because the table
+counts bullets. Three of this document's own claims did not survive the re-run and are
+corrected inline: `kant.py`'s "Berkleyan" typo and `scripture_cite/de.py`'s lone
+"V. Mose" are fixed outright, and the Latin `ex 3 modis` over-match is fixed for
+the lowercase form this document cites but not for its class (#508). A fourth —
+the `Recht - Moralität` de-hyphenation example — does not reproduce as
+described, and the fix this document recommends for it does not fix the real
+defect (#496).
 
 **Do not read a count off this table without re-running it.** It was true on
 2026-09-03 and every row is a snapshot; the point of the `> ` annotations is
@@ -215,6 +234,17 @@ breaks); `confLabel` (Network `Header.tsx:25-28` vs `NetworkFiltersBar.tsx:61-64
 clones `useRefsSourceAuthors`; Reader's inline IntersectionObserver duplicates
 `useInfiniteScrollSentinel`.
 
+  > **Three fixed, two live** (#507, 2026-09-03). These five are the prose findings the
+  > #481 pass skipped — see the amended triage note at the top of this file. Fixed:
+  > `turnId` is extracted to `Thread/turnId.ts:7` and imported by both call sites
+  > (`Thread/index.tsx:7`, `Thread/components/ThreadSearchSheet.tsx:4`); `targetAuthors`
+  > is now `useRefsTargetAuthors` in `features/Refs/components/refsList.tsx`, called at
+  > `features/Refs/index.tsx:97` beside its `useRefsSourceAuthors` sibling; the Reader
+  > observer is gone (§1.1's verdict). **Live** → #507: `confLabel` is byte-identical in
+  > `Network/components/Header.tsx:25-28` and `NetworkFiltersBar.tsx:61-64`, and the
+  > `lockedGender` 0.95 heuristic is duplicated in
+  > `Concordance/components/FilterRail.tsx:65-72` and `LemmaIdentityCard.tsx:29-36`.
+
 ---
 
 ## 3. Backend / API
@@ -334,7 +364,7 @@ Note: shortlist #5 now enforced at the registry layer too —
   > **Live** (#481) → #493. `grep -i hobbes src/minerva/refs/rules/descartes.py` finds only a docstring mention at `:25`.
 - 🟡 `scripture_cite/lexicon.py:342` — Latin bare-abbrev regex over-matches (`ex 3 modis` → Exodus 3).
 
-  > **Fixed** (#481, 2026-09-03): `_CITE_RE.finditer("ex 3 modis")` → `[]`. (Capitalised `Ex 3 modis` still matches — a narrower residue than the cited case, unfiled.)
+  > **Fixed for the cited form; the class is live** (#481, 2026-09-03) → #508. `_CITE_RE.finditer("ex 3 modis")` → `[]`, because the regex now requires a capital initial. Sentence-initial capitalisation reopens it: `ScriptureCiteRule().scan()` on `"Ex 3 modis potest dici."` returns `[('Exod 3', 0.75)]`, undowngraded because `Ex` is not in `_AMBIGUOUS_BARE`. Latent, not live in the data — across all 67,728 `lat` chunks every word-collision match (`Act.`, `Num.`, `Sap.`, `Bar.`, `Iud.`) carries the citation period, and `Ex <n>` does not occur at all.
 - 🟡 Rule targets are free-text title literals (`aquinas.py:41-46`, `hegel.py:42-48`, `renan.py`,
   `nietzsche.py`) — a title rename on re-ingest silently orphans edges. Resolve via slugs/IDs.
 
