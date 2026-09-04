@@ -28,6 +28,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from ..corpus_works import CorpusWork
+from ..sources._roman import roman_to_int
 from ..tei import Chunk, _make_chunk_id, _norm_text
 
 _PART_RE = re.compile(r"_(\d)\.html?$", re.I)
@@ -52,16 +53,31 @@ _HEADERS = {
     "POSTULATA": "postulate",
     "AFFECTUUM DEFINITIONES": "affectdef",
 }
-_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
 
 
-def _roman_to_int(s: str) -> int:
-    total = prev = 0
-    for ch in reversed(s.upper()):
-        v = _ROMAN_VALUES.get(ch, 0)
-        total += -v if v < prev else v
-        prev = max(prev, v)
-    return total
+def _label_number(tok: str | None) -> int | None:
+    r"""A label's number group → int, or None when there isn't one.
+
+    `_LABEL_RE`'s group is Roman **or** arabic (``[IVXLC]+|\d+``), and
+    this module used to feed both to a local Roman converter that
+    scored unknown characters as 0 (#509). Every digit is outside the
+    Roman alphabet, so "PROPOSITIO 14" read as 0 — which mislabelled
+    the item as ``E I, P0`` *and* detached its apparatus, because the
+    `if cur_prop` tests below treat 0 as "no proposition yet" and fall
+    back to the part-level ``E I, Dem.``. The shared converter
+    (:func:`minerva.sources._roman.roman_to_int`) is strict and returns
+    None for anything non-Roman, so the arabic branch needs its own
+    `int()` path rather than a more tolerant numeral parser.
+
+    None means "no usable number"; every caller already handles that by
+    continuing its own sequence, which is what a missing token did.
+    """
+
+    if tok is None:
+        return None
+    if tok.isdigit():
+        return int(tok) or None
+    return roman_to_int(tok)
 
 
 def _is_banner(t: str) -> bool:
@@ -189,7 +205,8 @@ def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             if ch:
                 yield ch
             if kind == "PROPOSITIO":
-                cur_prop = _roman_to_int(n_tok) if n_tok else (cur_prop or 0) + 1
+                n_prop = _label_number(n_tok)
+                cur_prop = n_prop if n_prop is not None else (cur_prop or 0) + 1
                 pending = (f"E {roman}, P{cur_prop}", None, [body])
             elif kind in ("DEMONSTRATIO", "ALITER"):
                 base = f"E {roman}, P{cur_prop} Dem." if cur_prop else f"E {roman}, Dem."
@@ -218,7 +235,8 @@ def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             elif kind == "POSTULATUM":
                 pending = (f"E {roman}, Post. {n_tok or '?'}", None, [body])
             elif kind == "DEFINITIO":
-                cur_def = _roman_to_int(n_tok) if n_tok else (cur_def or 0) + 1
+                n_def = _label_number(n_tok)
+                cur_def = n_def if n_def is not None else (cur_def or 0) + 1
                 pending = (f"E {roman}, Def. {cur_def}", None, [body])
             elif kind == "AXIOMA":
                 # Singular "AXIOMA[ I] : <content>" — Part IV's lone axiom, and
@@ -233,7 +251,9 @@ def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             continue
 
         if num:
-            n = _roman_to_int(num.group(1))
+            n = _label_number(num.group(1))
+            if n is None:  # pragma: no cover — _NUM_ITEM_RE is [IVXLC]+ only
+                continue
             body = num.group(2)
             ch = flush()
             if ch:

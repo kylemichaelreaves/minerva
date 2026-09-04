@@ -134,3 +134,44 @@ export function sortBucketsByOrder(buckets: BreakdownBucket[], order: string[]):
   const unknown = buckets.filter((b) => !order.includes(b.value));
   return [...known, ...unknown];
 }
+
+/** A gender that accounts for more than this share of a lemma's
+ *  attested forms is treated as *the* lemma's gender. spaCy mislabels
+ *  a handful of tokens on common nouns — `ratio` comes back Fem 17,619
+ *  / Masc 50 — and that long tail is noise, not evidence of a
+ *  genuinely ambiguous lemma. */
+export const GENDER_LOCK_THRESHOLD = 0.95;
+
+export interface LockedGender {
+  value: string;
+  /** The dominant gender's share of all attested forms, 0–1. */
+  share: number;
+}
+
+/** The lemma's gender when one value dominates, else null.
+ *
+ *  Shared by the filter rail and the lemma identity card (#507). It
+ *  used to be a copy in each, and the copies disagreed: the card read
+ *  the API's count-descending buckets and so took the true maximum,
+ *  while the rail read them re-sorted into canonical Masc/Fem/Neut
+ *  order and so scored whichever gender came *first* against the
+ *  threshold. Both are handed the same object, so for about half the
+ *  lemmas the card locked, the rail simultaneously showed a
+ *  multi-gender chooser. **Order-independent by construction** — the
+ *  maximum is taken by count, so no caller can reintroduce that by
+ *  passing a differently sorted list. */
+export function lockedGender(buckets: BreakdownBucket[]): LockedGender | null {
+  if (buckets.length === 0) return null;
+  const top = buckets.reduce((a, b) => (b.count > a.count ? b : a));
+  if (buckets.length === 1) return { value: top.value, share: 1 };
+  const total = buckets.reduce((s, b) => s + b.count, 0);
+  const share = top.count / total;
+  return share > GENDER_LOCK_THRESHOLD ? { value: top.value, share } : null;
+}
+
+/** A locked gender's share, for the prose that reports it. "single
+ *  attested" was the old wording in both components and it overstated
+ *  the >95% case, which is most of them. */
+export function formatGenderShare(share: number): string {
+  return `${(share * 100).toFixed(share >= 0.9995 ? 0 : 1)}%`;
+}

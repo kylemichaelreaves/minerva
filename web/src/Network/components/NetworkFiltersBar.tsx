@@ -1,6 +1,6 @@
 import { Show, createMemo } from "solid-js";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
-import { CORPUS_BUCKETS, SOURCE_METHODS } from "~/Network/constants";
+import { CORPUS_BUCKETS, SOURCE_METHODS, confLabel } from "~/Network/constants";
 import { FilterMenuChip } from "~/Network/components/FilterMenuChip";
 
 export function NetworkFiltersBar(props: {
@@ -57,11 +57,6 @@ export function NetworkFiltersBar(props: {
       sourceMethods: undefined,
     });
   }
-
-  const confLabel = () =>
-    props.minConfidence === undefined
-      ? "≥0.8"
-      : `≥${props.minConfidence.toFixed(props.minConfidence >= 1 ? 0 : 1)}`;
 
   function multiToggle(curr: string[] | undefined, value: string): string[] | undefined {
     const set = new Set(curr ?? []);
@@ -124,7 +119,7 @@ export function NetworkFiltersBar(props: {
         title="Cycle minimum confidence threshold"
       >
         <span class="lbl">{isMobile() ? "Conf" : "min conf."}</span>
-        <span class="val">{confLabel()}</span>
+        <span class="val">{confLabel(props.minConfidence)}</span>
       </button>
       {/* The "rejected" toggle, the filter-count tally, and the Clear
           chip belong to the desktop chrome only; the mobile design 5a

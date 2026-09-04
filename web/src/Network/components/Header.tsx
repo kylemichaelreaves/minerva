@@ -3,6 +3,7 @@ import type { NetworkSummary } from "~/api/networkApi";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { NetworkFiltersBar } from "~/Network/components/NetworkFiltersBar";
+import { confLabel } from "~/Network/constants";
 
 export function NetworkHeader(props: {
   minConfidence?: number;
@@ -22,11 +23,6 @@ export function NetworkHeader(props: {
     }>,
   ) => void;
 }) {
-  const confLabel = () =>
-    props.minConfidence === undefined
-      ? "≥0.8"
-      : `≥${props.minConfidence.toFixed(props.minConfidence >= 1 ? 0 : 1)}`;
-
   const shell = useMobileShellOptional();
   const isMobile = () => shell?.isMobile() ?? false;
 
@@ -87,7 +83,7 @@ export function NetworkHeader(props: {
             strip above already carries the confidence value. */}
         <Show when={!isMobile()}>
           <div class="crumbs">
-            filter: conf {confLabel()}
+            filter: conf {confLabel(props.minConfidence)}
             <Show when={props.includeRejected}> · incl. rejected</Show>
           </div>
         </Show>
