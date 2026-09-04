@@ -397,7 +397,15 @@ def _replace_region(path: Path, begin: str, end: str, new_block: str) -> str:
             f"(found begin×{text.count(begin)}, end×{text.count(end)}); "
             f"a manifest comment likely leaked the sentinel string."
         )
-    return pattern.sub(replacement, text, count=1)
+    # A *function* replacement is used verbatim; a string one is
+    # escape-processed as a template (#503). Generated code is content,
+    # and the codegen has no business parsing it: a manifest value that
+    # reaches output carrying `\d` raised `re.PatternError` naming
+    # neither the manifest nor the field, `\\` collapsed to `\`, and
+    # `\g<0>` substituted this region's ENTIRE previous text back into
+    # the file. Reachable only through `--write`; `check_sync` compares
+    # with `re.search` and never saw any of it.
+    return pattern.sub(lambda _m: replacement, text, count=1)
 
 
 def generate_all(manifest: dict[str, Any]) -> dict[str, str]:
@@ -414,47 +422,54 @@ def generate_all(manifest: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _regions() -> list[tuple[Path, str, str, str]]:
+    """The four generated regions, as `(path, begin, end, block key)`.
+
+    A function rather than a module constant on purpose: the path
+    constants are read at call time, so tests can point them at copies
+    instead of the real tree. A frozen tuple would capture the real
+    paths at import.
+    """
+
+    return [
+        (CORPUS_REGISTRY, BEGIN_CORPORA, END_CORPORA, "corpus_registry"),
+        (AUTHOR_ORDERING, BEGIN_ORDINAL, END_ORDINAL, "author_ordering"),
+        (ATLAS_DATA, BEGIN_ATLAS, END_ATLAS, "atlasData"),
+        (DOMINANT_PHIL, BEGIN_DOMINANT, END_DOMINANT, "dominantPhil"),
+    ]
+
+
 def apply_writes(manifest: dict[str, Any]) -> None:
+    """Rewrite all four generated regions, or none of them.
+
+    `_replace_region` raises on a missing or duplicated sentinel — the
+    failure it exists to catch — so writing each file as its region is
+    validated left earlier files rewritten and later ones stale (#503).
+    These four files are precisely what `check_sync` compares against
+    each other, so a partial write put the tree in the state the sync
+    gate exists to prevent, and the gate then failed on a file the
+    author had not touched. Every region is now rendered before
+    anything is written.
+
+    The residual window is a crash *between* the four writes, which is
+    deliberately left open: closing it needs a staged temp-file swap,
+    and a stale `.tmp` in a checked-in source tree is a worse failure
+    than the window it removes.
+    """
+
     blocks = generate_all(manifest)
-    cr = _replace_region(
-        CORPUS_REGISTRY,
-        BEGIN_CORPORA,
-        END_CORPORA,
-        blocks["corpus_registry"],
-    )
-    CORPUS_REGISTRY.write_text(cr, encoding="utf-8")
-    ao = _replace_region(
-        AUTHOR_ORDERING,
-        BEGIN_ORDINAL,
-        END_ORDINAL,
-        blocks["author_ordering"],
-    )
-    AUTHOR_ORDERING.write_text(ao, encoding="utf-8")
-    ad = _replace_region(
-        ATLAS_DATA,
-        BEGIN_ATLAS,
-        END_ATLAS,
-        blocks["atlasData"],
-    )
-    ATLAS_DATA.write_text(ad, encoding="utf-8")
-    dp = _replace_region(
-        DOMINANT_PHIL,
-        BEGIN_DOMINANT,
-        END_DOMINANT,
-        blocks["dominantPhil"],
-    )
-    DOMINANT_PHIL.write_text(dp, encoding="utf-8")
+    rendered = [
+        (path, _replace_region(path, begin, end, blocks[key]))
+        for path, begin, end, key in _regions()
+    ]
+    for path, text in rendered:
+        path.write_text(text, encoding="utf-8")
 
 
 def check_sync(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     blocks = generate_all(manifest)
-    for path, begin, end, key in [
-        (CORPUS_REGISTRY, BEGIN_CORPORA, END_CORPORA, "corpus_registry"),
-        (AUTHOR_ORDERING, BEGIN_ORDINAL, END_ORDINAL, "author_ordering"),
-        (ATLAS_DATA, BEGIN_ATLAS, END_ATLAS, "atlasData"),
-        (DOMINANT_PHIL, BEGIN_DOMINANT, END_DOMINANT, "dominantPhil"),
-    ]:
+    for path, begin, end, key in _regions():
         text = path.read_text(encoding="utf-8")
         m = re.search(
             re.escape(begin) + r"(.*?)" + re.escape(end),
