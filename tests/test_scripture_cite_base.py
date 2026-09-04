@@ -104,6 +104,79 @@ class TestLatPinned:
         assert list(rule.scan(_chunk("Xyzzy. 5-48", lang="lat"))) == []
 
 
+class TestLatWordCollisionBare:
+    """The trailing period is the only evidence a word-collision
+    abbreviation is a citation at all (#508).
+
+    ``Ex``/``Is``/``Io``/``Num``/``Os`` are ordinary Latin words —
+    the preposition, the pronoun, the interjection, the interrogative
+    particle, the noun. `_CITE_RE` makes the period optional so
+    spelled-out genitive forms ("Sapientiae 11-21", "Actuum 10" — both
+    live in the corpus) still match, and sentence-initial
+    capitalisation then makes prose indistinguishable from a cite.
+    Measured over all 67,728 `lat` chunks: 5 of 174 abbreviations
+    appear as a lowercase word before a number, and `ex` leads them
+    ("patet ex 30 affectuum definitione"). Zero capitalised bare
+    occurrences exist today, so this is latency, not a live wrong row.
+    """
+
+    def test_bare_ex_is_downgraded(self) -> None:
+        rule = ScriptureCiteRule()
+        cands = list(rule.scan(_chunk("Ex 3 modis potest dici.", lang="lat")))
+        assert len(cands) == 1
+        assert cands[0].target_locator == "Exod 3"
+        assert cands[0].confidence == 0.65
+        assert cands[0].source_method == "rule_weak"
+
+    def test_bare_collision_with_verse_is_downgraded(self) -> None:
+        rule = ScriptureCiteRule()
+        cands = list(rule.scan(_chunk("Is 40-3 vox clamantis", lang="lat")))
+        assert len(cands) == 1
+        assert cands[0].target_work == "Isaiah"
+        assert cands[0].confidence == 0.65
+
+    def test_periodised_collision_keeps_full_confidence(self) -> None:
+        # The regression #508's own proposed fix would have caused:
+        # `_AMBIGUOUS_BARE` is keyed on abbr + ordinal prefix and never
+        # consults the period, so adding these to it would have taken
+        # the 21 live `Num.` cites from 0.90 to 0.65 as well.
+        rule = ScriptureCiteRule()
+        for text, work in [
+            ("Ex. 3-14 dicitur", "Exodus"),
+            ("Num. 23-19 dicitur", "Numbers"),
+            ("Os. 8-12 dicitur", "Hosea"),
+        ]:
+            cands = list(rule.scan(_chunk(text, lang="lat")))
+            assert len(cands) == 1, text
+            assert cands[0].target_work == work
+            assert cands[0].confidence == 0.90, text
+            assert cands[0].source_method == "rule_strong", text
+
+    def test_bare_spelled_out_forms_keep_full_confidence(self) -> None:
+        # The 134 live bare matches in the corpus are these: genuine
+        # cites in the spelled-out genitive, written without a period.
+        rule = ScriptureCiteRule()
+        # Capitalised, because `_CITE_RE` requires `[A-Z]` — the two
+        # lowercase genuine cites the corpus carries (`sapientiae
+        # 11-21`, `actuum 10`) are missed entirely, which is a
+        # separate gap and is filed, not fixed here.
+        for text, locator in [
+            ("Isaiae 54-13 dicitur", "Isa 54:13"),
+            ("sicut Sapientiae 11-21 dicitur", "Wis 11:21"),
+            ("Et Actuum 10, dicit Petrus", "Acts 10"),
+        ]:
+            cands = list(rule.scan(_chunk(text, lang="lat")))
+            assert len(cands) == 1, text
+            assert cands[0].target_locator == locator
+            assert cands[0].confidence >= 0.75, text
+
+    def test_other_languages_have_no_collision_set(self) -> None:
+        # Only the Latin subclass sets one; the shared regex is
+        # untouched, so de/en/fr behaviour is unchanged.
+        for rule in (ScriptureCiteRuleDe(), ScriptureCiteRuleEn(), ScriptureCiteRuleFr()):
+            assert rule.word_collision == frozenset()
+
+
 # ════════════════════════════════════════════════════════════════════
 # German (Luther)
 # ════════════════════════════════════════════════════════════════════

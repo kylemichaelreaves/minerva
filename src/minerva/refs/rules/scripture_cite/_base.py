@@ -54,6 +54,20 @@ def _parse_cite_num(raw: str) -> int | None:
     return total if 1 <= total <= 176 else None
 
 
+def _abbr_carried_period(m: re.Match[str]) -> bool:
+    """Did the matched abbreviation keep its trailing period?
+
+    None of the four language regexes captures the period as a group —
+    it is written ``\\.?`` so that spelled-out genitive forms
+    ("Isaiae 54-13") still match — so read it off the subject string
+    at the abbreviation's end rather than adding a group to a pattern
+    three other rules inherit.
+    """
+
+    end = m.end("abbr")
+    return m.string[end : end + 1] == "."
+
+
 @dataclass(frozen=True)
 class BaseScriptureCiteRule:
     """Fires on scripture cite-string syntax in chunk text.
@@ -72,6 +86,9 @@ class BaseScriptureCiteRule:
       optional (Latin chapter-only cites) or required (vernaculars).
     * ``ambiguous_bare`` — bare abbrevs whose default resolution is
       ambiguous (Cor without I/II); emitted at low confidence.
+    * ``word_collision`` — abbrevs that are also ordinary words in
+      the language; emitted at low confidence only when the cite's
+      optional trailing period is absent.
 
     and instance-field defaults for ``name`` / ``target_author`` /
     ``langs``.
@@ -92,6 +109,12 @@ class BaseScriptureCiteRule:
     # absent from this set because they DO pin the number. Empty by
     # default — only the Latin subclass overrides it (issue #52).
     non_disambiguating_prefixes: ClassVar[frozenset[str]] = frozenset()
+    # Abbrevs that double as ordinary words in this language, for
+    # which the cite's *optional* trailing period is the only evidence
+    # of citation intent ("Ex 3 modis" is prose; "Ex. 3-14" is a
+    # cite). Empty by default — only the Latin subclass overrides it
+    # (issue #508).
+    word_collision: ClassVar[frozenset[str]] = frozenset()
 
     def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
         if self.langs and chunk.lang not in self.langs:
@@ -139,6 +162,11 @@ class BaseScriptureCiteRule:
             if abbr in self.ambiguous_bare and (
                 prefix is None or prefix in self.non_disambiguating_prefixes
             ):
+                conf = _CONF_AMBIGUOUS
+
+            # A word-collision abbrev without its period is prose as
+            # far as the rule can tell, whether or not a verse follows.
+            if abbr in self.word_collision and not _abbr_carried_period(m):
                 conf = _CONF_AMBIGUOUS
 
             yield Candidate(

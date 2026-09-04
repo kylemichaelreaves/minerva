@@ -9,7 +9,7 @@ from functools import cache
 
 from .. import Candidate, ChunkInfo
 from ._base import BaseScriptureCiteRule
-from .lexicon import _AMBIGUOUS_BARE, _CITE_RE, _LEXICON
+from .lexicon import _AMBIGUOUS_BARE, _CITE_RE, _LEXICON, _WORD_COLLISION
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,7 @@ class ScriptureCiteRule(BaseScriptureCiteRule):
     lexicon = _LEXICON
     cite_re = _CITE_RE
     ambiguous_bare = _AMBIGUOUS_BARE
+    word_collision = _WORD_COLLISION
     # "ad Cor." / "ad Thess." / "ad Tim." mark an epistle but not the
     # number, so they stay ambiguous like the bare form (issue #52).
     non_disambiguating_prefixes = frozenset({"ad"})
