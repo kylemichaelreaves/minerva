@@ -53,6 +53,19 @@ the `Recht - Moralität` de-hyphenation example — does not reproduce as
 described, and the fix this document recommends for it does not fix the real
 defect (#496).
 
+**Amended 2026-09-04, working the first of those issues: 22 live, not 23, and
+a fifth of this document's claims is wrong.** #494 — §5's `Matth. 5-7` parsed
+as 5:7 — does not reproduce as a defect at all; the hyphen is this corpus's
+chapter–verse separator, 846 of 853 live hyphen cites resolve to verses that
+exist, and the cited form occurs zero times. §5's live count is therefore 13
+rather than 14 and the bullet total 20 rather than 21, and the table above is
+left as it was written on 2026-09-03 rather than silently re-totalled — a
+snapshot that gets edited in place stops being evidence of anything. The
+correction is on #494 with its commands, and the annotation at the bullet
+itself carries the measurement. **This is the second time a fix this document
+recommends would have caused harm** (#496 was the first): implementing #494 as
+filed would have unbound 846 correct verse references.
+
 **Do not read a count off this table without re-running it.** It was true on
 2026-09-03 and every row is a snapshot; the point of the `> ` annotations is
 that each one names the check that produced it.
@@ -372,7 +385,7 @@ Note: shortlist #5 now enforced at the registry layer too —
 - ⚪ `kant.py:113` "Berkleyan" typo never matches; `scripture_cite/de.py:176` lone "V. Mose"
   unreachable; `lexicon.py:345` "Matth. 5-7" parsed as 5:7.
 
-  > **Two of three fixed** (#481, 2026-09-03): `kant.py:110` spells `Berkeleyan`, and `scripture_cite/de.py:21` carries `("V", "Mose"): "Deuteronomy"`. `Matth. 5-7` → 5:7 is **live** → #494.
+  > **All three closed** (#481, 2026-09-03; third corrected 2026-09-04): `kant.py:110` spells `Berkeleyan`, and `scripture_cite/de.py:21` carries `("V", "Mose"): "Deuteronomy"`. The third claim is **wrong, and was carried into #494 before it was re-run**: `Matth. 5-7` → `Matt 5:7` is the rule working as designed, because the hyphen is the Corpus Thomisticum chapter–verse separator (`scripture_cite/lat.py:43`, `_base.py:62-65`, and the original per-author survey: `Matth. 5-48`, `Ioan. 17-3`, `I Cor. 13-4`). Measured over all 67,728 `lat` chunks, 846 of the 853 hyphen-form cites resolve to verses that exist in the target book, and `Matth. 5-7` occurs **0 times** — of the 41 distinct `Matth. <c>-<v>` forms the corpus does carry, `Matth. 11-27` (8×) and `Matth. 25-41` are verse cites, and the latter cannot be a chapter range in a 28-chapter gospel. Had this been implemented as written, removing `-` from the verse-separator class would have turned all 846 bound verse references into unbindable chapter-only rows.
 - ⚪ `refs/rules/__init__.py:475-518` — scan-state marks chunks scanned even on zero matches; fixed
   rules don't retroactively apply without `--rescan-all`.
 

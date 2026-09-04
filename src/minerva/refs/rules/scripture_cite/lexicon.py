@@ -379,6 +379,39 @@ _AMBIGUOUS_BARE: frozenset[str] = frozenset(
     }
 )
 
+# Abbrevs that are also ordinary Latin words. The trailing period in
+# `_CITE_RE` is optional, because the spelled-out genitive forms omit
+# it ("Isaiae 54-13", "Sapientiae 11-21" — both live in the corpus).
+# For a short abbrev that doubles as a word, that leniency plus
+# sentence-initial capitalisation makes prose indistinguishable from a
+# cite: "Ex 3 modis potest dici" is "it can be said in 3 ways", not
+# Exodus 3. Emitted at `_CONF_AMBIGUOUS` when the period is absent,
+# and left at full confidence when it is present (#508) — the period
+# is the only evidence of citation intent available to the rule.
+#
+# Measured 2026-09-04 over all 67,728 `lat` chunks: 5 of the 174
+# distinct abbrevs appear as a lowercase word before a number, and
+# `ex` leads them (Spinoza's "patet ex 30 affectuum definitione",
+# Descartes's "ex 5 uersus u"). Zero capitalised period-less
+# occurrences exist today, so nothing in the current corpus is
+# downgraded by this — it is latency, closed before the next Latin
+# author lands.
+#
+# `Am`, `Act`, `Bar`, `Iud` and `Sap` are deliberately NOT here:
+# #508's candidate list named some of them, but none is a Latin word
+# (`amo` is the verb; the rest are abbreviations only), and every one
+# of their live cite occurrences carries the period — `Act.` 25,
+# `Sap.` 36, `Iud.` 2, `Bar.` 1, and `Am` neither form.
+_WORD_COLLISION: frozenset[str] = frozenset(
+    {
+        "Ex",  # preposition "out of" — 5 lowercase prose occurrences
+        "Is",  # pronoun "he / that one" — 1
+        "Io",  # interjection "io!" — 2, both OCR page noise in Hobbes
+        "Num",  # interrogative particle "num …?" — 0, but a function word
+        "Os",  # noun "mouth / bone" — 0, but a common noun
+    }
+)
+
 _CONF_FULL = 0.90  # book + chapter + verse, unambiguous
 _CONF_AMBIGUOUS = 0.65  # ambiguous bare abbrev (Cor without I/II)
 _CONF_CHAPTER_ONLY = 0.75  # book + chapter, no verse — chunk-level only
