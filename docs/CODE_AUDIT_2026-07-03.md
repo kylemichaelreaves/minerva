@@ -257,6 +257,22 @@ clones `useRefsSourceAuthors`; Reader's inline IntersectionObserver duplicates
   > `Network/components/Header.tsx:25-28` and `NetworkFiltersBar.tsx:61-64`, and the
   > `lockedGender` 0.95 heuristic is duplicated in
   > `Concordance/components/FilterRail.tsx:65-72` and `LemmaIdentityCard.tsx:29-36`.
+  >
+  > **Fixed 2026-09-04 (PR #514), and the `lockedGender` half was not the duplication it
+  > looked like.** `confLabel` was a straight hoist into `Network/constants.ts`. The two
+  > `lockedGender` copies, however, computed *different things*: the card read the API's
+  > count-descending buckets and so took the true maximum, while the rail read them
+  > re-sorted into canonical Masc/Fem/Neut order and scored whichever gender came
+  > **first** against the 95% threshold. Both components are handed the same `data()`
+  > object, so they contradicted each other in one view — `ratio` (lat) is Fem 17,619 /
+  > Masc 50, which the card locked as "Fem" while the rail showed a multi-gender chooser.
+  > Measured over the whole corpus: 3,653 lemma×lang pairs are locked by max-count and
+  > **1,833 of them (50.2%) disagreed** (deu 605, lat 579, grc 386, fra 262, ara 1). So
+  > this bullet's "duplication" was hiding a live defect, and the extraction had to pick a
+  > semantic rather than preserve behaviour. The shared helper takes the maximum by count,
+  > order-independently, and both surfaces now report the measured share instead of
+  > claiming "single attested" / "only attested gender" — wording that overstated the
+  > >95% case, which is most of them.
 
 ---
 

@@ -10,7 +10,9 @@ import {
   caseLabelFor,
   CASES_ORDER,
   GENDER_LABEL,
+  formatGenderShare,
   GENDERS_ORDER,
+  lockedGender,
   numberLabelFor,
   NUMBERS_ORDER,
   sortBucketsByOrder,
@@ -53,23 +55,14 @@ export function FilterRail(props: {
     sortBucketsByOrder(props.data.gender_breakdown, GENDERS_ORDER),
   );
 
-  /** Single-attested gender — pulled into the lemma identity card so
-   *  the rail's Gender section can switch to the locked-prose state.
-   *  Returns null when the lemma has multiple genders (rare but real:
-   *  some Latin nouns alternate, e.g. ``dies`` masc/fem).
-   *
-   *  spaCy occasionally mislabels gender on a handful of tokens — a
-   *  long-tail "Fem 38" alongside "Masc 4494" for Geist is noise, not
-   *  evidence of a genuinely ambiguous lemma. Treat any gender that
-   *  accounts for >95% of the total as the locked value. */
-  const lockedGender = createMemo(() => {
-    const gs = orderedGenders();
-    const top = gs[0];
-    if (top === undefined) return null;
-    if (gs.length === 1) return top.value;
-    const total = gs.reduce((s, b) => s + b.count, 0);
-    return top.count / total > 0.95 ? top.value : null;
-  });
+  /** The lemma's dominant gender, when it has one — see `lockedGender`
+   *  in the Concordance constants for the threshold, and for why it
+   *  must be computed over the **raw** buckets rather than
+   *  `orderedGenders()`: reading the canonically-sorted list scored
+   *  whichever of Masc/Fem/Neut came first against the threshold, so
+   *  this rail showed a multi-gender chooser while the identity card
+   *  beside it reported a locked gender (#507). */
+  const locked = createMemo(() => lockedGender(props.data.gender_breakdown));
 
   /** Fast membership test for the checkbox `.on` state + applied pills. */
   const selectedWorks = createMemo(() => new Set(props.scopeWorks ?? []));
@@ -328,7 +321,7 @@ export function FilterRail(props: {
             <span>Gender</span>
           </div>
           <Show
-            when={lockedGender()}
+            when={locked()}
             fallback={
               <div class="fr-opts">
                 <For each={orderedGenders()}>
@@ -341,15 +334,19 @@ export function FilterRail(props: {
               </div>
             }
           >
-            {/* Single attested gender — render as prose. The lemma
-                identity card carries this fact too; the rail slot stays
-                so the IA doesn't shift between lemmas. */}
-            <div class="fr-locked">
-              <span>
-                <b>{GENDER_LABEL[lockedGender()!] ?? lockedGender()}</b> only — single attested
-                gender for this lemma.
-              </span>
-            </div>
+            {/* Dominant gender — render as prose. The lemma identity
+                card carries this fact too; the rail slot stays so the
+                IA doesn't shift between lemmas. The measured share is
+                reported rather than "single attested", which overstated
+                the >95% case — and that case is most of them. */}
+            {(l) => (
+              <div class="fr-locked">
+                <span>
+                  <b>{GENDER_LABEL[l().value] ?? l().value}</b> only —{" "}
+                  {formatGenderShare(l().share)} of attested forms for this lemma.
+                </span>
+              </div>
+            )}
           </Show>
         </div>
       </Show>

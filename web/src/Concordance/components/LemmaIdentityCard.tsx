@@ -1,14 +1,18 @@
 // Lemma identity card for F2 (KWIC detail). Carries the lemma, its
 // part-of-speech, the language, the total occurrences in scope, and —
-// crucially — the gender when the lemma has exactly one attested
-// gender. Pulling gender into the identity card resolves the muted-
-// chip ambiguity from the LIVE design: gender is a property of the
-// lemma, not a filter knob.
+// crucially — the gender when one dominates the lemma's attested
+// forms. "Exactly one attested gender" is what this comment used to
+// say and what the note under the value used to claim; the threshold
+// has always been >95%, and most locked lemmas carry a mislabelled
+// long tail (`ratio` is Fem 17,619 / Masc 50), so the share is
+// reported instead (#507). Pulling gender into the identity card
+// resolves the muted-chip ambiguity from the LIVE design: gender is a
+// property of the lemma, not a filter knob.
 
 import { Show } from "solid-js";
 import type { LemmaDetailResponse } from "~/api/concordanceApi";
 import { Romanizable } from "~/Concordance/components/Romanizable";
-import { GENDER_LABEL, POS_LABEL } from "~/Concordance/constants";
+import { formatGenderShare, GENDER_LABEL, lockedGender, POS_LABEL } from "~/Concordance/constants";
 
 export function LemmaIdentityCard(props: {
   lemma: string;
@@ -22,18 +26,9 @@ export function LemmaIdentityCard(props: {
 }) {
   const pos = () => props.data.pos_breakdown[0]?.value ?? "";
   const posLabel = () => POS_LABEL[pos()] ?? pos().toLowerCase();
-  /** Treat a gender as "the lemma's gender" when one value accounts
-   *  for >95% of attested forms. spaCy's mislabels generate a tiny
-   *  long-tail (Geist gets Masc 4494 / Fem 38 / Neut 3) — we don't
-   *  want to lose the locked card just because of three noisy tokens. */
-  const lockedGender = () => {
-    const buckets = props.data.gender_breakdown;
-    const top = buckets[0];
-    if (top === undefined) return null;
-    if (buckets.length === 1) return top.value;
-    const total = buckets.reduce((s, b) => s + b.count, 0);
-    return top.count / total > 0.95 ? top.value : null;
-  };
+  /** The lemma's dominant gender — shared with the filter rail, which
+   *  used to compute it differently and disagree (#507). */
+  const locked = () => lockedGender(props.data.gender_breakdown);
   return (
     <div class="lemma-id">
       <span class="lem">
@@ -44,12 +39,16 @@ export function LemmaIdentityCard(props: {
           {posLabel().toUpperCase()}
           {" · "}
         </Show>
-        <Show when={lockedGender()}>
-          <span class="locked">
-            {GENDER_LABEL[lockedGender()!] ?? lockedGender()}
-            <span class="note">· only attested gender</span>
-          </span>
-          {" · "}
+        <Show when={locked()}>
+          {(l) => (
+            <>
+              <span class="locked">
+                {GENDER_LABEL[l().value] ?? l().value}
+                <span class="note">· {formatGenderShare(l().share)} of attested forms</span>
+              </span>
+              {" · "}
+            </>
+          )}
         </Show>
         {props.lang.toUpperCase()}
         {" · "}

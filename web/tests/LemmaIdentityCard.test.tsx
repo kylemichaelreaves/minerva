@@ -41,12 +41,12 @@ describe("<LemmaIdentityCard />", () => {
     expect(screen.getByText("1,247")).toBeInTheDocument();
   });
 
-  it("locks the gender badge when there's only one attested value", () => {
+  it("locks the gender badge at a full share when there's one attested value", () => {
     render(() => (
       <LemmaIdentityCard lemma="Geist" lang="deu" data={makeDetail()} />
     ));
     expect(screen.getByText(/masc/i)).toBeInTheDocument();
-    expect(screen.getByText(/only attested gender/i)).toBeInTheDocument();
+    expect(screen.getByText(/100% of attested forms/i)).toBeInTheDocument();
   });
 
   it("still locks when the dominant gender is ≥95% (spaCy noise tolerance)", () => {
@@ -67,7 +67,7 @@ describe("<LemmaIdentityCard />", () => {
       />
     ));
     expect(screen.getByText(/masc/i)).toBeInTheDocument();
-    expect(screen.getByText(/only attested gender/i)).toBeInTheDocument();
+    expect(screen.getByText(/99\.1% of attested forms/i)).toBeInTheDocument();
   });
 
   it("does NOT lock when no gender exceeds the 95% threshold", () => {
@@ -88,7 +88,7 @@ describe("<LemmaIdentityCard />", () => {
         })}
       />
     ));
-    expect(screen.queryByText(/only attested gender/i)).toBeNull();
+    expect(screen.queryByText(/of attested forms/i)).toBeNull();
   });
 
   it("handles an empty gender_breakdown without rendering the locked badge", () => {
@@ -106,7 +106,7 @@ describe("<LemmaIdentityCard />", () => {
         })}
       />
     ));
-    expect(screen.queryByText(/only attested gender/i)).toBeNull();
+    expect(screen.queryByText(/of attested forms/i)).toBeNull();
     expect(screen.getByText(/VERB/)).toBeInTheDocument();
   });
 });

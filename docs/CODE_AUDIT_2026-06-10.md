@@ -45,6 +45,17 @@ The three live findings:
   remove: `_roman_to_int("DEMONSTRATIO")` returns `1`. Latent — the call sites'
   regexes never feed it those inputs, and 0 of 1,522 live Spinoza chunks carry a
   bad locator.
+  **Fixed 2026-09-04 (PR #514).** Two refinements from working it. (a) The
+  *reachable* half of the defect is not garbage input but **arabic** input:
+  `_LABEL_RE`'s number group is `([IVXLC]+|\d+)?`, and every digit is outside
+  the Roman alphabet, so "PROPOSITIO 14" scored 0. (b) That 0 is worse than a
+  wrong locator, because `if cur_prop` treats it as "no proposition yet" — the
+  demonstration then anchored to the part (`E I, Dem.`) instead of the
+  proposition (`E I, P14 Dem.`), so the apparatus detached as well. The count
+  "0 of 1,522" is right but its denominator is loose: 925 of those 1,522
+  Spinoza chunks are Ethica-locator chunks, and re-running the five real
+  `ethica_ll_*.html` sources through the fixed splitter yields 925 chunks
+  before and after with **0 positional differences** — no re-ingest owed.
 - **`_DEFAULT_CONTENT_POS` omits ADV** (low). The *defect* is fixed — the
   `lemma_index` docstring no longer promises ADV, and `index_queries.py:14`
   imports the tuple rather than restating it. What is live is the `NOTE` at

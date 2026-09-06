@@ -99,6 +99,29 @@ _PART2 = """\
 """
 
 
+# Arabic-numbered labels. `_LABEL_RE`'s number group is
+# ``([IVXLC]+|\d+)?`` — it accepts either — and feeding the arabic
+# branch to a Roman converter is what the module's own copy got wrong
+# (#509): every digit is outside the Roman alphabet, so "14" read as 0.
+_PART_ARABIC = """\
+<html><body>
+<p>DEFINITIO 3 : Per corpus intelligo modum.</p>
+<p>PROPOSITIO 14 : Praeter Deum nulla dari potest substantia.</p>
+<p>DEMONSTRATIO : Patet ex propositione praecedenti.</p>
+</body></html>
+"""
+
+
+def test_arabic_numbered_labels_are_read_as_numbers(tmp_path: Path):
+    # #509: the local `_roman_to_int` returned 0 for any arabic label,
+    # so these became "E I, Def. 0" and "E I, P0".
+    by = _by_section(_parse(tmp_path, "ethica_ll_1.html", _PART_ARABIC))
+    assert "E I, Def. 3" in by, sorted(by)
+    assert "E I, P14" in by, sorted(by)
+    assert "E I, P14 Dem." in by, sorted(by)
+    assert by["E I, P14"].text.startswith("Praeter Deum")
+
+
 def test_part1_defs_then_axioms_inferred(tmp_path: Path):
     by = _by_section(_parse(tmp_path, "ethica_ll_1.html", _PART1))
     # Definitions, then the numbering reset flips to axioms.
