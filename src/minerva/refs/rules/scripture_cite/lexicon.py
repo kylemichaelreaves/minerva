@@ -308,6 +308,36 @@ _LEXICON: dict[tuple[str | None, str], str] = {
 }
 
 
+# Aquinas writes the spelled-out genitive forms lowercase mid sentence
+# ("sicut sapientiae 11-21 dicitur", "Et actuum 10, dicit Petrus"), and
+# the cite regex's capital-initial anchor missed them entirely. The
+# anchor itself has to stay — it is what keeps "patet ex 30 affectuum"
+# from binding Exodus 30 (#508) — so the relaxation is bounded by
+# length instead of dropped: `_MIN_LOWERCASE_ABBR` letters or more.
+#
+# The floor is measured, not chosen. Over all 67,728 `lat` chunks, 12
+# lowercase-initial lexicon forms sit before a number. The two genuine
+# cites are `sapientiae` (10) and `actuum` (6); all ten collision hits
+# are `ex`, `io`, `is` and `tim` — 2 or 3 letters, every one. A blanket
+# `re.IGNORECASE` would admit all ten (#511).
+#
+# The regex is only half the anchor. `BaseScriptureCiteRule.scan` looks
+# the abbrev up verbatim, so relaxing the pattern alone finds the spans
+# and then drops them at the lexicon miss — measured as +0 candidates.
+# These keys are the other half.
+# The regex is only half the anchor. `BaseScriptureCiteRule.scan` looks
+# the abbrev up verbatim in three tables — `_LEXICON`, `_AMBIGUOUS_BARE`
+# and `_WORD_COLLISION` — all keyed on the capitalised form, so
+# relaxing the pattern alone finds the spans and then drops them at the
+# lexicon miss (measured: +0 candidates). Rather than mirror lowercase
+# entries into all three, the Latin rule canonicalises the abbrev once
+# after matching — see `ScriptureCiteRule.canonical_abbr`. That keeps
+# one spelling per book and makes the other two tables correct by
+# construction: a lowercase `corinthiorum` stays ambiguous because it
+# is looked up as `Corinthiorum`.
+_MIN_LOWERCASE_ABBR = 4
+
+
 # Canonical book name → SBL abbreviation. Mirror of
 # locations.BCV_BOOK_ABBR (imported lazily below to dodge circular).
 def _sbl_abbr_for(book: str) -> str | None:
@@ -339,7 +369,15 @@ _CITE_RE = re.compile(
     # Trailing period is optional so spelled-out forms ("Isaiae
     # capitulo 5" without "Isaiae.") still match — most Aquinas
     # spelled-out cites omit the period.
-    r"\b(?P<abbr>[A-Z][a-zëæoœ]{1,15})\.?"
+    # Second alternative: the same form with a lowercase initial, but
+    # only from _MIN_LOWERCASE_ABBR letters up — see the note above
+    # that constant for why the floor is measured rather than chosen.
+    # The tail is one shorter than the floor because the initial is
+    # matched separately, and is interpolated rather than written out
+    # so the pattern cannot drift from the constant the comment and
+    # the lexicon keys both cite.
+    r"\b(?P<abbr>[A-Z][a-zëæoœ]{1,15}"
+    rf"|[a-z][a-zëæoœ]{{{_MIN_LOWERCASE_ABBR - 1},15}})\.?"
     r"\s+"  # whitespace
     r"(?P<chap>\d{1,3})"  # chapter number
     r"(?:[-:]\s*(?P<verse>\d{1,3}))?"  # optional verse
