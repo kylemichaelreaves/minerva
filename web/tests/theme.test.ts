@@ -3,17 +3,21 @@ import { createRoot } from "solid-js";
 import { ACCENTS, applyAccent, useTheme } from "~/theme";
 import { flush } from "./helpers/testRouting";
 
-function mockMatchMedia(matches: boolean, onChange?: (e: MediaQueryListEvent) => void) {
+/** A `matchMedia` that reports `matches` for the dark-scheme query.
+ *
+ *  The listener hooks are inert on purpose: nothing here fires a change
+ *  event, and these tests only read the initial value. It used to take
+ *  an `onChange` callback and an `addEventListener` that looked like it
+ *  registered a handler, but no caller ever passed one and the mock
+ *  never invoked it — the handler was discarded down both branches. */
+function mockMatchMedia(matches: boolean) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: query.includes("prefers-color-scheme: dark") ? matches : false,
     media: query,
     onchange: null,
     addListener: () => undefined,
     removeListener: () => undefined,
-    addEventListener: (_: string, handler: (e: MediaQueryListEvent) => void) => {
-      if (onChange) return;
-      void handler;
-    },
+    addEventListener: () => undefined,
     removeEventListener: () => undefined,
     dispatchEvent: () => false,
   }));
