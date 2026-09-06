@@ -466,7 +466,9 @@ Note: shortlist #5 now enforced at the registry layer too —
   `# BEGIN CORPORA` sentinel is already duplicated in `corpus_registry.py` because
   `_comments_from_corpus_registry` scoops the module header into Plato's comment.
 
-  > **Two of four fixed** (#481, 2026-09-03): the duplicated `BEGIN CORPORA` sentinel is guarded at `:394-399` (#69) and the dead identical-branch conditional is gone. The `re.sub`-replacement defect and the non-atomic write are **live** → #503 — measured, the backslash case *raises* (`re.PatternError: bad escape \d`) rather than corrupting silently.
+  > **All four closed** (#481, 2026-09-03; last two fixed 2026-09-04, PR #513): the duplicated `BEGIN CORPORA` sentinel is guarded at `:394-399` (#69), the dead identical-branch conditional is gone, and the `re.sub`-replacement defect and the non-atomic write are fixed under #503.
+  >
+  > **Two corrections to this bullet and to the 2026-09-03 annotation that replaced it.** (a) It is **four** generated artifacts, not three — `corpus_registry.py`, `author_ordering.py`, `atlasData.ts`, `dominantPhil.ts`. (b) The 2026-09-03 annotation said "the backslash case *raises* rather than corrupting silently", which is half the truth and was carried into #503's own framing: measured across the four escape shapes, `\d` and `\1` raise, while `\\` collapses to a single backslash **and `\g<0>` re-injects this region's entire previous text into the file being rewritten**. So the audit's original "escape-processing → corruption" was right about the kind and the annotation was right about the reach, and neither was right on its own. The fix (a function replacement) closes all four shapes.
 
 ### Dead surface
 - Five GET routes with zero frontend callers: `/api/chunks/:id/references`, `/api/terms/by_chunk/:id`,
