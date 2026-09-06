@@ -161,9 +161,10 @@ export interface LockedGender {
  *  maximum is taken by count, so no caller can reintroduce that by
  *  passing a differently sorted list. */
 export function lockedGender(buckets: BreakdownBucket[]): LockedGender | null {
-  if (buckets.length === 0) return null;
-  const top = buckets.reduce((a, b) => (b.count > a.count ? b : a));
-  if (buckets.length === 1) return { value: top.value, share: 1 };
+  const [first, ...rest] = buckets;
+  if (first === undefined) return null;
+  const top = rest.reduce((a, b) => (b.count > a.count ? b : a), first);
+  if (rest.length === 0) return { value: top.value, share: 1 };
   const total = buckets.reduce((s, b) => s + b.count, 0);
   const share = top.count / total;
   return share > GENDER_LOCK_THRESHOLD ? { value: top.value, share } : null;
