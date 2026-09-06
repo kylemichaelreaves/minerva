@@ -35,6 +35,17 @@ class ScriptureCiteRule(BaseScriptureCiteRule):
     # number, so they stay ambiguous like the bare form (issue #52).
     non_disambiguating_prefixes = frozenset({"ad"})
 
+    @classmethod
+    def canonical_abbr(cls, abbr: str) -> str:
+        """Fold the lowercase spelled-out forms onto their capitalised
+        entry. `_CITE_RE` admits `sapientiae` alongside `Sapientiae`
+        (#511); every lookup table is keyed on the latter, and
+        `_AMBIGUOUS_BARE` in particular must still see `Corinthiorum`
+        in `corinthiorum 13-4` or the lowercase branch would launder an
+        ambiguous cite into a confident one."""
+
+        return abbr[:1].upper() + abbr[1:]
+
 
 # ──────────────────────────────────────────────────────────────────
 # Formulaic-quote rule (verse text instead of locator)

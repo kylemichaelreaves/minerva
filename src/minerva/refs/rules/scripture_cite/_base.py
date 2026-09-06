@@ -116,6 +116,23 @@ class BaseScriptureCiteRule:
     # (issue #508).
     word_collision: ClassVar[frozenset[str]] = frozenset()
 
+    @classmethod
+    def canonical_abbr(cls, abbr: str) -> str:
+        """The matched abbrev as this language's tables spell it.
+
+        Identity by default. `scan` looks the result up in all three
+        of ``lexicon``, ``ambiguous_bare`` and ``word_collision``, so a
+        subclass whose regex can match more than one spelling of the
+        same abbrev folds them here and leaves those tables with one
+        entry per book. Only the Latin subclass overrides it (#511) —
+        the vernacular regexes still require a capital initial, so for
+        them there is nothing to fold.
+
+        ``source_form_snapshot`` keeps the literal matched text; this
+        affects lookup only."""
+
+        return abbr
+
     def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
         if self.langs and chunk.lang not in self.langs:
             return
@@ -126,7 +143,7 @@ class BaseScriptureCiteRule:
 
         for m in self.cite_re.finditer(chunk.text):
             prefix = m.group("prefix")
-            abbr = m.group("abbr")
+            abbr = self.canonical_abbr(m.group("abbr"))
             book = self.lexicon.get((prefix, abbr))
             if book is None:
                 continue
