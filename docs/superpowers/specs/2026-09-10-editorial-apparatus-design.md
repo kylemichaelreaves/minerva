@@ -105,8 +105,9 @@ Two changes to one predicate.
 
   The two constraints are what make it safe, and both are load-bearing:
 
-  - **Whole-label, not substring.** Windowed substring matching was measured
-    and is also too slow to probe at corpus scale.
+  - **Whole-label, not substring.** The windowed-substring variant was also
+    measured and returns the *same two* labels — it buys no extra recall, and
+    it is far slower (>120 s to probe the corpus, versus seconds).
   - **Length ≥12.** `_EDITORIAL_PHRASES` contains short entries — `contents`,
     `glossary`, `foreword`, `dedication` — matched today by *substring*.
     Letting those match fuzzily would fire on ordinary chapter titles.
@@ -127,10 +128,24 @@ caller skipping the body.
 
 ### 2. A new `block_type`: `editorial`
 
-Joins `note` / `remark` / `addition` / `objection` / `cast`. `chunks.block_type`
-is free-form `TEXT` with no CHECK constraint, but the `BlockType` union in
-`web/src/api/types/reader.ts` and the `check_api_types` gate keep Python and
-the frontend in step — both must be updated together or `make check` fails.
+Joins `note` / `remark` / `addition` / `objection` / `cast`.
+
+**Nothing enforces this vocabulary.** *Corrected 2026-09-10 — this spec
+previously claimed `check_api_types` keeps Python and the frontend in step. It
+does not.* Measured:
+
+- `chunks.block_type` is free-form `TEXT` with no CHECK constraint.
+- `scripts/check_api_types.py` verifies that *fixture keys exist on TS
+  interfaces* — field presence, not union membership. It would not notice a
+  new `block_type` value missing from `BlockType`.
+- There is no Python-side vocabulary constant at all. Each extractor writes a
+  bare string; the only near-miss is `split_hegel_pr_epub.py:74`'s local
+  `_BLOCK_TYPE` dict.
+- The TS union already carries `"body"` and `"blockquote"`, neither of which
+  exists in the database — so it has drifted already.
+
+So Task 2 must update `web/src/api/types/reader.ts` **by discipline**, and
+`make check` passing is not evidence that it was done. Filed as #536.
 
 `editorial` is distinct from `note` on purpose: `note` is footnote-shaped and
 `format_locator` reattributes it as "editorial note", which is wrong wording
