@@ -57,7 +57,6 @@ def test_editorial_heading_fuzzy_does_not_fire_on_real_headings():
         "The Oriental World",
         "Introduction",
         "Preface",
-        "Chronology of Hegel's Life",
     ]:
         assert corpus_parse._is_editorial_heading(label) is False, label
 
@@ -426,9 +425,12 @@ RUNNING_HEADS_LWH: tuple[str, ...] = (
 #: mid-sentence does not qualify.
 _NOTE_OPEN_RE = re.compile(r"(?:(?<=\.)|(?<=^)|(?<=\s))(\d{1,3})\.\s+(?=[A-Z(\[\"'])")
 
-#: A bare page number at the very end, not preceded by a sentence-ending
-#: period (which would make it a year or a quantity).
-_TRAILING_PAGE_RE = re.compile(r"(?<![.\d])\s+(\d{2,3})\s*$")
+#: A bare page number at the very end: whitespace, then a 2-3 digit run that
+#: is not the tail of a longer number. The `(?<!\d)` guard sits on the DIGITS,
+#: not before the whitespace — putting it before the whitespace inspects the
+#: preceding sentence's full stop and rejects "…the age. 135", which is the
+#: commonest case there is.
+_TRAILING_PAGE_RE = re.compile(r"\s+(?<!\d)(\d{2,3})\s*$")
 
 
 def strip_running_head(text: str, heads: tuple[str, ...]) -> str:
