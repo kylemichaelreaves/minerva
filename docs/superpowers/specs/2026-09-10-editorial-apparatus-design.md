@@ -87,14 +87,38 @@ scholarship, attributes it correctly, and is reversible.
 
 Two changes to one predicate.
 
-- **Fold confusion classes before matching.** `i/j/l/1`, `u/w`, `c/e`, `o/0`,
-  `n/ri`, `m/rn` — fold to a canonical letter on the normalised form, so
-  `introouctjon` and `bjbljography` collapse onto their targets. A bounded
-  edit-distance check (≤2 on the normalised form) is the alternative; the fold
-  is preferred because it is deterministic and states *which* corruptions it
-  admits, where a distance threshold silently admits real words too. Guard
-  with the false-positive direction: no non-apparatus heading in the corpus may
-  start matching.
+- **Bounded edit distance on the whole normalised label**, ≤2, against
+  phrases of length ≥12 only. The existing exact-substring rule stays for
+  everything; the fuzzy pass is additive.
+
+  *Revised 2026-09-10 after measuring — the spec previously proposed folding
+  confusion classes (`i/j/l/1`, `u/w`, `c/e`, `o/0`). That is over-engineering
+  for the damage that actually exists.* Across all **94,424** distinct heading
+  labels in the corpus, only four are near-misses to a phrase, and the rule
+  above catches exactly the two real ones with **zero false positives**:
+
+  ```
+  newly matched by whole-label fuzzy (len>=12, d<=2): 2
+     Bjbljography              ~ bibliography
+     Editorial Introouctjon    ~ editorialintroduction
+  ```
+
+  The two constraints are what make it safe, and both are load-bearing:
+
+  - **Whole-label, not substring.** Windowed substring matching was measured
+    and is also too slow to probe at corpus scale.
+  - **Length ≥12.** `_EDITORIAL_PHRASES` contains short entries — `contents`,
+    `glossary`, `foreword`, `dedication` — matched today by *substring*.
+    Letting those match fuzzily would fire on ordinary chapter titles.
+
+  The other two near-misses, `Editoria L Int` and `Edit Introducti O N`, are
+  *truncation*, not substitution, and are deliberately not matched: they are
+  too short to distinguish from real headings.
+
+  **Caveat on the measurement:** headings the filter already matches are
+  *dropped* at ingest, so they never reach `chunks.section` and cannot appear
+  in this survey. It measures what leaks through, which is the direction we
+  care about, but it cannot be read as "the filter only ever matched once".
 - **Add the two missing phrases**: `sourcesusedoralludedtoby`, `secondaryworks`.
 
 Then change the call site from *drop* to *tag*: `_split_chapter_block` gains an
