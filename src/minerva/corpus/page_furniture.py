@@ -7,9 +7,11 @@ furniture back off. They are pure and take plain strings so they can be tested
 without a PDF.
 
 The note split is deliberately conservative. A trailing `4. ` only starts a
-note block if marker `4` appears glued to a word earlier in the same chunk
-(`too.4`); otherwise the text is left alone. An over-eager split deletes
-Hegel's prose silently, which is far worse than leaving a note in place.
+note block if marker `4` appears earlier in the same chunk, either glued to
+a word (`too.4`) or standalone as its own space-separated token (`thus 31
+fi...`) — both are attested renderings of the same superscript marker in
+this extraction. An over-eager split deletes Hegel's prose silently, which
+is far worse than leaving a note in place.
 """
 
 from __future__ import annotations
@@ -39,26 +41,43 @@ _NOTE_OPEN_RE = re.compile(r"(?:(?<=\.)|(?<=^)|(?<=\s))(\d{1,3})\.\s+(?=[A-Z(\[\
 _TRAILING_PAGE_RE = re.compile(r"\s+(?<!\d)(\d{2,3})\s*$")
 
 
+#: A page number (or two — recto/verso running heads sometimes carry both)
+#: can precede the running head itself, e.g. `138 139 INTRODUCTION, 1830--1`.
+#: Capped at two so a table-of-contents listing (a dozen-plus numbers ahead
+#: of a title-like phrase) still fails to match and is correctly left alone.
+_LEADING_PAGE_NUMBERS_RE = r"(?:\d{2,3}\s+){0,2}"
+
+
 def strip_running_head(text: str, heads: tuple[str, ...]) -> str:
     """Remove a leading running head. Returns *text* unchanged if absent."""
 
     for pattern in heads:
-        m = re.match(rf"\s*{pattern}\s*", text, re.IGNORECASE)
+        m = re.match(rf"\s*{_LEADING_PAGE_NUMBERS_RE}{pattern}\s*", text, re.IGNORECASE)
         if m:
             return text[m.end() :].lstrip()
     return text
 
 
 def _marker_present(text: str, number: str, before: int) -> bool:
-    """Is footnote marker *number* glued to a word before offset *before*?
+    """Is footnote marker *number* attested before offset *before*?
 
-    The printed marker is superscript; the extractor renders it as a bare
-    digit run against the preceding word — `too.4`, `religion, 76`,
-    `Saxony67`. Requiring it is what keeps the split honest.
+    The printed marker is superscript; the extractor usually renders it as a
+    bare digit run glued to the preceding word — `too.4`, `religion, 76`,
+    `Saxony67` — but frequently renders it as its own space-separated token
+    instead — `thus 31 finite`, `conflict. 42 So`. Both license the split.
+    Either way the digit run must not be the tail or head of a longer
+    number, so a page number or a year doesn't masquerade as the marker.
+    Requiring *some* attested form upstream is what keeps the split honest.
     """
 
     upstream = text[:before]
-    return re.search(rf"[a-zA-Z,.]{re.escape(number)}(?![0-9])", upstream) is not None
+    n = re.escape(number)
+    # Glued: the required letter/comma/period immediately before the digits
+    # already rules out a longer number extending backward; `(?!\d)` rules
+    # one out extending forward. Standalone: whitespace required on both
+    # sides does the same job without a word to glue to.
+    pattern = rf"(?:[a-zA-Z,.]{n}(?!\d)|(?<=\s){n}(?=\s|$))"
+    return re.search(pattern, upstream) is not None
 
 
 def split_trailing_notes(text: str) -> tuple[str, str | None]:

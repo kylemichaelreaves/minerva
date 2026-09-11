@@ -47,3 +47,40 @@ def test_strips_a_trailing_page_number():
 def test_does_not_strip_a_number_that_ends_a_sentence():
     text = "The lectures were delivered in 1822."
     assert pf.strip_trailing_page_number(text) == text
+
+
+def test_splits_when_the_marker_is_a_space_separated_token():
+    # Real form from work 712 (ord 103/169/295): the superscript often lands
+    # as its own whitespace-bounded token rather than glued to a word.
+    text = "Reason is formation in general, thus 31 finite before the end. 31. On formation, see the essay."
+    body, notes = pf.split_trailing_notes(text)
+    assert body == "Reason is formation in general, thus 31 finite before the end."
+    assert notes == "31. On formation, see the essay."
+
+
+def test_standalone_marker_inside_a_longer_number_does_not_license_a_split():
+    # '31' here is the tail of '1831', not a standalone marker — the digit
+    # immediately before it rules that out. Refusing is still the safe
+    # direction.
+    text = "The war began in 1831 and lasted for years. 31. On formation, see the essay."
+    body, notes = pf.split_trailing_notes(text)
+    assert notes is None
+    assert body == text
+
+
+def test_strips_one_leading_page_number_before_a_running_head():
+    text = "138 INTRODUCTION, 1830-1 Gentlemen, we begin today."
+    assert pf.strip_running_head(text, pf.RUNNING_HEADS_LWH) == "Gentlemen, we begin today."
+
+
+def test_strips_two_leading_page_numbers_before_a_running_head():
+    text = "138 139 INTRODUCTION, 1830--1 Gentlemen, we begin today."
+    assert pf.strip_running_head(text, pf.RUNNING_HEADS_LWH) == "Gentlemen, we begin today."
+
+
+def test_leaves_a_table_of_contents_style_number_run_alone():
+    # Three or more leading numbers is a listing (page refs in a ToC), not a
+    # recto/verso page pair ahead of a running head — the cap at two keeps
+    # this refused.
+    text = "12 34 56 INTRODUCTION, 1830-1 Gentlemen, we begin today."
+    assert pf.strip_running_head(text, pf.RUNNING_HEADS_LWH) == text
