@@ -30,17 +30,36 @@ RUNNING_HEADS_LWH: tuple[str, ...] = (
     r"INTRODUCTION[,.\s]+1[8&][0-9O]{2}\s*[-–]{1,2}\s*[0-9l]+",
 )
 
-#: A note block opens with `<n>. ` and a capital, an opening bracket, or a
+#: A note block opens with `<n>. ` and a letter, an opening bracket, or a
 #: quote. Anchored to a sentence boundary so a decimal or a list item
 #: mid-sentence does not qualify.
-_NOTE_OPEN_RE = re.compile(r"(?:(?<=\.)|(?<=^)|(?<=\s))(\d{1,3})\.\s+(?=[A-Z(\[\"'])")
+#:
+#: Two characters of slack for the scan, both attested in work 712 and
+#: both measured before being admitted (#539):
+#:
+#: * the separator may be a middle dot rather than a full stop, and may
+#:   carry a space before it -- `23 · In the margin:`;
+#: * the first letter of the note may be lower case, because the OCR
+#:   mangles it -- `65. fn the m<Jrgin:` for "In the margin".
+#:
+#: Neither loosens the split on its own: `_marker_present` must still
+#: find the marker upstream, and the colon guard below still refuses an
+#: author's own enumeration. Measured over the one work that reaches
+#: this module: 301 splits before, 311 after, and 15 whose split point
+#: moves *earlier* because the real first note had been missed and left
+#: glued to the body.
+_NOTE_OPEN_RE = re.compile(r"(?:(?<=\.)|(?<=^)|(?<=\s))(\d{1,3})\s*[.·•]\s+(?=[A-Za-z(\[\"'])")
 
 #: A bare page number at the very end: whitespace, then a 2-3 digit run that
 #: is not the tail of a longer number. The `(?<!\d)` guard sits on the DIGITS,
 #: not before the whitespace — putting it before the whitespace inspects the
 #: preceding sentence's full stop and rejects "…the age. 135", which is the
 #: commonest case there is.
-_TRAILING_PAGE_RE = re.compile(r"\s+(?<!\d)(\d{2,3})\s*$")
+#: The leading run is atomic: whitespace can never be a digit, so
+#: backtracking into it can never make the rest of the pattern match, and
+#: allowing it gives the engine super-linear work on a long whitespace run
+#: for nothing. Same language, bounded cost.
+_TRAILING_PAGE_RE = re.compile(r"(?>\s+)(?<!\d)(\d{2,3})\s*$")
 
 
 #: A page number (or two — recto/verso running heads sometimes carry both)
@@ -78,7 +97,12 @@ def _marker_present(text: str, number: str, before: int) -> bool:
     # already rules out a longer number extending backward; `(?!\d)` rules
     # one out extending forward. Standalone: whitespace required on both
     # sides does the same job without a word to glue to.
-    pattern = rf"(?:[a-zA-Z,.]{n}(?!\d)|(?<=\s){n}(?=\s|$))"
+    # Third branch: glued FORWARD to the word after it -- `8To those of
+    # you gentlemen` -- which the extractor renders as often as the
+    # backward glue. Whitespace before the digits rules out a longer
+    # number extending backward, and a letter after rules one out
+    # extending forward, so this is as tight as the other two (#539).
+    pattern = rf"(?:[a-zA-Z,.]{n}(?!\d)|(?<=\s){n}(?=\s|$)|(?<=\s){n}(?=[A-Za-z]))"
     return re.search(pattern, upstream) is not None
 
 
@@ -95,6 +119,18 @@ def split_trailing_notes(text: str) -> tuple[str, str | None]:
             continue
         body = text[: m.start()].rstrip()
         notes = text[m.start() :].strip()
+        # Unreachable through the two public functions as the regexes
+        # above stand -- `_marker_present` guarantees non-empty upstream
+        # text and `_NOTE_OPEN_RE`'s lookahead guarantees a non-space
+        # character after the sentinel, so neither side can strip to
+        # empty (#538, verified across every chunk in the corpus: the
+        # True branch is reached 0 times).
+        #
+        # Kept rather than deleted, and deliberately: #539 loosened both
+        # of those regexes in the same change that measured this, so the
+        # guarantees making it dead are exactly the ones just weakened.
+        # Deleting a guard in the commit that undermines its premise is
+        # the wrong order. Exercised by a test that patches the sentinel.
         if not body or not notes:
             return text, None
         # A colon right before the candidate means Hegel is introducing his

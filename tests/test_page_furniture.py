@@ -102,3 +102,92 @@ def test_leaves_a_table_of_contents_style_number_run_alone():
     # this refused.
     text = "12 34 56 INTRODUCTION, 1830-1 Gentlemen, we begin today."
     assert pf.strip_running_head(text, pf.RUNNING_HEADS_LWH) == text
+
+
+def test_splits_when_the_marker_is_glued_to_the_word_after_it():
+    """#539 shape 1: the extractor renders the superscript marker glued
+    FORWARD — `8To` — as often as it glues it backward (`too.4`).
+    `_marker_present` required the digits to be followed by a non-word
+    character, so it refused these. Measured: 2 refusals in work 712."""
+
+    text = (
+        "so it may here be presupposed as demonstrated. 8To those of you "
+        "gentlemen who are not yet acquainted with philosophy. "
+        "8. In the margin: Faith, survey, result."
+    )
+    body, notes = pf.split_trailing_notes(text)
+    assert notes == "8. In the margin: Faith, survey, result."
+    assert body.endswith("acquainted with philosophy.")
+
+
+def test_splits_when_the_note_open_separator_is_ocr_damaged():
+    """#539 shape 2: the sentinel needs a literal `.`, but the scan
+    frequently renders it as a middle dot. Measured: 11 refusals."""
+
+    text = (
+        "whether it is possible to know God, as he asks here.23 "
+        "And so the question stands. "
+        "23 · In the margin: Apply to history - explain - human passions."
+    )
+    _body, notes = pf.split_trailing_notes(text)
+    assert notes is not None
+    assert notes.startswith("23 · In the margin")
+
+
+def test_splits_when_the_note_text_begins_lower_case_after_ocr():
+    """#539 shape 2, second half: `[A-Z(\\["']` after the sentinel is
+    what the OCR damage breaks — `65. fn the m<Jrgin:` for "In the
+    margin". Accepting a lower-case opener recovers those."""
+
+    text = (
+        "not that it is exhausted in its concrete application.65 "
+        "But rather the reverse. "
+        "65. fn the m<Jrgin: People deceived, war waged, Goethe."
+    )
+    _body, notes = pf.split_trailing_notes(text)
+    assert notes is not None
+    assert notes.startswith("65. fn the m<Jrgin")
+
+
+def test_still_refuses_a_colon_introduced_enumeration_after_the_widening():
+    """The widenings above must not reopen the case the colon guard
+    exists to close: Hegel introducing his own enumeration."""
+
+    text = "There are three developments to set out for us: 1. The first of them."
+    body, notes = pf.split_trailing_notes(text)
+    assert notes is None
+    assert body == text
+
+
+def test_still_refuses_when_nothing_licenses_a_split():
+    """The widenings license *more* splits at already-valid note-opens;
+    they must not license one where no marker is attested at all."""
+
+    text = "He names three writers. 4. On Herodotus, see the Fragment."
+    body, notes = pf.split_trailing_notes(text)
+    assert notes is None
+    assert body == text
+
+
+def test_the_empty_side_guard_refuses_rather_than_emitting_an_empty_chunk(monkeypatch):
+    """#538: the guard is unreachable through the public functions — its
+    True branch fires 0 times across every chunk in the corpus — because
+    `_marker_present` and `_NOTE_OPEN_RE` jointly guarantee both sides
+    are non-empty.
+
+    It is kept rather than deleted because #539 loosened both of those
+    regexes in this same change, so the guarantees that make it dead are
+    the ones just weakened. Reaching it needs the sentinel patched, which
+    is the honest way to test an intentionally-unreachable guard.
+    """
+
+    import re
+
+    # A sentinel that matches at offset 0, so `body` strips to empty.
+    monkeypatch.setattr(pf, "_NOTE_OPEN_RE", re.compile(r"^(\d{1,3})\.\s+"))
+    monkeypatch.setattr(pf, "_marker_present", lambda text, number, before: True)
+
+    text = "4. On Herodotus, see the Fragment."
+    body, notes = pf.split_trailing_notes(text)
+    assert notes is None
+    assert body == text
