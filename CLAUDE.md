@@ -115,6 +115,31 @@ coverage — a different number, which can be green while the gate is red. On
 - A red **security** rating on a PR that touched operator tooling used to mean
   a moved line (#167); the backlog is now triaged to zero, so treat a new one
   as real. See CONTRIBUTING.
+- The **maintainability** rating on new code must be **A**, and the thing that
+  actually drops it is **cognitive complexity ≤ 15 per function**. It blocked
+  #559 at 29 while `check-diff-coverage` was green at 91.7% the whole time, so
+  nothing local warned. Adding to a function that is already dense is enough —
+  `_split_chapter_block` had been over the line for a while and a small
+  restructure made it Sonar's problem. Extract rather than argue with it; the
+  piece you pull out usually wants its own name anyway.
+
+  **Ruff's `C901` is not this metric and will not protect you.** Cyclomatic
+  and cognitive complexity disagree about *which* function is the problem —
+  measured on #559's two revisions:
+
+  ```
+  $ ruff check --select C901 --config "lint.mccabe.max-complexity=10" split_paragraphic.py
+  C901 `split_by_section` is too complex (12 > 10)     # both before AND after
+  ```
+
+  Ruff flags `split_by_section` in both revisions and never flags
+  `_split_chapter_block` — the one Sonar failed the build on. Enabling `C901`
+  as a local proxy buys a different list, not an early warning.
+
+  Note a line that merely *moves* counts as new code in full, so a comment
+  added above an untouched regex hands you its pre-existing smells. That is
+  how #559 also acquired a super-linear-backtracking warning on a line it
+  never edited. The finding was real; the attribution was an artefact.
 
 **After any ingest, run `make generate-authors` and commit the result.**
 `data/index.sqlite` is gitignored, so CI validates against the two
