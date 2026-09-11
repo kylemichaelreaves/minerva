@@ -165,9 +165,10 @@ _FUZZY_MAX_DISTANCE = 2
 def _within_distance(a: str, b: str, cap: int) -> bool:
     """True when `a` and `b` are within `cap` edits (Levenshtein).
 
-    Banded and early-exiting: the caller runs this against every long phrase
-    for every heading in an ingest, so the common case must reject on the
-    length check alone.
+    Full-row Levenshtein with an early bailout — not banded. Once a row's
+    minimum exceeds `cap` the final distance cannot come back under it, so the
+    walk stops there. The caller runs this against every long phrase for every
+    heading in an ingest, which is why the cheap length check comes first.
     """
 
     if abs(len(a) - len(b)) > cap:
@@ -331,9 +332,16 @@ def _is_title_page_artifact(label: str, work: CorpusWork) -> bool:
 
 def _is_editorial_heading(label: str) -> bool:
     """Detect headings naming editor / translator material rather than
-    Hegel's own text. Matching is done on a normalized form (lowercased,
-    non-letters removed) so OCR-garbled forms like "Editorial Intr O
-    Duction" still collapse to "editorialintroduction" and match.
+    Hegel's own text.
+
+    Two passes. The exact pass matches on a normalized form (lowercased,
+    non-letters removed), which absorbs *spacing and punctuation* damage —
+    "Editorial Intr O Duction" collapses to "editorialintroduction". It does
+    NOT absorb letter substitution, which is what OCR mostly produces:
+    "Introouctjon", "Bjbljography". Those are caught by the fuzzy pass below,
+    bounded to phrases of length >= `_FUZZY_MIN_PHRASE_LEN` so the short
+    substring-matched entries ("contents", "glossary") cannot fire on real
+    chapter titles. See #534.
     """
 
     if not label:
