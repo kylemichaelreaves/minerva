@@ -394,6 +394,12 @@
   border-left: 2px dotted var(--r-accent-mark);
   padding-left: 20px;
 }
+/* Open state (data-open, set by EditorialBlock.tsx): the dotted rule
+   turns solid once the reader has chosen to see the apparatus, echoing
+   the dotted → solid distinction already used for footnotes below. */
+.reader .editorial-block[data-open] {
+  border-left-style: solid;
+}
 .reader .editorial-block-summary {
   display: flex;
   align-items: baseline;
