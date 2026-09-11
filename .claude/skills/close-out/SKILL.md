@@ -68,17 +68,24 @@ the last 60 merged PRs in this repo: median time open is 1.0 h, but 15% sit
 longer than a day and 10% longer than three, with a tail to 11.4 days — and
 those stragglers merge in clumps, which is what a queue looks like.
 
-**Before merging**, confirm both:
+**Arm it rather than watch it**: `gh pr merge <n> --squash --auto`. `--auto`
+lands the PR the moment the required checks pass, so you are not babysitting
+CI; `--squash` is what this repo does, which is why the sweep-in risk below is
+about the *squashed* commit message and not the PR body. Branch deletion is
+automatic — do not do it by hand.
 
-- every required check has **passed** — not "is pending", not "passed on an
-  earlier head";
-- `gh pr view <n> --json mergeStateStatus` reads `CLEAN`. Branch protection is
-  `strict: true`, so a PR whose checks passed before someone else merged now
-  reads `BEHIND` and must be updated and re-checked first.
+**Auto-merge will not rescue a `BEHIND` branch, and that is the case that
+matters.** `strict: true` means a PR falls `BEHIND` the moment anything else
+lands on `main` — which is exactly when a queue exists. Measured here
+2026-09-11: #550 had auto-merge armed by the Dependabot workflow and every
+check green at 20:05, sat unmerged for twenty minutes, and landed only after a
+hand-run `gh pr update-branch` added a merge commit at 20:25:56.
 
-**Merge with `--squash`** — that is what this repo does, and it is why the
-sweep-in risk below is about the *squashed* commit message rather than the PR
-body. Branch deletion is automatic; do not do it by hand.
+So arming is not the end of the phase. **Confirm it actually merged.** If it is
+still open, `gh pr view <n> --json mergeStateStatus`; on `BEHIND`, run
+`gh pr update-branch <n>` and let the re-run land it. Repeat until merged —
+each merge to `main` re-`BEHIND`s everything still open, so a batch is
+inherently serial.
 
 **Then verify the close** — `gh issue view <n> --json state` for every
 issue the PR claimed. A merge that succeeds is not evidence the issue closed;
