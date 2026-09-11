@@ -2,7 +2,7 @@
 // runs, optional cross-reference marker). Word-level tokenisation
 // lives in WordRun.tsx.
 
-import { For, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import type { LemmaHighlights, OccurrenceMap, SourceChunk } from "~/utils/types";
 import { XrefMarker } from "~/components/cards/XrefMarker";
 import { classnames } from "~/utils/util";
@@ -84,6 +84,14 @@ export function Lines(props: {
   // Hebrew/Arabic), the LTR fallback is "everything that isn't Greek
   // and isn't RTL" — the same set that used to be flagged isLatin.
   const isLatin = () => !isGreek() && !isRtl();
+  // Memoised so infinite-scroll appends (`useWorkRange`'s
+  // `[...cur.chunks, ...next.chunks]`, which preserves each existing
+  // chunk's identity on purpose) don't force `<For>` to rebuild every
+  // already-rendered line. `<For>` reconciles on referential identity of
+  // the array it's given; calling `groupEditorialRuns` directly in the
+  // JSX rebuilt brand-new wrapper objects on every evaluation, defeating
+  // that diff (#533 review finding 2).
+  const editorialRuns = createMemo(() => groupEditorialRuns(props.chunks));
   const renderLine = (chunk: SourceChunk) => {
     const xref = (): XrefSummary | undefined => props.xrefMap?.[chunk.chunk_id];
     return (
@@ -139,7 +147,7 @@ export function Lines(props: {
   };
   return (
     <div class={classnames("lines", isLatin() && "latin", isRtl() && "rtl")}>
-      <For each={groupEditorialRuns(props.chunks)}>
+      <For each={editorialRuns()}>
         {(run) => (
           <Show when={run.editorial} fallback={<For each={run.items}>{renderLine}</For>}>
             <EditorialBlock

@@ -912,7 +912,7 @@ def test_vector_search_exempts_verse_works_from_the_floor(tmp_path: Path):
     assert "sig" not in hits  # 28 chars, paragraph-addressed
 
 
-def test_editorial_apparatus_is_capped_like_notes(tmp_path):
+def test_editorial_apparatus_is_capped_like_notes():
     """An editors' introduction may not crowd out the author (#534).
 
     Same policy as notes and cast lists: apparatus supports the text, so it
@@ -932,5 +932,10 @@ def test_editorial_locator_names_the_editor_not_the_author():
             "translator": "Hodgson / Brown",
         }
     )
-    assert "editorial" in loc.lower()
+    # `_APPARATUS_LABEL.get(block_type, "editorial")` falls back to the bare
+    # word "editorial" for an UNKNOWN block_type too, so `"editorial" in
+    # loc.lower()` can't fail whether or not the explicit dict entry
+    # exists. Assert the full label text, which only the explicit
+    # "editorial" -> "editorial apparatus" entry produces.
+    assert "editorial apparatus" in loc
     assert "Hodgson" in loc

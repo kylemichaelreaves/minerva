@@ -514,13 +514,18 @@ def _split_chapter_block(
             if chunk is not None:
                 yield chunk
             if note_text:
+                # A footnote split out of an editorial chunk is still
+                # editorial apparatus — tagging it "note" instead breaks
+                # `groupEditorialRuns` on the Reader side, fragmenting one
+                # disclosure into several (#533 review finding 1).
+                note_block_type = "editorial" if block_type == "editorial" else "note"
                 note = _emit(
                     work,
                     path,
                     section=f"{section}.note",
                     text=note_text,
                     book_label=heading or None,
-                    block_type="note",
+                    block_type=note_block_type,
                 )
                 if note is not None:
                     yield note

@@ -397,6 +397,49 @@ def test_page_furniture_strips_running_head_with_no_trailing_notes(tmp_path: Pat
     assert body[0].text == "Ordinary prose with no note block."
 
 
+def test_page_furniture_note_split_preserves_editorial_block_type(tmp_path: Path):
+    """A footnote split out of an editorial chunk must itself stay
+    `block_type='editorial'`, or the Reader's `groupEditorialRuns` sees
+    editorial/note/editorial and fragments one disclosure into several
+    (#533 review finding 1). A note split from a non-editorial chunk
+    still gets plain `block_type='note'`."""
+    work = corpus_works.CorpusWork(
+        code="lwh",
+        title="Lectures",
+        translator="T",
+        edition_year="2011",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        page_furniture=True,
+    )
+    text = (
+        "EDITORIAL INTRODUCTION\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n\n"
+        "CHAPTER ONE\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+
+    editorial = [c for c in chunks if c.block_type == "editorial"]
+    notes = [c for c in chunks if c.block_type == "note"]
+    body = [c for c in chunks if c.block_type is None]
+
+    # Editorial intro's body AND its split-out footnote are both editorial.
+    assert len(editorial) == 2
+    assert any("Caesar's Commentaries" in c.text for c in editorial)
+    assert any("On Herodotus" in c.text for c in editorial)
+
+    # Chapter One's parent block_type is None, so its footnote still gets
+    # plain "note", not "editorial".
+    assert len(body) == 1
+    assert "Caesar's Commentaries" in body[0].text
+    assert len(notes) == 1
+    assert "On Herodotus" in notes[0].text
+
+
 def test_split_by_chapter_ignores_page_furniture_when_not_opted_in(tmp_path: Path):
     """The `page_furniture=False` default (guarding the opt-in) must leave
     running heads, trailing notes, and page numbers untouched."""
