@@ -1568,3 +1568,92 @@ def test_block_type_precedence_heading_tag_over_work_default(tmp_path: Path):
     assert ordinary.block_type == "note"
     # (b) The editorial heading's tag outranks the work-level default.
     assert editorial.block_type == "editorial"
+
+
+# ---------- #495 / #537 / #542: editorial headings and A/B markers ----------
+
+
+def test_kant_ab_marker_tolerates_ocr_damaged_roman_numerals():
+    """#495 proposed tightening `[ivxlcdm]{1,8}` to a real roman-numeral
+    pattern because it also matches the German word "Bild" (B + "ild").
+    Measured 2026-09-11: doing that breaks 14 **real** markers in the
+    only work this splitter sees, where OCR read capital `I` as
+    lowercase `l` -- `BXXVl` for `BXXVI`, `AVll` for `AVII`, `BXlX` for
+    `BXIX`. The permissive alphabet is what tolerates that damage, so
+    this is a guard against re-tightening it without an OCR demangle.
+    """
+
+    from minerva.corpus.split_kant import _KANT_AB_MARKER_RE
+
+    for damaged in ("BXXVl", "AVll", "AVlll", "AXIl", "BXlX", "BXXlll", "BXXXlX"):
+        assert _KANT_AB_MARKER_RE.match(damaged) is not None, damaged
+
+
+def test_split_by_kant_ab_tags_editorial_material_instead_of_unattributing_it(
+    tmp_path: Path,
+):
+    """#537/#542: on an editorial chapter heading the splitter flushed,
+    set `current_heading = None` and continued — discarding the heading
+    but emitting the body under a null heading, i.e. as unattributed
+    Kant. #534 settled corpus-wide that apparatus is tagged, not
+    dropped; this is the same call site three lines further on."""
+
+    text = (
+        "A 47\n"
+        "Real Kant prose about the categories, at length and in his own voice.\n"
+        "Editorial Introduction <A>\n"
+        "The translator explains the Cambridge edition's conventions here.\n"
+    )
+    work = corpus_works.CorpusWork(
+        code="kx",
+        title="Test Kant",
+        translator="T",
+        edition_year="1781",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="ab",
+        lang="eng",
+    )
+    p = tmp_path / "x.pdf"
+    chunks = list(corpus_parse.split_by_kant_ab(text, work, p))
+
+    editorial = [c for c in chunks if c.block_type == "editorial"]
+    assert editorial, "the translator's explanation should survive, tagged"
+    assert any("Cambridge edition" in c.text for c in editorial)
+    assert all(c.book == "Editorial Introduction" for c in editorial)
+    # And Kant's own prose is untouched and untagged.
+    kant = [c for c in chunks if c.block_type != "editorial"]
+    assert any("categories" in c.text for c in kant)
+
+
+def test_split_zeno_pages_tags_an_editorial_page_instead_of_dropping_it(
+    tmp_path: Path,
+):
+    """#542: the site `continue`s on a match, discarding the whole page.
+    Its comment argues for that ("drop it rather than attributing it to
+    the work's author") — which is the policy #534 reversed."""
+
+    html = (
+        "<!-- ZENO_PAGE: /Philosophie/M/Hegel,+Georg+Wilhelm+Friedrich/Test+Werk/Vorrede -->\n"
+        '<div id="zenoCOText"><p>Hegels eigener Text steht hier.</p></div>\n\n'
+        "<!-- ZENO_PAGE: /Philosophie/M/Hegel,+Georg+Wilhelm+Friedrich/Test+Werk/Editorial+Introduction -->\n"
+        '<div id="zenoCOText"><p>The editor describes the manuscript sources.</p></div>\n'
+    )
+    p = tmp_path / "test.html"
+    p.write_text(html, encoding="utf-8")
+    work = corpus_works.CorpusWork(
+        code="t_de",
+        title="Test Werk",
+        translator="(Original)",
+        edition_year="1820",
+        filenames=("test.html",),
+        fmt="html",
+        locator="chapter",
+        lang="deu",
+    )
+    chunks = list(corpus_parse.split_zeno_pages(html, work, p))
+
+    editorial = [c for c in chunks if c.block_type == "editorial"]
+    assert editorial, "the editorial page should survive, tagged"
+    assert any("manuscript sources" in c.text for c in editorial)
+    assert any("eigener Text" in c.text for c in chunks if c.block_type != "editorial")

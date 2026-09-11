@@ -148,12 +148,20 @@ def split_zeno_pages(html: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
         if not page_text.strip():
             continue
         heading = _derive_zeno_heading(page_path, root_path)
-        # Defensive: if a future HTML source carries an editorial /
-        # front-matter section (current zeno.org dumps don't), drop it
-        # rather than attributing it to the work's author.
-        if _is_editorial_heading(heading):
-            continue
-        page_chunks = _split_chapter_block(work, path, heading, page_text)
+        # If a future HTML source carries an editorial / front-matter
+        # section (current zeno.org dumps don't), tag it rather than
+        # attributing it to the work's author. This used to `continue`,
+        # dropping the page -- the policy #534 reversed corpus-wide,
+        # because dropping lost real scholarship silently and left no
+        # way to tell missing apparatus from apparatus that was never
+        # there (#542).
+        page_chunks = _split_chapter_block(
+            work,
+            path,
+            heading,
+            page_text,
+            block_type="editorial" if _is_editorial_heading(heading) else None,
+        )
         if work.author == "Kant":
             # Remark-mode state is per page — a new ZENO_PAGE always
             # starts back in the main voice.

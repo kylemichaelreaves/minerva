@@ -93,6 +93,7 @@ def split_by_kant_ab(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
 
     current_section: str | None = None
     current_heading: str | None = None
+    current_block_type: str | None = None
     buffer: list[str] = []
     collected: list[Chunk] = []
 
@@ -101,7 +102,14 @@ def split_by_kant_ab(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
         if not body:
             return
         section_label = current_section or "¶1"
-        chunk = _emit(work, path, section=section_label, text=body, book_label=current_heading)
+        chunk = _emit(
+            work,
+            path,
+            section=section_label,
+            text=body,
+            book_label=current_heading,
+            block_type=current_block_type,
+        )
         if chunk is not None:
             collected.append(chunk)
 
@@ -115,16 +123,18 @@ def split_by_kant_ab(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
             # becomes the book label. Discard editorial-shaped lines
             # so glossary subheadings don't leak in.
             heading = ch.group(1).strip()
-            if _is_editorial_heading(heading) or _is_skipped_for_work(heading, work.skip_headings):
-                # Treat as a soft boundary: flush, but don't capture
-                # the heading.
-                flush()
-                buffer = []
-                current_heading = None
-                continue
+            editorial = _is_editorial_heading(heading) or _is_skipped_for_work(
+                heading, work.skip_headings
+            )
+            # Apparatus is TAGGED, not dropped (#534). This site used to
+            # flush and set `current_heading = None`, which discarded the
+            # heading and emitted the editor's prose under a null one --
+            # attributing it to Kant, which is worse than either keeping
+            # it or dropping it outright (#537).
             flush()
             buffer = []
             current_heading = heading
+            current_block_type = "editorial" if editorial else None
             continue
         # Combined A/B marker (e.g. "A449/B477"): boundary, use A.
         cb = _KANT_AB_COMBO_RE.match(line)
