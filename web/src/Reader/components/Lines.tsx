@@ -8,6 +8,22 @@ import { XrefMarker } from "~/components/cards/XrefMarker";
 import { classnames } from "~/utils/util";
 import type { PinnedHighlight } from "~/Reader/utils";
 import { WordRun } from "~/Reader/components/WordRun";
+import { EditorialBlock } from "~/Reader/components/EditorialBlock";
+
+/** Consecutive runs of one block_type, so an apparatus run collapses as a
+ *  single disclosure rather than one per chunk. */
+function groupEditorialRuns<T extends { block_type?: string | null }>(
+  chunks: T[],
+): { editorial: boolean; items: T[] }[] {
+  const out: { editorial: boolean; items: T[] }[] = [];
+  for (const chunk of chunks) {
+    const editorial = chunk.block_type === "editorial";
+    const last = out[out.length - 1];
+    if (last?.editorial === editorial) last.items.push(chunk);
+    else out.push({ editorial, items: [chunk] });
+  }
+  return out;
+}
 
 /** Per-chunk reference summary fed in from the references_map fetch.
  *  Lines only needs the count for rendering the marker; the full
@@ -68,66 +84,72 @@ export function Lines(props: {
   // Hebrew/Arabic), the LTR fallback is "everything that isn't Greek
   // and isn't RTL" — the same set that used to be flagged isLatin.
   const isLatin = () => !isGreek() && !isRtl();
+  const renderLine = (chunk: SourceChunk) => {
+    const xref = (): XrefSummary | undefined => props.xrefMap?.[chunk.chunk_id];
+    return (
+      <div
+        class={classnames(
+          "line",
+          isRtl() && "rtl",
+          isHebrew() && "lang-heb",
+          isArabic() && "lang-ara",
+        )}
+        data-chunk-id={chunk.chunk_id}
+        // Structural role (Hegel Remark/Addition, etc.). Absent for
+        // ordinary body prose; reader.css indents the set-apart blocks.
+        data-block={chunk.block_type ?? undefined}
+        // Objections carry the objector's name (Hobbes, Arnauld, …);
+        // reader.css renders it as a small voice tag above the block.
+        data-speaker={chunk.block_type === "objection" ? (chunk.speaker ?? undefined) : undefined}
+      >
+        <span class="num">{chunk.section ?? chunk.ord + 1}</span>
+        <span class="text" dir={isRtl() ? "rtl" : undefined}>
+          <WordRun
+            text={chunk.text}
+            lang={props.lang}
+            chunkId={chunk.chunk_id}
+            occurrences={props.occMap?.by_chunk[chunk.chunk_id] ?? []}
+            highlights={props.lemmaHighlights?.by_chunk[chunk.chunk_id] ?? []}
+            pinned={(props.pinnedHighlights ?? []).filter((p) => p.chunkId === chunk.chunk_id)}
+            onPinnedClick={props.onPinnedClick}
+            onPinnedRemove={props.onPinnedRemove}
+            onTermClick={props.onTermClick}
+            onWordClick={props.onWordClick}
+            wordTranslation={props.wordTranslation}
+          />
+        </span>
+        {/* The 24px right-gutter cell is always present (grid
+            reserves the column) so the page never shifts as
+            markers come and go. The marker itself only renders
+            when this chunk has outgoing references AND the caller
+            has wired an open-handler. */}
+        <span class="line-marker">
+          <Show when={xref() && props.onXrefOpen}>
+            <XrefMarker
+              count={xref()!.count}
+              active={props.openRefChunkId === chunk.chunk_id}
+              onOpen={(rect) => {
+                props.onXrefOpen!(chunk.chunk_id, rect);
+              }}
+            />
+          </Show>
+        </span>
+      </div>
+    );
+  };
   return (
     <div class={classnames("lines", isLatin() && "latin", isRtl() && "rtl")}>
-      <For each={props.chunks}>
-        {(chunk) => {
-          const xref = (): XrefSummary | undefined => props.xrefMap?.[chunk.chunk_id];
-          return (
-            <div
-              class={classnames(
-                "line",
-                isRtl() && "rtl",
-                isHebrew() && "lang-heb",
-                isArabic() && "lang-ara",
-              )}
-              data-chunk-id={chunk.chunk_id}
-              // Structural role (Hegel Remark/Addition, etc.). Absent for
-              // ordinary body prose; reader.css indents the set-apart blocks.
-              data-block={chunk.block_type ?? undefined}
-              // Objections carry the objector's name (Hobbes, Arnauld, …);
-              // reader.css renders it as a small voice tag above the block.
-              data-speaker={
-                chunk.block_type === "objection" ? (chunk.speaker ?? undefined) : undefined
-              }
+      <For each={groupEditorialRuns(props.chunks)}>
+        {(run) => (
+          <Show when={run.editorial} fallback={<For each={run.items}>{renderLine}</For>}>
+            <EditorialBlock
+              label={run.items[0]?.section?.split(",")[0] ?? "Editorial material"}
+              count={run.items.length}
             >
-              <span class="num">{chunk.section ?? chunk.ord + 1}</span>
-              <span class="text" dir={isRtl() ? "rtl" : undefined}>
-                <WordRun
-                  text={chunk.text}
-                  lang={props.lang}
-                  chunkId={chunk.chunk_id}
-                  occurrences={props.occMap?.by_chunk[chunk.chunk_id] ?? []}
-                  highlights={props.lemmaHighlights?.by_chunk[chunk.chunk_id] ?? []}
-                  pinned={(props.pinnedHighlights ?? []).filter(
-                    (p) => p.chunkId === chunk.chunk_id,
-                  )}
-                  onPinnedClick={props.onPinnedClick}
-                  onPinnedRemove={props.onPinnedRemove}
-                  onTermClick={props.onTermClick}
-                  onWordClick={props.onWordClick}
-                  wordTranslation={props.wordTranslation}
-                />
-              </span>
-              {/* The 24px right-gutter cell is always present (grid
-                  reserves the column) so the page never shifts as
-                  markers come and go. The marker itself only renders
-                  when this chunk has outgoing references AND the caller
-                  has wired an open-handler. */}
-              <span class="line-marker">
-                <Show when={xref() && props.onXrefOpen}>
-                  <XrefMarker
-                    count={xref()!.count}
-                    active={props.openRefChunkId === chunk.chunk_id}
-                    onOpen={(rect) => {
-                      props.onXrefOpen!(chunk.chunk_id, rect);
-                    }}
-                  />
-                </Show>
-              </span>
-            </div>
-          );
-        }}
+              <For each={run.items}>{renderLine}</For>
+            </EditorialBlock>
+          </Show>
+        )}
       </For>
     </div>
   );
