@@ -10,7 +10,9 @@ The note split is deliberately conservative. A trailing `4. ` only starts a
 note block if marker `4` appears earlier in the same chunk, either glued to
 a word (`too.4`) or standalone as its own space-separated token (`thus 31
 fi...`) — both are attested renderings of the same superscript marker in
-this extraction. An over-eager split deletes Hegel's prose silently, which
+this extraction. It also refuses when the text right before it ends in a
+colon, since that's Hegel introducing his own enumeration, not an editor
+opening a note. An over-eager split deletes Hegel's prose silently, which
 is far worse than leaving a note in place.
 """
 
@@ -94,6 +96,21 @@ def split_trailing_notes(text: str) -> tuple[str, str | None]:
         body = text[: m.start()].rstrip()
         notes = text[m.start() :].strip()
         if not body or not notes:
+            return text, None
+        # A colon right before the candidate means Hegel is introducing his
+        # own enumeration ("...three developments ... us: 1. ... 2. ... 3.
+        # ..."), not an editor opening a note — a bare "1" upstream can
+        # still satisfy _marker_present by coincidence (ord 461, work 712).
+        # Measured across all 279 splits this licensed before the guard:
+        # exactly one had a colon here, and it was that bad one — this is a
+        # targeted rule backed by that count, not a guess. Refuse the whole
+        # chunk outright rather than searching for a later candidate: ord
+        # 461 does have one (a genuinely glued marker further down), but by
+        # then the text between the enumeration and that later note is
+        # already a tangle of headings and more prose that this function
+        # was never designed to pick apart — leaving the whole chunk alone
+        # is the safe call once a chunk has shown itself this irregular.
+        if body.endswith(":"):
             return text, None
         return body, notes
     return text, None

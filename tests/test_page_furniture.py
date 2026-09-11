@@ -78,6 +78,24 @@ def test_strips_two_leading_page_numbers_before_a_running_head():
     assert pf.strip_running_head(text, pf.RUNNING_HEADS_LWH) == "Gentlemen, we begin today."
 
 
+def test_refuses_a_colon_introduced_enumeration_even_when_a_marker_licenses_it():
+    # Real shape from work 712, ord 461: Hegel's own three-point enumeration
+    # ("...three developments ... us: 1. ... 2. ... 3. ...") coincided with
+    # a bare "1" upstream that satisfied the marker check, and the split
+    # ate his prose. A colon immediately before the candidate means this is
+    # the author's own list, not an editor's note -- refuse regardless of
+    # marker licensing.
+    text = (
+        "In lecture 1 Hegel introduces three developments that are of interest to us: "
+        "1. By its very nature, the church acquires for itself a worldly existence. "
+        "2. The principle of the modern church is of a different nature. "
+        "3. This formal universality must obtain a concrete content."
+    )
+    body, notes = pf.split_trailing_notes(text)
+    assert notes is None
+    assert body == text
+
+
 def test_leaves_a_table_of_contents_style_number_run_alone():
     # Three or more leading numbers is a listing (page refs in a ToC), not a
     # recto/verso page pair ahead of a running head — the cap at two keeps
