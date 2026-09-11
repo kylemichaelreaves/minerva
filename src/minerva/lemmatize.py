@@ -795,6 +795,8 @@ class Lemmatizer:
                 "uv pip install -e '.[lemma]'"
             ) from exc
         # First-run: stanza.download fetches the model into
+        # `stanza.resources.common.DEFAULT_MODEL_DIR` — scoped by the stanza
+        # release, so a version bump re-pays this (#530), and not
         # ~/stanza_resources/. The download_method=DownloadMethod
         # .REUSE_RESOURCES (default since 1.5) skips when present, so
         # this is a one-time cost we pay implicitly.

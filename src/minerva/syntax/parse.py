@@ -66,8 +66,19 @@ def _pipeline() -> Any:
                 processors=_PROCESSORS,
                 verbose=False,
                 # Never reach for the network mid-request. The model is a
-                # deployment concern: `minerva syntax parse --download` or
-                # `stanza.download('de')` puts it in ~/stanza_resources/.
+                # deployment concern: `stanza.download('de')` fetches it.
+                #
+                # It lands in `stanza.resources.common.DEFAULT_MODEL_DIR`,
+                # which is **scoped by the stanza release** —
+                # `user_cache_dir('stanza', 'StanfordNLP', __resources_version__)
+                # + '/resources'`, e.g. ~/Library/Caches/stanza/1.14.0/resources
+                # on macOS. So a stanza version bump does not migrate the
+                # model, it starts from an empty cache and this pipeline
+                # raises `LanguageNotDownloadedError` until someone
+                # re-downloads. That is what #530 is about; it is also why
+                # `~/stanza_resources/` (stanza's pre-1.5 default, and only
+                # honoured now via `STANZA_RESOURCES_DIR`) is the wrong place
+                # to go looking.
                 download_method=None,
             )
     return _PIPELINE
@@ -88,13 +99,19 @@ def warm_pipeline() -> bool:
     than silently fetching. Either way the server must still start: the
     syntax endpoint degrades to the old lazy load, and every other route is
     unaffected.
+
+    The caller discards the result and nothing logs the exception, so a
+    missing model is currently invisible until a reader opens the overlay and
+    gets a 500 — see #530.
     """
 
     try:
         _pipeline()
     # Broad on purpose: startup must survive any parser fault, and the
-    # failure modes here are open-ended (ImportError without the extra,
-    # Stanza's own ResourcesFileNotFoundError with no model on disk).
+    # failure modes here are open-ended (ImportError without the extra;
+    # Stanza's `LanguageNotDownloadedError` when `resources.json` is cached
+    # but the `de/` model directory is not; its `ResourcesFileNotFoundError`
+    # when even `resources.json` is absent).
     except Exception:
         return False
     return True
