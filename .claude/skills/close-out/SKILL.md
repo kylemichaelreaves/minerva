@@ -5,7 +5,7 @@ description: Use when taking a tracked defect to a merged PR in this repo — a 
 
 # Close-out
 
-Work one or more backlog issues to a merged-ready PR.
+Work one or more backlog issues to a **merged** PR.
 
 **Core principle:** an issue is a pointer written by someone who hit a
 problem, plus a guess written by someone who had not yet tried the fix.
@@ -14,7 +14,7 @@ differently or you inherit the guess as fact.
 
 ## The phases
 
-Seven, in order. Each has an exit condition; do not advance past one that
+Eight, in order. Each has an exit condition; do not advance past one that
 is unmet — say what is blocking and stop.
 
 Keep a verdict table from phase 1 onward and restate it at each phase
@@ -32,6 +32,7 @@ boundary, so a multi-issue run cannot lose one:
 | 5 | **Branch, PR, verify the link.** → references/pr-linkage.md | `make check-pr-link PR=<n> ISSUES="..."` exits 0, run after the last change to the PR's title, body or commits. |
 | 6 | **Correct the record.** | Every non-CONFIRMED verdict has its comment on the issue **and** its line in the PR body. Wrong claims in docs, comments or commit messages are fixed in this PR. |
 | 7 | **File findings, and slot them.** → references/filing-findings.md | Every finding has an issue number, and either a row in an active plan or an explicit note that no active plan covers it. |
+| 8 | **Merge, and verify the close.** | The PR is merged, and every issue it claimed to close reads `CLOSED` — from `gh issue view`, not inferred from the merge succeeding. |
 
 ## When a verdict is not CONFIRMED
 
@@ -56,6 +57,56 @@ wait. This is graded on purpose: an unconditional halt on every
 correction gets argued away, and measurably does — see
 references/verifying-claims.md for the baseline runs.
 
+## Phase 8: merging is inside this skill
+
+A close-out run ends with the PR **merged**. That is this skill's scope, not a
+separate request to be raised with the user — the standing "every round ends
+with a PR" rule sets a floor, not a ceiling.
+
+This is written down because it is the step the process loses. Measured over
+the last 60 merged PRs in this repo: median time open is 1.0 h, but 15% sit
+longer than a day and 10% longer than three, with a tail to 11.4 days — and
+those stragglers merge in clumps, which is what a queue looks like.
+
+**Arm it rather than watch it**: `gh pr merge <n> --squash --auto`. `--auto`
+lands the PR the moment the required checks pass, so you are not babysitting
+CI; `--squash` is what this repo does, which is why the sweep-in risk below is
+about the *squashed* commit message and not the PR body. Branch deletion is
+automatic — do not do it by hand.
+
+**Auto-merge will not rescue a `BEHIND` branch, and that is the case that
+matters.** `strict: true` means a PR falls `BEHIND` the moment anything else
+lands on `main` — which is exactly when a queue exists. Measured here
+2026-09-11: #550 had auto-merge armed by the Dependabot workflow and every
+check green at 20:05, sat unmerged for twenty minutes, and landed only after a
+hand-run `gh pr update-branch` added a merge commit at 20:25:56.
+
+So arming is not the end of the phase. **Confirm it actually merged.** If it is
+still open, `gh pr view <n> --json mergeStateStatus`; on `BEHIND`, run
+`gh pr update-branch <n>` and let the re-run land it. Repeat until merged —
+each merge to `main` re-`BEHIND`s everything still open, so a batch is
+inherently serial.
+
+**Then verify the close** — `gh issue view <n> --json state` for every
+issue the PR claimed. A merge that succeeds is not evidence the issue closed;
+`closingIssuesReferences` can be empty for reasons phase 5 could not see. Check
+also that nothing was swept in that you did not claim: a closing keyword sitting
+next to an unrelated number anywhere in the squashed commit message will close
+that issue too.
+
+**Halt instead of merging** when any of these is true — say which, and stop:
+
+| Halt | Merge |
+|---|---|
+| The PR body says `Refs #N` because the fix is partial or unverified | The PR claims `Closes` and phase 5 verified the link |
+| A human reviewer was asked for and has not answered | Nobody was asked; this is yours to land |
+| The change is one the user said to hold | No such instruction |
+| A required check is failing or still running | All four green, `mergeStateStatus` `CLEAN` |
+
+A `Refs`-only PR still merges once its own reason for being partial is
+satisfied — the left column halts the *merge*, not the *run*; report it and
+move on rather than waiting silently.
+
 ## Red flags
 
 - About to write code while a left-column row is true.
@@ -66,3 +117,7 @@ references/verifying-claims.md for the baseline runs.
 - Verifying the one file, symbol or number an earlier note named, without
   asking how many others there are.
 - A finding filed with a numerator and no denominator.
+- Ending a run with the PR open and green because merging felt like a separate
+  errand. It is phase 8. Either a Halt row is true — name it — or merge.
+- Reporting an issue as closed on the strength of the merge succeeding, without
+  having read its state back.
