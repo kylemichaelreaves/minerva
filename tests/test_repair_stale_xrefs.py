@@ -244,3 +244,85 @@ def test_no_database_is_a_failure(tmp_path: Path, monkeypatch, capsys):
     rc = rx.main([])
     assert rc != 0
     assert "nope.sqlite" in capsys.readouterr().err
+
+
+def test_a_span_shifted_inside_the_chunk_is_stale(tmp_path: Path):
+    """#545: text removed from the *front* of a chunk whose `chunk_id`
+    survived slides every span in it. The snapshot and the slice then
+    overlap heavily — difflib ratio 0.857 for this pair — but the
+    dropped prefix is two letters of a word, not a citation formula.
+    The ratio alone cannot tell this from #414's accepted population,
+    whose ratios straddle it (0.887)."""
+
+    text = "omas Aquinas, writing later"
+    db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="eng", text=text)])
+    conn = store.open_db(db)
+    try:
+        xid = _seed_xref(
+            conn,
+            source_chunk_id="c1",
+            span_start=0,
+            span_end=len("omas Aquinas, "),
+            source_form_snapshot="Thomas Aquinas",
+        )
+        stale = rx.find_stale_xrefs(conn)
+    finally:
+        conn.close()
+    assert [s.id for s in stale] == [xid]
+    assert stale[0].reason == "snapshot mismatch"
+
+
+def test_a_span_shifted_by_a_leading_character_is_stale(tmp_path: Path):
+    """#545's second live row: the span slid one character left, so the
+    slice picks up a leading space and loses the final letter. Nothing
+    aligns in either direction, but difflib still scores it 0.889."""
+
+    text = " Schellin and the others"
+    db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="deu", text=text)])
+    conn = store.open_db(db)
+    try:
+        xid = _seed_xref(
+            conn,
+            source_chunk_id="c1",
+            span_start=0,
+            span_end=len(" Schellin"),
+            source_form_snapshot="Schelling",
+        )
+        stale = rx.find_stale_xrefs(conn)
+    finally:
+        conn.close()
+    assert [s.id for s in stale] == [xid]
+    assert stale[0].reason == "snapshot mismatch"
+
+
+def test_414s_wide_snapshot_truncated_at_120_chars_is_not_stale(tmp_path: Path):
+    """`source_form_snapshot` is capped at 120 characters, so a long
+    accepted row's snapshot stops mid-quote while the span runs on past
+    it. 9 of the 212 live accepted rows have this shape, and neither
+    string then contains the other — which is why a containment test
+    cannot stand in for the ratio here. Measured 2026-09-11."""
+
+    quote = (
+        "Neque nocebo, inquit, in ueritate mea, neque profanabo testamentum meum, "
+        "et quae procedunt de labiis meis non reprobabo"
+    )
+    snapshot = ("psalmi: " + quote)[:120]
+    assert len(snapshot) == 120
+    assert quote not in snapshot and snapshot not in quote
+
+    text = "ut ait " + quote + " dicit enim"
+    db = _seed(tmp_path, [make_chunk(chunk_id="c1", lang="lat", text=text)])
+    conn = store.open_db(db)
+    try:
+        span_start = text.index(quote)
+        _seed_xref(
+            conn,
+            source_chunk_id="c1",
+            span_start=span_start,
+            span_end=span_start + len(quote),
+            source_form_snapshot=snapshot,
+        )
+        stale = rx.find_stale_xrefs(conn)
+    finally:
+        conn.close()
+    assert stale == []
