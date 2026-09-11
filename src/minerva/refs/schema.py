@@ -14,7 +14,9 @@ so the retry-on-UNIQUE-conflict loop is the same.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
@@ -95,6 +97,60 @@ def find_target_by_id(conn: sqlite3.Connection, target_id: int) -> ReferenceTarg
     )
 
 
+def _title_key(value: str) -> str:
+    """Fold a work title to the key two spellings of the same title
+    share: accents decomposed and dropped, case flattened, everything
+    that is not a letter or digit removed.
+
+    Deliberately blunt. It exists to absorb the drift that is on the
+    record — ``'De republica'`` against ``'De Re Publica'``, which
+    differs in case *and* word division, and ``'Tusculanae
+    disputationes'`` against ``'Tusculanae Disputationes'``, which
+    differs by one letter — not to guess at titles that are genuinely
+    different. Anything blunt enough to fold two distinct works
+    together is caught by the ambiguity check in
+    :func:`find_work_by_title_key`, which declines rather than picks.
+    """
+
+    decomposed = unicodedata.normalize("NFKD", value)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]", "", stripped.lower())
+
+
+def find_work_by_title_key(
+    conn: sqlite3.Connection,
+    *,
+    author: str,
+    title: str,
+) -> tuple[int, str] | None:
+    """``(works.id, citation_system)`` for the one work of ``author``
+    whose title folds to the same key as ``title``, or None.
+
+    Scoped to a single author, so the scan is over that author's works
+    rather than the whole table, and a title cannot reach across
+    authors. Returns None when more than one work matches: picking
+    either would be arbitrary, and a NULL ``in_corpus_work_id`` is
+    visibly unresolved where a wrong one reads as resolved — the same
+    trade ``verify_quoted_references`` makes for a phrase it cannot
+    locate (#269).
+    """
+
+    wanted = _title_key(title)
+    if not wanted:
+        return None
+    matches = [
+        (int(row[0]), row[1])
+        for row in conn.execute(
+            "SELECT id, citation_system, title FROM works WHERE author = ?",
+            (author,),
+        ).fetchall()
+        if _title_key(str(row[2])) == wanted
+    ]
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
 def ensure_target(
     conn: sqlite3.Connection,
     *,
@@ -120,14 +176,25 @@ def ensure_target(
     if existing is not None:
         return existing
 
-    # Auto-link to a works row if one matches.
-    work_row = conn.execute(
+    # Auto-link to a works row if one matches. Exact title first; a
+    # title that differs only in case, accent or word division falls
+    # through to the folded comparison, because an exact-match miss is
+    # silent — the target is simply created out-of-corpus and nothing
+    # says why (#493).
+    work_row: tuple[int, Any] | None = None
+    exact = conn.execute(
         "SELECT id, citation_system FROM works WHERE author = ? AND title = ?",
         (canonical_author, canonical_work),
     ).fetchone()
+    if exact is not None:
+        work_row = (int(exact[0]), exact[1])
+    else:
+        work_row = find_work_by_title_key(
+            conn, author=canonical_author, title=canonical_work
+        )
     in_corpus_work_id: int | None = None
     if work_row is not None:
-        in_corpus_work_id = int(work_row[0])
+        in_corpus_work_id = work_row[0]
         # If the caller didn't specify a citation_system, inherit from
         # the works row.
         if citation_system is None:
