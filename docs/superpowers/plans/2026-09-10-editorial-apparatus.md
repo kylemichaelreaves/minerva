@@ -978,6 +978,21 @@ It claims OCR tolerance it does not have; its example is drawn from the one dama
     """
 ```
 
+- [ ] **Step 1b: Correct `_within_distance`'s docstring**
+
+Task 1's review found the word "banded" inaccurate: the inner loop walks the
+entire row and bails out early; it does not restrict itself to a diagonal
+band. The early exit is sound (fuzzed over 160,000 triples against a reference
+Levenshtein, zero mismatches) — only the label is wrong. Replace the second
+paragraph:
+
+```python
+    Full-row Levenshtein with an early bailout — not banded. Once a row's
+    minimum exceeds `cap` the final distance cannot come back under it, so the
+    walk stops there. The caller runs this against every long phrase for every
+    heading in an ingest, which is why the cheap length check comes first.
+```
+
 - [ ] **Step 2: Correct the `clean-hobbes-latin.py` docstring**
 
 It reports the long-s residue as "10 chunks — already low", which reads as *small*. It is *unmeasured*: the heuristic gates `lang` to `{eng,fra,deu}` and so excludes `lat`, the only affected language. Replace that sentence:
