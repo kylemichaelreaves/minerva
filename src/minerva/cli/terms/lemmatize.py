@@ -295,8 +295,14 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         # Rebuild the concordance aggregate table — the only consumer
         # of chunk_lemmas at read time. Skipping this would leave the
         # leaderboard stale until the next manual ``aggregate-lemmas``
-        # run. Cost: ~30s on the current corpus, dwarfed by the
-        # lemmatize pass itself.
+        # run.
+        #
+        # Cost: measured 205.2s (4,487,900 rows) on 2026-09-10. This used
+        # to read "~30s … dwarfed by the lemmatize pass itself", which is
+        # now wrong twice over: it is ~7x that, and for a SCOPED run the
+        # relationship inverts — re-lemmatising 1,176 Hegel chunks took
+        # well under a minute and then paid the full 205s here, because
+        # `aggregate.build` has no scope parameter. See #548.
         if not getattr(args, "skip_aggregate", False):
             from ...concordance import aggregate
             summary = aggregate.build(conn, verbose=True)
