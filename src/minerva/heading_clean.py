@@ -122,11 +122,13 @@ _EDITORIAL_PHRASES = frozenset(
         "bibliographical",
         "bibliographicalnote",
         "selectedbibliography",
+        "secondaryworks",
         "selectedreadings",
         "selectedreading",
         "furtherreading",
         "suggestedreading",
         "suggestedreadings",
+        "sourcesusedoralludedtoby",
         "workscited",
         "tableofcontents",
         "contents",
@@ -147,6 +149,38 @@ _EDITORIAL_PHRASES = frozenset(
 )
 
 _EDITORIAL_NORM_RE = re.compile(r"[^a-z]")
+
+#: Only phrases this long get the fuzzy pass. The short entries in
+#: `_EDITORIAL_PHRASES` ("contents", "glossary", "foreword") are matched by
+#: substring, and letting them match approximately fires on ordinary chapter
+#: titles — "The Content of Religion" is not a table of contents.
+_FUZZY_MIN_PHRASE_LEN = 12
+#: Edit distance allowed on the whole normalized label. Measured over all
+#: 94,424 distinct heading labels in the corpus: d<=2 newly matches exactly
+#: two, "Bjbljography" and "Editorial Introouctjon", both genuine. d<=3
+#: starts admitting real headings.
+_FUZZY_MAX_DISTANCE = 2
+
+
+def _within_distance(a: str, b: str, cap: int) -> bool:
+    """True when `a` and `b` are within `cap` edits (Levenshtein).
+
+    Banded and early-exiting: the caller runs this against every long phrase
+    for every heading in an ingest, so the common case must reject on the
+    length check alone.
+    """
+
+    if abs(len(a) - len(b)) > cap:
+        return False
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
+        if min(cur) > cap:
+            return False
+        prev = cur
+    return prev[-1] <= cap
 
 
 def _smart_title_case(label: str) -> str:
@@ -307,7 +341,19 @@ def _is_editorial_heading(label: str) -> bool:
     norm = _EDITORIAL_NORM_RE.sub("", label.lower())
     if not norm:
         return False
-    return any(phrase in norm for phrase in _EDITORIAL_PHRASES)
+    if any(phrase in norm for phrase in _EDITORIAL_PHRASES):
+        return True
+    # Fuzzy fallback for OCR letter substitution — "introouctjon" for
+    # "introduction", "bjbljography" for "bibliography". The exact pass above
+    # already handles spacing and punctuation damage, which is all
+    # `_EDITORIAL_NORM_RE` can absorb on its own.
+    if len(norm) < _FUZZY_MIN_PHRASE_LEN:
+        return False
+    return any(
+        _within_distance(norm, phrase, _FUZZY_MAX_DISTANCE)
+        for phrase in _EDITORIAL_PHRASES
+        if len(phrase) >= _FUZZY_MIN_PHRASE_LEN
+    )
 
 
 def _is_skipped_for_work(label: str, skip_headings: tuple[str, ...]) -> bool:
