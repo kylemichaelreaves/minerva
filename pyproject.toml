@@ -39,8 +39,14 @@ lemma = [
     # `lemma-models.txt`.
     "spacy>=3.8.16",
     # Stanza: fallback for grc/lat when the LatinCy wheels are missing;
-    # primary for Hebrew (`heb`) and Arabic (`ara`). Models download to
-    # ~/stanza_resources/ on first use (~250 MB grc, ~80 MB la).
+    # primary for Hebrew (`heb`) and Arabic (`ara`), and the only parser for
+    # the German syntax feature. Models download on first use (~250 MB grc,
+    # ~80 MB la) into `stanza.resources.common.DEFAULT_MODEL_DIR`, which is
+    # scoped by the stanza release — ~/Library/Caches/stanza/<version>/
+    # resources on macOS, NOT ~/stanza_resources/. Bumping the floor below
+    # therefore invalidates every downloaded model (#530); `syntax` builds its
+    # pipeline with `download_method=None` and so fails hard rather than
+    # re-fetching.
     "stanza>=1.14.0",
     "pyyaml>=6.0.3",
 ]

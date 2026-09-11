@@ -2,8 +2,8 @@
 
 Deliberately does NOT construct a real pipeline. CI installs
 `.[dev,hegel,embed]`, not `[lemma]`, so there is no `stanza` package and no
-model in `~/stanza_resources/` — a test that loaded one would pass on a
-developer machine and fail everywhere else. The lemmatizer tests set the same
+model in stanza's cache — a test that loaded one would pass on a developer
+machine and fail everywhere else. The lemmatizer tests set the same
 precedent.
 
 What is worth testing here is the conversion, not Stanza: sentence ordinals,
