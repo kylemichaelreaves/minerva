@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { EditorialBlock } from "./EditorialBlock";
+import { EditorialBlock } from "~/Reader/components/EditorialBlock";
 
 describe("EditorialBlock", () => {
   it("is closed on first render", () => {
