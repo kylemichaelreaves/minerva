@@ -114,7 +114,21 @@ def _emit(
         # paragraph here never renumbers — and never re-ids — the
         # surviving chunks around it.
         return None
-    if _looks_like_bibliography(text):
+    if block_type != "note" and _looks_like_bibliography(text):
+        # Not applied to notes. This filter exists to catch a *chapter*
+        # that is really a slab of bibliography apparatus — its heading
+        # ("A. General Works") reads like a normal chapter title to the
+        # splitter. An editors' footnote citing `SURNAME, FIRSTNAME.
+        # Title. City, Year.` has the same surface shape and is exactly
+        # what a footnote is supposed to look like, so applying it here
+        # rejects notes for being notes.
+        #
+        # That mattered because `split_trailing_notes` has already cut
+        # the text out of the body by this point: a rejection here loses
+        # it from the corpus outright rather than misfiling it (#541).
+        # Re-attaching it to the body instead is not the fix -- the
+        # combined text then trips this same filter and takes the body
+        # down with it, which is how this was measured.
         return None
     # Scraped page furniture (#383, #298). Same position as the filters
     # above and for the same reason: the caller has already assigned this
@@ -503,16 +517,7 @@ def _split_chapter_block(
                     note_text = page_furniture.strip_trailing_page_number(note_text)
             else:
                 note_text = None
-            chunk = _emit(
-                work,
-                path,
-                section=section,
-                text=piece,
-                book_label=heading or None,
-                block_type=block_type,
-            )
-            if chunk is not None:
-                yield chunk
+            note = None
             if note_text:
                 # A footnote split out of an editorial chunk is still
                 # editorial apparatus — tagging it "note" instead breaks
@@ -527,8 +532,18 @@ def _split_chapter_block(
                     book_label=heading or None,
                     block_type=note_block_type,
                 )
-                if note is not None:
-                    yield note
+            chunk = _emit(
+                work,
+                path,
+                section=section,
+                text=piece,
+                book_label=heading or None,
+                block_type=block_type,
+            )
+            if chunk is not None:
+                yield chunk
+            if note is not None:
+                yield note
 
 
 #: A speech turn ends `…"--` and the next begins `"`. Zero-width, so the

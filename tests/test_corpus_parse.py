@@ -1657,3 +1657,41 @@ def test_split_zeno_pages_tags_an_editorial_page_instead_of_dropping_it(
     assert editorial, "the editorial page should survive, tagged"
     assert any("manuscript sources" in c.text for c in editorial)
     assert any("eigener Text" in c.text for c in chunks if c.block_type != "editorial")
+
+
+def test_a_note_rejected_by_emit_stays_in_the_body_instead_of_vanishing(tmp_path: Path):
+    """#541: `split_trailing_notes` excises the note from the body before
+    `_emit` runs, so when `_emit` rejects the note — editors' footnotes
+    routinely carry the `SURNAME, FIRSTNAME. Title. City, Year.` shape
+    `_looks_like_bibliography` exists to catch — the text is gone from
+    the corpus entirely. Not misclassified: gone.
+
+    Measured 2026-09-11: 301 notes emitted across the corpus, 0 rejected,
+    so this is a latent path. The fix keeps the text in the body rather
+    than adding a diagnostic, because a count of lost prose is not a
+    substitute for the prose.
+    """
+
+    note = (
+        "3. CAIRD, EDWARD. The Evolution of Religion. Glasgow, 1893. "
+        "4. STIRLING, JAMES. The Secret of Hegel. London, 1865. "
+        "5. WALLACE, WILLIAM. Prolegomena. Oxford, 1894."
+    )
+    body = "Hegel writes at length on the Greek world and its religion.3 And so it stands."
+    work = corpus_works.CorpusWork(
+        code="h_en",
+        title="Test Hegel",
+        translator="T",
+        edition_year="1837",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        lang="eng",
+        page_furniture=True,
+    )
+    chunks = list(
+        corpus_parse._split_chapter_block(work, tmp_path / "x.pdf", "Chapter", f"{body} {note}")
+    )
+    all_text = " ".join(c.text for c in chunks)
+    assert "CAIRD, EDWARD" in all_text, "the rejected note must not disappear"
+    assert "WALLACE, WILLIAM" in all_text
