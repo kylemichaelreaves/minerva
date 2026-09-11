@@ -82,3 +82,106 @@ def test_dry_run_returns_real_id_for_existing_term(tmp_path: Path) -> None:
     real_id = _ensure_term(conn, "grc", term, dry_run=False)
     assert real_id > 0
     assert _ensure_term(conn, "grc", term, dry_run=True) == real_id
+
+
+# ---------- #543 / #556: section shapes the parser chain refuses ----------
+
+
+def test_note_sibling_sections_parse_to_a_locator():
+    """#543: the page-furniture pass emits editors' footnotes as sibling
+    chunks with `section` = "<heading>, ¶N.note". `_HEGEL_SECTION_RE`
+    anchors after the digits, so every one of them returned None and was
+    skipped — 301 chunks in the live corpus, measured 2026-09-11.
+
+    The `¶N.note` shape is deliberate: `section` feeds `_make_chunk_id`,
+    so numbering notes into the ¶ sequence would re-id every chunk after
+    each insertion.
+    """
+
+    from minerva.glossary_import import _section_payload
+
+    got = _section_payload("paragraph", "Editorial Introduction, ¶1.note")
+    assert got is not None
+    assert got["payload"]["paragraph"] == 1
+    assert got["payload"]["section"] == "Editorial Introduction"
+
+
+def test_over_cap_paragraph_pieces_parse_to_a_locator():
+    """The same anchor refused `¶N.k`, the pre-existing convention for
+    an over-cap paragraph split into pieces — 32 chunks live. #543
+    flagged this as likely but unverified; it reproduces."""
+
+    from minerva.glossary_import import _section_payload
+
+    got = _section_payload("paragraph", "May It Please Your Lordship, ¶1.2")
+    assert got is not None
+    assert got["payload"]["paragraph"] == 1
+
+
+def test_note_sibling_sorts_after_its_own_paragraph_and_before_the_next():
+    """A note belongs to its paragraph, so it must sort inside it —
+    otherwise the locator parses but orders wrongly, which is worse than
+    refusing."""
+
+    from minerva.glossary_import import _section_payload
+
+    keys = [
+        _section_payload("paragraph", f"Intro, {s}")["sort_key"]
+        for s in ("¶1", "¶1.note", "¶2")
+    ]
+    assert keys == sorted(keys), keys
+    assert len(set(keys)) == 3
+
+
+def test_an_out_of_range_verse_is_skipped_not_raised():
+    """#556: `_section_payload` documents "returns None when no parser
+    matches", and its caller has no try/except. `format_sort_key` sits
+    outside the try that catches LocationError, so a section the parser
+    accepts but the encoder rejects escapes as an exception and aborts
+    the whole glossary import. One chunk in the corpus does this:
+    `Lam 3:711` (#557)."""
+
+    from minerva.glossary_import import _section_payload
+
+    assert _section_payload("bcv", "Lam 3:711") is None
+
+
+def test_bekker_sections_still_resolve_through_the_bekker_branch():
+    """#556 moved `format_sort_key` inside the bekker branch's try, so
+    the success path through it needs pinning."""
+
+    from minerva.glossary_import import _section_payload
+
+    got = _section_payload("bekker", "1094a13")
+    assert got is not None
+    assert got["payload"]["kind"] == "bekker"
+    assert got["sort_key"]
+
+
+def test_declared_system_parser_resolves_when_no_fallback_matches():
+    """`A47` matches neither paragraph-local, bekker, nor the Hegel
+    shape, so it is the declared-system parser at the end of the chain
+    that resolves it — the branch #556 split in two.
+
+    Note `stephanus`/`514a` does *not* work as an example here: the
+    bekker fallback claims it first and returns a bekker payload, which
+    is worth knowing before writing a test against this chain.
+    """
+
+    from minerva.glossary_import import _section_payload
+
+    got = _section_payload("kant_ab", "A47")
+    assert got is not None
+    assert got["payload"]["kind"] == "kant_ab"
+    assert got["payload"]["page"] == 47
+
+
+def test_a_section_no_parser_matches_returns_none_silently(capsys):
+    """The ordinary skip: 56,675 chunks corpus-wide. It must stay silent
+    — #556 names only the malformed-locator case, and naming this one
+    would print once per skipped chunk."""
+
+    from minerva.glossary_import import _section_payload
+
+    assert _section_payload("stephanus", "not a locator at all") is None
+    assert capsys.readouterr().out == ""
