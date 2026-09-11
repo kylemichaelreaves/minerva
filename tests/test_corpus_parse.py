@@ -1420,3 +1420,39 @@ def test_editorial_heading_body_is_tagged_not_dropped(tmp_path):
     assert "Hegel delivered these lectures" in by_type["editorial"].text
     # The body chapter is untouched and still untagged.
     assert any(c.block_type is None and "owl of Minerva" in c.text for c in chunks)
+
+
+def test_block_type_precedence_heading_tag_over_work_default(tmp_path: Path):
+    """`_emit`'s `block_type=block_type or work.block_type` (split_paragraphic.py)
+    has two halves to protect, mirroring `pr_notes` in
+    `authors/hegel_works.py` (`locator="chapter"`, `block_type="note"`):
+
+    (a) with no heading-level tag, the work-level default ("note") still
+        applies — a bare `block_type=block_type` would silently wipe it.
+    (b) with a heading-level tag ("editorial"), it wins over the work-level
+        default rather than being clobbered by it.
+    """
+    work = corpus_works.CorpusWork(
+        code="x",
+        title="Test CorpusWork",
+        translator="T",
+        edition_year="2000",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        block_type="note",
+    )
+    text = (
+        "CHAPTER ONE\n\n"
+        "ordinary endnote body under the work's own note typing.\n\n"
+        "EDITORIAL INTRODUCTION\n\n"
+        "editorial body that must outrank the work's note default.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+    ordinary = next(c for c in chunks if "ordinary endnote body" in c.text)
+    editorial = next(c for c in chunks if "editorial body" in c.text)
+    # (a) No heading tag fired for the ordinary chapter — the work-level
+    # default survives instead of being overwritten with None.
+    assert ordinary.block_type == "note"
+    # (b) The editorial heading's tag outranks the work-level default.
+    assert editorial.block_type == "editorial"
