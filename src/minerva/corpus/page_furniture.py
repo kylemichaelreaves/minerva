@@ -55,7 +55,11 @@ _NOTE_OPEN_RE = re.compile(r"(?:(?<=\.)|(?<=^)|(?<=\s))(\d{1,3})\s*[.·•]\s+(?
 #: not before the whitespace — putting it before the whitespace inspects the
 #: preceding sentence's full stop and rejects "…the age. 135", which is the
 #: commonest case there is.
-_TRAILING_PAGE_RE = re.compile(r"\s+(?<!\d)(\d{2,3})\s*$")
+#: The leading run is atomic: whitespace can never be a digit, so
+#: backtracking into it can never make the rest of the pattern match, and
+#: allowing it gives the engine super-linear work on a long whitespace run
+#: for nothing. Same language, bounded cost.
+_TRAILING_PAGE_RE = re.compile(r"(?>\s+)(?<!\d)(\d{2,3})\s*$")
 
 
 #: A page number (or two — recto/verso running heads sometimes carry both)

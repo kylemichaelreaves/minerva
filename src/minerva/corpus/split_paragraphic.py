@@ -488,6 +488,24 @@ def _packed_paragraphs(paragraphs: list[str], floor: int | None) -> list[str]:
     return out
 
 
+def _strip_page_furniture(piece: str) -> tuple[str, str | None]:
+    """Pull the running head, trailing note block and page number off one
+    piece. Returns `(body, note_text)`.
+
+    The page number sits AFTER the note block on the printed page, so it
+    lands in `note_text` rather than in the body — measured, 235 of 279
+    split note blocks (84%) end in one. Strip both sides or every note
+    chunk ships with a stray number.
+    """
+
+    piece = page_furniture.strip_running_head(piece, page_furniture.RUNNING_HEADS_LWH)
+    piece, note_text = page_furniture.split_trailing_notes(piece)
+    piece = page_furniture.strip_trailing_page_number(piece)
+    if note_text:
+        note_text = page_furniture.strip_trailing_page_number(note_text)
+    return piece, note_text
+
+
 def _split_chapter_block(
     work: CorpusWork,
     path: Path,
@@ -503,28 +521,16 @@ def _split_chapter_block(
     for idx, para in enumerate(paragraphs, 1):
         for label, piece in _paragraph_pieces(work, idx, para):
             section = f"{heading}, {label}" if heading else label
+            note_text: str | None = None
             if work.page_furniture:
-                piece = page_furniture.strip_running_head(
-                    piece, page_furniture.RUNNING_HEADS_LWH
-                )
-                piece, note_text = page_furniture.split_trailing_notes(piece)
-                piece = page_furniture.strip_trailing_page_number(piece)
-                # The page number sits AFTER the note block on the printed
-                # page, so it lands in `note_text`, not in the body. Measured:
-                # 235 of 279 split note blocks (84%) end in one. Strip both
-                # sides or every note chunk ships with a stray number.
-                if note_text:
-                    note_text = page_furniture.strip_trailing_page_number(note_text)
-            else:
-                note_text = None
-            note = None
-            if note_text:
-                # A footnote split out of an editorial chunk is still
-                # editorial apparatus — tagging it "note" instead breaks
-                # `groupEditorialRuns` on the Reader side, fragmenting one
-                # disclosure into several (#533 review finding 1).
-                note_block_type = "editorial" if block_type == "editorial" else "note"
-                note = _emit(
+                piece, note_text = _strip_page_furniture(piece)
+            # A footnote split out of an editorial chunk is still
+            # editorial apparatus — tagging it "note" instead breaks
+            # `groupEditorialRuns` on the Reader side, fragmenting one
+            # disclosure into several (#533 review finding 1).
+            note_block_type = "editorial" if block_type == "editorial" else "note"
+            note = (
+                _emit(
                     work,
                     path,
                     section=f"{section}.note",
@@ -532,6 +538,9 @@ def _split_chapter_block(
                     book_label=heading or None,
                     block_type=note_block_type,
                 )
+                if note_text
+                else None
+            )
             chunk = _emit(
                 work,
                 path,
