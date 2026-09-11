@@ -42,11 +42,16 @@ def build(conn: sqlite3.Connection, *, verbose: bool = False) -> dict[str, int]:
     leaving a half-built table served as truth.
 
     Performance: a full corpus rebuild touches every chunk_lemmas
-    row once. On the current corpus (~8M lemma rows) the SELECT
-    streams in ~5s and the INSERTs add another ~10s for ~8M
-    lemma_counts rows. The end result swaps a 16-36s read-time
-    GROUP BY for a millisecond seek — the rebuild cost is paid once
-    per ``minerva index`` rather than once per user request.
+    row once. Measured 2026-09-10 — 26,122,391 chunk_lemmas rows in,
+    4,487,900 lemma_counts rows out, 205.2s end to end. (This docstring
+    read "~8M lemma rows … ~5s … ~10s" until then; the corpus grew 3.2x
+    and the rebuild ~13x, so do not size work off the old figures.)
+
+    The end result still swaps a 16-36s read-time GROUP BY for a
+    millisecond seek. But "paid once per ``minerva index`` rather than
+    once per user request" understates it now: every ``terms lemmatize``
+    pays it too, in full, however few chunks it touched, because there
+    is no scope parameter. #548 tracks scoping it.
     """
 
     t0 = time.time()

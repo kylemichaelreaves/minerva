@@ -237,10 +237,12 @@ def test_split_by_chapter_uses_heading_plus_paragraph_index(tmp_path: Path):
     assert any("preface text we keep" in c.text for c in chunks)
 
 
-def test_split_by_chapter_drops_editorial_sections(tmp_path: Path):
+def test_split_by_chapter_tags_editorial_sections(tmp_path: Path):
     """Bodies under editor / translator headings ("Editorial Introduction",
-    "Glossary", "Bibliography") must not be emitted as chunks — otherwise
-    they get attributed to the work's author downstream."""
+    "Glossary", "Bibliography") are kept but tagged `block_type='editorial'`
+    — so they can be attributed to the editor and demoted/collapsed
+    downstream, instead of the Hegel-attributed chapter bodies around them.
+    Before #534 this material was dropped outright."""
     text = (
         "EDITORIAL INTRODUCTION\n\n"
         "para of editor's intro that must not be attributed to Hegel\n\n"
@@ -255,25 +257,31 @@ def test_split_by_chapter_drops_editorial_sections(tmp_path: Path):
     )
     chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf"))
     sections = [c.section for c in chunks]
-    bodies = [c.text for c in chunks]
+    editorial = [c for c in chunks if c.block_type == "editorial"]
+    non_editorial = [c for c in chunks if c.block_type is None]
     assert "Chapter One, ¶1" in sections
     assert "Chapter Two, ¶1" in sections
-    # None of the editorial bodies should survive.
-    assert not any("editor" in b.lower() for b in bodies)
-    assert not any("glossary" in b.lower() for b in bodies)
-    assert not any("abbreviation: meaning" in b for b in bodies)
-    # And no chunk should carry an editorial heading as its locator.
-    assert not any("Editorial" in s for s in sections)
-    assert not any("Glossary" in s for s in sections)
+    # The editorial bodies survive, tagged, not attributed to Hegel.
+    assert any("editor" in c.text.lower() for c in editorial)
+    assert any("glossary" in c.text.lower() for c in editorial)
+    assert any("abbreviation: meaning" in c.text for c in editorial)
+    # The real chapter bodies are untagged and untouched.
+    assert not any("editor" in c.text.lower() for c in non_editorial)
+    assert not any("glossary" in c.text.lower() for c in non_editorial)
+    assert any("real chapter body" in c.text for c in non_editorial)
+    assert any("second real chapter body" in c.text for c in non_editorial)
 
 
-def test_split_by_chapter_drops_ocr_garbled_editorial_headings(tmp_path: Path):
+def test_split_by_chapter_tags_ocr_garbled_editorial_headings(tmp_path: Path):
     """OCR mangles "Editorial Introduction" into many letter-spaced forms;
-    the editorial filter normalizes them away before matching."""
+    the editorial filter normalizes them away before matching, and the
+    matched body is kept but tagged `block_type='editorial'`."""
     text = "EDITORIAL INTR O DUCTION\n\neditor's commentary text\n\nCHAPTER ONE\n\nHegel body\n"
     chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf"))
-    assert all("editor" not in c.text.lower() for c in chunks)
-    assert any(c.section == "Chapter One, ¶1" for c in chunks)
+    assert any(
+        c.block_type == "editorial" and "editor" in c.text.lower() for c in chunks
+    )
+    assert any(c.section == "Chapter One, ¶1" and c.block_type is None for c in chunks)
 
 
 def test_split_by_chapter_drops_bibliography_blurb_bodies(tmp_path: Path):
@@ -299,9 +307,11 @@ def test_split_by_chapter_drops_bibliography_blurb_bodies(tmp_path: Path):
 
 
 def test_split_by_chapter_honors_per_work_skip_headings(tmp_path: Path):
-    """`CorpusWork.skip_headings` drops a specific edition's translator/editor
-    preface that the global filter intentionally keeps (Hegel writes his
-    own prefaces in PhG, PR, etc., so "Preface" can't be globally banned)."""
+    """`CorpusWork.skip_headings` tags a specific edition's translator/editor
+    preface `block_type='editorial'` rather than attributing it to Hegel,
+    for a heading the global filter intentionally keeps (Hegel writes his
+    own prefaces in PhG, PR, etc., so "Preface" can't be globally banned).
+    Before #534 the matched body was dropped outright."""
     work = corpus_works.CorpusWork(
         code="x",
         title="Test CorpusWork",
@@ -319,9 +329,11 @@ def test_split_by_chapter_honors_per_work_skip_headings(tmp_path: Path):
         "real Hegel paragraph\n"
     )
     chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
-    bodies = [c.text for c in chunks]
-    assert not any("editor preface" in b for b in bodies)
-    assert any("real Hegel paragraph" in b for b in bodies)
+    editorial = [c for c in chunks if c.block_type == "editorial"]
+    non_editorial = [c for c in chunks if c.block_type is None]
+    assert any("editor preface" in c.text for c in editorial)
+    assert not any("editor preface" in c.text for c in non_editorial)
+    assert any("real Hegel paragraph" in c.text for c in non_editorial)
 
 
 def test_split_by_chapter_skip_headings_default_keeps_preface(tmp_path: Path):
@@ -333,9 +345,123 @@ def test_split_by_chapter_skip_headings_default_keeps_preface(tmp_path: Path):
     assert any("Hegel's own preface body" in c.text for c in chunks)
 
 
+def test_page_furniture_is_separated_for_works_that_opt_in(tmp_path):
+    text = (
+        "CHAPTER ONE\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n"
+    )
+    # `_make_work` does not take `page_furniture`; build the work directly.
+    work = corpus_works.CorpusWork(
+        code="lwh",
+        title="Lectures",
+        translator="T",
+        edition_year="2011",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        page_furniture=True,
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+
+    body = [c for c in chunks if c.block_type is None]
+    notes = [c for c in chunks if c.block_type == "note"]
+    assert len(body) == 1 and len(notes) == 1
+    assert body[0].text == "Caesar's Commentaries, belong here too.4 In particular."
+    assert notes[0].text == "4. On Herodotus, see the Fragment."
+    # Sibling numbering, NOT a renumbered ¶ — `section` feeds `chunk_id`, so
+    # renumbering would churn every chunk after the insertion.
+    assert notes[0].section.endswith(".note")
+
+
+def test_page_furniture_strips_running_head_with_no_trailing_notes(tmp_path: Path):
+    """Most pages carry a running head but end mid-paragraph with no note
+    block at all — the common case, and the one that exercises the
+    `if note_text:` branch's False side inside the opt-in pass."""
+    work = corpus_works.CorpusWork(
+        code="lwh",
+        title="Lectures",
+        translator="T",
+        edition_year="2011",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        page_furniture=True,
+    )
+    text = "CHAPTER ONE\n\nTHE LECTURES OF 1822-3 Ordinary prose with no note block.\n"
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+    notes = [c for c in chunks if c.block_type == "note"]
+    body = [c for c in chunks if c.block_type is None]
+    assert notes == []
+    assert len(body) == 1
+    assert body[0].text == "Ordinary prose with no note block."
+
+
+def test_page_furniture_note_split_preserves_editorial_block_type(tmp_path: Path):
+    """A footnote split out of an editorial chunk must itself stay
+    `block_type='editorial'`, or the Reader's `groupEditorialRuns` sees
+    editorial/note/editorial and fragments one disclosure into several
+    (#533 review finding 1). A note split from a non-editorial chunk
+    still gets plain `block_type='note'`."""
+    work = corpus_works.CorpusWork(
+        code="lwh",
+        title="Lectures",
+        translator="T",
+        edition_year="2011",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        page_furniture=True,
+    )
+    text = (
+        "EDITORIAL INTRODUCTION\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n\n"
+        "CHAPTER ONE\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+
+    editorial = [c for c in chunks if c.block_type == "editorial"]
+    notes = [c for c in chunks if c.block_type == "note"]
+    body = [c for c in chunks if c.block_type is None]
+
+    # Editorial intro's body AND its split-out footnote are both editorial.
+    assert len(editorial) == 2
+    assert any("Caesar's Commentaries" in c.text for c in editorial)
+    assert any("On Herodotus" in c.text for c in editorial)
+
+    # Chapter One's parent block_type is None, so its footnote still gets
+    # plain "note", not "editorial".
+    assert len(body) == 1
+    assert "Caesar's Commentaries" in body[0].text
+    assert len(notes) == 1
+    assert "On Herodotus" in notes[0].text
+
+
+def test_split_by_chapter_ignores_page_furniture_when_not_opted_in(tmp_path: Path):
+    """The `page_furniture=False` default (guarding the opt-in) must leave
+    running heads, trailing notes, and page numbers untouched."""
+    text = (
+        "CHAPTER ONE\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n"
+    )
+    chunks = list(
+        corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf")
+    )
+    notes = [c for c in chunks if c.block_type == "note"]
+    assert notes == []
+    assert any("THE LECTURES OF 1822-3" in c.text for c in chunks)
+    assert any(c.text.rstrip().endswith("135") for c in chunks)
+
+
 def test_bibliographical_note_heading_is_treated_as_editorial(tmp_path: Path):
-    """Variants of "Bibliographical Note" must be dropped — the older list
-    only matched `bibliography`, which isn't a substring of `bibliographical`."""
+    """Variants of "Bibliographical Note" must be classified editorial —
+    the older list only matched `bibliography`, which isn't a substring of
+    `bibliographical`. (Classification only: since #534 a matched heading's
+    body is tagged `block_type='editorial'`, not dropped.)"""
     assert corpus_parse._is_editorial_heading("Bibliographical Note") is True
     assert (
         corpus_parse._is_editorial_heading("Bibliographical Note II. Some Books About Hegel")
@@ -1383,3 +1509,62 @@ def test_no_floor_leaves_paragraph_chunking_untouched(tmp_path: Path):
     path = tmp_path / "dionysos_dithyramben.html"
     chunks = list(corpus_parse.split_by_chapter(_VERSE_BLOCK, _verse_work(None), path))
     assert len(chunks) == 7
+
+
+def test_editorial_heading_body_is_tagged_not_dropped(tmp_path):
+    """Apparatus is kept and marked, so a reader can see it and search can
+    demote it. Before #534 the body was deleted outright."""
+    text = (
+        "CHAPTER ONE\n\n"
+        "The owl of Minerva spreads its wings only with the falling of dusk.\n\n"
+        "EDITORIAL INTRODUCTION\n\n"
+        "Hegel delivered these lectures five times between 1822 and 1831.\n"
+    )
+    # `_make_work` is the existing helper at tests/test_corpus_parse.py:47.
+    # `locator="chapter"` selects `split_by_chapter`, the splitter work 712
+    # uses and the one carrying the editorial-heading sweep.
+    chunks = list(
+        corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf")
+    )
+
+    by_type = {c.block_type: c for c in chunks}
+    assert "editorial" in by_type, [c.section for c in chunks]
+    assert "Hegel delivered these lectures" in by_type["editorial"].text
+    # The body chapter is untouched and still untagged.
+    assert any(c.block_type is None and "owl of Minerva" in c.text for c in chunks)
+
+
+def test_block_type_precedence_heading_tag_over_work_default(tmp_path: Path):
+    """`_emit`'s `block_type=block_type or work.block_type` (split_paragraphic.py)
+    has two halves to protect, mirroring `pr_notes` in
+    `authors/hegel_works.py` (`locator="chapter"`, `block_type="note"`):
+
+    (a) with no heading-level tag, the work-level default ("note") still
+        applies — a bare `block_type=block_type` would silently wipe it.
+    (b) with a heading-level tag ("editorial"), it wins over the work-level
+        default rather than being clobbered by it.
+    """
+    work = corpus_works.CorpusWork(
+        code="x",
+        title="Test CorpusWork",
+        translator="T",
+        edition_year="2000",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        block_type="note",
+    )
+    text = (
+        "CHAPTER ONE\n\n"
+        "ordinary endnote body under the work's own note typing.\n\n"
+        "EDITORIAL INTRODUCTION\n\n"
+        "editorial body that must outrank the work's note default.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+    ordinary = next(c for c in chunks if "ordinary endnote body" in c.text)
+    editorial = next(c for c in chunks if "editorial body" in c.text)
+    # (a) No heading tag fired for the ordinary chapter — the work-level
+    # default survives instead of being overwritten with None.
+    assert ordinary.block_type == "note"
+    # (b) The editorial heading's tag outranks the work-level default.
+    assert editorial.block_type == "editorial"

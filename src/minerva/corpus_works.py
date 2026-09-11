@@ -69,6 +69,12 @@ class CorpusWork:
     # is apparatus rather than Hegel's own Vorrede — too risky to drop
     # globally (Hegel writes plenty of his own).
     skip_headings: tuple[str, ...] = ()
+    #: Run the page-furniture pass (`corpus/page_furniture.py`) over each
+    #: chunk: strip the running head, split a trailing editors' note block
+    #: into a sibling chunk, drop the page number. Opt-in per work because it
+    #: is only correct for page-image PDF extractions where one chunk is
+    #: roughly one page (#533).
+    page_furniture: bool = False
     # Front-matter headings to capture under `locator="section"`. The
     # default §-splitter drops everything before the first `§N` marker,
     # which silently loses Hegel's own Preface / Introduction in

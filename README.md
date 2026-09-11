@@ -15,13 +15,16 @@ Landing atlas (`make generate-authors`).
 
 | Era | Authors / corpora | Typical sources |
 |-----|-------------------|-----------------|
-| Foundational / epic | Hebrew Bible (MT), Homer | Sefaria/XML, Perseus TEI |
+| Foundational / epic | Hebrew Bible (MT), Homer | openscriptures/morphhb (WLC), Perseus TEI |
+| Greek tragedy / fable / elegy | Aeschylus, Sophocles, Euripides, Aesop (Babrius), Theognis | Perseus TEI, First1KGreek, el.wikisource, archive.org |
 | Pre-Socratics | Presocratic philosophers (Diels) | OCR text |
 | Classical | Plato, Aristotle, Lucretius, Cicero, Epictetus, Marcus Aurelius | Perseus, PG, Wikisource |
-| Biblical translations | Septuagint, New Testament, Vulgate | First1KGreek, SBLGNT, vulsearch |
-| Patristic / medieval | Augustine, Quran, Aquinas | Wikisource, Corpus Thomisticum, Tanzil XML |
+| Biblical translations | Septuagint, New Testament, Vulgate | First1KGreek, SBLGNT, Clementine Vulgate (BibleGet mirror) |
+| Vernacular Bibles | King James, Luther 1545 & 1912, Sacy | gratis-bible/bible |
+| Patristic / medieval | Augustine, Origen, Quran, Aquinas | Wikisource, CCEL, Corpus Thomisticum, Tanzil XML |
 | Early modern | Descartes, Hobbes, Pascal, Spinoza, Locke, Hume, Rousseau | PG, Wikisource, zeno.org |
-| Modern | Kant, Hegel, Marx, Nietzsche | zeno.org, local PDFs/EPUBs, PG |
+| Modern | Kant, Hegel, Schiller, Marx, Nietzsche | zeno.org, local PDFs/EPUBs, PG, eKGWB |
+| 18th–19th-c. French | Boulainvilliers, Gobineau, Renan | archive.org / Gallica OCR |
 
 **Adding a new author?** See [`docs/INGESTION.md`](docs/INGESTION.md) for the full
 checklist (downloader → splitter → ingest → index → embed → cross-references →
@@ -71,8 +74,8 @@ for experiments.
 | `ingest/registry.py` / `store/` | Parse → JSONL → SQLite + FTS5 |
 | `authors/*_works.py` | Per-author work tables for PDF/EPUB/HTML ingest |
 | `retrieve.py` / `embed.py` | Hybrid search |
-| `agent.py` | Citation-strict prompts + answer composition |
-| `server.py` / `http/handlers/` | REST API for the SPA |
+| `agent/` | Citation-strict prompts + answer composition |
+| `http/` (`serve.py` · `router.py` · `handlers/`) | REST API for the SPA (`server.py` is a re-export shim, not the server) |
 
 Download scripts are grouped under `perseus/` — biblical (`download_hebrew_mt.py`,
 `download_first1kgreek_lxx.py`, `download_sblgnt_nt.py`, `download_vulgate.py`,
@@ -119,7 +122,7 @@ python3 perseus/download_aquinas.py            # Summa Theol. + Summa c. Gent.  
 
 # 3. (optional) Add Hegel English translations to data/hegel/
 #    Drop your local PDFs/EPUBs (Pinkard PhG, Wood/Nisbet PR, etc.)
-#    and add an entry per file in src/minerva/hegel_works.py.
+#    and add an entry per file in src/minerva/authors/hegel_works.py.
 
 # 4. (optional) Scrape German originals from zeno.org
 python3 perseus/download_hegel_de.py    # ~25 min: PhG, PR, Enz, SoL
@@ -223,8 +226,8 @@ actually in scope.
   German is decoded from zeno's ISO-8859-1 source into UTF-8 at scrape
   time; umlauts and ß round-trip cleanly through the index.
 - **Why SQLite**: full-text indexing, vector blobs, and metadata all
-  live in one file with no daemon. Tens of thousands of chunks across
-  20+ corpora are well within brute-force cosine in numpy.
+  live in one file with no daemon. 427k chunks across 40 corpora are
+  well within brute-force cosine in numpy.
 
 ## Licensing
 
@@ -266,8 +269,10 @@ negotiate.
   (Anthropic, OpenAI, Ollama, null): done.
 - HTTP server + SolidJS frontend: done (`minerva serve --static web/dist`).
 - Gold QA / locator eval and scorer: done. Baseline (BM25 only,
-  English Plato) is **work recall 1.00, section recall 0.767,
-  MRR 0.643** on 30 questions.
+  English Plato) is **work recall 0.933, section recall 0.733,
+  section MRR 0.579** on 30 questions (`minerva eval`, re-measured
+  2026-09-07; the figures this line carried until then dated from the
+  initial commit and no longer reproduce — see #526).
 - LoRA / format fine-tuning: **deferred by design**. The retrieval
   baseline passes the gating threshold; fine-tuning remains a follow-up
   only if format/tone defects show up that cannot be fixed by prompting.

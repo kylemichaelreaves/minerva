@@ -91,7 +91,6 @@ src/Reader/components/TargetLangToggle.tsx
 src/Reader/components/WordInfoBlock.tsx
 src/Reader/components/WordRun.tsx
 src/Reader/index.tsx
-src/Reader/reader.css
 src/Reader/useSelectionToolbar.tsx
 src/Reader/useTermCard.tsx
 src/Reader/useWordHoverTranslations.tsx
