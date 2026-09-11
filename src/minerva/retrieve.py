@@ -157,8 +157,12 @@ def _verse_work_ids(conn: sqlite3.Connection) -> np.ndarray:
 # them to the responsible translator/editor (NEVER the author), so neither the
 # LLM prompt nor the citation can present a footnote as the philosopher's
 # words. See 2b in docs/block-structure-remediation-plan.md.
-_APPARATUS_TYPES = ("note", "cast")
-_APPARATUS_LABEL = {"note": "editorial note", "cast": "cast list"}
+_APPARATUS_TYPES = ("note", "cast", "editorial")
+_APPARATUS_LABEL = {
+    "note": "editorial note",
+    "cast": "cast list",
+    "editorial": "editorial apparatus",
+}
 
 # The author's OWN words, but paratextual rather than discursive — Nachlass
 # title-page drafts and Briefe valedictions that end "... Von Friedrich

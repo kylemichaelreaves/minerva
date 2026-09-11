@@ -910,3 +910,32 @@ def test_vector_search_exempts_verse_works_from_the_floor(tmp_path: Path):
     )
     assert "verse_ed" in hits  # 24 chars, exempt
     assert "sig" not in hits  # 28 chars, paragraph-addressed
+
+
+def test_editorial_apparatus_is_capped_like_notes():
+    """An editors' introduction may not crowd out the author (#534).
+
+    Same policy as notes and cast lists: apparatus supports the text, so it
+    takes at most `_APPARATUS_MAX_SHARE` of a result set.
+    """
+    assert "editorial" in retrieve._APPARATUS_TYPES
+    assert "editorial" in retrieve._CAPPED_TYPES
+
+
+def test_editorial_locator_names_the_editor_not_the_author():
+    loc = retrieve.format_locator(
+        {
+            "author": "Hegel",
+            "work": "Lectures on the Philosophy of World History",
+            "section": "Editorial Introduction, ¶1",
+            "block_type": "editorial",
+            "translator": "Hodgson / Brown",
+        }
+    )
+    # `_APPARATUS_LABEL.get(block_type, "editorial")` falls back to the bare
+    # word "editorial" for an UNKNOWN block_type too, so `"editorial" in
+    # loc.lower()` can't fail whether or not the explicit dict entry
+    # exists. Assert the full label text, which only the explicit
+    # "editorial" -> "editorial apparatus" entry produces.
+    assert "editorial apparatus" in loc
+    assert "Hodgson" in loc
