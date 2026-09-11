@@ -915,6 +915,12 @@ In `_split_chapter_block`, after computing `piece` and before `_emit`, when `wor
                 )
                 piece, note_text = page_furniture.split_trailing_notes(piece)
                 piece = page_furniture.strip_trailing_page_number(piece)
+                # The page number sits AFTER the note block on the printed
+                # page, so it lands in `note_text`, not in the body. Measured:
+                # 235 of 279 split note blocks (84%) end in one. Strip both
+                # sides or every note chunk ships with a stray number.
+                if note_text:
+                    note_text = page_furniture.strip_trailing_page_number(note_text)
             else:
                 note_text = None
             chunk = _emit(
