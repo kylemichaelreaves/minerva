@@ -14,10 +14,22 @@ mismatches are `Aquinas`/`Augustine` scripture quotes where
 `source_form_snapshot` deliberately records the citation formula plus
 the quote ("in Psalmo: cor meum ...") while the span covers only the
 quote — the span is right, the snapshot is just wider. That population
-was closed as *accepted, not a bug*, and reproduces at a difflib ratio
-of 0.6 or higher between the snapshot and the actual slice. This script
-reuses that exact test rather than re-deriving a threshold, and leaves
-those rows untouched.
+was closed as *accepted, not a bug*, and this script leaves it untouched.
+
+It used to identify that population by a difflib ratio of 0.6 or higher
+between snapshot and slice, reusing #414's own threshold. **That test
+could not do the job** (#545): a span that has *shifted*, because text
+changed upstream of it inside a chunk whose `chunk_id` survived, also
+scores high — measured on the live index 2026-09-11, two shifted spans
+scored 0.857 and 0.889 while an accepted one scored 0.887, so they
+interleave and no threshold separates them. Containment is not the
+answer either, because `refs/rules/scripture_cite/lat.py` caps the
+snapshot at 120 characters: 9 of the 212 live accepted rows have a
+snapshot that stops mid-quote, so neither string contains the other and
+a containment test would delete them. What the two populations do not
+share is *where* they diverge — an accepted snapshot drops a whole
+citation formula ending in a colon, a shifted one cuts mid-word — so
+that is what `_is_accepted_wide_snapshot` now tests.
 
 Dry-run by default — prints what would be deleted. Pass `--execute` to
 actually delete. Take a snapshot first::
@@ -46,8 +58,8 @@ skip cache had been silently withholding (#459).
 from __future__ import annotations
 
 import argparse
-import difflib
 import os
+import re
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -55,10 +67,27 @@ from pathlib import Path
 
 _DEFAULT_DB = Path(__file__).resolve().parents[1] / "data" / "index.sqlite"
 
-# #414's own threshold for "the snapshot is a wider, deliberate superset
-# of the span" — reused rather than re-derived so this script cannot
-# silently narrow or widen a population someone already reviewed.
-_ACCEPTED_WIDE_SNAPSHOT_RATIO = 0.6
+# #414's accepted population has exactly one shape: a citation formula,
+# a colon, then the quote the span actually covers ("in Psalmo: cor meum
+# ..." spanning only "cor meum ..."). Both halves of the test below come
+# from that shape rather than from a tuned number.
+#
+# It replaced a difflib ratio >= 0.6 in #545, which could not tell the
+# accepted shape from a span that had *shifted* because text moved
+# upstream of it: measured on the live index 2026-09-11, two shifted
+# spans scored 0.857 and 0.889 on either side of an accepted one at
+# 0.887, so no threshold separates them. Containment does not work
+# either — `source_form_snapshot` is capped at 120 characters, so a long
+# accepted row's snapshot stops mid-quote and neither string contains
+# the other (9 of the 212 live accepted rows).
+#
+# Derived from that same population: all 212 dropped prefixes end in
+# ": ", are 8-23 characters long, and leave an aligned overlap of 17-112
+# characters. 8 is the floor for that overlap — comfortably under the
+# observed 17, and long enough that a short snapshot cannot align by
+# accident.
+_MIN_ALIGNED_OVERLAP = 8
+_DROPPED_FORMULA_RE = re.compile(r":\s*$")
 
 
 def resolve_db_path() -> Path:
@@ -83,9 +112,22 @@ class StaleXref:
 def _is_accepted_wide_snapshot(snapshot: str, actual: str) -> bool:
     """#414: the span is correct and the snapshot is a deliberately wider
     superset of it (a citation formula plus the quote). Not a violation
-    to repair."""
+    to repair.
 
-    return difflib.SequenceMatcher(None, snapshot, actual).ratio() >= _ACCEPTED_WIDE_SNAPSHOT_RATIO
+    True when `actual` picks up exactly where a dropped citation formula
+    in `snapshot` leaves off — the two agree from that cut onward, for
+    as far as the shorter of them runs, and what was cut ends in a
+    colon. A span that has merely *shifted* either fails to align at all
+    or aligns mid-word, and is not exempted (#545).
+    """
+
+    if len(actual) < _MIN_ALIGNED_OVERLAP:
+        return False
+    for cut in range(1, len(snapshot) - _MIN_ALIGNED_OVERLAP + 1):
+        overlap = min(len(snapshot) - cut, len(actual))
+        if snapshot[cut : cut + overlap] == actual[:overlap]:
+            return bool(_DROPPED_FORMULA_RE.search(snapshot[:cut]))
+    return False
 
 
 def find_stale_xrefs(conn: sqlite3.Connection) -> list[StaleXref]:

@@ -143,6 +143,16 @@ class FormulaicQuoteRule:
                 source_chunk_id=chunk.chunk_id,
                 source_span_start=m.start("quote"),
                 source_span_end=m.end("quote"),
+                # The formula plus the quote, capped at 120 — the only
+                # place `source_form_snapshot` is truncated anywhere in
+                # refs. 120 is borrowed from `_make_chunk_id`'s hash
+                # window and means something different here, so do not
+                # read the two as linked. The consequence is not local:
+                # a quote longer than the cap leaves a snapshot that
+                # stops mid-word, so the snapshot is neither equal to
+                # nor a superstring of the span it describes, and any
+                # consumer testing for containment misreads those rows
+                # as damaged (#545 — 9 of 212 live rows).
                 source_form_snapshot=m.group(0)[:120],
                 target_author=self.target_author,
                 target_work=self.target_work,

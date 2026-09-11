@@ -224,6 +224,17 @@ def audit_xref_source_span(conn: sqlite3.Connection) -> Result:
     distinct shapes follow from the same cause: a span that now runs past
     the end of a chunk that got shorter, and a span still in range whose
     slice no longer equals the phrase that was recorded there.
+
+    A third shape is counted here and is **not** damage: #414's accepted
+    population, where the snapshot deliberately records a citation
+    formula plus the quote while the span covers only the quote. Those
+    are `lat` and are why this invariant does not reach zero. Note when
+    reading them that `refs/rules/scripture_cite/lat.py` caps the
+    snapshot at 120 characters, so the longest of them stop mid-word --
+    the snapshot does not contain the slice and the slice does not
+    contain the snapshot. `repair_stale_xrefs.py` distinguishes them by
+    alignment rather than by similarity or containment, both of which
+    fail on this population (#545).
     """
 
     result = Result(name="xref_source_span")
