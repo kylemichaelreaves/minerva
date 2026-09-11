@@ -368,7 +368,17 @@ def _surface_sites(text: str, forms: tuple[str, ...]) -> list[tuple[int, int, st
 # ──────────────────────────────────────────────────────────────────
 
 
-_HEGEL_SECTION_RE = re.compile(r"^(?:(.+),\s*)?[¶§]\s*(\d+)\s*$")
+#: Hegel-style paragraph locator, with an optional dotted suffix.
+#:
+#: The suffix covers two conventions that both hang a sibling off a
+#: paragraph without renumbering it: `¶N.k` for an over-cap paragraph
+#: split into pieces, and `¶N.note` for an editors' footnote lifted out
+#: by the page-furniture pass. Both exist because `section` feeds
+#: `_make_chunk_id` -- numbering either into the ¶ sequence would re-id
+#: every chunk after the insertion point. This pattern anchored straight
+#: after the digits until #543, so all 333 of them parsed to nothing and
+#: were silently skipped.
+_HEGEL_SECTION_RE = re.compile(r"^(?:(.+),\s*)?[¶§]\s*(\d+)(?:\.([A-Za-z0-9]+))?\s*$")
 _PARAGRAPH_LOCAL_RE = re.compile(r"^(\d+)\.[¶§](\d+)$")
 
 
@@ -403,12 +413,10 @@ def _section_payload(citation_system: str, section: str) -> dict[str, Any] | Non
         if kind == "bekker":
             try:
                 payload = locations.parse_section("bekker", section)
+                sort_key = locations.format_sort_key("bekker", payload)
             except locations.LocationError:
                 continue
-            return {
-                "payload": payload,
-                "sort_key": locations.format_sort_key("bekker", payload),
-            }
+            return {"payload": payload, "sort_key": sort_key}
         m = _PARAGRAPH_LOCAL_RE.match(section)
         if m:
             chapter = int(m.group(1))
@@ -428,26 +436,52 @@ def _section_payload(citation_system: str, section: str) -> dict[str, Any] | Non
     if m:
         prefix = (m.group(1) or "").strip()
         paragraph = int(m.group(2))
+        piece = m.group(3) or ""
         payload = {"kind": "paragraph", "paragraph": paragraph}
         if prefix:
             payload["section"] = prefix
+        if piece:
+            payload["piece"] = piece
         # Prefix string is sorted lexically and is roughly in document
         # order for Hegel (Vorrede < Einleitung < A < B < C). Imperfect
         # but the Q2 ordering query only needs reasonable monotonicity
         # within a single work.
+        # A sibling sorts *inside* its own paragraph: the suffix is
+        # appended rather than folded into the number, so "00001" <
+        # "00001.note" < "00002" holds lexically and a plain ¶N keeps
+        # the exact key it had before #543. Numeric pieces are padded so
+        # ¶1.10 sorts after ¶1.2 rather than before it, and pieces sort
+        # ahead of notes because digits precede letters.
+        suffix = f".{int(piece):03d}" if piece.isdigit() else (f".{piece}" if piece else "")
         return {
             "payload": payload,
-            "sort_key": f"v0:paragraph:{prefix}::{paragraph:05d}",
+            "sort_key": f"v0:paragraph:{prefix}::{paragraph:05d}{suffix}",
         }
 
     try:
         payload = locations.parse_section(citation_system, section)
     except locations.LocationError:
+        # No parser matched. The ordinary, expected outcome for the
+        # 57,007 chunks whose citation_system has no locator grammar at
+        # all (`aquinas`, `augustine`, `diels_kranz`) -- silent by
+        # design, and counted by the caller.
         return None
-    return {
-        "payload": payload,
-        "sort_key": locations.format_sort_key(citation_system, payload),
-    }
+    try:
+        # `format_sort_key` sat inside the block above until #556, where
+        # its failure was indistinguishable from "no parser matched".
+        # It is a different event: the section *did* parse, and the
+        # payload it produced is out of range -- a corpus defect, not an
+        # unsupported locator. It raises the same LocationError, from a
+        # function documented to return None, and the caller has no
+        # handler, so one malformed verse aborted the whole import.
+        sort_key = locations.format_sort_key(citation_system, payload)
+    except locations.LocationError as exc:
+        # Named, not merely counted: `occurrences_unparseable_locator`
+        # tells an operator how many, never which, and this class is
+        # rare enough to name every time (one chunk corpus-wide, #557).
+        print(f"glossary: skipping malformed locator {section!r}: {exc}")
+        return None
+    return {"payload": payload, "sort_key": sort_key}
 
 
 def _context_snippet(text: str, start: int, end: int, *, radius: int = 40) -> str:
