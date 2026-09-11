@@ -282,6 +282,36 @@ def test_editorial_heading_catches_ocr_variants():
     assert corpus_parse._is_editorial_heading("Listof Abbreviations") is True
 
 
+def test_editorial_heading_catches_ocr_letter_substitution():
+    # Spacing damage was already handled; letter substitution was not.
+    # Both labels are real, from work 712 (Hegel, Lectures on the
+    # Philosophy of World History), ords 10 and 475.
+    assert corpus_parse._is_editorial_heading("Editorial Introouctjon") is True
+    assert corpus_parse._is_editorial_heading("Bjbljography") is True
+
+
+def test_editorial_heading_fuzzy_does_not_fire_on_real_headings():
+    # The length>=12 floor is load-bearing: _EDITORIAL_PHRASES holds short
+    # substring-matched entries ("contents", "glossary", "foreword") that
+    # would otherwise fuzzy-match ordinary chapter titles.
+    for label in [
+        "The Consummate Religion",
+        "Conscience",
+        "The Content of Religion",
+        "Second Part: Determinate Religion",
+        "The Oriental World",
+        "Introduction",
+        "Preface",
+    ]:
+        assert corpus_parse._is_editorial_heading(label) is False, label
+
+
+def test_editorial_heading_fuzzy_rejects_truncated_labels():
+    # Truncation, not substitution. Too short to tell from a real heading,
+    # so deliberately NOT matched.
+    assert corpus_parse._is_editorial_heading("Editoria L Int") is False
+
+
 def test_editorial_heading_catches_compound_labels():
     # PDF extraction often jams adjacent front-matter heads into one
     # `_HEADING_RE` match. The detector should still fire on these.

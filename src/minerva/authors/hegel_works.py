@@ -225,6 +225,7 @@ WORKS: tuple[CorpusWork, ...] = (
         # version of Hegel's Lectures on the Philosophy of World History is
         # made available...") is apparatus, not Hegel's own.
         skip_headings=("Preface",),
+        page_furniture=True,
     ),
     CorpusWork(
         code="etw",

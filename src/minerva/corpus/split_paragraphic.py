@@ -23,6 +23,7 @@ from ..heading_clean import (
     _is_title_page_artifact,
 )
 from ..tei import Chunk, _make_chunk_id, _norm_text
+from . import page_furniture
 from .text_repair import (
     _looks_like_bibliography,
     _repair_crossref_linebreaks,
@@ -99,6 +100,7 @@ def _emit(
     section: str,
     text: str,
     book_label: str | None = None,
+    block_type: str | None = None,
 ) -> Chunk | None:
     text = _norm_text(text)
     if not text:
@@ -144,7 +146,10 @@ def _emit(
         translator=work.translator,
         edition_year=work.edition_year,
         citation_system=work.citation_system,
-        block_type=work.block_type,
+        # The heading sweep's per-chunk type (e.g. "editorial") wins over
+        # the work-level default ("note" for a whole endnotes work); when
+        # the caller passes nothing, the work-level default still applies.
+        block_type=block_type or work.block_type,
     )
 
 
@@ -356,10 +361,10 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
     # Two-stage heading sweep:
     #   * Editorial / front-matter labels ("Editorial Introduction",
     #     "Glossary", "Bibliography", "List of Abbreviations", indices) —
-    #     drop BOTH the label AND the body so this material doesn't get
-    #     attributed to Hegel downstream. The heading position is still
-    #     used as a boundary so the next chapter starts at the right
-    #     offset.
+    #     keep the body but tag it `block_type='editorial'`, so retrieval
+    #     can cap it and the Reader can collapse it. This replaced an
+    #     outright drop in #534. The heading position is still used as a
+    #     boundary so the next chapter starts at the right offset.
     #   * Title-page artifacts ("Robert F. Brown", "Volume II Greek
     #     Philosophy", single title words like "Lectures") — blank the
     #     label so it doesn't pollute the locator, but keep the body.
@@ -384,13 +389,16 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
         front = text[:first_heading_start]
         if front.strip():
             yield from _split_chapter_block(work, path, "", front)
-    for i, (_h_start, h_end, label, skip) in enumerate(headings):
-        if skip:
-            continue
+    for i, (_h_start, h_end, label, editorial) in enumerate(headings):
         start = h_end
         end = headings[i + 1][0] if i + 1 < len(headings) else len(text)
         body = text[start:end]
-        yield from _split_chapter_block(work, path, label, body)
+        # Apparatus is TAGGED, not dropped (#534). Dropping it lost real
+        # scholarship silently and left no way to tell a missing editorial
+        # introduction from one that was never in the source.
+        yield from _split_chapter_block(
+            work, path, label, body, block_type="editorial" if editorial else None
+        )
 
 
 def _merge_continuation_headings(
@@ -466,7 +474,13 @@ def _packed_paragraphs(paragraphs: list[str], floor: int | None) -> list[str]:
     return out
 
 
-def _split_chapter_block(work: CorpusWork, path: Path, heading: str, body: str) -> Iterator[Chunk]:
+def _split_chapter_block(
+    work: CorpusWork,
+    path: Path,
+    heading: str,
+    body: str,
+    block_type: str | None = None,
+) -> Iterator[Chunk]:
     """Inside a chapter, emit one chunk per blank-line-separated paragraph
     — or per packed run of them, when the work sets a floor (#417)."""
 
@@ -475,9 +489,46 @@ def _split_chapter_block(work: CorpusWork, path: Path, heading: str, body: str) 
     for idx, para in enumerate(paragraphs, 1):
         for label, piece in _paragraph_pieces(work, idx, para):
             section = f"{heading}, {label}" if heading else label
-            chunk = _emit(work, path, section=section, text=piece, book_label=heading or None)
+            if work.page_furniture:
+                piece = page_furniture.strip_running_head(
+                    piece, page_furniture.RUNNING_HEADS_LWH
+                )
+                piece, note_text = page_furniture.split_trailing_notes(piece)
+                piece = page_furniture.strip_trailing_page_number(piece)
+                # The page number sits AFTER the note block on the printed
+                # page, so it lands in `note_text`, not in the body. Measured:
+                # 235 of 279 split note blocks (84%) end in one. Strip both
+                # sides or every note chunk ships with a stray number.
+                if note_text:
+                    note_text = page_furniture.strip_trailing_page_number(note_text)
+            else:
+                note_text = None
+            chunk = _emit(
+                work,
+                path,
+                section=section,
+                text=piece,
+                book_label=heading or None,
+                block_type=block_type,
+            )
             if chunk is not None:
                 yield chunk
+            if note_text:
+                # A footnote split out of an editorial chunk is still
+                # editorial apparatus — tagging it "note" instead breaks
+                # `groupEditorialRuns` on the Reader side, fragmenting one
+                # disclosure into several (#533 review finding 1).
+                note_block_type = "editorial" if block_type == "editorial" else "note"
+                note = _emit(
+                    work,
+                    path,
+                    section=f"{section}.note",
+                    text=note_text,
+                    book_label=heading or None,
+                    block_type=note_block_type,
+                )
+                if note is not None:
+                    yield note
 
 
 #: A speech turn ends `…"--` and the next begins `"`. Zero-width, so the
