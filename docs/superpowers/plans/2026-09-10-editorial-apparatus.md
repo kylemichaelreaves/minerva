@@ -161,7 +161,17 @@ for h in hits:
 PY
 ```
 
-Expected: exactly 3 matched — the 1 that already matched, plus `Bjbljography` and `Editorial Introouctjon`. Any other name in that list is a false positive: stop and investigate before continuing.
+Expected: exactly **5** matched, and these five by name —
+
+```
+Bjbljography                          <- fuzzy pass (the point of this task)
+Editorial Introouctjon                <- fuzzy pass (the point of this task)
+Foreword to the third edition         <- pre-existing, phrase "foreword"
+Secondary Works in German and French  <- Step 3's new phrase "secondaryworks"
+Sources Used or Alluded to by Hegel   <- Step 3's new phrase "sourcesused..."
+```
+
+Any *other* name is a false positive: stop and investigate before continuing.
 
 - [ ] **Step 6: Commit**
 
