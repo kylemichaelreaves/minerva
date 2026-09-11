@@ -23,6 +23,7 @@ from ..heading_clean import (
     _is_title_page_artifact,
 )
 from ..tei import Chunk, _make_chunk_id, _norm_text
+from . import page_furniture
 from .text_repair import (
     _looks_like_bibliography,
     _repair_crossref_linebreaks,
@@ -488,6 +489,20 @@ def _split_chapter_block(
     for idx, para in enumerate(paragraphs, 1):
         for label, piece in _paragraph_pieces(work, idx, para):
             section = f"{heading}, {label}" if heading else label
+            if work.page_furniture:
+                piece = page_furniture.strip_running_head(
+                    piece, page_furniture.RUNNING_HEADS_LWH
+                )
+                piece, note_text = page_furniture.split_trailing_notes(piece)
+                piece = page_furniture.strip_trailing_page_number(piece)
+                # The page number sits AFTER the note block on the printed
+                # page, so it lands in `note_text`, not in the body. Measured:
+                # 235 of 279 split note blocks (84%) end in one. Strip both
+                # sides or every note chunk ships with a stray number.
+                if note_text:
+                    note_text = page_furniture.strip_trailing_page_number(note_text)
+            else:
+                note_text = None
             chunk = _emit(
                 work,
                 path,
@@ -498,6 +513,17 @@ def _split_chapter_block(
             )
             if chunk is not None:
                 yield chunk
+            if note_text:
+                note = _emit(
+                    work,
+                    path,
+                    section=f"{section}.note",
+                    text=note_text,
+                    book_label=heading or None,
+                    block_type="note",
+                )
+                if note is not None:
+                    yield note
 
 
 #: A speech turn ends `…"--` and the next begins `"`. Zero-width, so the

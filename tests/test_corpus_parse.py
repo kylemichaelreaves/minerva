@@ -345,6 +345,75 @@ def test_split_by_chapter_skip_headings_default_keeps_preface(tmp_path: Path):
     assert any("Hegel's own preface body" in c.text for c in chunks)
 
 
+def test_page_furniture_is_separated_for_works_that_opt_in(tmp_path):
+    text = (
+        "CHAPTER ONE\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n"
+    )
+    # `_make_work` does not take `page_furniture`; build the work directly.
+    work = corpus_works.CorpusWork(
+        code="lwh",
+        title="Lectures",
+        translator="T",
+        edition_year="2011",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        page_furniture=True,
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+
+    body = [c for c in chunks if c.block_type is None]
+    notes = [c for c in chunks if c.block_type == "note"]
+    assert len(body) == 1 and len(notes) == 1
+    assert body[0].text == "Caesar's Commentaries, belong here too.4 In particular."
+    assert notes[0].text == "4. On Herodotus, see the Fragment."
+    # Sibling numbering, NOT a renumbered ¶ — `section` feeds `chunk_id`, so
+    # renumbering would churn every chunk after the insertion.
+    assert notes[0].section.endswith(".note")
+
+
+def test_page_furniture_strips_running_head_with_no_trailing_notes(tmp_path: Path):
+    """Most pages carry a running head but end mid-paragraph with no note
+    block at all — the common case, and the one that exercises the
+    `if note_text:` branch's False side inside the opt-in pass."""
+    work = corpus_works.CorpusWork(
+        code="lwh",
+        title="Lectures",
+        translator="T",
+        edition_year="2011",
+        filenames=("x.pdf",),
+        fmt="pdf",
+        locator="chapter",
+        page_furniture=True,
+    )
+    text = "CHAPTER ONE\n\nTHE LECTURES OF 1822-3 Ordinary prose with no note block.\n"
+    chunks = list(corpus_parse.split_by_chapter(text, work, tmp_path / "x.pdf"))
+    notes = [c for c in chunks if c.block_type == "note"]
+    body = [c for c in chunks if c.block_type is None]
+    assert notes == []
+    assert len(body) == 1
+    assert body[0].text == "Ordinary prose with no note block."
+
+
+def test_split_by_chapter_ignores_page_furniture_when_not_opted_in(tmp_path: Path):
+    """The `page_furniture=False` default (guarding the opt-in) must leave
+    running heads, trailing notes, and page numbers untouched."""
+    text = (
+        "CHAPTER ONE\n\n"
+        "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
+        "In particular. 4. On Herodotus, see the Fragment. 135\n"
+    )
+    chunks = list(
+        corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf")
+    )
+    notes = [c for c in chunks if c.block_type == "note"]
+    assert notes == []
+    assert any("THE LECTURES OF 1822-3" in c.text for c in chunks)
+    assert any(c.text.rstrip().endswith("135") for c in chunks)
+
+
 def test_bibliographical_note_heading_is_treated_as_editorial(tmp_path: Path):
     """Variants of "Bibliographical Note" must be classified editorial —
     the older list only matched `bibliography`, which isn't a substring of
