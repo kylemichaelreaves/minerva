@@ -4,6 +4,7 @@
 // (Step 5 of the editorial-apparatus plan, #534) is correct end to end.
 
 import { render } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import type { SourceChunk } from "~/utils/types";
 import { Lines } from "./Lines";
@@ -98,5 +99,80 @@ describe("Lines — editorial run grouping", () => {
     expect(blocks).toHaveLength(1);
     expect(container.querySelectorAll("[data-chunk-id]")).toHaveLength(0);
     expect(blocks[0]?.querySelector(".editorial-block-summary")?.textContent).toContain("3");
+  });
+});
+
+// #544: <For> reconciles on the referential identity of its ITEMS, not the
+// array. `useWorkRange.tsx:296` appends via `[...cur.chunks, ...next.chunks]`
+// — a new array wrapping the SAME chunk objects — specifically so that a
+// `<For>` reading the chunks directly does not tear down and rebuild rows
+// that didn't change. The editorial-run grouping interposed a fresh
+// `{ editorial, items }` wrapper per run on every evaluation, which broke
+// that: every row got rebuilt on every append regardless of whether its
+// underlying chunk objects changed. A `createMemo` around the grouping call
+// does NOT fix this because its only dependency, `props.chunks`, is exactly
+// the array that changes on every append.
+//
+// These tests assert DOM node identity survives an append — the thing the
+// bug actually breaks. Both were confirmed to FAIL against the pre-fix
+// code (plain `groupEditorialRuns(props.chunks)` behind a `createMemo`,
+// with no `hasEditorial` fast path) and PASS against the fix.
+describe("Lines — reconciliation survives an infinite-scroll append (#544)", () => {
+  it("keeps the same DOM node for an existing chunk when chunks grows with a new array (no editorial material)", () => {
+    const [chunks, setChunks] = createSignal<SourceChunk[]>([body(0), body(1)]);
+    const { container } = render(() => (
+      <Lines
+        chunks={chunks()}
+        lang="eng"
+        occMap={null}
+        lemmaHighlights={null}
+        onTermClick={vi.fn()}
+        onWordClick={vi.fn()}
+      />
+    ));
+    const captured = container.querySelector('[data-chunk-id="c-0"]');
+    expect(captured).not.toBeNull();
+
+    // Mirrors useWorkRange.tsx:296 exactly: a NEW array, the SAME chunk
+    // objects, plus newly-appended ones.
+    setChunks((cur) => [...cur, body(2), body(3)]);
+
+    expect(container.querySelector('[data-chunk-id="c-0"]')).toBe(captured);
+  });
+
+  it("keeps the same DOM node inside an untouched editorial run when chunks grows with a new array", () => {
+    const [chunks, setChunks] = createSignal<SourceChunk[]>([
+      editorial(0),
+      editorial(1),
+      body(2),
+      body(3),
+    ]);
+    const { container } = render(() => (
+      <Lines
+        chunks={chunks()}
+        lang="eng"
+        occMap={null}
+        lemmaHighlights={null}
+        onTermClick={vi.fn()}
+        onWordClick={vi.fn()}
+      />
+    ));
+    // The disclosure element for the untouched leading run...
+    const capturedBlock = container.querySelector(".editorial-block");
+    expect(capturedBlock).not.toBeNull();
+    // ...and a rendered line inside the trailing body run, which is the
+    // run that actually grows on this append.
+    const capturedLine = container.querySelector('[data-chunk-id="c-2"]');
+    expect(capturedLine).not.toBeNull();
+
+    setChunks((cur) => [...cur, body(4), body(5)]);
+
+    // The run that didn't change (editorial(0), editorial(1)) reconciles:
+    // same disclosure element.
+    expect(container.querySelector(".editorial-block")).toBe(capturedBlock);
+    // The trailing body run grew, so its own rows are allowed to be
+    // rebuilt — c-2 stays present but reconciliation of THAT run isn't
+    // asserted here.
+    expect(container.querySelector('[data-chunk-id="c-2"]')).not.toBeNull();
   });
 });

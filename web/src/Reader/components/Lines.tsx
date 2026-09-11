@@ -10,17 +10,67 @@ import type { PinnedHighlight } from "~/Reader/utils";
 import { WordRun } from "~/Reader/components/WordRun";
 import { EditorialBlock } from "~/Reader/components/EditorialBlock";
 
+interface EditorialRun<T> {
+  editorial: boolean;
+  items: T[];
+}
+
+/** True when every item of `a` is the same object (by `===`) as the
+ *  corresponding item of `b`. Used to tell "this run's membership is
+ *  unchanged" from "this run grew/shrank/reordered" without assuming
+ *  anything about how the caller produced either array. */
+function sameItemsByReference<T>(a: T[], b: T[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 /** Consecutive runs of one block_type, so an apparatus run collapses as a
- *  single disclosure rather than one per chunk. */
-function groupEditorialRuns<T extends { block_type?: string | null }>(
+ *  single disclosure rather than one per chunk.
+ *
+ *  `cache` is an opaque, caller-owned Map that persists across calls (one
+ *  per `Lines` instance). Each run is keyed by its first chunk's
+ *  `chunk_id` plus its length and `editorial` flag — durable because
+ *  `chunk_id` is stable for the life of a chunk and unique within a work,
+ *  so two different runs can't collide on it. When a key's cached run has
+ *  the exact same chunk objects in the exact same order, the cached
+ *  wrapper object is reused rather than a fresh one allocated, so `<For>`
+ *  sees the same reference for that run and does not tear its DOM down.
+ *  Only a run whose membership actually changed (the growing tail run on
+ *  an infinite-scroll append, or a genuinely new run) gets a new wrapper. */
+function groupEditorialRuns<T extends { block_type?: string | null; chunk_id: string }>(
   chunks: T[],
-): { editorial: boolean; items: T[] }[] {
-  const out: { editorial: boolean; items: T[] }[] = [];
-  for (const chunk of chunks) {
-    const editorial = chunk.block_type === "editorial";
-    const last = out[out.length - 1];
-    if (last?.editorial === editorial) last.items.push(chunk);
-    else out.push({ editorial, items: [chunk] });
+  cache: Map<string, EditorialRun<T>>,
+): EditorialRun<T>[] {
+  const out: EditorialRun<T>[] = [];
+  const liveKeys = new Set<string>();
+  let i = 0;
+  while (i < chunks.length) {
+    const first = chunks[i];
+    if (!first) break; // unreachable: i < chunks.length
+    const editorial = first.block_type === "editorial";
+    let j = i + 1;
+    while (j < chunks.length && (chunks[j]?.block_type === "editorial") === editorial) {
+      j++;
+    }
+    const items = chunks.slice(i, j);
+    const key = `${first.chunk_id}:${items.length}:${editorial}`;
+    const cached = cache.get(key);
+    const run =
+      cached?.editorial === editorial && sameItemsByReference(cached.items, items)
+        ? cached
+        : { editorial, items };
+    cache.set(key, run);
+    liveKeys.add(key);
+    out.push(run);
+    i = j;
+  }
+  // Drop entries no run resolved to this pass (e.g. a work switch that
+  // replaces `chunks` wholesale) so the cache doesn't grow unboundedly.
+  for (const key of cache.keys()) {
+    if (!liveKeys.has(key)) cache.delete(key);
   }
   return out;
 }
@@ -84,14 +134,31 @@ export function Lines(props: {
   // Hebrew/Arabic), the LTR fallback is "everything that isn't Greek
   // and isn't RTL" — the same set that used to be flagged isLatin.
   const isLatin = () => !isGreek() && !isRtl();
-  // Memoised so infinite-scroll appends (`useWorkRange`'s
-  // `[...cur.chunks, ...next.chunks]`, which preserves each existing
-  // chunk's identity on purpose) don't force `<For>` to rebuild every
-  // already-rendered line. `<For>` reconciles on referential identity of
-  // the array it's given; calling `groupEditorialRuns` directly in the
-  // JSX rebuilt brand-new wrapper objects on every evaluation, defeating
-  // that diff (#533 review finding 2).
-  const editorialRuns = createMemo(() => groupEditorialRuns(props.chunks));
+  // `<For>` reconciles on referential identity of the *items* it's given,
+  // not the array. `groupEditorialRuns` allocates a fresh `{ editorial,
+  // items }` wrapper per run on every call, so wrapping it in a
+  // `createMemo` keyed on `props.chunks` does NOT help: `props.chunks` is
+  // itself a fresh array on every infinite-scroll append
+  // (`useWorkRange`'s `[...cur.chunks, ...next.chunks]`, which preserves
+  // each existing chunk's identity but not the array's), so the memo
+  // recomputes and every wrapper is rebuilt anyway (#544).
+  //
+  // Two things actually keep old rows from being torn down:
+  //
+  // 1. `hasEditorial` skips the wrapper layer entirely for the common
+  //    case — a work with no editorial chunks renders `props.chunks`
+  //    straight into `<For>`, exactly as before #534, so those chunk
+  //    objects (already stable across an append) are the `<For>` items.
+  // 2. When there IS editorial material, `groupEditorialRuns` reuses a
+  //    run's previous wrapper object out of `runCache` whenever that
+  //    run's chunk objects are unchanged (same objects, same order), so
+  //    `<For>` gets the same reference for every run except the growing
+  //    tail run and any genuinely new run.
+  const runCache = new Map<string, EditorialRun<SourceChunk>>();
+  const hasEditorial = createMemo(() => props.chunks.some((c) => c.block_type === "editorial"));
+  const editorialRuns = createMemo(() =>
+    hasEditorial() ? groupEditorialRuns(props.chunks, runCache) : [],
+  );
   const renderLine = (chunk: SourceChunk) => {
     const xref = (): XrefSummary | undefined => props.xrefMap?.[chunk.chunk_id];
     return (
@@ -147,18 +214,20 @@ export function Lines(props: {
   };
   return (
     <div class={classnames("lines", isLatin() && "latin", isRtl() && "rtl")}>
-      <For each={editorialRuns()}>
-        {(run) => (
-          <Show when={run.editorial} fallback={<For each={run.items}>{renderLine}</For>}>
-            <EditorialBlock
-              label={run.items[0]?.section?.split(",")[0] ?? "Editorial material"}
-              count={run.items.length}
-            >
-              <For each={run.items}>{renderLine}</For>
-            </EditorialBlock>
-          </Show>
-        )}
-      </For>
+      <Show when={hasEditorial()} fallback={<For each={props.chunks}>{renderLine}</For>}>
+        <For each={editorialRuns()}>
+          {(run) => (
+            <Show when={run.editorial} fallback={<For each={run.items}>{renderLine}</For>}>
+              <EditorialBlock
+                label={run.items[0]?.section?.split(",")[0] ?? "Editorial material"}
+                count={run.items.length}
+              >
+                <For each={run.items}>{renderLine}</For>
+              </EditorialBlock>
+            </Show>
+          )}
+        </For>
+      </Show>
     </div>
   );
 }
