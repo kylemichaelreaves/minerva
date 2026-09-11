@@ -26,7 +26,11 @@ export type BlockType =
   // A dialectical voice by another author hosted inside the work —
   // Hobbes/Caterus/Arnauld/… objecting to Descartes' Meditations.
   // The objector's name rides in `speaker`.
-  | "objection";
+  | "objection"
+  // Editors' / translators' apparatus hosted in the work — an editorial
+  // introduction, bibliography, or front matter. Capped in retrieval
+  // (retrieve.py `_APPARATUS_TYPES`) and collapsed in the Reader.
+  | "editorial";
 
 export interface SourceChunk {
   chunk_id: string;

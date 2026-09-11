@@ -279,7 +279,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 .reader .edition-seg:hover {
   color: var(--r-ink);
@@ -380,6 +382,48 @@
   text-transform: uppercase;
   color: var(--r-ink-mute);
   margin-bottom: 2px;
+}
+
+/* Editors' apparatus (#534) — an editorial introduction, bibliography or
+   front matter. Collapsed by default: it is real scholarship, but it is not
+   the author, and rendering it inline is what made the corpus misleading.
+   The visual language matches Remarks and Objections — subordinate, softer,
+   set in from the text column. */
+.reader .editorial-block {
+  margin: 18px 0;
+  border-left: 2px dotted var(--r-accent-mark);
+  padding-left: 20px;
+}
+/* Open state (data-open, set by EditorialBlock.tsx): the dotted rule
+   turns solid once the reader has chosen to see the apparatus, echoing
+   the dotted → solid distinction already used for footnotes below. */
+.reader .editorial-block[data-open] {
+  border-left-style: solid;
+}
+.reader .editorial-block-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.93em;
+  color: var(--r-ink-soft);
+  text-align: left;
+}
+.reader .editorial-block-summary:hover .editorial-block-label {
+  text-decoration: underline;
+}
+.reader .editorial-block-count {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+.reader .editorial-block-body .line .text {
+  font-size: 0.93em;
+  color: var(--r-ink-soft);
 }
 
 /* Footnotes (TEI <note>) and dramatis-personae lists (<castList>),

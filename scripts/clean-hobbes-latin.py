@@ -15,9 +15,13 @@ Boulainvilliers — caret debris, ligatures, running headers — PLUS
 the 17th-c long-s OCR misread (``inftituto``, ``Cenforis``,
 ``fapientix``). We CANNOT run the Boulainvilliers dict-guided
 f→s pass here because pyspellchecker doesn't ship a Latin
-wordlist. That residual long-s contamination is acknowledged in
-the audit's `long_s_misread` count (10 chunks — already low
-because the misread heuristic gates lang to {eng/fra/deu}).
+wordlist. That residual long-s contamination is NOT measured by the
+audit's `long_s_misread` count. That count reads 10 chunks
+only because the misread heuristic gates lang to
+{eng/fra/deu} — it excludes `lat`, which is the only
+language with the problem. The Latin is in fact severely
+corrupted (`Cbrifti`, `$eniet`, `Dabid`, `triwmphum`); see
+#535, which proposes re-sourcing rather than repairing.
 
 This script applies the SAFE cleanup steps from the Boulainvilliers
 pipeline:
