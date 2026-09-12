@@ -123,6 +123,27 @@ _PARSE_COLUMNS = (
 )
 
 
+def _is_stale_parser(stored: str | None) -> bool:
+    """Was *stored* produced by a different model than the one installed now?
+
+    False when the question cannot be answered. `parser_id()` imports
+    Stanza, which lives in the optional ``[lemma]`` extra, and
+    `parse.py` promises that everything except an actual parse works
+    without it -- CI does not install it. With no way to compute the
+    current id there is no evidence of staleness, and refusing to serve
+    a stored parse on that basis would break reading for every install
+    that never intended to parse anything.
+    """
+
+    from . import parse as parse_mod
+
+    try:
+        current = parse_mod.parser_id()
+    except Exception:
+        return False
+    return stored is not None and stored != current
+
+
 def load_parse(conn: sqlite3.Connection, chunk_id: str) -> list[SyntaxToken] | None:
     """The stored parse for *chunk_id*, or None when it has never been parsed.
 
@@ -132,9 +153,18 @@ def load_parse(conn: sqlite3.Connection, chunk_id: str) -> list[SyntaxToken] | N
     """
 
     parsed = conn.execute(
-        "SELECT 1 FROM chunk_syntax_state WHERE chunk_id = ?", (chunk_id,)
+        "SELECT parser FROM chunk_syntax_state WHERE chunk_id = ?", (chunk_id,)
     ).fetchone()
     if parsed is None:
+        return None
+    if _is_stale_parser(parsed[0]):
+        # A tree from an older model reads as uncached, so the next
+        # `load_or_parse` re-parses it. `parser_id`'s docstring has always
+        # said the column exists "so a future re-parse can tell what is
+        # stale" -- this is the read side that was never written (#531).
+        # Measured on the live index 2026-09-11: 70 rows at
+        # `stanza-de-1.13.0` against an installed stanza of 1.14.0, every
+        # one of them served as current.
         return None
 
     rows = conn.execute(

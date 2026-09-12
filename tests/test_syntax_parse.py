@@ -203,3 +203,38 @@ def test_parser_id_names_the_model_and_version(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(p, "_stanza_version", lambda: "1.13.0")
 
     assert p.parser_id() == "stanza-de-1.13.0"
+
+
+def test_warm_pipeline_reports_why_it_failed(monkeypatch, capsys):
+    """#530: `warm_pipeline` returned False and swallowed the exception,
+    and `_start_syntax_warmup` prints only on success — so a missing
+    model was invisible until a reader opened the overlay and got a 500.
+
+    Stanza's model cache is keyed to the stanza release
+    (`user_cache_dir('stanza', 'StanfordNLP', __resources_version__)`),
+    so a version bump does not migrate the model: it starts from an empty
+    cache. The operator needs to be told that at startup, when it is
+    cheap to fix, not by a reader hitting an error.
+    """
+
+    from minerva.syntax import parse as parse_mod
+
+    def boom():
+        raise RuntimeError("LanguageNotDownloadedError: de")
+
+    monkeypatch.setattr(parse_mod, "_pipeline", boom)
+
+    assert parse_mod.warm_pipeline() is False
+    err = capsys.readouterr().err
+    assert "syntax" in err.lower()
+    assert "LanguageNotDownloadedError" in err
+    assert "stanza.download" in err
+
+
+def test_warm_pipeline_is_silent_when_it_succeeds(monkeypatch, capsys):
+    from minerva.syntax import parse as parse_mod
+
+    monkeypatch.setattr(parse_mod, "_pipeline", lambda: object())
+
+    assert parse_mod.warm_pipeline() is True
+    assert capsys.readouterr().err == ""
