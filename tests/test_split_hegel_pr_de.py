@@ -168,3 +168,45 @@ def test_back_matter_after_the_last_addition_is_not_glued_onto_it(tmp_path: Path
     assert addition == "(Thema.) Der höhere Prätor ist der Weltgeist."
     for leaked in ("Namenregister", "Sachregister", "Grombach", "STANFORD", "DATE DUE"):
         assert leaked not in addition
+
+
+def test_de_hyphenation_does_not_fuse_a_suspended_compound():
+    """#496: `re.sub(r"-\\s+", "", s)` is right for a line-break
+    hyphenation (`Sitt-\\nlichkeit` -> `Sittlichkeit`) and wrong for a
+    German suspended compound, where the hyphen stands in for the shared
+    tail of the *next* word: `An- und Fürsichsein` became `Anund`, an
+    unsearchable non-word where two real words belong.
+
+    The discriminator is the conjunction, not the whitespace. Measured
+    over `data/hegel/pr_de_zusaetze.txt`, the file `_clean_ocr` actually
+    processes: 747 hyphen-plus-whitespace-plus-word occurrences, 742
+    ordinary continuations and 5 followed by a conjunction — and the 5
+    are exactly the fused tokens that reached the corpus.
+    """
+
+    from minerva.corpus.split_hegel_pr_de import _clean_ocr
+
+    assert _clean_ocr("An-  und Fürsichsein") == "An- und Fürsichsein"
+    assert _clean_ocr("Zivil-  und Strafrecht") == "Zivil- und Strafrecht"
+    assert _clean_ocr("durch-  und durcheinander") == "durch- und durcheinander"
+
+
+def test_de_hyphenation_still_joins_a_line_break_hyphenation():
+    """The 742 that must keep fusing. Guard against a fix that trades
+    one defect for the other — these are the common case by 148 to 1."""
+
+    from minerva.corpus.split_hegel_pr_de import _clean_ocr
+
+    assert _clean_ocr("Sitt-\nlichkeit") == "Sittlichkeit"
+    assert _clean_ocr("Ver-  mögen") == "Vermögen"
+
+
+def test_de_hyphenation_leaves_a_spaced_dash_alone():
+    """The audit's own example, which does not reproduce: it claimed
+    `Recht - Moralität` fuses. The space before the dash means `-\\s+`
+    never starts there, so this already passed and is pinned to stop the
+    claim being re-fixed."""
+
+    from minerva.corpus.split_hegel_pr_de import _clean_ocr
+
+    assert _clean_ocr("Recht - Moralität") == "Recht - Moralität"

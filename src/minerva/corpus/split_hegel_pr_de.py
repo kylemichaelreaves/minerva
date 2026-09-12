@@ -57,6 +57,33 @@ def _is_prose(el) -> bool:
     return "zenopl" in css.lower()
 
 
+#: German coordinating words that a suspended hyphen stands before:
+#: `An- und Fürsichsein`, `Zivil- oder Strafrecht`. The hyphen there is an
+#: Ergänzungsstrich holding the place of the shared tail, not a line break,
+#: and fusing it produces an unsearchable non-word out of two real ones.
+_DE_SUSPENDED_TAIL = r"und|oder|bzw|beziehungsweise|bis|sowie|noch"
+
+#: De-hyphenate a line break, and only a line break. Two guards, both
+#: needed and neither sufficient alone (#496):
+#:
+#: * the hyphen must be attached to a word on its left, so a spaced dash
+#:   between two terms (`Recht - Moralität`) is left intact rather than
+#:   silently eaten;
+#: * the continuation must not be a coordinating word, so a suspended
+#:   compound survives as two words.
+#:
+#: The audit recommended only the first, which is why its "safe variant
+#: exists at `split_stephanus_de.py:114`" does not fix this: a suspended
+#: compound satisfies `(\w)-\s+(\w)` exactly as readily.
+#:
+#: Measured over `data/hegel/pr_de_zusaetze.txt`, the file this function
+#: processes: 747 hyphen-plus-whitespace-plus-word occurrences, of which
+#: 742 are ordinary continuations and 5 are followed by a conjunction --
+#: and those 5 are precisely the fused tokens that reached the corpus
+#: (`Anund`, `Zivilund`, `durchund`, `geistund`, `rechtund`).
+_DE_HYPHENATE_RE = re.compile(rf"(\w)-\s+(?!(?:{_DE_SUSPENDED_TAIL})\b)(\w)")
+
+
 def _clean_ocr(s: str) -> str:
     # Google Books watermark, once per scanned page — 104 of them in the
     # Gans appendix. The pattern used to spell the word out
@@ -68,7 +95,7 @@ def _clean_ocr(s: str) -> str:
     # the watermark (#401).
     s = re.sub(r"Digitized\s+by\s+\S{1,10}(?:\s+IC\b)?", " ", s, flags=re.I)
     s = re.sub(r"\bZu\s+§\s*[\d.\- ]+", " ", s)  # running page headers ("Zu § 1-4.")
-    s = re.sub(r"-\s+", "", s)  # de-hyphenate line breaks
+    s = _DE_HYPHENATE_RE.sub(r"\1\2", s)
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
