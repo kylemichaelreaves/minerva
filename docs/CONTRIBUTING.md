@@ -85,6 +85,27 @@ Backend: import per-author work tables from `minerva.authors.<author>_works`
 (see [BACKEND.md](BACKEND.md)). Handler JSON changes need contract fixtures in
 `tests/fixtures/api/` and matching types in `web/src/api/types/`.
 
+**Frontend tests go in `web/tests/`, never beside the component.** This is the
+opposite of the majority convention in the wider JS ecosystem, so it is easy to
+get wrong by habit, and getting it wrong is expensive in a way that is not
+obvious: `sonar-project.properties` declares `sonar.sources=…,web/src` and
+`sonar.tests=tests,web/tests`, so a colocated test is analysed as **production
+source with 0% coverage** and fails the required new-code coverage gate for a
+reason unrelated to the change. Measured on #546: two colocated files, 85 lines
+counted as uncovered production code, gate at 65.2%; after moving them, with no
+change to any assertion, 93.4%.
+
+`make check`'s `check-test-location` catches this locally in seconds. It exists
+because nothing else can — `check-diff-coverage` reads the vitest lcov report,
+which excludes test files by nature, so the local gate and the blocking remote
+gate disagree with no local signal at all.
+
+The second cost is worse than the gate failure. A colocated duplicate is
+invisible from beside the component: `web/tests/Lines.test.tsx` already existed
+when a second `Lines.test.tsx` was added under `web/src`, and both the
+implementer and the reviewer of that change reported no such file existed —
+each had looked in only one of the two places.
+
 ### Python coverage (baseline)
 
 Optional report (requires `[dev]` extras):
