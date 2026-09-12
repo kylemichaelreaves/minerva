@@ -49,6 +49,31 @@ updates:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
     groups:
+      # vitest and its coverage provider move as one, including majors.
+      #
+      # `@vitest/coverage-v8` declares an EXACT peer on vitest
+      # (`peer vitest@"4.1.11"`, not a range), so a PR bumping either one
+      # alone fails `npm ci` with ERESOLVE before a test runs. Dependabot
+      # opened exactly that pair on 2026-09-12 — #567 raised coverage-v8 and
+      # #569 raised vitest, and each failed on the half the other was
+      # holding. Neither could ever have gone green.
+      #
+      # Listed BEFORE `npm-minor-patch` because the first matching group
+      # wins: these two belong together at every update type, not only at
+      # majors.
+      #
+      # This is the same class of problem as the eslint block above — a
+      # constraint between packages that the bot cannot see — and the same
+      # argument applies: a permanently-red Dependabot PR teaches everyone
+      # to read red as normal.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
       npm-minor-patch:
         update-types:
           - "minor"
