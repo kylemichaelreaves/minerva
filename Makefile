@@ -29,7 +29,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
         check-pr-link check-pr-citations check-diff-coverage check-coverage-exclusions \
-        check-format-baseline \
+        check-format-baseline check-test-location \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -169,6 +169,15 @@ check-author-imports:
 check-coverage-exclusions:
 	$(PYTHON) scripts/check_coverage_exclusions.py
 
+# Frontend tests belong in web/tests, never beside the component (#547).
+# Sonar's `sonar.sources` covers web/src, so a colocated test is analysed as
+# production source with 0% coverage and fails the required new-code gate for
+# a reason unrelated to the change. `check-diff-coverage` cannot see this —
+# it reads the vitest lcov report, which excludes test files by nature — so
+# the local gate stays green and the remote one blocks.
+check-test-location:
+	$(PYTHON) scripts/check_test_location.py
+
 # Verify a PR's closing links actually registered (#321). Deliberately NOT part
 # of `make check` — it needs a PR that already exists.
 #
@@ -210,7 +219,7 @@ check-diff-coverage:
 check-format-baseline:
 	$(PYTHON) scripts/check_format_baseline.py
 
-check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline
+check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.
