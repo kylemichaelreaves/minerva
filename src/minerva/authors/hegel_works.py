@@ -216,10 +216,16 @@ WORKS: tuple[CorpusWork, ...] = (
         title="Lectures on the Philosophy of World History (1822–3)",
         translator="Hodgson / Brown",
         edition_year="2011",
-        filenames=(
-            "Georg Wilhelm Friedrich Hegel, Peter C. Hodgson, Robert F. Brown - Lectures on the Philosophy of World History_ Manuscripts of the introduction and the lectures of 1822-3-Oxford University Press (2011.pdf",
-        ),
-        fmt="pdf",
+        # Re-OCR, not the PDF. The 2011 OUP scan's embedded text layer is
+        # corrupt at the character level — `representationaL` for
+        # `representational.`, `thenar-` for `the nar-` — and the damage is
+        # in the PDF itself, so no extractor change reaches it. Re-OCR'd
+        # from the 300 dpi page images by `perseus/ocr_lpwh.py`; measured
+        # over all 575 pages, damage signatures fell 2,027 -> 72 (-96%) and
+        # tokens unknown to the rest of the English corpus 6.17% -> 3.86%,
+        # with token counts within 0.35% either way (#540).
+        filenames=("lwh_vision.ocr.json",),
+        fmt="ocr_json",
         locator="chapter",
         # Hodgson/Brown editors' Preface ("With this book an entirely new
         # version of Hegel's Lectures on the Philosophy of World History is
