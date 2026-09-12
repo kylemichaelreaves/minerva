@@ -83,26 +83,7 @@ def extract_pdf(
         for page in iterable:
             page_lines.append(_extract_pdf_page_lines(page))
 
-    chrome = _detect_page_chrome(page_lines)
-    cleaned = []
-    for lines in page_lines:
-        for line in lines:
-            stripped = line.strip()
-            if stripped and stripped in chrome:
-                continue
-            # Drop Akademie-Ausgabe running-page headers like
-            # "4:385 Groundwork of The metaphysics of morals" or
-            # "5:i Critique of practical reason". These vary by page
-            # so the page-chrome heuristic (which matches whole-line
-            # repeats) doesn't catch them; this regex does. The
-            # information they carry (the Akademie page reference) is
-            # recoverable from a future locator pass — for now we'd
-            # rather have clean prose than noise chunks.
-            if stripped and _AKADEMIE_RUNNING_HEADER_RE.match(stripped):
-                continue
-            cleaned.append(line)
-        cleaned.append("")  # page break preserves paragraph boundaries
-    return "\n".join(cleaned)
+    return _clean_page_lines(page_lines)
 
 
 # Cambridge editions of Kant typeset the Akademie-Ausgabe volume
@@ -123,6 +104,61 @@ _AKADEMIE_RUNNING_HEADER_RE = re.compile(
 # the two "words" are fused. Tuned against LHP / KrV PDFs where real
 # spaces sit at ~0.6–0.8× char width and kerning artifacts at ~0.15×.
 _KERNING_FUSION_THRESHOLD = 0.4
+
+
+def _clean_page_lines(page_lines: list[list[str]]) -> str:
+    """Strip page furniture from per-page line lists and join to text.
+
+    Shared by every extractor that works page-by-page, so a second source
+    of the same pages — a re-OCR, say — gets identical treatment rather
+    than a second copy of these rules (#540).
+    """
+
+    chrome = _detect_page_chrome(page_lines)
+    cleaned: list[str] = []
+    for lines in page_lines:
+        for line in lines:
+            stripped = line.strip()
+            if stripped and stripped in chrome:
+                continue
+            # Drop Akademie-Ausgabe running-page headers like
+            # "4:385 Groundwork of The metaphysics of morals" or
+            # "5:i Critique of practical reason". These vary by page
+            # so the page-chrome heuristic (which matches whole-line
+            # repeats) doesn't catch them; this regex does. The
+            # information they carry (the Akademie page reference) is
+            # recoverable from a future locator pass — for now we'd
+            # rather have clean prose than noise chunks.
+            if stripped and _AKADEMIE_RUNNING_HEADER_RE.match(stripped):
+                continue
+            cleaned.append(line)
+        cleaned.append("")  # page break preserves paragraph boundaries
+    return "\n".join(cleaned)
+
+
+def extract_ocr_pages(path: Path) -> str:
+    """Text from a re-OCR artefact: ``{"pages": [[line, ...], ...]}``.
+
+    Written by `perseus/ocr_lpwh.py` for a scan whose embedded OCR layer
+    is too corrupt to use (#540). The file stores *per-page line lists*
+    rather than flat text precisely so this path can hand them to
+    `_clean_page_lines` and get the same page-chrome and running-head
+    treatment `extract_pdf` gets — the furniture is a property of the
+    page, and flattening first would throw away what identifies it.
+
+    `data/` is gitignored, so the artefact is not in version control any
+    more than the PDF it comes from; the script that regenerates it is.
+    """
+
+    import json
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    pages = data.get("pages")
+    if not isinstance(pages, list):
+        # Loudly, because silence is this pipeline's failure mode: a
+        # malformed artefact must not read as a work with no text.
+        raise ValueError(f"{path.name}: expected a 'pages' list, got {type(pages).__name__}")
+    return _clean_page_lines([[str(line) for line in page] for page in pages])
 
 
 def _extract_pdf_page_lines(page) -> list[str]:

@@ -49,6 +49,7 @@ from ..corpus_extract import (  # noqa: F401
     _fuse_kerned_words,
     extract_epub,
     extract_html,
+    extract_ocr_pages,
     extract_pdf,
 )
 from ..heading_clean import (  # noqa: F401

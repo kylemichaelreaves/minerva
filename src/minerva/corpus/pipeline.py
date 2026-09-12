@@ -18,7 +18,13 @@ import sys
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 
-from ..corpus_extract import IngestDepsMissing, extract_epub, extract_html, extract_pdf
+from ..corpus_extract import (
+    IngestDepsMissing,
+    extract_epub,
+    extract_html,
+    extract_ocr_pages,
+    extract_pdf,
+)
 from ..corpus_works import CorpusWork
 from ..tei import Chunk
 from .split_aquinas import split_aquinas
@@ -105,7 +111,15 @@ _SPLITTERS = {
 
 def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     suffix = path.suffix.lower()
-    if suffix == ".pdf":
+    if path.name.lower().endswith(".ocr.json"):
+        # A re-OCR artefact standing in for a scan whose embedded text
+        # layer is unusable (#540). Checked before the suffix dispatch
+        # because `.ocr.json`'s suffix is `.json`, which means nothing
+        # else here. Everything downstream — page furniture, splitters,
+        # locators — is unchanged: this swaps where the page text comes
+        # from, not what is done with it.
+        text = extract_ocr_pages(path)
+    elif suffix == ".pdf":
         if work.locator == "platon_werke":
             # "Platon: die Werke" — one PDF holding every dialogue + the
             # Letters. The multi-work splitter reads the pages directly
