@@ -21,6 +21,54 @@ from ..syntax import queries as syntax_queries
 from ._shared import add_common_db_arg
 
 
+def _current_parser_id() -> str | None:
+    """The installed parser's id, or None when it cannot be determined.
+
+    None drops the staleness clause entirely, leaving only "never
+    parsed" — the same conservative choice `queries._is_stale_parser`
+    makes, and for the same reason: Stanza is an optional extra, and
+    without it there is no evidence any stored tree is stale.
+
+    It must not be passed to the clause as a parameter. `s.parser IS NOT
+    NULL` is **true** for every parsed row, so doing that would select
+    the entire corpus for reparse rather than nothing.
+    """
+
+    from ..syntax.parse import parser_id
+
+    try:
+        return parser_id()
+    except Exception:
+        return None
+
+
+def _selection_clause(args: argparse.Namespace) -> tuple[list[str], list[object]]:
+    """The WHERE fragments and bound parameters for "what needs parsing"."""
+
+    where = ["c.lang = ?"]
+    params: list[object] = [args.lang]
+    if args.work is not None:
+        where.append("cf.work_id = ?")
+        params.append(args.work)
+    if args.reparse:
+        return where, params
+
+    current = _current_parser_id()
+    if current is None:
+        # No installed parser to compare against, so no evidence any stored
+        # tree is stale: select only genuinely unparsed chunks.
+        where.append("s.chunk_id IS NULL")
+        return where, params
+
+    # Unparsed, or parsed by a model that is no longer installed. Without the
+    # second clause a stale tree is never selected and `syntax parse` reports
+    # "nothing to do" while serving it — even though this command's own
+    # docstring offers itself "for reparsing after a model upgrade" (#531).
+    where.append("(s.chunk_id IS NULL OR s.parser IS NOT ?)")
+    params.append(current)
+    return where, params
+
+
 def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
     ps = parent_subparsers.add_parser(
         "syntax",
@@ -75,13 +123,7 @@ def cmd_syntax_parse(args: argparse.Namespace) -> int:
 
     conn = store.open_db(args.db)
 
-    where = ["c.lang = ?"]
-    params: list[object] = [args.lang]
-    if args.work is not None:
-        where.append("cf.work_id = ?")
-        params.append(args.work)
-    if not args.reparse:
-        where.append("s.chunk_id IS NULL")
+    where, params = _selection_clause(args)
 
     sql = (
         "SELECT c.chunk_id FROM chunks c "

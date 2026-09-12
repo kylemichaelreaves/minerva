@@ -136,7 +136,11 @@ def test_a_parse_stored_during_the_window_wins(populated_db, monkeypatch: pytest
 
     def fake_parse_text(text: str) -> list[q.SyntaxToken]:
         # Simulate the other request finishing while this one parses.
-        q.save_parse(populated_db, CHUNK, rival, parser="rival-parser")
+        # Same parser id as ours on purpose: two concurrent requests in one
+        # process both call `parser_id()` and necessarily agree. Labelling
+        # the rival differently would make its row read as stale under #531
+        # and test a race that cannot occur.
+        q.save_parse(populated_db, CHUNK, rival, parser="fake-parser")
         return fake_tokens()
 
     monkeypatch.setattr("minerva.syntax.parse.parse_text", fake_parse_text)
@@ -144,11 +148,17 @@ def test_a_parse_stored_during_the_window_wins(populated_db, monkeypatch: pytest
 
     tokens = q.load_or_parse_locked(populated_db, CHUNK, threading.Lock())
 
+    # The tokens are the discriminator: "Rival" means the loser found the
+    # winner's stored copy and returned it rather than overwriting it.
     assert [t.form for t in tokens] == ["Rival"]
     stored = populated_db.execute(
         "SELECT parser FROM chunk_syntax_state WHERE chunk_id = ?", (CHUNK,)
     ).fetchone()[0]
-    assert stored == "rival-parser", "the later parse overwrote a stored one"
+    # Both racers share one parser id, so this no longer tells them apart —
+    # it only confirms the state row survived. It used to read
+    # "rival-parser" against our "fake-parser", which made the two look
+    # distinguishable and would now trip #531's staleness check.
+    assert stored == "fake-parser"
 
 
 @pytest.fixture

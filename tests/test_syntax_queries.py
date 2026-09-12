@@ -169,6 +169,25 @@ def conn(populated_db):
     return populated_db
 
 
+@pytest.fixture
+def current_parser(monkeypatch):
+    """Pin what `load_parse` considers the current model (#531).
+
+    Before that change `chunk_syntax_state.parser` was inert, so these
+    tests could store any label. It is now read, and a stored label that
+    differs from the installed parser reads as uncached — which is the
+    whole point — so a test about round-tripping has to say which model
+    it is pretending to be.
+    """
+
+    from minerva.syntax import parse as parse_mod
+
+    def _pin(value: str) -> None:
+        monkeypatch.setattr(parse_mod, "parser_id", lambda: value)
+
+    return _pin
+
+
 def test_load_parse_returns_none_when_never_parsed(conn) -> None:
     """Distinguishable from "parsed, no tokens" — otherwise an empty chunk is
     re-parsed on every single open."""
@@ -176,7 +195,8 @@ def test_load_parse_returns_none_when_never_parsed(conn) -> None:
     assert q.load_parse(conn, PARSED_CHUNK) is None
 
 
-def test_save_then_load_round_trips(conn) -> None:
+def test_save_then_load_round_trips(conn, current_parser) -> None:
+    current_parser("stanza-de-test")
     q.save_parse(conn, PARSED_CHUNK, pristine(), parser="stanza-de-test")
 
     loaded = q.load_parse(conn, PARSED_CHUNK)
@@ -189,13 +209,15 @@ def test_save_then_load_round_trips(conn) -> None:
     ]
 
 
-def test_an_empty_parse_still_counts_as_parsed(conn) -> None:
+def test_an_empty_parse_still_counts_as_parsed(conn, current_parser) -> None:
+    current_parser("stanza-de-test")
     q.save_parse(conn, PARSED_CHUNK, [], parser="stanza-de-test")
 
     assert q.load_parse(conn, PARSED_CHUNK) == []
 
 
-def test_saving_again_replaces_the_previous_parse(conn) -> None:
+def test_saving_again_replaces_the_previous_parse(conn, current_parser) -> None:
+    current_parser("v2")
     q.save_parse(conn, PARSED_CHUNK, pristine(), parser="v1")
     q.save_parse(conn, PARSED_CHUNK, [tok(1, "Nur", head=0)], parser="v2")
 
@@ -251,3 +273,126 @@ def test_corrections_survive_the_chunk_disappearing(conn) -> None:
     conn.commit()
 
     assert len(q.load_corrections(conn, "ne-1097b")) == 1
+
+
+# ---------- #531: the parser column is written; nothing reads it ----------
+
+
+def test_a_parse_from_a_different_parser_reads_as_uncached(conn, monkeypatch) -> None:
+    """#531: `chunk_syntax_state.parser` records which model produced a
+    tree — `parser_id`'s own docstring says it exists "so a future
+    re-parse can tell what is stale" — but `load_parse` only ever asked
+    `SELECT 1`, so a tree from an older model was served as current.
+
+    Measured on the live index 2026-09-11: 70 rows at `stanza-de-1.13.0`
+    and 1 at `stanza-de-1.14.0`, against an installed stanza of 1.14.0.
+    The column that exists to detect this drift was the column nothing
+    queried.
+    """
+
+    from minerva.syntax import parse as parse_mod
+
+    q.save_parse(conn, PARSED_CHUNK, pristine(), parser="stanza-de-1.13.0")
+    monkeypatch.setattr(parse_mod, "parser_id", lambda: "stanza-de-1.14.0")
+
+    assert q.load_parse(conn, PARSED_CHUNK) is None
+
+
+def test_a_parse_from_the_current_parser_is_served(conn, monkeypatch) -> None:
+    from minerva.syntax import parse as parse_mod
+
+    q.save_parse(conn, PARSED_CHUNK, pristine(), parser="stanza-de-1.14.0")
+    monkeypatch.setattr(parse_mod, "parser_id", lambda: "stanza-de-1.14.0")
+
+    got = q.load_parse(conn, PARSED_CHUNK)
+    assert got is not None
+    assert [t.form for t in got] == ["Der", "Geist", "entwickelt"]
+
+
+def test_a_stored_parse_is_still_served_when_stanza_is_absent(conn, monkeypatch) -> None:
+    """`parse.py`'s module docstring promises everything except an actual
+    parse works without Stanza installed, and CI does not install the
+    `[lemma]` extra. The staleness check must not turn that promise into
+    an ImportError — with no way to compute the current id, serving what
+    is stored is the only honest option."""
+
+    from minerva.syntax import parse as parse_mod
+
+    q.save_parse(conn, PARSED_CHUNK, pristine(), parser="stanza-de-1.13.0")
+
+    def no_stanza() -> str:
+        raise ImportError("No module named 'stanza'")
+
+    monkeypatch.setattr(parse_mod, "parser_id", no_stanza)
+
+    got = q.load_parse(conn, PARSED_CHUNK)
+    assert got is not None
+    assert [t.form for t in got] == ["Der", "Geist", "entwickelt"]
+
+
+def test_the_cli_selection_skips_the_staleness_clause_without_a_parser(conn, monkeypatch) -> None:
+    """The null-safe `IS NOT` trap: `s.parser IS NOT NULL` is true for
+    every parsed row, so passing a None parser id as a bound parameter
+    selects the whole corpus for reparse instead of nothing."""
+
+    import argparse
+
+    from minerva.cli import syntax_cmd
+
+    monkeypatch.setattr(syntax_cmd, "_current_parser_id", lambda: None)
+    q.save_parse(conn, PARSED_CHUNK, pristine(), parser="stanza-de-1.13.0")
+
+    args = argparse.Namespace(lang="deu", work=None, reparse=False, limit=None)
+    where, params = syntax_cmd._selection_clause(args)
+    assert "s.parser" not in " ".join(where)
+    assert None not in params
+
+
+def test_the_cli_selects_unparsed_and_stale_chunks(conn, monkeypatch) -> None:
+    import argparse
+
+    from minerva.cli import syntax_cmd
+
+    monkeypatch.setattr(syntax_cmd, "_current_parser_id", lambda: "stanza-de-1.14.0")
+    args = argparse.Namespace(lang="deu", work=None, reparse=False, limit=None)
+    where, params = syntax_cmd._selection_clause(args)
+    assert "(s.chunk_id IS NULL OR s.parser IS NOT ?)" in where
+    assert params == ["deu", "stanza-de-1.14.0"]
+
+
+def test_the_cli_scopes_to_a_work_when_asked(conn, monkeypatch) -> None:
+    import argparse
+
+    from minerva.cli import syntax_cmd
+
+    monkeypatch.setattr(syntax_cmd, "_current_parser_id", lambda: "p")
+    args = argparse.Namespace(lang="deu", work=7, reparse=False, limit=None)
+    where, params = syntax_cmd._selection_clause(args)
+    assert "cf.work_id = ?" in where
+    assert params == ["deu", 7, "p"]
+
+
+def test_the_cli_reparse_flag_drops_every_state_clause(conn, monkeypatch) -> None:
+    """`--reparse` deletes the state row per chunk, so filtering on it
+    would be self-defeating."""
+
+    import argparse
+
+    from minerva.cli import syntax_cmd
+
+    monkeypatch.setattr(syntax_cmd, "_current_parser_id", lambda: "p")
+    args = argparse.Namespace(lang="deu", work=None, reparse=True, limit=None)
+    where, params = syntax_cmd._selection_clause(args)
+    assert not any("s." in clause for clause in where)
+    assert params == ["deu"]
+
+
+def test_current_parser_id_is_none_without_stanza(monkeypatch) -> None:
+    from minerva.cli import syntax_cmd
+    from minerva.syntax import parse as parse_mod
+
+    def boom() -> str:
+        raise ImportError("No module named 'stanza'")
+
+    monkeypatch.setattr(parse_mod, "parser_id", boom)
+    assert syntax_cmd._current_parser_id() is None

@@ -15,6 +15,7 @@ is testable without the `[lemma]` extra — which CI does not install.
 
 from __future__ import annotations
 
+import sys
 import threading
 from typing import Any
 
@@ -100,9 +101,11 @@ def warm_pipeline() -> bool:
     syntax endpoint degrades to the old lazy load, and every other route is
     unaffected.
 
-    The caller discards the result and nothing logs the exception, so a
-    missing model is currently invisible until a reader opens the overlay and
-    gets a 500 — see #530.
+    The failure is reported on stderr rather than swallowed (#530). It used
+    to be discarded entirely — the caller drops the return value and nothing
+    logged the exception — so a missing model stayed invisible until a reader
+    opened the overlay and got a 500. Startup is where this is cheap to fix
+    and where somebody is watching.
     """
 
     try:
@@ -112,7 +115,17 @@ def warm_pipeline() -> bool:
     # Stanza's `LanguageNotDownloadedError` when `resources.json` is cached
     # but the `de/` model directory is not; its `ResourcesFileNotFoundError`
     # when even `resources.json` is absent).
-    except Exception:
+    except Exception as exc:
+        print(
+            f"syntax: parser unavailable, diagrams will fail — {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        print(
+            f"syntax: the model cache is scoped by stanza release, so a version bump "
+            f"starts from an empty cache. Fix with: "
+            f"python -c \"import stanza; stanza.download('{_LANG}')\"",
+            file=sys.stderr,
+        )
         return False
     return True
 
