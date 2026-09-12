@@ -24,6 +24,8 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 from minerva.corpus.split_spinoza_ethica import split_spinoza_ethica
 from minerva.corpus_works import CorpusWork
 
@@ -201,3 +203,42 @@ def test_no_duplicate_sections_or_ids(tmp_path: Path):
     p1 = _parse(tmp_path, "ethica_ll_1.html", _PART1)
     secs = Counter(c.section for c in p1)
     assert all(v == 1 for v in secs.values()), secs
+
+
+def test_a_missing_lxml_builder_raises_instead_of_falling_back_silently(tmp_path, monkeypatch):
+    """#497: the fallback caught bare `Exception` and switched to
+    `html.parser`, which the file's own comment says yields 90 KB
+    pseudo-paragraphs on Parts II-V because they never close their
+    `<p>` tags. Measured on the real sources:
+
+        ethica_ll_2  lxml max=3422   html.parser max= 90420
+        ethica_ll_3  lxml max=6771   html.parser max=116783
+        ethica_ll_4  lxml max=4312   html.parser max=118273
+
+    `lxml` is declared only under the `hegel` extra, so an install that
+    omits it took the lossy branch and said nothing. The module already
+    raises `IngestDepsMissing` for a missing `beautifulsoup4` fifteen
+    lines above; a dependency whose absence silently corrupts the output
+    deserves at least the same.
+    """
+
+    import bs4
+
+    from minerva.corpus.split_spinoza_ethica import split_spinoza_ethica
+    from minerva.corpus_extract import IngestDepsMissing
+
+    real = bs4.BeautifulSoup
+
+    def no_lxml(markup, features=None, *args, **kwargs):
+        if features == "lxml":
+            raise bs4.FeatureNotFound("lxml not installed")
+        return real(markup, features, *args, **kwargs)
+
+    monkeypatch.setattr(bs4, "BeautifulSoup", no_lxml)
+
+    src = tmp_path / "ethica_ll_2.html"
+    src.write_text("<html><body><p>PROPOSITIO I<p>Demonstratio.</body></html>", encoding="latin-1")
+    work = _work()
+
+    with pytest.raises(IngestDepsMissing, match="lxml"):
+        list(split_spinoza_ethica(src, work))

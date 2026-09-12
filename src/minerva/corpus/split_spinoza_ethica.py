@@ -90,7 +90,7 @@ def _is_banner(t: str) -> bool:
 
 def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     try:
-        from bs4 import BeautifulSoup  # type: ignore[import-untyped]
+        from bs4 import BeautifulSoup, FeatureNotFound  # type: ignore[import-untyped]
     except ImportError as exc:
         from ..corpus_extract import IngestDepsMissing
 
@@ -110,8 +110,28 @@ def split_spinoza_ethica(path: Path, work: CorpusWork) -> Iterator[Chunk]:
     # sibling paragraphs. Fall back to ``html.parser`` only if lxml is absent.
     try:
         soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        soup = BeautifulSoup(html, "html.parser")
+    except FeatureNotFound as exc:
+        # This used to catch bare `Exception` and fall back to
+        # `html.parser`, which the comment above describes as producing
+        # 90 KB pseudo-paragraphs. Measured on the real sources, that is
+        # not an exaggeration -- longest paragraph, lxml vs html.parser:
+        # Part II 3,422 vs 90,420; Part III 6,771 vs 116,783; Part IV
+        # 4,312 vs 118,273. Part I is identical either way, exactly as
+        # the comment predicts, which is what makes the damage easy to
+        # miss on a spot check.
+        #
+        # `lxml` is declared only under the `hegel` extra, so an install
+        # that omits it took the lossy branch and said nothing. Refuse
+        # instead, the way this function already refuses a missing
+        # `beautifulsoup4` -- a dependency whose absence silently
+        # corrupts the output is not optional (#497).
+        from ..corpus_extract import IngestDepsMissing
+
+        raise IngestDepsMissing(
+            "Spinoza Ethica ingest requires the `lxml` HTML builder: Parts II-V "
+            "never close their <p> tags, and html.parser nests them into 90 KB "
+            "pseudo-paragraphs. Install with `pip install -e '.[hegel]'`."
+        ) from exc
 
     # Part I omits the DEFINITIONES / AXIOMATA section headers entirely — its
     # eight definitions then seven axioms start straight in as "I ." items —
