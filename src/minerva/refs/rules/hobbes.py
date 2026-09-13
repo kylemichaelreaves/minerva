@@ -18,7 +18,11 @@ Latin Hobbes uses standard Renaissance Latin spellings — Aristoteles
 from __future__ import annotations
 
 from . import AuthorMentionRule, StrongMentionRule
-from .scripture_cite import ScriptureCiteRule, ScriptureCiteRuleEn
+from .scripture_cite import (
+    ScriptureCiteRule,
+    ScriptureCiteRuleEn,
+    ScriptureCiteRuleLatRoman,
+)
 
 RULES = (
     # ── English scripture cites → KJV. Hobbes is the corpus's heaviest
@@ -30,6 +34,12 @@ RULES = (
     # Cive quote scripture in Latin; without this rule those biblical
     # citations were never detected (issue #55).
     ScriptureCiteRule(name="hobbes_scripture_cite_lat"),
+    # Molesworth's 1839 Opera Latina — the edition the Latin Hobbes is
+    # read from since #535 — sets chapters in lowercase Roman and
+    # numbers the books in Arabic ("1 Cor. ix. 9"). The rule above
+    # takes an Arabic chapter and matches none of them; between the
+    # two, every scripture citation in the Latin Hobbes is covered.
+    ScriptureCiteRuleLatRoman(name="hobbes_scripture_cite_lat_roman"),
     # Aristotle — Hobbes's central polemical target in Leviathan
     # part IV ("Of the Kingdom of Darkness") and the De Cive
     # preface. References are frequent and explicit; high

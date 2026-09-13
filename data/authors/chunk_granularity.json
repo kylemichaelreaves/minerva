@@ -196,16 +196,6 @@
       "max": 4681,
       "mean": 3615
     },
-    "Hobbes|De Cive|lat": {
-      "chunks": 18,
-      "max": 71878,
-      "mean": 26357
-    },
-    "Hobbes|Leviathan|lat": {
-      "chunks": 47,
-      "max": 127001,
-      "mean": 17632
-    },
     "Kant|Critique of Pure Reason|eng": {
       "chunks": 1138,
       "max": 19470,

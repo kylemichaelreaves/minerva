@@ -305,7 +305,31 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     # Revelation
     (None, "Apocalypsis"): "Revelation",
     (None, "Apocalypsim"): "Revelation",
+    # Psalms, abbreviated one letter shorter than "Psalm". Molesworth
+    # uses both forms ("Psal. lxxxiv. 11" beside "Psalm. xxxvi. 30").
+    (None, "Psal"): "Psalms",
 }
+
+
+# 19th-century editions number the books in Arabic — "1 Cor." where the
+# older convention writes "I Cor." — so every ordinal-prefixed entry
+# above needs an Arabic twin. Generated rather than typed out: a hand
+# mirror of 30-odd keys drifts the first time a book is added to one
+# list and not the other.
+#
+# These keys are reachable ONLY from `ScriptureCiteRuleLatRoman`.
+# `_CITE_RE`'s prefix group is `I{1,3}V?|ad`, which cannot match a
+# digit at all — on "Paulus 1 Cor. 9" it captures `prefix=None,
+# abbr='Paulus', chap='1'` and never consults these entries. So adding
+# them changes nothing for any author the Arabic rule serves.
+_ARABIC_FOR_ROMAN_ORDINAL = {"I": "1", "II": "2", "III": "3", "IV": "4"}
+_LEXICON.update(
+    {
+        (_ARABIC_FOR_ROMAN_ORDINAL[prefix], abbr): book
+        for (prefix, abbr), book in list(_LEXICON.items())
+        if prefix in _ARABIC_FOR_ROMAN_ORDINAL
+    }
+)
 
 
 # Aquinas writes the spelled-out genitive forms lowercase mid sentence
