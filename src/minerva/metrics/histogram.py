@@ -66,7 +66,7 @@ def quantile(counts: Sequence[int], q: float) -> float:
             return BUCKET_UPPER_MS[-1]
         lo, hi = _bucket_bounds(i)
         return lo + (hi - lo) * ((target - previous) / count)
-    return BUCKET_UPPER_MS[-1]
+    # Unreachable: target <= total, and loop accumulates all counts.
 
 
 __all__ = ["BUCKET_COUNT", "BUCKET_UPPER_MS", "bucket_index", "quantile"]

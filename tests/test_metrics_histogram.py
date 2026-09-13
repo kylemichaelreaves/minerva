@@ -44,14 +44,14 @@ def test_quantile_single_bucket_interpolates_within_it():
     counts = [0] * BUCKET_COUNT
     counts[3] = 10  # bucket 3 spans [5.0, 10.0)
     got = quantile(counts, 0.5)
-    assert 5.0 <= got <= 10.0
+    assert quantile(counts, 0.5) == pytest.approx(7.5)
 
 
 def test_quantile_p95_lands_in_the_tail_bucket():
     counts = [0] * BUCKET_COUNT
     counts[0] = 95   # [0, 1)
     counts[8] = 5    # [250, 500)
-    assert quantile(counts, 0.99) > 250.0
+    assert quantile(counts, 0.99) == pytest.approx(450.0)
 
 
 def test_quantile_overflow_bucket_returns_last_finite_bound():
