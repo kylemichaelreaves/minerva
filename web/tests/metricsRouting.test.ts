@@ -20,9 +20,11 @@ describe("#/metrics routing", () => {
   });
 
   it("carries the window and selected label", () => {
-    expect(
-      withHash("#/metrics?window=7d&label=chunk+syntax", readRoute),
-    ).toMatchObject({ kind: "metrics", window: "7d", label: "chunk syntax" });
+    expect(withHash("#/metrics?window=7d&label=chunk+syntax", readRoute)).toMatchObject({
+      kind: "metrics",
+      window: "7d",
+      label: "chunk syntax",
+    });
   });
 
   it("ignores an unknown window rather than rendering a broken page", () => {

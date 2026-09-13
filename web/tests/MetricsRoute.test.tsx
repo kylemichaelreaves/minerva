@@ -32,10 +32,14 @@ function makeCtx(routing: TestRouting): RouteContextProps {
 }
 
 function mockSummary() {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true, status: 200,
-    json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: [] }),
-  }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: [] }),
+    }),
+  );
 }
 
 afterEach(() => vi.unstubAllGlobals());

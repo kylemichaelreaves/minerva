@@ -4,7 +4,13 @@ import { TimeSeriesChart } from "~/Metrics/TimeSeriesChart";
 import type { MetricsSeriesPoint } from "~/api/metricsApi";
 
 const point = (t: number, p50: number, p95: number): MetricsSeriesPoint => ({
-  t, count: 10, mean_ms: p50, max_ms: p95, p50_ms: p50, p95_ms: p95, p99_ms: p95,
+  t,
+  count: 10,
+  mean_ms: p50,
+  max_ms: p95,
+  p50_ms: p50,
+  p95_ms: p95,
+  p99_ms: p95,
 });
 
 /**

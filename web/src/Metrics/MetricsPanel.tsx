@@ -109,7 +109,9 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // numbers and no column saying why. `summaryRows` is the raw fetch;
   // `rows` (the leaderboard) keeps only the `total` half so each route
   // appears exactly once.
-  const summaryRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(summary)?.rows ?? []);
+  const summaryRows = createMemo<MetricsSummaryRow[]>(
+    () => valueUnlessErrored(summary)?.rows ?? [],
+  );
 
   const rows = createMemo<MetricsSummaryRow[]>(() =>
     // Sort here rather than trust the endpoint's own ordering — the
@@ -140,7 +142,8 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // omitted (`handlers/metrics.py`). Without threading the toggle
   // through here, switching to "TTFE" would relabel the same total-
   // latency chart rather than actually change what it shows.
-  const seriesSource = (): { label: string; w: MetricWindow; kind: "total" | "ttfe" } | undefined => {
+  const seriesSource = ():
+    { label: string; w: MetricWindow; kind: "total" | "ttfe" } | undefined => {
     const label = selectedLabel();
     return label ? { label, w: win(), kind: spanKind() } : undefined;
   };

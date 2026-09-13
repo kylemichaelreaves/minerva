@@ -5,9 +5,18 @@ import { MetricsPanel, errorMessage } from "~/Metrics/MetricsPanel";
 import type { MetricWindow } from "~/api/metricsApi";
 
 const row = (label: string, p95: number) => ({
-  label, method: "GET", kind: "total" as const, span: "",
-  count: 10, mean_ms: p95 / 2, min_ms: 1, max_ms: p95,
-  p50_ms: p95 / 2, p95_ms: p95, p99_ms: p95, error_rate: 0,
+  label,
+  method: "GET",
+  kind: "total" as const,
+  span: "",
+  count: 10,
+  mean_ms: p95 / 2,
+  min_ms: 1,
+  max_ms: p95,
+  p50_ms: p95 / 2,
+  p95_ms: p95,
+  p99_ms: p95,
+  error_rate: 0,
 });
 
 // `json` is `() => Promise.resolve(...)` rather than `async () => (...)`:
@@ -16,10 +25,14 @@ const row = (label: string, p95: number) => ({
 // same shape `apiGet`'s real `r.json()` call expects. Same convention as
 // `tests/helpers/testRouting.ts`'s `okResponse`.
 function mockSummary(rows: unknown[]) {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true, status: 200,
-    json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows }),
-  }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows }),
+    }),
+  );
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -91,9 +104,18 @@ describe("MetricsPanel", () => {
   // route's `total` and `ttfe` rows are both in this response — never in
   // the labeled drill-down, which excludes `span = ''` entirely).
   const ttfeRow = (label: string, p95: number) => ({
-    label, method: "GET", kind: "ttfe" as const, span: "",
-    count: 4, mean_ms: p95 / 2, min_ms: 1, max_ms: p95,
-    p50_ms: p95 / 2, p95_ms: p95, p99_ms: p95, error_rate: 0,
+    label,
+    method: "GET",
+    kind: "ttfe" as const,
+    span: "",
+    count: 4,
+    mean_ms: p95 / 2,
+    min_ms: 1,
+    max_ms: p95,
+    p50_ms: p95 / 2,
+    p95_ms: p95,
+    p99_ms: p95,
+    error_rate: 0,
   });
 
   // Labeled (drill-down) rows: ALWAYS `kind: "total"` and ALWAYS a
@@ -104,9 +126,18 @@ describe("MetricsPanel", () => {
   // let both through, which is exactly how the toggle tests below used to
   // pass against an API shape that doesn't exist (caught in review).
   const subSpanRow = (span: string, p95: number) => ({
-    label: "slow", method: "GET", kind: "total" as const, span,
-    count: 4, mean_ms: p95 / 2, min_ms: 1, max_ms: p95,
-    p50_ms: Math.round(p95 / 2), p95_ms: p95, p99_ms: p95 + 1, error_rate: 0,
+    label: "slow",
+    method: "GET",
+    kind: "total" as const,
+    span,
+    count: 4,
+    mean_ms: p95 / 2,
+    min_ms: 1,
+    max_ms: p95,
+    p50_ms: Math.round(p95 / 2),
+    p95_ms: p95,
+    p99_ms: p95 + 1,
+    error_rate: 0,
   });
 
   // `MetricsPanel` is fully controlled (same idiom as `Network`/`Refs`):
@@ -146,22 +177,39 @@ describe("MetricsPanel", () => {
         const isTtfe = url.includes("kind=ttfe");
         const p95 = isTtfe ? 111 : 999;
         return Promise.resolve({
-          ok: true, status: 200,
-          json: () => Promise.resolve({
-            label: "slow", kind: isTtfe ? "ttfe" : "total", span: "", bucket_seconds: 300,
-            points: [{ t: 0, count: 1, mean_ms: p95 / 2, max_ms: p95, p50_ms: p95 / 2, p95_ms: p95, p99_ms: p95 }],
-          }),
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              label: "slow",
+              kind: isTtfe ? "ttfe" : "total",
+              span: "",
+              bucket_seconds: 300,
+              points: [
+                {
+                  t: 0,
+                  count: 1,
+                  mean_ms: p95 / 2,
+                  max_ms: p95,
+                  p50_ms: p95 / 2,
+                  p95_ms: p95,
+                  p99_ms: p95,
+                },
+              ],
+            }),
         });
       }
       if (url.includes("/api/metrics/summary") && url.includes("label=")) {
         if (opts.detailFails) return Promise.reject(new Error("breakdown down"));
         return Promise.resolve({
-          ok: true, status: 200,
+          ok: true,
+          status: 200,
           json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: opts.detailRows }),
         });
       }
       return Promise.resolve({
-        ok: true, status: 200,
+        ok: true,
+        status: 200,
         json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: opts.leaderboard }),
       });
     });
@@ -178,18 +226,15 @@ describe("MetricsPanel", () => {
     await view.findAllByTestId("metrics-route-label");
     // Give any stray microtask a chance to fire before asserting absence.
     await Promise.resolve();
-    expect(fetchMock.mock.calls.some(([input]) => urlOf(input).includes("/api/metrics/series"))).toBe(
-      false,
-    );
+    expect(
+      fetchMock.mock.calls.some(([input]) => urlOf(input).includes("/api/metrics/series")),
+    ).toBe(false);
   });
 
   it("drills into a selected route's sub-span breakdown and trend chart, marking llm_call as per-attempt", async () => {
     mockDrilldown({
       leaderboard: [row("slow", 900)],
-      detailRows: [
-        subSpanRow("stanza_parse", 300),
-        subSpanRow("llm_call", 500),
-      ],
+      detailRows: [subSpanRow("stanza_parse", 300), subSpanRow("llm_call", 500)],
     });
     const view = render(() => <Host />);
     const cells = await view.findAllByTestId("metrics-route-label");
@@ -289,13 +334,22 @@ describe("MetricsPanel", () => {
       }
       if (url.includes("/api/metrics/summary") && url.includes("label=")) {
         return Promise.resolve({
-          ok: true, status: 200,
-          json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: [subSpanRow("stanza_parse", 300)] }),
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              window: "24h",
+              since: 0,
+              until: 1,
+              rows: [subSpanRow("stanza_parse", 300)],
+            }),
         });
       }
       return Promise.resolve({
-        ok: true, status: 200,
-        json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: [row("slow", 900)] }),
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ window: "24h", since: 0, until: 1, rows: [row("slow", 900)] }),
       });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -308,11 +362,16 @@ describe("MetricsPanel", () => {
     expect(view.queryByText(/no data/i)).toBeNull();
 
     resolveSeries({
-      ok: true, status: 200,
-      json: () => Promise.resolve({
-        label: "slow", kind: "total", span: "", bucket_seconds: 300,
-        points: [{ t: 0, count: 1, mean_ms: 10, max_ms: 20, p50_ms: 10, p95_ms: 20, p99_ms: 20 }],
-      }),
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          label: "slow",
+          kind: "total",
+          span: "",
+          bucket_seconds: 300,
+          points: [{ t: 0, count: 1, mean_ms: 10, max_ms: 20, p50_ms: 10, p95_ms: 20, p99_ms: 20 }],
+        }),
     });
     await waitFor(() => expect(view.queryByText(/loading trend/i)).toBeNull());
     expect(view.container.querySelector(".mchart")).not.toBeNull();

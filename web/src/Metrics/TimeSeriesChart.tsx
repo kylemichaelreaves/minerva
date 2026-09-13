@@ -102,10 +102,7 @@ export function TimeSeriesChart(props: { points: MetricsSeriesPoint[]; height?: 
 
   return (
     <div class="mchart" ref={wrapEl}>
-      <Show
-        when={props.points.length > 0}
-        fallback={<div class="mchart-empty">No data</div>}
-      >
+      <Show when={props.points.length > 0} fallback={<div class="mchart-empty">No data</div>}>
         <div class="mchart-legend">
           <span class="mchart-legend-item">
             <span class="mchart-swatch" data-series="p50" />
@@ -128,13 +125,7 @@ export function TimeSeriesChart(props: { points: MetricsSeriesPoint[]; height?: 
             <For each={levels()}>
               {(v, i) => (
                 <>
-                  <line
-                    x1={plotX0}
-                    x2={plotX1()}
-                    y1={yAt(v)}
-                    y2={yAt(v)}
-                    class="mchart-grid"
-                  />
+                  <line x1={plotX0} x2={plotX1()} y1={yAt(v)} y2={yAt(v)} class="mchart-grid" />
                   <text x={plotX0 - 6} y={yAt(v) + 3} text-anchor="end" class="mchart-tick">
                     {Math.round(v)}
                     {i() === GRID_LINE_COUNT - 1 ? " ms" : ""}
@@ -173,12 +164,7 @@ export function TimeSeriesChart(props: { points: MetricsSeriesPoint[]; height?: 
             </Show>
             <Show when={last()}>
               {(lastPoint) => (
-                <text
-                  x={plotX1()}
-                  y={height() - 4}
-                  text-anchor="end"
-                  class="mchart-tick"
-                >
+                <text x={plotX1()} y={height() - 4} text-anchor="end" class="mchart-tick">
                   {formatTimeLabel(lastPoint().t)}
                 </text>
               )}
