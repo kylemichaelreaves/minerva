@@ -124,10 +124,13 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // sub-span breakdown and (below) the trend chart. Solid skips the
   // fetcher entirely when a source accessor returns a falsy value, so
   // while nothing is selected these never run — which is the guard the
-  // brief calls for: an empty `label` is silently dropped from the
-  // query string by `qs()`, so calling `fetchMetricsSeries` with one
-  // would issue a whole-table query that looks like a normal request
-  // rather than an obvious bug.
+  // brief calls for, though not for the reason an earlier version of
+  // this comment gave. `qs()` drops an empty value, so an empty `label`
+  // never reaches the query string at all, and `_handle_metrics_series`
+  // answers a label-less request with 400 (`handlers/metrics.py`). The
+  // cost of firing anyway is therefore a guaranteed-failing fetch and a
+  // spurious error banner on first render, before the reader has picked
+  // a route — not the silent whole-table query this used to claim.
   const detailSource = (): { label: string; w: MetricWindow } | undefined => {
     const label = selectedLabel();
     return label ? { label, w: win() } : undefined;
