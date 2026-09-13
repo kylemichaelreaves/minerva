@@ -161,11 +161,226 @@ def extract_ocr_pages(path: Path) -> str:
     return _clean_page_lines([[str(line) for line in page] for page in pages])
 
 
-def _extract_pdf_page_lines(page) -> list[str]:
-    """Extract a single page as a list of plain-text lines, fusing
-    adjacent words whose horizontal gap is below the kerning threshold.
+# ── Recovering spaces that were never in the text layer ────────────
+#
+# Some spans in scholarly PDFs carry no space glyphs at all. Two lines of
+# the Inwood *Phenomenology*'s editor's introduction extract as
+# `IthasbeensaidthatthedifferencebetweenNietzscheandHegel…`, and no
+# PyMuPDF mode recovers them: `get_text("text")` and `get_text("words")`
+# agree, because there is nothing to find. See #561.
+#
+# The character positions still hold the answer. Within a word the glyph
+# gap is about -0.14pt; between words it is +1.3 to +1.4pt. Cutting at
+# the large gaps restores the words exactly — nothing is guessed and no
+# dictionary is consulted, which is what separates this from a
+# space-insertion pass over damaged text.
+#
+# Almost every space-less span is an ordinary single word — over the two
+# Hegel PDFs, 12,072 of 63,065 spans contain no space and only a couple
+# of dozen are damaged. So the shape of the gap distribution, not
+# space-lessness and not length, is what identifies the damage. That is
+# also what makes the pass immune to #561's predicted false positive:
+# `Transzendentalphilosophie` really is one word and its gaps really are
+# uniform.
+#
+# **Measured across all 15 PDFs in the corpus, the guards below matter
+# more than the rule they guard.** The bare "gap above the median" test
+# fired 296 times and was wrong nearly every time; with the guards it
+# fires 20 times and is right every time, touching only the two PDFs
+# #561 names. The four false-positive families it had to learn are
+# documented on `_split_on_char_gaps`. Anyone loosening a guard should
+# re-run that sweep rather than sample a page.
+
+#: Width of the empty band that must separate word gaps from letter gaps.
+#: The test is a real *valley*, not "above the median": the smallest gap
+#: taken as a word break must exceed the largest gap left inside a word
+#: by this much. "Widest gap in the span" is not enough, because every
+#: span has a widest gap — that version split `INTRODUCTION` (a
+#: letter-spaced heading, whose gaps are all equal) into `IN TRODUCTION`.
+_SPACE_GAP_VALLEY = 0.6
+
+#: A word break must also be positive in absolute terms. Glyph boxes in
+#: a tight font overlap, so gaps inside a word run slightly negative.
+_SPACE_GAP_MIN = 0.4
+
+#: Below this many characters a span has too few gaps to read a
+#: distribution off.
+_SPACE_MIN_CHARS = 12
+
+#: Private Use Area. The Inwood PDF encodes some runs in PUA glyphs that
+#: carry no usable character identity; splitting them tidies nothing and
+#: the result is unreadable either way.
+_PUA = range(0xE000, 0xF900)
+
+_VOWEL_RE = re.compile(r"[aeiouyàâäéèêëîïôöùûüAEIOUYÀÂÄÉÈÊËÎÏÔÖÙÛÜ]")
+
+#: The only single letters that stand alone as words in the languages
+#: these PDFs are set in (English, German, French).
+_STANDALONE_LETTER_WORDS = frozenset("aAiIoOyY")
+
+
+def _split_on_char_gaps(
+    chars: list[tuple[str, float, float]],
+) -> str | None:
+    """Re-insert spaces into a run-on span using its glyph geometry.
+
+    ``chars`` is ``(character, x0, x1)`` in reading order. Returns the
+    spaced text, or None when the span is not damaged — the common case,
+    which must stay cheap.
+
+    **A span carrying any space at all is declined, and that costs real
+    repairs.** Damage can be partial — ``–Itwillnotbewithoutinterest
+    toexaminethisconstruction`` is one span with a real space in the
+    middle and a lost one either side — and about 13 genuine runs are
+    left unrepaired by this rule. Tracked separately rather than fixed
+    here, because judging each space-delimited segment on its own was
+    tried and is much worse: it takes the corpus-wide count from 23
+    repairs to **284**, and the additions split ordinary words —
+    ``tr ansmitted``, ``Hoff meister``, ``j uxtapositions``,
+    ``o bjectionable``. An eleven-character word has ten gaps, one kern
+    pair is enough to look bimodal across so few, and the surrounding
+    spaces that would have revealed the span as healthy are exactly what
+    segmenting throws away. The whole-span space test is doing most of
+    the work of this function.
     """
 
+    if any(c.isspace() for c, _, _ in chars):
+        return None
+    return _split_segment(chars)
+
+
+def _split_segment(
+    chars: list[tuple[str, float, float]],
+) -> str | None:
+    """One space-free run → its spaced form, or None if undamaged.
+
+    **Every guard below was added because it had to be.** Run against all
+    15 PDFs in the corpus, the bare "gap above the median" rule fired 296
+    times, of which fewer than two dozen were real. The rest were four
+    recurring shapes, and each guard names the one it exists for:
+
+    * a spacing diacritic (``Barthe´lemy``, ``Zur¨uckf¨uhrung``) is a
+      zero-advance glyph whose box arithmetic fakes one wide gap — 164 of
+      the 296 had exactly one break, and this was nearly all of them;
+    * a letter-spaced heading (``INTRODUCTION``) has *uniform* wide gaps,
+      so it has a widest one without having a bimodal one;
+    * PUA-encoded runs, which are unreadable whatever is done to them;
+    * punctuation spacing (``thing-in-itself);`` → ``thing-in-itself );``),
+      which is not a lost word space at all.
+    """
+
+    if len(chars) < _SPACE_MIN_CHARS:
+        return None
+    if all(x1 - x0 <= 0 for _, x0, x1 in chars):
+        return None
+    if any(ord(c) in _PUA for c, _, _ in chars):
+        return None
+    gaps = [nxt[1] - cur[2] for cur, nxt in pairwise(chars)]
+    if len(gaps) < _SPACE_MIN_CHARS - 1:
+        return None
+
+    # Find the widest empty band in the sorted gaps. A span with lost
+    # spaces is bimodal — a tight cluster inside words, a tight cluster
+    # between them, and nothing in between.
+    ordered = sorted(gaps)
+    valley_at = max(range(1, len(ordered)), key=lambda i: ordered[i] - ordered[i - 1])
+    valley = ordered[valley_at] - ordered[valley_at - 1]
+    if valley < _SPACE_GAP_VALLEY:
+        return None
+    threshold = max(ordered[valley_at], _SPACE_GAP_MIN)
+    breaks = {i for i, g in enumerate(gaps) if g >= threshold}
+    if not breaks:
+        return None
+
+    # A lost word space sits between two letters. A break beside a
+    # diacritic, a bracket or a quote mark is the glyph-box artefact
+    # above, not a missing space.
+    if not any(chars[i][0].isalpha() and chars[i + 1][0].isalpha() for i in breaks):
+        return None
+
+    # Letter-spaced headings are the other shape with wide gaps, and
+    # `_fuse_kerned_words` below already exists to *close* them — this
+    # pass must not fight it. Uniform spacing usually fails the valley
+    # test, but not always: `TRANSLATIONS` has one tight pair (`AT`) and
+    # so reads as bimodal, and came out `T R A N S L AT I O N S`. Prose
+    # that lost its spaces is mixed case; a banner is not. Same 0.85
+    # ratio `_fuse_kerned_words` uses, for the same phenomenon.
+    letters = [c for c, _, _ in chars if c.isalpha()]
+    if letters and sum(c.isupper() for c in letters) / len(letters) >= 0.85:
+        return None
+
+    out: list[str] = []
+    for i, (c, _, _) in enumerate(chars):
+        out.append(c)
+        if i in breaks:
+            out.append(" ")
+    result = "".join(out)
+
+    # Last guards: every part that is a word must look like one.
+    parts = result.split()
+    for index, part in enumerate(parts):
+        # A lone letter in the *middle* is a cut inside a word — a
+        # drop cap, in the one case that reached here (`[Gedankenbes`
+        # → `[ G edankenbes`). At either end it is legitimate, because
+        # a span often begins or ends mid-word: the damaged run after
+        # `Nietzsche’` opens with a bare `s`.
+        if (
+            len(part) == 1
+            and part.isalpha()
+            and 0 < index < len(parts) - 1
+            and part not in _STANDALONE_LETTER_WORDS
+        ):
+            return None
+        # A wholly alphabetic part of three or more letters with no
+        # vowel is a cut inside a word.
+        #
+        # **Alphabetic only, and that restriction is load-bearing.** A
+        # first version tested any part containing a letter, and
+        # rejected three correct repairs on abbreviations that have no
+        # vowel by nature: `cf.`, and the `W.` and `L.` of
+        # `Selected Essays on G. W. F. Hegel` and
+        # `. Edited by L. Stepelevich.` Requiring `isalpha()` exempts
+        # anything carrying a period.
+        if len(part) >= 3 and part.isalpha() and not _VOWEL_RE.search(part):
+            return None
+    return result
+
+
+def _page_space_repairs(page) -> dict[str, str]:
+    """Map every damaged run-on on this page to its repaired form.
+
+    Keyed on the run-on string itself rather than on position, so the
+    repair can be applied to the lines the existing word-based
+    extraction produces without restructuring it. The keys are 12+
+    characters with no spaces, so a plain substring replacement cannot
+    collide with ordinary text.
+    """
+
+    repairs: dict[str, str] = {}
+    for block in page.get_text("rawdict").get("blocks", []):
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                chars = span.get("chars") or []
+                triples = [
+                    (c["c"], float(c["bbox"][0]), float(c["bbox"][2]))
+                    for c in chars
+                ]
+                fixed = _split_on_char_gaps(triples)
+                if fixed is None:
+                    continue
+                original = "".join(c for c, _, _ in triples)
+                if fixed != original:
+                    repairs[original] = fixed
+    return repairs
+
+
+def _extract_pdf_page_lines(page) -> list[str]:
+    """Extract a single page as a list of plain-text lines, fusing
+    adjacent words whose horizontal gap is below the kerning threshold,
+    and re-inserting spaces that the text layer never carried.
+    """
+
+    repairs = _page_space_repairs(page)
     # `words` returns tuples (x0, y0, x1, y1, text, block_no, line_no, word_no).
     words = page.get_text("words")
     if not words:
@@ -177,7 +392,15 @@ def _extract_pdf_page_lines(page) -> list[str]:
     out: list[str] = []
     for key in sorted(grouped.keys()):
         line_words = sorted(grouped[key], key=lambda w: w[0])
-        out.append(_fuse_kerned_words(line_words))
+        line = _fuse_kerned_words(line_words)
+        # Applied after fusion, not before: `_fuse_kerned_words` joins
+        # kerned words and could otherwise re-close a gap this just
+        # opened. Longest key first, so a run-on that contains a shorter
+        # one is not partly rewritten out from under itself.
+        for original in sorted(repairs, key=len, reverse=True):
+            if original in line:
+                line = line.replace(original, repairs[original])
+        out.append(line)
     return out
 
 
