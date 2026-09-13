@@ -11,9 +11,22 @@ see the `--conversations-db` help text in `cli/serve_cmd.py`.
 from __future__ import annotations
 
 from .histogram import BUCKET_COUNT, BUCKET_UPPER_MS, bucket_index, quantile
+from .recorder import Recorder, Span, sub_span
 from .store import BUCKET_SECONDS, SCHEMA, Sample, open_db, series, summary, write
 
 __all__ = [
-    "BUCKET_COUNT", "BUCKET_SECONDS", "BUCKET_UPPER_MS", "SCHEMA", "Sample",
-    "bucket_index", "open_db", "quantile", "series", "summary", "write",
+    "BUCKET_COUNT",
+    "BUCKET_SECONDS",
+    "BUCKET_UPPER_MS",
+    "SCHEMA",
+    "Recorder",
+    "Sample",
+    "Span",
+    "bucket_index",
+    "open_db",
+    "quantile",
+    "series",
+    "sub_span",
+    "summary",
+    "write",
 ]
