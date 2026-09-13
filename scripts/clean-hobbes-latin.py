@@ -1,139 +1,165 @@
 #!/usr/bin/env python3
-"""Caret + glyph cleanup for Hobbes' Latin source files.
+"""Ligature repair for the Molesworth Latin Hobbes OCR.
 
-The 2026-05-31 corpus quality audit flagged 49 caret_artifact +
-18 run_on + 5 glyph_soup chunks in Hobbes. All Latin:
+Runs between ``perseus/download_hobbes_la.py`` and ``minerva ingest``,
+in place and idempotently, over::
 
-* ``data/hobbes/raw_lat/de_cive_lat.txt`` — 546 caret lines.
-* ``data/hobbes/raw_lat/leviathan_lat.txt`` — 266 caret lines.
+    data/hobbes/raw_lat/leviathan_lat.txt
+    data/hobbes/raw_lat/de_cive_lat.txt
 
-The English Hobbes files (Leviathan eng, De Corpore Politico,
-Philosophical Rudiments, Human Nature) are clean.
+**This script used to be about something else.** Before #535 the
+sources were Internet Archive scans of the 1668 and 1704 printings,
+set in long-s type, and this file's docstring said the residual long-s
+contamination could not be repaired because "pyspellchecker doesn't
+ship a Latin wordlist". Both halves of that are now moot: the sources
+are Molesworth's 1839 roman-type reprint, which has no long-s, and the
+Latin vocabulary the old note said we lacked has been sitting in
+``data/latin_vocab.json`` since the Boulainvilliers round.
 
-The Latin files are the same Gallica/Google-Books OCR family as
-Boulainvilliers — caret debris, ligatures, running headers — PLUS
-the 17th-c long-s OCR misread (``inftituto``, ``Cenforis``,
-``fapientix``). We CANNOT run the Boulainvilliers dict-guided
-f→s pass here because pyspellchecker doesn't ship a Latin
-wordlist. That residual long-s contamination is NOT measured by the
-audit's `long_s_misread` count. That count reads 10 chunks
-only because the misread heuristic gates lang to
-{eng/fra/deu} — it excludes `lat`, which is the only
-language with the problem. The Latin is in fact severely
-corrupted (`Cbrifti`, `$eniet`, `Dabid`, `triwmphum`); see
-#535, which proposes re-sourcing rather than repairing.
+What Molesworth's OCR gets wrong instead is the **Æ and Œ ligatures**.
+The 1839 printing sets *quae* as ``quæ`` and *coelum* as ``cœlum``, and
+the scan resolves those two glyphs inconsistently — differently between
+the two volumes, which is why both substitution families are needed:
 
-This script applies the SAFE cleanup steps from the Boulainvilliers
-pipeline:
+    vol. III (Leviathan)   æ → se     quse, sestimati, praeda → praesda
+    vol. II  (De Cive)     æ → ze     tuze, nzeniis, lzdendi
+                           æ → ee     preeterquam, esedem
+                           æ → z      equales
+    both                   œ → ce     ccelum, ccena
 
-1. Unicode ligature decomposition (``ﬁ ﬂ ﬀ ...``).
-2. Hyphenation join across line breaks.
-3. Caret-bearing token strip.
-4. Page-number-only line drop.
-5. Column-edge garbage line drop.
-6. Glyph-soup line drop.
-7. ``------------`` divider line drop.
-8. Same-file paragraph dedup (≥60 chars).
+Every substitution is **dictionary-guided**: a word is rewritten only
+when it is absent from the Latin vocabulary and the rewrite is present.
+That is what makes it safe to apply ``se → ae`` at all — *esse* and
+*sensus* are in the vocabulary and so are never touched — and what
+makes the script idempotent, since a repaired word is in the vocabulary
+on the next pass.
 
-A future round can add a Latin-aware f→s pass (CLTK or
-in-corpus-vocabulary lookup) — that's tracked as a follow-up.
+Measured on the parsed chunks, 2026-09-12 (vocabulary-hit rate over
+tokens of 4+ letters; clean Latin from outside the vocabulary's own
+sources reads 78–88% on this scorer):
 
-Idempotent.
+    Leviathan   85.8%  →  86.9%   (873 words repaired)
+    De Cive     84.3%  →  86.0%   (850 words repaired)
+
+Caret debris (``^ T^``, ``j^ ^*``) is stripped in the same pass: 457
+tokens in Leviathan, 75 in De Cive, all of it the marginal gloss column
+coming apart under OCR.
+
+Run:
+
+    uv run python scripts/clean-hobbes-latin.py
 """
 
 from __future__ import annotations
 
-import importlib.util
+import itertools
+import json
 import re
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOBBES_DIR = REPO_ROOT / "data" / "hobbes" / "raw_lat"
+VOCAB_PATH = REPO_ROOT / "data" / "latin_vocab.json"
 
-_BV_PATH = REPO_ROOT / "scripts" / "clean-boulainvilliers-texts.py"
-_spec = importlib.util.spec_from_file_location("_bv_clean", _BV_PATH)
-assert _spec and _spec.loader
-_bv = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_bv)
-
-# Hobbes Latin running-header patterns.
-#
-# DELIBERATE OMISSION: we do NOT strip ``CAPUT N``/``CAPVT N`` or
-# ``PARS N``/``PARS PRIMA`` etc. — those lines are structural
-# anchors the downstream chunker (``src/minerva/hobbes_la.py``)
-# uses to detect chapter boundaries. Stripping them collapses the
-# chunker's output from 65 chunks to ~40 mega-chunks because the
-# splitter loses its CAPVT signal. Body running-heads (single-word
-# Latin titles in caps on their own line) and dedication/preface
-# titles are safe to drop.
-_HOBBES_RUNNING = re.compile(
-    r"^\s*(?:"
-    r"DE\s+CIVE\s*\.?"
-    r"|LEVIATHAN\s*\.?"
-    r"|ELEMENTA\s+PHILOSOPHIAE?\s*\.?"
-    r"|EPISTOLA\s+(?:DEDICATORIA)?\s*\.?"
-    r"|PRAEFATIO\s*\.?"
-    # NB: LIBERTAS / IMPERIUM / RELIGIO are PARS titles in De Cive
-    # (3 parts). The chunker uses Pars detection too, so keep these
-    # lines as well — they're rare and dropping them loses Pars info.
-    # See src/minerva/hobbes_la.py:213 for Pars handling.
-    r")\s*$",
-    re.IGNORECASE,
+# (wrong, right). Order matters only for reporting; the first
+# substitution that lands a real word wins.
+_LIGATURE_SUBS: tuple[tuple[str, str], ...] = (
+    ("se", "ae"),
+    ("ze", "ae"),
+    ("ee", "ae"),
+    ("z", "ae"),
+    ("ce", "oe"),
 )
 
-_DIVIDER_LINE = re.compile(r"^-{10,}\s*$")
-_DEDUP_MIN_LEN = 60
+# How many occurrences of a substring may be rewritten at once. Two
+# covers every real case (``prseterquam`` needs one, ``sestimatse``
+# two) and keeps the candidate count bounded — a word with six "se"
+# runs would otherwise generate 63 candidates.
+_MAX_SUBSTITUTIONS = 2
+
+_WORD_RE = re.compile(r"[A-Za-zÀ-ÿ]{4,}")
+_CARET_TOKEN_RE = re.compile(r"\S*\^\S*")
+
+
+def _load_vocab() -> set[str]:
+    if not VOCAB_PATH.exists():
+        raise SystemExit(
+            f"Latin vocabulary not found at {VOCAB_PATH}. It is built from "
+            f"the corpus's clean Aquinas / Augustine / Spinoza Latin; see "
+            f"the Boulainvilliers cleanup scripts for the build command."
+        )
+    return set(json.loads(VOCAB_PATH.read_text(encoding="utf-8")))
+
+
+def _repair_word(word: str, vocab: set[str]) -> str | None:
+    """Dictionary-guided ligature repair for one word.
+
+    Returns the corrected word, or None when the word is already known
+    or no substitution produces a known one. Case is preserved by
+    applying the lowercase decision back to the original.
+    """
+
+    lower = word.lower()
+    if lower in vocab:
+        return None
+    for wrong, right in _LIGATURE_SUBS:
+        positions = [m.start() for m in re.finditer(re.escape(wrong), lower)]
+        if not positions:
+            continue
+        for count in range(1, min(len(positions), _MAX_SUBSTITUTIONS) + 1):
+            for combo in itertools.combinations(positions, count):
+                candidate = lower
+                offset = 0
+                for pos in combo:
+                    at = pos + offset
+                    candidate = candidate[:at] + right + candidate[at + len(wrong) :]
+                    offset += len(right) - len(wrong)
+                if candidate in vocab:
+                    return candidate.capitalize() if word[0].isupper() else candidate
+    return None
+
+
+def _repair_text(text: str, vocab: set[str]) -> tuple[str, int]:
+    """Apply `_repair_word` across a whole file. Returns the new text
+    and the number of words rewritten."""
+
+    repaired = 0
+
+    def _sub(match: re.Match[str]) -> str:
+        nonlocal repaired
+        fixed = _repair_word(match.group(0), vocab)
+        if fixed is None:
+            return match.group(0)
+        repaired += 1
+        return fixed
+
+    return _WORD_RE.sub(_sub, text), repaired
 
 
 def main() -> int:
-    """Minimal in-place caret-token strip + ligature decomposition.
-
-    We deliberately avoid line-level filtering (running headers,
-    page numbers, glyph-soup, column-edge garbage, dedup). The
-    downstream chunker (``src/minerva/hobbes_la.py``) is a careful
-    state machine that detects CAPVT / PARS / running-head /
-    page-number sequences to identify chapter boundaries — running
-    any of the Boulainvilliers line-level filters here disrupts
-    those signals and collapses chunk count from 65 → 41 chunks.
-
-    Caret tokens (``S<x^``, ``C^nnw^try``, ``h^``) are isolated
-    OCR debris and safe to strip per-token: the chunker doesn't
-    use them. Ligature decomposition (``ﬁ`` → ``fi``) is
-    similarly local.
-    """
-
     if not HOBBES_DIR.is_dir():
         print(f"Hobbes Latin dir not found: {HOBBES_DIR}", file=sys.stderr)
         return 1
-    total_before = 0
-    total_after = 0
+    vocab = _load_vocab()
+    total_repaired = 0
     total_carets = 0
     for path in sorted(HOBBES_DIR.glob("*.txt")):
-        raw = path.read_text(encoding="utf-8")
-        before = len(raw)
-        text = _bv._normalize_ligatures(raw)
-        carets = len(re.findall(r"\S*\^\S*", text))
-        text = _bv._strip_caret_artifacts(text)
-        # Collapse multi-space runs left behind by caret strip.
-        text = re.sub(r" {2,}", " ", text)
+        text = path.read_text(encoding="utf-8")
+        carets = len(_CARET_TOKEN_RE.findall(text))
+        text = _CARET_TOKEN_RE.sub("", text)
+        text, repaired = _repair_text(text, vocab)
         path.write_text(text, encoding="utf-8")
-        total_before += before
-        total_after += len(text)
+        total_repaired += repaired
         total_carets += carets
         print(
-            f"  {path.name}: -{carets} caret tokens "
-            f"({before:,} → {len(text):,} chars)",
+            f"  {path.name}: {repaired:,} ligature words repaired, "
+            f"{carets:,} caret tokens stripped",
             file=sys.stderr,
         )
     print(
-        f"\nTotal: -{total_carets} caret tokens, "
-        f"{total_before:,} → {total_after:,} chars\n"
-        f"NOTE: 17th-c long-s OCR misread (``inftituto`` etc.) "
-        f"survives — pyspellchecker has no Latin wordlist for the "
-        f"dict-guided f→s pass. Line-level filters (page numbers, "
-        f"running heads, glyph-soup) also disabled because the "
-        f"hobbes_la chunker reads those lines as section signals.",
+        f"\nTotal: {total_repaired:,} words repaired, "
+        f"{total_carets:,} caret tokens stripped.",
         file=sys.stderr,
     )
     return 0

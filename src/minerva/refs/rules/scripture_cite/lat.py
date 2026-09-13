@@ -48,6 +48,77 @@ class ScriptureCiteRule(BaseScriptureCiteRule):
 
 
 # ──────────────────────────────────────────────────────────────────
+# Roman-numeral-chapter cites (19th-c editions)
+# ──────────────────────────────────────────────────────────────────
+#
+# `_CITE_RE` takes an Arabic chapter, which is what the 16th–17th-c
+# Latin printings use. 19th-century editors set the chapter in
+# lowercase Roman and the verse in Arabic — "1 Cor. ix. 9", "Rom. viii.
+# 5", "Matth. xxv. 41" — and prefix the numbered books with an Arabic
+# ordinal where the older convention used "I Cor."
+#
+# This matters because of what the corpus reads. Re-sourcing the Latin
+# Hobbes to Molesworth's 1839 *Opera Latina* (#535) fixed a text that
+# was unusable OCR of a long-s printing, and moved every one of its
+# scripture citations into this convention at the same time. The Latin
+# Hobbes went from 276 Vulgate cross-references to 4.
+#
+# A SIBLING RULE, not a widening of `_CITE_RE`, for the same reason
+# `ScriptureCiteRuleFrRoman` is one in `fr.py`. Measured across the
+# corpus before writing it — chapter-in-Roman citation shapes:
+#
+#     Hobbes (Molesworth)   555      Aquinas      0
+#     Spinoza                 7      Augustine    0
+#                                    Descartes    0
+#
+# Widening the shared pattern would have put every Latin author at risk
+# of new false positives for a benefit confined to one of them.
+#
+# The chapter group `[ivxlc]{1,7}` is also how plenty of short Latin
+# words are spelled, so it is gated three ways: the book abbreviation
+# must be in the lexicon, the numeral must carry a trailing period
+# (Molesworth always prints one), and `_parse_cite_num` in the base
+# rule rejects anything outside 1–176. The verse stays Arabic-only —
+# the same call `fr.py` makes, and for the same reason: a Roman verse
+# group swallows ordinary words that follow a chapter number.
+_CITE_RE_LAT_ROMAN = re.compile(
+    # Ordinal prefix, Arabic ("1 Cor.") or Roman ("I Cor.").
+    r"(?:\b(?P<prefix>I{1,3}V?|[1-4])\s+)?"
+    # Book abbreviation, always capitalised in this convention, always
+    # followed by its period. Spacing after it is optional — the scan
+    # contains "Psal.lxxxiv. 11".
+    r"\b(?P<abbr>[A-Z][a-zëæoœ]{1,15})\.\s*"
+    # Chapter in lowercase Roman, with its own period.
+    r"(?P<chap>[ivxlc]{1,7})\.\s*"
+    # Verse in Arabic. Optional trailing range ("xv. 22-24" → 15:22).
+    r"(?P<verse>\d{1,3})"
+    r"(?:\s*[-–]\s*\d{1,3})?"
+)
+
+
+@dataclass(frozen=True)
+class ScriptureCiteRuleLatRoman(BaseScriptureCiteRule):
+    """Latin rule accepting a Roman-numeral chapter with an Arabic
+    verse — the 19th-century convention Molesworth uses throughout the
+    *Opera Latina*, and so the form every scripture citation in the
+    Latin Hobbes now takes."""
+
+    name: str = "scripture_cite_vulgate_roman"
+    target_author: str = "Vulgate"
+    langs: tuple[str, ...] = ("lat",)
+
+    lexicon = _LEXICON
+    cite_re = _CITE_RE_LAT_ROMAN
+    ambiguous_bare = _AMBIGUOUS_BARE
+    word_collision = _WORD_COLLISION
+    non_disambiguating_prefixes = frozenset({"ad"})
+
+    @classmethod
+    def canonical_abbr(cls, abbr: str) -> str:
+        return abbr[:1].upper() + abbr[1:]
+
+
+# ──────────────────────────────────────────────────────────────────
 # Formulaic-quote rule (verse text instead of locator)
 # ──────────────────────────────────────────────────────────────────
 #

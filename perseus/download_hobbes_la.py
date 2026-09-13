@@ -1,23 +1,67 @@
 #!/usr/bin/env python3
-"""Download Hobbes's Latin works from Internet Archive OCR text.
+"""Download Hobbes's Latin works from Molesworth's 1839 *Opera Latina*.
 
 Unlike Spinoza / Augustine / Aquinas — whose Latin works exist as
 hand-transcribed clean text on la.wikisource.org — Hobbes's Latin
-corpus is only available on Wikisource as PDF facsimiles. We fall
-back to Internet Archive, which hosts the same scans with OCR
-search-text layers (``_hocr_searchtext.txt.gz``). Quality is uneven
-(long-s confusions, broken numerals, page-header pollution) and a
-dedicated state-machine parser (``src/minerva/hobbes_la.py``)
-handles the Molesworth-edition layout downstream.
+corpus has no keyed digital edition anywhere. Probed 2026-09-12 and
+all negative: la.wikisource (no Hobbes at all), thelatinlibrary
+(404), Corpus Corporum (mlat.uzh.ch), IntraText. EEBO-TCP, which
+*does* key early-modern Latin, covers books printed in England or in
+English abroad — and both Latin Hobbes texts were printed on the
+continent (Paris 1642, Amsterdam 1668). So this is OCR, and the only
+question is whose.
 
-Sources:
+**Which edition matters far more than which OCR engine.** Until
+2026-09 we pulled Internet Archive scans of the *original 17th-century
+printings* (``leviathansivedem00hobb``, the 1668 Blaeu Leviathan;
+``gri_elementaphilos00ho``, a 1704 reprint of De Cive). Those are set
+in a long-s typeface, and no OCR engine reads long-s as ``s``: the
+result was ``Cbrifti`` for *Christi*, ``$eniet`` for *veniet*,
+``Damel`` for *Daniel*, ``triwmphum`` for *triumphum* — see #535.
 
-  * Latin Leviathan — Internet Archive ``leviathansivedem00hobb``,
-    the 1668 Blaeu edition (single volume, four Pars: De Homine,
-    De Civitate, De Civitate Christiana, De Regno Tenebrarum).
-  * De Cive Latin — Internet Archive ``gri_elementaphilos00ho``,
-    a 1704 reprint of the 1642 *Elementa philosophica de cive*.
-    Three Pars: Libertas, Imperium, Religio.
+William Molesworth's *Thomae Hobbes Malmesburiensis Opera philosophica
+quae latine scripsit omnia* (London: Bohn, 1839) reprints the same
+texts in ordinary 19th-century roman type. The long-s problem does not
+exist there, because the long-s is not on the page.
+
+Measured over the sliced bodies, scoring each token of 4+ letters
+against ``data/latin_vocab.json`` (50,141 words drawn from the corpus's
+clean Aquinas / Augustine / Spinoza Latin):
+
+    work         old (17th-c scan)   new (Molesworth 1839)
+    De Cive           55.3%                 81.4%
+    Leviathan         71.0%                 82.3%
+
+For calibration on the same scorer: Aquinas and Spinoza — whose own
+text built the vocabulary — read 96–99%, and clean Latin from *outside*
+the vocabulary's sources reads 78–88% (Lucretius 77.6%, Cicero's *De
+oratore* 83.6%, *De finibus* 88.3%). Both re-sourced files land inside
+that band; neither old file came close to it.
+
+Two other defect classes clear at the same time, counted on the raw
+files rather than the parsed chunks:
+
+    long-s signature tokens   6,853  →  11
+    run-together tokens (24+)   116  →   3   (#561's Hobbes share)
+
+Sources — note both are *volumes*, not works. Each carries more than
+the one text we want, so each is sliced (see ``_SLICES``):
+
+  * Latin Leviathan — IA ``thomhobbesmalme02hobbgoog`` = Opera Latina
+    vol. III. Contains Leviathan (Caput I–XLVII) followed by the
+    *Appendix ad Leviathan* and an index. We take the Leviathan only.
+    The appendix is Hobbes's own 1668 addition and is genuinely part
+    of the Latin Leviathan as published — it is left out here to keep
+    parity with what the corpus already had, and is tracked as its own
+    issue rather than smuggled in on a re-source.
+  * De Cive Latin — IA ``thomhobbesmalmes0002hobb`` = Opera Latina
+    vol. II. Contains *De Homine* (Caput I–XV) and then *De Cive*
+    (Caput I–XVIII). Slicing is not optional here: De Homine's chapter
+    numbers would otherwise be parsed as De Cive's.
+
+Both are the ``_djvu.txt`` derivative, not ``_hocr_searchtext.txt.gz``
+as before. That is what the numbers above were measured on; the two
+derivatives are different OCR passes and are not interchangeable.
 
 Output:
 
@@ -27,38 +71,140 @@ Output:
 Run:
 
     uv run python perseus/download_hobbes_la.py
+
+Then, in order:
+
+    uv run python scripts/clean-hobbes-latin.py
+    .venv/bin/minerva ingest --only hobbes ...
 """
 
 from __future__ import annotations
 
 import argparse
-import gzip
-import time
+import re
+import sys
 from pathlib import Path
 
 from _download import fetch_bytes_with_retry
 
+
+class SliceError(RuntimeError):
+    """A volume did not contain the boundaries we slice it on.
+
+    Raised rather than silently writing a wrong-sized file: a marker
+    that stops matching means the IA item changed or the wrong item id
+    was used, and either way the downstream parser would produce
+    plausible-looking chunks of the wrong work.
+    """
+
+
+# ──────────────────────────────────────────────────────────────────
+# Volume slicing
+# ──────────────────────────────────────────────────────────────────
+
+
+class VolumeSlice:
+    """Where one work starts and ends inside a scanned volume.
+
+    ``start`` and ``end`` are regexes matched against whole lines.
+    ``expected_lines`` is the slice length observed when this was
+    built (2026-09-12); we allow ±15% and fail outside it. Archive.org
+    items are immutable once derived, so a drift here means the item id
+    is wrong, not that the scan was revised.
+    """
+
+    def __init__(
+        self,
+        *,
+        start: str,
+        end: str,
+        expected_lines: int,
+        start_occurrence: int = 1,
+    ) -> None:
+        self.start = re.compile(start, re.IGNORECASE)
+        self.end = re.compile(end, re.IGNORECASE)
+        self.expected_lines = expected_lines
+        # Which match of `start` opens the work. Both volumes repeat
+        # their work titles in the front-matter index ("INDEX CAPITUM
+        # LIBRI DE CIVE"), so the first match is not always the body.
+        self.start_occurrence = start_occurrence
+
+    def apply(self, text: str, *, label: str) -> str:
+        lines = text.split("\n")
+        starts = [i for i, ln in enumerate(lines) if self.start.match(ln)]
+        if len(starts) < self.start_occurrence:
+            raise SliceError(
+                f"{label}: start marker {self.start.pattern!r} matched "
+                f"{len(starts)} time(s), needed at least "
+                f"{self.start_occurrence}"
+            )
+        first = starts[self.start_occurrence - 1]
+        ends = [i for i, ln in enumerate(lines) if i > first and self.end.match(ln)]
+        if not ends:
+            raise SliceError(
+                f"{label}: end marker {self.end.pattern!r} never matched "
+                f"after line {first + 1}"
+            )
+        out = lines[first : ends[0]]
+        low = int(self.expected_lines * 0.85)
+        high = int(self.expected_lines * 1.15)
+        if not low <= len(out) <= high:
+            raise SliceError(
+                f"{label}: sliced {len(out)} lines, expected "
+                f"~{self.expected_lines} (accepting {low}–{high}). "
+                f"Start line {first + 1}, end line {ends[0] + 1}."
+            )
+        return "\n".join(out)
+
+
+_SLICES: dict[str, VolumeSlice] = {
+    # Vol. III: Leviathan runs from its own CAPUT I to the first page
+    # carrying the APPENDIX AD LEVIATHAN running head. The volume's
+    # front matter has an "INDEX CAPITUM" whose entries are not
+    # line-initial CAPUT headings, so occurrence 1 is already the body.
+    "leviathan_lat.txt": VolumeSlice(
+        start=r"\s*CAPUT\s+I\s*[.,]?\s*$",
+        end=r"\s*APPENDIX\s+AD\s+LEVIATHAN",
+        expected_lines=19878,
+    ),
+    # Vol. II: De Cive opens with a half-title page reading "DE CIVE."
+    # after De Homine ends, and closes at "FINIS VOLUMINIS SECUNDI".
+    # Occurrence 1 of the half-title is the front-matter index line
+    # "INDEX CAPITUM LIBRI DE CIVE." — which this anchored pattern does
+    # not match — so the body title is occurrence 1 here too.
+    "de_cive_lat.txt": VolumeSlice(
+        start=r"\s*DE\s+CIVE\s*[.,]?\s*$",
+        end=r"\s*[.,]?\s*FINIS\s+VOLUMINIS\s+SECUNDI",
+        expected_lines=14121,
+    ),
+}
+
+
 # (work_label, ia_item_id, output_filename)
 _DOWNLOADS: tuple[tuple[str, str, str], ...] = (
-    ("Latin Leviathan (1668)", "leviathansivedem00hobb", "leviathan_lat.txt"),
-    ("De Cive (1642 / 1704 reprint)", "gri_elementaphilos00ho", "de_cive_lat.txt"),
+    (
+        "Latin Leviathan (Molesworth 1839, Opera Latina vol. III)",
+        "thomhobbesmalme02hobbgoog",
+        "leviathan_lat.txt",
+    ),
+    (
+        "De Cive (Molesworth 1839, Opera Latina vol. II)",
+        "thomhobbesmalmes0002hobb",
+        "de_cive_lat.txt",
+    ),
 )
 
 
-def _fetch_ia_ocr(ia_id: str) -> bytes:
-    """Pull the gzipped OCR search-text from an Internet Archive item.
-    Returns the raw decompressed bytes."""
+def _fetch_ia_text(ia_id: str) -> str:
+    """Pull the plain-text OCR derivative from an Internet Archive item."""
 
-    url = (
-        f"https://archive.org/download/{ia_id}/"
-        f"{ia_id}_hocr_searchtext.txt.gz"
-    )
-    gz = fetch_bytes_with_retry(
+    url = f"https://archive.org/download/{ia_id}/{ia_id}_djvu.txt"
+    raw = fetch_bytes_with_retry(
         url,
-        timeout=60,
+        timeout=120,
         user_agent="minerva-corpus-fetch/0.1 (research)",
     )
-    return gzip.decompress(gz)
+    return raw.decode("utf-8", errors="replace")
 
 
 def _download_one(
@@ -67,12 +213,16 @@ def _download_one(
     ia_id: str,
     filename: str,
 ) -> Path:
-    body = _fetch_ia_ocr(ia_id)
+    volume = _fetch_ia_text(ia_id)
+    body = _SLICES[filename].apply(volume, label=label)
     dest_dir = data_root / "hobbes" / "raw_lat"
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / filename
-    dest.write_bytes(body)
-    print(f"  → {dest} ({len(body):,} bytes)")
+    dest.write_text(body, encoding="utf-8")
+    print(
+        f"  → {dest} ({len(body):,} chars, {body.count(chr(10)) + 1:,} lines, "
+        f"sliced from {len(volume):,} chars of volume)"
+    )
     return dest
 
 
@@ -86,14 +236,22 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    failures: list[str] = []
     for label, ia_id, filename in _DOWNLOADS:
         print(f"\n{label}: {filename} (IA {ia_id})")
-        _download_one(args.data_root, label, ia_id, filename)
-        # Be polite to archive.org.
-        time.sleep(1.0)
+        try:
+            _download_one(args.data_root, label, ia_id, filename)
+        except SliceError as exc:
+            print(f"  ✗ {exc}", file=sys.stderr)
+            failures.append(filename)
+
+    if failures:
+        print(f"\nFAILED: {', '.join(failures)}", file=sys.stderr)
+        raise SystemExit(1)
 
     print(
-        "\nDone. Next: .venv/bin/minerva ingest && .venv/bin/minerva index"
+        "\nDone. Next: uv run python scripts/clean-hobbes-latin.py, "
+        "then .venv/bin/minerva ingest --only hobbes"
     )
 
 
