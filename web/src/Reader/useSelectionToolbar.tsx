@@ -182,13 +182,24 @@ export function useSelectionToolbar(
     saveHighlights(workId, snapshot);
   }
 
-  function onMouseUp(e: MouseEvent) {
-    // Word clicks call stopPropagation in Lines; this handler runs
-    // only for drag-selections on the stage background.
-    const target = e.target as Element | null;
-    if (target?.closest(".gw, .term-mark, .pin-hl")) {
-      return;
-    }
+  function onMouseUp(_e: MouseEvent) {
+    // Deliberately does NOT test which element the pointer landed on.
+    //
+    // This used to return early when `e.target.closest(".gw, .term-mark,
+    // .pin-hl")` matched, on the stated grounds that "word clicks call
+    // stopPropagation in Lines". That premise is false: `WordRun` stops
+    // propagation from an `onClick` handler, and `click` is not `mouseup` —
+    // nothing ever stopped the mouseup, so it always reached here.
+    //
+    // Every word is wrapped in `<span class="gw">`, and a drag ends with
+    // the pointer on a word, so the guard suppressed the toolbar for the
+    // ordinary case. Measured in Chrome on one selection, varying only the
+    // release target: over a word (.gw) -> no toolbar; between words
+    // (.text) -> toolbar; on the line (.line) -> toolbar.
+    //
+    // The question it reached for is click-vs-drag, and the collapse check
+    // below already answers it: a click collapses the selection, a drag
+    // does not. See #591.
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) {
       setSelToolbar(null);

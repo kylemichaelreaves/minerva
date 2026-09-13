@@ -166,5 +166,4 @@ tests/theme.test.ts
 tests/ThemeToggle.test.tsx
 tests/useAbortableFetch.test.ts
 tests/useClickOutside.test.ts
-tests/useSelectionToolbar.test.ts
 vite.config.ts
