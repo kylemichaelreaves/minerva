@@ -15,17 +15,27 @@ const point = (t: number, p50: number, p95: number): MetricsSeriesPoint => ({
  * Geometry assertions need a real measured size, so stub the
  * prototype getters for the duration of one render and restore them
  * in `finally` so a stub can't leak into another test.
+ *
+ * jsdom defines `clientWidth`/`clientHeight` as accessors on
+ * `Element.prototype`, not `HTMLElement.prototype` — stub and restore
+ * on the prototype that actually owns them. The `else delete` arms
+ * make the restore correct even if a future jsdom version moves the
+ * property onto a different prototype in the chain (own-property
+ * there, nothing to restore here), rather than being correct only for
+ * the one prototype this file happens to name today.
  */
 function withMeasuredSize<T>(w: number, h: number, fn: () => T): T {
-  const cw = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
-  const ch = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
-  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: w });
-  Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: h });
+  const cw = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth");
+  const ch = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
+  Object.defineProperty(Element.prototype, "clientWidth", { configurable: true, value: w });
+  Object.defineProperty(Element.prototype, "clientHeight", { configurable: true, value: h });
   try {
     return fn();
   } finally {
-    if (cw) Object.defineProperty(HTMLElement.prototype, "clientWidth", cw);
-    if (ch) Object.defineProperty(HTMLElement.prototype, "clientHeight", ch);
+    if (cw) Object.defineProperty(Element.prototype, "clientWidth", cw);
+    else delete (Element.prototype as unknown as Record<string, unknown>).clientWidth;
+    if (ch) Object.defineProperty(Element.prototype, "clientHeight", ch);
+    else delete (Element.prototype as unknown as Record<string, unknown>).clientHeight;
   }
 }
 
@@ -39,6 +49,22 @@ function parsePolylinePoints(pointsAttr: string): [number, number][] {
       return [Number(parts[0]), Number(parts[1])] as [number, number];
     });
 }
+
+describe("withMeasuredSize", () => {
+  it("restores the real element size after stubbing, even if the callback throws", () => {
+    withMeasuredSize(640, 220, () => {
+      expect(document.createElement("div").clientWidth).toBe(640);
+    });
+    expect(document.createElement("div").clientWidth).toBe(0);
+
+    expect(() =>
+      withMeasuredSize(640, 220, () => {
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+    expect(document.createElement("div").clientWidth).toBe(0);
+  });
+});
 
 describe("TimeSeriesChart", () => {
   it("renders an empty state rather than an axis-less chart", () => {
