@@ -1,0 +1,98 @@
+"""Read endpoints over the request-timing store.
+
+Granularity is derived here rather than stored. Summing the histogram
+columns is what lets the quantiles survive the regrouping — the reason
+the store keeps buckets instead of raw rows.
+"""
+
+from __future__ import annotations
+
+import time
+from http import HTTPStatus
+from typing import Any
+
+from ...metrics import store as metrics_store
+from ..server_core import ServerDeps, _HTTPError
+
+_WINDOWS: dict[str, int | None] = {
+    "1h": 3_600,
+    "6h": 21_600,
+    "24h": 86_400,
+    "7d": 604_800,
+    "30d": 2_592_000,
+    "all": None,
+}
+
+# Granularity thresholds, in seconds of window span.
+_SIX_HOURS = 21_600
+_SEVEN_DAYS = 604_800
+
+
+def _parse_window(value: str) -> int | None:
+    """Seconds for a named window, or None for 'all'."""
+
+    if value not in _WINDOWS:
+        allowed = ", ".join(_WINDOWS)
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, f"window must be one of: {allowed}")
+    return _WINDOWS[value]
+
+
+def _bucket_seconds_for(span_seconds: int) -> int:
+    if span_seconds <= _SIX_HOURS:
+        return metrics_store.BUCKET_SECONDS
+    if span_seconds <= _SEVEN_DAYS:
+        return 3_600
+    return 86_400
+
+
+def _range(qs: dict[str, str]) -> tuple[float, float, str]:
+    name = qs.get("window", "24h")
+    width = _parse_window(name)
+    until = time.time()
+    since = 0.0 if width is None else until - width
+    return since, until, name
+
+
+def _handle_metrics_summary(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
+    since, until, name = _range(qs)
+    label = qs.get("label") or None
+    # `--no-metrics` leaves no connection. Render an empty page rather than
+    # 500ing: persistence being off is a configuration, not an error.
+    if deps.metrics_conn is None:
+        rows: list[dict[str, Any]] = []
+    else:
+        # The Recorder writes to this connection from other worker threads.
+        with deps.metrics_lock:
+            rows = metrics_store.summary(
+                deps.metrics_conn, since=since, until=until, label=label
+            )
+    return {"window": name, "since": since, "until": until, "rows": rows}
+
+
+def _handle_metrics_series(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
+    label = qs.get("label")
+    if not label:
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, "label is required")
+    since, until, _ = _range(qs)
+    bucket_seconds = _bucket_seconds_for(int(until - since))
+    kind = qs.get("kind", "total")
+    span = qs.get("span", "")
+    if deps.metrics_conn is None:
+        points: list[dict[str, Any]] = []
+    else:
+        with deps.metrics_lock:
+            points = metrics_store.series(
+                deps.metrics_conn,
+                label=label, kind=kind, span=span,
+                since=since, until=until, bucket_seconds=bucket_seconds,
+            )
+    return {
+        "label": label,
+        "kind": kind,
+        "span": span,
+        "bucket_seconds": bucket_seconds,
+        "points": points,
+    }
+
+
+__all__ = ["_handle_metrics_series", "_handle_metrics_summary"]

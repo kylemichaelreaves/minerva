@@ -20,6 +20,8 @@ from .handlers import (
     _handle_health,
     _handle_landing_stats,
     _handle_lemma_highlights,
+    _handle_metrics_series,
+    _handle_metrics_summary,
     _handle_network_summary,
     _handle_reference_update,
     _handle_references_list,
@@ -172,6 +174,16 @@ def build_get_routes(
             _TERM_BY_ID_RE,
             "term-by-id",
             lambda m: _handle_term_by_id(deps, int(m.group(1))),
+        ),
+        (
+            "/api/metrics/summary",
+            "metrics summary",
+            lambda: _handle_metrics_summary(deps, qs()),
+        ),
+        (
+            "/api/metrics/series",
+            "metrics series",
+            lambda: _handle_metrics_series(deps, qs()),
         ),
         (
             _WORK_PATH_RE,
