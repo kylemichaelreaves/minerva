@@ -401,4 +401,44 @@ describe("MetricsPanel", () => {
       expect(oneHour.classList.contains("active")).toBe(true);
     });
   });
+
+  it("puts the chart above the table, and lets only the table scroll", async () => {
+    // The window buttons drive the chart, so the chart sits directly under
+    // them and the table scrolls beneath both. Before this the table came
+    // first and was taller than the viewport on its own — 15 rows measured
+    // at 621px against a 560px viewport — leaving the chart 472px below the
+    // fold. jsdom does no layout, so assert the structure that produces it.
+    mockSummary([row("chat", 900)]);
+    const view = render(() => <MetricsPanel />);
+    await view.findAllByTestId("metrics-route-label");
+
+    const panel = view.container.querySelector(".metrics-panel");
+    const order = [...panel!.children].map((c) => c.className);
+    expect(order.indexOf("metrics-head")).toBeLessThan(order.indexOf("metrics-table-wrap"));
+
+    const wrap = view.container.querySelector(".metrics-table-wrap");
+    expect(wrap).not.toBeNull();
+    expect(wrap!.querySelector("table.metrics-table")).not.toBeNull();
+  });
+
+  it("renders no sub-span table when the route has no sub-spans", async () => {
+    // Only three code paths are instrumented, so most routes have none —
+    // `health` measured live with 0 sub-span rows. Rendering the table
+    // anyway left a bare "Span Count p50 p95 p99" header under the chart,
+    // labelling nothing, directly above the route table's near-identical
+    // header. A header with no table is not a table.
+    mockDrilldown({ leaderboard: [row("health", 5)], detailRows: [] });
+    const view = render(() => <Host />);
+    const cells = await view.findAllByTestId("metrics-route-label");
+    fireEvent.click(cells[0] as Element);
+
+    // Wait for the drill-down to settle: the chart mounts once the series
+    // resolves, which is also when the sub-span table would appear.
+    await view.findByText("← All routes");
+    await waitFor(() => {
+      expect(view.container.querySelector(".mchart")).not.toBeNull();
+    });
+    expect(view.container.querySelector(".metrics-subspan-table")).toBeNull();
+    expect(view.queryByText("Span")).toBeNull();
+  });
 });

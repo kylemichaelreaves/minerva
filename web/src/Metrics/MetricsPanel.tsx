@@ -202,55 +202,6 @@ export function MetricsPanel(props: MetricsPanelProps) {
           </For>
         </div>
       </header>
-
-      <Show when={summaryFailed()}>
-        <div class="metrics-error" role="alert">
-          Couldn't load metrics: {errorMessage(summary.error)}
-        </div>
-      </Show>
-
-      <Show when={!summaryFailed()}>
-        <Show when={!summary.loading} fallback={<div class="metrics-loading">Loading…</div>}>
-          <Show
-            when={rows().length > 0}
-            fallback={<div class="metrics-empty">No requests recorded in this window.</div>}
-          >
-            <table class="metrics-table">
-              <thead>
-                <tr>
-                  <th>Route</th>
-                  <th>Method</th>
-                  <th>Count</th>
-                  <th>p50</th>
-                  <th>p95</th>
-                  <th>p99</th>
-                  <th>Errors</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={rows()}>
-                  {(row) => (
-                    <tr
-                      class="metrics-table-row"
-                      classList={{ selected: selectedLabel() === row.label }}
-                      onClick={() => selectLabel(row.label)}
-                    >
-                      <td data-testid="metrics-route-label">{row.label}</td>
-                      <td>{row.method}</td>
-                      <td>{row.count.toLocaleString()}</td>
-                      <td>{Math.round(row.p50_ms)}</td>
-                      <td>{Math.round(row.p95_ms)}</td>
-                      <td>{Math.round(row.p99_ms)}</td>
-                      <td>{(row.error_rate * 100).toFixed(1)}%</td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </Show>
-        </Show>
-      </Show>
-
       <Show when={selectedLabel()}>
         {(label) => (
           <section class="metrics-detail">
@@ -315,23 +266,30 @@ export function MetricsPanel(props: MetricsPanelProps) {
                 when={!detail.loading}
                 fallback={<div class="metrics-loading">Loading breakdown…</div>}
               >
-                <table class="metrics-subspan-table">
-                  <thead>
-                    <tr>
-                      <th>Span</th>
-                      <th>Count</th>
-                      <th>p50</th>
-                      <th>p95</th>
-                      <th>p99</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={detailRows()}>
-                      {(row) => (
-                        <tr>
-                          <td>
-                            {row.span}
-                            {/* Two things about llm_call that are correct but easy
+                {/* Only three code paths are instrumented, so most routes
+                    have no sub-spans at all. Rendering the table regardless
+                    left a bare "Span Count p50 p95 p99" header under the
+                    chart labelling nothing, directly above the route
+                    table's near-identical header. A header with no rows
+                    beneath it is not a table. */}
+                <Show when={detailRows().length > 0}>
+                  <table class="metrics-subspan-table">
+                    <thead>
+                      <tr>
+                        <th>Span</th>
+                        <th>Count</th>
+                        <th>p50</th>
+                        <th>p95</th>
+                        <th>p99</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <For each={detailRows()}>
+                        {(row) => (
+                          <tr>
+                            <td>
+                              {row.span}
+                              {/* Two things about llm_call that are correct but easy
                                 to misread, called out where they would mislead.
                                 Its count and percentiles are PER ATTEMPT — the LLM
                                 client retries, and every attempt records its own
@@ -339,27 +297,78 @@ export function MetricsPanel(props: MetricsPanelProps) {
                                 HEADERS arrive (`llm.py`), so body and stream
                                 consumption fall outside it: on the chat route the
                                 breakdown will not add up to `total`. */}
-                            <Show when={row.span === "llm_call"}>
-                              <span class="metrics-note">
-                                {" "}
-                                (per attempt, not per request; measured to response headers, so
-                                streamed body time is excluded)
-                              </span>
-                            </Show>
-                          </td>
-                          <td>{row.count.toLocaleString()}</td>
-                          <td>{Math.round(row.p50_ms)}</td>
-                          <td>{Math.round(row.p95_ms)}</td>
-                          <td>{Math.round(row.p99_ms)}</td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
+                              <Show when={row.span === "llm_call"}>
+                                <span class="metrics-note">
+                                  {" "}
+                                  (per attempt, not per request; measured to response headers, so
+                                  streamed body time is excluded)
+                                </span>
+                              </Show>
+                            </td>
+                            <td>{row.count.toLocaleString()}</td>
+                            <td>{Math.round(row.p50_ms)}</td>
+                            <td>{Math.round(row.p95_ms)}</td>
+                            <td>{Math.round(row.p99_ms)}</td>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                </Show>
               </Show>
             </Show>
           </section>
         )}
+      </Show>
+
+      <Show when={summaryFailed()}>
+        <div class="metrics-error" role="alert">
+          Couldn't load metrics: {errorMessage(summary.error)}
+        </div>
+      </Show>
+
+      <Show when={!summaryFailed()}>
+        <Show when={!summary.loading} fallback={<div class="metrics-loading">Loading…</div>}>
+          <Show
+            when={rows().length > 0}
+            fallback={<div class="metrics-empty">No requests recorded in this window.</div>}
+          >
+            <div class="metrics-table-wrap">
+              <table class="metrics-table">
+                <thead>
+                  <tr>
+                    <th>Route</th>
+                    <th>Method</th>
+                    <th>Count</th>
+                    <th>p50</th>
+                    <th>p95</th>
+                    <th>p99</th>
+                    <th>Errors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={rows()}>
+                    {(row) => (
+                      <tr
+                        class="metrics-table-row"
+                        classList={{ selected: selectedLabel() === row.label }}
+                        onClick={() => selectLabel(row.label)}
+                      >
+                        <td data-testid="metrics-route-label">{row.label}</td>
+                        <td>{row.method}</td>
+                        <td>{row.count.toLocaleString()}</td>
+                        <td>{Math.round(row.p50_ms)}</td>
+                        <td>{Math.round(row.p95_ms)}</td>
+                        <td>{Math.round(row.p99_ms)}</td>
+                        <td>{(row.error_rate * 100).toFixed(1)}%</td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </div>
+          </Show>
+        </Show>
       </Show>
     </div>
   );

@@ -88,6 +88,14 @@
 /* #/metrics — the request-timing surface (MetricsPanel.tsx). */
 
 .metrics-panel {
+  /* Bounded to the viewport so the trend chart is always on screen. The
+     route table is taller than the viewport on its own — 15 rows measured
+     at 621px against a 560px viewport — so unbounded it pushed the chart
+     780px down, 472px below the fold. The chart sits directly under the
+     window buttons that drive it; the table scrolls beneath both.
+     `max-height`, not `height`, so a short table isn't stretched. dvh, not
+     vh, so mobile browser chrome doesn't cut off the bottom. */
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -152,6 +160,30 @@
   font-size: 0.85rem;
 }
 
+/* The only scrolling child. `min-height: 0` is what actually lets a flex
+   item shrink below its content height — without it the wrap grows to fit
+   the table and nothing scrolls. */
+.metrics-table-wrap {
+  flex: 1 1 auto;
+  /* A floor, or the flex line hands everything to the chart above and the
+     table collapses — measured at 24px on a 560px viewport, which shows no
+     rows at all. Below this the panel exceeds its max-height and the page
+     scrolls a little, which is the right trade: the chart sits above the
+     table, so it stays on screen either way. */
+  min-height: 10rem;
+  overflow-y: auto;
+}
+
+/* Sticky header, now that the list scrolls under it. Needs an opaque
+   background or rows show through, and a z-index or cell borders paint
+   over it. */
+.metrics-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+}
+
 .metrics-table,
 .metrics-subspan-table {
   width: 100%;
@@ -189,6 +221,8 @@
 }
 
 .metrics-detail {
+  /* Fixed height; only the table gives way when space is short. */
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
