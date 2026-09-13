@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from http.client import HTTPResponse
 from typing import Any
 
+from .metrics.recorder import sub_span
+
 
 @dataclass
 class Message:
@@ -101,7 +103,8 @@ def _urlopen_with_retry(
     last_exc: BaseException | None = None
     for attempt in range(_MAX_RETRY_ATTEMPTS):
         try:
-            return urllib.request.urlopen(req, timeout=timeout)
+            with sub_span("llm_call"):
+                return urllib.request.urlopen(req, timeout=timeout)
         except urllib.error.HTTPError as exc:
             if exc.code in _RETRYABLE_STATUS and attempt + 1 < _MAX_RETRY_ATTEMPTS:
                 last_exc = exc
