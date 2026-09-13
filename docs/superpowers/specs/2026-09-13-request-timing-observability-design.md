@@ -1,6 +1,7 @@
 # Request timing: record it, bucket it, keep it
 
-**Status:** approved 2026-09-13
+**Status:** approved 2026-09-13; storage location corrected 2026-09-13 (see
+"Correction" below)
 **Issues:** #581
 **Related:** #559 (cognitive complexity gate), #547 (frontend test location),
 #254 (duplication gate), #573 (local-vs-CI coverage divergence)
@@ -58,6 +59,35 @@ PY
 With `''` in place of `NULL` the same loop yields `(1, 3)`. No error either
 way. Hence `span TEXT NOT NULL DEFAULT ''`.
 
+### Correction: the index DB is the wrong home
+
+This spec's first draft put the table in `data/index.sqlite` via a migration
+`0036_request_timings`. That is wrong, and wrong in a way that would have
+silently destroyed the feature's entire purpose.
+
+`minerva index --reset` unlinks the index database outright:
+
+```
+src/minerva/cli/index_cmd.py:84       store.reset_db(args.db)
+src/minerva/store/schema.py:101-107   for p in (path, path+"-wal", path+"-shm"):
+                                          if p.exists(): p.unlink()
+```
+
+Not `DROP TABLE` — `unlink`. Every table in that file goes, migration history
+included. And a `--reset` re-index is exactly what a re-source performs: it is
+the event whose latency impact this feature exists to bracket. Timing history
+stored there would be deleted by the very change it was recorded to measure,
+with no error and nothing to notice.
+
+The same mechanism wiped 21,751 `cross_references` rows on the 2026-05-29
+Hegel-Preface rechunk, which is why `_maybe_snapshot_pre_index` exists.
+
+**Metrics therefore get their own database file**, alongside
+`conversations`, `translations` and `concept_cache` — all three of which are
+already separate files for related reasons. No migration `0036`; a `SCHEMA`
+constant in a new `store/metrics.py`, opened through the same `open_sqlite`
+helper the siblings use.
+
 ## Hypothesis
 
 *Everything below is a design, not a measurement. It has not been built.*
@@ -103,7 +133,12 @@ the only place TTFE is observable.
 
 ### Storage
 
-A fifth connection, `metrics_conn`, and migration `0036_request_timings`:
+A fifth connection, `metrics_conn`, against its **own database file**
+(`data/metrics.sqlite`, overridable via `--metrics-db`), opened by a new
+`store/metrics.py` that mirrors `store/conversations.py`. Not a migration on
+the index DB — see the Correction above. `ServerDeps` gains `metrics_conn` and
+a `metrics_lock`, following the existing per-resource lock pattern
+(`server_core.py:195-205`).
 
 ```sql
 CREATE TABLE request_timings (
@@ -200,8 +235,11 @@ metrics page does not earn that.
   with different columns. Copying it wholesale fails at any coverage (#254).
 - Nothing here reads `data/`, so the local-vs-CI coverage divergence that cost
   #573 its gate (97% local, 63% CI) cannot occur. The local number is real.
-- `0036` is pure DDL creating an empty table, so the "migration recorded but
-  the repair never ran" trap does not apply.
+- No migration is involved, so the "migration recorded but the repair never
+  ran" trap does not apply. The metrics DB is created on first open from its
+  own `SCHEMA` constant, the same way `conversations` and `translations` are.
+- `data/metrics.sqlite` is gitignored like its siblings, and no test may
+  depend on its contents — every test builds its own throwaway DB.
 - No ingest, so `make generate-authors` is not involved.
 
 ### Estimate
