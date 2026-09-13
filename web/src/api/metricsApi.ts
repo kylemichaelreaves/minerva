@@ -1,4 +1,4 @@
-import { apiGet } from "~/api/client";
+import { apiGet, qs } from "~/api/client";
 
 export const METRIC_WINDOWS = ["1h", "6h", "24h", "7d", "30d", "all"] as const;
 export type MetricWindow = (typeof METRIC_WINDOWS)[number];
@@ -49,9 +49,7 @@ export async function fetchMetricsSummary(
   label?: string,
   signal?: AbortSignal,
 ): Promise<MetricsSummaryResponse> {
-  const qs = new URLSearchParams({ window });
-  if (label) qs.set("label", label);
-  return apiGet<MetricsSummaryResponse>(`/api/metrics/summary?${qs}`, signal);
+  return apiGet<MetricsSummaryResponse>(`/api/metrics/summary${qs({ window, label })}`, signal);
 }
 
 export async function fetchMetricsSeries(
@@ -59,8 +57,8 @@ export async function fetchMetricsSeries(
   opts: { window: MetricWindow; kind?: string; span?: string },
   signal?: AbortSignal,
 ): Promise<MetricsSeriesResponse> {
-  const qs = new URLSearchParams({ label, window: opts.window });
-  if (opts.kind) qs.set("kind", opts.kind);
-  if (opts.span) qs.set("span", opts.span);
-  return apiGet<MetricsSeriesResponse>(`/api/metrics/series?${qs}`, signal);
+  return apiGet<MetricsSeriesResponse>(
+    `/api/metrics/series${qs({ label, window: opts.window, kind: opts.kind, span: opts.span })}`,
+    signal,
+  );
 }

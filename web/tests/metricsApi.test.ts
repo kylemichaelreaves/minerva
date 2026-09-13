@@ -35,6 +35,12 @@ describe("metricsApi", () => {
     expect(spy.mock.calls[0]?.[0]).toContain("label=chunk+syntax");
   });
 
+  it("omits label from URL when not provided", async () => {
+    const spy = mockFetch({ window: "24h", since: 0, until: 1, rows: [] });
+    await fetchMetricsSummary("24h");
+    expect(spy.mock.calls[0]?.[0]).not.toContain("label=");
+  });
+
   it("requests a series with kind and span", async () => {
     const spy = mockFetch({
       label: "chat", kind: "ttfe", span: "", bucket_seconds: 300, points: [],
@@ -42,5 +48,14 @@ describe("metricsApi", () => {
     const got = await fetchMetricsSeries("chat", { window: "7d", kind: "ttfe" });
     expect(spy.mock.calls[0]?.[0]).toContain("kind=ttfe");
     expect(got.bucket_seconds).toBe(300);
+  });
+
+  it("omits kind and span from URL when not provided", async () => {
+    const spy = mockFetch({
+      label: "chat", kind: "total", span: "", bucket_seconds: 60, points: [],
+    });
+    await fetchMetricsSeries("chat", { window: "24h" });
+    expect(spy.mock.calls[0]?.[0]).not.toContain("kind=");
+    expect(spy.mock.calls[0]?.[0]).not.toContain("span=");
   });
 });
