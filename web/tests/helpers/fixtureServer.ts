@@ -81,55 +81,73 @@ async function waitForHealth(url: string, timeoutMs = 15000): Promise<unknown> {
 export async function startFixtureServer(): Promise<FixtureServer> {
   const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  // Index and conversations DB both live in a tmp dir for the run, so
+  // we neither read nor pollute the developer's data/ directory.
   const tmpDir = mkdtempSync(join(tmpdir(), "minerva-e2e-"));
   const indexDb = join(tmpDir, "index.sqlite");
   const convDb = join(tmpDir, "conversations.sqlite");
 
-  if (!existsSync(FIXTURE_JSONL)) {
-    throw new Error(
-      `fixture corpus missing at ${FIXTURE_JSONL}. It is committed — ` +
-        `see tests/fixtures/README.md. Not skipping: a silent skip here ` +
-        `is the bug this suite was fixed to avoid (#133).`,
+  // `proc` is declared here, outside the try, so the catch below can see
+  // and kill it regardless of which line inside the try throws. Every
+  // throw path — missing fixture, failed index build, health timeout, or
+  // a chunk-count mismatch — has to reach the same cleanup, or a failed
+  // setup leaks a real `minerva serve` process that outlives the run.
+  let proc: ChildProcess | undefined;
+  try {
+    if (!existsSync(FIXTURE_JSONL)) {
+      throw new Error(
+        `fixture corpus missing at ${FIXTURE_JSONL}. It is committed — ` +
+          `see tests/fixtures/README.md. Not skipping: a silent skip here ` +
+          `is the bug this suite was fixed to avoid (#133).`,
+      );
+    }
+
+    // Build the throwaway index before booting. 120 chunks, ~1s — no
+    // embeddings, which retrieval doesn't need under `--llm none`.
+    const built = spawnSync(
+      MINERVA_BIN,
+      ["index", "--db", indexDb, "--input", FIXTURE_JSONL, "--reset"],
+      { cwd: REPO_ROOT, encoding: "utf8" },
     );
-  }
+    if (built.status !== 0) {
+      throw new Error(
+        `fixture index build failed (exit ${String(built.status)}):\n` +
+          `${built.stdout}\n${built.stderr}`,
+      );
+    }
 
-  const built = spawnSync(
-    MINERVA_BIN,
-    ["index", "--db", indexDb, "--input", FIXTURE_JSONL, "--reset"],
-    { cwd: REPO_ROOT, encoding: "utf8" },
-  );
-  if (built.status !== 0) {
-    throw new Error(
-      `fixture index build failed (exit ${String(built.status)}):\n` +
-        `${built.stdout}\n${built.stderr}`,
+    proc = spawn(
+      MINERVA_BIN,
+      [
+        "serve",
+        "--llm", "none",
+        "--port", String(port),
+        "--db", indexDb,
+        "--static", STATIC_DIR,
+        "--conversations-db", convDb,
+      ],
+      { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
     );
-  }
+    proc.stderr?.on("data", (b: Buffer) => process.stderr.write(`[serve] ${b.toString()}`));
 
-  const proc: ChildProcess = spawn(
-    MINERVA_BIN,
-    [
-      "serve",
-      "--llm", "none",
-      "--port", String(port),
-      "--db", indexDb,
-      "--static", STATIC_DIR,
-      "--conversations-db", convDb,
-    ],
-    { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
-  );
-  proc.stderr?.on("data", (b: Buffer) => process.stderr.write(`[serve] ${b.toString()}`));
-
-  const health = (await waitForHealth(`${baseUrl}/api/health`)) as {
-    chunks_total?: number;
-  };
-  const expected = fixtureChunkCount();
-  if (health.chunks_total !== expected) {
-    proc.kill("SIGTERM");
+    const health = (await waitForHealth(`${baseUrl}/api/health`)) as {
+      chunks_total?: number;
+    };
+    const expected = fixtureChunkCount();
+    // Asserting the exact count (derived from the fixture, so it stays
+    // correct if the fixture changes) also proves we are serving the
+    // throwaway index and not some other database that happened to be
+    // lying around — which is precisely how the old setup went wrong.
+    if (health.chunks_total !== expected) {
+      throw new Error(
+        `served index has ${String(health.chunks_total)} chunks, fixture has ` +
+          `${String(expected)} — the server is reading some other database.`,
+      );
+    }
+  } catch (e) {
+    proc?.kill("SIGTERM");
     rmSync(tmpDir, { recursive: true, force: true });
-    throw new Error(
-      `served index has ${String(health.chunks_total)} chunks, fixture has ` +
-        `${String(expected)} — the server is reading some other database.`,
-    );
+    throw e;
   }
 
   return {

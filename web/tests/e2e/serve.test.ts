@@ -21,7 +21,7 @@ import {
 const describeOrSkip = hasMinervaBin() ? describe : describe.skip;
 
 describeOrSkip("e2e: minerva serve --llm none", () => {
-  let server: FixtureServer;
+  let server: FixtureServer | undefined;
   let baseUrl: string;
 
   beforeAll(async () => {
@@ -30,7 +30,11 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
   }, 60_000);
 
   afterAll(() => {
-    server.stop();
+    // `server` is unassigned if `startFixtureServer` itself threw during
+    // setup — in that case there's nothing to stop, and the setup's own
+    // error is already the failure to report. Don't mask it with a
+    // TypeError from calling `.stop()` on `undefined`.
+    server?.stop();
   });
 
   interface WorkRow {
