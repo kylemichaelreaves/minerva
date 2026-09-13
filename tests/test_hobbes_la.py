@@ -28,6 +28,7 @@ from minerva.sources.hobbes_la import (
     _paragraphs,
     _roman_to_int,
     _strip_inline_margin,
+    parse_dir,
     parse_file,
 )
 
@@ -35,11 +36,24 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _LEVIATHAN_LAT = _REPO_ROOT / "data" / "hobbes" / "raw_lat" / "leviathan_lat.txt"
 _DE_CIVE_LAT = _REPO_ROOT / "data" / "hobbes" / "raw_lat" / "de_cive_lat.txt"
 
+# A committed excerpt in the real shape, so `parse_file` end-to-end is
+# exercised in CI and not only on a machine that happens to hold the
+# corpus. See `tests/fixtures/hobbes_la/README.md` — and #133, where the
+# e2e suite had the identical problem and nobody noticed for months.
+_FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "hobbes_la" / "molesworth_sample.txt"
+
 # Both Latin files are large data inputs that aren't carried in every
 # checkout. The integration tests skip without them; every unit test
-# below runs regardless.
+# and every fixture test below runs regardless.
 _HAS_LEVIATHAN = _LEVIATHAN_LAT.is_file()
 _HAS_DE_CIVE = _DE_CIVE_LAT.is_file()
+
+
+@pytest.fixture(scope="module")
+def sample_chunks() -> list:
+    return list(
+        parse_file(_FIXTURE, work_title="Leviathan", work_code="leviathan_lat")
+    )
 
 
 @pytest.fixture(scope="module")
@@ -570,3 +584,146 @@ class TestOcrDefectsCleared:
         joined = " ".join(c.text for c in chunks)
         runs = re.findall(r"\b[A-Za-zÀ-ÿ]{24,}\b", joined)
         assert len(runs) <= 5, f"{len(runs)} run-on tokens: {runs[:10]}"
+
+
+# ════════════════════════════════════════════════════════════════════
+# End-to-end over the committed fixture
+# ════════════════════════════════════════════════════════════════════
+#
+# Everything above this line is either a unit test or gated on a corpus
+# file that `data/*` keeps out of git. That gate is why this section
+# exists: without it `parse_file` and the chapter recovery around it are
+# measured only on a developer's machine, and CI's coverage of this
+# module reads 63% where a local run reads 97%.
+
+
+class TestFixtureEndToEnd:
+    def test_chapter_numbers_and_paragraph_locators(
+        self, sample_chunks: list
+    ) -> None:
+        assert [c.section for c in sample_chunks] == [
+            "Cap 1, ¶1",
+            "Cap 1, ¶2",
+            "Cap 1, ¶3",
+            "Cap 2, ¶1",
+            "Cap 2, ¶2",
+            "Cap 3, ¶1",
+            "Cap 4, ¶1",
+            "Cap 4, ¶2",
+            "Cap 5, ¶1",
+        ]
+
+    def test_chapter_4_is_recovered_from_the_margin(
+        self, sample_chunks: list
+    ) -> None:
+        """The fixture has no ``CAPUT IV.`` line — only two ``cap. iv.``
+        marginal markers, exactly as the real Leviathan's Caput XXXV."""
+
+        assert "molesworth_sample.txt" in _FIXTURE.name
+        assert "CAPUT  IV." not in _FIXTURE.read_text(encoding="utf-8")
+        cap4 = [c for c in sample_chunks if c.book == "Cap 4"]
+        assert len(cap4) == 2
+        assert "Rerum nomina imponuntur" in cap4[0].text
+
+    def test_chapter_5_survives_its_stray_period(
+        self, sample_chunks: list
+    ) -> None:
+        assert "CAPUT.  V." in _FIXTURE.read_text(encoding="utf-8")
+        assert any(c.book == "Cap 5" for c in sample_chunks)
+
+    def test_page_chrome_and_orphan_glosses_are_gone(
+        self, sample_chunks: list
+    ) -> None:
+        joined = " ".join(c.text for c in sample_chunks)
+        for gone in (
+            "DE HOMINE",  # running head
+            "VOL. III.",  # printer's signature
+            "Deimagmauone",  # orphaned marginal gloss
+            "De sermone.",  # orphaned marginal gloss
+        ):
+            assert gone not in joined, f"{gone!r} leaked into chunk text"
+
+    def test_margin_markers_are_stripped_but_citations_are_not(
+        self, sample_chunks: list
+    ) -> None:
+        """Both halves of the rule, on one fixture: the run-in ``cap. i.``
+        at a line's head is gone, and ``(cap. i. et ii.)`` mid-sentence
+        is intact."""
+
+        by_section = {c.section: c.text for c in sample_chunks}
+        assert by_section["Cap 1, ¶3"].startswith("contrapressio seu conatus")
+        assert "(cap. i. et ii.)" in by_section["Cap 2, ¶1"]
+        assert "1 Cor. ix. 9" in by_section["Cap 2, ¶1"]
+        assert "Deut. xxv. 4" in by_section["Cap 4, ¶1"]
+        assert "Prov. ix. 10" in by_section["Cap 5, ¶1"]
+
+    def test_hyphenated_words_rejoin_across_the_line_break(
+        self, sample_chunks: list
+    ) -> None:
+        text = sample_chunks[0].text
+        assert "accidentis" in text  # "acci-" + "dentis"
+        assert "objectum" in text  # "ob-" + "jectum"
+        assert "acci- dentis" not in text
+
+    def test_chunk_metadata(self, sample_chunks: list) -> None:
+        c = sample_chunks[0]
+        assert (c.corpus, c.author, c.work, c.lang) == (
+            "hobbes",
+            "Hobbes",
+            "Leviathan",
+            "lat",
+        )
+        assert c.translator == "(Original)"
+        # First publication, not the 1839 reprint we read it from —
+        # the convention every other Latin original in the corpus uses.
+        assert c.edition_year == "1668"
+        assert c.block_type is None
+        assert len({x.chunk_id for x in sample_chunks}) == len(sample_chunks)
+
+    def test_de_cive_edition_year(self) -> None:
+        chunks = list(
+            parse_file(_FIXTURE, work_title="De Cive", work_code="de_cive_lat")
+        )
+        assert chunks[0].edition_year == "1642"
+
+    def test_unknown_work_code_falls_back_without_crashing(self) -> None:
+        chunks = list(
+            parse_file(_FIXTURE, work_title="Whatever", work_code="unknown_code")
+        )
+        assert chunks, "an unregistered work code should still parse"
+
+    def test_chapters_past_the_works_count_are_dropped(self) -> None:
+        """`_MAX_CHAPTER_BY_CODE` caps De Cive at 18 and Leviathan at 47.
+        A fixture parsed as a 2-chapter work keeps only 1 and 2."""
+
+        chunks = list(
+            parse_file(_FIXTURE, work_title="Tiny", work_code="leviathan_lat")
+        )
+        assert max(int(c.book.split()[1]) for c in chunks) == 5
+
+
+class TestParseDir:
+    def test_skips_unknown_filenames(self, tmp_path, capsys) -> None:
+        (tmp_path / "not_a_hobbes_work.txt").write_text("CAPUT I.\n\nverba.\n")
+        assert list(parse_dir(tmp_path)) == []
+        assert "skipping unknown file" in capsys.readouterr().out
+
+    def test_skips_non_txt_and_directories(self, tmp_path) -> None:
+        (tmp_path / "leviathan_lat.md").write_text("ignored")
+        (tmp_path / "subdir").mkdir()
+        assert list(parse_dir(tmp_path)) == []
+
+    def test_parses_a_registered_latin_file(self, tmp_path) -> None:
+        (tmp_path / "leviathan_lat.txt").write_text(
+            _FIXTURE.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        chunks = list(parse_dir(tmp_path))
+        assert chunks
+        assert {c.work for c in chunks} == {"Leviathan"}
+
+    def test_skips_the_english_hobbes_files(self, tmp_path) -> None:
+        """`find_work` knows the English works too; only the Latin ones
+        belong to this parser."""
+
+        (tmp_path / "leviathan.txt").write_text("By Thomas Hobbes\n")
+        assert list(parse_dir(tmp_path)) == []

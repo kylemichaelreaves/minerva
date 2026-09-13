@@ -100,6 +100,25 @@ evaluates the same thing locally as of #255 (`check-diff-coverage`), counting
 **branches as well as statements** because Sonar does: a one-line guard whose
 false branch is untested scores 3/4, not 100% (#250).
 
+**The same thing, on different inputs — and the difference is `data/`.**
+`check-diff-coverage` measures the tests that actually ran, and a test gated
+on a file under `data/` runs locally and *skips in CI*, because `.gitignore`
+keeps the corpus out of every checkout. The local number is then higher than
+Sonar's and nothing says so. Measured on #573: `hobbes_la.py` read **97%**
+locally and **63%** in CI, and the gate failed at 69.8% new-code coverage
+against a green `make check`. The same silence cost #133 three e2e assertions
+that had been failing for months against a renamed corpus.
+
+So a parser whose tests read real corpus files needs a **committed fixture**
+— a short excerpt in the real shape, under `tests/fixtures/` — or its
+coverage is measured only on the machine that has the data. To see what CI
+sees, hide the input and re-run:
+
+```
+mv data/<corpus>/<dir> /tmp/hidden && .venv/bin/python -m pytest <test file> \
+  -q --cov=<module> --cov-report=term; mv /tmp/hidden data/<corpus>/<dir>
+```
+
 Do not substitute `make coverage` for it. That reports *whole-project*
 coverage — a different number, which can be green while the gate is red. On
 #254 the project sat at 75% while the PR's new code was at 58.5%.
