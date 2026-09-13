@@ -63,18 +63,35 @@ export function gridLevels(domain: Domain, count: number): number[] {
   return Array.from({ length: count }, (_, i) => domain.min + (span * i) / (count - 1));
 }
 
-/** Render-time HH:MM label for a bucket timestamp, in UTC so the test
- *  suite (and CI, in whatever timezone it runs) sees the same string a
+/** A day's worth of seconds: at or above this the server is bucketing
+ *  daily (`_bucket_seconds_for` in `handlers/metrics.py`). */
+const DAILY_BUCKET_SECONDS = 86400;
+
+/** Render-time label for a bucket timestamp, in UTC so the test suite
+ *  (and CI, in whatever timezone it runs) sees the same string a
  *  developer's browser would render in theirs — this is a label, not a
- *  clock, so there is no "wrong" timezone to guard against here. */
-export function formatTimeLabel(t: number): string {
+ *  clock, so there is no "wrong" timezone to guard against here.
+ *
+ *  HH:MM for sub-daily buckets. Daily buckets (`7d`, `30d`, `all`) all
+ *  start at midnight, so both axis ticks would otherwise read `00:00`
+ *  — two identical, useless labels; those get the date instead. */
+export function formatTimeLabel(t: number, bucketSeconds = 0): string {
   const d = new Date(t * 1000);
+  if (bucketSeconds >= DAILY_BUCKET_SECONDS) {
+    return d.toISOString().slice(0, 10);
+  }
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
 }
 
-export function TimeSeriesChart(props: { points: MetricsSeriesPoint[]; height?: number }) {
+export function TimeSeriesChart(props: {
+  points: MetricsSeriesPoint[];
+  height?: number;
+  /** Server-side bucket width, from the series response. Drives whether
+   *  the x-axis ticks carry a date; absent (0) reads as sub-daily. */
+  bucketSeconds?: number;
+}) {
   let wrapEl: HTMLDivElement | undefined;
   const size = useElementSize(() => wrapEl, { w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT });
 
@@ -158,14 +175,14 @@ export function TimeSeriesChart(props: { points: MetricsSeriesPoint[]; height?: 
             <Show when={first()}>
               {(firstPoint) => (
                 <text x={plotX0} y={height() - 4} text-anchor="start" class="mchart-tick">
-                  {formatTimeLabel(firstPoint().t)}
+                  {formatTimeLabel(firstPoint().t, props.bucketSeconds)}
                 </text>
               )}
             </Show>
             <Show when={last()}>
               {(lastPoint) => (
                 <text x={plotX1()} y={height() - 4} text-anchor="end" class="mchart-tick">
-                  {formatTimeLabel(lastPoint().t)}
+                  {formatTimeLabel(lastPoint().t, props.bucketSeconds)}
                 </text>
               )}
             </Show>

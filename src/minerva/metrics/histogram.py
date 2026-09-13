@@ -66,7 +66,10 @@ def quantile(counts: Sequence[int], q: float) -> float:
             return BUCKET_UPPER_MS[-1]
         lo, hi = _bucket_bounds(i)
         return lo + (hi - lo) * ((target - previous) / count)
-    # Unreachable: target <= total, and loop accumulates all counts.
+    # Unreachable: `target <= total` and the loop accumulates every count,
+    # so some bucket always reaches it. Explicit anyway — falling off the
+    # end would return None from a function annotated `-> float`.
+    return BUCKET_UPPER_MS[-1]  # pragma: no cover — see above
 
 
 __all__ = ["BUCKET_COUNT", "BUCKET_UPPER_MS", "bucket_index", "quantile"]

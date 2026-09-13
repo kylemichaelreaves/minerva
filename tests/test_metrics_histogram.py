@@ -43,7 +43,6 @@ def test_quantile_empty_is_zero():
 def test_quantile_single_bucket_interpolates_within_it():
     counts = [0] * BUCKET_COUNT
     counts[3] = 10  # bucket 3 spans [5.0, 10.0)
-    got = quantile(counts, 0.5)
     assert quantile(counts, 0.5) == pytest.approx(7.5)
 
 

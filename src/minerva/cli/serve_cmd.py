@@ -9,6 +9,7 @@ maintainability audit; the dispatch wiring still happens in
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -25,6 +26,28 @@ from ._shared import (
     auto_embedder,
     make_backend,
 )
+
+
+def _open_metrics_db(path: Path) -> sqlite3.Connection | None:
+    """Open the timing history, or warn and serve without it.
+
+    Unguarded, a truncated or non-SQLite `data/metrics.sqlite` raises
+    `sqlite3.DatabaseError: file is not a database` here and the server
+    dies before `write_serve_lock` — the operator loses a working reader
+    because a metrics file went bad. Same principle as the Recorder
+    dropping a sample it cannot write: the handlers already render empty
+    payloads for a `None` connection.
+    """
+
+    try:
+        return metrics.open_db(path, check_same_thread=False)
+    except sqlite3.Error as exc:
+        print(
+            f"warning: could not open metrics db {path} ({exc}); "
+            f"serving without timing history (pass --no-metrics to silence this)",
+            file=sys.stderr,
+        )
+        return None
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -61,9 +84,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         return 2
     # `--no-metrics` keeps the in-memory recent-request ring (Recorder
     # still runs at each dispatch site) but skips durable persistence.
-    metrics_conn = (
-        None if args.no_metrics else metrics.open_db(args.metrics_db, check_same_thread=False)
-    )
+    metrics_conn = None if args.no_metrics else _open_metrics_db(args.metrics_db)
     serve_lock.write_serve_lock(args.db, host=args.host, port=args.port)
     try:
         _server.serve(

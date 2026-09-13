@@ -1,6 +1,6 @@
 import { render, screen } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { TimeSeriesChart } from "~/Metrics/TimeSeriesChart";
+import { TimeSeriesChart, formatTimeLabel } from "~/Metrics/TimeSeriesChart";
 import type { MetricsSeriesPoint } from "~/api/metricsApi";
 
 const point = (t: number, p50: number, p95: number): MetricsSeriesPoint => ({
@@ -149,6 +149,31 @@ describe("TimeSeriesChart", () => {
     const { container } = render(() => <TimeSeriesChart points={points} height={180} />);
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("height")).toBe("180");
+  });
+
+  it("labels the x axis with times for sub-daily buckets", () => {
+    // 5-minute buckets: the two ticks differ, so HH:MM says something.
+    const points = [point(0, 10, 40), point(300, 12, 50)];
+    render(() => <TimeSeriesChart points={points} bucketSeconds={300} />);
+    expect(screen.getByText("00:00")).toBeTruthy();
+    expect(screen.getByText("00:05")).toBeTruthy();
+  });
+
+  it("labels the x axis with dates once the server buckets daily", () => {
+    // 7d/30d/all bucket daily, and every daily bucket starts at midnight
+    // UTC — so both ticks used to read "00:00": two identical, useless
+    // labels on the only axis that says which day you are looking at.
+    const day = 86400;
+    const points = [point(0, 10, 40), point(day, 12, 50)];
+    render(() => <TimeSeriesChart points={points} bucketSeconds={day} />);
+    expect(screen.getByText("1970-01-01")).toBeTruthy();
+    expect(screen.getByText("1970-01-02")).toBeTruthy();
+    expect(screen.queryByText("00:00")).toBeNull();
+  });
+
+  it("falls back to a time label when no bucket width is given", () => {
+    expect(formatTimeLabel(0)).toBe("00:00");
+    expect(formatTimeLabel(86400, 3600)).toBe("00:00");
   });
 
   it("direct-labels each series and shows a legend, without coloring the text", () => {

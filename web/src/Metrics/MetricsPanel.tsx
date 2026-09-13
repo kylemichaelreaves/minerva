@@ -175,6 +175,11 @@ export function MetricsPanel(props: MetricsPanelProps) {
     summaryRows().some((r) => r.label === selectedLabel() && r.kind === "ttfe"),
   );
   const seriesPoints = createMemo(() => valueUnlessErrored(series)?.points ?? []);
+  // The chart labels its x-axis from this: the server buckets daily for
+  // `7d`/`30d`/`all`, where an HH:MM tick is always `00:00`. 0 while the
+  // fetch is in flight or errored, which reads as "sub-daily" — the same
+  // thing an empty chart shows anyway.
+  const seriesBucketSeconds = createMemo(() => valueUnlessErrored(series)?.bucket_seconds ?? 0);
 
   return (
     <div class="metrics-panel">
@@ -292,7 +297,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
                 when={!series.loading}
                 fallback={<div class="metrics-loading">Loading trend…</div>}
               >
-                <TimeSeriesChart points={seriesPoints()} />
+                <TimeSeriesChart points={seriesPoints()} bucketSeconds={seriesBucketSeconds()} />
               </Show>
             </Show>
 
@@ -323,12 +328,20 @@ export function MetricsPanel(props: MetricsPanelProps) {
                         <tr>
                           <td>
                             {row.span}
-                            {/* llm_call's count and percentiles are PER ATTEMPT — the
-                                LLM client retries, and every attempt records its own
-                                row. Correct, but easy to misread as per-request, so
-                                it's called out at the point it would mislead. */}
+                            {/* Two things about llm_call that are correct but easy
+                                to misread, called out where they would mislead.
+                                Its count and percentiles are PER ATTEMPT — the LLM
+                                client retries, and every attempt records its own
+                                row. And the span closes when the LLM's response
+                                HEADERS arrive (`llm.py`), so body and stream
+                                consumption fall outside it: on the chat route the
+                                breakdown will not add up to `total`. */}
                             <Show when={row.span === "llm_call"}>
-                              <span class="metrics-note"> (per attempt, not per request)</span>
+                              <span class="metrics-note">
+                                {" "}
+                                (per attempt, not per request; measured to response headers, so
+                                streamed body time is excluded)
+                              </span>
                             </Show>
                           </td>
                           <td>{row.count.toLocaleString()}</td>
