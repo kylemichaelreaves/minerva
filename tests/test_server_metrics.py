@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -89,35 +90,63 @@ def test_sse_stream_marks_time_to_first_event(populated_db):
     """
 
     deps = make_deps(populated_db, StubBackend(reply="Hello world [1]."))
-    # Cross-thread-safe reopen, matching serve_cmd.py's check_same_thread=False.
-    deps.conn = store_mod.open_db(_path_of(deps.conn), check_same_thread=False)
-    deps.conversations_conn = conversations_mod.open_db(
+    # Cross-thread-safe reopens, matching serve_cmd.py's check_same_thread=False.
+    # These are NEW connections (the conftest-supplied originals are closed
+    # by their own fixtures/teardown regardless of what `deps.*` points at
+    # afterwards) — close them ourselves in `finally`, per #246.
+    reopened_conn = store_mod.open_db(_path_of(deps.conn), check_same_thread=False)
+    reopened_conv_conn = conversations_mod.open_db(
         _path_of(deps.conversations_conn), check_same_thread=False
     )
-    deps.translations_conn = translations_mod.open_db(
+    reopened_trans_conn = translations_mod.open_db(
         _path_of(deps.translations_conn), check_same_thread=False
     )
+    deps.conn = reopened_conn
+    deps.conversations_conn = reopened_conv_conn
+    deps.translations_conn = reopened_trans_conn
     metrics_conn = sqlite3.connect(":memory:", check_same_thread=False)
     metrics_conn.executescript(m.SCHEMA)
-    deps.metrics = Recorder(metrics_conn, threading.Lock())
+    metrics_lock = threading.Lock()
+    deps.metrics = Recorder(metrics_conn, metrics_lock)
 
-    with _running(deps) as base:
-        req = urllib.request.Request(
-            f"{base}/api/chat",
-            data=json.dumps({"query": "What is justice?", "stream": True}).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            assert resp.status == 200
-            # The response has no Content-Length or chunked framing (SSE is
-            # unbounded), so `.read()` would block until the connection
-            # closes. Read line-by-line until the terminal event instead.
-            for line in resp:
-                if line.startswith(b"event: done"):
-                    break
+    try:
+        with _running(deps) as base:
+            req = urllib.request.Request(
+                f"{base}/api/chat",
+                data=json.dumps({"query": "What is justice?", "stream": True}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                assert resp.status == 200
+                # The response has no Content-Length or chunked framing (SSE
+                # is unbounded), so `.read()` would block until the
+                # connection closes. Read line-by-line until the terminal
+                # event instead.
+                for line in resp:
+                    if line.startswith(b"event: done"):
+                        break
 
-    row = metrics_conn.execute(
-        "SELECT count FROM request_timings WHERE kind = 'ttfe'"
-    ).fetchone()
-    assert row == (1,)
+        # `ThreadingHTTPServer.daemon_threads` is True, so `server_close()`
+        # (inside `_running`'s `finally`) does not join the request-handling
+        # thread — the `ttfe` row is written there, potentially after this
+        # thread's read loop above already broke out. Poll for it instead of
+        # relying on `shutdown()`'s incidental ~0.5s cushion.
+        deadline = time.monotonic() + 1.0
+        row = None
+        while row is None and time.monotonic() < deadline:
+            # Same lock the Recorder writes under — reading `metrics_conn`
+            # from this thread without it is the exact cross-thread race
+            # `metrics_lock` exists to prevent.
+            with metrics_lock:
+                row = metrics_conn.execute(
+                    "SELECT count FROM request_timings WHERE kind = 'ttfe'"
+                ).fetchone()
+            if row is None:
+                time.sleep(0.01)
+        assert row == (1,)
+    finally:
+        reopened_conn.close()
+        reopened_conv_conn.close()
+        reopened_trans_conn.close()
+        metrics_conn.close()

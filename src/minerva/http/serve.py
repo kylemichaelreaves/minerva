@@ -344,9 +344,16 @@ class ChatHandler(BaseHTTPRequestHandler):
                 )
                 return
             try:
+                # `total` covers handler execution only, not the response
+                # write: including the socket write would make `total`
+                # depend on client network speed, so a slow or distant
+                # client would inflate p95 and read as a server-side
+                # regression — the exact misdiagnosis this feature exists
+                # to prevent. TTFE is a different `kind`, deliberately
+                # measured at the first SSE write instead (see `_send_sse`).
                 with self.deps.metrics.record(label, "GET"):
                     body = handler(*args)  # type: ignore[arg-type]
-                    self._send_json(HTTPStatus.OK, body)
+                self._send_json(HTTPStatus.OK, body)
             except Exception as exc:
                 self._send_error_json(_translate_route_exception(label, exc))
                 return
@@ -385,25 +392,32 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         label, handler, args = matched
         try:
+            # Only the status assignment lives inside the `with` — the
+            # response writes below stay outside the `try` entirely, as
+            # they did before metrics existed. A client that disconnects
+            # mid-write (closed tab, aborted fetch) would otherwise raise
+            # BrokenPipeError *inside* the `with`, which `Recorder.record`
+            # treats as a handler failure and overwrites `span.status` to
+            # 500 — recording a successful (or correctly-404'd) delete as a
+            # server error, then attempting a second response on a
+            # half-written connection.
             with self.deps.metrics.record(label, "DELETE") as span:
                 removed = handler(*args)
-                if not removed:
-                    span.status = HTTPStatus.NOT_FOUND
-                    # Name the thing the route deletes. Router labels read
-                    # "<noun> delete", so dropping the verb gives "conversation",
-                    # "syntax correction". This was hardcoded to "conversation"
-                    # while that was the only DELETE route, and silently lied
-                    # once it wasn't.
-                    noun = label.removesuffix(" delete")
-                    self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
-                    return
-                span.status = HTTPStatus.NO_CONTENT
-                self.send_response(HTTPStatus.NO_CONTENT)
-                self._send_common_headers()
-                self.end_headers()
+                span.status = HTTPStatus.NO_CONTENT if removed else HTTPStatus.NOT_FOUND
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
+        if not removed:
+            # Name the thing the route deletes. Router labels read
+            # "<noun> delete", so dropping the verb gives "conversation",
+            # "syntax correction". This was hardcoded to "conversation" while
+            # that was the only DELETE route, and silently lied once it wasn't.
+            noun = label.removesuffix(" delete")
+            self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
+            return
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self._send_common_headers()
+        self.end_headers()
 
     def _serve_static(self, request_path: str) -> None:
         root = self.deps.static_dir.resolve()
