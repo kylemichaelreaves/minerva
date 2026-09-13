@@ -1079,16 +1079,39 @@ before touching the test. **Do not add a wait to make it pass.**
 
 - [ ] **Step 4: Prove the test can actually fail**
 
-A test that cannot fail is worse than no test. Temporarily revert the #591
-fix — or stub `selectWords` to release on a non-word node — re-run, and
-confirm the first test goes red. Restore afterwards.
+A test that cannot fail is worse than no test, because it reads as coverage.
 
-```bash
-git stash && npm run test:browser; git stash pop
+**`git stash` cannot do this** — the #591 fix is committed (314a599), so there
+is nothing in the working tree to stash, and the new spec files are untracked
+so stash would not remove them either. The step would pass with the fix intact
+and be recorded as proof of the opposite.
+
+Reintroduce the guard by hand instead. In
+`web/src/Reader/useSelectionToolbar.tsx`, at the top of `onMouseUp`'s body
+(currently line 185), insert:
+
+```ts
+    if ((_e.target as Element | null)?.closest(".gw, .term-mark, .pin-hl")) return;
 ```
 
-Expected while stashed: the drag-select test FAILS. If it passes with the
-fix reverted, the test is not exercising the guard and must be rewritten.
+Then:
+
+```bash
+npm run build && npm run test:browser
+```
+
+Expected: the drag-select test **FAILS** — the toolbar never appears, because
+a drag ends with the pointer on a word. The single-word click test should also
+be checked: it asserts the toolbar is hidden, so it may still pass.
+
+Remove the inserted line and rebuild:
+
+```bash
+npm run build && npm run test:browser   # both green again
+```
+
+If the drag-select test passes with the guard reintroduced, it is not
+exercising real hit-testing and must be rewritten — do not proceed.
 
 - [ ] **Step 5: Commit**
 
@@ -1200,9 +1223,19 @@ test.describe("Metrics layout", () => {
 
     await expect(metrics.chart).toHaveAttribute("height", CHART_HEIGHT);
 
-    // A single reading cannot distinguish "fixed" from "caught early".
-    // Re-read after a frame: the runaway loop grew on every one.
-    await page.waitForFunction(() => true);
+    // A single reading cannot distinguish "fixed" from "caught on frame one".
+    // The runaway loop grew on EVERY frame, so re-read after two of them.
+    //
+    // Two rAFs, not waitForTimeout: this waits on the same signal the defect
+    // rode in on — a ResizeObserver callback scheduled against the frame
+    // loop — rather than on wall-clock, which would be a flake waiting to
+    // happen on a loaded CI runner.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => { resolve(); }));
+        }),
+    );
     await expect(metrics.chart).toHaveAttribute("height", CHART_HEIGHT);
   });
 
