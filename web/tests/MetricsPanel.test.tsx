@@ -74,6 +74,12 @@ describe("MetricsPanel", () => {
     expect(await view.findByText(/couldn't load metrics: offline/i)).toBeTruthy();
   });
 
+  it("names the route table so it is addressable by role (#593)", async () => {
+    mockSummary([row("fast", 5), row("slow", 900)]);
+    const view = render(() => <MetricsPanel />);
+    expect(await view.findByRole("table", { name: "Requests by route" })).toBeTruthy();
+  });
+
   describe("errorMessage", () => {
     it("reads .message off an Error", () => {
       expect(errorMessage(new Error("boom"))).toBe("boom");
