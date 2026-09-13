@@ -175,20 +175,57 @@ def _dispatch_json_mutation(
         raise domain_error_to_http(exc) from exc
 
 
-def _translate_route_exception(label: str, exc: BaseException) -> _HTTPError:
-    """Map handler exceptions to HTTP errors consistently across verbs."""
+def _route_http_error(exc: BaseException) -> _HTTPError | None:
+    """The HTTP error *exc* translates to, or None for an unexpected one.
+
+    Pure: no logging and no side effects, so the metrics recorder can ask
+    what status the client is going to see without emitting a second log
+    line for the same exception.
+    """
 
     if isinstance(exc, _HTTPError):
         return exc
     if isinstance(exc, MinervaError):
         return domain_error_to_http(exc)
     if isinstance(exc, llm.LLMError):
-        _log.exception("LLM error", exc_info=exc)
         return _HTTPError(HTTPStatus.BAD_GATEWAY, "LLM backend error")
     if isinstance(exc, json.JSONDecodeError):
         return _HTTPError(HTTPStatus.BAD_REQUEST, "invalid JSON")
-    _log.exception("%s error", label, exc_info=exc)
-    return _HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error")
+    return None
+
+
+def _route_error_status(exc: BaseException) -> int:
+    """The status the client will actually receive for *exc*.
+
+    Passed to `Recorder.record` so a handler that raises a 404 or a 400 is
+    recorded as `status_class = 4`, matching the response. GET, PATCH and
+    non-streaming POST have no other path to a non-200, so without this
+    every client-error they answer is filed as a server error and the
+    leaderboard's Errors column reads 100% for a route that is merely
+    rejecting bad input.
+    """
+
+    translated = _route_http_error(exc)
+    if translated is None:
+        return int(HTTPStatus.INTERNAL_SERVER_ERROR)
+    return int(translated.status)
+
+
+def _translate_route_exception(label: str, exc: BaseException) -> _HTTPError:
+    """Map handler exceptions to HTTP errors consistently across verbs.
+
+    Called once per failed request, from the response site — this is the
+    half that logs, which is why `_route_error_status` above is a separate
+    pure function rather than a second call to this one.
+    """
+
+    translated = _route_http_error(exc)
+    if translated is None:
+        _log.exception("%s error", label, exc_info=exc)
+        return _HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error")
+    if isinstance(exc, llm.LLMError):
+        _log.exception("LLM error", exc_info=exc)
+    return translated
 
 
 def _cors_headers(deps: ServerDeps, origin: str | None) -> dict[str, str]:
@@ -308,7 +345,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded"))
             return
         try:
-            with self.deps.metrics.record(label, "POST") as span:
+            with self.deps.metrics.record(label, "POST", error_status=_route_error_status) as span:
                 payload = _read_json_body(self.headers, self.rfile)
                 if path == "/api/chat" and payload.get("stream") is True:
                     span.status = HTTPStatus.OK
@@ -351,7 +388,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                 # regression — the exact misdiagnosis this feature exists
                 # to prevent. TTFE is a different `kind`, deliberately
                 # measured at the first SSE write instead (see `_send_sse`).
-                with self.deps.metrics.record(label, "GET"):
+                with self.deps.metrics.record(label, "GET", error_status=_route_error_status):
                     body = handler(*args)  # type: ignore[arg-type]
                 self._send_json(HTTPStatus.OK, body)
             except Exception as exc:
@@ -374,7 +411,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         label, handler, args = matched
         try:
-            with self.deps.metrics.record(label, "PATCH"):
+            with self.deps.metrics.record(label, "PATCH", error_status=_route_error_status):
                 payload = _read_json_body(self.headers, self.rfile)
                 body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
@@ -401,7 +438,9 @@ class ChatHandler(BaseHTTPRequestHandler):
             # 500 — recording a successful (or correctly-404'd) delete as a
             # server error, then attempting a second response on a
             # half-written connection.
-            with self.deps.metrics.record(label, "DELETE") as span:
+            with self.deps.metrics.record(
+                label, "DELETE", error_status=_route_error_status
+            ) as span:
                 removed = handler(*args)
                 span.status = HTTPStatus.NO_CONTENT if removed else HTTPStatus.NOT_FOUND
         except Exception as exc:

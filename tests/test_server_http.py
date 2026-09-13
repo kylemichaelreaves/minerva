@@ -8,6 +8,9 @@ from conftest import StubBackend
 from conftest import make_deps as _make_deps
 
 from minerva import server
+from minerva.errors import NotFoundError
+from minerva.http.serve import _route_error_status
+from minerva.http.server_core import _HTTPError
 
 
 def _make_deps_with_limiter(populated_db, backend, **kwargs):
@@ -218,3 +221,25 @@ def test_cors_allow_methods_includes_patch(populated_db):
     deps = _make_deps(populated_db, backend)
     h = server._cors_headers(deps, origin=None)
     assert "PATCH" in h["Access-Control-Allow-Methods"]
+
+
+# ---------- Recorded status matches the response ----------
+
+
+def test_route_error_status_uses_the_translated_status():
+    # What the Recorder files the request under has to be what the client
+    # was told, or every 4xx on GET/PATCH/POST reads as a server error.
+    assert _route_error_status(_HTTPError(404, "no such chunk")) == 404
+    assert _route_error_status(NotFoundError("no such chunk")) == 404
+
+
+def test_route_error_status_is_500_for_an_unexpected_exception():
+    assert _route_error_status(RuntimeError("boom")) == 500
+
+
+def test_route_error_status_does_not_log(caplog):
+    # `_translate_route_exception` logs; this must not, or every
+    # unexpected failure gets two tracebacks for one request.
+    with caplog.at_level("DEBUG", logger="minerva.http.serve"):
+        assert _route_error_status(RuntimeError("boom")) == 500
+    assert caplog.records == []

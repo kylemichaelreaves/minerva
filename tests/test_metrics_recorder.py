@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 
 import pytest
@@ -119,3 +120,51 @@ def test_recorder_without_a_connection_still_fills_the_ring():
     with rec.record("work range", "GET") as span:
         span.status = 200
     assert len(rec.recent()) == 1
+
+
+def test_error_status_records_what_the_client_actually_received(conn):
+    # GET/PATCH/non-streaming POST reach a non-200 only by raising, so
+    # without this mapping a 404 or a 400 the client correctly received is
+    # filed under `status_class = 5` and the Errors column reads 100% for
+    # a route that is merely rejecting bad input.
+    rec = Recorder(conn, now=lambda: 1_700_000_000.0, clock=FakeClock())
+    with pytest.raises(KeyError), rec.record("work range", "GET", error_status=lambda _: 404):
+        raise KeyError("no such work")
+    assert conn.execute("SELECT status_class FROM request_timings").fetchone()[0] == 4
+
+
+def _cannot_be_written(conn):
+    """Make every subsequent `write` raise a real `sqlite3.Error`.
+
+    Dropping the table stands in for the operational triggers — a full
+    disk, a file locked by another process, a read-only filesystem — none
+    of which can be provoked from a test but all of which surface here as
+    the same exception type.
+    """
+
+    conn.execute("DROP TABLE request_timings")
+
+
+def test_a_failing_write_does_not_reach_the_caller(conn):
+    # The write runs in `record()`'s `finally`, which every dispatch site
+    # sits inside its own `except Exception`: an exception here answers
+    # 500 for a request that succeeded, and on the streaming path writes a
+    # second response onto a connection that already has one.
+    _cannot_be_written(conn)
+    rec = Recorder(conn, now=lambda: 1_700_000_000.0, clock=FakeClock())
+    with rec.record("work range", "GET") as span:
+        span.status = 200
+    # Sample dropped, request unharmed, ring still filled.
+    assert len(rec.recent()) == 1
+
+
+def test_a_failing_write_is_logged_once_not_once_per_request(conn, caplog):
+    # A full disk fails on every request; one line each would bury the log.
+    _cannot_be_written(conn)
+    rec = Recorder(conn, now=lambda: 1_700_000_000.0, clock=FakeClock())
+    with caplog.at_level(logging.WARNING, logger="minerva.metrics.recorder"):
+        for _ in range(3):
+            with rec.record("work range", "GET") as span:
+                span.status = 200
+    assert len(caplog.records) == 1
+    assert "metrics write failed" in caplog.records[0].message

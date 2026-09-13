@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import logging
 import sqlite3
 import threading
 import time
@@ -19,6 +20,8 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 from .store import Sample, write
+
+_log = logging.getLogger(__name__)
 
 # Per-thread by construction: each thread gets its own top-level Context,
 # which is what makes this safe under ThreadingHTTPServer. Threading the
@@ -103,15 +106,33 @@ class Recorder:
         self._ring: deque[dict[str, Any]] = deque(maxlen=ring_size)
         self._now = now
         self._clock = clock
+        self._write_failed = False
 
     @contextlib.contextmanager
-    def record(self, label: str, method: str) -> Iterator[Span]:
+    def record(
+        self,
+        label: str,
+        method: str,
+        *,
+        error_status: Callable[[BaseException], int] | None = None,
+    ) -> Iterator[Span]:
+        """Time one request, recording it on the way out however it ends.
+
+        `error_status` maps a failing exception to the status the client
+        is actually going to receive, so a handler that raises a 404 or a
+        400 is not filed under `status_class = 5`. It is a callable rather
+        than a mapping table because the translation is the HTTP layer's
+        (`serve._route_error_status`); this module must not import HTTP
+        types. Without it a failure records 500, which is what a caller
+        with no error translation of its own means.
+        """
+
         span = Span(label, method, self._clock)
         token = _CURRENT.set(span)
         try:
             yield span
-        except BaseException:
-            span.status = 500
+        except BaseException as exc:
+            span.status = 500 if error_status is None else error_status(exc)
             raise
         finally:
             _CURRENT.reset(token)
@@ -144,8 +165,35 @@ class Recorder:
         )
         if self._conn is None:
             return
-        with self._lock:
-            write(self._conn, samples)
+        try:
+            with self._lock:
+                write(self._conn, samples)
+        except sqlite3.Error:
+            self._note_write_failure()
+
+    def _note_write_failure(self) -> None:
+        """Drop the sample instead of failing the request that produced it.
+
+        A full disk, a `data/metrics.sqlite` held in a write transaction by
+        another process, a corrupt file or a read-only filesystem would
+        otherwise raise out of `record()`'s `finally` at every dispatch
+        site — *inside* the route's `except Exception`, which answers 500
+        for a request that succeeded, and on the streaming path writes a
+        second response onto a connection whose SSE body was already
+        flushed. Losing a timing sample is strictly better than losing the
+        server.
+
+        Logged once per Recorder: a full disk fails on every request, and
+        one line per request would bury the rest of the log.
+        """
+
+        if self._write_failed:
+            return
+        self._write_failed = True
+        _log.warning(
+            "metrics write failed; dropping timing samples (further failures are silent)",
+            exc_info=True,
+        )
 
     def recent(self) -> list[dict[str, Any]]:
         """Most recent requests, oldest first. In-memory only; lost on restart."""
