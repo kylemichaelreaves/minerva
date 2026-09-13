@@ -2,6 +2,7 @@
 
 **Status:** approved 2026-09-13
 **Issues:** #593
+**Depends on:** #594 (accessible names on the toolbar controls)
 **Related:** #591 (the selection-toolbar defect), #590 (the PR the chart shipped
 in), #585 (`clientHeight` is always 0 in jsdom), #133 (e2e assertions that
 rotted because they skipped in CI), #573 (local-vs-CI coverage divergence),
@@ -90,6 +91,63 @@ Nothing notices because nothing requests `/`. The implementing PR fixes this by
 adding the build step, so per CLAUDE.md it is recorded in the PR body rather
 than filed as its own issue.
 
+### What the DOM offers a locator, and where it doesn't
+
+The frontend has **one** `data-testid` in the whole of `web/src`
+(`Metrics/MetricsPanel.tsx:357`) against **81** `aria-label`/`role` attributes.
+It leans semantic, so role-based locators are viable rather than aspirational.
+
+| target | locator | source |
+|---|---|---|
+| selection toolbar | `getByRole("toolbar", { name: "Selection actions" })` | `SelectionToolbar.tsx:82-84`; name measured, see below |
+| toolbar buttons | `getByRole("button", { name: … })` | **blocked on #594** |
+| a line | `[data-chunk-id="…"]` | `Lines.tsx:172` |
+| a word | `[data-offset="N"]` scoped to that line | `WordRun.tsx:33` |
+| the chart | `getByRole("img", { name: /Latency over time/ })` | `TimeSeriesChart.tsx:148-149` |
+| a route row | `getByTestId("metrics-route-label")` | `MetricsPanel.tsx:357` |
+
+`data-chunk-id` and `data-offset` are **not test hooks**. Production code
+queries them — `Reader/index.tsx:246`, `Reader/utils.ts:92`,
+`useSelectionToolbar.tsx:263`, `useWorkRange.tsx:225`. A locator resting on
+them breaks only in cases where the app's own logic would break too, which is
+the property that makes a locator robust.
+
+**The toolbar's own name is sound; its buttons' are not.** Measured with
+`computeAccessibleName` (`dom-accessibility-api` — the implementation Testing
+Library and Playwright's role engine both rest on) against the real component:
+
+```
+role=toolbar name="Selection actions"
+singleWord=false: "Translate phraseT"  "SyntaxS"  "Copy"
+singleWord=true:  "Look upL"  "TranslateT"  "SyntaxS"  "Copy"
+```
+
+The `<span class="kbd">T</span>` hint concatenates into the name with no
+separator. Filed as **#594**, which this design depends on — see "Dependency"
+below.
+
+*(An earlier draft of this section reported the toolbar's name as `null`. That
+was an artifact of querying `document` after unmount in the throwaway probe,
+not a defect. Re-measured within the render scope, it is `"Selection actions"`.
+Had it been trusted, the design would have added a `data-testid` to a container
+that is already correctly labelled.)*
+
+### The existing jsdom tests locate by class and by index
+
+```
+$ grep -n 'query' web/tests/SelectionToolbar.test.tsx
+44:    fireEvent.click(container.querySelector(".st-btn")!);
+46:    const buttons = container.querySelectorAll(".st-btn");
+54:    const buttons = container.querySelectorAll(".st-btn");
+74:    expect(container.querySelector(".selection-toolbar.below")).not.toBeNull();
+87:    const btn = Array.from(container.querySelectorAll(".st-btn")).find(…
+```
+
+CSS class plus positional indexing, throughout. This matters because it is the
+house style a new suite will drift toward unless the rule is written down. It
+is also why #594 went unnoticed: nothing in the suite ever consults an
+accessible name.
+
 ### Vitest browser mode was considered and rejected on its type surface
 
 `@vitest/browser-playwright@5.0.0` is an optional peer of the vitest 5 already
@@ -169,7 +227,88 @@ what the harness was already configured for.
 the mouseup's `target` comes from real hit-testing rather than from the test's
 choice of node.
 
-### 4. Flake defense
+### 4. Locator policy
+
+Ordered, and the order is the rule. Reach for a lower tier only when every tier
+above it genuinely cannot distinguish the target.
+
+1. **`getByRole` with an explicit accessible name.** Controls, landmarks, the
+   chart.
+2. **Production data attributes the app itself queries** — `data-chunk-id`,
+   `data-offset`. Justified above: these are load-bearing in `src/`, not
+   scaffolding added for tests.
+3. **`data-testid`** — only where neither tier above can distinguish, added
+   deliberately, with a comment saying why the first two failed.
+4. **Never**: CSS class selectors, positional indexing (`.nth(n)`, `[0]`),
+   literal corpus text, or coordinates from anything but a bounding box
+   measured at call time.
+
+Tier 4 is a deliberate departure from the house style documented above. The
+jsdom suite is **not** being converted — that would be scope this change has no
+business taking on — but the rule binds the browser suite, and the divergence
+is recorded here so the next author does not "fix" the new suite to match the
+old one.
+
+### 5. Page objects
+
+Two, under `web/tests/browser/pages/`:
+
+- **`ReaderPage`** — `goto(workId)`, `line(chunkId)`, `word(chunkId, offset)`,
+  `selectWords(chunkId, fromOffset, toOffset)`, `toolbar`, `lookupRail`.
+- **`MetricsPage`** — `goto()`, `chart`, `selectRoute(label)`, `table`.
+
+Three constraints on them:
+
+- **They return `Locator`s, never `ElementHandle`s.** A `Locator` re-resolves on
+  every use and carries Playwright's auto-waiting; an `ElementHandle` is a
+  snapshot that goes stale and is then "fixed" with a sleep. This is the single
+  highest-leverage anti-flake decision in the design.
+- **They expose intent, not mechanism.** `selectWords(chunkId, 0, 3)`, not
+  `mouse.down(...)` in a spec.
+- **They never assert.** Assertions live in specs, so a failure names the
+  behaviour that broke rather than a helper.
+
+`selectWords` is the one place mechanism belongs in a page object: it resolves
+both words' bounding boxes *at call time*, then drives `mouse.down` → at least
+one intermediate `mouse.move` → `mouse.up` through their centres. The
+intermediate move is required; a single move-then-up does not reliably produce
+a selection in Chromium. This is also what makes the `mouseup`'s `target` come
+from real hit-testing rather than from the test's choice of node — the whole
+reason for the suite.
+
+### 6. Fixtures derive their corpus values; nothing is hardcoded
+
+`chunk_id` and word offsets are corpus-shaped, and `chunk_id` churns whenever
+chunking changes — dropping a single paragraph renumbers every chunk after it.
+A spec containing a literal `chunk_id` is a spec with an expiry date.
+
+`serve.test.ts` already solved this and its comment states the rule: *"Corpus
+ids are manifest-generated and stable; work titles are not (Plato's were all
+renamed once already). Deriving the row at run time is what keeps these tests
+from going stale again — see #133."*
+
+The browser fixtures follow it. A Playwright fixture calls the same API the
+page calls, picks the first chunk with at least N words, and yields
+`{ workId, chunkId, offsets }`. Specs receive those values; they never write
+one down.
+
+If no suitable chunk exists, the fixture **throws**. It does not skip. The
+fixture corpus is committed, so its inadequacy is a real failure — skipping
+would rebuild the #133 trap in a new place.
+
+### 7. Dependency: #594 is a prerequisite
+
+Three of the five tests address toolbar buttons, whose accessible names are
+currently `"Translate phraseT"`, `"Look upL"`, `"SyntaxS"`. Under tier 1 they
+are unaddressable, and the fallback — toolbar container plus button position —
+is exactly what tier 4 forbids.
+
+So #594 (`aria-hidden` on the hint spans, explicit `aria-label` on the
+controls) lands **first**. It is small, it is a real user-facing accessibility
+fix independent of testing, and sequencing it first is what keeps the locator
+policy from being violated on day one by the suite that introduced it.
+
+### 8. Flake defense
 
 A flaky required check on a repo with one merger becomes decoration — the first
 flaky red becomes a re-run, and once re-running is routine the gate consumes
@@ -183,7 +322,7 @@ attention and pays nothing. That is strictly worse than no gate. So:
 - **Written policy**, in the config comment and in CONTRIBUTING: a flaky test
   is a defective test. It is deleted, not retried.
 
-### 5. CI
+### 9. CI
 
 Absorbed into `web · e2e`, after the existing `npm run test:e2e` step. Three
 new steps: `npm run build`; `npx playwright install --with-deps chromium`,
@@ -198,7 +337,7 @@ runner. It is verified during implementation, and if the job overshoots `web`'s
 
 No branch protection change: `web · e2e` is already required.
 
-### 6. Gate interactions
+### 10. Gate interactions
 
 `test:coverage` already excludes `tests/e2e/**` (`vite.config.ts`), and
 `fixtureServer.ts` lives under `tests/`, so none of this moves the Sonar
@@ -221,7 +360,7 @@ measured at 65.2% vs 93.4%. `scripts/check_test_location.py` scans only
 `web/src` and already knows `*.spec.ts` (`_PATTERNS`), so the new directory
 neither trips it nor needs it widened.
 
-### 7. `make check` is unchanged
+### 11. `make check` is unchanged
 
 Browser tests run in CI, and locally via a new `make test-browser`. This follows the
 precedent the existing e2e suite already set (`Makefile:222` omits `test-e2e`).
