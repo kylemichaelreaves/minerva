@@ -71,7 +71,10 @@ function valueUnlessErrored<T>(res: Resource<T>): T | undefined {
 // line). Kept anyway: `err`'s declared type is `unknown`, and a helper
 // with that signature should not assume its caller's guarantee holds
 // forever. Same defensive shape as `SurfaceErrorBoundary`'s `messageOf`.
-function errorMessage(err: unknown): string {
+// Exported so a unit test can hit the `String(err)` branch directly —
+// going through a resource never can, since `castError` normalizes every
+// rejection into an `Error` before `.error` is ever read.
+export function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
 }
@@ -96,29 +99,53 @@ export function MetricsPanel(props: MetricsPanelProps) {
 
   const [summary] = createResource(win, (w) => fetchMetricsSummary(w));
 
-  const rows = createMemo<MetricsSummaryRow[]>(() => {
-    const data = valueUnlessErrored(summary);
+  // The unlabeled summary is genuinely dual-purpose, and the two halves
+  // must not be confused (found in review): it carries ONE row per
+  // route for a plain request (`kind: "total"`, `span: ""`) but TWO for
+  // a streaming route — a second `kind: "ttfe"` row at the same
+  // `span: ""` (`store.py`'s `summary()`, unlabeled branch, filters on
+  // `span = ''` only, with no `kind` filter). Rendering every row
+  // un-filtered would list a streaming route twice with different
+  // numbers and no column saying why. `summaryRows` is the raw fetch;
+  // `rows` (the leaderboard) keeps only the `total` half so each route
+  // appears exactly once.
+  const summaryRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(summary)?.rows ?? []);
+
+  const rows = createMemo<MetricsSummaryRow[]>(() =>
     // Sort here rather than trust the endpoint's own ordering — the
     // panel's contract with its caller is "slowest first" regardless of
     // what the backend happens to send.
-    return [...(data?.rows ?? [])].sort((a, b) => b.p95_ms - a.p95_ms);
-  });
+    [...summaryRows().filter((r) => r.kind === "total")].sort((a, b) => b.p95_ms - a.p95_ms),
+  );
 
-  // `selectedLabel` doubles as both resources' `createResource` source.
-  // Solid skips the fetcher entirely when a source accessor returns a
-  // falsy value, so while nothing is selected these never run — which is
-  // the guard the brief calls for: an empty `label` is silently dropped
-  // from the query string by `qs()`, so calling `fetchMetricsSeries`
-  // with one would issue a whole-table query that looks like a normal
-  // request rather than an obvious bug.
+  // `selectedLabel` doubles as the `createResource` source for both the
+  // sub-span breakdown and (below) the trend chart. Solid skips the
+  // fetcher entirely when a source accessor returns a falsy value, so
+  // while nothing is selected these never run — which is the guard the
+  // brief calls for: an empty `label` is silently dropped from the
+  // query string by `qs()`, so calling `fetchMetricsSeries` with one
+  // would issue a whole-table query that looks like a normal request
+  // rather than an obvious bug.
   const detailSource = (): { label: string; w: MetricWindow } | undefined => {
     const label = selectedLabel();
     return label ? { label, w: win() } : undefined;
   };
 
   const [detail] = createResource(detailSource, (src) => fetchMetricsSummary(src.w, src.label));
-  const [series] = createResource(detailSource, (src) =>
-    fetchMetricsSeries(src.label, { window: src.w }),
+
+  // The trend chart's source ALSO depends on `spanKind`: unlike the
+  // sub-span breakdown (labeled query, always `kind: "total"` — a
+  // sub-span has no ttfe variant), the chart is the whole-request
+  // series, and the backend defaults `kind` to `"total"` when it's
+  // omitted (`handlers/metrics.py`). Without threading the toggle
+  // through here, switching to "TTFE" would relabel the same total-
+  // latency chart rather than actually change what it shows.
+  const seriesSource = (): { label: string; w: MetricWindow; kind: "total" | "ttfe" } | undefined => {
+    const label = selectedLabel();
+    return label ? { label, w: win(), kind: spanKind() } : undefined;
+  };
+  const [series] = createResource(seriesSource, (src) =>
+    fetchMetricsSeries(src.label, { window: src.w, kind: src.kind }),
   );
 
   // Solid's `Resource<T>` types `.error` as `any` in its errored-state
@@ -131,12 +158,19 @@ export function MetricsPanel(props: MetricsPanelProps) {
   const detailFailed = (): boolean => detail.error !== undefined;
   const seriesFailed = (): boolean => series.error !== undefined;
 
+  // Sub-span rows (the labeled query, `span != ''`) are ALWAYS
+  // `kind: "total"` — the recorder never tags a sub-span `ttfe`
+  // (`recorder.py`) — so this table is never filtered by `spanKind`;
+  // there is nothing for the toggle to filter here.
   const detailRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(detail)?.rows ?? []);
   // The toggle only makes sense — and only appears — when the selected
-  // route actually recorded a `ttfe` measurement (a streaming route);
-  // most routes never do.
-  const hasTtfe = createMemo(() => detailRows().some((r) => r.kind === "ttfe"));
-  const visibleDetailRows = createMemo(() => detailRows().filter((r) => r.kind === spanKind()));
+  // route's UNLABELED rows include a `ttfe` measurement (a streaming
+  // route); most routes never do. Read from `summaryRows`, not
+  // `detailRows` — the labeled query can't produce a `ttfe` row at all,
+  // so deriving this from the drill-down could never be true.
+  const hasTtfe = createMemo(() =>
+    summaryRows().some((r) => r.label === selectedLabel() && r.kind === "ttfe"),
+  );
   const seriesPoints = createMemo(() => valueUnlessErrored(series)?.points ?? []);
 
   return (
@@ -231,8 +265,33 @@ export function MetricsPanel(props: MetricsPanelProps) {
                     TTFE
                   </button>
                 </div>
+                {/* The toggle only affects the trend chart below — the
+                    sub-span breakdown has no ttfe variant to switch to. */}
+                <span class="metrics-note">trend chart only</span>
               </Show>
             </div>
+
+            <Show when={seriesFailed()}>
+              <div class="metrics-error" role="alert">
+                Couldn't load the trend chart: {errorMessage(series.error)}
+              </div>
+            </Show>
+            {/* Chart XOR banner: `seriesPoints()` is `[]` on error too (the
+                same `valueUnlessErrored` guard), and `TimeSeriesChart`
+                renders its own "No data" for an empty array — showing both
+                read as two contradictory explanations for the same blank
+                chart. A loading state sits alongside for the same reason
+                the leaderboard has one: without it, every selection (and
+                every toggle flip) flashes "No data" while the fetch is
+                in flight rather than looking like it's doing something. */}
+            <Show when={!seriesFailed()}>
+              <Show
+                when={!series.loading}
+                fallback={<div class="metrics-loading">Loading trend…</div>}
+              >
+                <TimeSeriesChart points={seriesPoints()} />
+              </Show>
+            </Show>
 
             <Show when={detailFailed()}>
               <div class="metrics-error" role="alert">
@@ -240,47 +299,46 @@ export function MetricsPanel(props: MetricsPanelProps) {
               </div>
             </Show>
 
-            <Show when={seriesFailed()}>
-              <div class="metrics-error" role="alert">
-                Couldn't load the trend chart: {errorMessage(series.error)}
-              </div>
-            </Show>
-
-            <TimeSeriesChart points={seriesPoints()} />
-
-            <table class="metrics-subspan-table">
-              <thead>
-                <tr>
-                  <th>Span</th>
-                  <th>Count</th>
-                  <th>p50</th>
-                  <th>p95</th>
-                  <th>p99</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={visibleDetailRows()}>
-                  {(row) => (
+            <Show when={!detailFailed()}>
+              <Show
+                when={!detail.loading}
+                fallback={<div class="metrics-loading">Loading breakdown…</div>}
+              >
+                <table class="metrics-subspan-table">
+                  <thead>
                     <tr>
-                      <td>
-                        {row.span || "(whole request)"}
-                        {/* llm_call's count and percentiles are PER ATTEMPT — the
-                            LLM client retries, and every attempt records its own
-                            row. Correct, but easy to misread as per-request, so
-                            it's called out at the point it would mislead. */}
-                        <Show when={row.span === "llm_call"}>
-                          <span class="metrics-note"> (per attempt, not per request)</span>
-                        </Show>
-                      </td>
-                      <td>{row.count.toLocaleString()}</td>
-                      <td>{Math.round(row.p50_ms)}</td>
-                      <td>{Math.round(row.p95_ms)}</td>
-                      <td>{Math.round(row.p99_ms)}</td>
+                      <th>Span</th>
+                      <th>Count</th>
+                      <th>p50</th>
+                      <th>p95</th>
+                      <th>p99</th>
                     </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    <For each={detailRows()}>
+                      {(row) => (
+                        <tr>
+                          <td>
+                            {row.span}
+                            {/* llm_call's count and percentiles are PER ATTEMPT — the
+                                LLM client retries, and every attempt records its own
+                                row. Correct, but easy to misread as per-request, so
+                                it's called out at the point it would mislead. */}
+                            <Show when={row.span === "llm_call"}>
+                              <span class="metrics-note"> (per attempt, not per request)</span>
+                            </Show>
+                          </td>
+                          <td>{row.count.toLocaleString()}</td>
+                          <td>{Math.round(row.p50_ms)}</td>
+                          <td>{Math.round(row.p95_ms)}</td>
+                          <td>{Math.round(row.p99_ms)}</td>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
+              </Show>
+            </Show>
           </section>
         )}
       </Show>

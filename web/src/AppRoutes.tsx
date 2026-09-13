@@ -175,9 +175,14 @@ export function AppRoutes(props: AppRoutesProps) {
           </Match>
           {/* Single-kind route (no drilldown siblings the way network/refs
               have), so it's matched directly off `route().kind` rather than
-              through an `onMetrics` prop threaded from `App.tsx` — there's
-              no mobile-top-bar suppression or other cross-cutting concern
-              that would need it there too. */}
+              through an `onMetrics` prop threaded from `App.tsx` — nothing
+              else in THIS switch needs it. That is not the same as "no
+              cross-cutting concern" (an earlier version of this comment
+              claimed that, and it was wrong): `useMobileTopBarConfig` has
+              its own `onMetrics`, wired from `App.tsx`, so the mobile top
+              bar shows "Request timing" instead of falling through to the
+              chat title/search action — a review caught it falling through
+              before this was added. */}
           <Match when={props.routing.route().kind === "metrics"}>
             <SurfaceErrorBoundary label="Request timing">
               <MetricsRoute {...ctx} />

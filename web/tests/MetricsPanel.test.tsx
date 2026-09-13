@@ -1,7 +1,7 @@
 import { render, waitFor, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MetricsPanel } from "~/Metrics/MetricsPanel";
+import { MetricsPanel, errorMessage } from "~/Metrics/MetricsPanel";
 import type { MetricWindow } from "~/api/metricsApi";
 
 const row = (label: string, p95: number) => ({
@@ -44,13 +44,34 @@ describe("MetricsPanel", () => {
     await waitFor(async () => expect(await view.findByText(/couldn't load/i)).toBeTruthy());
   });
 
-  it("falls back to String() for a rejection that isn't an Error", async () => {
-    // `fetch` can reject with something other than an `Error` (a thrown
-    // string, an abort reason); `errorMessage`'s non-Error branch covers
-    // that rather than rendering "[object Object]" or crashing.
+  it("surfaces a string rejection's message once Solid's castError wraps it into an Error", async () => {
+    // NOT a demonstration of `errorMessage`'s non-Error fallback (a
+    // previous version of this test claimed that, and it was wrong —
+    // caught in review). Solid's `createResource` runs every rejection
+    // through its own `castError` before `.error` is ever readable, and
+    // `castError` turns a string rejection into `new Error(str)` — so
+    // `err instanceof Error` is true here too, same as the plain-`Error`
+    // case above; the text comes from `.message`, not `String(err)`. The
+    // `String()` branch itself is unreachable through any resource for
+    // exactly that reason, and is covered directly below instead, calling
+    // `errorMessage` as a plain function with something `castError` never
+    // produces.
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue("offline"));
     const view = render(() => <MetricsPanel />);
     expect(await view.findByText(/couldn't load metrics: offline/i)).toBeTruthy();
+  });
+
+  describe("errorMessage", () => {
+    it("reads .message off an Error", () => {
+      expect(errorMessage(new Error("boom"))).toBe("boom");
+    });
+
+    it("falls back to String() for a value that is genuinely not an Error", () => {
+      // The one shape `castError` never produces, so the only way to
+      // reach this branch is to call the function directly rather than
+      // through a resource.
+      expect(errorMessage({ toString: () => "offline-reason" })).toBe("offline-reason");
+    });
   });
 
   // --- Supplemental coverage below. The three tests above are the brief's
@@ -64,12 +85,26 @@ describe("MetricsPanel", () => {
     return typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   }
 
-  // p99 offset by +1 from p95, and p50 halved, so a single row never
-  // repeats the same rendered number in two cells — needed because these
-  // tests assert on exact rendered text (`getByText`), which throws on an
-  // ambiguous match rather than picking one.
-  const subSpanRow = (span: string, kind: "total" | "ttfe", p95: number) => ({
-    label: "slow", method: "GET", kind, span,
+  // The UNLABELED summary's second row shape for a streaming route: same
+  // label, `kind: "ttfe"`, still `span: ""` (`store.py`'s unlabeled
+  // branch filters on `span = ''` with no `kind` filter, so a streaming
+  // route's `total` and `ttfe` rows are both in this response — never in
+  // the labeled drill-down, which excludes `span = ''` entirely).
+  const ttfeRow = (label: string, p95: number) => ({
+    label, method: "GET", kind: "ttfe" as const, span: "",
+    count: 4, mean_ms: p95 / 2, min_ms: 1, max_ms: p95,
+    p50_ms: p95 / 2, p95_ms: p95, p99_ms: p95, error_rate: 0,
+  });
+
+  // Labeled (drill-down) rows: ALWAYS `kind: "total"` and ALWAYS a
+  // non-empty `span` — the recorder never tags a sub-span `ttfe`, and
+  // `store.py`'s labeled branch is `label = ? AND span != ''`. A row
+  // shaped any other way (an empty `span`, or `kind: "ttfe"`) is not a
+  // shape this endpoint can produce; the previous version of this fixture
+  // let both through, which is exactly how the toggle tests below used to
+  // pass against an API shape that doesn't exist (caught in review).
+  const subSpanRow = (span: string, p95: number) => ({
+    label: "slow", method: "GET", kind: "total" as const, span,
     count: 4, mean_ms: p95 / 2, min_ms: 1, max_ms: p95,
     p50_ms: Math.round(p95 / 2), p95_ms: p95, p99_ms: p95 + 1, error_rate: 0,
   });
@@ -106,11 +141,15 @@ describe("MetricsPanel", () => {
       const url = urlOf(input);
       if (url.includes("/api/metrics/series")) {
         if (opts.seriesFails) return Promise.reject(new Error("series down"));
+        // Distinct p95 per `kind` so a test can tell, from the fetched
+        // points alone, which one a click actually asked for.
+        const isTtfe = url.includes("kind=ttfe");
+        const p95 = isTtfe ? 111 : 999;
         return Promise.resolve({
           ok: true, status: 200,
           json: () => Promise.resolve({
-            label: "slow", kind: "total", span: "", bucket_seconds: 300,
-            points: [{ t: 0, count: 1, mean_ms: 10, max_ms: 20, p50_ms: 10, p95_ms: 20, p99_ms: 20 }],
+            label: "slow", kind: isTtfe ? "ttfe" : "total", span: "", bucket_seconds: 300,
+            points: [{ t: 0, count: 1, mean_ms: p95 / 2, max_ms: p95, p50_ms: p95 / 2, p95_ms: p95, p99_ms: p95 }],
           }),
         });
       }
@@ -148,9 +187,8 @@ describe("MetricsPanel", () => {
     mockDrilldown({
       leaderboard: [row("slow", 900)],
       detailRows: [
-        subSpanRow("", "total", 900),
-        subSpanRow("stanza_parse", "total", 300),
-        subSpanRow("llm_call", "total", 500),
+        subSpanRow("stanza_parse", 300),
+        subSpanRow("llm_call", 500),
       ],
     });
     const view = render(() => <Host />);
@@ -163,13 +201,25 @@ describe("MetricsPanel", () => {
     expect(view.container.querySelector(".mchart")).not.toBeNull();
   });
 
-  it("shows the total/TTFE toggle only when the selected route recorded a ttfe row, and switches rows on click", async () => {
+  it("lists a streaming route exactly once, not twice for its total and ttfe rows", async () => {
+    // The unlabeled summary carries BOTH rows for a streaming route —
+    // same label, `kind: "total"` and `kind: "ttfe"`, both `span: ""`
+    // (`store.py`'s unlabeled branch has no `kind` filter). Rendering
+    // every row verbatim used to list "chat" twice with different
+    // numbers and no column saying why (caught in review) — the
+    // leaderboard must keep only the `total` half.
+    mockSummary([row("chat", 900), ttfeRow("chat", 700), row("fast", 5)]);
+    const view = render(() => <MetricsPanel />);
+    const cells = await view.findAllByTestId("metrics-route-label");
+    expect(cells.map((c) => c.textContent)).toEqual(["chat", "fast"]);
+  });
+
+  it("shows the total/TTFE toggle only when the selected route's UNLABELED rows include a ttfe measurement, and re-fetches the chart by kind on click", async () => {
     mockDrilldown({
-      leaderboard: [row("slow", 900)],
-      detailRows: [
-        subSpanRow("", "total", 880),
-        subSpanRow("", "ttfe", 660),
-      ],
+      // The ttfe row lives in the leaderboard (unlabeled) response, not
+      // the drill-down — that's the whole point of the fix.
+      leaderboard: [row("slow", 900), ttfeRow("slow", 700)],
+      detailRows: [subSpanRow("stanza_parse", 300)],
     });
     const view = render(() => <Host />);
     const cells = await view.findAllByTestId("metrics-route-label");
@@ -177,24 +227,26 @@ describe("MetricsPanel", () => {
 
     await view.findByText("Total");
     expect(view.getByText("TTFE")).toBeTruthy();
-    // Defaults to the "total" kind's row.
-    expect(view.getByText("880")).toBeTruthy();
-    expect(view.queryByText("660")).toBeNull();
+    // Default view: the chart fetched the "total" series (p95 999, per
+    // `mockDrilldown`'s kind-keyed response).
+    await waitFor(() => expect(view.getByText("999", { exact: false })).toBeTruthy());
 
     fireEvent.click(view.getByText("TTFE"));
-    await waitFor(() => expect(view.getByText("660")).toBeTruthy());
-    expect(view.queryByText("880")).toBeNull();
+    // Clicking the toggle re-fetches the chart's series with kind=ttfe —
+    // not just a client-side re-filter of already-fetched data — and the
+    // chart now shows the ttfe series (p95 111).
+    await waitFor(() => expect(view.getByText("111", { exact: false })).toBeTruthy());
   });
 
   it("does not show the toggle for a route with no ttfe row", async () => {
     mockDrilldown({
-      leaderboard: [row("slow", 900)],
-      detailRows: [subSpanRow("", "total", 880)],
+      leaderboard: [row("slow", 880)],
+      detailRows: [subSpanRow("stanza_parse", 300)],
     });
     const view = render(() => <Host />);
     const cells = await view.findAllByTestId("metrics-route-label");
     fireEvent.click(cells[0] as Element);
-    await view.findByText("880");
+    await view.findByText("stanza_parse");
     expect(view.queryByText("TTFE")).toBeNull();
   });
 
@@ -212,22 +264,64 @@ describe("MetricsPanel", () => {
     expect((await view.findAllByTestId("metrics-route-label"))[0]?.textContent).toBe("slow");
   });
 
-  it("surfaces a trend-chart fetch failure separately from the breakdown", async () => {
+  it("surfaces a trend-chart fetch failure separately from the breakdown, without also showing the chart's own empty state", async () => {
     mockDrilldown({
       leaderboard: [row("slow", 900)],
-      detailRows: [subSpanRow("", "total", 900)],
+      detailRows: [subSpanRow("stanza_parse", 300)],
       seriesFails: true,
     });
     const view = render(() => <Host />);
     const cells = await view.findAllByTestId("metrics-route-label");
     fireEvent.click(cells[0] as Element);
     expect(await view.findByText(/couldn't load the trend chart/i)).toBeTruthy();
+    // Not both explanations for the same blank chart at once.
+    expect(view.queryByText(/no data/i)).toBeNull();
+  });
+
+  it("shows a loading state for the trend chart instead of flashing its empty state while the series fetch is in flight", async () => {
+    let resolveSeries!: (v: unknown) => void;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/api/metrics/series")) {
+        return new Promise((resolve) => {
+          resolveSeries = resolve;
+        });
+      }
+      if (url.includes("/api/metrics/summary") && url.includes("label=")) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: [subSpanRow("stanza_parse", 300)] }),
+        });
+      }
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ window: "24h", since: 0, until: 1, rows: [row("slow", 900)] }),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(() => <Host />);
+    const cells = await view.findAllByTestId("metrics-route-label");
+    fireEvent.click(cells[0] as Element);
+
+    expect(await view.findByText(/loading trend/i)).toBeTruthy();
+    expect(view.queryByText(/no data/i)).toBeNull();
+
+    resolveSeries({
+      ok: true, status: 200,
+      json: () => Promise.resolve({
+        label: "slow", kind: "total", span: "", bucket_seconds: 300,
+        points: [{ t: 0, count: 1, mean_ms: 10, max_ms: 20, p50_ms: 10, p95_ms: 20, p99_ms: 20 }],
+      }),
+    });
+    await waitFor(() => expect(view.queryByText(/loading trend/i)).toBeNull());
+    expect(view.container.querySelector(".mchart")).not.toBeNull();
   });
 
   it("clears the selection and returns to the leaderboard view via the back button", async () => {
     mockDrilldown({
       leaderboard: [row("slow", 900)],
-      detailRows: [subSpanRow("", "total", 900)],
+      detailRows: [subSpanRow("stanza_parse", 300)],
     });
     const view = render(() => <Host />);
     const cells = await view.findAllByTestId("metrics-route-label");

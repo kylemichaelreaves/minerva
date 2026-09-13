@@ -48,6 +48,7 @@ describe("useMobileTopBarConfig", () => {
       onRefs: () => true,
       onNetwork: () => false,
       onConcordance: () => false,
+      onMetrics: () => false,
       readerWorkInfo: () => null,
     });
 
@@ -65,11 +66,36 @@ describe("useMobileTopBarConfig", () => {
       onRefs: () => false,
       onNetwork: () => false,
       onConcordance: () => false,
+      onMetrics: () => false,
       readerWorkInfo: () => null,
     });
 
     expect(config.title).toBe("Virtue and habit");
     expect(config.onAction).toBeTypeOf("function");
+    dispose();
+  });
+
+  it("returns Request timing title and no action on the metrics route", () => {
+    // Without an `onMetrics` branch, `#/metrics` used to fall through to
+    // the chat case below and show the active conversation's title plus
+    // a "Search within conversation" action over the metrics page —
+    // caught in review by actually running the mobile shell against
+    // `#/metrics`, not by reading the hook.
+    const { config, dispose } = runConfig({
+      routing: mockRouting("metrics"),
+      reader: mockReader("chat"),
+      conversations: mockConversations(false, "Virtue and habit"),
+      conversationTitle: () => "Virtue and habit",
+      onRefs: () => false,
+      onNetwork: () => false,
+      onConcordance: () => false,
+      onMetrics: () => true,
+      readerWorkInfo: () => null,
+    });
+
+    expect(config.title).toBe("Request timing");
+    expect(config.action).toBeUndefined();
+    expect(config.onAction).toBeUndefined();
     dispose();
   });
 
@@ -82,6 +108,7 @@ describe("useMobileTopBarConfig", () => {
       onRefs: () => false,
       onNetwork: () => false,
       onConcordance: () => false,
+      onMetrics: () => false,
       readerWorkInfo: () => null,
     });
 
