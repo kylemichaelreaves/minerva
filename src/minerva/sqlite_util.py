@@ -62,13 +62,23 @@ def open_sqlite(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=check_same_thread)
-    conn.row_factory = sqlite3.Row
-    if foreign_keys:
-        conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(schema)
-    if post_open is not None:
-        post_open(conn)
-    conn.commit()
+    # Close on the way out of a failed open. `executescript` raises
+    # `DatabaseError: file is not a database` on a corrupt or truncated
+    # file, and every caller until `serve_cmd._open_metrics_db` died on the
+    # spot, so the orphaned handle never outlived the process. A caller
+    # that survives the failure would leak one — which is exactly what
+    # `-W error::ResourceWarning` (#246) exists to catch.
+    try:
+        conn.row_factory = sqlite3.Row
+        if foreign_keys:
+            conn.execute("PRAGMA foreign_keys = ON")
+        conn.executescript(schema)
+        if post_open is not None:
+            post_open(conn)
+        conn.commit()
+    except BaseException:
+        conn.close()
+        raise
     return conn
 
 

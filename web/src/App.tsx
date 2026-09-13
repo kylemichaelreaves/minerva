@@ -103,6 +103,11 @@ function AppShell() {
     const k = routing.route().kind;
     return k === "concordance" || k === "concordance-lemma";
   });
+  // Only consumed by `useMobileTopBarConfig` below — `AppRoutes` matches
+  // `#/metrics` directly off `route().kind` since it has no drilldown
+  // siblings the way network/refs do, so it doesn't need this threaded
+  // through as a prop the way `onNetwork`/`onRefs`/`onConcordance` are.
+  const onMetrics = createMemo(() => routing.route().kind === "metrics");
 
   const readerWorkInfo = createMemo<{ author: string; title: string } | null>(
     () => {
@@ -128,6 +133,7 @@ function AppShell() {
     onRefs: () => onRefs(),
     onNetwork: () => onNetwork(),
     onConcordance: () => onConcordance(),
+    onMetrics: () => onMetrics(),
     readerWorkInfo: () => readerWorkInfo(),
   });
 

@@ -9,13 +9,15 @@ maintainability audit; the dispatch wiring still happens in
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 
-from .. import concept_cache, conversations, llm, serve_lock, store, translations
+from .. import concept_cache, conversations, llm, metrics, serve_lock, store, translations
 from ._shared import (
     DEFAULT_CONCEPT_CACHE_DB,
     DEFAULT_CONVERSATIONS_DB,
+    DEFAULT_METRICS_DB,
     DEFAULT_TRANSLATIONS_DB,
     REPO_ROOT,
     add_common_db_arg,
@@ -24,6 +26,28 @@ from ._shared import (
     auto_embedder,
     make_backend,
 )
+
+
+def _open_metrics_db(path: Path) -> sqlite3.Connection | None:
+    """Open the timing history, or warn and serve without it.
+
+    Unguarded, a truncated or non-SQLite `data/metrics.sqlite` raises
+    `sqlite3.DatabaseError: file is not a database` here and the server
+    dies before `write_serve_lock` — the operator loses a working reader
+    because a metrics file went bad. Same principle as the Recorder
+    dropping a sample it cannot write: the handlers already render empty
+    payloads for a `None` connection.
+    """
+
+    try:
+        return metrics.open_db(path, check_same_thread=False)
+    except sqlite3.Error as exc:
+        print(
+            f"warning: could not open metrics db {path} ({exc}); "
+            f"serving without timing history (pass --no-metrics to silence this)",
+            file=sys.stderr,
+        )
+        return None
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -58,6 +82,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
     except llm.LLMError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    # `--no-metrics` keeps the in-memory recent-request ring (Recorder
+    # still runs at each dispatch site) but skips durable persistence.
+    metrics_conn = None if args.no_metrics else _open_metrics_db(args.metrics_db)
     serve_lock.write_serve_lock(args.db, host=args.host, port=args.port)
     try:
         _server.serve(
@@ -68,6 +95,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             conversations_conn=conversations_conn,
             translations_conn=translations_conn,
             concept_cache_conn=concept_cache_conn,
+            metrics_conn=metrics_conn,
             backend=backend,
             embedder=embedder,
             lang=None if args.lang == "any" else args.lang,
@@ -176,5 +204,21 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
             "the LLM concept-expansion call. Survives corpus re-ingests. "
             f"Default: {DEFAULT_CONCEPT_CACHE_DB.relative_to(REPO_ROOT)}."
         ),
+    )
+    psv.add_argument(
+        "--metrics-db",
+        type=Path,
+        default=DEFAULT_METRICS_DB,
+        help=(
+            "SQLite path for request-timing history. Kept separate from the "
+            "corpus index because `index --reset` unlinks that file, which "
+            "would erase the history on exactly the event it records "
+            f"(default: {DEFAULT_METRICS_DB.relative_to(REPO_ROOT)})."
+        ),
+    )
+    psv.add_argument(
+        "--no-metrics",
+        action="store_true",
+        help="Don't persist request timings. The in-memory recent-request ring stays on.",
     )
     psv.set_defaults(func=cmd_serve)

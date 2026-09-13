@@ -228,6 +228,26 @@ actually in scope.
 - **Why SQLite**: full-text indexing, vector blobs, and metadata all
   live in one file with no daemon. 427k chunks across 40 corpora are
   well within brute-force cosine in numpy.
+- **Request-timing observability**: `#/metrics` shows a per-route
+  leaderboard sorted by p95, a trend chart per route, and a sub-span
+  breakdown. History lives in its own `data/metrics.sqlite`
+  (`--metrics-db`), deliberately separate from the corpus index —
+  `minerva index --reset` unlinks the index file outright, and a
+  `--reset` re-index is exactly the event this history exists to
+  bracket, so storing it there would erase it silently (the same
+  reasoning `--conversations-db` uses for chat history). `--no-metrics`
+  turns persistence off while leaving the in-memory recent-request ring
+  on. Percentiles are estimated from log-scale histogram buckets, so a
+  p95 carries up to one bucket-width of error, while `sum_ms`/`count`
+  are exact — the mean is the precise trend signal, the p95 the
+  tail-shape signal. For the streaming route (`chat`) both `total` and
+  time-to-first-event are recorded; `/api/translate` is an ordinary JSON
+  POST and has no TTFE. `llm_call` sub-span counts are per attempt, not
+  per request, because the LLM client retries and each attempt is a real
+  round-trip — and the span currently closes when the LLM's response
+  *headers* arrive, not when its body has been consumed, so on the
+  streaming chat route it reads as time-to-headers and accounts for far
+  less of `total` than the call really costs.
 
 ## Licensing
 

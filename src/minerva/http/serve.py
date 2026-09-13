@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from .. import embed as embed_mod
 from .. import llm
 from ..errors import MinervaError
+from ..metrics.recorder import Recorder, current_span
 from .errors import domain_error_to_http
 from .handlers import _handle_chat_stream
 from .router import (
@@ -174,20 +175,57 @@ def _dispatch_json_mutation(
         raise domain_error_to_http(exc) from exc
 
 
-def _translate_route_exception(label: str, exc: BaseException) -> _HTTPError:
-    """Map handler exceptions to HTTP errors consistently across verbs."""
+def _route_http_error(exc: BaseException) -> _HTTPError | None:
+    """The HTTP error *exc* translates to, or None for an unexpected one.
+
+    Pure: no logging and no side effects, so the metrics recorder can ask
+    what status the client is going to see without emitting a second log
+    line for the same exception.
+    """
 
     if isinstance(exc, _HTTPError):
         return exc
     if isinstance(exc, MinervaError):
         return domain_error_to_http(exc)
     if isinstance(exc, llm.LLMError):
-        _log.exception("LLM error", exc_info=exc)
         return _HTTPError(HTTPStatus.BAD_GATEWAY, "LLM backend error")
     if isinstance(exc, json.JSONDecodeError):
         return _HTTPError(HTTPStatus.BAD_REQUEST, "invalid JSON")
-    _log.exception("%s error", label, exc_info=exc)
-    return _HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error")
+    return None
+
+
+def _route_error_status(exc: BaseException) -> int:
+    """The status the client will actually receive for *exc*.
+
+    Passed to `Recorder.record` so a handler that raises a 404 or a 400 is
+    recorded as `status_class = 4`, matching the response. GET, PATCH and
+    non-streaming POST have no other path to a non-200, so without this
+    every client-error they answer is filed as a server error and the
+    leaderboard's Errors column reads 100% for a route that is merely
+    rejecting bad input.
+    """
+
+    translated = _route_http_error(exc)
+    if translated is None:
+        return int(HTTPStatus.INTERNAL_SERVER_ERROR)
+    return int(translated.status)
+
+
+def _translate_route_exception(label: str, exc: BaseException) -> _HTTPError:
+    """Map handler exceptions to HTTP errors consistently across verbs.
+
+    Called once per failed request, from the response site — this is the
+    half that logs, which is why `_route_error_status` above is a separate
+    pure function rather than a second call to this one.
+    """
+
+    translated = _route_http_error(exc)
+    if translated is None:
+        _log.exception("%s error", label, exc_info=exc)
+        return _HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR, "server error")
+    if isinstance(exc, llm.LLMError):
+        _log.exception("LLM error", exc_info=exc)
+    return translated
 
 
 def _cors_headers(deps: ServerDeps, origin: str | None) -> dict[str, str]:
@@ -262,6 +300,9 @@ class ChatHandler(BaseHTTPRequestHandler):
                 chunk = f"event: {name}\ndata: {payload}\n\n".encode()
                 self.wfile.write(chunk)
                 self.wfile.flush()
+                active = current_span()
+                if active is not None:
+                    active.first_event()
         except (BrokenPipeError, ConnectionResetError):
             pass
         finally:
@@ -304,11 +345,13 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded"))
             return
         try:
-            payload = _read_json_body(self.headers, self.rfile)
-            if path == "/api/chat" and payload.get("stream") is True:
-                self._send_sse(HTTPStatus.OK, _handle_chat_stream(self.deps, payload))
-                return
-            body = _dispatch_json_mutation(handler, args, payload)
+            with self.deps.metrics.record(label, "POST", error_status=_route_error_status) as span:
+                payload = _read_json_body(self.headers, self.rfile)
+                if path == "/api/chat" and payload.get("stream") is True:
+                    span.status = HTTPStatus.OK
+                    self._send_sse(HTTPStatus.OK, _handle_chat_stream(self.deps, payload))
+                    return
+                body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
@@ -338,7 +381,15 @@ class ChatHandler(BaseHTTPRequestHandler):
                 )
                 return
             try:
-                body = handler(*args)  # type: ignore[arg-type]
+                # `total` covers handler execution only, not the response
+                # write: including the socket write would make `total`
+                # depend on client network speed, so a slow or distant
+                # client would inflate p95 and read as a server-side
+                # regression — the exact misdiagnosis this feature exists
+                # to prevent. TTFE is a different `kind`, deliberately
+                # measured at the first SSE write instead (see `_send_sse`).
+                with self.deps.metrics.record(label, "GET", error_status=_route_error_status):
+                    body = handler(*args)  # type: ignore[arg-type]
                 self._send_json(HTTPStatus.OK, body)
             except Exception as exc:
                 self._send_error_json(_translate_route_exception(label, exc))
@@ -360,8 +411,9 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         label, handler, args = matched
         try:
-            payload = _read_json_body(self.headers, self.rfile)
-            body = _dispatch_json_mutation(handler, args, payload)
+            with self.deps.metrics.record(label, "PATCH", error_status=_route_error_status):
+                payload = _read_json_body(self.headers, self.rfile)
+                body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
@@ -377,7 +429,20 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         label, handler, args = matched
         try:
-            removed = handler(*args)
+            # Only the status assignment lives inside the `with` — the
+            # response writes below stay outside the `try` entirely, as
+            # they did before metrics existed. A client that disconnects
+            # mid-write (closed tab, aborted fetch) would otherwise raise
+            # BrokenPipeError *inside* the `with`, which `Recorder.record`
+            # treats as a handler failure and overwrites `span.status` to
+            # 500 — recording a successful (or correctly-404'd) delete as a
+            # server error, then attempting a second response on a
+            # half-written connection.
+            with self.deps.metrics.record(
+                label, "DELETE", error_status=_route_error_status
+            ) as span:
+                removed = handler(*args)
+                span.status = HTTPStatus.NO_CONTENT if removed else HTTPStatus.NOT_FOUND
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
@@ -505,11 +570,17 @@ def serve(
     force_rewrite: bool = True,
     enable_concept_expand: bool = True,
     allowed_origins: frozenset[str] = frozenset(),
+    metrics_conn: sqlite3.Connection | None = None,
 ) -> None:
     is_loopback = host in _LOOPBACK_HOSTS
     origins = allowed_origins
     if is_loopback:
         origins = _default_loopback_origins(port) | allowed_origins
+    # One lock instance shared between the Recorder (which writes through
+    # metrics_conn) and Task 6's read handlers (which query the same
+    # connection from other worker threads). A private lock inside the
+    # Recorder would not serialize against those readers.
+    metrics_lock = threading.Lock()
     deps = ServerDeps(
         conn=conn,
         conversations_conn=conversations_conn,
@@ -525,6 +596,9 @@ def serve(
         allow_client_rewrite=allow_client_rewrite,
         force_rewrite=force_rewrite,
         enable_concept_expand=enable_concept_expand,
+        metrics=Recorder(metrics_conn, metrics_lock),
+        metrics_conn=metrics_conn,
+        metrics_lock=metrics_lock,
         cors_wildcard=False,
         allowed_origins=origins,
     )

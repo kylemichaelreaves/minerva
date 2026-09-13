@@ -49,6 +49,7 @@ from ._shared import (
     DEFAULT_CHUNKS,
     DEFAULT_CONVERSATIONS_DB,
     DEFAULT_DB,
+    DEFAULT_METRICS_DB,
     DEFAULT_TRANSLATIONS_DB,
     REPO_ROOT,
 )
@@ -77,6 +78,7 @@ __all__ = [
     "DEFAULT_CHUNKS",
     "DEFAULT_CONVERSATIONS_DB",
     "DEFAULT_DB",
+    "DEFAULT_METRICS_DB",
     "DEFAULT_TRANSLATIONS_DB",
     "REPO_ROOT",
     "build_parser",

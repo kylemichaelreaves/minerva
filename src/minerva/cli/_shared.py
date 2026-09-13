@@ -70,6 +70,10 @@ DEFAULT_DB = REPO_ROOT / "data" / "index.sqlite"
 DEFAULT_CONVERSATIONS_DB = REPO_ROOT / "data" / "conversations.sqlite"
 DEFAULT_TRANSLATIONS_DB = REPO_ROOT / "data" / "translations.sqlite"
 DEFAULT_CONCEPT_CACHE_DB = REPO_ROOT / "data" / "concept_cache.sqlite"
+# Separate file, never a table in the corpus index: `minerva index --reset`
+# unlinks that file outright, and a --reset re-index is exactly the event
+# this history exists to bracket. See `--metrics-db` help in `serve_cmd.py`.
+DEFAULT_METRICS_DB = REPO_ROOT / "data" / "metrics.sqlite"
 DEFAULT_CHUNKS = REPO_ROOT / "data" / "chunks.jsonl"
 
 

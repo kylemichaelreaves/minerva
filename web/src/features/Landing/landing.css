@@ -431,6 +431,60 @@
   color: var(--accent);
   transform: translateX(2px);
 }
+/* The metrics entry sits below the four-column grid, not in it — see the
+   comment in Landing/index.tsx. Right-aligned and muted so it reads as a
+   utility rather than an orphaned fifth cell: left-aligned it looks like a
+   grid column that failed to fill, centered it looks like a continuation of
+   the four. */
+.landing-modes-aside {
+  width: min(960px, 92vw);
+  margin: -18px auto 28px;
+  display: flex;
+  justify-content: flex-end;
+  align-self: center;
+}
+.landing-mode-aside {
+  padding: 8px 22px;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+.landing-mode-aside .lbl {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+.landing-mode-aside .lbl .arr {
+  color: var(--ink-faint);
+  margin-left: 6px;
+  transition:
+    transform 120ms,
+    color 120ms;
+  display: inline-block;
+}
+.landing-mode-aside:hover .lbl {
+  color: var(--ink);
+}
+.landing-mode-aside:hover .lbl .arr {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+.landing-mode-aside .sub {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  margin-top: 3px;
+}
+
 .landing-mode .sub {
   font-family: var(--sans);
   font-size: 10.5px;

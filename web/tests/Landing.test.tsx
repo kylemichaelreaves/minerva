@@ -9,6 +9,7 @@ function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
   const onOpenRefs = vi.fn();
   const onOpenNetwork = vi.fn();
   const onOpenConcordance = vi.fn();
+  const onOpenMetrics = vi.fn();
   const utils = render(() => (
     <Landing
       onSubmit={onSubmit}
@@ -16,6 +17,7 @@ function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
       onOpenRefs={onOpenRefs}
       onOpenNetwork={onOpenNetwork}
       onOpenConcordance={onOpenConcordance}
+      onOpenMetrics={onOpenMetrics}
       scopeChip={opts.scopeChip}
     />
   ));
@@ -25,6 +27,7 @@ function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
     onOpenRefs,
     onOpenNetwork,
     onOpenConcordance,
+    onOpenMetrics,
     ...utils,
   };
 }
@@ -46,9 +49,7 @@ describe("<Landing />", () => {
   it("renders the monogram and the composer", () => {
     renderLanding();
     expect(screen.getByAltText("Minerva")).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText(/what would you like to consider/i),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/what would you like to consider/i)).toBeInTheDocument();
   });
 
   it("offers no starter prompts (#258)", () => {
@@ -145,9 +146,7 @@ describe("<Landing />", () => {
       const chip = screen.getByTestId("scope-chip");
       const input = container.querySelector(".landing-input");
       expect(input).not.toBeNull();
-      expect(chip.compareDocumentPosition(input!)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING,
-      );
+      expect(chip.compareDocumentPosition(input!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     it("still submits normally with a chip present", () => {
@@ -168,9 +167,7 @@ describe("<Landing />", () => {
   // tab stop as typescript:S6845; these pin the behaviour, not the markup.
   it("names the monogram tooltip trigger for assistive tech", () => {
     renderLanding();
-    expect(screen.getByRole("button", { name: "Minerva" })).toHaveClass(
-      "landing-monogram",
-    );
+    expect(screen.getByRole("button", { name: "Minerva" })).toHaveClass("landing-monogram");
   });
 
   it("points the monogram at the tooltip it reveals", () => {
@@ -178,9 +175,7 @@ describe("<Landing />", () => {
     const trigger = screen.getByRole("button", { name: "Minerva" });
     const describedBy = trigger.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
-    expect(container.querySelector(`#${describedBy}`)).toHaveClass(
-      "landing-monogram-tooltip",
-    );
+    expect(container.querySelector(`#${describedBy}`)).toHaveClass("landing-monogram-tooltip");
   });
 
   it("keeps the monogram in the tab order", () => {
@@ -203,5 +198,26 @@ describe("<Landing />", () => {
     expect(kbds[0]?.parentElement?.textContent).toBe(
       "\u21b5 begin\u00a0\u00a0\u21e7 \u21b5 new line",
     );
+  });
+
+  it("opens the metrics surface from the landing page", () => {
+    const { onOpenMetrics } = renderLanding();
+    fireEvent.click(screen.getByRole("button", { name: /request timing/i }));
+    expect(onOpenMetrics).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the metrics entry out of the four-column modes grid", () => {
+    // The grid is `repeat(4, 1fr)` and its CSS notes the width auto-scales
+    // "so adding/removing a CTA doesn't force the 4th onto its own row".
+    // A fifth cell is exactly the case that comment designs against, so the
+    // metrics entry has to live outside the grid, not inside it.
+    const { container } = renderLanding();
+    const grid = container.querySelector(".landing-modes");
+    expect(grid).not.toBeNull();
+    expect(grid?.querySelectorAll(".landing-mode").length).toBe(4);
+    expect(grid?.textContent).not.toMatch(/request timing/i);
+
+    const aside = container.querySelector(".landing-modes-aside");
+    expect(aside?.textContent).toMatch(/request timing/i);
   });
 });

@@ -96,7 +96,6 @@ src/Reader/useTermCard.tsx
 src/Reader/useWordHoverTranslations.tsx
 src/Reader/useWordLookup.tsx
 src/Reader/utils.ts
-src/routes/ChatRoute.tsx
 src/routes/ReaderRoute.tsx
 src/routes/RefsRoute.tsx
 src/routes/routeUtils.ts
@@ -136,7 +135,6 @@ tests/greek.test.ts
 tests/HeatmapPanel.test.tsx
 tests/helpers/testRouting.ts
 tests/highlightStorage.test.ts
-tests/Landing.test.tsx
 tests/LbRow.test.tsx
 tests/LemmaIdentityCard.test.tsx
 tests/MobileShellContext.test.tsx

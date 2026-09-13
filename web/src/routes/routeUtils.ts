@@ -7,6 +7,7 @@ export type RouteNetworkArc = Extract<Route, { kind: "network-arc" }>;
 export type RouteNetworkCoverage = Extract<Route, { kind: "network-coverage" }>;
 export type RouteConcordance = Extract<Route, { kind: "concordance" }>;
 export type RouteLemma = Extract<Route, { kind: "concordance-lemma" }>;
+export type RouteMetrics = Extract<Route, { kind: "metrics" }>;
 
 export function isRefsRoute(r: Route): r is RouteRefs {
   return r.kind === "refs";
@@ -34,6 +35,10 @@ export function isConcordanceRoute(r: Route): r is RouteConcordance {
 
 export function isLemmaRoute(r: Route): r is RouteLemma {
   return r.kind === "concordance-lemma";
+}
+
+export function isMetricsRoute(r: Route): r is RouteMetrics {
+  return r.kind === "metrics";
 }
 
 /** Routes you step OUT to from the Reader and step back from, as opposed to

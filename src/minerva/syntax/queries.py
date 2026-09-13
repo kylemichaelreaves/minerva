@@ -17,6 +17,8 @@ import threading
 import time
 from collections.abc import Iterable, Sequence
 
+from ..metrics.recorder import sub_span
+
 # Only these two columns are correctable. Widening this means widening the
 # CHECK constraint in migration 0024 too.
 #: What a hand correction may change. `upos` joined the pair in #253: it was
@@ -349,7 +351,8 @@ def load_or_parse_locked(
 
     from .parse import parse_text, parser_id
 
-    tokens = parse_text(text)
+    with sub_span("stanza_parse"):
+        tokens = parse_text(text)
 
     with lock:
         # Another request may have parsed the same chunk while this one was

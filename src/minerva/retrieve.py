@@ -16,6 +16,7 @@ import numpy as np
 
 from . import embed, orthography, store
 from .corpus_registry import corpus_authors
+from .metrics.recorder import sub_span
 from .store.embeddings import load_embeddings_with_meta
 
 FTS_QUERY_SAFE = re.compile(r"[^\w\s]+", re.UNICODE)
@@ -417,7 +418,8 @@ def _vector_search(
         return {}
     ids = [c for c, k in zip(ids, keep, strict=True) if k]
     matrix = matrix[keep]
-    idx, scores = embed.cosine_search(query_vec, matrix, top_k)
+    with sub_span("embed_search"):
+        idx, scores = embed.cosine_search(query_vec, matrix, top_k)
     return {ids[i]: float(s) for i, s in zip(idx.tolist(), scores.tolist(), strict=True)}
 
 

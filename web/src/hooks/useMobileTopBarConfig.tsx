@@ -12,6 +12,7 @@ export interface MobileTopBarConfigInput {
   onRefs: () => boolean;
   onNetwork: () => boolean;
   onConcordance: () => boolean;
+  onMetrics: () => boolean;
   readerWorkInfo: () => { author: string; title: string } | null;
 }
 
@@ -36,6 +37,11 @@ export function useMobileTopBarConfig(input: MobileTopBarConfigInput): {
     }
     if (input.onNetwork()) return "Network";
     if (input.onRefs()) return "Cross-references";
+    // Without this, `#/metrics` fell through to the chat branch below and
+    // showed the active conversation's title (or "Chat") over the metrics
+    // page — every other full-page surface (Network, Refs, Concordance)
+    // has a title branch here; this one was missing (caught in review).
+    if (input.onMetrics()) return "Request timing";
     if (input.reader.mode() === "reader") {
       const info = input.readerWorkInfo();
       if (info) {
@@ -53,6 +59,10 @@ export function useMobileTopBarConfig(input: MobileTopBarConfigInput): {
 
   const action = createMemo<JSX.Element | undefined>(() => {
     if (input.onRefs() || input.onNetwork()) return <>Filters</>;
+    // No action at all — reviewed explicitly: metrics has no filter sheet
+    // and no conversation to search, so it gets neither "Filters" nor the
+    // chat-search icon the fallthrough below would otherwise hand it.
+    if (input.onMetrics()) return undefined;
     if (input.reader.mode() === "reader") return <>Aa</>;
     if (input.conversations.showLanding()) return undefined;
     return <span aria-label="Search within conversation">⌕</span>;
@@ -62,6 +72,7 @@ export function useMobileTopBarConfig(input: MobileTopBarConfigInput): {
     if (input.onRefs() || input.onNetwork()) {
       return () => shell.openMobilePanel("filters");
     }
+    if (input.onMetrics()) return undefined;
     if (input.reader.mode() === "reader") {
       return () => shell.openMobilePanel("reader-settings");
     }

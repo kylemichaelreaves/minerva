@@ -101,6 +101,21 @@ describe("<App />", () => {
     });
   });
 
+  it("mounts the request-timing surface on #/metrics", async () => {
+    withHash("#/metrics", () => {
+      render(() => <App />);
+    });
+    // The generic `okResponse({})` fallback in this file's fetch mock
+    // answers `/api/metrics/summary` with no `rows` key, which exercises
+    // the same "nothing recorded yet" path `MetricsPanel.test.tsx` covers
+    // directly — this test's job is only the routing wire-up: that
+    // `#/metrics` reaches `MetricsRoute` through `AppRoutes`'s new
+    // `<Match>`, not the panel's own behavior.
+    await waitFor(() => {
+      expect(screen.getByText("Request timing")).toBeInTheDocument();
+    });
+  });
+
   it("opens the delete dialog from the sidebar", async () => {
     withHash("#/", () => {
       render(() => <App />);

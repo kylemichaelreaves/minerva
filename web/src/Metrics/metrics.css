@@ -1,0 +1,263 @@
+/* Metrics chart tokens. Two categorical series (p50 / p95), both
+   validated for colour-vision-deficiency contrast (see
+   TimeSeriesChart.tsx) — do not retint by eye. */
+.mchart {
+  --metric-p50: #1f6ea8;
+  --metric-p95: #a8452f;
+}
+
+[data-theme="dark"] .mchart {
+  --metric-p50: #3a93d1;
+  --metric-p95: #c97a65;
+}
+
+.mchart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.mchart-empty {
+  padding: 2.5rem 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+}
+
+.mchart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--ink-mute);
+}
+
+.mchart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mchart-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.mchart-swatch[data-series="p50"] {
+  background: var(--metric-p50);
+}
+
+.mchart-swatch[data-series="p95"] {
+  background: var(--metric-p95);
+}
+
+.mchart-svg-wrap {
+  width: 100%;
+}
+
+.mchart-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.mchart-line[data-series="p50"] {
+  stroke: var(--metric-p50);
+}
+
+.mchart-line[data-series="p95"] {
+  stroke: var(--metric-p95);
+}
+
+.mchart-grid {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+
+.mchart-tick,
+.mchart-label {
+  font-family: var(--sans);
+  font-size: 9.5px;
+  fill: var(--ink-faint);
+}
+
+/* #/metrics — the request-timing surface (MetricsPanel.tsx). */
+
+.metrics-panel {
+  /* Bounded to the viewport so the trend chart is always on screen. The
+     route table is taller than the viewport on its own — 15 rows measured
+     at 621px against a 560px viewport — so unbounded it pushed the chart
+     780px down, 472px below the fold. The chart sits directly under the
+     window buttons that drive it; the table scrolls beneath both.
+     `max-height`, not `height`, so a short table isn't stretched. dvh, not
+     vh, so mobile browser chrome doesn't cut off the bottom. */
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  font-family: var(--sans);
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.metrics-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.metrics-head h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.metrics-windows {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.metrics-window-btn,
+.metrics-kind-toggle button {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+
+.metrics-window-btn.active,
+.metrics-kind-toggle button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+
+.metrics-loading,
+.metrics-empty {
+  padding: 2.5rem 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.metrics-error {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  color: var(--ink-mute);
+  font-size: 0.85rem;
+}
+
+/* The only scrolling child. `min-height: 0` is what actually lets a flex
+   item shrink below its content height — without it the wrap grows to fit
+   the table and nothing scrolls. */
+.metrics-table-wrap {
+  flex: 1 1 auto;
+  /* A floor, or the flex line hands everything to the chart above and the
+     table collapses — measured at 24px on a 560px viewport, which shows no
+     rows at all. Below this the panel exceeds its max-height and the page
+     scrolls a little, which is the right trade: the chart sits above the
+     table, so it stays on screen either way. */
+  min-height: 10rem;
+  overflow-y: auto;
+}
+
+/* Sticky header, now that the list scrolls under it. Needs an opaque
+   background or rows show through, and a z-index or cell borders paint
+   over it. */
+.metrics-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+}
+
+.metrics-table,
+.metrics-subspan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.metrics-table th,
+.metrics-subspan-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.4rem 0.5rem;
+}
+
+.metrics-table td,
+.metrics-subspan-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--rule-soft);
+  color: var(--ink-mute);
+}
+
+.metrics-table-row {
+  cursor: pointer;
+}
+
+.metrics-table-row:hover {
+  background: var(--rule-soft);
+}
+
+.metrics-table-row.selected {
+  background: var(--rule-soft);
+  font-weight: 600;
+}
+
+.metrics-detail {
+  /* Fixed height; only the table gives way when space is short. */
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1rem;
+}
+
+.metrics-detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.metrics-detail-head h2 {
+  font-size: 0.95rem;
+  margin: 0;
+  flex: 1;
+}
+
+.metrics-back {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+
+.metrics-kind-toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.metrics-note {
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+}
