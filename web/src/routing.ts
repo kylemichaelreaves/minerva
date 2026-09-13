@@ -7,6 +7,7 @@
 // reverse proxy).
 
 import { createSignal, onCleanup, onMount } from "solid-js";
+import { METRIC_WINDOWS, type MetricWindow } from "~/api/metricsApi";
 
 export type Route =
   | { kind: "landing" }
@@ -144,6 +145,18 @@ export type Route =
       caseFilter?: string;
       numberFilter?: string;
       surface?: string;
+    }
+  | {
+      /** Request-timing observability dashboard (#581). Bare `#/metrics`
+       *  shows the whole-request leaderboard, slowest first; `label`
+       *  drills into one route's sub-span breakdown + trend chart.
+       *  `window` is one of `METRIC_WINDOWS` — an unrecognized value
+       *  (a stale bookmark, a hand-edited hash) is dropped rather than
+       *  passed through, so the panel falls back to its own default
+       *  instead of rendering a broken selector. */
+      kind: "metrics";
+      window?: MetricWindow;
+      label?: string;
     };
 
 /** Decode one percent-encoded path segment defensively. Malformed
@@ -249,6 +262,23 @@ export function readRoute(): Route {
       sourceAuthors: decodeCsv(qs.get("source")),
       corpora: decodeCsv(qs.get("corpus")),
       sourceMethods: decodeCsv(qs.get("method")),
+    };
+  }
+  m = /^#\/metrics(?:\?(.*))?$/.exec(hash);
+  if (m) {
+    const qs = new URLSearchParams(m[1]);
+    const rawWindow = qs.get("window");
+    // Reject an unrecognized window rather than carrying it through —
+    // a stale bookmark or a hand-edited hash otherwise reaches the
+    // panel as a value outside `METRIC_WINDOWS`, which is exactly the
+    // "broken page" this guard exists to avoid.
+    const isKnownWindow = (v: string): v is MetricWindow =>
+      (METRIC_WINDOWS as readonly string[]).includes(v);
+    const window = rawWindow !== null && isKnownWindow(rawWindow) ? rawWindow : undefined;
+    return {
+      kind: "metrics",
+      window,
+      label: qs.get("label") ?? undefined,
     };
   }
   m = /^#\/refs\/review(?:\?(.*))?$/.exec(hash);
@@ -387,6 +417,13 @@ export function routeHash(route: Route): string {
     const qs = params.toString();
     const base = `#/concordance/${encodeURIComponent(route.lemma)}`;
     return qs ? `${base}?${qs}` : base;
+  }
+  if (route.kind === "metrics") {
+    const params = new URLSearchParams();
+    if (route.window) params.set("window", route.window);
+    if (route.label) params.set("label", route.label);
+    const qs = params.toString();
+    return qs ? `#/metrics?${qs}` : "#/metrics";
   }
   if (route.kind === "network-arc" || route.kind === "network-coverage") {
     const sub = route.kind === "network-arc" ? "arc" : "coverage";

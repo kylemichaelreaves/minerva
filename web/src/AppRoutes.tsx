@@ -12,6 +12,7 @@ import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
 import { ChatRoute } from "~/routes/ChatRoute";
 import { ConcordanceRoute } from "~/routes/ConcordanceRoute";
+import { MetricsRoute } from "~/routes/MetricsRoute";
 import { NetworkRoute } from "~/routes/NetworkRoute";
 import { ReaderRoute } from "~/routes/ReaderRoute";
 import { RefsRoute } from "~/routes/RefsRoute";
@@ -170,6 +171,16 @@ export function AppRoutes(props: AppRoutesProps) {
           <Match when={props.onRefs()}>
             <SurfaceErrorBoundary label="Cross-references">
               <RefsRoute {...ctx} />
+            </SurfaceErrorBoundary>
+          </Match>
+          {/* Single-kind route (no drilldown siblings the way network/refs
+              have), so it's matched directly off `route().kind` rather than
+              through an `onMetrics` prop threaded from `App.tsx` — there's
+              no mobile-top-bar suppression or other cross-cutting concern
+              that would need it there too. */}
+          <Match when={props.routing.route().kind === "metrics"}>
+            <SurfaceErrorBoundary label="Request timing">
+              <MetricsRoute {...ctx} />
             </SurfaceErrorBoundary>
           </Match>
         </Switch>
