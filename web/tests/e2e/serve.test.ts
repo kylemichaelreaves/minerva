@@ -12,143 +12,25 @@
 // @vitest-environment node
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
-import { resolve, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  hasMinervaBin,
+  startFixtureServer,
+  type FixtureServer,
+} from "../helpers/fixtureServer";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, "../../..");
-const MINERVA_BIN = resolve(REPO_ROOT, ".venv/bin/minerva");
-const STATIC_DIR = resolve(REPO_ROOT, "web/dist");
-// Committed slice of the real corpus. The server used to run against the
-// developer's `data/index.sqlite`, which is gitignored and absent in CI —
-// so every data-dependent test skipped there and only ever ran locally,
-// where nobody watched them (#133). Building a throwaway index from this
-// makes the suite behave identically in both places.
-const FIXTURE_JSONL = resolve(REPO_ROOT, "tests/fixtures/corpus.jsonl");
-// Gate on the venv binary ONLY. A missing Python install is a legitimate
-// environment difference; a missing fixture is not — it is committed, so
-// its absence means something is wrong and beforeAll should say so loudly
-// rather than skip. Skipping on a missing fixture would rebuild the exact
-// trap this file was fixed to escape.
-const RUN_E2E = existsSync(MINERVA_BIN);
-const describeOrSkip = RUN_E2E ? describe : describe.skip;
-
-function freePort(): Promise<number> {
-  return new Promise((res, rej) => {
-    const srv = createServer();
-    srv.unref();
-    srv.on("error", rej);
-    srv.listen(0, () => {
-      const addr = srv.address();
-      if (addr && typeof addr === "object") {
-        const { port } = addr;
-        srv.close(() => {
-          res(port);
-        });
-      } else {
-        srv.close(() => {
-          rej(new Error("could not bind ephemeral port"));
-        });
-      }
-    });
-  });
-}
-
-async function waitForHealth(url: string, timeoutMs = 15000): Promise<unknown> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const r = await fetch(url);
-      if (r.ok) return await r.json();
-    } catch (_) {
-      // server not up yet
-    }
-    await new Promise((res) => setTimeout(res, 150));
-  }
-  throw new Error(`server at ${url} did not become ready within ${timeoutMs}ms`);
-}
+const describeOrSkip = hasMinervaBin() ? describe : describe.skip;
 
 describeOrSkip("e2e: minerva serve --llm none", () => {
-  let proc: ChildProcess;
+  let server: FixtureServer;
   let baseUrl: string;
-  let tmpDir: string;
 
   beforeAll(async () => {
-    const port = await freePort();
-    baseUrl = `http://127.0.0.1:${port}`;
-    // Index and conversations DB both live in a tmp dir for the run, so
-    // we neither read nor pollute the developer's data/ directory.
-    tmpDir = mkdtempSync(join(tmpdir(), "minerva-e2e-"));
-    const indexDb = join(tmpDir, "index.sqlite");
-    const convDb = join(tmpDir, "conversations.sqlite");
-
-    if (!existsSync(FIXTURE_JSONL)) {
-      throw new Error(
-        `fixture corpus missing at ${FIXTURE_JSONL}. It is committed — ` +
-          `see tests/fixtures/README.md. Not skipping: a silent skip here ` +
-          `is the bug this suite was fixed to avoid (#133).`,
-      );
-    }
-
-    // Build the throwaway index before booting. 120 chunks, ~1s — no
-    // embeddings, which retrieval doesn't need under `--llm none`.
-    const built = spawnSync(
-      MINERVA_BIN,
-      ["index", "--db", indexDb, "--input", FIXTURE_JSONL, "--reset"],
-      { cwd: REPO_ROOT, encoding: "utf8" },
-    );
-    if (built.status !== 0) {
-      throw new Error(
-        `fixture index build failed (exit ${String(built.status)}):\n` +
-          `${built.stdout}\n${built.stderr}`,
-      );
-    }
-
-    proc = spawn(
-      MINERVA_BIN,
-      [
-        "serve",
-        "--llm",
-        "none",
-        "--port",
-        String(port),
-        "--db",
-        indexDb,
-        "--static",
-        STATIC_DIR,
-        "--conversations-db",
-        convDb,
-      ],
-      { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    proc.stderr?.on("data", (b: Buffer) => process.stderr.write(`[serve] ${b.toString()}`));
-    const health = (await waitForHealth(`${baseUrl}/api/health`)) as {
-      chunks_total?: number;
-    };
-    // No `hasCorpus` escape hatch any more: the fixture is committed, so
-    // an empty index is a real failure rather than an environment quirk.
-    //
-    // Asserting the exact count (derived from the fixture, so it stays
-    // correct if the fixture changes) also proves we are serving the
-    // throwaway index and not some other database that happened to be
-    // lying around — which is precisely how the old setup went wrong.
-    const fixtureChunks = readFileSync(FIXTURE_JSONL, "utf8")
-      .split("\n")
-      .filter((l) => l.trim().length > 0).length;
-    expect(health.chunks_total).toBe(fixtureChunks);
+    server = await startFixtureServer();
+    baseUrl = server.baseUrl;
   }, 60_000);
 
   afterAll(() => {
-    if (!proc.killed) {
-      proc.kill("SIGTERM");
-    }
-    if (tmpDir) {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+    server.stop();
   });
 
   interface WorkRow {
