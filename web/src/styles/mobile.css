@@ -494,6 +494,17 @@
     border-bottom: 1px solid var(--rule);
     gap: 0;
   }
+  /* The 2x2 grid gets a 48px top margin here, so the aside's desktop
+     negative margin would pull it into the grid's bottom border. Reset it
+     and give it a small gap of its own. */
+  .landing-modes-aside {
+    width: auto;
+    margin: 10px auto 0;
+    padding-right: 4px;
+  }
+  .landing-mode-aside {
+    padding: 6px 12px;
+  }
   .landing-mode {
     padding: 14px 16px;
     border-right: 1px solid var(--rule-soft);

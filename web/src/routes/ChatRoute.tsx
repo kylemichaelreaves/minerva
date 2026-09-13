@@ -53,9 +53,7 @@ export function ChatRoute(props: RouteContextProps) {
             />
             <ThreadSearchSheet
               open={
-                shell.isMobile() &&
-                !props.conversations.showLanding() &&
-                shell.threadSearchOpen()
+                shell.isMobile() && !props.conversations.showLanding() && shell.threadSearchOpen()
               }
               messages={props.conversations.messages()}
               onClose={() => shell.setThreadSearchOpen(false)}
@@ -93,6 +91,9 @@ export function ChatRoute(props: RouteContextProps) {
           }}
           onOpenConcordance={() => {
             props.routing.navigate({ kind: "concordance", lang: "deu" });
+          }}
+          onOpenMetrics={() => {
+            props.routing.navigate({ kind: "metrics" });
           }}
           theme={props.themeApi.theme()}
           onToggleTheme={props.themeApi.toggleTheme}

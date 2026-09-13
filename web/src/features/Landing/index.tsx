@@ -26,6 +26,7 @@ interface LandingProps {
   onOpenRefs: (sourceAuthor?: string) => void;
   onOpenNetwork: () => void;
   onOpenConcordance: () => void;
+  onOpenMetrics: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
   /** Optional work-scope chip, rendered above the composer input (#350).
@@ -201,6 +202,22 @@ export default function Landing(props: LandingProps) {
               Open concordance <span class="arr">→</span>
             </span>
             <span class="sub">lemma index &middot; KWIC grid</span>
+          </button>
+        </div>
+
+        {/* Deliberately outside `.landing-modes`. That grid is
+            `repeat(4, 1fr)` and its own comment notes the width auto-scales
+            "so adding/removing a CTA doesn't force the 4th onto its own
+            row" — a fifth cell is the case it was built to avoid. This is
+            also a different kind of destination: the four above are for
+            reading the corpus, this one is for watching the server, so it
+            reads as a utility rather than a peer. */}
+        <div class="landing-modes-aside">
+          <button class="landing-mode-aside" onClick={props.onOpenMetrics}>
+            <span class="lbl">
+              Request timing <span class="arr">→</span>
+            </span>
+            <span class="sub">p95 by route &middot; latency over time</span>
           </button>
         </div>
       </div>
