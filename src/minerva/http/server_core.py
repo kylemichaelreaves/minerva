@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from .. import embed as embed_mod
 from .. import llm
+from ..metrics.recorder import Recorder
 
 if TYPE_CHECKING:
     # Imported lazily to avoid a circular dependency at runtime —
@@ -201,6 +202,20 @@ class ServerDeps:
     # block sibling translate / conversation traffic on the other DBs.
     concept_cache_lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
     rate_limiter: _RateLimiter = dataclasses.field(default_factory=_RateLimiter)
+    # Request-timing recorder. Defaults to a connection-less Recorder, which
+    # fills the in-memory ring and writes nothing — so tests and any caller
+    # that doesn't want persistence need no branch at the dispatch sites.
+    metrics: Recorder = dataclasses.field(default_factory=Recorder)
+    # The same connection, reachable for reads. Task 6's handlers query it
+    # directly, as every other read handler does with its own connection.
+    # None under `--no-metrics`; the handlers must tolerate that.
+    metrics_conn: sqlite3.Connection | None = None
+    # Guards `metrics_conn`. REQUIRED, not optional: the Recorder writes to
+    # this connection from HTTP worker threads while Task 6's read handlers
+    # query the SAME connection from other worker threads. Every sibling
+    # connection on this dataclass has exactly such a lock, for exactly this
+    # reason — see the comment above `corpus_lock`.
+    metrics_lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
 
     @property
     def lock(self) -> threading.Lock:

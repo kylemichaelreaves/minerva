@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from .. import embed as embed_mod
 from .. import llm
 from ..errors import MinervaError
+from ..metrics.recorder import Recorder, current_span
 from .errors import domain_error_to_http
 from .handlers import _handle_chat_stream
 from .router import (
@@ -262,6 +263,9 @@ class ChatHandler(BaseHTTPRequestHandler):
                 chunk = f"event: {name}\ndata: {payload}\n\n".encode()
                 self.wfile.write(chunk)
                 self.wfile.flush()
+                active = current_span()
+                if active is not None:
+                    active.first_event()
         except (BrokenPipeError, ConnectionResetError):
             pass
         finally:
@@ -304,11 +308,13 @@ class ChatHandler(BaseHTTPRequestHandler):
             self._send_error_json(_HTTPError(HTTPStatus.TOO_MANY_REQUESTS, "rate limit exceeded"))
             return
         try:
-            payload = _read_json_body(self.headers, self.rfile)
-            if path == "/api/chat" and payload.get("stream") is True:
-                self._send_sse(HTTPStatus.OK, _handle_chat_stream(self.deps, payload))
-                return
-            body = _dispatch_json_mutation(handler, args, payload)
+            with self.deps.metrics.record(label, "POST") as span:
+                payload = _read_json_body(self.headers, self.rfile)
+                if path == "/api/chat" and payload.get("stream") is True:
+                    span.status = HTTPStatus.OK
+                    self._send_sse(HTTPStatus.OK, _handle_chat_stream(self.deps, payload))
+                    return
+                body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
@@ -338,8 +344,9 @@ class ChatHandler(BaseHTTPRequestHandler):
                 )
                 return
             try:
-                body = handler(*args)  # type: ignore[arg-type]
-                self._send_json(HTTPStatus.OK, body)
+                with self.deps.metrics.record(label, "GET"):
+                    body = handler(*args)  # type: ignore[arg-type]
+                    self._send_json(HTTPStatus.OK, body)
             except Exception as exc:
                 self._send_error_json(_translate_route_exception(label, exc))
                 return
@@ -360,8 +367,9 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         label, handler, args = matched
         try:
-            payload = _read_json_body(self.headers, self.rfile)
-            body = _dispatch_json_mutation(handler, args, payload)
+            with self.deps.metrics.record(label, "PATCH"):
+                payload = _read_json_body(self.headers, self.rfile)
+                body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
@@ -377,21 +385,25 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         label, handler, args = matched
         try:
-            removed = handler(*args)
+            with self.deps.metrics.record(label, "DELETE") as span:
+                removed = handler(*args)
+                if not removed:
+                    span.status = HTTPStatus.NOT_FOUND
+                    # Name the thing the route deletes. Router labels read
+                    # "<noun> delete", so dropping the verb gives "conversation",
+                    # "syntax correction". This was hardcoded to "conversation"
+                    # while that was the only DELETE route, and silently lied
+                    # once it wasn't.
+                    noun = label.removesuffix(" delete")
+                    self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
+                    return
+                span.status = HTTPStatus.NO_CONTENT
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self._send_common_headers()
+                self.end_headers()
         except Exception as exc:
             self._send_error_json(_translate_route_exception(label, exc))
             return
-        if not removed:
-            # Name the thing the route deletes. Router labels read
-            # "<noun> delete", so dropping the verb gives "conversation",
-            # "syntax correction". This was hardcoded to "conversation" while
-            # that was the only DELETE route, and silently lied once it wasn't.
-            noun = label.removesuffix(" delete")
-            self._send_error_json(_HTTPError(HTTPStatus.NOT_FOUND, f"{noun} not found"))
-            return
-        self.send_response(HTTPStatus.NO_CONTENT)
-        self._send_common_headers()
-        self.end_headers()
 
     def _serve_static(self, request_path: str) -> None:
         root = self.deps.static_dir.resolve()
@@ -505,11 +517,17 @@ def serve(
     force_rewrite: bool = True,
     enable_concept_expand: bool = True,
     allowed_origins: frozenset[str] = frozenset(),
+    metrics_conn: sqlite3.Connection | None = None,
 ) -> None:
     is_loopback = host in _LOOPBACK_HOSTS
     origins = allowed_origins
     if is_loopback:
         origins = _default_loopback_origins(port) | allowed_origins
+    # One lock instance shared between the Recorder (which writes through
+    # metrics_conn) and Task 6's read handlers (which query the same
+    # connection from other worker threads). A private lock inside the
+    # Recorder would not serialize against those readers.
+    metrics_lock = threading.Lock()
     deps = ServerDeps(
         conn=conn,
         conversations_conn=conversations_conn,
@@ -525,6 +543,9 @@ def serve(
         allow_client_rewrite=allow_client_rewrite,
         force_rewrite=force_rewrite,
         enable_concept_expand=enable_concept_expand,
+        metrics=Recorder(metrics_conn, metrics_lock),
+        metrics_conn=metrics_conn,
+        metrics_lock=metrics_lock,
         cors_wildcard=False,
         allowed_origins=origins,
     )
