@@ -185,4 +185,33 @@ describe("TimeSeriesChart", () => {
       expect(el.getAttribute("class") ?? "").not.toMatch(/mchart-line/);
     }
   });
+
+  // Regression: the chart used to take its height from `useElementSize` on
+  // `.mchart-svg-wrap` — the very element the SVG renders into. That wrap is
+  // `width: 100%` with no height, so its height is content-driven, and the
+  // only content is the SVG being sized. Each ResizeObserver tick therefore
+  // grew the SVG by the layout delta, without bound: measured live in Chrome
+  // at 164220px, then 220348 → 220828 → 221308 → 221788, +480px per frame.
+  //
+  // jsdom cannot reproduce the loop (clientHeight is always 0 here — see
+  // #585), and stubbing the size to a constant is exactly the condition
+  // under which the bug cannot appear. So assert the invariant instead:
+  // height must never be read from the observed element.
+  it("does not take its height from the element it renders into", () => {
+    const points = [point(0, 10, 40), point(300, 12, 50)];
+    const { container } = withMeasuredSize(900, 5000, () =>
+      render(() => <TimeSeriesChart points={points} />),
+    );
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("height")).toBe("220");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 900 220");
+  });
+
+  it("still takes its width from the element, which is parent-constrained", () => {
+    const points = [point(0, 10, 40), point(300, 12, 50)];
+    const { container } = withMeasuredSize(900, 5000, () =>
+      render(() => <TimeSeriesChart points={points} />),
+    );
+    expect(container.querySelector("svg")?.getAttribute("width")).toBe("900");
+  });
 });

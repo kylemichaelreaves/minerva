@@ -96,7 +96,16 @@ export function TimeSeriesChart(props: {
   const size = useElementSize(() => wrapEl, { w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT });
 
   const width = () => size().w;
-  const height = () => props.height ?? size().h;
+  // Width is measured, height is NOT — and the asymmetry is the whole point.
+  // `.mchart-svg-wrap` is `width: 100%`, so its width is fixed by its parent
+  // and observing it is stable. Its height is content-driven, and its only
+  // content is this SVG. Feeding a measured height back into the thing being
+  // measured is an unbounded ResizeObserver loop: it was seen growing +480px
+  // per frame in Chrome, past 220,000px. The Network panels observe elements
+  // that are `height: 100%` inside a sized parent, which is why the same hook
+  // is safe there. If this chart ever needs a responsive height, give the wrap
+  // a definite height in CSS first — do not measure a content-sized box.
+  const height = () => props.height ?? DEFAULT_HEIGHT;
 
   const plotX0 = PAD_L;
   const plotX1 = () => Math.max(plotX0, width() - PAD_R);
