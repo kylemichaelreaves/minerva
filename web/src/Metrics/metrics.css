@@ -1,0 +1,86 @@
+/* Metrics chart tokens. Two categorical series (p50 / p95), both
+   validated for colour-vision-deficiency contrast (see
+   TimeSeriesChart.tsx) — do not retint by eye. */
+.mchart {
+  --metric-p50: #1f6ea8;
+  --metric-p95: #a8452f;
+}
+
+[data-theme="dark"] .mchart {
+  --metric-p50: #3a93d1;
+  --metric-p95: #c97a65;
+}
+
+.mchart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.mchart-empty {
+  padding: 2.5rem 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+}
+
+.mchart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--ink-mute);
+}
+
+.mchart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mchart-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.mchart-swatch[data-series="p50"] {
+  background: var(--metric-p50);
+}
+
+.mchart-swatch[data-series="p95"] {
+  background: var(--metric-p95);
+}
+
+.mchart-svg-wrap {
+  width: 100%;
+}
+
+.mchart-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.mchart-line[data-series="p50"] {
+  stroke: var(--metric-p50);
+}
+
+.mchart-line[data-series="p95"] {
+  stroke: var(--metric-p95);
+}
+
+.mchart-grid {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+
+.mchart-tick,
+.mchart-label {
+  font-family: var(--sans);
+  font-size: 9.5px;
+  fill: var(--ink-faint);
+}
