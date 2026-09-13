@@ -24,13 +24,26 @@ Sources:
     PG 74236 (Human Nature + De Corpore Politico + Of Liberty and
     Necessity, the first two split into separate files at download
     time by a post-process step in ``download_early_modern.py``).
-  * Latin: Internet Archive OCR of public-domain editions
-    (``leviathansivedem00hobb`` for the 1668 Latin Leviathan;
-    ``gri_elementaphilos00ho`` for De Cive) via the dedicated
-    ``perseus/download_hobbes_la.py`` script. Parsed by
-    ``src/minerva/hobbes_la.py`` because the OCR is noisier than
-    Wikisource-transcribed Latin and needs a Molesworth-aware
-    chapter-detection state machine.
+  * Latin: Internet Archive OCR of William Molesworth's *Opera
+    philosophica quae latine scripsit omnia* (London: Bohn, 1839) —
+    vol. III for Leviathan (``thomhobbesmalme02hobbgoog``), vol. II for
+    De Cive (``thomhobbesmalmes0002hobb``) — via
+    ``perseus/download_hobbes_la.py``, which slices each work out of
+    its volume. Parsed by ``src/minerva/sources/hobbes_la.py``, whose
+    job is Molesworth's two-column page: the marginal gloss column that
+    the OCR linearizes into the body lines.
+
+    ``edition_year`` below is the year of each work's first
+    publication (1668 / 1642), not of the Molesworth reprint, matching
+    every other Latin original in the corpus.
+
+    Corrected 2026-09-12 (#535): this paragraph previously named
+    ``leviathansivedem00hobb`` and ``gri_elementaphilos00ho`` — scans of
+    the 1668 and 1704 printings — and described the parser as
+    "Molesworth-aware", which it was not; Molesworth was not the source
+    then. Those long-s printings are what made the Latin unusable.
+    The parser is Molesworth-aware now, and the path here was wrong
+    besides (``src/minerva/hobbes_la.py``, missing ``sources/``).
 """
 
 from __future__ import annotations
@@ -93,9 +106,9 @@ WORKS: tuple[CorpusWork, ...] = (
         # Two paragraphs clear 8,000 chars in a work whose median is 166:
         # the dedicatory epistle to the Earl of Devonshire (10,709, one
         # paragraph of 153 lines) and §51 (8,151). Neither is dialogue, so
-        # both split at sentence ends (#176). The Latin De Cive is
-        # deliberately NOT capped — its 18 chapter-sized chunks are the
-        # documented OCR trade-off in sources/hobbes_la.py.
+        # both split at sentence ends (#176). The Latin De Cive needs no
+        # cap: since the Molesworth re-source (#535) it chunks per
+        # paragraph like this one, and its longest is 5,099 chars.
         max_paragraph_chars=8000,
     ),
     # ─── Elements of Law (1640) ───────────────────────────────────
