@@ -331,7 +331,11 @@ export function MetricsPanel(props: MetricsPanelProps) {
         <Show when={!summary.loading} fallback={<div class="metrics-loading">Loading…</div>}>
           <Show
             when={rows().length > 0}
-            fallback={<div class="metrics-empty">No requests recorded in this window.</div>}
+            fallback={
+              <div class="metrics-empty" role="status">
+                No requests recorded in this window.
+              </div>
+            }
           >
             <div class="metrics-table-wrap">
               <table class="metrics-table" aria-label="Requests by route">
