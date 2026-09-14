@@ -1,17 +1,14 @@
 // Request-timing observability surface (#581). Composes the two read
-// endpoints (Task 7) behind `metricsApi` (Task 8) and the trend chart
-// (Task 8) into one page: a whole-request leaderboard, slowest first,
-// that drills into a per-route sub-span breakdown + trend chart.
+// endpoints behind `metricsApi` and the trend chart into one page: a
+// whole-request leaderboard, slowest first, that drills into a per-route
+// sub-span breakdown + trend chart.
 //
-// Deliberately NOT built on `LeaderboardPanel` (Network's top-cited-works
-// list, `~/Network/components/LeaderboardPanel.tsx`): that component
-// renders a fixed author/work/sparkline row shape with no sort, no
-// selection state, and no drill-down. This panel's rows are a real
-// `<table>` (sortable by measured p95, clickable to select) over a
-// different data shape entirely — the overlap is "a list of rows", not
-// enough to share code without inventing an abstraction neither surface
-// needs. Copying it wholesale would fail Sonar's ≤3% duplication gate at
-// any coverage level regardless (#254).
+// This file owns resources, selection and composition only. The two
+// halves it renders live in `RouteList.tsx` and `RouteDetail.tsx` —
+// split out under #600 because Sonar's maintainability gate grades new
+// code on cognitive complexity per function, and #559 showed that adding
+// to an already-dense function fails it at an A rating while
+// `check-diff-coverage` stays green and nothing local warns.
 
 import { For, Show, createMemo, createResource, createSignal, type Resource } from "solid-js";
 import {
@@ -21,7 +18,9 @@ import {
   type MetricWindow,
   type MetricsSummaryRow,
 } from "~/api/metricsApi";
-import { TimeSeriesChart } from "~/Metrics/TimeSeriesChart";
+import { RouteDetail, type SpanKind } from "~/Metrics/RouteDetail";
+import { RouteList } from "~/Metrics/RouteList";
+import { errorMessage } from "~/utils/util";
 import "./metrics.css";
 
 export interface MetricsPanelProps {
@@ -61,32 +60,25 @@ function valueUnlessErrored<T>(res: Resource<T>): T | undefined {
   return res();
 }
 
-// The `String(err)` branch is defensive rather than reachable in
-// practice: Solid's `createResource` runs every rejection through its
-// own `castError` before it ever reaches `.error` — `new Error(typeof
-// err === "string" ? err : "Unknown error", { cause: err })` — so
-// `summary.error`/`detail.error`/`series.error` are always `Error`
-// instances by the time they get here (a non-`Error` rejection, e.g.
-// `Promise.reject("offline")`, still surfaces via `.message`, not this
-// line). Kept anyway: `err`'s declared type is `unknown`, and a helper
-// with that signature should not assume its caller's guarantee holds
-// forever. Same defensive shape as `SurfaceErrorBoundary`'s `messageOf`.
-// Exported so a unit test can hit the `String(err)` branch directly —
-// going through a resource never can, since `castError` normalizes every
-// rejection into an `Error` before `.error` is ever read.
-export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
+/** The rendered message for a failed resource, or `undefined` while it
+ *  has not failed. Solid types `.error` as `any` in its errored-state
+ *  variant (a discriminated union whose errored branch is untyped), so
+ *  narrowing it to `string | undefined` here keeps that `any` from
+ *  reaching a typed JSX prop — the case `no-unsafe-assignment` exists
+ *  to catch. */
+function errorTextOf(res: Resource<unknown>): string | undefined {
+  if (res.error === undefined) return undefined;
+  return errorMessage(res.error);
 }
 
 export function MetricsPanel(props: MetricsPanelProps) {
   const win = (): MetricWindow => props.window ?? "24h";
   const selectedLabel = (): string | undefined => props.label;
-  // Which `kind` of the selected route's sub-span rows to display. This
-  // one IS local UI state, not controlled — it has no URL representation
-  // and resets on every new selection so a stale TTFE view from a
-  // previous route doesn't linger under a route that has none.
-  const [spanKind, setSpanKind] = createSignal<"total" | "ttfe">("total");
+  // Which `kind` of the selected route's rows to display. This one IS
+  // local UI state, not controlled — it has no URL representation and
+  // resets on every new selection so a stale TTFE view from a previous
+  // route doesn't linger under a route that has none.
+  const [spanKind, setSpanKind] = createSignal<SpanKind>("total");
 
   const selectWindow = (w: MetricWindow) => {
     props.onNavigate?.({ window: w, label: selectedLabel() });
@@ -100,15 +92,14 @@ export function MetricsPanel(props: MetricsPanelProps) {
   const [summary] = createResource(win, (w) => fetchMetricsSummary(w));
 
   // The unlabeled summary is genuinely dual-purpose, and the two halves
-  // must not be confused (found in review): it carries ONE row per
-  // route for a plain request (`kind: "total"`, `span: ""`) but TWO for
-  // a streaming route — a second `kind: "ttfe"` row at the same
-  // `span: ""` (`store.py`'s `summary()`, unlabeled branch, filters on
-  // `span = ''` only, with no `kind` filter). Rendering every row
-  // un-filtered would list a streaming route twice with different
-  // numbers and no column saying why. `summaryRows` is the raw fetch;
-  // `rows` (the leaderboard) keeps only the `total` half so each route
-  // appears exactly once.
+  // must not be confused: it carries ONE row per route for a plain
+  // request (`kind: "total"`, `span: ""`) but TWO for a streaming route
+  // — a second `kind: "ttfe"` row at the same `span: ""` (`store.py`'s
+  // `summary()`, unlabeled branch, filters on `span = ''` only, with no
+  // `kind` filter). Rendering every row un-filtered would list a
+  // streaming route twice with different numbers and no column saying
+  // why. `summaryRows` is the raw fetch; `rows` (the leaderboard) keeps
+  // only the `total` half so each route appears exactly once.
   const summaryRows = createMemo<MetricsSummaryRow[]>(
     () => valueUnlessErrored(summary)?.rows ?? [],
   );
@@ -124,13 +115,12 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // sub-span breakdown and (below) the trend chart. Solid skips the
   // fetcher entirely when a source accessor returns a falsy value, so
   // while nothing is selected these never run — which is the guard the
-  // brief calls for, though not for the reason an earlier version of
-  // this comment gave. `qs()` drops an empty value, so an empty `label`
+  // brief calls for. `qs()` drops an empty value, so an empty `label`
   // never reaches the query string at all, and `_handle_metrics_series`
   // answers a label-less request with 400 (`handlers/metrics.py`). The
-  // cost of firing anyway is therefore a guaranteed-failing fetch and a
-  // spurious error banner on first render, before the reader has picked
-  // a route — not the silent whole-table query this used to claim.
+  // cost of firing anyway would therefore be a guaranteed-failing fetch
+  // and a spurious error banner on first render, before the reader has
+  // picked a route.
   const detailSource = (): { label: string; w: MetricWindow } | undefined => {
     const label = selectedLabel();
     return label ? { label, w: win() } : undefined;
@@ -145,24 +135,13 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // omitted (`handlers/metrics.py`). Without threading the toggle
   // through here, switching to "TTFE" would relabel the same total-
   // latency chart rather than actually change what it shows.
-  const seriesSource = ():
-    { label: string; w: MetricWindow; kind: "total" | "ttfe" } | undefined => {
+  const seriesSource = (): { label: string; w: MetricWindow; kind: SpanKind } | undefined => {
     const label = selectedLabel();
     return label ? { label, w: win(), kind: spanKind() } : undefined;
   };
   const [series] = createResource(seriesSource, (src) =>
     fetchMetricsSeries(src.label, { window: src.w, kind: src.kind }),
   );
-
-  // Solid's `Resource<T>` types `.error` as `any` in its errored-state
-  // variant (it's a discriminated union across load states, and that
-  // branch's `error` field is untyped). Reading it straight into a JSX
-  // `when=` prop is exactly the "assigning `any` into a typed slot" case
-  // `no-unsafe-assignment` exists to catch, so every check goes through
-  // one of these boolean-typed wrappers instead.
-  const summaryFailed = (): boolean => summary.error !== undefined;
-  const detailFailed = (): boolean => detail.error !== undefined;
-  const seriesFailed = (): boolean => series.error !== undefined;
 
   // Sub-span rows (the labeled query, `span != ''`) are ALWAYS
   // `kind: "total"` — the recorder never tags a sub-span `ttfe`
@@ -202,174 +181,33 @@ export function MetricsPanel(props: MetricsPanelProps) {
           </For>
         </div>
       </header>
+
       <Show when={selectedLabel()}>
         {(label) => (
-          <section class="metrics-detail">
-            <div class="metrics-detail-head">
-              <h2>{label()}</h2>
-              <button type="button" class="metrics-back" onClick={() => selectLabel(undefined)}>
-                ← All routes
-              </button>
-              <Show when={hasTtfe()}>
-                <div class="metrics-kind-toggle" role="group" aria-label="Metric">
-                  <button
-                    type="button"
-                    classList={{ active: spanKind() === "total" }}
-                    onClick={() => setSpanKind("total")}
-                  >
-                    Total
-                  </button>
-                  <button
-                    type="button"
-                    classList={{ active: spanKind() === "ttfe" }}
-                    onClick={() => setSpanKind("ttfe")}
-                  >
-                    TTFE
-                  </button>
-                </div>
-                {/* The toggle only affects the trend chart below — the
-                    sub-span breakdown has no ttfe variant to switch to. */}
-                <span class="metrics-note">trend chart only</span>
-              </Show>
-            </div>
-
-            <Show when={seriesFailed()}>
-              <div class="metrics-error" role="alert">
-                Couldn't load the trend chart: {errorMessage(series.error)}
-              </div>
-            </Show>
-            {/* Chart XOR banner: `seriesPoints()` is `[]` on error too (the
-                same `valueUnlessErrored` guard), and `TimeSeriesChart`
-                renders its own "No data" for an empty array — showing both
-                read as two contradictory explanations for the same blank
-                chart. A loading state sits alongside for the same reason
-                the leaderboard has one: without it, every selection (and
-                every toggle flip) flashes "No data" while the fetch is
-                in flight rather than looking like it's doing something. */}
-            <Show when={!seriesFailed()}>
-              <Show
-                when={!series.loading}
-                fallback={<div class="metrics-loading">Loading trend…</div>}
-              >
-                <TimeSeriesChart points={seriesPoints()} bucketSeconds={seriesBucketSeconds()} />
-              </Show>
-            </Show>
-
-            <Show when={detailFailed()}>
-              <div class="metrics-error" role="alert">
-                Couldn't load the breakdown: {errorMessage(detail.error)}
-              </div>
-            </Show>
-
-            <Show when={!detailFailed()}>
-              <Show
-                when={!detail.loading}
-                fallback={<div class="metrics-loading">Loading breakdown…</div>}
-              >
-                {/* Only three code paths are instrumented, so most routes
-                    have no sub-spans at all. Rendering the table regardless
-                    left a bare "Span Count p50 p95 p99" header under the
-                    chart labelling nothing, directly above the route
-                    table's near-identical header. A header with no rows
-                    beneath it is not a table. */}
-                <Show when={detailRows().length > 0}>
-                  <table class="metrics-subspan-table">
-                    <thead>
-                      <tr>
-                        <th>Span</th>
-                        <th>Count</th>
-                        <th>p50</th>
-                        <th>p95</th>
-                        <th>p99</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <For each={detailRows()}>
-                        {(row) => (
-                          <tr>
-                            <td>
-                              {row.span}
-                              {/* Two things about llm_call that are correct but easy
-                                to misread, called out where they would mislead.
-                                Its count and percentiles are PER ATTEMPT — the LLM
-                                client retries, and every attempt records its own
-                                row. And the span closes when the LLM's response
-                                HEADERS arrive (`llm.py`), so body and stream
-                                consumption fall outside it: on the chat route the
-                                breakdown will not add up to `total`. */}
-                              <Show when={row.span === "llm_call"}>
-                                <span class="metrics-note">
-                                  {" "}
-                                  (per attempt, not per request; measured to response headers, so
-                                  streamed body time is excluded)
-                                </span>
-                              </Show>
-                            </td>
-                            <td>{row.count.toLocaleString()}</td>
-                            <td>{Math.round(row.p50_ms)}</td>
-                            <td>{Math.round(row.p95_ms)}</td>
-                            <td>{Math.round(row.p99_ms)}</td>
-                          </tr>
-                        )}
-                      </For>
-                    </tbody>
-                  </table>
-                </Show>
-              </Show>
-            </Show>
-          </section>
+          <RouteDetail
+            label={label()}
+            spanKind={spanKind()}
+            onSpanKind={setSpanKind}
+            hasTtfe={hasTtfe()}
+            onBack={() => selectLabel(undefined)}
+            seriesPoints={seriesPoints()}
+            seriesBucketSeconds={seriesBucketSeconds()}
+            seriesLoading={series.loading}
+            seriesErrorText={errorTextOf(series)}
+            detailRows={detailRows()}
+            detailLoading={detail.loading}
+            detailErrorText={errorTextOf(detail)}
+          />
         )}
       </Show>
 
-      <Show when={summaryFailed()}>
-        <div class="metrics-error" role="alert">
-          Couldn't load metrics: {errorMessage(summary.error)}
-        </div>
-      </Show>
-
-      <Show when={!summaryFailed()}>
-        <Show when={!summary.loading} fallback={<div class="metrics-loading">Loading…</div>}>
-          <Show
-            when={rows().length > 0}
-            fallback={<div class="metrics-empty">No requests recorded in this window.</div>}
-          >
-            <div class="metrics-table-wrap">
-              <table class="metrics-table">
-                <thead>
-                  <tr>
-                    <th>Route</th>
-                    <th>Method</th>
-                    <th>Count</th>
-                    <th>p50</th>
-                    <th>p95</th>
-                    <th>p99</th>
-                    <th>Errors</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <For each={rows()}>
-                    {(row) => (
-                      <tr
-                        class="metrics-table-row"
-                        classList={{ selected: selectedLabel() === row.label }}
-                        onClick={() => selectLabel(row.label)}
-                      >
-                        <td data-testid="metrics-route-label">{row.label}</td>
-                        <td>{row.method}</td>
-                        <td>{row.count.toLocaleString()}</td>
-                        <td>{Math.round(row.p50_ms)}</td>
-                        <td>{Math.round(row.p95_ms)}</td>
-                        <td>{Math.round(row.p99_ms)}</td>
-                        <td>{(row.error_rate * 100).toFixed(1)}%</td>
-                      </tr>
-                    )}
-                  </For>
-                </tbody>
-              </table>
-            </div>
-          </Show>
-        </Show>
-      </Show>
+      <RouteList
+        rows={rows()}
+        loading={summary.loading}
+        errorText={errorTextOf(summary)}
+        selectedLabel={selectedLabel()}
+        onSelect={selectLabel}
+      />
     </div>
   );
 }

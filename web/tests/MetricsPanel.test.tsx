@@ -1,7 +1,7 @@
 import { render, waitFor, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MetricsPanel, errorMessage } from "~/Metrics/MetricsPanel";
+import { MetricsPanel } from "~/Metrics/MetricsPanel";
 import type { MetricWindow } from "~/api/metricsApi";
 
 const row = (label: string, p95: number) => ({
@@ -66,26 +66,18 @@ describe("MetricsPanel", () => {
     // `err instanceof Error` is true here too, same as the plain-`Error`
     // case above; the text comes from `.message`, not `String(err)`. The
     // `String()` branch itself is unreachable through any resource for
-    // exactly that reason, and is covered directly below instead, calling
-    // `errorMessage` as a plain function with something `castError` never
-    // produces.
+    // exactly that reason, and is covered in `tests/util.test.ts` instead,
+    // calling `errorMessage` as a plain function with something
+    // `castError` never produces.
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue("offline"));
     const view = render(() => <MetricsPanel />);
     expect(await view.findByText(/couldn't load metrics: offline/i)).toBeTruthy();
   });
 
-  describe("errorMessage", () => {
-    it("reads .message off an Error", () => {
-      expect(errorMessage(new Error("boom"))).toBe("boom");
-    });
-
-    it("falls back to String() for a value that is genuinely not an Error", () => {
-      // The one shape `castError` never produces, so the only way to
-      // reach this branch is to call the function directly rather than
-      // through a resource.
-      expect(errorMessage({ toString: () => "offline-reason" })).toBe("offline-reason");
-    });
-  });
+  // `errorMessage` itself is NOT re-tested here. It lives in
+  // `~/utils/util.ts` and is covered by `tests/util.test.ts` — this
+  // file's copy of it (and of those assertions) was a duplicate of
+  // both, removed under #600.
 
   // --- Supplemental coverage below. The three tests above are the brief's
   // exact cases (mechanically adjusted only where the repo's strict eslint
