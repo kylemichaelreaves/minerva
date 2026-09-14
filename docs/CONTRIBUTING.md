@@ -106,6 +106,46 @@ when a second `Lines.test.tsx` was added under `web/src`, and both the
 implementer and the reviewer of that change reported no such file existed —
 each had looked in only one of the two places.
 
+### Browser tests
+
+`web/tests/browser/` runs under Playwright against the production bundle
+served by the real server. Five tests, Chromium only, in the `web · e2e` job.
+Run locally with `make test-browser`.
+
+**Locators, in order. Reach lower only when every tier above genuinely
+cannot distinguish the target.**
+
+1. `getByRole` with an accessible name.
+2. Data attributes the app's own code queries — `data-chunk-id`,
+   `data-offset`. These are load-bearing in `src/`, not test scaffolding.
+3. `data-testid`, with a comment saying why tiers 1–2 failed.
+4. Never: CSS class selectors, positional indexing as a substitute for
+   identity, literal corpus text, or coordinates from anything but a box
+   measured at call time.
+
+Selecting the Nth word of a line is **not** tier 4 — a word's position in a
+sentence is its identity. Picking the second `.st-btn` to mean "Translate"
+is.
+
+**This differs from the jsdom suite on purpose.** `tests/SelectionToolbar.test.tsx`
+locates by `.st-btn` plus `buttons[0]`/`buttons[1]`. That suite is not being
+converted, but do not "fix" the browser suite to match it — locating by class
+and index is why #594 went unnoticed for the life of the component: nothing
+ever consulted an accessible name.
+
+**A flaky browser test is a defective test. Delete it; do not retry it.**
+`retries: 0` is permanent. The first flaky red becomes a re-run, and once
+re-running is routine the gate consumes attention and pays nothing — which is
+worse than not having it. If a test needs a `waitForTimeout` to pass, it is
+asserting on the wrong thing.
+
+**Page objects return `Locator`, never `ElementHandle`, and never assert.**
+A handle is a stale snapshot that gets repaired with a sleep.
+
+**Fixtures derive corpus values at run time and throw — never skip — when the
+corpus cannot satisfy them.** A silent skip is how #133's assertions rotted
+for months.
+
 ### Python coverage (baseline)
 
 Optional report (requires `[dev]` extras):

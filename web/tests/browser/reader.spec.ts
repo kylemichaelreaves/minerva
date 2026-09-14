@@ -64,10 +64,11 @@ test.describe("Reader selection", () => {
     await expect(reader.lookupRail).toBeVisible();
     // toBeHidden() also passes if the toolbar were deleted outright — it
     // asserts "not visible," which is true of a nonexistent element too.
-    // That's fine here: the other test in this file (line 39) already
-    // asserts the toolbar's positive existence and visibility, so the pair
-    // together is sound. This assertion alone should not be read as proof
-    // the toolbar element exists on this page.
+    // That's fine here: the other test in this file, "a drag that ends on a
+    // word shows the selection toolbar (#591)", already asserts the
+    // toolbar's positive existence and visibility, so the pair together is
+    // sound. This assertion alone should not be read as proof the toolbar
+    // element exists on this page.
     await expect(reader.toolbar).toBeHidden();
   });
 });

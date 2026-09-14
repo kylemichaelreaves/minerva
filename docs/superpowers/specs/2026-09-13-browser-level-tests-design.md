@@ -330,10 +330,31 @@ cached on the Playwright version via `actions/cache`; and `npm run
 test:browser` (`playwright test`). The build must precede both, since
 `--static web/dist` is what the browser tests load.
 
-Estimated job time 23s → ~90–120s. **This is an estimate, not a measurement** —
-the browser download and `--with-deps` apt install have not been timed on this
-runner. It is verified during implementation, and if the job overshoots `web`'s
-168s it becomes the critical path and the caching needs revisiting.
+Measured on draft PR #595, workflow run 34791480182, all checks green
+including SonarCloud:
+
+| job | before | after |
+|---|---|---|
+| `web · e2e` | 23s | **63s** |
+| `python · lint · pytest` | 160s | 169s |
+| `web · lint · typecheck · vitest` | 168s | 140s |
+| `sonarqube` | 132s | 97s |
+
+`web · e2e` per-step: Install Chromium 22s (cold cache — first run), Set up
+Node 8s, npm ci 7s, Build bundle 3s, Browser tests 3s, E2E vitest 3s,
+remainder setup/teardown.
+
+1. The design estimated 90–120s. The real figure is **63s** — the estimate
+   was pessimistic.
+2. `web · e2e` did **not** become the critical path. `python` at 169s is,
+   leaving ~106s of headroom.
+3. The 63s includes a cold Playwright cache; warm runs drop the 22s Chromium
+   install.
+
+Also worth stating: the smoke spec passed in CI, proving the harness boots
+with no prebuilt `.venv`, no cached Chromium, and `web/dist` built from
+scratch — and `GET /` now returns 200 there, so the long-standing 404 is
+fixed and guarded.
 
 No branch protection change: `web · e2e` is already required.
 
@@ -395,7 +416,7 @@ The issue listed four unknowns under Hypothesis. Three are now measured:
 | `vite dev` or built `web/dist`? | **dist** | the harness already passes `--static web/dist` (`serve.test.ts:25,122`) |
 | new job or absorb into `web · e2e`? | **absorb** | 23s job, ~2.3 min of slack under the critical path; the server spawn is already there |
 | flakiness budget | **zero retries**, five tests | policy above |
-| browser download time in CI | **not yet measured** | estimated ~70–100s; verified during implementation |
+| browser download time in CI | **22s** (cold cache) | measured, run 34791480182 (draft PR #595); see §9 |
 
 The issue's Hypothesis section also proposed reusing the `serve.test.ts`
 harness. That is adopted, with the refinement that the harness is *extracted*

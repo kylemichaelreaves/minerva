@@ -42,6 +42,9 @@ venv/
 .ruff_cache/
 .mypy_cache/
 .coverage
+# pytest-xdist (`pytest -n auto`) writes one shard per worker instead of a
+# single `.coverage` file, named `.coverage.<host>.pid<N>.<rand>.<rand>`.
+.coverage.*
 htmlcov/
 coverage.xml
 
