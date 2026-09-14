@@ -87,16 +87,13 @@ test.describe("Metrics layout", () => {
     await metrics.selectRoute(await metrics.firstRouteLabel());
     await expect(metrics.chart).toBeInViewport();
 
-    await metrics.table.evaluate((el) => {
-      const wrap = el.parentElement;
-      if (wrap) wrap.scrollTop = wrap.scrollHeight;
-    });
+    await metrics.scrollTableToBottom();
 
     // The assertion that makes this test mean something: if the wrap
     // were NOT internally scrollable (the regression this test guards
     // against — the wrap growing to fit its content instead of scrolling
     // it), scrollTop would still read 0 here.
-    const scrollTop = await metrics.table.evaluate((el) => el.parentElement?.scrollTop ?? 0);
+    const scrollTop = await metrics.tableScrollTop();
     expect(scrollTop).toBeGreaterThan(0);
 
     await expect(metrics.chart).toBeInViewport();

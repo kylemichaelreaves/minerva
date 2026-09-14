@@ -213,7 +213,7 @@ escape.
 --static web/dist`. One origin, real bundle, no vite proxy, no CORS. This is
 what the harness was already configured for.
 
-### 3. Five tests, no more
+### 3. Five regression tests, plus a smoke check
 
 | assertion | defect it pins |
 |---|---|

@@ -9,6 +9,8 @@ test("the built bundle is served and the app boots", async ({ page }) => {
   // no test requested `/` (#593).
   expect(response?.status()).toBe(200);
 
-  // Solid has mounted, not merely served HTML.
-  await expect(page.locator("#root, body > div").first()).toBeVisible();
+  // Solid has mounted, not merely served HTML. `<main>` (App.tsx:177) only
+  // exists once the app actually renders — unlike `#root` (index.html),
+  // which is present in the served HTML whether or not the bundle ran.
+  await expect(page.getByRole("main")).toBeVisible();
 });

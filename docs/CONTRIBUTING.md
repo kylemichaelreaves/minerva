@@ -109,7 +109,8 @@ each had looked in only one of the two places.
 ### Browser tests
 
 `web/tests/browser/` runs under Playwright against the production bundle
-served by the real server. Five tests, Chromium only, in the `web · e2e` job.
+served by the real server. Five regression tests plus a smoke check,
+Chromium only, in the `web · e2e` job.
 Run locally with `make test-browser`.
 
 **Locators, in order. Reach lower only when every tier above genuinely

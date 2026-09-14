@@ -61,7 +61,7 @@ test.describe("Reader selection", () => {
     const line = await reader.firstPopulatedLine(4);
     await reader.clickWord(line, 0);
 
-    await expect(reader.lookupRail).toBeVisible();
+    await expect(reader.lookupRailCloseButton).toBeVisible();
     // toBeHidden() also passes if the toolbar were deleted outright — it
     // asserts "not visible," which is true of a nonexistent element too.
     // That's fine here: the other test in this file, "a drag that ends on a

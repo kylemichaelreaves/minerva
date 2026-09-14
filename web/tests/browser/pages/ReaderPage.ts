@@ -117,7 +117,7 @@ export class ReaderPage {
 
   /** The rail is inside `<Show when={state.kind !== "idle"}>`, so presence
    *  means open. Anchored on the close control's own label. */
-  get lookupRail(): Locator {
+  get lookupRailCloseButton(): Locator {
     return this.page.getByRole("button", { name: "Close drawer", exact: true });
   }
 }

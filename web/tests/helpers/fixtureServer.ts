@@ -112,7 +112,8 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     if (built.status !== 0) {
       throw new Error(
         `fixture index build failed (exit ${String(built.status)}):\n` +
-          `${built.stdout}\n${built.stderr}`,
+          `${built.stdout}\n${built.stderr}\n${String(built.error)}\n` +
+          `If MINERVA_BIN is missing, run \`uv sync\` to create .venv/ first.`,
       );
     }
 

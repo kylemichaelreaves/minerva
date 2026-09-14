@@ -85,6 +85,22 @@ export class MetricsPage {
     return this.page.getByRole("img", { name: /Latency over time/ });
   }
 
+  /** Scrolls the table's scroll container (`.metrics-table-wrap`,
+   *  metrics.css:166-174) to its bottom. Mechanism lives here, not in the
+   *  spec: `<table>` itself doesn't scroll, its parent wrapper does. */
+  async scrollTableToBottom(): Promise<void> {
+    await this.table.evaluate((el) => {
+      const wrap = el.parentElement;
+      if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    });
+  }
+
+  /** The table's scroll container's current `scrollTop`, or 0 if for some
+   *  reason the table has no parent. */
+  async tableScrollTop(): Promise<number> {
+    return this.table.evaluate((el) => el.parentElement?.scrollTop ?? 0);
+  }
+
   /** A row identified by the route it reports, via the one pre-existing
    *  data-testid in the codebase (MetricsPanel.tsx:357). Tier 1 cannot
    *  distinguish rows: a row's accessible name concatenates every cell,
