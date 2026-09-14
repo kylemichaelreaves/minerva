@@ -45,12 +45,35 @@ def _bucket_seconds_for(span_seconds: int) -> int:
     return 86_400
 
 
+def _parse_offset(value: str | None) -> int:
+    """Whole windows to shift the range back; 0 (the default) ends now.
+
+    `isascii()` guards `isdigit()`: superscript two is a digit by
+    `str.isdigit()` but not by `int()`, which would raise ValueError and
+    escape as a 500 rather than the 400 this is here to produce.
+    """
+
+    if value is None:
+        return 0
+    if not (value.isascii() and value.isdigit()):
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, "offset must be a non-negative integer")
+    return int(value)
+
+
 def _range(qs: dict[str, str]) -> tuple[float, float, str]:
     name = qs.get("window", "24h")
     width = _parse_window(name)
-    until = time.time()
-    since = 0.0 if width is None else until - width
-    return since, until, name
+    offset = _parse_offset(qs.get("offset"))
+    if width is None:
+        # `all` starts at the epoch, so there is no previous window to
+        # shift to. Ignoring the offset silently would hand the caller the
+        # rows it already had and let it render a 0% delta as a measured
+        # one.
+        if offset:
+            raise _HTTPError(HTTPStatus.BAD_REQUEST, "offset is not valid for window=all")
+        return 0.0, time.time(), name
+    until = time.time() - width * offset
+    return until - width, until, name
 
 
 def _handle_metrics_summary(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:

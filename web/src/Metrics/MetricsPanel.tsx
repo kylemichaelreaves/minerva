@@ -126,7 +126,9 @@ export function MetricsPanel(props: MetricsPanelProps) {
     return label ? { label, w: win() } : undefined;
   };
 
-  const [detail] = createResource(detailSource, (src) => fetchMetricsSummary(src.w, src.label));
+  const [detail] = createResource(detailSource, (src) =>
+    fetchMetricsSummary(src.w, { label: src.label }),
+  );
 
   // The trend chart's source ALSO depends on `spanKind`: unlike the
   // sub-span breakdown (labeled query, always `kind: "total"` — a
