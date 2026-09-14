@@ -85,64 +85,505 @@
   fill: var(--ink-faint);
 }
 
-/* #/metrics — the request-timing surface (MetricsPanel.tsx). */
+/* ---------------------------------------------------------------------
+   #/metrics — the request-timing surface (MetricsPanel.tsx).
+
+   Layout: a fixed head and verdict, then one grid row that takes the
+   rest of the height and scrolls in two independent columns. Bounded to
+   the viewport so neither column can push the other off screen — the
+   route list alone is taller than the viewport (15 rows measured at
+   621px against a 560px viewport). dvh, not vh, so mobile browser chrome
+   doesn't cut off the bottom.
+   --------------------------------------------------------------------- */
 
 .metrics-panel {
-  /* Bounded to the viewport so the trend chart is always on screen. The
-     route table is taller than the viewport on its own — 15 rows measured
-     at 621px against a 560px viewport — so unbounded it pushed the chart
-     780px down, 472px below the fold. The chart sits directly under the
-     window buttons that drive it; the table scrolls beneath both.
-     `max-height`, not `height`, so a short table isn't stretched. dvh, not
-     vh, so mobile browser chrome doesn't cut off the bottom. */
   max-height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.9rem;
   padding: 1.25rem;
   font-family: var(--sans);
-  max-width: 960px;
+  max-width: 1280px;
   margin: 0 auto;
   width: 100%;
 }
 
+/* --- head ------------------------------------------------------------ */
+
 .metrics-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  align-items: baseline;
+  gap: 0.9rem;
+  flex: none;
 }
 
 .metrics-head h1 {
   font-size: 1.05rem;
   margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.metrics-sub {
+  font-size: 0.8rem;
+  color: var(--ink-faint);
 }
 
 .metrics-windows {
+  margin-left: auto;
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
 }
 
 .metrics-window-btn,
-.metrics-kind-toggle button {
+.metrics-tabs button {
   font-family: var(--sans);
-  font-size: 0.8rem;
-  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
   border: 1px solid var(--rule);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--ink-mute);
   cursor: pointer;
 }
 
-.metrics-window-btn.active,
-.metrics-kind-toggle button.active {
+.metrics-window-btn:hover,
+.metrics-tabs button:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.metrics-window-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--paper);
 }
+
+/* --- verdict --------------------------------------------------------- */
+
+.metrics-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+  flex: none;
+}
+
+.metrics-verdict b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.metrics-verdict .metrics-dot {
+  margin-top: 0.42rem;
+}
+
+/* Severity is carried by the group heading and the printed figures as
+   well as by this dot — never by colour alone. */
+.metrics-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  background: var(--ok);
+}
+
+.metrics-dot.bad {
+  background: var(--bad);
+}
+
+.metrics-dot.warn {
+  background: var(--warn);
+}
+
+/* --- the two columns -------------------------------------------------- */
+
+.metrics-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 1.25rem;
+}
+
+/* A single column when nothing is selected: the list should not sit in a
+   narrow gutter beside an empty half-page. */
+.metrics-split:not(.detail-open) {
+  grid-template-columns: minmax(320px, 640px);
+}
+
+.metrics-routes {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--rule);
+  padding-right: 1rem;
+}
+
+.metrics-split:not(.detail-open) .metrics-routes {
+  border-right: none;
+  padding-right: 0;
+}
+
+.metrics-routes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.4rem;
+  flex: none;
+}
+
+.metrics-routes-head select {
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* `min-height: 0` is what actually lets a flex item shrink below its
+   content height — without it the scroller grows to fit every row and
+   nothing scrolls. */
+.metrics-routes-scroll {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  overflow-y: auto;
+  /* Room for the focus ring, which a clipped scroller would otherwise
+     shave off the left edge of every row. */
+  padding: 0 0.2rem;
+  margin: 0 -0.2rem;
+}
+
+.metrics-label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.metrics-label.bad {
+  color: var(--bad);
+}
+
+.metrics-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 0 0.3rem;
+}
+
+.metrics-group hr {
+  flex: 1;
+  border: none;
+  border-top: 1px solid var(--rule-soft);
+  margin: 0;
+}
+
+/* --- a route row ------------------------------------------------------ */
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 3.4rem 2.8rem 4.6rem;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule-soft);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+.metrics-row:hover {
+  background: var(--paper-edge);
+}
+
+.metrics-row[aria-pressed="true"] {
+  background: var(--paper-edge);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.metrics-row-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.metrics-row[aria-pressed="true"] .metrics-row-name {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.metrics-row-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics-method {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex: none;
+}
+
+.metrics-row-err,
+.metrics-row-count,
+.metrics-row-p95 {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink-soft);
+}
+
+.metrics-row-err,
+.metrics-row-count {
+  display: block;
+  color: var(--ink-faint);
+}
+
+.metrics-row-err.bad {
+  color: var(--bad);
+}
+
+.metrics-row-p95 {
+  display: block;
+}
+
+.metrics-row-p95.bad {
+  color: var(--bad);
+}
+
+.metrics-row-p95 small,
+.metrics-tile-value small {
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+}
+
+.metrics-row-bar {
+  display: block;
+  height: 3px;
+  background: var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.metrics-row-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent-soft);
+}
+
+.metrics-row-bar i.bad {
+  background: var(--bad);
+}
+
+/* --- detail pane ------------------------------------------------------ */
+
+.metrics-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.metrics-detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  flex: none;
+}
+
+.metrics-detail-head h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.metrics-tabs {
+  margin-left: auto;
+  display: flex;
+  gap: 0.15rem;
+}
+
+.metrics-tabs button.active {
+  background: var(--paper-edge);
+  border-color: var(--rule);
+  color: var(--ink);
+}
+
+/* Desktop shows both panes at once, so there is nothing to go back to. */
+.metrics-back {
+  display: none;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* --- tiles ------------------------------------------------------------ */
+
+/* 1px gaps over a tinted background draw the dividing rules, so the tiles
+   need no borders of their own. */
+.metrics-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  flex: none;
+}
+
+.metrics-tile {
+  background: var(--paper);
+  padding: 0.65rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.metrics-tile-label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.metrics-tile-value {
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics-tile-delta {
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Latency rising is the regression, so "up" is the bad direction here —
+   the inverse of the usual reading. */
+.metrics-tile-delta.up {
+  color: var(--bad);
+}
+
+.metrics-tile-delta.down {
+  color: var(--ok);
+}
+
+/* --- cards ------------------------------------------------------------ */
+
+.metrics-card {
+  border: 1px solid var(--rule);
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: none;
+}
+
+.metrics-card-chart {
+  /* The chart earns a floor: below this the two polylines overlap into a
+     single illegible band. */
+  min-height: 14rem;
+}
+
+.metrics-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex: none;
+}
+
+.metrics-card-label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-right: auto;
+}
+
+/* --- waterfall -------------------------------------------------------- */
+
+.metrics-wf {
+  display: grid;
+  grid-template-columns: minmax(0, 8.5rem) 1fr minmax(0, 5.5rem);
+  gap: 0.45rem 0.75rem;
+  align-items: center;
+}
+
+.metrics-wf-name {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics-wf-bar {
+  display: block;
+  height: 14px;
+  background: var(--rule-soft);
+  position: relative;
+}
+
+.metrics-wf-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--accent-soft);
+}
+
+.metrics-wf-value {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-align: right;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- states ----------------------------------------------------------- */
 
 .metrics-loading,
 .metrics-empty {
@@ -152,112 +593,83 @@
   font-size: 0.85rem;
 }
 
+.metrics-empty-inline {
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+  margin: 0;
+  padding: 0.3rem 0;
+}
+
 .metrics-error {
   padding: 0.6rem 0.8rem;
   border: 1px solid var(--rule);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--ink-mute);
   font-size: 0.85rem;
 }
 
-/* The only scrolling child. `min-height: 0` is what actually lets a flex
-   item shrink below its content height — without it the wrap grows to fit
-   the table and nothing scrolls. */
-.metrics-table-wrap {
-  flex: 1 1 auto;
-  /* A floor, or the flex line hands everything to the chart above and the
-     table collapses — measured at 24px on a 560px viewport, which shows no
-     rows at all. Below this the panel exceeds its max-height and the page
-     scrolls a little, which is the right trade: the chart sits above the
-     table, so it stays on screen either way. */
-  min-height: 10rem;
-  overflow-y: auto;
-}
-
-/* Sticky header, now that the list scrolls under it. Needs an opaque
-   background or rows show through, and a z-index or cell borders paint
-   over it. */
-.metrics-table-wrap thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--paper);
-}
-
-.metrics-table,
-.metrics-subspan-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-}
-
-.metrics-table th,
-.metrics-subspan-table th {
-  text-align: left;
-  font-weight: 600;
-  color: var(--ink-faint);
-  border-bottom: 1px solid var(--rule);
-  padding: 0.4rem 0.5rem;
-}
-
-.metrics-table td,
-.metrics-subspan-table td {
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--rule-soft);
-  color: var(--ink-mute);
-}
-
-.metrics-table-row {
-  cursor: pointer;
-}
-
-.metrics-table-row:hover {
-  background: var(--rule-soft);
-}
-
-.metrics-table-row.selected {
-  background: var(--rule-soft);
-  font-weight: 600;
-}
-
-.metrics-detail {
-  /* Fixed height; only the table gives way when space is short. */
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  border-top: 1px solid var(--rule);
-  padding-top: 1rem;
-}
-
-.metrics-detail-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.metrics-detail-head h2 {
-  font-size: 0.95rem;
-  margin: 0;
-  flex: 1;
-}
-
-.metrics-back {
-  font-family: var(--sans);
-  font-size: 0.8rem;
-  border: none;
-  background: transparent;
-  color: var(--ink-mute);
-  cursor: pointer;
-}
-
-.metrics-kind-toggle {
-  display: flex;
-  gap: 0.25rem;
-}
-
 .metrics-note {
   color: var(--ink-faint);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  margin: 0;
+  text-wrap: pretty;
+  min-width: 0;
+}
+
+/* --- narrow viewports -------------------------------------------------
+
+   The two columns become one, and the panes become mutually exclusive:
+   the list is the default view and selecting a route replaces it. The
+   "All routes" control — hidden on desktop, where both panes are on
+   screen at once — is the way back.
+
+   `display: none` rather than a width collapse, and the panel drops its
+   height bound so the page scrolls normally instead of nesting two
+   scrollers inside a phone viewport.
+   --------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .metrics-panel {
+    max-height: none;
+    padding: 1rem 0.9rem;
+  }
+
+  .metrics-split,
+  .metrics-split:not(.detail-open) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metrics-routes {
+    border-right: none;
+    padding-right: 0;
+  }
+
+  .metrics-routes-scroll {
+    overflow-y: visible;
+  }
+
+  .metrics-detail {
+    overflow-y: visible;
+  }
+
+  .metrics-split.detail-open .metrics-routes {
+    display: none;
+  }
+
+  .metrics-back {
+    display: inline;
+  }
+
+  .metrics-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metrics-windows {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .metrics-wf {
+    grid-template-columns: minmax(0, 6rem) 1fr minmax(0, 4.5rem);
+  }
 }

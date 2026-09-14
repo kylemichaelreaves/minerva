@@ -16,6 +16,16 @@
   --ink-faint: #968d7e;
   --accent: #7b2e2a;
   --accent-soft: #c7a9a6;
+  /* Severity triad - the #/metrics route list and verdict line (#600).
+     Measured against `--paper`, not picked by eye: every one of these
+     clears WCAG AA 4.5:1 as text on its own theme's paper, which matters
+     because they colour the "Needs a look" heading and the error figures,
+     not only the dots. Light: 5.06 / 4.99 / 5.24. Severity is never
+     signalled by colour alone - the group heading and the printed figure
+     carry it too. */
+  --bad: #b0402f;
+  --warn: #875f0a;
+  --ok: #4c6b47;
   --selection: rgba(123, 46, 42, 0.18);
   --scroll-thumb: rgba(26, 23, 20, 0.22);
   --scroll-thumb-hover: rgba(26, 23, 20, 0.36);
@@ -73,6 +83,12 @@
   --ink-faint: #5e574b;
   --accent: #c97a65; /* warmer terracotta */
   --accent-soft: #6e3f36;
+  /* Dark: 5.05 / 8.36 / 5.21 on `--paper: #14110e`. The source design's
+     own `--bad` was #c85a4a, which measures 4.49:1 - just under AA - so
+     it is lightened here rather than copied. */
+  --bad: #d06455;
+  --warn: #d9a441;
+  --ok: #6f8f6a;
   --selection: rgba(201, 122, 101, 0.22);
   --scroll-thumb: rgba(226, 216, 196, 0.22);
   --scroll-thumb-hover: rgba(226, 216, 196, 0.36);

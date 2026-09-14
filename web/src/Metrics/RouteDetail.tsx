@@ -1,28 +1,47 @@
-// The selected route's drill-down, extracted from `MetricsPanel` (#600):
-// the TTFE toggle, the trend chart, and the sub-span breakdown.
+// The selected route's detail pane (#600): headline tiles, trend chart,
+// and the sub-span waterfall.
 //
 // Takes resource STATE as plain props (`seriesLoading`, `seriesErrorText`,
-// …) rather than the `Resource` objects themselves. Solid's `Resource<T>`
+// ...) rather than the `Resource` objects themselves. Solid's `Resource<T>`
 // types `.error` as `any` in its errored-state variant, so reading it
 // straight into a JSX prop is exactly the "assigning `any` into a typed
 // slot" case `no-unsafe-assignment` exists to catch. Narrowing once, in
 // the owner, keeps that cast in one place and leaves this component
 // mountable from a test with no resources at all.
 
-import { For, Show } from "solid-js";
-import type { MetricsSummaryRow, MetricsSeriesPoint } from "~/api/metricsApi";
+import { Show } from "solid-js";
+import type { MetricsSeriesPoint, MetricsSummaryRow } from "~/api/metricsApi";
+import { SpanWaterfall } from "~/Metrics/SpanWaterfall";
+import { StatTiles } from "~/Metrics/StatTiles";
 import { TimeSeriesChart } from "~/Metrics/TimeSeriesChart";
 
 export type SpanKind = "total" | "ttfe";
 
+const TAB_LABELS: Record<SpanKind, string> = {
+  total: "Total",
+  ttfe: "Time to first event",
+};
+
 export interface RouteDetailProps {
   label: string;
+  method: string;
+  /** The summary row for the ACTIVE tab. Absent when the selected route
+   *  recorded nothing in this window — a deep link into a route that has
+   *  since gone quiet, or a window narrow enough to exclude it. */
+  row?: MetricsSummaryRow;
+  /** The same row one window earlier, when the backend could supply it. */
+  prior?: MetricsSummaryRow;
+  /** Rendered into the tiles' delta captions, e.g. "6h". */
+  windowLabel: string;
+
   spanKind: SpanKind;
   onSpanKind: (kind: SpanKind) => void;
-  /** Whether the selected route recorded a `kind: "ttfe"` row — i.e. it
-   *  streams. Most routes do not, and the toggle only appears when it
-   *  has something to toggle to. */
+  /** Whether the route recorded a `kind: "ttfe"` row — i.e. it streams.
+   *  Most routes do not, and the tabs only appear when there is a second
+   *  thing to show. */
   hasTtfe: boolean;
+  /** Returns to the list. Desktop shows both panes at once and hides
+   *  this; the mobile layout stacks them and needs it. */
   onBack: () => void;
 
   seriesPoints: MetricsSeriesPoint[];
@@ -35,59 +54,93 @@ export interface RouteDetailProps {
   detailErrorText?: string;
 }
 
+function Tab(props: { kind: SpanKind; active: SpanKind; onPick: (k: SpanKind) => void }) {
+  return (
+    <button
+      type="button"
+      classList={{ active: props.active === props.kind }}
+      aria-pressed={props.active === props.kind}
+      onClick={() => props.onPick(props.kind)}
+    >
+      {TAB_LABELS[props.kind]}
+    </button>
+  );
+}
+
 export function RouteDetail(props: RouteDetailProps) {
+  // "streaming" is derived, not recorded: a route that produced a ttfe
+  // row is one that streamed. The design's companion "cached" badge has
+  // no equivalent — nothing records cache hits — so it is not here.
+  const meta = (): string => {
+    const parts = props.hasTtfe ? ["streaming"] : [];
+    const count = props.row?.count;
+    if (count !== undefined) parts.push(`${count.toLocaleString()} requests`);
+    return parts.join(" · ");
+  };
+
   return (
     <section class="metrics-detail">
       <div class="metrics-detail-head">
-        <h2>{props.label}</h2>
         <button type="button" class="metrics-back" onClick={() => props.onBack()}>
           ← All routes
         </button>
+        <h2>{props.label}</h2>
+        <span class="metrics-method">{props.method}</span>
+        <span class="metrics-note">{meta()}</span>
         <Show when={props.hasTtfe}>
-          <div class="metrics-kind-toggle" role="group" aria-label="Metric">
-            <button
-              type="button"
-              classList={{ active: props.spanKind === "total" }}
-              onClick={() => props.onSpanKind("total")}
-            >
-              Total
-            </button>
-            <button
-              type="button"
-              classList={{ active: props.spanKind === "ttfe" }}
-              onClick={() => props.onSpanKind("ttfe")}
-            >
-              TTFE
-            </button>
+          <div class="metrics-tabs" role="group" aria-label="Metric">
+            <Tab kind="total" active={props.spanKind} onPick={props.onSpanKind} />
+            <Tab kind="ttfe" active={props.spanKind} onPick={props.onSpanKind} />
           </div>
-          {/* The toggle only affects the trend chart below — the
-              sub-span breakdown has no ttfe variant to switch to. */}
-          <span class="metrics-note">trend chart only</span>
         </Show>
       </div>
 
-      <Show when={props.seriesErrorText}>
-        {(text) => (
-          <div class="metrics-error" role="alert">
-            Couldn't load the trend chart: {text()}
-          </div>
-        )}
+      <Show
+        when={props.row}
+        fallback={
+          <p class="metrics-empty-inline" role="status">
+            This route recorded nothing in the selected window.
+          </p>
+        }
+      >
+        {(row) => <StatTiles row={row()} prior={props.prior} windowLabel={props.windowLabel} />}
       </Show>
-      {/* Chart XOR banner: `seriesPoints` is `[]` on error too, and
-          `TimeSeriesChart` renders its own "No data" for an empty array —
-          showing both reads as two contradictory explanations for the same
-          blank chart. A loading state sits alongside for the same reason
-          the leaderboard has one: without it, every selection (and every
-          toggle flip) flashes "No data" while the fetch is in flight
-          rather than looking like it's doing something. */}
-      <Show when={props.seriesErrorText === undefined}>
-        <Show
-          when={!props.seriesLoading}
-          fallback={<div class="metrics-loading">Loading trend…</div>}
-        >
-          <TimeSeriesChart points={props.seriesPoints} bucketSeconds={props.seriesBucketSeconds} />
+
+      <section class="metrics-card metrics-card-chart">
+        {/* No legend here: `TimeSeriesChart` renders its own, keyed to
+            the same `--metric-p50`/`--metric-p95` tokens. A second copy
+            in this head would be two elements to keep in step and a
+            duplication-gate hit for nothing (#254). */}
+        <div class="metrics-card-head">
+          <span class="metrics-card-label">Latency over time</span>
+        </div>
+
+        <Show when={props.seriesErrorText}>
+          {(text) => (
+            <div class="metrics-error" role="alert">
+              Couldn't load the trend chart: {text()}
+            </div>
+          )}
         </Show>
-      </Show>
+        {/* Chart XOR banner: `seriesPoints` is `[]` on error too, and
+            `TimeSeriesChart` renders its own "No data" for an empty array —
+            showing both reads as two contradictory explanations for the same
+            blank chart. A loading state sits alongside for the same reason
+            the list has one: without it, every selection (and every tab
+            flip) flashes "No data" while the fetch is in flight rather than
+            looking like it is doing something. */}
+        <Show when={props.seriesErrorText === undefined}>
+          <Show
+            when={!props.seriesLoading}
+            fallback={<div class="metrics-loading">Loading trend…</div>}
+          >
+            <TimeSeriesChart
+              points={props.seriesPoints}
+              bucketSeconds={props.seriesBucketSeconds}
+            />
+          </Show>
+        </Show>
+      </section>
 
       <Show when={props.detailErrorText}>
         {(text) => (
@@ -102,54 +155,11 @@ export function RouteDetail(props: RouteDetailProps) {
           when={!props.detailLoading}
           fallback={<div class="metrics-loading">Loading breakdown…</div>}
         >
-          {/* Only three code paths are instrumented, so most routes have
-              no sub-spans at all. Rendering the table regardless left a
-              bare "Span Count p50 p95 p99" header under the chart
-              labelling nothing, directly above the route table's
-              near-identical header. A header with no rows beneath it is
-              not a table. */}
-          <Show when={props.detailRows.length > 0}>
-            <table class="metrics-subspan-table" aria-label="Sub-span breakdown">
-              <thead>
-                <tr>
-                  <th>Span</th>
-                  <th>Count</th>
-                  <th>p50</th>
-                  <th>p95</th>
-                  <th>p99</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={props.detailRows}>
-                  {(row) => (
-                    <tr>
-                      <td>
-                        {row.span}
-                        {/* Two things about llm_call that are correct but easy to
-                            misread, called out where they would mislead. Its count
-                            and percentiles are PER ATTEMPT — the LLM client retries,
-                            and every attempt records its own row. And the span closes
-                            when the LLM's response HEADERS arrive (`llm.py`), so body
-                            and stream consumption fall outside it: on the chat route
-                            the breakdown will not add up to `total` (#586). */}
-                        <Show when={row.span === "llm_call"}>
-                          <span class="metrics-note">
-                            {" "}
-                            (per attempt, not per request; measured to response headers, so streamed
-                            body time is excluded)
-                          </span>
-                        </Show>
-                      </td>
-                      <td>{row.count.toLocaleString()}</td>
-                      <td>{Math.round(row.p50_ms)}</td>
-                      <td>{Math.round(row.p95_ms)}</td>
-                      <td>{Math.round(row.p99_ms)}</td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </Show>
+          <SpanWaterfall
+            rows={props.detailRows}
+            totalP95={props.row?.p95_ms ?? 0}
+            spanKind={props.spanKind}
+          />
         </Show>
       </Show>
     </section>
