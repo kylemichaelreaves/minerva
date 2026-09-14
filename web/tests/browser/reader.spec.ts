@@ -21,6 +21,16 @@ async function firstWork(request: APIRequestContext): Promise<{ work: string; la
         "skipping: the fixture is committed, so this is a real failure (#133).",
     );
   }
+  if (!first.work || !first.lang) {
+    // An unchecked cast on the response body turns a missing/renamed field
+    // into `?lang=undefined` and an opaque `waitFor` timeout in `goto` —
+    // fail loudly here instead, in the same #133 style as the empty-list
+    // check above.
+    throw new Error(
+      `/api/works row is missing "work" or "lang": ${JSON.stringify(first)}. Not ` +
+        "skipping: the fixture is committed, so this is a real failure (#133).",
+    );
+  }
   return { work: first.work, lang: first.lang };
 }
 
@@ -52,6 +62,12 @@ test.describe("Reader selection", () => {
     await reader.clickWord(line, 0);
 
     await expect(reader.lookupRail).toBeVisible();
+    // toBeHidden() also passes if the toolbar were deleted outright — it
+    // asserts "not visible," which is true of a nonexistent element too.
+    // That's fine here: the other test in this file (line 39) already
+    // asserts the toolbar's positive existence and visibility, so the pair
+    // together is sound. This assertion alone should not be read as proof
+    // the toolbar element exists on this page.
     await expect(reader.toolbar).toBeHidden();
   });
 });

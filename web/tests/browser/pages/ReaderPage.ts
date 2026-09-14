@@ -68,36 +68,36 @@ export class ReaderPage {
    *  comes from hit-testing, not from the test's choice of dispatch node, which
    *  is exactly the parameter every jsdom test was blind to in #591.
    *
-   *  The anchor point within each word's box is `width * 0.7`, not the
-   *  geometric center. Measured against a static reproduction of this exact
-   *  markup (no app JS, no CSS): starting a drag at the exact horizontal
-   *  center of a narrow one-character word (e.g. "I", ~5px wide) lands in a
-   *  sub-pixel dead zone where Chromium repeatedly re-collapses the
-   *  selection to the current mouse position instead of extending it from
-   *  the mousedown anchor — `window.getSelection()` stays collapsed through
-   *  every intermediate mousemove even though `selectionchange` keeps
-   *  firing. Scanning fractional offsets across that word's box found the
-   *  dead zone at roughly 50-55% of the width; 60-70% and 30-40% both
-   *  extend correctly. 70% is comfortably clear of it for both narrow and
-   *  wide words and still lands inside every box this suite uses. */
+   *  The anchor for each endpoint is a small fixed distance inside its
+   *  OUTER edge — never the geometric center. Measured against a static
+   *  reproduction of this exact markup (no app JS, no CSS): starting a drag
+   *  at the exact horizontal center of a narrow one-character word (e.g.
+   *  "I", ~5px wide) lands in a sub-pixel dead zone where Chromium
+   *  repeatedly re-collapses the selection to the current mouse position
+   *  instead of extending it from the mousedown anchor — scanning
+   *  fractional offsets across that word's box found the dead zone at
+   *  roughly 50-55% of the width, with 25% and 75% both extending
+   *  correctly. Anchoring at the outer edges rather than a tuned fraction
+   *  of the center both clears that band at every width AND makes the
+   *  drag actually span words `fromIndex..toIndex` in full — a fraction
+   *  anywhere past 50% starts *after* a one-character `fromIndex` word,
+   *  silently excluding it from the selection. */
   async selectWords(line: Locator, fromIndex: number, toIndex: number): Promise<void> {
     const words = this.words(line);
     const from = await words.nth(fromIndex).boundingBox();
     const to = await words.nth(toIndex).boundingBox();
     if (!from || !to) throw new Error("word has no box — is the line visible?");
 
-    const anchorX = (box: { x: number; width: number }) => box.x + box.width * 0.7;
-    const anchorY = (box: { y: number; height: number }) => box.y + box.height / 2;
-    const fromX = anchorX(from);
-    const fromY = anchorY(from);
-    const toX = anchorX(to);
-    const toY = anchorY(to);
+    const startX = from.x + Math.min(2, from.width / 4);
+    const startY = from.y + from.height / 2;
+    const endX = to.x + to.width - Math.min(2, to.width / 4);
+    const endY = to.y + to.height / 2;
 
     const mouse = this.page.mouse;
-    await mouse.move(fromX, fromY);
+    await mouse.move(startX, startY);
     await mouse.down();
-    await mouse.move(fromX + (toX - fromX) / 2, fromY + (toY - fromY) / 2, { steps: 8 });
-    await mouse.move(toX, toY, { steps: 8 });
+    await mouse.move(startX + (endX - startX) / 2, startY + (endY - startY) / 2, { steps: 8 });
+    await mouse.move(endX, endY, { steps: 8 });
     await mouse.up();
   }
 
@@ -112,12 +112,12 @@ export class ReaderPage {
   }
 
   get toolbar(): Locator {
-    return this.page.getByRole("toolbar", { name: "Selection actions" });
+    return this.page.getByRole("toolbar", { name: "Selection actions", exact: true });
   }
 
   /** The rail is inside `<Show when={state.kind !== "idle"}>`, so presence
    *  means open. Anchored on the close control's own label. */
   get lookupRail(): Locator {
-    return this.page.getByRole("button", { name: "Close drawer" });
+    return this.page.getByRole("button", { name: "Close drawer", exact: true });
   }
 }
