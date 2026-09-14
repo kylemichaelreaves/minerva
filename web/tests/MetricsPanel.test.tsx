@@ -51,6 +51,16 @@ describe("MetricsPanel", () => {
     expect(await view.findByText(/no requests recorded/i)).toBeTruthy();
   });
 
+  // `role="status"` (rather than plain text alone) is what lets a browser
+  // test address this state without depending on the exact copy — and
+  // gets it announced to assistive tech for free, which a silent empty
+  // state otherwise isn't.
+  it("makes the empty state addressable by role, not just its text", async () => {
+    mockSummary([]);
+    const view = render(() => <MetricsPanel />);
+    expect(await view.findByRole("status")).toBeTruthy();
+  });
+
   it("surfaces a fetch failure instead of rendering an empty table", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
     const view = render(() => <MetricsPanel />);
@@ -72,6 +82,12 @@ describe("MetricsPanel", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue("offline"));
     const view = render(() => <MetricsPanel />);
     expect(await view.findByText(/couldn't load metrics: offline/i)).toBeTruthy();
+  });
+
+  it("names the route table so it is addressable by role (#593)", async () => {
+    mockSummary([row("fast", 5), row("slow", 900)]);
+    const view = render(() => <MetricsPanel />);
+    expect(await view.findByRole("table", { name: "Requests by route" })).toBeTruthy();
   });
 
   describe("errorMessage", () => {

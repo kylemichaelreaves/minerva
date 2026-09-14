@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import solid from 'vite-plugin-solid';
 
 export default defineConfig({
@@ -22,6 +22,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    // Playwright specs are `*.spec.ts`, which vitest's default glob collects
+    // as readily as `*.test.ts`. Without this they run under vitest's node
+    // environment and fail on an import they cannot resolve. Spread the
+    // defaults rather than replacing them — assigning a bare array drops
+    // vitest's own node_modules/dist exclusions.
+    exclude: [...configDefaults.exclude, 'tests/browser/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],

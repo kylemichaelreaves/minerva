@@ -273,7 +273,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
                     table's near-identical header. A header with no rows
                     beneath it is not a table. */}
                 <Show when={detailRows().length > 0}>
-                  <table class="metrics-subspan-table">
+                  <table class="metrics-subspan-table" aria-label="Sub-span breakdown">
                     <thead>
                       <tr>
                         <th>Span</th>
@@ -331,10 +331,14 @@ export function MetricsPanel(props: MetricsPanelProps) {
         <Show when={!summary.loading} fallback={<div class="metrics-loading">Loading…</div>}>
           <Show
             when={rows().length > 0}
-            fallback={<div class="metrics-empty">No requests recorded in this window.</div>}
+            fallback={
+              <div class="metrics-empty" role="status">
+                No requests recorded in this window.
+              </div>
+            }
           >
             <div class="metrics-table-wrap">
-              <table class="metrics-table">
+              <table class="metrics-table" aria-label="Requests by route">
                 <thead>
                   <tr>
                     <th>Route</th>

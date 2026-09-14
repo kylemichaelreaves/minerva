@@ -7,6 +7,13 @@ package-lock.json
 # way `eslint .` did before `coverage/**` joined its ignores (#480).
 coverage/
 
+# Generated Playwright output (traces, .last-run.json, HTML report) —
+# same shape as coverage/ above. Not committed (see .gitignore), but a
+# local `npm run test:browser` run still leaves it on disk for Prettier
+# to trip on.
+test-results/
+playwright-report/
+
 # Codegen-owned: `data/authors/manifest.yaml` owns blocks inside these two,
 # and `scripts/generate_author_artifacts.py --check` re-emits them verbatim.
 # Prettier re-wraps inside the sentinels, the codegen check reads that as
