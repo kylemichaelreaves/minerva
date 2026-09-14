@@ -26,7 +26,11 @@ test.describe("Metrics layout", () => {
     await page.evaluate(
       () =>
         new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => { resolve(); }));
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              resolve();
+            }),
+          );
         }),
     );
     await expect(metrics.chart).toHaveAttribute("height", CHART_HEIGHT);
@@ -42,9 +46,7 @@ test.describe("Metrics layout", () => {
     await expect(metrics.chart).toBeInViewport();
   });
 
-  test("the route table scrolls internally while the chart stays in view", async ({
-    page,
-  }) => {
+  test("the route table scrolls internally while the chart stays in view", async ({ page }) => {
     const metrics = new MetricsPage(page);
     await metrics.goto();
     await metrics.selectRoute(await metrics.firstRouteLabel());
