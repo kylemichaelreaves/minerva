@@ -8,9 +8,6 @@
 import { test as base, expect } from "@playwright/test";
 
 export const test = base.extend<object, object>({
-  // Playwright's fixture signature requires the destructured-fixtures
-  // parameter even when this override needs none of them.
-  // eslint-disable-next-line no-empty-pattern
   baseURL: async ({}, use) => {
     const url = process.env.MINERVA_E2E_BASE_URL;
     if (!url) {
