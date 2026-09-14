@@ -1,6 +1,8 @@
 # Request timing, second pass: triage before percentiles
 
-**Status:** draft 2026-09-13. Not yet approved; no issue filed yet.
+**Status:** implemented 2026-09-14. Thresholds still unvalidated against
+real traffic — see "Severity, and the sentence it produces".
+**Issues:** #600
 **Source design:** `Request Timing.html` in the `minerva` Claude Design
 project (`019e0d6a-55f3-7e90-b2bf-130118cf440b`), pulled via `DesignSync`
 on 2026-09-13.
@@ -154,6 +156,23 @@ they mean server errors, so they get relabelled (below).
    template over counts, not narration.
 5. **The detail pane is always present.** No "← All routes" on desktop;
    it returns only in the mobile collapsed layout.
+
+### Correction: what changed during implementation
+
+Two things in this spec were wrong or incomplete, found while building it:
+
+- **The derived default selection needed a third state.** The spec says
+  `selected() = props.label ?? worstRouteLabel()`. That makes the mobile
+  back button inert: it clears the label, the fallback immediately
+  re-applies the default, and the pane never closes. An explicit
+  `dismissed` signal now outranks the default.
+- **The light-theme severity values were left as TBD and are now
+  measured.** `--bad #b0402f` (5.06:1), `--warn #875f0a` (4.99:1), `--ok
+  #4c6b47` (5.24:1). The dark values also changed: the design's own
+  `--bad #c85a4a` measures **4.49:1** on `--paper: #14110e`, just under
+  AA, so it was lightened to `#d06455` (5.05:1) rather than copied. Had
+  the design been trusted, the failure state's own colour would have been
+  the one below-threshold token on the page.
 
 ### The `offset` parameter
 
