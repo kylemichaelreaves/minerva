@@ -13,19 +13,38 @@ export class MetricsPage {
 
   async goto(): Promise<void> {
     await this.page.goto("/#/metrics");
-    // Wait on the window-selector, not the table: the table only mounts
-    // once at least one route has been recorded (`rows().length > 0`,
-    // MetricsPanel.tsx:332) — a cold server with zero recorded requests
-    // renders "No requests recorded in this window." instead, and the
-    // table would never appear at all. Waiting on the group (present in
-    // both cases) keeps `goto()` itself agnostic to that, so a genuine
-    // zero-rows server is reported by `firstRouteLabel()`'s own check
-    // below instead of an opaque `waitFor` timeout here.
+    // Fail fast if the route doesn't render at all: this group is
+    // unconditional markup, painted before the summary fetch even starts
+    // (MetricsPanel.tsx:191), so waiting on it catches a broken route
+    // without waiting out the fetch below.
     await this.page.getByRole("group", { name: "Time window", exact: true }).waitFor();
+    // Then wait for the summary fetch to actually SETTLE into one of its
+    // two terminal states — the table (`rows().length > 0`) or the empty
+    // state ("No requests recorded...", MetricsPanel.tsx:332-334) — before
+    // returning. This is the difference between `count() === 0` meaning
+    // "the server recorded nothing" and meaning "the fetch hasn't
+    // resolved yet": `Locator.count()` does not auto-wait, so if `goto()`
+    // returned as soon as the (always-present) group appeared,
+    // `firstRouteLabel()` below could read a zero-rows table that is
+    // simply still loading and throw its "no requests recorded" error
+    // against a request that just hasn't finished — a real race, not a
+    // hypothetical: `playwright.config.ts` sets `retries: 0`, so it would
+    // surface as a hard, unretried CI failure rather than a flake anyone
+    // notices as one.
+    await this.table.or(this.emptyState).waitFor();
   }
 
   get table(): Locator {
     return this.page.getByRole("table", { name: "Requests by route", exact: true });
+  }
+
+  /** The panel's other terminal state once the summary fetch settles —
+   *  the fixture server recorded zero requests in the current window
+   *  (MetricsPanel.tsx's `Show ... fallback`). Plain text, not a role:
+   *  it's a bare `<div>` with no semantic role to key on, so tiers 1-2 have
+   *  nothing to distinguish it by. */
+  get emptyState(): Locator {
+    return this.page.getByText("No requests recorded in this window.", { exact: true });
   }
 
   /** The chart's own name, from TimeSeriesChart.tsx:148-149. */
@@ -54,13 +73,18 @@ export class MetricsPage {
    *  and, today, also on `fixtureServer.ts`'s own startup `/api/health`
    *  poll (`waitForHealth`), which is itself recorded as the `health`
    *  route (`router.py:99`, timed at `serve.py:391`) before any spec
-   *  runs. Each spec that calls this also issues its own warm-up
-   *  navigation rather than relying on that poll alone.
+   *  runs. `metrics.spec.ts` additionally issues its own warm-up
+   *  navigation rather than relying on that poll alone — a caveat for
+   *  whoever else calls this: that warm-up is a property of that spec
+   *  file, not of `goto()` below, so a new caller gets no such guarantee
+   *  for free.
    *
-   *  `count()` first, not a bare `.textContent()`: a Locator action
-   *  auto-waits for its element to appear, so checking emptiness only
-   *  after `.textContent()` would hang until the test timeout on a
-   *  genuine zero-rows server instead of ever reaching this check. */
+   *  Safe to read `count()` synchronously here — not a race — because
+   *  `goto()` already waited for `this.table.or(this.emptyState)` to
+   *  settle. Without that wait, `count()` (which does not auto-wait,
+   *  unlike a Locator action) could read 0 while the summary fetch was
+   *  merely still in flight, and this would throw against a request that
+   *  simply hadn't finished yet. */
   async firstRouteLabel(): Promise<string> {
     const cells = this.page.getByTestId("metrics-route-label");
     if ((await cells.count()) === 0) {
