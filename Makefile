@@ -24,7 +24,7 @@ PORT ?= 8000
 MINERVA_LANG ?= any
 LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
 
-.PHONY: help test test-unit test-e2e test-watch test-py test-all typecheck audit \
+.PHONY: help test test-unit test-e2e test-browser test-watch test-py test-all typecheck audit \
         coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
@@ -47,6 +47,7 @@ help:
 	@echo "  make test         Run the full frontend test suite (unit + components + e2e)"
 	@echo "  make test-unit    Fast loop: unit + component tests only (no Python)"
 	@echo "  make test-e2e     Integration tests that spawn 'minerva serve --llm none'"
+	@echo "  make test-browser Browser tests (Playwright, Chromium) against the built bundle"
 	@echo "  make test-watch   Vitest in watch mode"
 	@echo "  make test-py      Python backend tests (pytest)"
 	@echo "  make test-all     Backend pytest + frontend vitest"
@@ -89,6 +90,10 @@ test-unit-cov:
 
 test-e2e:
 	$(NPM) run test:e2e
+
+test-browser:
+	$(NPM) run build
+	$(NPM) run test:browser
 
 test-watch:
 	$(NPM) run test:watch

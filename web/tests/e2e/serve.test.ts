@@ -12,11 +12,7 @@
 // @vitest-environment node
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import {
-  hasMinervaBin,
-  startFixtureServer,
-  type FixtureServer,
-} from "../helpers/fixtureServer";
+import { hasMinervaBin, startFixtureServer, type FixtureServer } from "../helpers/fixtureServer";
 
 const describeOrSkip = hasMinervaBin() ? describe : describe.skip;
 

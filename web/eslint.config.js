@@ -27,6 +27,7 @@ export default tseslint.config(
       "tests/**/*.{ts,tsx}",
       ".storybook/**/*.{ts,tsx}",
       "vite.config.ts",
+      "playwright.config.ts",
     ],
     languageOptions: {
       parserOptions: {
