@@ -11,7 +11,7 @@ const CHART_HEIGHT = "220";
 test.describe("Metrics layout", () => {
   test.beforeEach(async ({ page }) => {
     // Explicit warm-up: navigating the landing route first drives at
-    // least one recorded request before any test here reads the table.
+    // least one recorded request before any test here reads the list.
     // Without this, `firstRouteLabel()` would depend silently on
     // `fixtureServer.ts`'s own startup `/api/health` poll being the thing
     // that seeded the first row (see MetricsPage.firstRouteLabel) — true
@@ -56,19 +56,20 @@ test.describe("Metrics layout", () => {
     await expect(metrics.chart).toBeInViewport();
   });
 
-  test("the route table scrolls internally while the chart stays in view", async ({
+  test("the route list scrolls internally while the chart stays in view", async ({
     page,
     request,
   }) => {
-    // Force enough distinct rows that the table cannot show them all at
-    // once. `.metrics-table-wrap` (metrics.css:166-174) is `min-height:
-    // 10rem` with `overflow-y: auto`, and each distinct route label the
-    // server has recorded becomes its own row (`MetricsPanel.tsx`'s
-    // `rows`). Explicit and deterministic rather than relying on however
-    // many labels other tests or hooks happen to have produced by this
-    // point in the run: without enough distinct rows, `scrollHeight ===
-    // clientHeight` and the scroll below is a no-op that would pass
-    // identically whether or not the wrap can actually scroll.
+    // Force enough distinct rows that the list cannot show them all at
+    // once. `.metrics-routes-scroll` (metrics.css:260-267) is
+    // `min-height: 8rem` with `overflow-y: auto`, and each distinct route
+    // label the server has recorded becomes its own row
+    // (`RouteList.tsx`'s `sorted`). Explicit and deterministic rather
+    // than relying on however many labels other tests or hooks happen to
+    // have produced by this point in the run: without enough distinct
+    // rows, `scrollHeight === clientHeight` and the scroll below is a
+    // no-op that would pass identically whether or not the list can
+    // actually scroll.
     for (const path of [
       "/api/health",
       "/api/landing/stats",
@@ -87,13 +88,13 @@ test.describe("Metrics layout", () => {
     await metrics.selectRoute(await metrics.firstRouteLabel());
     await expect(metrics.chart).toBeInViewport();
 
-    await metrics.scrollTableToBottom();
+    await metrics.scrollListToBottom();
 
-    // The assertion that makes this test mean something: if the wrap
+    // The assertion that makes this test mean something: if the list
     // were NOT internally scrollable (the regression this test guards
-    // against — the wrap growing to fit its content instead of scrolling
-    // it), scrollTop would still read 0 here.
-    const scrollTop = await metrics.tableScrollTop();
+    // against — the container growing to fit its content instead of
+    // scrolling it), scrollTop would still read 0 here.
+    const scrollTop = await metrics.listScrollTop();
     expect(scrollTop).toBeGreaterThan(0);
 
     await expect(metrics.chart).toBeInViewport();

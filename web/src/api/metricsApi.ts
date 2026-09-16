@@ -44,21 +44,52 @@ export interface MetricsSeriesResponse {
   points: MetricsSeriesPoint[];
 }
 
+/** Whole windows to shift the range back, so `1` at `window: "6h"` is
+ *  the six hours before the last six. The backend rejects a non-zero
+ *  offset for `window: "all"` — an unbounded window has no previous one.
+ *
+ *  Zero is folded to `undefined` rather than passed through: `qs` drops
+ *  `undefined` but keeps a literal `0`, so every ordinary request would
+ *  otherwise carry a redundant `offset=0`. Spelled out rather than
+ *  `offset || undefined`, which `prefer-nullish-coalescing` rejects and
+ *  `??` cannot express - `0 ?? undefined` is `0`. */
+const offsetParam = (offset: number | undefined): number | undefined =>
+  offset === undefined || offset === 0 ? undefined : offset;
+
+export interface MetricsSummaryOptions {
+  /** Drill into one route's sub-spans instead of listing whole requests. */
+  label?: string;
+  offset?: number;
+}
+
 export async function fetchMetricsSummary(
   window: MetricWindow,
-  label?: string,
+  opts: MetricsSummaryOptions = {},
   signal?: AbortSignal,
 ): Promise<MetricsSummaryResponse> {
-  return apiGet<MetricsSummaryResponse>(`/api/metrics/summary${qs({ window, label })}`, signal);
+  return apiGet<MetricsSummaryResponse>(
+    `/api/metrics/summary${qs({
+      window,
+      label: opts.label,
+      offset: offsetParam(opts.offset),
+    })}`,
+    signal,
+  );
 }
 
 export async function fetchMetricsSeries(
   label: string,
-  opts: { window: MetricWindow; kind?: string; span?: string },
+  opts: { window: MetricWindow; kind?: string; span?: string; offset?: number },
   signal?: AbortSignal,
 ): Promise<MetricsSeriesResponse> {
   return apiGet<MetricsSeriesResponse>(
-    `/api/metrics/series${qs({ label, window: opts.window, kind: opts.kind, span: opts.span })}`,
+    `/api/metrics/series${qs({
+      label,
+      window: opts.window,
+      kind: opts.kind,
+      span: opts.span,
+      offset: offsetParam(opts.offset),
+    })}`,
     signal,
   );
 }

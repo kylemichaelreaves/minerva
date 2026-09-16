@@ -27,7 +27,7 @@ describe("metricsApi", () => {
 
   it("passes a label through to the sub-span drill-down", async () => {
     const spy = mockFetch({ window: "24h", since: 0, until: 1, rows: [] });
-    await fetchMetricsSummary("24h", "chunk syntax");
+    await fetchMetricsSummary("24h", { label: "chunk syntax" });
     expect(spy.mock.calls[0]?.[0]).toContain("label=chunk+syntax");
   });
 
@@ -61,5 +61,31 @@ describe("metricsApi", () => {
     await fetchMetricsSeries("chat", { window: "24h" });
     expect(spy.mock.calls[0]?.[0]).not.toContain("kind=");
     expect(spy.mock.calls[0]?.[0]).not.toContain("span=");
+  });
+  it("shifts the summary to a previous window with offset", async () => {
+    const spy = mockFetch({ window: "6h", since: 0, until: 1, rows: [] });
+    await fetchMetricsSummary("6h", { offset: 1 });
+    expect(spy.mock.calls[0]?.[0]).toContain("offset=1");
+  });
+
+  it("omits offset from the summary URL when it is zero", async () => {
+    // Zero is the default the backend already assumes, and `qs` keeps a
+    // literal 0 rather than dropping it — so without an explicit guard
+    // every ordinary request would carry a redundant `offset=0`.
+    const spy = mockFetch({ window: "6h", since: 0, until: 1, rows: [] });
+    await fetchMetricsSummary("6h", { offset: 0 });
+    expect(spy.mock.calls[0]?.[0]).not.toContain("offset=");
+  });
+
+  it("shifts a series to a previous window with offset", async () => {
+    const spy = mockFetch({
+      label: "chat",
+      kind: "total",
+      span: "",
+      bucket_seconds: 300,
+      points: [],
+    });
+    await fetchMetricsSeries("chat", { window: "6h", offset: 1 });
+    expect(spy.mock.calls[0]?.[0]).toContain("offset=1");
   });
 });
