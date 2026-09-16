@@ -20,6 +20,7 @@
     "test:unit": "vitest run --exclude tests/e2e/**",
     "test:e2e": "vitest run tests/e2e",
     "test:coverage": "vitest run --exclude tests/e2e/** --coverage",
+    "test:browser": "playwright test",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -27,6 +28,7 @@
     "solid-js": "^1.9.15"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@solidjs/testing-library": "^0.8.10",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-docs": "^10.6.0",

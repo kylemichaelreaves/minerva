@@ -166,6 +166,18 @@ describe("RouteList", () => {
     expect(view.getByRole("status").textContent).toMatch(/no requests recorded/i);
   });
 
+  // Carries forward #595's "names the route table so it is addressable by
+  // role (#593)". #600 replaced that table with this list, so the
+  // assertion moves here rather than disappearing with the markup it
+  // named — the browser suite's tier-1 locator
+  // (`MetricsPage.routeList`) resolves through exactly this name.
+  it("names the route list so it is addressable by role (#593)", () => {
+    const view = render(() => (
+      <RouteList entries={[entry({ label: "fast" }, "ok")]} loading={false} onSelect={vi.fn()} />
+    ));
+    expect(view.getByRole("group", { name: "Routes" })).toBeTruthy();
+  });
+
   it("shows a loading state rather than an empty window mid-fetch", () => {
     const view = render(() => <RouteList entries={[]} loading={true} onSelect={vi.fn()} />);
     expect(view.queryByRole("status")).toBeNull();

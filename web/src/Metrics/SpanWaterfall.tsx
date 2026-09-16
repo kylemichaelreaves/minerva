@@ -39,7 +39,10 @@ export function SpanWaterfall(props: SpanWaterfallProps) {
     Math.round(spanShare(row.p95_ms, props.totalP95) * 100);
 
   return (
-    <section class="metrics-card">
+    // Named for the same reason #595 named the sub-span table this
+    // replaced: an accessible name is what makes the breakdown
+    // addressable by role instead of by its copy.
+    <section class="metrics-card" aria-label="Where the time goes">
       <div class="metrics-card-head">
         <span class="metrics-card-label">Where the time goes · p95 request</span>
         <span class="metrics-note">{Math.round(props.totalP95)} ms total</span>

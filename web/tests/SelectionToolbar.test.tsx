@@ -102,4 +102,43 @@ describe("<SelectionToolbar />", () => {
     expect(onTranslate).toHaveBeenCalledTimes(1);
     expect(onCopy).toHaveBeenCalledTimes(1);
   });
+
+  it("names each control exactly, with key hints out of the a11y tree (#594)", () => {
+    const anchor = { rect: new DOMRect(10, 100, 80, 20) };
+    const noop = () => {
+      /* no-op: this test only checks accessible names */
+    };
+
+    const multi = render(() => (
+      <SelectionToolbar
+        anchor={anchor}
+        count="4 words · 22 chars"
+        singleWord={false}
+        onTranslate={noop}
+        onSyntax={noop}
+        onCopy={noop}
+        onDismiss={noop}
+      />
+    ));
+    expect(multi.getByRole("button", { name: "Translate phrase" })).toBeTruthy();
+    expect(multi.getByRole("button", { name: "Syntax" })).toBeTruthy();
+    expect(multi.getByRole("button", { name: "Copy" })).toBeTruthy();
+    multi.unmount();
+
+    const single = render(() => (
+      <SelectionToolbar
+        anchor={anchor}
+        count="1 word · 5 chars"
+        singleWord={true}
+        onTranslate={noop}
+        onLookup={noop}
+        onSyntax={noop}
+        onCopy={noop}
+        onDismiss={noop}
+      />
+    ));
+    expect(single.getByRole("button", { name: "Look up" })).toBeTruthy();
+    expect(single.getByRole("button", { name: "Translate" })).toBeTruthy();
+    single.unmount();
+  });
 });

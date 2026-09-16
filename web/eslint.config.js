@@ -27,6 +27,7 @@ export default tseslint.config(
       "tests/**/*.{ts,tsx}",
       ".storybook/**/*.{ts,tsx}",
       "vite.config.ts",
+      "playwright.config.ts",
     ],
     languageOptions: {
       parserOptions: {
@@ -76,6 +77,11 @@ export default tseslint.config(
         "error",
         { ignoreArrowShorthand: true },
       ],
+      // Playwright's fixture-override signature is `({}, use) => {}` —
+      // the empty pattern is the destructured-fixtures parameter, required
+      // by the shape even when an override needs none of them. This option
+      // exists specifically for that idiom.
+      "no-empty-pattern": ["error", { allowObjectPatternsAsParameters: true }],
     },
   },
   // SFC migration: forbid new hooks/*.ts and utils/*.ts under feature surfaces.

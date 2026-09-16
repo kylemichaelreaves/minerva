@@ -92,4 +92,12 @@ describe("SpanWaterfall", () => {
     ));
     expect(view.queryByText(/measured on the whole request/i)).toBeNull();
   });
+
+  // Carries forward #595's naming of the sub-span table this card
+  // replaced: an accessible name is what makes the breakdown addressable
+  // by role rather than by its copy.
+  it("names the breakdown so it is addressable by role (#593)", () => {
+    const view = render(() => <SpanWaterfall rows={[span("range_scan", 8900)]} totalP95={9800} />);
+    expect(view.getByRole("region", { name: "Where the time goes" })).toBeTruthy();
+  });
 });

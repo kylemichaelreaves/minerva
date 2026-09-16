@@ -148,7 +148,14 @@ export function RouteList(props: RouteListProps) {
               </div>
             }
           >
-            <div class="metrics-routes-scroll">
+            {/* Named, and a group rather than a bare div: the rows are
+                toggle buttons (`aria-pressed`), so a set of related
+                controls is exactly what `group` describes — same
+                precedent as the "Time window" group in MetricsPanel. It
+                is also what lets the browser suite address the list by
+                role + name (#593's tier 1) now that the route TABLE it
+                named is gone. */}
+            <div class="metrics-routes-scroll" role="group" aria-label="Routes">
               <Show when={grouped()} fallback={<For each={sorted()}>{rowFor}</For>}>
                 <Show when={needsLook().length > 0}>
                   <div class="metrics-group">

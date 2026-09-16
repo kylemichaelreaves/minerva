@@ -270,6 +270,41 @@ jobs:
           source ../.venv/bin/activate
           npm run test:e2e
 
+      - name: Build the web bundle
+        # `minerva serve --static web/dist` has always been how the harness
+        # starts the server, but nothing built web/dist here — so `/` 404'd
+        # and no test noticed, because no test loaded a page (#593).
+        run: npm run build
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          # Keyed on the resolved package version, not on a tag: the browser
+          # binary is bound to it, so a bump must miss the cache.
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+
+      - name: Install Chromium
+        # --with-deps installs the system libraries Chromium needs; it is
+        # cheap when the browser itself is cached and required when it is not.
+        # Deliberately unconditional on the cache step's outcome — this must
+        # run even on a cache hit, because --with-deps installs OS packages
+        # the cache doesn't cover.
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests (Playwright)
+        run: |
+          source ../.venv/bin/activate
+          npm run test:browser
+
+      - name: Upload Playwright trace on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-trace
+          path: web/test-results/
+          retention-days: 14
+
   # TWO checks come out of this, and they mean different things:
   #
   #   * `sonarqube`                — THIS job. Green means the scan ran and

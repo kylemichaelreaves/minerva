@@ -83,6 +83,12 @@ export function SelectionToolbar(props: {
       aria-label="Selection actions"
       onMouseDown={swallow}
     >
+      {/* The `.kbd` hints are decorative: the same shortcut is already in
+          each button's `title`. Without aria-hidden they concatenate into
+          the accessible name with no separator — "Translate phraseT" — which
+          both misnames the control for screen readers and puts it out of
+          reach of a role+name locator (#594, #593). The close button's icon
+          in Rail.tsx already uses this pattern. */}
       <Show when={props.singleWord && props.onLookup}>
         <button
           type="button"
@@ -91,7 +97,7 @@ export function SelectionToolbar(props: {
           title="Look up (L)"
         >
           <span>Look up</span>
-          <span class="kbd">L</span>
+          <span class="kbd" aria-hidden="true">L</span>
         </button>
         <div class="st-sep" />
       </Show>
@@ -102,7 +108,7 @@ export function SelectionToolbar(props: {
         title="Translate (T)"
       >
         <span>{props.singleWord ? "Translate" : "Translate phrase"}</span>
-        <span class="kbd">T</span>
+        <span class="kbd" aria-hidden="true">T</span>
       </button>
       <Show when={props.onSyntax}>
         <div class="st-sep" />
@@ -113,7 +119,7 @@ export function SelectionToolbar(props: {
           title="Syntax (S)"
         >
           <span>Syntax</span>
-          <span class="kbd">S</span>
+          <span class="kbd" aria-hidden="true">S</span>
         </button>
       </Show>
       <div class="st-sep" />
