@@ -178,10 +178,15 @@ class Recorder:
         another process, a corrupt file or a read-only filesystem would
         otherwise raise out of `record()`'s `finally` at every dispatch
         site — *inside* the route's `except Exception`, which answers 500
-        for a request that succeeded, and on the streaming path writes a
-        second response onto a connection whose SSE body was already
-        flushed. Losing a timing sample is strictly better than losing the
-        server.
+        for a request that succeeded. Losing a timing sample is strictly
+        better than losing the server.
+
+        The second consequence this docstring used to name — that on the
+        streaming path it "writes a second response onto a connection whose
+        SSE body was already flushed" — no longer follows: since #608 the
+        route's error path checks `_response_begun` and logs instead of
+        answering. The first consequence still stands, which is why this
+        guard stays.
 
         Logged once per Recorder: a full disk fails on every request, and
         one line per request would bury the rest of the log.

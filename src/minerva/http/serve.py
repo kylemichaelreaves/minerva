@@ -7,7 +7,8 @@ import logging
 import mimetypes
 import sqlite3
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -242,6 +243,59 @@ class ChatHandler(BaseHTTPRequestHandler):
     deps: ServerDeps  # bound by handler factory
     timeout = 60  # slow-loris guard on non-loopback binds
 
+    # True once any byte of a response is committed to the wire. #597 and
+    # #587 were the same defect seen from two routes: a write that failed
+    # after this point was handled as an ordinary route exception, and the
+    # error path answered with a *second* full HTTP response — a 500 status
+    # line landing after a 200, or inside an SSE stream the client was still
+    # reading. Nothing may start a response while this is set.
+    _response_begun = False
+
+    def end_headers(self) -> None:
+        """Mark the response committed *before* flushing.
+
+        Set first, not after: `flush_headers` is the call that performs the
+        first `sendall`, so if it raises we have still committed to this
+        response and must not begin another. #597's traceback originates
+        here, not at the body write the issue annotated.
+        """
+
+        self._response_begun = True
+        super().end_headers()
+
+    @contextmanager
+    def _guarded_write(self) -> Iterator[None]:
+        """Swallow the peer going away mid-write.
+
+        The request is already over and the response is moot; there is
+        nothing to recover and no one left to tell. This is the guard
+        `_send_sse`'s body loop already had, applied to every path that
+        writes — previously four of the five wrote unguarded.
+        """
+
+        try:
+            yield
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
+    def _fail_after_response(self, label: str, exc: BaseException) -> None:
+        """Log a failure that arrived too late to answer with an error.
+
+        The alternative — the pre-#597 behaviour — is a second status line
+        written into a response the client is already reading.
+        """
+
+        _log.error("%s failed after the response began: %r", label, exc)
+        self.close_connection = True
+
+    def _respond_to_route_exception(self, label: str, exc: Exception) -> None:
+        """Answer a failed route — or, if it is too late to answer, log it."""
+
+        if self._response_begun:
+            self._fail_after_response(label, exc)
+            return
+        self._send_error_json(_translate_route_exception(label, exc))
+
     def log_message(self, fmt: str, *args: Any) -> None:  # quieter logs
         line = f"{self.address_string()} - - [{self.log_date_time_string()}] {fmt % args}"
         print(line, flush=True)
@@ -270,8 +324,9 @@ class ChatHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self._send_common_headers()
-        self.end_headers()
-        self.wfile.write(data)
+        with self._guarded_write():
+            self.end_headers()
+            self.wfile.write(data)
 
     def _send_error_json(self, exc: _HTTPError) -> None:
         self._send_json(exc.status, {"error": exc.message})
@@ -286,27 +341,40 @@ class ChatHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
+        # Not keep-alive: under HTTP/1.0 the client has no length or chunked
+        # framing to know the body ended, so advertising it invited the peer
+        # to hold a connection this server then pinned a thread and an fd to
+        # until `timeout` expired (#588).
+        self.send_header("Connection", "close")
         self._send_common_headers()
-        self.end_headers()
         it = iter(events)
         try:
-            while True:
-                try:
-                    name, data = next(it)
-                except StopIteration:
-                    break
-                payload = json.dumps(data, ensure_ascii=False)
-                chunk = f"event: {name}\ndata: {payload}\n\n".encode()
-                self.wfile.write(chunk)
-                self.wfile.flush()
-                active = current_span()
-                if active is not None:
-                    active.first_event()
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+            with self._guarded_write():
+                self.end_headers()
+                while True:
+                    try:
+                        name, data = next(it)
+                    except StopIteration:
+                        break
+                    self._write_event(name, data)
+                    active = current_span()
+                    if active is not None:
+                        active.first_event()
+        except Exception as exc:
+            # Headers are already out, so `_send_error_json` here would write
+            # a status line into the event stream (#587). An `error` event is
+            # the one signal a client mid-read can still act on.
+            _log.exception("SSE stream failed", exc_info=exc)
+            with self._guarded_write():
+                self._write_event("error", {"error": "server error"})
         finally:
             it.close()
+            self.close_connection = True
+
+    def _write_event(self, name: str, data: Any) -> None:
+        payload = json.dumps(data, ensure_ascii=False)
+        self.wfile.write(f"event: {name}\ndata: {payload}\n\n".encode())
+        self.wfile.flush()
 
     def _refused_cross_origin(self) -> bool:
         """Answer and return True when a state-changing request comes from an
@@ -326,7 +394,8 @@ class ChatHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
         self._send_common_headers()
-        self.end_headers()
+        with self._guarded_write():
+            self.end_headers()
 
     def do_POST(self) -> None:
         if self._refused_cross_origin():
@@ -353,7 +422,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                     return
                 body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
-            self._send_error_json(_translate_route_exception(label, exc))
+            self._respond_to_route_exception(label, exc)
             return
         self._send_json(HTTPStatus.OK, body)
 
@@ -392,7 +461,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                     body = handler(*args)  # type: ignore[arg-type]
                 self._send_json(HTTPStatus.OK, body)
             except Exception as exc:
-                self._send_error_json(_translate_route_exception(label, exc))
+                self._respond_to_route_exception(label, exc)
                 return
             return
 
@@ -415,7 +484,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                 payload = _read_json_body(self.headers, self.rfile)
                 body = _dispatch_json_mutation(handler, args, payload)
         except Exception as exc:
-            self._send_error_json(_translate_route_exception(label, exc))
+            self._respond_to_route_exception(label, exc)
             return
         self._send_json(HTTPStatus.OK, body)
 
@@ -444,7 +513,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                 removed = handler(*args)
                 span.status = HTTPStatus.NO_CONTENT if removed else HTTPStatus.NOT_FOUND
         except Exception as exc:
-            self._send_error_json(_translate_route_exception(label, exc))
+            self._respond_to_route_exception(label, exc)
             return
         if not removed:
             # Name the thing the route deletes. Router labels read
@@ -456,7 +525,8 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
         self.send_response(HTTPStatus.NO_CONTENT)
         self._send_common_headers()
-        self.end_headers()
+        with self._guarded_write():
+            self.end_headers()
 
     def _serve_static(self, request_path: str) -> None:
         root = self.deps.static_dir.resolve()
@@ -492,8 +562,9 @@ class ChatHandler(BaseHTTPRequestHandler):
         else:
             self.send_header("Cache-Control", "no-cache")
         self._send_common_headers()
-        self.end_headers()
-        self.wfile.write(data)
+        with self._guarded_write():
+            self.end_headers()
+            self.wfile.write(data)
 
 
 def make_handler(deps: ServerDeps):

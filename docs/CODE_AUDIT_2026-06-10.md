@@ -98,6 +98,20 @@ same-language edition would have treated a closed prerequisite as a blocker.
    `src/minerva/http/serve.py:174-175` + `src/minerva/http/handlers/chat.py:66-88`. `_handle_chat_stream` is a generator, so `prepare_chat_turn` (which raises for missing query, bad `conversation_id`, >50 pinned ids) doesn't run until the first `next()` — after `_send_sse` already wrote `200 OK` + SSE headers. The exception escapes into `do_POST`'s handler, which calls `_send_error_json` → a second status line is written into the body of the SSE response.
    *Fix:* run `prepare_chat_turn` eagerly before sending SSE headers, or catch `MinervaError` pre-first-yield and emit an `error` SSE event.
 
+   **Only the first half of that fix landed, and the triage table above counts
+   this finding as fixed on the strength of it (2026-09-18).** Eager preparation
+   closed the *validation* case the finding names — `_handle_chat_stream` is no
+   longer a generator function; it runs `prepare_chat_turn` and returns
+   `_stream_prepared_turn(...)`, so a missing query or bad `conversation_id`
+   500s cleanly before any header. The second half — emitting an `error` event
+   instead of a second response — did not, and the defect stayed reachable by
+   every *other* mid-stream failure for three months, reported again as #587 and
+   measured then at two status lines on the wire. `_send_sse` wrote its headers
+   *before* entering its `try`, and its `except` named only `BrokenPipeError`
+   and `ConnectionResetError`. Closed by PR #608, which also found the same
+   defect on the JSON path (#597). The table's `13 fixed / 0 live` was right
+   about the case this bullet describes and wrong about the bullet's title.
+
 5. **Translate request-coalescing can steal the leader slot and busy-wait.**
    `src/minerva/http/handlers/translate.py:79-97,137-138` + `src/minerva/translate/coalesce.py`. A follower whose second wait misses the cache falls through to the LLM call without being the registered leader; its `finally: finish_inflight(cache_key)` pops the real leader's Event, releasing followers prematurely and permitting duplicate LLM calls. Separately, `_wait_for_leader` holds the old already-set Event after a leader change, so the loop hot-spins (DB lookup per iteration) for up to 240 s.
    *Fix:* track leadership explicitly (only the request whose `begin_inflight` returned `None` may call `finish_inflight`); re-fetch the fresh Event when re-following.
