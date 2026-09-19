@@ -112,6 +112,28 @@ def _quantiles(buckets: list[int]) -> dict[str, float]:
     }
 
 
+def _window_bounds(since: float, until: float) -> tuple[int, int]:
+    """Bucket-aligned `[lo, hi)` for a window covering `[since, until]`.
+
+    `bucket_start` is floored to `BUCKET_SECONDS`, so a request at `now`
+    is filed under `floor(now)` — at or *before* `now`. Comparing that
+    against a raw `until` excluded the row for the first second of every
+    bucket, because the two are then equal and the bound is strict. A
+    window ending "now" lost everything in the bucket still in progress,
+    `window=all` included (#598).
+
+    So both ends are floored and the upper one is extended to the end of
+    the bucket `until` lands in. The cost is that two adjacent windows —
+    a window and its previous-window baseline (#601) — share the one
+    bucket on their boundary: 1 of 288 for `24h`. Charging that bucket to
+    both is the lesser error against blacking it out of both.
+    """
+
+    lo = int(since) // BUCKET_SECONDS * BUCKET_SECONDS
+    hi = int(until) // BUCKET_SECONDS * BUCKET_SECONDS + BUCKET_SECONDS
+    return lo, hi
+
+
 def summary(
     conn: sqlite3.Connection,
     *,
@@ -126,7 +148,7 @@ def summary(
     """
 
     span_clause = "span = ''" if label is None else "label = ? AND span != ''"
-    params: list[Any] = [int(since), int(until)]
+    params: list[Any] = list(_window_bounds(since, until))
     if label is not None:
         params.append(label)
     sums = ", ".join(f"SUM(b{i})" for i in range(BUCKET_COUNT))
@@ -190,7 +212,8 @@ def series(
       GROUP BY t
       ORDER BY t
     """
-    params = (bucket_seconds, bucket_seconds, int(since), int(until), label, kind, span)
+    lo, hi = _window_bounds(since, until)
+    params = (bucket_seconds, bucket_seconds, lo, hi, label, kind, span)
     out: list[dict[str, Any]] = []
     for row in conn.execute(sql, params):
         t, count, sum_ms, max_ms = row[:4]

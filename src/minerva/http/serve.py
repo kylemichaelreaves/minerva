@@ -7,7 +7,7 @@ import logging
 import mimetypes
 import sqlite3
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -334,10 +334,29 @@ class ChatHandler(BaseHTTPRequestHandler):
     def _send_sse(
         self,
         status: HTTPStatus,
-        events: Any,
+        events: Generator[tuple[str, Any], None, None],
     ) -> None:
-        """Write a Server-Sent Events response, flushing after each event."""
+        """Write a Server-Sent Events response, flushing after each event.
 
+        *events* must be a GENERATOR, not merely an iterable: the `finally`
+        below calls `close()` on it, which is what ends any `with` block the
+        generator is suspended inside — `sub_span("llm_call")` in `llm.py`
+        depends on exactly that to time a stream a client abandoned (#586).
+
+        The annotation documents it; the check below enforces it, because
+        this repo runs no Python type checker — `make check`'s `typecheck`
+        target is `tsc --noEmit`, frontend only. Enforcing it HERE, before
+        `send_response`, is the whole point: once the headers are out, the
+        only signal left for a caller's mistake is an `error` event inside a
+        200 a client has already started reading (#609, #587).
+        """
+
+        if not hasattr(events, "close"):
+            raise TypeError(
+                f"_send_sse needs a generator, got {type(events).__name__}. "
+                f"A plain iterator has no close(), which the finally clause "
+                f"requires (#609)."
+            )
         self.send_response(status)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -357,9 +376,12 @@ class ChatHandler(BaseHTTPRequestHandler):
                     except StopIteration:
                         break
                     self._write_event(name, data)
-                    active = current_span()
-                    if active is not None:
-                        active.first_event()
+                    # No `is not None` guard: the sole caller runs inside
+                    # `Recorder.record`, so an absent span means the dispatch
+                    # site stopped recording — a bug worth raising, not
+                    # swallowing. The guard was unreachable and read to the
+                    # coverage gate as a live branch stuck at 1/2 (#609).
+                    current_span().first_event()  # type: ignore[union-attr]
         except Exception as exc:
             # Headers are already out, so `_send_error_json` here would write
             # a status line into the event stream (#587). An `error` event is

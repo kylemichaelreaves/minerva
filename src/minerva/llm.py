@@ -103,8 +103,15 @@ def _urlopen_with_retry(
     last_exc: BaseException | None = None
     for attempt in range(_MAX_RETRY_ATTEMPTS):
         try:
-            with sub_span("llm_call"):
-                return urllib.request.urlopen(req, timeout=timeout)
+            # No `sub_span("llm_call")` here. This returns when HEADERS
+            # arrive; on a streamed response the tokens follow for
+            # seconds afterwards, so a span closing here measured connect
+            # time and attributed almost none of the request to the LLM
+            # (#586). Each caller owns the span instead, so it covers the
+            # body too — and, being outside this loop, one retried call
+            # now reports ONE entry spanning every attempt rather than
+            # one per attempt.
+            return urllib.request.urlopen(req, timeout=timeout)
         except urllib.error.HTTPError as exc:
             if exc.code in _RETRYABLE_STATUS and attempt + 1 < _MAX_RETRY_ATTEMPTS:
                 last_exc = exc
@@ -220,7 +227,7 @@ class OpenAIBackend(LLMBackend):
             },
             method="POST",
         )
-        with _urlopen_with_retry(
+        with sub_span("llm_call"), _urlopen_with_retry(
             req, timeout=self.timeout, api_key=self.api_key, provider="OpenAI"
         ) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -252,25 +259,26 @@ class OpenAIBackend(LLMBackend):
             },
             method="POST",
         )
-        resp = _urlopen_with_retry(
-            req, timeout=self.timeout, api_key=self.api_key, provider="OpenAI"
-        )
-        try:
-            for data_line in _iter_sse_data_lines(resp):
-                chunk = json.loads(data_line)
-                # `or [{}]` guards chunks with an empty choices list
-                # (some proxies emit usage-only frames that way).
-                delta = (chunk.get("choices") or [{}])[0].get("delta", {})
-                text = delta.get("content")
-                if text:
-                    yield text
-        except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
-            # A failure mid-iteration (dropped connection, truncated
-            # frame) must surface as LLMError, not a raw exception that
-            # the handler reports as a generic "server error" (issue #59).
-            raise LLMError(f"OpenAI stream interrupted: {exc}") from exc
-        finally:
-            resp.close()
+        with sub_span("llm_call"):
+            resp = _urlopen_with_retry(
+                req, timeout=self.timeout, api_key=self.api_key, provider="OpenAI"
+            )
+            try:
+                for data_line in _iter_sse_data_lines(resp):
+                    chunk = json.loads(data_line)
+                    # `or [{}]` guards chunks with an empty choices list
+                    # (some proxies emit usage-only frames that way).
+                    delta = (chunk.get("choices") or [{}])[0].get("delta", {})
+                    text = delta.get("content")
+                    if text:
+                        yield text
+            except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
+                # A failure mid-iteration (dropped connection, truncated
+                # frame) must surface as LLMError, not a raw exception that
+                # the handler reports as a generic "server error" (issue #59).
+                raise LLMError(f"OpenAI stream interrupted: {exc}") from exc
+            finally:
+                resp.close()
 
 
 class AnthropicBackend(LLMBackend):
@@ -405,7 +413,7 @@ class AnthropicBackend(LLMBackend):
             },
             method="POST",
         )
-        with self._urlopen_with_retry(req) as resp:
+        with sub_span("llm_call"), self._urlopen_with_retry(req) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         try:
             blocks = payload["content"]
@@ -440,22 +448,23 @@ class AnthropicBackend(LLMBackend):
             },
             method="POST",
         )
-        resp = self._urlopen_with_retry(req)
-        try:
-            for data_line in _iter_sse_data_lines(resp):
-                event = json.loads(data_line)
-                if event.get("type") == "content_block_delta":
-                    delta = event.get("delta", {})
-                    if delta.get("type") == "text_delta":
-                        text = delta.get("text")
-                        if text:
-                            yield text
-        except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
-            # Mid-stream failure → LLMError, not a raw exception the
-            # handler would mislabel as a generic "server error" (#59).
-            raise LLMError(f"Anthropic stream interrupted: {exc}") from exc
-        finally:
-            resp.close()
+        with sub_span("llm_call"):
+            resp = self._urlopen_with_retry(req)
+            try:
+                for data_line in _iter_sse_data_lines(resp):
+                    event = json.loads(data_line)
+                    if event.get("type") == "content_block_delta":
+                        delta = event.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            text = delta.get("text")
+                            if text:
+                                yield text
+            except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
+                # Mid-stream failure → LLMError, not a raw exception the
+                # handler would mislabel as a generic "server error" (#59).
+                raise LLMError(f"Anthropic stream interrupted: {exc}") from exc
+            finally:
+                resp.close()
 
 
 # Ollama talks to a daemon on localhost, so a refused connection is a
@@ -493,7 +502,7 @@ class OllamaBackend(LLMBackend):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with _urlopen_with_retry(
+        with sub_span("llm_call"), _urlopen_with_retry(
             req,
             timeout=self.timeout,
             api_key=None,
@@ -524,27 +533,28 @@ class OllamaBackend(LLMBackend):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        resp = _urlopen_with_retry(
-            req,
-            timeout=self.timeout,
-            api_key=None,
-            provider="Ollama",
-            fatal_errors=_OLLAMA_FATAL_ERRORS,
-            fatal_hint=_OLLAMA_DOWN_HINT,
-        )
-        try:
-            for chunk in _iter_ndjson_lines(resp):
-                msg = chunk.get("message") or {}
-                text = msg.get("content")
-                if text:
-                    yield text
-                if chunk.get("done"):
-                    break
-        except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
-            # Mid-stream failure → LLMError, not a raw exception (#59).
-            raise LLMError(f"Ollama stream interrupted: {exc}") from exc
-        finally:
-            resp.close()
+        with sub_span("llm_call"):
+            resp = _urlopen_with_retry(
+                req,
+                timeout=self.timeout,
+                api_key=None,
+                provider="Ollama",
+                fatal_errors=_OLLAMA_FATAL_ERRORS,
+                fatal_hint=_OLLAMA_DOWN_HINT,
+            )
+            try:
+                for chunk in _iter_ndjson_lines(resp):
+                    msg = chunk.get("message") or {}
+                    text = msg.get("content")
+                    if text:
+                        yield text
+                    if chunk.get("done"):
+                        break
+            except (ConnectionResetError, ConnectionError, TimeoutError, json.JSONDecodeError) as exc:
+                # Mid-stream failure → LLMError, not a raw exception (#59).
+                raise LLMError(f"Ollama stream interrupted: {exc}") from exc
+            finally:
+                resp.close()
 
 
 def make_backend(

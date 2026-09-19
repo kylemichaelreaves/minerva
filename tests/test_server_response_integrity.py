@@ -350,3 +350,34 @@ def test_sse_stream_records_time_to_first_event(deps, monkeypatch):
     kinds = [r[0] for r in conn.execute("SELECT kind FROM request_timings").fetchall()]
     conn.close()
     assert "ttfe" in kinds, f"no time-to-first-event sample recorded: {kinds}"
+
+
+# ---------- #609: `_send_sse` needs a generator, and says so before the headers ----------
+
+
+def test_plain_iterator_is_refused_before_any_bytes_are_written(deps, monkeypatch):
+    """`events` must be closeable, and the check has to precede `send_response`.
+
+    `_send_sse`'s `finally` calls `it.close()`. A plain iterator has none, so
+    passing one used to raise *after* the headers and the whole body were on
+    the wire — the caller's mistake surfacing as a mid-stream failure the
+    client had already begun reading. Nothing in the signature said otherwise:
+    `events: Any` (#609).
+
+    Checked at runtime rather than by a type checker because this repo runs
+    none — `make check`'s `typecheck` target is `tsc --noEmit`, frontend only.
+    """
+
+    monkeypatch.setattr(
+        serve_mod,
+        "_handle_chat_stream",
+        lambda d, p: iter([("done", {"response": "ok"})]),
+    )
+    with _running(deps) as srv:
+        wire = _send(srv, _chat_stream_request())
+
+    assert _status_lines(wire) == 1, f"more than one response written:\n{wire}"
+    assert "500" in wire.split("\r\n", 1)[0], f"expected a 500, got:\n{wire}"
+    assert "text/event-stream" not in wire, (
+        f"headers were committed before the contract was checked:\n{wire}"
+    )
