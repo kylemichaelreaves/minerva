@@ -45,7 +45,16 @@ export interface MetricsSummaryResponse {
  *  only durable place a request's total and its phases are paired. */
 export interface MetricsRequestPhase {
   name: string;
+  /** Wall time. Exact. */
   ms: number;
+  /** CPU time on the request's thread. **Absent means not measured**, which is
+   *  a different answer from a measured zero — `time.thread_time` is not on
+   *  every platform, and rows written before Phase 2 have no value at all.
+   *
+   *  On a streaming `llm_call` this is an upper bound: the span wraps a
+   *  generator that yields across the SSE loop, so the consumer's work on the
+   *  same thread lands inside it. Thread-scoped CPU cannot separate them. */
+  cpu_ms?: number;
 }
 
 export interface MetricsRequestRow {
@@ -60,6 +69,10 @@ export interface MetricsRequestRow {
    *  request: only 0.22% of requests carry any phase at all. */
   unaccounted_ms: number;
   phases: MetricsRequestPhase[];
+  /** CPU for the whole request. `null` means not measured — distinguish it
+   *  from 0, which means measured and idle. Present on every request, unlike
+   *  phase CPU: only 0.22% of requests carry a phase at all. */
+  cpu_ms: number | null;
 }
 
 export interface MetricsRequestsResponse {

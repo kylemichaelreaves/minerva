@@ -27,7 +27,9 @@ def deps(populated_db):
 def _add(d, *, n=0, at=T0, label="works list", method="GET", status=200,
          total=10.0, phases=()):
     d.metrics_conn.execute(
-        "INSERT INTO request_spans VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
+        " VALUES (?,?,?,?,?,?,?,?)",  # named, so an added column cannot break this
         (f"id{n:04d}", at, label, method, status, total,
          sum(p["ms"] for p in phases), json.dumps(list(phases))),
     )
@@ -41,7 +43,7 @@ def test_shape(deps):
     row = body["rows"][0]
     assert set(row) == {
         "id", "at", "label", "method", "status",
-        "total_ms", "accounted_ms", "unaccounted_ms", "phases",
+        "total_ms", "accounted_ms", "unaccounted_ms", "phases", "cpu_ms",
     }
 
 
