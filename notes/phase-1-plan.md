@@ -139,7 +139,10 @@ and tests; its body moves into `_fold_samples`. `Recorder._finish` calls
 **This reverses my earlier recommendation of a 90-day cap.** That was
 reflexive; measured, it is not justified.
 
-**Observed rate**, from the real `data/metrics.sqlite`, 2026-09-13 → 09-18:
+**Observed rate**, from the real `data/metrics.sqlite`, 2026-09-13 → 09-18
+(corrected 2026-09-19: this file also receives e2e/browser test traffic, #627 —
+so the rate is an upper bound on operator use, which is the safe direction for
+a sizing decision):
 
 ```
 4,039 requests over 5.38 days  ->  751 requests/day

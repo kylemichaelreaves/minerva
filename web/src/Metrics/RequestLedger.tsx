@@ -190,6 +190,27 @@ export function RequestLedger(props: { window: MetricWindow }) {
                       </dd>
                     </div>
                   </dl>
+                  {/* Database time sits ABOVE the phases and is labelled
+                      differently on purpose: it is a sum over many disjoint
+                      statements, not one contiguous interval, so it does not
+                      belong in the same ordered waterfall as a span. */}
+                  <Show when={r().sqlite_ms !== null}>
+                    <div class="mledger-phase mledger-db">
+                      <span>
+                        sqlite
+                        <span class="mledger-tag">connection layer</span>
+                      </span>
+                      <span class="mledger-bar">
+                        <i
+                          class="mledger-dbbar"
+                          style={{ width: `${((r().sqlite_ms ?? 0) / r().total_ms) * 100}%` }}
+                        />
+                      </span>
+                      <span class="num">{ms(r().sqlite_ms ?? 0)}</span>
+                      <span class="num mledger-cpuv">{r().sqlite_queries ?? 0} q</span>
+                    </div>
+                  </Show>
+
                   <Show
                     when={r().phases.length > 0}
                     fallback={

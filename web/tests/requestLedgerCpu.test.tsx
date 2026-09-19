@@ -25,6 +25,8 @@ const base = {
   unaccounted_ms: 1000,
   phases: [] as { name: string; ms: number; cpu_ms?: number }[],
   cpu_ms: null as number | null,
+  sqlite_ms: null as number | null,
+  sqlite_queries: null as number | null,
 };
 
 function stub(row: Record<string, unknown>) {
@@ -95,5 +97,31 @@ describe("RequestLedger CPU", () => {
     });
     expect(d.textContent).toContain("llm_call");
     expect(d.textContent).not.toMatch(/cpu-bound|waiting/i);
+  });
+});
+
+describe("RequestLedger database time", () => {
+  it("shows sqlite time and the statement count", async () => {
+    const d = await openDetail({
+      ...base,
+      total_ms: 241.3,
+      sqlite_ms: 240.5,
+      sqlite_queries: 2,
+    });
+    expect(d.textContent).toContain("sqlite");
+    expect(d.textContent).toMatch(/2 q/);
+  });
+
+  it("says not measured for a row written before phase 3", async () => {
+    // `null`, not 0. A route that touches no database and a row from before
+    // the measurement existed must not look identical.
+    const d = await openDetail({ ...base, sqlite_ms: null, sqlite_queries: null });
+    expect(d.textContent).not.toMatch(/\bsqlite\b/);
+  });
+
+  it("renders a genuinely zero-query request as measured, not absent", async () => {
+    const d = await openDetail({ ...base, sqlite_ms: 0, sqlite_queries: 0 });
+    expect(d.textContent).toContain("sqlite");
+    expect(d.textContent).toMatch(/0 q/);
   });
 });

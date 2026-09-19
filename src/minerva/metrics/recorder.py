@@ -60,7 +60,8 @@ class Span:
 
     __slots__ = (
         "_clock", "_cpu0", "_subs", "_subs_cpu", "_t0", "_ttfe_ms",
-        "id", "label", "method", "status",
+        "id", "label", "method", "sql_prefix", "sqlite_ms", "sqlite_queries",
+        "status",
     )
 
     def __init__(self, label: str, method: str, clock: Callable[[], float]) -> None:
@@ -81,6 +82,18 @@ class Span:
         # backward-compatibility constraint rules a third out.
         self._subs_cpu: dict[str, float] = {}
         self._cpu0: float | None = _THREAD_TIME() if _THREAD_TIME else None
+        # Database time is a sum over many DISJOINT intervals, not one
+        # contiguous phase — which is why it is its own field rather than a
+        # `sub_span`. Putting it in `phases` would make the waterfall's
+        # ordering a lie.
+        self.sqlite_ms: float = 0.0
+        self.sqlite_queries: int = 0
+        # Built ONCE, here, and reused for every statement this request
+        # issues. Interpolating a fresh id per query would make each statement
+        # a distinct SQL string and defeat Python's prepared-statement cache:
+        # measured at 5.88x on a point lookup (0.59 -> 3.49 us). Constant
+        # within a request, repeated shapes still hit the cache.
+        self.sql_prefix: str = f"/*request_id='{self.id}'*/ "
 
     def elapsed_ms(self) -> float:
         return (self._clock() - self._t0) * 1000.0
@@ -97,6 +110,13 @@ class Span:
         if self._cpu0 is None or _THREAD_TIME is None:
             return None
         return (_THREAD_TIME() - self._cpu0) * 1000.0
+
+    def add_db(self, ms: float) -> None:
+        """Accumulate one statement's duration. Called from the connection
+        layer, so no handler has to know it is being measured."""
+
+        self.sqlite_ms += ms
+        self.sqlite_queries += 1
 
     def add_sub_cpu(self, name: str, ms: float) -> None:
         self._subs_cpu[name] = self._subs_cpu.get(name, 0.0) + ms
@@ -247,6 +267,8 @@ class Recorder:
             phases=list(span._subs),
             phase_cpu=dict(span._subs_cpu),
             cpu_ms=span.cpu_ms,
+            sqlite_ms=span.sqlite_ms,
+            sqlite_queries=span.sqlite_queries,
         )
         try:
             with self._lock:
