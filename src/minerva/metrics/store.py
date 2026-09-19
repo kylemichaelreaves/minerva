@@ -124,6 +124,25 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
     {_BUCKET_DECLS}
 );
 CREATE INDEX IF NOT EXISTS pipeline_runs_at ON pipeline_runs(at);
+
+-- One row per source per ingest run. Its own table, not `pipeline_runs`: a
+-- source has no language, engine or model, and one elapsed per run is a
+-- scalar rather than a distribution.
+--
+-- `status` is not decoration. A skipped source returns elapsed=0, and without
+-- it that row reads as a source which suddenly became instant.
+CREATE TABLE IF NOT EXISTS ingest_runs (
+    at         REAL    NOT NULL,
+    run_id     TEXT    NOT NULL,
+    source_id  TEXT    NOT NULL,
+    status     TEXT    NOT NULL,
+    elapsed_ms REAL    NOT NULL,
+    chunks     INTEGER NOT NULL,
+    error      TEXT
+);
+-- (source_id, at) rather than (at): the query is always "this source, over
+-- time", which is the whole feature.
+CREATE INDEX IF NOT EXISTS ingest_runs_source ON ingest_runs(source_id, at);
 """
 
 
@@ -446,6 +465,43 @@ def pipeline_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return out
 
 
+def write_ingest_runs(conn: sqlite3.Connection, rows: Sequence[Any]) -> None:
+    """Append one invocation's per-source outcomes."""
+
+    if not rows:
+        return
+    with conn:
+        conn.executemany(
+            "INSERT INTO ingest_runs"
+            " (at, run_id, source_id, status, elapsed_ms, chunks, error)"
+            " VALUES (?,?,?,?,?,?,?)",
+            [
+                (r.at, r.run_id, r.source_id, r.status, r.elapsed_ms, r.chunks, r.error)
+                for r in rows
+            ],
+        )
+
+
+def ingest_runs(
+    conn: sqlite3.Connection, *, source_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Per-source ingest history, newest first."""
+
+    where = " WHERE source_id = ?" if source_id else ""
+    params = (source_id,) if source_id else ()
+    sql = (
+        "SELECT at, run_id, source_id, status, elapsed_ms, chunks, error"
+        f" FROM ingest_runs{where} ORDER BY at DESC, source_id"
+    )
+    return [
+        {
+            "at": at, "run_id": run_id, "source_id": sid, "status": status,
+            "elapsed_ms": ms, "chunks": chunks, "error": err,
+        }
+        for at, run_id, sid, status, ms, chunks, err in conn.execute(sql, params)
+    ]
+
+
 def _quantiles(buckets: list[int]) -> dict[str, float]:
     return {
         "p50_ms": quantile(buckets, 0.50),
@@ -578,12 +634,14 @@ __all__ = [
     "SCHEMA",
     "RequestRow",
     "Sample",
+    "ingest_runs",
     "open_db",
     "pipeline_runs",
     "requests",
     "series",
     "summary",
     "write",
+    "write_ingest_runs",
     "write_pipeline_rows",
     "write_request",
 ]
