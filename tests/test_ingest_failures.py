@@ -335,7 +335,9 @@ def test_cmd_ingest_parallel_full_aborts_on_dropped_source(tmp_path: Path, monke
 
     from minerva.cli import ingest_cmd
 
-    def fake_parallel_ingest(source_ids, paths_by_kwarg, shard_dir, *, jobs, per_source_timing):
+    def fake_parallel_ingest(
+        source_ids, paths_by_kwarg, shard_dir, *, jobs, per_source_timing, run_log=None
+    ):
         shard = shard_dir / "chunks.plato.jsonl"
         shard.write_text(json.dumps(_chunk("good-1").to_json_dict()) + "\n", encoding="utf-8")
         failures = {"hegel": ["ValueError: bad PDF"]}
@@ -365,7 +367,9 @@ def test_cmd_ingest_parallel_per_file_failures_still_write(tmp_path: Path, monke
 
     from minerva.cli import ingest_cmd
 
-    def fake_parallel_ingest(source_ids, paths_by_kwarg, shard_dir, *, jobs, per_source_timing):
+    def fake_parallel_ingest(
+        source_ids, paths_by_kwarg, shard_dir, *, jobs, per_source_timing, run_log=None
+    ):
         shard = shard_dir / "chunks.plato.jsonl"
         shard.write_text(json.dumps(_chunk("good-1").to_json_dict()) + "\n", encoding="utf-8")
         failures = {"plato": ["plato: failed to parse 'r.xml' as 'Republic': boom"]}
