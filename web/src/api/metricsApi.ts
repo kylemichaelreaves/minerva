@@ -19,11 +19,23 @@ export interface MetricsSummaryRow {
   error_rate: number;
 }
 
+/** Why an empty `rows` is not self-explanatory.
+ *
+ *  Three different situations render as a blank page: no traffic in the
+ *  window, metrics persistence switched off (`minerva serve --no-metrics`, or
+ *  the metrics DB could not be opened), and every write failing. `persisting`
+ *  separates the second; `write_failures` counts the third. */
+export interface MetricsHealth {
+  write_failures: number;
+  persisting: boolean;
+}
+
 export interface MetricsSummaryResponse {
   window: string;
   since: number;
   until: number;
   rows: MetricsSummaryRow[];
+  health: MetricsHealth;
 }
 
 export interface MetricsSeriesPoint {

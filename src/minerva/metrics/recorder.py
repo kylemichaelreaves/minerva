@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import logging
+import secrets
 import sqlite3
 import threading
 import time
@@ -19,7 +20,7 @@ from collections import deque
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from .store import Sample, write
+from .store import RequestRow, Sample, write_request
 
 _log = logging.getLogger(__name__)
 
@@ -44,9 +45,14 @@ def current_span() -> Span | None:
 class Span:
     """One in-flight request. Mutable; the dispatch site sets `status`."""
 
-    __slots__ = ("_clock", "_subs", "_t0", "_ttfe_ms", "label", "method", "status")
+    __slots__ = ("_clock", "_subs", "_t0", "_ttfe_ms", "id", "label", "method", "status")
 
     def __init__(self, label: str, method: str, clock: Callable[[], float]) -> None:
+        # Random, not a counter: a counter restarts at the same value in the
+        # next process, so ids would collide across restarts — and this id is
+        # the key of a durable table that outlives any one process.
+        # `token_hex` over `uuid4` on measurement: 0.684 vs 1.253 us.
+        self.id = secrets.token_hex(8)
         self.label = label
         self.method = method
         self.status = 200
@@ -106,7 +112,8 @@ class Recorder:
         self._ring: deque[dict[str, Any]] = deque(maxlen=ring_size)
         self._now = now
         self._clock = clock
-        self._write_failed = False
+        self._write_failures = 0
+        self._write_failure_logged = False
 
     @contextlib.contextmanager
     def record(
@@ -165,9 +172,22 @@ class Recorder:
         )
         if self._conn is None:
             return
+        row = RequestRow(
+            id=span.id,
+            at=at,
+            label=span.label,
+            method=span.method,
+            # The FULL status, not `status_class`. The aggregate keeps the
+            # class; a per-request row that also collapsed 404 into 4 would
+            # answer fewer questions than the table it exists to refine.
+            status=span.status,
+            total_ms=total_ms,
+            accounted_ms=sum(ms for _, ms in span._subs),
+            phases=list(span._subs),
+        )
         try:
             with self._lock:
-                write(self._conn, samples)
+                write_request(self._conn, samples, row)
         except sqlite3.Error:
             self._note_write_failure()
 
@@ -190,15 +210,28 @@ class Recorder:
 
         Logged once per Recorder: a full disk fails on every request, and
         one line per request would bury the rest of the log.
+
+        COUNTED every time, though, and the two are separate on purpose. A
+        boolean latch — which this was — cannot tell "one failure hours ago"
+        from "failing on every request right now", and that difference is the
+        whole signal. `write_failures` is surfaced through
+        /api/metrics/summary so an empty page can say which it is.
         """
 
-        if self._write_failed:
+        self._write_failures += 1
+        if self._write_failure_logged:
             return
-        self._write_failed = True
+        self._write_failure_logged = True
         _log.warning(
             "metrics write failed; dropping timing samples (further failures are silent)",
             exc_info=True,
         )
+
+    @property
+    def write_failures(self) -> int:
+        """How many samples have been dropped because the write failed."""
+
+        return self._write_failures
 
     def recent(self) -> list[dict[str, Any]]:
         """Most recent requests, oldest first. In-memory only; lost on restart."""

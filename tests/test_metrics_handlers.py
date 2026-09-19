@@ -53,8 +53,11 @@ def test_bucket_seconds_for(span_seconds, expected):
 
 
 def test_summary_shape(deps):
+    # `health` joined the four original keys additively: an empty `rows` used
+    # to mean no traffic, metrics off, or every write failing, with no way to
+    # tell which. Asserted exactly, so a future key is a deliberate change.
     body = _handle_metrics_summary(deps, {"window": "24h"})
-    assert set(body) == {"window", "since", "until", "rows"}
+    assert set(body) == {"window", "since", "until", "rows", "health"}
     assert isinstance(body["rows"], list)
 
 
