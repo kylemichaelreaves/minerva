@@ -106,7 +106,8 @@ def test_slug_pair_route_does_not_shadow_the_numeric_sub_resources(populated_db)
         ("/api/works/42/references_map", "work references map"),
     ):
         matched = _match_route(path, routes)
-        assert matched is not None and matched[0] == label, path
+        assert matched is not None, f"{path} matched no route at all"
+        assert matched[0] == label, f"{path} reached {matched[0]!r}, not {label!r}"
 
 
 def test_the_single_segment_work_route_still_reaches_work_range(populated_db) -> None:

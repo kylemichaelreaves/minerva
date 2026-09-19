@@ -195,14 +195,22 @@ def _granularity_errors(
     return errs
 
 
-def _slug_errors(db_path: Path) -> list[str]:
+def _slug_errors(conn: sqlite3.Connection | None) -> list[str]:
     """Work-slug gate (#602). Two different checks on two different machines.
 
     Locally the index is authoritative, so the committed table is compared
     against it and a newly ingested collision raises out of ``work_slug_table``.
     In CI there is no index, so all that is left is the table's internal
     consistency — which is still the property that matters, because it is what
-    pins ``web/src/slug.ts`` to ``minerva.reader.slugs``.
+    pins ``web/src/slug.ts`` to ``minerva.reader.slugs``. ``conn`` is ``None``
+    there, mirroring :func:`_granularity_errors`.
+
+    Takes an open connection rather than a path deliberately: ``main`` already
+    holds one for exactly this branch, and opening a second from ``--db`` is a
+    `pythonsecurity:*` connection-string sink that SonarCloud fails the build
+    on (CONTRIBUTING, "Security findings in operator tooling"). Reusing the
+    connection removes the sink instead of arguing with it, and is one fewer
+    handle on the index besides.
     """
 
     from minerva.reader.slugs import SlugCollisionError, slug_snapshot_drift, validate_slug_snapshot
@@ -215,18 +223,12 @@ def _slug_errors(db_path: Path) -> list[str]:
         ]
     snapshot = work_slug_snapshot.load_snapshot()
     errors = validate_slug_snapshot(snapshot)
-    if not db_path.is_file():
+    if conn is None:
         return errors
-    # Plain path, not a `file:...?mode=ro` URI: `db_path` comes from `--db`,
-    # and interpolating argv into a connection string is the `pythonsecurity:*`
-    # shape CONTRIBUTING's "Security findings in operator tooling" section is
-    # about. The two sibling branches below already connect this way, so this
-    # is also just the idiom of the file.
-    with sqlite3.connect(db_path) as conn:
-        try:
-            errors += slug_snapshot_drift(conn, snapshot)
-        except SlugCollisionError as exc:
-            errors.append(str(exc))
+    try:
+        errors += slug_snapshot_drift(conn, snapshot)
+    except SlugCollisionError as exc:
+        errors.append(str(exc))
     return errors
 
 
@@ -319,6 +321,7 @@ def main() -> int:
 
     count_errs: list[str] = []
     gran_errs: list[str] = []
+    slug_errs: list[str] = []
     if db_path.is_file():
         # Local: the index is authoritative. Check it against the bands,
         # and check the committed snapshot against it so the file CI
@@ -335,6 +338,7 @@ def main() -> int:
                     f"`make generate-authors`"
                 )
             gran_errs += _granularity_errors(conn, manifest)
+            slug_errs += _slug_errors(conn)
     elif SNAPSHOT_PATH.is_file():
         # CI: `data/index.sqlite` is gitignored and never built here, so
         # the committed snapshot is the only thing to validate against.
@@ -342,6 +346,7 @@ def main() -> int:
         print(f"chunk counts: no DB at {db_path}, using committed snapshot")
         count_errs += validate_snapshot(load_snapshot(), manifest)
         gran_errs += _granularity_errors(None, manifest)
+        slug_errs += _slug_errors(None)
     else:
         failed = True
         print(
@@ -351,6 +356,10 @@ def main() -> int:
             f"--skip-chunk-counts to waive.",
             file=sys.stderr,
         )
+        # Still run the work-slug check: it needs no index at all, only the
+        # committed table, so letting it fall through here would be exactly
+        # the silent skip #157 was about.
+        slug_errs += _slug_errors(None)
 
     if count_errs:
         failed = True
@@ -364,7 +373,6 @@ def main() -> int:
         for e in gran_errs:
             print(f"  - {e}")
 
-    slug_errs = _slug_errors(db_path)
     if slug_errs:
         failed = True
         print("work slugs:")

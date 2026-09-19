@@ -30,10 +30,21 @@ export function slugify(text: string): string {
   let s = text.normalize("NFKD");
   for (const [src, dst] of UNDECOMPOSED) s = s.split(src).join(dst);
   s = s.replace(/\p{M}/gu, "");
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return trimHyphens(s.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+}
+
+/** `str.strip("-")`, which is what the Python half uses.
+ *
+ *  Deliberately not `/^-+|-+$/g`: SonarQube fails that as super-linear, and it
+ *  is right — `-+$` backtracks through every match length at every start
+ *  position, so a title that folds to a long run of separators is quadratic.
+ *  Two walks from the ends are linear and say the same thing. */
+function trimHyphens(s: string): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && s[start] === "-") start += 1;
+  while (end > start && s[end - 1] === "-") end -= 1;
+  return s.slice(start, end);
 }
 
 /** The `#/r/<authorSlug>/<titleSlug>` path, without the `#/r/`.

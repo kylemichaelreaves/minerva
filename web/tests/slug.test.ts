@@ -30,3 +30,24 @@ describe("slugify", () => {
     expect(slugify("  ...Leviathan!  ")).toBe("leviathan");
   });
 });
+
+// Regression guard for the trim's shape, not just its result. The trim used
+// to be `/^-+|-+$/g`, which SonarQube failed the build on as super-linear:
+// `-+$` backtracks through every length at every start position, so a title
+// that folds to a long run of hyphens is quadratic. The replacement walks the
+// string once from each end, mirroring Python's `str.strip("-")`.
+describe("trimming is linear and total", () => {
+  test("a title with no slug characters at all collapses to the empty string", () => {
+    expect(slugify("——— ... ———")).toBe("");
+  });
+
+  test("a long run of separators does not blow up", () => {
+    const start = Date.now();
+    expect(slugify(`${"-".repeat(50_000)}a${"-".repeat(50_000)}`)).toBe("a");
+    expect(Date.now() - start).toBeLessThan(1_000);
+  });
+
+  test("interior hyphens survive", () => {
+    expect(slugify("--a-b--")).toBe("a-b");
+  });
+});
