@@ -38,6 +38,39 @@ export interface MetricsSummaryResponse {
   health: MetricsHealth;
 }
 
+/** One completed request, from `request_spans` (#619).
+ *
+ *  NOT `request_timings` — that table folds requests into 5-minute buckets, so
+ *  it can say how a route behaves but not which request was slow. This is the
+ *  only durable place a request's total and its phases are paired. */
+export interface MetricsRequestPhase {
+  name: string;
+  ms: number;
+}
+
+export interface MetricsRequestRow {
+  id: string;
+  at: number;
+  label: string;
+  method: string;
+  status: number;
+  total_ms: number;
+  accounted_ms: number;
+  /** `total_ms - accounted_ms`, computed server-side. Usually the whole
+   *  request: only 0.22% of requests carry any phase at all. */
+  unaccounted_ms: number;
+  phases: MetricsRequestPhase[];
+}
+
+export interface MetricsRequestsResponse {
+  window: string;
+  since: number;
+  until: number;
+  rows: MetricsRequestRow[];
+  /** The limit actually applied after clamping, not the one requested. */
+  limit: number;
+}
+
 export interface MetricsSeriesPoint {
   t: number;
   count: number;
@@ -84,6 +117,34 @@ export async function fetchMetricsSummary(
       window,
       label: opts.label,
       offset: offsetParam(opts.offset),
+    })}`,
+    signal,
+  );
+}
+
+export interface MetricsRequestsOptions {
+  label?: string;
+  method?: string;
+  errors?: boolean;
+  phased?: boolean;
+  limit?: number;
+}
+
+export async function fetchMetricsRequests(
+  window: MetricWindow,
+  opts: MetricsRequestsOptions = {},
+  signal?: AbortSignal,
+): Promise<MetricsRequestsResponse> {
+  return apiGet<MetricsRequestsResponse>(
+    `/api/metrics/requests${qs({
+      window,
+      label: opts.label,
+      method: opts.method,
+      // Filtering is server-side on purpose: the table is designed to hold
+      // years, so narrowing in the browser would mean shipping years to it.
+      errors: opts.errors ? "1" : undefined,
+      phased: opts.phased ? "1" : undefined,
+      limit: opts.limit,
     })}`,
     signal,
   );

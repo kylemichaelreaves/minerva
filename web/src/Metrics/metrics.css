@@ -673,3 +673,233 @@
     grid-template-columns: minmax(0, 6rem) 1fr minmax(0, 4.5rem);
   }
 }
+
+/* Degraded-state banner (#618). Shares the verdict's shape deliberately —
+   same slot, same dot, same reading rhythm — so a reader does not have to
+   learn a second layout to find out the numbers are untrustworthy.
+   No new colour tokens: --bad and --warn already carry light and dark
+   values in styles.css, so this inherits both themes for free. */
+.metrics-health {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 2px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.metrics-health b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.metrics-health code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.metrics-health .metrics-dot {
+  margin-top: 6px;
+  flex: none;
+}
+.metrics-health-bad {
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+  background: color-mix(in srgb, var(--bad) 7%, transparent);
+}
+.metrics-health-warn {
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 7%, transparent);
+}
+
+/* Per-request ledger (#619's request_spans). Reuses the panel's tokens
+   throughout — no new colours, so both themes come for free. */
+.metrics-views {
+  display: flex;
+  gap: 3px;
+  margin: 10px 0 4px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  width: fit-content;
+}
+.metrics-views button {
+  font: 500 11.5px var(--sans);
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.metrics-views button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--paper);
+}
+.mledger-filters {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.mledger-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+.mledger-chk input {
+  accent-color: var(--accent);
+}
+.mledger-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.mledger-msg {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  line-height: 1.55;
+  margin: 12px 0;
+}
+.mledger-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 0 20px;
+  align-items: start;
+  margin-top: 12px;
+}
+.mledger-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mledger-table th {
+  text-align: left;
+  font: 500 10px var(--sans);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rule);
+}
+.mledger-table th.r,
+.mledger-table td.r {
+  text-align: right;
+}
+.mledger-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.mledger-table tbody tr {
+  cursor: pointer;
+}
+.mledger-table tbody tr:hover td,
+.mledger-table tbody tr.sel td {
+  background: var(--paper-edge);
+}
+.mledger-table .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.mledger-table .dim {
+  color: var(--ink-faint);
+}
+.mledger-meth {
+  font: 500 9.5px var(--mono);
+  color: var(--ink-faint);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.mledger-st {
+  font: 500 10.5px var(--mono);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.mledger-st.ok {
+  color: var(--ink-faint);
+}
+.mledger-st.warn {
+  color: var(--warn);
+}
+.mledger-st.bad {
+  color: var(--bad);
+}
+.mledger-chip {
+  font: 500 10px var(--mono);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-right: 4px;
+}
+.mledger-detail {
+  border: 1px solid var(--rule);
+  padding: 14px 15px;
+}
+.mledger-detail h3 {
+  margin: 2px 0 10px;
+  font-size: 15px;
+}
+.mledger-id {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin: 0;
+}
+.mledger-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  margin: 0 0 12px;
+}
+.mledger-tiles > div {
+  background: var(--paper);
+  padding: 8px 10px;
+}
+.mledger-tiles dt {
+  font: 500 10px var(--sans);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.mledger-tiles dd {
+  margin: 3px 0 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+.mledger-phase {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 58px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.mledger-phase .num {
+  text-align: right;
+  font-family: var(--mono);
+}
+.mledger-bar {
+  height: 8px;
+  background: var(--rule-soft);
+  display: block;
+}
+.mledger-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+@media (max-width: 900px) {
+  .mledger-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

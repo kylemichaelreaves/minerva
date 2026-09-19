@@ -105,6 +105,56 @@ def _handle_metrics_summary(deps: ServerDeps, qs: dict[str, str]) -> dict[str, A
     }
 
 
+def _parse_limit(raw: str | None) -> int:
+    """A junk `limit` is a 400, not a silently-ignored default.
+
+    Ignoring it would answer a question the caller did not ask and look like
+    a small table rather than a rejected parameter.
+    """
+
+    if raw is None or raw == "":
+        return 200
+    try:
+        return int(raw)
+    except ValueError:
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, f"limit is not a number: {raw!r}") from None
+
+
+def _handle_metrics_requests(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
+    """Per-request rows (#619's `request_spans`), newest first.
+
+    The aggregate endpoints answer "how is this route behaving"; a 5-minute
+    bucket mixes requests, so it cannot answer "which request was slow, and
+    where did its time go". This one can.
+    """
+
+    since, until, name = _range(qs)
+    limit = _parse_limit(qs.get("limit"))
+    if deps.metrics_conn is None:
+        rows: list[dict[str, Any]] = []
+    else:
+        with deps.metrics_lock:
+            rows = metrics_store.requests(
+                deps.metrics_conn,
+                since=since,
+                until=until,
+                label=qs.get("label") or None,
+                method=qs.get("method") or None,
+                errors_only=qs.get("errors") in ("1", "true"),
+                phased_only=qs.get("phased") in ("1", "true"),
+                limit=limit,
+            )
+    return {
+        "window": name,
+        "since": since,
+        "until": until,
+        "rows": rows,
+        # The CLAMPED limit, not what was asked for: a caller requesting
+        # 100,000 rows should see it got 500, not infer a small table.
+        "limit": max(1, min(limit, metrics_store.REQUESTS_MAX_LIMIT)),
+    }
+
+
 def _handle_metrics_series(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
     label = qs.get("label")
     if not label:
@@ -131,4 +181,4 @@ def _handle_metrics_series(deps: ServerDeps, qs: dict[str, str]) -> dict[str, An
     }
 
 
-__all__ = ["_handle_metrics_series", "_handle_metrics_summary"]
+__all__ = ["_handle_metrics_requests", "_handle_metrics_series", "_handle_metrics_summary"]

@@ -224,6 +224,71 @@ def write_request(
         _insert_span(conn, row)
 
 
+# Retention is uncapped by design, so `request_spans` is expected to reach
+# years. A caller-supplied `limit` is therefore clamped rather than trusted:
+# without this, one query string could materialise the whole table.
+REQUESTS_MAX_LIMIT = 500
+
+
+def requests(
+    conn: sqlite3.Connection,
+    *,
+    since: float,
+    until: float,
+    label: str | None = None,
+    method: str | None = None,
+    errors_only: bool = False,
+    phased_only: bool = False,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Per-request rows, newest first.
+
+    Filtering happens in SQL, not in the caller: every filter here has an
+    index behind it, and `phased_only` deliberately uses `phases != '[]'` —
+    the exact predicate `request_spans_phased` is built on, so the filter the
+    UI offers is one the index can serve.
+    """
+
+    where = ["at >= ?", "at < ?"]
+    params: list[Any] = [since, until]
+    if label:
+        where.append("label = ?")
+        params.append(label)
+    if method:
+        where.append("method = ?")
+        params.append(method)
+    if errors_only:
+        where.append("status >= 400")
+    if phased_only:
+        where.append("phases != '[]'")
+    params.append(max(1, min(limit, REQUESTS_MAX_LIMIT)))
+
+    sql = (
+        "SELECT id, at, label, method, status, total_ms, accounted_ms, phases"
+        f" FROM request_spans WHERE {' AND '.join(where)}"
+        " ORDER BY at DESC LIMIT ?"
+    )
+    out: list[dict[str, Any]] = []
+    for row in conn.execute(sql, params):
+        rid, at, lbl, meth, status, total_ms, accounted_ms, phases = row
+        out.append(
+            {
+                "id": rid,
+                "at": at,
+                "label": lbl,
+                "method": meth,
+                "status": status,
+                "total_ms": total_ms,
+                "accounted_ms": accounted_ms,
+                # Stored as a complement so the two measured numbers are the
+                # two kept; the derived one is computed at read time.
+                "unaccounted_ms": total_ms - accounted_ms,
+                "phases": json.loads(phases),
+            }
+        )
+    return out
+
+
 def _quantiles(buckets: list[int]) -> dict[str, float]:
     return {
         "p50_ms": quantile(buckets, 0.50),
@@ -351,6 +416,15 @@ def series(
 
 
 __all__ = [
-    "BUCKET_SECONDS", "SCHEMA", "RequestRow", "Sample", "open_db", "series",
-    "summary", "write", "write_request",
+    "BUCKET_SECONDS",
+    "REQUESTS_MAX_LIMIT",
+    "SCHEMA",
+    "RequestRow",
+    "Sample",
+    "open_db",
+    "requests",
+    "series",
+    "summary",
+    "write",
+    "write_request",
 ]
