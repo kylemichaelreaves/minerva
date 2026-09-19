@@ -79,6 +79,51 @@ async function waitForHealth(url: string, timeoutMs = 15000): Promise<unknown> {
   throw new Error(`server at ${url} did not become ready within ${timeoutMs}ms`);
 }
 
+export interface ServeArgOptions {
+  port: number;
+  indexDb: string;
+  convDb: string;
+  metricsDb: string;
+  translationsDb: string;
+  conceptCacheDb: string;
+  staticDir: string;
+}
+
+/** Argv for the fixture `minerva serve`.
+ *
+ *  Extracted so the flag list is testable without spawning. **Every database
+ *  flag must be here.** Omitting one does not fail — `serve` supplies a
+ *  default under `data/`, so the suite silently reads and writes the
+ *  operator's real databases. `metrics.sqlite` is written on every request,
+ *  so each run added rows to it; measured at +449 across one session, and
+ *  those rows then got quoted as operator traffic (#627).
+ *
+ *  Two flags were routed correctly from the start and three were never added
+ *  as `serve` grew them, which is why the gap was invisible: the harness
+ *  looked like it was handling this.
+ */
+export function serveArgs(o: ServeArgOptions): string[] {
+  return [
+    "serve",
+    "--llm",
+    "none",
+    "--port",
+    String(o.port),
+    "--db",
+    o.indexDb,
+    "--static",
+    o.staticDir,
+    "--conversations-db",
+    o.convDb,
+    "--metrics-db",
+    o.metricsDb,
+    "--translations-db",
+    o.translationsDb,
+    "--concept-cache-db",
+    o.conceptCacheDb,
+  ];
+}
+
 export async function startFixtureServer(): Promise<FixtureServer> {
   const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -87,6 +132,9 @@ export async function startFixtureServer(): Promise<FixtureServer> {
   const tmpDir = mkdtempSync(join(tmpdir(), "minerva-e2e-"));
   const indexDb = join(tmpDir, "index.sqlite");
   const convDb = join(tmpDir, "conversations.sqlite");
+  const metricsDb = join(tmpDir, "metrics.sqlite");
+  const translationsDb = join(tmpDir, "translations.sqlite");
+  const conceptCacheDb = join(tmpDir, "concepts.sqlite");
 
   // `proc` is declared here, outside the try, so the catch below can see
   // and kill it regardless of which line inside the try throws. Every
@@ -138,19 +186,15 @@ export async function startFixtureServer(): Promise<FixtureServer> {
 
     proc = spawn(
       MINERVA_BIN,
-      [
-        "serve",
-        "--llm",
-        "none",
-        "--port",
-        String(port),
-        "--db",
+      serveArgs({
+        port,
         indexDb,
-        "--static",
-        STATIC_DIR,
-        "--conversations-db",
         convDb,
-      ],
+        metricsDb,
+        translationsDb,
+        conceptCacheDb,
+        staticDir: STATIC_DIR,
+      }),
       { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
     );
     proc.stderr?.on("data", (b: Buffer) => process.stderr.write(`[serve] ${b.toString()}`));
