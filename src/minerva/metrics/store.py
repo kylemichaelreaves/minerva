@@ -75,7 +75,12 @@ CREATE TABLE IF NOT EXISTS request_spans (
     -- ALTER. Also: only 0.22% of observed requests carry any phase, so a
     -- child table would be empty for almost every row. json_each keeps it
     -- queryable; see notes/phase-1-plan.md for the measurements.
-    phases        TEXT    NOT NULL
+    phases        TEXT    NOT NULL,
+    -- NULLABLE on purpose. NULL means "not measured" (no `time.thread_time`
+    -- on this platform, or a row written before Phase 2); 0.0 means "measured,
+    -- and the request used no CPU". Collapsing the two would make a missing
+    -- clock indistinguishable from an idle request.
+    cpu_ms        REAL
 );
 CREATE INDEX IF NOT EXISTS request_spans_at ON request_spans(at);
 -- `total_ms DESC` keeps "the slowest N" flat as the table grows: measured
@@ -113,6 +118,10 @@ class RequestRow:
     total_ms: float
     accounted_ms: float
     phases: list[tuple[str, float]]
+    # name -> cpu ms. Parallel to `phases` rather than widening its tuples:
+    # every existing consumer unpacks exactly two elements.
+    phase_cpu: dict[str, float] = dataclasses.field(default_factory=dict)
+    cpu_ms: float | None = None
 
 
 def open_db(
@@ -134,9 +143,32 @@ def open_db(
     from ..sqlite_util import open_sqlite
 
     conn = open_sqlite(path, SCHEMA, check_same_thread=check_same_thread)
+    _add_missing_columns(conn)
     if retain_days is not None:
         prune(conn, retain_days=retain_days)
     return conn
+
+
+# Columns added to `request_spans` after #619 shipped it. `CREATE TABLE IF NOT
+# EXISTS` does nothing to a table that already exists, so a database in the
+# wild keeps the old shape unless something adds them.
+_ADDED_COLUMNS: tuple[tuple[str, str], ...] = (("cpu_ms", "REAL"),)
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    """Bring an existing `request_spans` up to the current column set.
+
+    Additive only, and every added column is nullable with no default, so old
+    rows read as NOT MEASURED rather than as a measured zero.
+    """
+
+    have = {r[1] for r in conn.execute("PRAGMA table_info(request_spans)")}
+    missing = [(n, decl) for n, decl in _ADDED_COLUMNS if n not in have]
+    if not missing:
+        return
+    with conn:
+        for name, decl in missing:
+            conn.execute(f"ALTER TABLE request_spans ADD COLUMN {name} {decl}")
 
 
 def prune(conn: sqlite3.Connection, *, retain_days: int, now: float | None = None) -> int:
@@ -198,12 +230,20 @@ def write(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
 def _insert_span(conn: sqlite3.Connection, row: RequestRow) -> None:
     conn.execute(
         "INSERT OR REPLACE INTO request_spans"
-        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
-        " VALUES (?,?,?,?,?,?,?,?)",
+        " (id, at, label, method, status, total_ms, accounted_ms, phases, cpu_ms)"
+        " VALUES (?,?,?,?,?,?,?,?,?)",
         (
             row.id, row.at, row.label, row.method, row.status,
             row.total_ms, row.accounted_ms,
-            json.dumps([{"name": n, "ms": ms} for n, ms in row.phases]),
+            json.dumps(
+                [
+                    # `cpu_ms` omitted entirely when unmeasured, so a reader can
+                    # tell it apart from a measured zero.
+                    {"name": n, "ms": ms, **({"cpu_ms": row.phase_cpu[n]} if n in row.phase_cpu else {})}
+                    for n, ms in row.phases
+                ]
+            ),
+            row.cpu_ms,
         ),
     )
 
@@ -264,13 +304,13 @@ def requests(
     params.append(max(1, min(limit, REQUESTS_MAX_LIMIT)))
 
     sql = (
-        "SELECT id, at, label, method, status, total_ms, accounted_ms, phases"
+        "SELECT id, at, label, method, status, total_ms, accounted_ms, phases, cpu_ms"
         f" FROM request_spans WHERE {' AND '.join(where)}"
         " ORDER BY at DESC LIMIT ?"
     )
     out: list[dict[str, Any]] = []
     for row in conn.execute(sql, params):
-        rid, at, lbl, meth, status, total_ms, accounted_ms, phases = row
+        rid, at, lbl, meth, status, total_ms, accounted_ms, phases, cpu_ms = row
         out.append(
             {
                 "id": rid,
@@ -284,6 +324,9 @@ def requests(
                 # two kept; the derived one is computed at read time.
                 "unaccounted_ms": total_ms - accounted_ms,
                 "phases": json.loads(phases),
+                # None, not 0: "not measured" is a different answer from
+                # "measured, and idle".
+                "cpu_ms": cpu_ms,
             }
         )
     return out

@@ -27,6 +27,22 @@ function clockOf(at: number): string {
   return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
 
+/** The design's thresholds (obs-render.js), not invented here.
+ *
+ *  Returns undefined when CPU was not measured — `time.thread_time` is not on
+ *  every platform and pre-Phase-2 rows carry no value. Rendering that as
+ *  "0ms, waiting" would assert a measurement nobody took, which is the same
+ *  mistake the health block exists to prevent one level up.
+ */
+function cpuVerdict(wall: number, cpu: number | null | undefined): string | undefined {
+  if (cpu === null || cpu === undefined) return undefined;
+  if (wall <= 0) return undefined;
+  const ratio = cpu / wall;
+  if (ratio > 0.6) return "cpu-bound";
+  if (ratio < 0.1) return "waiting";
+  return "mixed";
+}
+
 function toneOf(status: number): string {
   if (status >= 500) return "bad";
   if (status >= 400) return "warn";
@@ -159,6 +175,20 @@ export function RequestLedger(props: { window: MetricWindow }) {
                       <dt>Unaccounted</dt>
                       <dd class="num">{ms(r().unaccounted_ms)}</dd>
                     </div>
+                    <div>
+                      <dt>CPU</dt>
+                      <dd class="num">
+                        <Show
+                          when={r().cpu_ms !== null}
+                          fallback={<span class="mledger-unmeasured">not measured</span>}
+                        >
+                          {ms(r().cpu_ms ?? 0)}{" "}
+                          <span class="mledger-verdict">
+                            {cpuVerdict(r().total_ms, r().cpu_ms)}
+                          </span>
+                        </Show>
+                      </dd>
+                    </div>
                   </dl>
                   <Show
                     when={r().phases.length > 0}
@@ -176,8 +206,20 @@ export function RequestLedger(props: { window: MetricWindow }) {
                           <span>{p.name}</span>
                           <span class="mledger-bar">
                             <i style={{ width: `${(p.ms / r().total_ms) * 100}%` }} />
+                            {/* CPU as an inset on the wall bar, per the
+                                design: a bar that is nearly all inset is
+                                compute, a hollow one is waiting. */}
+                            <Show when={p.cpu_ms !== undefined}>
+                              <b
+                                class="mledger-cpu"
+                                style={{ width: `${((p.cpu_ms ?? 0) / r().total_ms) * 100}%` }}
+                              />
+                            </Show>
                           </span>
                           <span class="num">{ms(p.ms)}</span>
+                          <span class="num mledger-cpuv">
+                            <Show when={p.cpu_ms !== undefined}>{ms(p.cpu_ms ?? 0)}</Show>
+                          </span>
                         </div>
                       )}
                     </For>

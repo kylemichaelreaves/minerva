@@ -18,7 +18,9 @@ def _seed(conn, ages_days):
     now = time.time()
     for i, age in enumerate(ages_days):
         conn.execute(
-            "INSERT INTO request_spans VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
+        " VALUES (?,?,?,?,?,?,?,?)",  # named, so an added column cannot break this
             (f"id{i}", now - age * 86400, "works list", "GET", 200, 1.0, 0.0, "[]"),
         )
     conn.commit()

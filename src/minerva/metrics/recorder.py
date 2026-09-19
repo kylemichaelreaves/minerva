@@ -27,6 +27,19 @@ _log = logging.getLogger(__name__)
 # Per-thread by construction: each thread gets its own top-level Context,
 # which is what makes this safe under ThreadingHTTPServer. Threading the
 # span through every handler signature would be the alternative.
+# CPU time comes from `thread_time`, which is scoped to the calling thread.
+# NOT `process_time`: that is process-wide, and this server runs one thread per
+# request, so a span would absorb every concurrent request's CPU. Measured with
+# three neighbours, a span using 12.5 ms of CPU reported 56.5 ms — and the error
+# is directional, turning a WAITING phase into a CPU-bound one exactly when the
+# server is busy.
+#
+# `thread_time` is not on every platform. Absent, CPU capture turns off; it does
+# NOT fall back to `process_time`, because a confidently wrong number is worse
+# here than no number.
+_THREAD_TIME: Callable[[], float] | None = getattr(time, "thread_time", None)
+
+
 _CURRENT: contextvars.ContextVar[Span | None] = contextvars.ContextVar(
     "minerva_metrics_span", default=None
 )
@@ -45,7 +58,10 @@ def current_span() -> Span | None:
 class Span:
     """One in-flight request. Mutable; the dispatch site sets `status`."""
 
-    __slots__ = ("_clock", "_subs", "_t0", "_ttfe_ms", "id", "label", "method", "status")
+    __slots__ = (
+        "_clock", "_cpu0", "_subs", "_subs_cpu", "_t0", "_ttfe_ms",
+        "id", "label", "method", "status",
+    )
 
     def __init__(self, label: str, method: str, clock: Callable[[], float]) -> None:
         # Random, not a counter: a counter restarts at the same value in the
@@ -60,9 +76,30 @@ class Span:
         self._t0 = clock()
         self._ttfe_ms: float | None = None
         self._subs: list[tuple[str, float]] = []
+        # Parallel to `_subs`, keyed by name, rather than widening the tuple:
+        # every consumer of `_subs` unpacks exactly two elements, and the
+        # backward-compatibility constraint rules a third out.
+        self._subs_cpu: dict[str, float] = {}
+        self._cpu0: float | None = _THREAD_TIME() if _THREAD_TIME else None
 
     def elapsed_ms(self) -> float:
         return (self._clock() - self._t0) * 1000.0
+
+    @property
+    def cpu_ms(self) -> float | None:
+        """CPU this request's thread has used, or None when unmeasurable.
+
+        None and 0.0 are different answers — "not measured" versus "measured,
+        and it was idle" — and a reader cannot tell them apart if both render
+        as zero. Callers must preserve the distinction.
+        """
+
+        if self._cpu0 is None or _THREAD_TIME is None:
+            return None
+        return (_THREAD_TIME() - self._cpu0) * 1000.0
+
+    def add_sub_cpu(self, name: str, ms: float) -> None:
+        self._subs_cpu[name] = self._subs_cpu.get(name, 0.0) + ms
 
     def first_event(self) -> None:
         """Mark time-to-first-event. Called from every SSE write; only the
@@ -76,19 +113,43 @@ class Span:
 
 
 @contextlib.contextmanager
-def sub_span(name: str, *, clock: Callable[[], float] = time.perf_counter) -> Iterator[None]:
-    """Time a named step inside the active request. A no-op with no request
-    in flight, so the same code path stays usable from the CLI."""
+def sub_span(
+    name: str,
+    *,
+    clock: Callable[[], float] | None = None,
+    cpu_clock: Callable[[], float] | None = None,
+) -> Iterator[None]:
+    """Time a named step inside the active request, in wall AND cpu time.
+
+    A no-op with no request in flight, so the same code path stays usable from
+    the CLI.
+
+    Both clocks default to None and are resolved HERE rather than in the
+    signature. A default bound in the signature is evaluated at import, so
+    monkeypatching `time.perf_counter` afterwards never reached it — which is
+    the trap the audit recorded and Phase 1 deferred to this phase.
+
+    One limitation, stated rather than hidden: `llm_call` wraps a generator
+    that yields across `_send_sse`'s loop, so on a streaming call the consumer
+    runs on this same thread between yields and its work lands in this span's
+    `cpu_ms`. Thread-scoped CPU cannot separate them. The wall time is exact;
+    the CPU time is an upper bound for that one span.
+    """
 
     span = _CURRENT.get()
     if span is None:
         yield
         return
-    t0 = clock()
+    wall = clock or time.perf_counter
+    cpu = cpu_clock or _THREAD_TIME
+    t0 = wall()
+    c0 = cpu() if cpu else None
     try:
         yield
     finally:
-        span.add_sub(name, (clock() - t0) * 1000.0)
+        span.add_sub(name, (wall() - t0) * 1000.0)
+        if cpu is not None and c0 is not None:
+            span.add_sub_cpu(name, (cpu() - c0) * 1000.0)
 
 
 class Recorder:
@@ -184,6 +245,8 @@ class Recorder:
             total_ms=total_ms,
             accounted_ms=sum(ms for _, ms in span._subs),
             phases=list(span._subs),
+            phase_cpu=dict(span._subs_cpu),
+            cpu_ms=span.cpu_ms,
         )
         try:
             with self._lock:

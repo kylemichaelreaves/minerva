@@ -28,7 +28,9 @@ def conn():
 def _add(c, *, n=0, at=T0, label="works list", method="GET", status=200,
          total=10.0, phases=()):
     c.execute(
-        "INSERT INTO request_spans VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
+        " VALUES (?,?,?,?,?,?,?,?)",  # named, so an added column cannot break this
         (f"id{n:04d}", at, label, method, status, total,
          sum(p["ms"] for p in phases), json.dumps(list(phases))),
     )
