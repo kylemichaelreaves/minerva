@@ -151,6 +151,22 @@ def open_db(
     from ..sqlite_util import open_sqlite
 
     conn = open_sqlite(path, SCHEMA, check_same_thread=check_same_thread)
+    # WAL, because every metrics write is one transaction ON THE REQUEST PATH
+    # and the SQLite default fsyncs a rollback journal for each. Measured on
+    # this schema, 20,000 insert+commit:
+    #
+    #     DELETE + synchronous=FULL   315.43 us
+    #     WAL    + synchronous=FULL    57.34 us      5.5x
+    #
+    # FULL-to-FULL, so durability is unchanged. `synchronous=NORMAL` would buy
+    # another 24 us and is deliberately not taken.
+    #
+    # Journal mode is a property of the FILE, so this converts an existing
+    # `delete`-mode database rather than applying only to fresh ones. It is
+    # also not novel here: `data/index.sqlite` has been WAL all along
+    # (cli/terms/__init__.py). Scoped to the metrics DB — the other three
+    # satellites have not been measured (#617).
+    conn.execute("PRAGMA journal_mode = WAL")
     _add_missing_columns(conn)
     if retain_days is not None:
         prune(conn, retain_days=retain_days)
