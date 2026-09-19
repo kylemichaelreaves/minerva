@@ -14,6 +14,9 @@
 // nothing local warns.
 
 import { For, Show, createMemo, createResource, createSignal, type Resource } from "solid-js";
+
+import { MetricsHealthBanner } from "./MetricsHealthBanner";
+import { RequestLedger } from "./RequestLedger";
 import {
   METRIC_WINDOWS,
   fetchMetricsSeries,
@@ -103,6 +106,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
     props.onNavigate?.({ window: win(), label });
   };
 
+  const [view, setView] = createSignal<"routes" | "requests">("routes");
   const [summary] = createResource(win, (w) => fetchMetricsSummary(w));
   // The baseline. `offset: 1` is the window immediately before this one,
   // which is why it needed a backend parameter at all: before it, the
@@ -223,6 +227,16 @@ export function MetricsPanel(props: MetricsPanelProps) {
           is in flight or failed: a verdict over zero rows would read "No
           requests recorded in this window", which is a claim about the
           data rather than about the fetch. */}
+      {/* Above the verdict, not instead of it: the verdict describes the
+          routes, this describes whether the numbers under it can be trusted
+          at all. Renders nothing when healthy, so its presence is the
+          signal (#618). */}
+      {/* `summary.error &&` first, deliberately: reading an errored Solid
+          resource RE-THROWS, so `summary()?.health` alone takes down the
+          whole error path — which is the one path where the page most needs
+          to still render. */}
+      <MetricsHealthBanner health={summary.error ? undefined : summary()?.health} />
+
       <Show when={!summary.loading && errorTextOf(summary) === undefined}>
         <p class="metrics-verdict">
           <span class={`metrics-dot ${graded().verdict.severity}`} aria-hidden="true" />
@@ -232,38 +246,60 @@ export function MetricsPanel(props: MetricsPanelProps) {
         </p>
       </Show>
 
-      <main classList={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
-        <RouteList
-          entries={entries()}
-          loading={summary.loading}
-          errorText={errorTextOf(summary)}
-          selectedLabel={selectedLabel()}
-          onSelect={selectLabel}
-        />
+      {/* A view toggle rather than a second hash route: `readRoute` is already
+          over the Sonar complexity limit (#589) and grows a branch per
+          surface, so adding one here would make that worse for no gain. */}
+      <div class="metrics-views" role="group" aria-label="Metrics view">
+        <button type="button" aria-pressed={view() === "routes"} onClick={() => setView("routes")}>
+          Routes
+        </button>
+        <button
+          type="button"
+          aria-pressed={view() === "requests"}
+          onClick={() => setView("requests")}
+        >
+          Requests
+        </button>
+      </div>
 
-        <Show when={selectedEntry()}>
-          {(entry) => (
-            <RouteDetail
-              label={entry().row.label}
-              method={entry().row.method}
-              row={activeRow()}
-              prior={activePrior()}
-              windowLabel={WINDOW_LABELS[win()]}
-              spanKind={spanKind()}
-              onSpanKind={setSpanKind}
-              hasTtfe={ttfeRow() !== undefined}
-              onBack={() => selectLabel(undefined)}
-              seriesPoints={seriesPoints()}
-              seriesBucketSeconds={seriesBucketSeconds()}
-              seriesLoading={series.loading}
-              seriesErrorText={errorTextOf(series)}
-              detailRows={detailRows()}
-              detailLoading={detail.loading}
-              detailErrorText={errorTextOf(detail)}
-            />
-          )}
-        </Show>
-      </main>
+      <Show when={view() === "requests"}>
+        <RequestLedger window={win()} />
+      </Show>
+
+      <Show when={view() === "routes"}>
+        <main classList={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
+          <RouteList
+            entries={entries()}
+            loading={summary.loading}
+            errorText={errorTextOf(summary)}
+            selectedLabel={selectedLabel()}
+            onSelect={selectLabel}
+          />
+
+          <Show when={selectedEntry()}>
+            {(entry) => (
+              <RouteDetail
+                label={entry().row.label}
+                method={entry().row.method}
+                row={activeRow()}
+                prior={activePrior()}
+                windowLabel={WINDOW_LABELS[win()]}
+                spanKind={spanKind()}
+                onSpanKind={setSpanKind}
+                hasTtfe={ttfeRow() !== undefined}
+                onBack={() => selectLabel(undefined)}
+                seriesPoints={seriesPoints()}
+                seriesBucketSeconds={seriesBucketSeconds()}
+                seriesLoading={series.loading}
+                seriesErrorText={errorTextOf(series)}
+                detailRows={detailRows()}
+                detailLoading={detail.loading}
+                detailErrorText={errorTextOf(detail)}
+              />
+            )}
+          </Show>
+        </main>
+      </Show>
     </div>
   );
 }
