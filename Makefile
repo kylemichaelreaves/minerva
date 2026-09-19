@@ -91,8 +91,9 @@ test-unit-cov:
 test-e2e:
 	$(NPM) run test:e2e
 
+# No `npm run build` here: the fixture server builds the bundle it serves,
+# so every entry point gets it — including `npx playwright test` (#610).
 test-browser:
-	$(NPM) run build
 	$(NPM) run test:browser
 
 test-watch:
@@ -224,7 +225,7 @@ check-diff-coverage:
 check-format-baseline:
 	$(PYTHON) scripts/check_format_baseline.py
 
-check: lint typecheck test-py-cov test-unit-cov check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location
+check: lint typecheck test-py-cov test-unit-cov test-e2e test-browser check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.

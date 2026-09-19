@@ -78,19 +78,31 @@ export class ReaderPage {
    *  is exactly the parameter every jsdom test was blind to in #591.
    *
    *  The anchor for each endpoint is a small fixed distance inside its
-   *  OUTER edge — never the geometric center. Measured against a static
-   *  reproduction of this exact markup (no app JS, no CSS): starting a drag
-   *  at the exact horizontal center of a narrow one-character word (e.g.
-   *  "I", ~5px wide) lands in a sub-pixel dead zone where Chromium
-   *  repeatedly re-collapses the selection to the current mouse position
-   *  instead of extending it from the mousedown anchor — scanning
-   *  fractional offsets across that word's box found the dead zone at
-   *  roughly 50-55% of the width, with 25% and 75% both extending
-   *  correctly. Anchoring at the outer edges rather than a tuned fraction
-   *  of the center both clears that band at every width AND makes the
-   *  drag actually span words `fromIndex..toIndex` in full — a fraction
-   *  anywhere past 50% starts *after* a one-character `fromIndex` word,
-   *  silently excluding it from the selection. */
+   *  OUTER edge — never the geometric center, and never a tuned fraction
+   *  of the width. Chromium's caret hit-testing on a narrow one-character
+   *  word has two distinct failure bands, and a fraction cannot clear both
+   *  at every width (#596).
+   *
+   *  Scanned against the running app, dragging word 0 -> word 3 on a line
+   *  beginning with `"I"` (box 9.84px), reading `getSelection().toString()`:
+   *
+   *      frac 0.25..0.49  "I went down yesterday"    correct
+   *      frac 0.50        ""                         DEAD ZONE, collapses
+   *      frac 0.55..0.90  " went down yesterday"     word 0 SILENTLY DROPPED
+   *
+   *  The boundaries MOVE WITH BOX WIDTH — #596's original scan, against a
+   *  static reproduction with a 5.33px box, put the dead zone at 0.50-0.55
+   *  and the drop at 0.60. Two widths, two sets of boundaries: that is why
+   *  the rule here is an edge offset and not a number tuned to one corpus.
+   *
+   *  Both bands fail silently in opposite directions, and only one of them
+   *  is visible to a toolbar assertion. Measured by flipping this line:
+   *  at the center, `a drag that ends on a word shows the selection
+   *  toolbar (#591)` goes red too (empty selection, no toolbar) — but at
+   *  0.75 that spec stays GREEN while the selection quietly begins at the
+   *  second word. `the drag spans fromIndex in full (#596)` in
+   *  reader.spec.ts is the assertion that catches it; do not delete it and
+   *  do not "simplify" this anchor back to a center or a fraction. */
   async selectWords(line: Locator, fromIndex: number, toIndex: number): Promise<void> {
     const words = this.words(line);
     const from = await words.nth(fromIndex).boundingBox();

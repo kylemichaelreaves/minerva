@@ -54,6 +54,29 @@ test.describe("Reader selection", () => {
     await expect(reader.toolbar.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
   });
 
+  // The toolbar assertion above is satisfied by ANY non-empty selection, so it
+  // cannot see a drag that silently starts one word late. That is the failure
+  // mode #596 measured: anchoring past ~50% of a one-character word's box puts
+  // the caret after the glyph, and the selection quietly omits `fromIndex`.
+  test("the drag spans fromIndex in full, not the words after it (#596)", async ({
+    page,
+    request,
+  }) => {
+    const reader = new ReaderPage(page);
+    const { work, lang } = await firstWork(request);
+    await reader.goto(work, lang);
+
+    const line = await reader.firstPopulatedLine(4);
+    const firstWord = (await reader.words(line).nth(0).innerText()).trim();
+    await reader.selectWords(line, 0, 3);
+
+    const selection = await page.evaluate(() => window.getSelection()?.toString() ?? "");
+
+    // One assertion, both failure modes: the dead zone yields "" and a
+    // past-the-glyph anchor yields a selection starting at the SECOND word.
+    expect(selection.startsWith(firstWord)).toBe(true);
+  });
+
   test("clicking a single word opens the rail and not the toolbar", async ({ page, request }) => {
     const reader = new ReaderPage(page);
     const { work, lang } = await firstWork(request);
