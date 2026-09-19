@@ -96,6 +96,34 @@ CREATE INDEX IF NOT EXISTS request_spans_slow ON request_spans(total_ms DESC);
 -- millions and takes the json_each rollup from 170ms to 15ms at 5M rows.
 CREATE INDEX IF NOT EXISTS request_spans_phased ON request_spans(at)
     WHERE phases != '[]';
+
+-- Batch-pipeline distributions (Phase 5). Its own table, not `request_timings`:
+-- that one's vocabulary is route/method/status and a pipeline run has none of
+-- them, so `label` would mean two different things depending on the row.
+--
+-- One row per (run, lang, backend, model, kind). 428,982 chunks fold into a
+-- handful of rows, which is the point — a distribution across the corpus, not
+-- a log of runs. `backend` is in the key because spaCy falls back to Stanza
+-- when a model is missing, and the two are different populations.
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    at        REAL    NOT NULL,
+    pipeline  TEXT    NOT NULL,
+    lang      TEXT    NOT NULL,
+    backend   TEXT    NOT NULL,
+    model     TEXT    NOT NULL,
+    kind      TEXT    NOT NULL,
+    -- Observations folded in: BATCHES for `batch_duration`, CHUNKS for
+    -- `tokens`. `items` is the chunks a duration row covers, which is what
+    -- makes throughput derivable — a batch duration alone cannot say
+    -- chunks-per-second.
+    count     INTEGER NOT NULL,
+    items     INTEGER NOT NULL DEFAULT 0,
+    sum       REAL    NOT NULL,
+    min       REAL    NOT NULL,
+    max       REAL    NOT NULL,
+    {_BUCKET_DECLS}
+);
+CREATE INDEX IF NOT EXISTS pipeline_runs_at ON pipeline_runs(at);
 """
 
 
@@ -367,6 +395,57 @@ def requests(
     return out
 
 
+def write_pipeline_rows(conn: sqlite3.Connection, rows: Sequence[Any]) -> None:
+    """Append one run's distributions. Appends rather than upserts: history
+    across runs is the point, so last-run-wins would discard it."""
+
+    if not rows:
+        return
+    placeholders = ", ".join("?" * (11 + BUCKET_COUNT))
+    sql = (
+        f"INSERT INTO pipeline_runs (at, pipeline, lang, backend, model, kind,"
+        f" count, items, sum, min, max, {_BUCKET_COLS}) VALUES ({placeholders})"
+    )
+    with conn:
+        conn.executemany(
+            sql,
+            [
+                (
+                    r.at, r.pipeline, r.lang, r.backend, r.model, r.kind,
+                    r.count, r.items, r.sum, r.min, r.max, *r.buckets,
+                )
+                for r in rows
+            ],
+        )
+
+
+def pipeline_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Stored distributions, newest first, with quantiles recovered."""
+
+    sql = (
+        f"SELECT at, pipeline, lang, backend, model, kind, count, items,"
+        f" sum, min, max, {_BUCKET_COLS} FROM pipeline_runs"
+        f" ORDER BY at DESC, lang, kind"
+    )
+    out: list[dict[str, Any]] = []
+    for row in conn.execute(sql):
+        (at, pipeline, lang, backend, model, kind,
+         count, items, total, lo, hi) = row[:11]
+        buckets = list(row[11:])
+        out.append(
+            {
+                "at": at, "pipeline": pipeline, "lang": lang, "backend": backend,
+                "model": model, "kind": kind, "count": count, "sum": total,
+                "min": lo, "max": hi, "items": items,
+                "mean": total / count if count else 0.0,
+                # Chunks per second, only meaningful for a duration row.
+                "items_per_s": (items / (total / 1000.0)) if total else 0.0,
+                **_quantiles(buckets),
+            }
+        )
+    return out
+
+
 def _quantiles(buckets: list[int]) -> dict[str, float]:
     return {
         "p50_ms": quantile(buckets, 0.50),
@@ -500,9 +579,11 @@ __all__ = [
     "RequestRow",
     "Sample",
     "open_db",
+    "pipeline_runs",
     "requests",
     "series",
     "summary",
     "write",
+    "write_pipeline_rows",
     "write_request",
 ]
