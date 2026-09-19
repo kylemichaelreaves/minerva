@@ -16,6 +16,7 @@ import { useTheme } from "~/theme";
 import { useRouting } from "~/routing";
 import { useConversations } from "~/features/conversations/conversationsCtrl";
 import { useReader } from "~/Reader/readerCtrl";
+import { slugify } from "~/slug";
 import type { AccentKey } from "~/utils/types";
 
 const ACCENT_KEY: AccentKey = "oxblood";
@@ -117,11 +118,14 @@ function AppShell() {
         .works()
         .find(
           (x) =>
-            x.work === loc.workId &&
+            slugify(x.work) === loc.workSlug &&
             (loc.sourceLang == null || x.lang === loc.sourceLang),
         );
       if (w) return { author: w.author, title: w.display_title };
-      return { author: "", title: loc.workId };
+      // The works list has not loaded yet, and the route carries no title to
+      // fall back on (#602). The slug is the closest readable thing there is;
+      // it is replaced the moment the list arrives.
+      return { author: "", title: loc.workSlug };
     },
   );
 
@@ -149,7 +153,11 @@ function AppShell() {
         onRequestDelete={conversations.requestDelete}
         mode={reader.mode()}
         works={reader.works()}
-        activeWorkId={reader.readerWork()?.workId ?? null}
+        // Sidebar matches this against `w.work`, so it needs the TITLE the
+        // route no longer carries. `currentWork()` resolves the slug against
+        // the same works list the Sidebar is rendering, so it is available
+        // exactly when the Sidebar can use it.
+        activeWorkId={reader.currentWork()?.work ?? null}
         activeWorkLang={reader.readerWork()?.sourceLang}
         onPickWork={reader.openWork}
         onGoLanding={() => { routing.navigate({ kind: "landing" }); }}

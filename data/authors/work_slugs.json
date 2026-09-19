@@ -1,0 +1,3466 @@
+{
+  "aeschylus/agamemnon": {
+    "author": "Aeschylus",
+    "title": "Agamemnon"
+  },
+  "aeschylus/eumenides": {
+    "author": "Aeschylus",
+    "title": "Eumenides"
+  },
+  "aeschylus/libation-bearers": {
+    "author": "Aeschylus",
+    "title": "Libation Bearers"
+  },
+  "aeschylus/persians": {
+    "author": "Aeschylus",
+    "title": "Persians"
+  },
+  "aeschylus/prometheus-bound": {
+    "author": "Aeschylus",
+    "title": "Prometheus Bound"
+  },
+  "aeschylus/seven-against-thebes": {
+    "author": "Aeschylus",
+    "title": "Seven Against Thebes"
+  },
+  "aeschylus/suppliants": {
+    "author": "Aeschylus",
+    "title": "Suppliants"
+  },
+  "aesop/fables-babrius": {
+    "author": "Aesop",
+    "title": "Fables (Babrius)"
+  },
+  "aesop/phaedrus": {
+    "author": "Aesop",
+    "title": "Phaedrus"
+  },
+  "anaxagoras/fragments-dk-59": {
+    "author": "Anaxagoras",
+    "title": "Fragments (DK 59)"
+  },
+  "anaximenes/fragments-dk-13": {
+    "author": "Anaximenes",
+    "title": "Fragments (DK 13)"
+  },
+  "aquinas/in-libros-physicorum": {
+    "author": "Aquinas",
+    "title": "In libros Physicorum"
+  },
+  "aquinas/sentencia-libri-de-anima": {
+    "author": "Aquinas",
+    "title": "Sentencia libri De anima"
+  },
+  "aquinas/sententia-libri-ethicorum": {
+    "author": "Aquinas",
+    "title": "Sententia libri Ethicorum"
+  },
+  "aquinas/sententia-libri-metaphysicae": {
+    "author": "Aquinas",
+    "title": "Sententia libri Metaphysicae"
+  },
+  "aquinas/summa-contra-gentiles": {
+    "author": "Aquinas",
+    "title": "Summa contra Gentiles"
+  },
+  "aquinas/summa-theologiae": {
+    "author": "Aquinas",
+    "title": "Summa Theologiae"
+  },
+  "aristotle/athenian-constitution": {
+    "author": "Aristotle",
+    "title": "Athenian Constitution"
+  },
+  "aristotle/categories": {
+    "author": "Aristotle",
+    "title": "Categories"
+  },
+  "aristotle/economics": {
+    "author": "Aristotle",
+    "title": "Economics"
+  },
+  "aristotle/eudemian-ethics": {
+    "author": "Aristotle",
+    "title": "Eudemian Ethics"
+  },
+  "aristotle/generation-of-animals": {
+    "author": "Aristotle",
+    "title": "Generation of Animals"
+  },
+  "aristotle/history-of-animals": {
+    "author": "Aristotle",
+    "title": "History of Animals"
+  },
+  "aristotle/magna-moralia": {
+    "author": "Aristotle",
+    "title": "Magna Moralia"
+  },
+  "aristotle/mechanics": {
+    "author": "Aristotle",
+    "title": "Mechanics"
+  },
+  "aristotle/metaphysics": {
+    "author": "Aristotle",
+    "title": "Metaphysics"
+  },
+  "aristotle/meteorology": {
+    "author": "Aristotle",
+    "title": "Meteorology"
+  },
+  "aristotle/movement-of-animals": {
+    "author": "Aristotle",
+    "title": "Movement of Animals"
+  },
+  "aristotle/nicomachean-ethics": {
+    "author": "Aristotle",
+    "title": "Nicomachean Ethics"
+  },
+  "aristotle/on-dreams": {
+    "author": "Aristotle",
+    "title": "On Dreams"
+  },
+  "aristotle/on-generation-and-corruption": {
+    "author": "Aristotle",
+    "title": "On Generation and Corruption"
+  },
+  "aristotle/on-interpretation": {
+    "author": "Aristotle",
+    "title": "On Interpretation"
+  },
+  "aristotle/on-longevity-and-shortness-of-life": {
+    "author": "Aristotle",
+    "title": "On Longevity and Shortness of Life"
+  },
+  "aristotle/on-memory-and-reminiscence": {
+    "author": "Aristotle",
+    "title": "On Memory and Reminiscence"
+  },
+  "aristotle/on-prophesying-by-dreams": {
+    "author": "Aristotle",
+    "title": "On Prophesying by Dreams"
+  },
+  "aristotle/on-sense-and-the-sensible": {
+    "author": "Aristotle",
+    "title": "On Sense and the Sensible"
+  },
+  "aristotle/on-sleep-and-sleeplessness": {
+    "author": "Aristotle",
+    "title": "On Sleep and Sleeplessness"
+  },
+  "aristotle/on-the-heavens": {
+    "author": "Aristotle",
+    "title": "On the Heavens"
+  },
+  "aristotle/on-the-soul": {
+    "author": "Aristotle",
+    "title": "On the Soul"
+  },
+  "aristotle/on-youth-old-age-life-and-death": {
+    "author": "Aristotle",
+    "title": "On Youth, Old Age, Life and Death"
+  },
+  "aristotle/parts-of-animals": {
+    "author": "Aristotle",
+    "title": "Parts of Animals"
+  },
+  "aristotle/physics": {
+    "author": "Aristotle",
+    "title": "Physics"
+  },
+  "aristotle/poetics": {
+    "author": "Aristotle",
+    "title": "Poetics"
+  },
+  "aristotle/politics": {
+    "author": "Aristotle",
+    "title": "Politics"
+  },
+  "aristotle/posterior-analytics": {
+    "author": "Aristotle",
+    "title": "Posterior Analytics"
+  },
+  "aristotle/prior-analytics": {
+    "author": "Aristotle",
+    "title": "Prior Analytics"
+  },
+  "aristotle/problems": {
+    "author": "Aristotle",
+    "title": "Problems"
+  },
+  "aristotle/progression-of-animals": {
+    "author": "Aristotle",
+    "title": "Progression of Animals"
+  },
+  "aristotle/rhetoric": {
+    "author": "Aristotle",
+    "title": "Rhetoric"
+  },
+  "aristotle/sophistical-refutations": {
+    "author": "Aristotle",
+    "title": "Sophistical Refutations"
+  },
+  "aristotle/topics": {
+    "author": "Aristotle",
+    "title": "Topics"
+  },
+  "aristotle/virtues-and-vices": {
+    "author": "Aristotle",
+    "title": "Virtues and Vices"
+  },
+  "augustine/confessiones": {
+    "author": "Augustine",
+    "title": "Confessiones"
+  },
+  "augustine/de-civitate-dei": {
+    "author": "Augustine",
+    "title": "De civitate Dei"
+  },
+  "augustine/de-trinitate": {
+    "author": "Augustine",
+    "title": "De Trinitate"
+  },
+  "boulainvilliers/essai-sur-la-noblesse-de-france": {
+    "author": "Boulainvilliers",
+    "title": "Essai sur la noblesse de France"
+  },
+  "boulainvilliers/histoire-de-l-ancien-gouvernement-de-la-france": {
+    "author": "Boulainvilliers",
+    "title": "Histoire de l'ancien gouvernement de la France"
+  },
+  "boulainvilliers/lettres-sur-les-anciens-parlemens-de-france": {
+    "author": "Boulainvilliers",
+    "title": "Lettres sur les anciens parlemens de France"
+  },
+  "cicero/academic-questions-de-finibus-tusculans-yonge": {
+    "author": "Cicero",
+    "title": "Academic Questions, De Finibus, Tusculans (Yonge)"
+  },
+  "cicero/academica": {
+    "author": "Cicero",
+    "title": "Academica"
+  },
+  "cicero/brutus": {
+    "author": "Cicero",
+    "title": "Brutus"
+  },
+  "cicero/brutus-and-orator": {
+    "author": "Cicero",
+    "title": "Brutus and Orator"
+  },
+  "cicero/cato-maior-de-senectute": {
+    "author": "Cicero",
+    "title": "Cato Maior de Senectute"
+  },
+  "cicero/de-divinatione": {
+    "author": "Cicero",
+    "title": "De Divinatione"
+  },
+  "cicero/de-fato": {
+    "author": "Cicero",
+    "title": "De Fato"
+  },
+  "cicero/de-finibus-bonorum-et-malorum": {
+    "author": "Cicero",
+    "title": "De Finibus Bonorum et Malorum"
+  },
+  "cicero/de-inventione": {
+    "author": "Cicero",
+    "title": "De Inventione"
+  },
+  "cicero/de-legibus": {
+    "author": "Cicero",
+    "title": "De Legibus"
+  },
+  "cicero/de-natura-deorum": {
+    "author": "Cicero",
+    "title": "De Natura Deorum"
+  },
+  "cicero/de-officiis": {
+    "author": "Cicero",
+    "title": "De Officiis"
+  },
+  "cicero/de-oratore": {
+    "author": "Cicero",
+    "title": "De Oratore"
+  },
+  "cicero/de-re-publica": {
+    "author": "Cicero",
+    "title": "De Re Publica"
+  },
+  "cicero/laelius-de-amicitia": {
+    "author": "Cicero",
+    "title": "Laelius de Amicitia"
+  },
+  "cicero/orator": {
+    "author": "Cicero",
+    "title": "Orator"
+  },
+  "cicero/topica": {
+    "author": "Cicero",
+    "title": "Topica"
+  },
+  "cicero/treatises-on-friendship-and-old-age": {
+    "author": "Cicero",
+    "title": "Treatises on Friendship and Old Age"
+  },
+  "cicero/tusculan-disputations": {
+    "author": "Cicero",
+    "title": "Tusculan Disputations"
+  },
+  "cicero/tusculanae-disputationes": {
+    "author": "Cicero",
+    "title": "Tusculanae Disputationes"
+  },
+  "descartes/discours-de-la-methode": {
+    "author": "Descartes",
+    "title": "Discours de la méthode"
+  },
+  "descartes/meditationes-de-prima-philosophia": {
+    "author": "Descartes",
+    "title": "Meditationes de prima philosophia"
+  },
+  "descartes/meditations-metaphysiques": {
+    "author": "Descartes",
+    "title": "Méditations métaphysiques"
+  },
+  "descartes/objections-et-reponses": {
+    "author": "Descartes",
+    "title": "Objections et Réponses"
+  },
+  "descartes/principes-de-la-philosophie": {
+    "author": "Descartes",
+    "title": "Principes de la philosophie"
+  },
+  "descartes/principia-philosophiae": {
+    "author": "Descartes",
+    "title": "Principia philosophiae"
+  },
+  "diogenes-of-apollonia/fragments-dk-64": {
+    "author": "Diogenes of Apollonia",
+    "title": "Fragments (DK 64)"
+  },
+  "empedocles/fragments-dk-31": {
+    "author": "Empedocles",
+    "title": "Fragments (DK 31)"
+  },
+  "epictetus/dissertationes-ab-arriano-digestae": {
+    "author": "Epictetus",
+    "title": "Dissertationes ab Arriano digestae"
+  },
+  "epictetus/enchiridion": {
+    "author": "Epictetus",
+    "title": "Enchiridion"
+  },
+  "epictetus/fragmenta-dissertationum-epictetearum-sive-ab-arriano-sive-ab-aliis-digestarum": {
+    "author": "Epictetus",
+    "title": "Fragmenta dissertationum Epictetearum sive ab Arriano sive ab aliis digestarum"
+  },
+  "epictetus/fragments-of-epictetus-from-stobaeus-antonius-and-maximus": {
+    "author": "Epictetus",
+    "title": "Fragments of Epictetus from Stobaeus, Antonius, and Maximus."
+  },
+  "epictetus/the-discourses-of-epictetus": {
+    "author": "Epictetus",
+    "title": "The Discourses of Epictetus"
+  },
+  "epictetus/the-enchiridion": {
+    "author": "Epictetus",
+    "title": "The Enchiridion"
+  },
+  "euripides/alcestis": {
+    "author": "Euripides",
+    "title": "Alcestis"
+  },
+  "euripides/andromache": {
+    "author": "Euripides",
+    "title": "Andromache"
+  },
+  "euripides/bacchae": {
+    "author": "Euripides",
+    "title": "Bacchae"
+  },
+  "euripides/cyclops": {
+    "author": "Euripides",
+    "title": "Cyclops"
+  },
+  "euripides/electra": {
+    "author": "Euripides",
+    "title": "Electra"
+  },
+  "euripides/hecuba": {
+    "author": "Euripides",
+    "title": "Hecuba"
+  },
+  "euripides/helen": {
+    "author": "Euripides",
+    "title": "Helen"
+  },
+  "euripides/heracles": {
+    "author": "Euripides",
+    "title": "Heracles"
+  },
+  "euripides/heraclidae": {
+    "author": "Euripides",
+    "title": "Heraclidae"
+  },
+  "euripides/hippolytus": {
+    "author": "Euripides",
+    "title": "Hippolytus"
+  },
+  "euripides/ion": {
+    "author": "Euripides",
+    "title": "Ion"
+  },
+  "euripides/iphigenia-in-aulis": {
+    "author": "Euripides",
+    "title": "Iphigenia in Aulis"
+  },
+  "euripides/iphigenia-in-tauris": {
+    "author": "Euripides",
+    "title": "Iphigenia in Tauris"
+  },
+  "euripides/medea": {
+    "author": "Euripides",
+    "title": "Medea"
+  },
+  "euripides/orestes": {
+    "author": "Euripides",
+    "title": "Orestes"
+  },
+  "euripides/phoenician-women": {
+    "author": "Euripides",
+    "title": "Phoenician Women"
+  },
+  "euripides/rhesus": {
+    "author": "Euripides",
+    "title": "Rhesus"
+  },
+  "euripides/suppliants": {
+    "author": "Euripides",
+    "title": "Suppliants"
+  },
+  "euripides/trojan-women": {
+    "author": "Euripides",
+    "title": "Trojan Women"
+  },
+  "gobineau/essai-sur-l-inegalite-des-races-humaines-vol-1": {
+    "author": "Gobineau",
+    "title": "Essai sur l'inégalité des races humaines, vol. 1"
+  },
+  "gobineau/essai-sur-l-inegalite-des-races-humaines-vol-2": {
+    "author": "Gobineau",
+    "title": "Essai sur l'inégalité des races humaines, vol. 2"
+  },
+  "gobineau/essai-sur-l-inegalite-des-races-humaines-vol-3": {
+    "author": "Gobineau",
+    "title": "Essai sur l'inégalité des races humaines, vol. 3"
+  },
+  "gobineau/essai-sur-l-inegalite-des-races-humaines-vol-4": {
+    "author": "Gobineau",
+    "title": "Essai sur l'inégalité des races humaines, vol. 4"
+  },
+  "hebrew-bible/1-chronicles": {
+    "author": "Hebrew Bible",
+    "title": "1 Chronicles"
+  },
+  "hebrew-bible/1-kings": {
+    "author": "Hebrew Bible",
+    "title": "1 Kings"
+  },
+  "hebrew-bible/1-samuel": {
+    "author": "Hebrew Bible",
+    "title": "1 Samuel"
+  },
+  "hebrew-bible/2-chronicles": {
+    "author": "Hebrew Bible",
+    "title": "2 Chronicles"
+  },
+  "hebrew-bible/2-kings": {
+    "author": "Hebrew Bible",
+    "title": "2 Kings"
+  },
+  "hebrew-bible/2-samuel": {
+    "author": "Hebrew Bible",
+    "title": "2 Samuel"
+  },
+  "hebrew-bible/amos": {
+    "author": "Hebrew Bible",
+    "title": "Amos"
+  },
+  "hebrew-bible/daniel": {
+    "author": "Hebrew Bible",
+    "title": "Daniel"
+  },
+  "hebrew-bible/deuteronomy": {
+    "author": "Hebrew Bible",
+    "title": "Deuteronomy"
+  },
+  "hebrew-bible/ecclesiastes": {
+    "author": "Hebrew Bible",
+    "title": "Ecclesiastes"
+  },
+  "hebrew-bible/esther": {
+    "author": "Hebrew Bible",
+    "title": "Esther"
+  },
+  "hebrew-bible/exodus": {
+    "author": "Hebrew Bible",
+    "title": "Exodus"
+  },
+  "hebrew-bible/ezekiel": {
+    "author": "Hebrew Bible",
+    "title": "Ezekiel"
+  },
+  "hebrew-bible/ezra": {
+    "author": "Hebrew Bible",
+    "title": "Ezra"
+  },
+  "hebrew-bible/genesis": {
+    "author": "Hebrew Bible",
+    "title": "Genesis"
+  },
+  "hebrew-bible/habakkuk": {
+    "author": "Hebrew Bible",
+    "title": "Habakkuk"
+  },
+  "hebrew-bible/haggai": {
+    "author": "Hebrew Bible",
+    "title": "Haggai"
+  },
+  "hebrew-bible/hosea": {
+    "author": "Hebrew Bible",
+    "title": "Hosea"
+  },
+  "hebrew-bible/isaiah": {
+    "author": "Hebrew Bible",
+    "title": "Isaiah"
+  },
+  "hebrew-bible/jeremiah": {
+    "author": "Hebrew Bible",
+    "title": "Jeremiah"
+  },
+  "hebrew-bible/job": {
+    "author": "Hebrew Bible",
+    "title": "Job"
+  },
+  "hebrew-bible/joel": {
+    "author": "Hebrew Bible",
+    "title": "Joel"
+  },
+  "hebrew-bible/jonah": {
+    "author": "Hebrew Bible",
+    "title": "Jonah"
+  },
+  "hebrew-bible/joshua": {
+    "author": "Hebrew Bible",
+    "title": "Joshua"
+  },
+  "hebrew-bible/judges": {
+    "author": "Hebrew Bible",
+    "title": "Judges"
+  },
+  "hebrew-bible/lamentations": {
+    "author": "Hebrew Bible",
+    "title": "Lamentations"
+  },
+  "hebrew-bible/leviticus": {
+    "author": "Hebrew Bible",
+    "title": "Leviticus"
+  },
+  "hebrew-bible/malachi": {
+    "author": "Hebrew Bible",
+    "title": "Malachi"
+  },
+  "hebrew-bible/micah": {
+    "author": "Hebrew Bible",
+    "title": "Micah"
+  },
+  "hebrew-bible/nahum": {
+    "author": "Hebrew Bible",
+    "title": "Nahum"
+  },
+  "hebrew-bible/nehemiah": {
+    "author": "Hebrew Bible",
+    "title": "Nehemiah"
+  },
+  "hebrew-bible/numbers": {
+    "author": "Hebrew Bible",
+    "title": "Numbers"
+  },
+  "hebrew-bible/obadiah": {
+    "author": "Hebrew Bible",
+    "title": "Obadiah"
+  },
+  "hebrew-bible/proverbs": {
+    "author": "Hebrew Bible",
+    "title": "Proverbs"
+  },
+  "hebrew-bible/psalms": {
+    "author": "Hebrew Bible",
+    "title": "Psalms"
+  },
+  "hebrew-bible/ruth": {
+    "author": "Hebrew Bible",
+    "title": "Ruth"
+  },
+  "hebrew-bible/song-of-songs": {
+    "author": "Hebrew Bible",
+    "title": "Song of Songs"
+  },
+  "hebrew-bible/zechariah": {
+    "author": "Hebrew Bible",
+    "title": "Zechariah"
+  },
+  "hebrew-bible/zephaniah": {
+    "author": "Hebrew Bible",
+    "title": "Zephaniah"
+  },
+  "hegel/elements-of-the-philosophy-of-right": {
+    "author": "Hegel",
+    "title": "Elements of the Philosophy of Right"
+  },
+  "hegel/encyclopaedia-of-the-philosophical-sciences-part-i-the-logic": {
+    "author": "Hegel",
+    "title": "Encyclopaedia of the Philosophical Sciences, Part I: The Logic"
+  },
+  "hegel/encyclopaedia-of-the-philosophical-sciences-part-iii-the-philosophy-of-mind": {
+    "author": "Hegel",
+    "title": "Encyclopaedia of the Philosophical Sciences, Part III: The Philosophy of Mind"
+  },
+  "hegel/enzyklopadie-der-philosophischen-wissenschaften-im-grundrisse": {
+    "author": "Hegel",
+    "title": "Enzyklopädie der philosophischen Wissenschaften im Grundrisse"
+  },
+  "hegel/grundlinien-der-philosophie-des-rechts": {
+    "author": "Hegel",
+    "title": "Grundlinien der Philosophie des Rechts"
+  },
+  "hegel/hegel-s-early-theological-writings": {
+    "author": "Hegel",
+    "title": "Hegel's Early Theological Writings"
+  },
+  "hegel/lectures-on-the-history-of-philosophy-vol-i-introduction-and-oriental-philosophy": {
+    "author": "Hegel",
+    "title": "Lectures on the History of Philosophy, Vol. I — Introduction and Oriental Philosophy"
+  },
+  "hegel/lectures-on-the-history-of-philosophy-vol-ii-greek-philosophy": {
+    "author": "Hegel",
+    "title": "Lectures on the History of Philosophy, Vol. II — Greek Philosophy"
+  },
+  "hegel/lectures-on-the-history-of-philosophy-vol-iii-medieval-and-modern-philosophy": {
+    "author": "Hegel",
+    "title": "Lectures on the History of Philosophy, Vol. III — Medieval and Modern Philosophy"
+  },
+  "hegel/lectures-on-the-philosophy-of-spirit-1827-8": {
+    "author": "Hegel",
+    "title": "Lectures on the Philosophy of Spirit (1827–8)"
+  },
+  "hegel/lectures-on-the-philosophy-of-world-history-1822-3": {
+    "author": "Hegel",
+    "title": "Lectures on the Philosophy of World History (1822–3)"
+  },
+  "hegel/phanomenologie-des-geistes": {
+    "author": "Hegel",
+    "title": "Phänomenologie des Geistes"
+  },
+  "hegel/phenomenology-of-spirit-inwood": {
+    "author": "Hegel",
+    "title": "Phenomenology of Spirit (Inwood)"
+  },
+  "hegel/phenomenology-of-spirit-pinkard": {
+    "author": "Hegel",
+    "title": "Phenomenology of Spirit (Pinkard)"
+  },
+  "hegel/science-of-logic": {
+    "author": "Hegel",
+    "title": "Science of Logic"
+  },
+  "hegel/wissenschaft-der-logik": {
+    "author": "Hegel",
+    "title": "Wissenschaft der Logik"
+  },
+  "heraclitus/fragments-dk-22": {
+    "author": "Heraclitus",
+    "title": "Fragments (DK 22)"
+  },
+  "hobbes/de-cive": {
+    "author": "Hobbes",
+    "title": "De Cive"
+  },
+  "hobbes/de-corpore-politico": {
+    "author": "Hobbes",
+    "title": "De Corpore Politico"
+  },
+  "hobbes/human-nature": {
+    "author": "Hobbes",
+    "title": "Human Nature"
+  },
+  "hobbes/leviathan": {
+    "author": "Hobbes",
+    "title": "Leviathan"
+  },
+  "homer/iliad": {
+    "author": "Homer",
+    "title": "Iliad"
+  },
+  "homer/odyssey": {
+    "author": "Homer",
+    "title": "Odyssey"
+  },
+  "hume/a-treatise-of-human-nature": {
+    "author": "Hume",
+    "title": "A Treatise of Human Nature"
+  },
+  "hume/an-enquiry-concerning-human-understanding": {
+    "author": "Hume",
+    "title": "An Enquiry Concerning Human Understanding"
+  },
+  "kant/an-answer-to-the-question-what-is-enlightenment": {
+    "author": "Kant",
+    "title": "An Answer to the Question: What is Enlightenment?"
+  },
+  "kant/beantwortung-der-frage-was-ist-aufklarung": {
+    "author": "Kant",
+    "title": "Beantwortung der Frage: Was ist Aufklärung?"
+  },
+  "kant/critique-of-practical-reason": {
+    "author": "Kant",
+    "title": "Critique of Practical Reason"
+  },
+  "kant/critique-of-pure-reason": {
+    "author": "Kant",
+    "title": "Critique of Pure Reason"
+  },
+  "kant/critique-of-the-power-of-judgment": {
+    "author": "Kant",
+    "title": "Critique of the Power of Judgment"
+  },
+  "kant/die-metaphysik-der-sitten": {
+    "author": "Kant",
+    "title": "Die Metaphysik der Sitten"
+  },
+  "kant/die-religion-innerhalb-der-grenzen-der-blossen-vernunft": {
+    "author": "Kant",
+    "title": "Die Religion innerhalb der Grenzen der bloßen Vernunft"
+  },
+  "kant/einleitung-in-die-kritik-der-urteilskraft-1-fassung": {
+    "author": "Kant",
+    "title": "Einleitung in die Kritik der Urteilskraft (1. Fassung)"
+  },
+  "kant/groundwork-of-the-metaphysics-of-morals": {
+    "author": "Kant",
+    "title": "Groundwork of the Metaphysics of Morals"
+  },
+  "kant/grundlegung-zur-metaphysik-der-sitten": {
+    "author": "Kant",
+    "title": "Grundlegung zur Metaphysik der Sitten"
+  },
+  "kant/kraus-s-review-of-ulrich-s-eleutheriology": {
+    "author": "Kant",
+    "title": "Kraus's Review of Ulrich's Eleutheriology"
+  },
+  "kant/kritik-der-praktischen-vernunft": {
+    "author": "Kant",
+    "title": "Kritik der praktischen Vernunft"
+  },
+  "kant/kritik-der-reinen-vernunft": {
+    "author": "Kant",
+    "title": "Kritik der reinen Vernunft"
+  },
+  "kant/kritik-der-urteilskraft": {
+    "author": "Kant",
+    "title": "Kritik der Urteilskraft"
+  },
+  "kant/metaphysische-anfangsgrunde-der-naturwissenschaft": {
+    "author": "Kant",
+    "title": "Metaphysische Anfangsgründe der Naturwissenschaft"
+  },
+  "kant/on-a-supposed-right-to-lie-from-philanthropy": {
+    "author": "Kant",
+    "title": "On a Supposed Right to Lie from Philanthropy"
+  },
+  "kant/on-the-common-saying-that-may-be-correct-in-theory-but-it-is-of-no-use-in-practice": {
+    "author": "Kant",
+    "title": "On the Common Saying: That May Be Correct in Theory, but It Is of No Use in Practice"
+  },
+  "kant/on-the-wrongfulness-of-unauthorized-publication-of-books": {
+    "author": "Kant",
+    "title": "On the Wrongfulness of Unauthorized Publication of Books"
+  },
+  "kant/on-turning-out-books": {
+    "author": "Kant",
+    "title": "On Turning Out Books"
+  },
+  "kant/prolegomena-zu-einer-jeden-kunftigen-metaphysik": {
+    "author": "Kant",
+    "title": "Prolegomena zu einer jeden künftigen Metaphysik"
+  },
+  "kant/review-of-hufeland-s-essay-on-the-principle-of-natural-right": {
+    "author": "Kant",
+    "title": "Review of Hufeland's Essay on the Principle of Natural Right"
+  },
+  "kant/review-of-schulz-s-attempt-at-an-introduction-to-a-doctrine-of-morals": {
+    "author": "Kant",
+    "title": "Review of Schulz's Attempt at an Introduction to a Doctrine of Morals"
+  },
+  "kant/the-metaphysics-of-morals": {
+    "author": "Kant",
+    "title": "The Metaphysics of Morals"
+  },
+  "kant/toward-perpetual-peace": {
+    "author": "Kant",
+    "title": "Toward Perpetual Peace"
+  },
+  "kant/uber-den-gemeinspruch-das-mag-in-der-theorie-richtig-sein-taugt-aber-nicht-fur-die-praxis": {
+    "author": "Kant",
+    "title": "Über den Gemeinspruch: Das mag in der Theorie richtig sein, taugt aber nicht für die Praxis"
+  },
+  "kant/uber-ein-vermeintes-recht-aus-menschenliebe-zu-lugen": {
+    "author": "Kant",
+    "title": "Über ein vermeintes Recht aus Menschenliebe zu lügen"
+  },
+  "kant/was-heisst-sich-im-denken-orientieren": {
+    "author": "Kant",
+    "title": "Was heißt: sich im Denken orientieren?"
+  },
+  "kant/zum-ewigen-frieden-ein-philosophischer-entwurf": {
+    "author": "Kant",
+    "title": "Zum ewigen Frieden. Ein philosophischer Entwurf"
+  },
+  "king-james-bible/1-chronicles": {
+    "author": "King James Bible",
+    "title": "1 Chronicles"
+  },
+  "king-james-bible/1-corinthians": {
+    "author": "King James Bible",
+    "title": "1 Corinthians"
+  },
+  "king-james-bible/1-john": {
+    "author": "King James Bible",
+    "title": "1 John"
+  },
+  "king-james-bible/1-kings": {
+    "author": "King James Bible",
+    "title": "1 Kings"
+  },
+  "king-james-bible/1-peter": {
+    "author": "King James Bible",
+    "title": "1 Peter"
+  },
+  "king-james-bible/1-samuel": {
+    "author": "King James Bible",
+    "title": "1 Samuel"
+  },
+  "king-james-bible/1-thessalonians": {
+    "author": "King James Bible",
+    "title": "1 Thessalonians"
+  },
+  "king-james-bible/1-timothy": {
+    "author": "King James Bible",
+    "title": "1 Timothy"
+  },
+  "king-james-bible/2-chronicles": {
+    "author": "King James Bible",
+    "title": "2 Chronicles"
+  },
+  "king-james-bible/2-corinthians": {
+    "author": "King James Bible",
+    "title": "2 Corinthians"
+  },
+  "king-james-bible/2-john": {
+    "author": "King James Bible",
+    "title": "2 John"
+  },
+  "king-james-bible/2-kings": {
+    "author": "King James Bible",
+    "title": "2 Kings"
+  },
+  "king-james-bible/2-peter": {
+    "author": "King James Bible",
+    "title": "2 Peter"
+  },
+  "king-james-bible/2-samuel": {
+    "author": "King James Bible",
+    "title": "2 Samuel"
+  },
+  "king-james-bible/2-thessalonians": {
+    "author": "King James Bible",
+    "title": "2 Thessalonians"
+  },
+  "king-james-bible/2-timothy": {
+    "author": "King James Bible",
+    "title": "2 Timothy"
+  },
+  "king-james-bible/3-john": {
+    "author": "King James Bible",
+    "title": "3 John"
+  },
+  "king-james-bible/acts": {
+    "author": "King James Bible",
+    "title": "Acts"
+  },
+  "king-james-bible/amos": {
+    "author": "King James Bible",
+    "title": "Amos"
+  },
+  "king-james-bible/colossians": {
+    "author": "King James Bible",
+    "title": "Colossians"
+  },
+  "king-james-bible/daniel": {
+    "author": "King James Bible",
+    "title": "Daniel"
+  },
+  "king-james-bible/deuteronomy": {
+    "author": "King James Bible",
+    "title": "Deuteronomy"
+  },
+  "king-james-bible/ecclesiastes": {
+    "author": "King James Bible",
+    "title": "Ecclesiastes"
+  },
+  "king-james-bible/ephesians": {
+    "author": "King James Bible",
+    "title": "Ephesians"
+  },
+  "king-james-bible/esther": {
+    "author": "King James Bible",
+    "title": "Esther"
+  },
+  "king-james-bible/exodus": {
+    "author": "King James Bible",
+    "title": "Exodus"
+  },
+  "king-james-bible/ezekiel": {
+    "author": "King James Bible",
+    "title": "Ezekiel"
+  },
+  "king-james-bible/ezra": {
+    "author": "King James Bible",
+    "title": "Ezra"
+  },
+  "king-james-bible/galatians": {
+    "author": "King James Bible",
+    "title": "Galatians"
+  },
+  "king-james-bible/genesis": {
+    "author": "King James Bible",
+    "title": "Genesis"
+  },
+  "king-james-bible/habakkuk": {
+    "author": "King James Bible",
+    "title": "Habakkuk"
+  },
+  "king-james-bible/haggai": {
+    "author": "King James Bible",
+    "title": "Haggai"
+  },
+  "king-james-bible/hebrews": {
+    "author": "King James Bible",
+    "title": "Hebrews"
+  },
+  "king-james-bible/hosea": {
+    "author": "King James Bible",
+    "title": "Hosea"
+  },
+  "king-james-bible/isaiah": {
+    "author": "King James Bible",
+    "title": "Isaiah"
+  },
+  "king-james-bible/james": {
+    "author": "King James Bible",
+    "title": "James"
+  },
+  "king-james-bible/jeremiah": {
+    "author": "King James Bible",
+    "title": "Jeremiah"
+  },
+  "king-james-bible/job": {
+    "author": "King James Bible",
+    "title": "Job"
+  },
+  "king-james-bible/joel": {
+    "author": "King James Bible",
+    "title": "Joel"
+  },
+  "king-james-bible/john": {
+    "author": "King James Bible",
+    "title": "John"
+  },
+  "king-james-bible/jonah": {
+    "author": "King James Bible",
+    "title": "Jonah"
+  },
+  "king-james-bible/joshua": {
+    "author": "King James Bible",
+    "title": "Joshua"
+  },
+  "king-james-bible/jude": {
+    "author": "King James Bible",
+    "title": "Jude"
+  },
+  "king-james-bible/judges": {
+    "author": "King James Bible",
+    "title": "Judges"
+  },
+  "king-james-bible/lamentations": {
+    "author": "King James Bible",
+    "title": "Lamentations"
+  },
+  "king-james-bible/leviticus": {
+    "author": "King James Bible",
+    "title": "Leviticus"
+  },
+  "king-james-bible/luke": {
+    "author": "King James Bible",
+    "title": "Luke"
+  },
+  "king-james-bible/malachi": {
+    "author": "King James Bible",
+    "title": "Malachi"
+  },
+  "king-james-bible/mark": {
+    "author": "King James Bible",
+    "title": "Mark"
+  },
+  "king-james-bible/matthew": {
+    "author": "King James Bible",
+    "title": "Matthew"
+  },
+  "king-james-bible/micah": {
+    "author": "King James Bible",
+    "title": "Micah"
+  },
+  "king-james-bible/nahum": {
+    "author": "King James Bible",
+    "title": "Nahum"
+  },
+  "king-james-bible/nehemiah": {
+    "author": "King James Bible",
+    "title": "Nehemiah"
+  },
+  "king-james-bible/numbers": {
+    "author": "King James Bible",
+    "title": "Numbers"
+  },
+  "king-james-bible/obadiah": {
+    "author": "King James Bible",
+    "title": "Obadiah"
+  },
+  "king-james-bible/philemon": {
+    "author": "King James Bible",
+    "title": "Philemon"
+  },
+  "king-james-bible/philippians": {
+    "author": "King James Bible",
+    "title": "Philippians"
+  },
+  "king-james-bible/proverbs": {
+    "author": "King James Bible",
+    "title": "Proverbs"
+  },
+  "king-james-bible/psalms": {
+    "author": "King James Bible",
+    "title": "Psalms"
+  },
+  "king-james-bible/revelation": {
+    "author": "King James Bible",
+    "title": "Revelation"
+  },
+  "king-james-bible/romans": {
+    "author": "King James Bible",
+    "title": "Romans"
+  },
+  "king-james-bible/ruth": {
+    "author": "King James Bible",
+    "title": "Ruth"
+  },
+  "king-james-bible/song-of-songs": {
+    "author": "King James Bible",
+    "title": "Song of Songs"
+  },
+  "king-james-bible/titus": {
+    "author": "King James Bible",
+    "title": "Titus"
+  },
+  "king-james-bible/zechariah": {
+    "author": "King James Bible",
+    "title": "Zechariah"
+  },
+  "king-james-bible/zephaniah": {
+    "author": "King James Bible",
+    "title": "Zephaniah"
+  },
+  "locke/an-essay-concerning-human-understanding": {
+    "author": "Locke",
+    "title": "An Essay Concerning Human Understanding"
+  },
+  "locke/second-treatise-of-government": {
+    "author": "Locke",
+    "title": "Second Treatise of Government"
+  },
+  "lucretius/de-rerum-natura": {
+    "author": "Lucretius",
+    "title": "De Rerum Natura"
+  },
+  "luther-bibel-1545/1-chronicles": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Chronicles"
+  },
+  "luther-bibel-1545/1-corinthians": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Corinthians"
+  },
+  "luther-bibel-1545/1-john": {
+    "author": "Luther Bibel 1545",
+    "title": "1 John"
+  },
+  "luther-bibel-1545/1-kings": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Kings"
+  },
+  "luther-bibel-1545/1-peter": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Peter"
+  },
+  "luther-bibel-1545/1-samuel": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Samuel"
+  },
+  "luther-bibel-1545/1-thessalonians": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Thessalonians"
+  },
+  "luther-bibel-1545/1-timothy": {
+    "author": "Luther Bibel 1545",
+    "title": "1 Timothy"
+  },
+  "luther-bibel-1545/2-chronicles": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Chronicles"
+  },
+  "luther-bibel-1545/2-corinthians": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Corinthians"
+  },
+  "luther-bibel-1545/2-john": {
+    "author": "Luther Bibel 1545",
+    "title": "2 John"
+  },
+  "luther-bibel-1545/2-kings": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Kings"
+  },
+  "luther-bibel-1545/2-peter": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Peter"
+  },
+  "luther-bibel-1545/2-samuel": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Samuel"
+  },
+  "luther-bibel-1545/2-thessalonians": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Thessalonians"
+  },
+  "luther-bibel-1545/2-timothy": {
+    "author": "Luther Bibel 1545",
+    "title": "2 Timothy"
+  },
+  "luther-bibel-1545/3-john": {
+    "author": "Luther Bibel 1545",
+    "title": "3 John"
+  },
+  "luther-bibel-1545/acts": {
+    "author": "Luther Bibel 1545",
+    "title": "Acts"
+  },
+  "luther-bibel-1545/amos": {
+    "author": "Luther Bibel 1545",
+    "title": "Amos"
+  },
+  "luther-bibel-1545/colossians": {
+    "author": "Luther Bibel 1545",
+    "title": "Colossians"
+  },
+  "luther-bibel-1545/daniel": {
+    "author": "Luther Bibel 1545",
+    "title": "Daniel"
+  },
+  "luther-bibel-1545/deuteronomy": {
+    "author": "Luther Bibel 1545",
+    "title": "Deuteronomy"
+  },
+  "luther-bibel-1545/ecclesiastes": {
+    "author": "Luther Bibel 1545",
+    "title": "Ecclesiastes"
+  },
+  "luther-bibel-1545/ephesians": {
+    "author": "Luther Bibel 1545",
+    "title": "Ephesians"
+  },
+  "luther-bibel-1545/esther": {
+    "author": "Luther Bibel 1545",
+    "title": "Esther"
+  },
+  "luther-bibel-1545/exodus": {
+    "author": "Luther Bibel 1545",
+    "title": "Exodus"
+  },
+  "luther-bibel-1545/ezekiel": {
+    "author": "Luther Bibel 1545",
+    "title": "Ezekiel"
+  },
+  "luther-bibel-1545/ezra": {
+    "author": "Luther Bibel 1545",
+    "title": "Ezra"
+  },
+  "luther-bibel-1545/galatians": {
+    "author": "Luther Bibel 1545",
+    "title": "Galatians"
+  },
+  "luther-bibel-1545/genesis": {
+    "author": "Luther Bibel 1545",
+    "title": "Genesis"
+  },
+  "luther-bibel-1545/habakkuk": {
+    "author": "Luther Bibel 1545",
+    "title": "Habakkuk"
+  },
+  "luther-bibel-1545/haggai": {
+    "author": "Luther Bibel 1545",
+    "title": "Haggai"
+  },
+  "luther-bibel-1545/hebrews": {
+    "author": "Luther Bibel 1545",
+    "title": "Hebrews"
+  },
+  "luther-bibel-1545/hosea": {
+    "author": "Luther Bibel 1545",
+    "title": "Hosea"
+  },
+  "luther-bibel-1545/isaiah": {
+    "author": "Luther Bibel 1545",
+    "title": "Isaiah"
+  },
+  "luther-bibel-1545/james": {
+    "author": "Luther Bibel 1545",
+    "title": "James"
+  },
+  "luther-bibel-1545/jeremiah": {
+    "author": "Luther Bibel 1545",
+    "title": "Jeremiah"
+  },
+  "luther-bibel-1545/job": {
+    "author": "Luther Bibel 1545",
+    "title": "Job"
+  },
+  "luther-bibel-1545/joel": {
+    "author": "Luther Bibel 1545",
+    "title": "Joel"
+  },
+  "luther-bibel-1545/john": {
+    "author": "Luther Bibel 1545",
+    "title": "John"
+  },
+  "luther-bibel-1545/jonah": {
+    "author": "Luther Bibel 1545",
+    "title": "Jonah"
+  },
+  "luther-bibel-1545/joshua": {
+    "author": "Luther Bibel 1545",
+    "title": "Joshua"
+  },
+  "luther-bibel-1545/jude": {
+    "author": "Luther Bibel 1545",
+    "title": "Jude"
+  },
+  "luther-bibel-1545/judges": {
+    "author": "Luther Bibel 1545",
+    "title": "Judges"
+  },
+  "luther-bibel-1545/lamentations": {
+    "author": "Luther Bibel 1545",
+    "title": "Lamentations"
+  },
+  "luther-bibel-1545/leviticus": {
+    "author": "Luther Bibel 1545",
+    "title": "Leviticus"
+  },
+  "luther-bibel-1545/luke": {
+    "author": "Luther Bibel 1545",
+    "title": "Luke"
+  },
+  "luther-bibel-1545/malachi": {
+    "author": "Luther Bibel 1545",
+    "title": "Malachi"
+  },
+  "luther-bibel-1545/mark": {
+    "author": "Luther Bibel 1545",
+    "title": "Mark"
+  },
+  "luther-bibel-1545/matthew": {
+    "author": "Luther Bibel 1545",
+    "title": "Matthew"
+  },
+  "luther-bibel-1545/micah": {
+    "author": "Luther Bibel 1545",
+    "title": "Micah"
+  },
+  "luther-bibel-1545/nahum": {
+    "author": "Luther Bibel 1545",
+    "title": "Nahum"
+  },
+  "luther-bibel-1545/nehemiah": {
+    "author": "Luther Bibel 1545",
+    "title": "Nehemiah"
+  },
+  "luther-bibel-1545/numbers": {
+    "author": "Luther Bibel 1545",
+    "title": "Numbers"
+  },
+  "luther-bibel-1545/obadiah": {
+    "author": "Luther Bibel 1545",
+    "title": "Obadiah"
+  },
+  "luther-bibel-1545/philemon": {
+    "author": "Luther Bibel 1545",
+    "title": "Philemon"
+  },
+  "luther-bibel-1545/philippians": {
+    "author": "Luther Bibel 1545",
+    "title": "Philippians"
+  },
+  "luther-bibel-1545/proverbs": {
+    "author": "Luther Bibel 1545",
+    "title": "Proverbs"
+  },
+  "luther-bibel-1545/psalms": {
+    "author": "Luther Bibel 1545",
+    "title": "Psalms"
+  },
+  "luther-bibel-1545/revelation": {
+    "author": "Luther Bibel 1545",
+    "title": "Revelation"
+  },
+  "luther-bibel-1545/romans": {
+    "author": "Luther Bibel 1545",
+    "title": "Romans"
+  },
+  "luther-bibel-1545/ruth": {
+    "author": "Luther Bibel 1545",
+    "title": "Ruth"
+  },
+  "luther-bibel-1545/song-of-songs": {
+    "author": "Luther Bibel 1545",
+    "title": "Song of Songs"
+  },
+  "luther-bibel-1545/titus": {
+    "author": "Luther Bibel 1545",
+    "title": "Titus"
+  },
+  "luther-bibel-1545/zechariah": {
+    "author": "Luther Bibel 1545",
+    "title": "Zechariah"
+  },
+  "luther-bibel-1545/zephaniah": {
+    "author": "Luther Bibel 1545",
+    "title": "Zephaniah"
+  },
+  "luther-bibel-1912/1-chronicles": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Chronicles"
+  },
+  "luther-bibel-1912/1-corinthians": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Corinthians"
+  },
+  "luther-bibel-1912/1-john": {
+    "author": "Luther Bibel 1912",
+    "title": "1 John"
+  },
+  "luther-bibel-1912/1-kings": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Kings"
+  },
+  "luther-bibel-1912/1-peter": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Peter"
+  },
+  "luther-bibel-1912/1-samuel": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Samuel"
+  },
+  "luther-bibel-1912/1-thessalonians": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Thessalonians"
+  },
+  "luther-bibel-1912/1-timothy": {
+    "author": "Luther Bibel 1912",
+    "title": "1 Timothy"
+  },
+  "luther-bibel-1912/2-chronicles": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Chronicles"
+  },
+  "luther-bibel-1912/2-corinthians": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Corinthians"
+  },
+  "luther-bibel-1912/2-john": {
+    "author": "Luther Bibel 1912",
+    "title": "2 John"
+  },
+  "luther-bibel-1912/2-kings": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Kings"
+  },
+  "luther-bibel-1912/2-peter": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Peter"
+  },
+  "luther-bibel-1912/2-samuel": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Samuel"
+  },
+  "luther-bibel-1912/2-thessalonians": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Thessalonians"
+  },
+  "luther-bibel-1912/2-timothy": {
+    "author": "Luther Bibel 1912",
+    "title": "2 Timothy"
+  },
+  "luther-bibel-1912/3-john": {
+    "author": "Luther Bibel 1912",
+    "title": "3 John"
+  },
+  "luther-bibel-1912/acts": {
+    "author": "Luther Bibel 1912",
+    "title": "Acts"
+  },
+  "luther-bibel-1912/amos": {
+    "author": "Luther Bibel 1912",
+    "title": "Amos"
+  },
+  "luther-bibel-1912/colossians": {
+    "author": "Luther Bibel 1912",
+    "title": "Colossians"
+  },
+  "luther-bibel-1912/daniel": {
+    "author": "Luther Bibel 1912",
+    "title": "Daniel"
+  },
+  "luther-bibel-1912/deuteronomy": {
+    "author": "Luther Bibel 1912",
+    "title": "Deuteronomy"
+  },
+  "luther-bibel-1912/ecclesiastes": {
+    "author": "Luther Bibel 1912",
+    "title": "Ecclesiastes"
+  },
+  "luther-bibel-1912/ephesians": {
+    "author": "Luther Bibel 1912",
+    "title": "Ephesians"
+  },
+  "luther-bibel-1912/esther": {
+    "author": "Luther Bibel 1912",
+    "title": "Esther"
+  },
+  "luther-bibel-1912/exodus": {
+    "author": "Luther Bibel 1912",
+    "title": "Exodus"
+  },
+  "luther-bibel-1912/ezekiel": {
+    "author": "Luther Bibel 1912",
+    "title": "Ezekiel"
+  },
+  "luther-bibel-1912/ezra": {
+    "author": "Luther Bibel 1912",
+    "title": "Ezra"
+  },
+  "luther-bibel-1912/galatians": {
+    "author": "Luther Bibel 1912",
+    "title": "Galatians"
+  },
+  "luther-bibel-1912/genesis": {
+    "author": "Luther Bibel 1912",
+    "title": "Genesis"
+  },
+  "luther-bibel-1912/habakkuk": {
+    "author": "Luther Bibel 1912",
+    "title": "Habakkuk"
+  },
+  "luther-bibel-1912/haggai": {
+    "author": "Luther Bibel 1912",
+    "title": "Haggai"
+  },
+  "luther-bibel-1912/hebrews": {
+    "author": "Luther Bibel 1912",
+    "title": "Hebrews"
+  },
+  "luther-bibel-1912/hosea": {
+    "author": "Luther Bibel 1912",
+    "title": "Hosea"
+  },
+  "luther-bibel-1912/isaiah": {
+    "author": "Luther Bibel 1912",
+    "title": "Isaiah"
+  },
+  "luther-bibel-1912/james": {
+    "author": "Luther Bibel 1912",
+    "title": "James"
+  },
+  "luther-bibel-1912/jeremiah": {
+    "author": "Luther Bibel 1912",
+    "title": "Jeremiah"
+  },
+  "luther-bibel-1912/job": {
+    "author": "Luther Bibel 1912",
+    "title": "Job"
+  },
+  "luther-bibel-1912/joel": {
+    "author": "Luther Bibel 1912",
+    "title": "Joel"
+  },
+  "luther-bibel-1912/john": {
+    "author": "Luther Bibel 1912",
+    "title": "John"
+  },
+  "luther-bibel-1912/jonah": {
+    "author": "Luther Bibel 1912",
+    "title": "Jonah"
+  },
+  "luther-bibel-1912/joshua": {
+    "author": "Luther Bibel 1912",
+    "title": "Joshua"
+  },
+  "luther-bibel-1912/jude": {
+    "author": "Luther Bibel 1912",
+    "title": "Jude"
+  },
+  "luther-bibel-1912/judges": {
+    "author": "Luther Bibel 1912",
+    "title": "Judges"
+  },
+  "luther-bibel-1912/lamentations": {
+    "author": "Luther Bibel 1912",
+    "title": "Lamentations"
+  },
+  "luther-bibel-1912/leviticus": {
+    "author": "Luther Bibel 1912",
+    "title": "Leviticus"
+  },
+  "luther-bibel-1912/luke": {
+    "author": "Luther Bibel 1912",
+    "title": "Luke"
+  },
+  "luther-bibel-1912/malachi": {
+    "author": "Luther Bibel 1912",
+    "title": "Malachi"
+  },
+  "luther-bibel-1912/mark": {
+    "author": "Luther Bibel 1912",
+    "title": "Mark"
+  },
+  "luther-bibel-1912/matthew": {
+    "author": "Luther Bibel 1912",
+    "title": "Matthew"
+  },
+  "luther-bibel-1912/micah": {
+    "author": "Luther Bibel 1912",
+    "title": "Micah"
+  },
+  "luther-bibel-1912/nahum": {
+    "author": "Luther Bibel 1912",
+    "title": "Nahum"
+  },
+  "luther-bibel-1912/nehemiah": {
+    "author": "Luther Bibel 1912",
+    "title": "Nehemiah"
+  },
+  "luther-bibel-1912/numbers": {
+    "author": "Luther Bibel 1912",
+    "title": "Numbers"
+  },
+  "luther-bibel-1912/obadiah": {
+    "author": "Luther Bibel 1912",
+    "title": "Obadiah"
+  },
+  "luther-bibel-1912/philemon": {
+    "author": "Luther Bibel 1912",
+    "title": "Philemon"
+  },
+  "luther-bibel-1912/philippians": {
+    "author": "Luther Bibel 1912",
+    "title": "Philippians"
+  },
+  "luther-bibel-1912/proverbs": {
+    "author": "Luther Bibel 1912",
+    "title": "Proverbs"
+  },
+  "luther-bibel-1912/psalms": {
+    "author": "Luther Bibel 1912",
+    "title": "Psalms"
+  },
+  "luther-bibel-1912/revelation": {
+    "author": "Luther Bibel 1912",
+    "title": "Revelation"
+  },
+  "luther-bibel-1912/romans": {
+    "author": "Luther Bibel 1912",
+    "title": "Romans"
+  },
+  "luther-bibel-1912/ruth": {
+    "author": "Luther Bibel 1912",
+    "title": "Ruth"
+  },
+  "luther-bibel-1912/song-of-songs": {
+    "author": "Luther Bibel 1912",
+    "title": "Song of Songs"
+  },
+  "luther-bibel-1912/titus": {
+    "author": "Luther Bibel 1912",
+    "title": "Titus"
+  },
+  "luther-bibel-1912/zechariah": {
+    "author": "Luther Bibel 1912",
+    "title": "Zechariah"
+  },
+  "luther-bibel-1912/zephaniah": {
+    "author": "Luther Bibel 1912",
+    "title": "Zephaniah"
+  },
+  "marcus-aurelius/meditations": {
+    "author": "Marcus Aurelius",
+    "title": "Meditations"
+  },
+  "marx/das-elend-der-philosophie": {
+    "author": "Marx",
+    "title": "Das Elend der Philosophie"
+  },
+  "marx/das-kapital-band-i": {
+    "author": "Marx",
+    "title": "Das Kapital, Band I"
+  },
+  "marx/das-kapital-band-ii": {
+    "author": "Marx",
+    "title": "Das Kapital, Band II"
+  },
+  "marx/das-kapital-band-iii": {
+    "author": "Marx",
+    "title": "Das Kapital, Band III"
+  },
+  "marx/der-achtzehnte-brumaire-des-louis-bonaparte": {
+    "author": "Marx",
+    "title": "Der achtzehnte Brumaire des Louis Bonaparte"
+  },
+  "marx/die-deutsche-ideologie": {
+    "author": "Marx",
+    "title": "Die deutsche Ideologie"
+  },
+  "marx/die-heilige-familie": {
+    "author": "Marx",
+    "title": "Die heilige Familie"
+  },
+  "marx/einleitung-zur-kritik-der-politischen-okonomie": {
+    "author": "Marx",
+    "title": "Einleitung zur Kritik der politischen Ökonomie"
+  },
+  "marx/formen-die-der-kapitalistischen-produktion-vorhergehen": {
+    "author": "Marx",
+    "title": "Formen, die der kapitalistischen Produktion vorhergehen"
+  },
+  "marx/lohn-preis-und-profit": {
+    "author": "Marx",
+    "title": "Lohn, Preis und Profit"
+  },
+  "marx/lohnarbeit-und-kapital": {
+    "author": "Marx",
+    "title": "Lohnarbeit und Kapital"
+  },
+  "marx/manifest-der-kommunistischen-partei": {
+    "author": "Marx",
+    "title": "Manifest der Kommunistischen Partei"
+  },
+  "marx/okonomisch-philosophische-manuskripte": {
+    "author": "Marx",
+    "title": "Ökonomisch-philosophische Manuskripte"
+  },
+  "marx/thesen-uber-feuerbach": {
+    "author": "Marx",
+    "title": "Thesen über Feuerbach"
+  },
+  "marx/zur-kritik-der-hegel-schen-rechtsphilosophie-einleitung": {
+    "author": "Marx",
+    "title": "Zur Kritik der Hegel'schen Rechtsphilosophie. Einleitung"
+  },
+  "marx/zur-kritik-der-politischen-okonomie": {
+    "author": "Marx",
+    "title": "Zur Kritik der politischen Ökonomie"
+  },
+  "melissus/fragments-dk-30": {
+    "author": "Melissus",
+    "title": "Fragments (DK 30)"
+  },
+  "new-testament/1-corinthians": {
+    "author": "New Testament",
+    "title": "1 Corinthians"
+  },
+  "new-testament/1-john": {
+    "author": "New Testament",
+    "title": "1 John"
+  },
+  "new-testament/1-peter": {
+    "author": "New Testament",
+    "title": "1 Peter"
+  },
+  "new-testament/1-thessalonians": {
+    "author": "New Testament",
+    "title": "1 Thessalonians"
+  },
+  "new-testament/1-timothy": {
+    "author": "New Testament",
+    "title": "1 Timothy"
+  },
+  "new-testament/2-corinthians": {
+    "author": "New Testament",
+    "title": "2 Corinthians"
+  },
+  "new-testament/2-john": {
+    "author": "New Testament",
+    "title": "2 John"
+  },
+  "new-testament/2-peter": {
+    "author": "New Testament",
+    "title": "2 Peter"
+  },
+  "new-testament/2-thessalonians": {
+    "author": "New Testament",
+    "title": "2 Thessalonians"
+  },
+  "new-testament/2-timothy": {
+    "author": "New Testament",
+    "title": "2 Timothy"
+  },
+  "new-testament/3-john": {
+    "author": "New Testament",
+    "title": "3 John"
+  },
+  "new-testament/acts": {
+    "author": "New Testament",
+    "title": "Acts"
+  },
+  "new-testament/colossians": {
+    "author": "New Testament",
+    "title": "Colossians"
+  },
+  "new-testament/ephesians": {
+    "author": "New Testament",
+    "title": "Ephesians"
+  },
+  "new-testament/galatians": {
+    "author": "New Testament",
+    "title": "Galatians"
+  },
+  "new-testament/hebrews": {
+    "author": "New Testament",
+    "title": "Hebrews"
+  },
+  "new-testament/james": {
+    "author": "New Testament",
+    "title": "James"
+  },
+  "new-testament/john": {
+    "author": "New Testament",
+    "title": "John"
+  },
+  "new-testament/jude": {
+    "author": "New Testament",
+    "title": "Jude"
+  },
+  "new-testament/luke": {
+    "author": "New Testament",
+    "title": "Luke"
+  },
+  "new-testament/mark": {
+    "author": "New Testament",
+    "title": "Mark"
+  },
+  "new-testament/matthew": {
+    "author": "New Testament",
+    "title": "Matthew"
+  },
+  "new-testament/philemon": {
+    "author": "New Testament",
+    "title": "Philemon"
+  },
+  "new-testament/philippians": {
+    "author": "New Testament",
+    "title": "Philippians"
+  },
+  "new-testament/revelation": {
+    "author": "New Testament",
+    "title": "Revelation"
+  },
+  "new-testament/romans": {
+    "author": "New Testament",
+    "title": "Romans"
+  },
+  "new-testament/titus": {
+    "author": "New Testament",
+    "title": "Titus"
+  },
+  "nietzsche/also-sprach-zarathustra": {
+    "author": "Nietzsche",
+    "title": "Also sprach Zarathustra"
+  },
+  "nietzsche/aus-dem-nachlass-der-achtzigerjahre": {
+    "author": "Nietzsche",
+    "title": "Aus dem Nachlaß der Achtzigerjahre"
+  },
+  "nietzsche/briefe": {
+    "author": "Nietzsche",
+    "title": "Briefe"
+  },
+  "nietzsche/der-antichrist": {
+    "author": "Nietzsche",
+    "title": "Der Antichrist"
+  },
+  "nietzsche/der-fall-wagner": {
+    "author": "Nietzsche",
+    "title": "Der Fall Wagner"
+  },
+  "nietzsche/die-frohliche-wissenschaft": {
+    "author": "Nietzsche",
+    "title": "Die fröhliche Wissenschaft"
+  },
+  "nietzsche/die-geburt-der-tragodie": {
+    "author": "Nietzsche",
+    "title": "Die Geburt der Tragödie"
+  },
+  "nietzsche/die-philosophie-im-tragischen-zeitalter-der-griechen": {
+    "author": "Nietzsche",
+    "title": "Die Philosophie im tragischen Zeitalter der Griechen"
+  },
+  "nietzsche/dionysos-dithyramben": {
+    "author": "Nietzsche",
+    "title": "Dionysos-Dithyramben"
+  },
+  "nietzsche/ecce-homo": {
+    "author": "Nietzsche",
+    "title": "Ecce Homo"
+  },
+  "nietzsche/funf-vorreden-zu-funf-ungeschriebenen-buchern": {
+    "author": "Nietzsche",
+    "title": "Fünf Vorreden zu fünf ungeschriebenen Büchern"
+  },
+  "nietzsche/gotzen-dammerung": {
+    "author": "Nietzsche",
+    "title": "Götzen-Dämmerung"
+  },
+  "nietzsche/homer-und-die-klassische-philologie": {
+    "author": "Nietzsche",
+    "title": "Homer und die klassische Philologie"
+  },
+  "nietzsche/jenseits-von-gut-und-bose": {
+    "author": "Nietzsche",
+    "title": "Jenseits von Gut und Böse"
+  },
+  "nietzsche/mahnruf-an-die-deutschen": {
+    "author": "Nietzsche",
+    "title": "Mahnruf an die Deutschen"
+  },
+  "nietzsche/menschliches-allzumenschliches": {
+    "author": "Nietzsche",
+    "title": "Menschliches, Allzumenschliches"
+  },
+  "nietzsche/morgenrote": {
+    "author": "Nietzsche",
+    "title": "Morgenröte"
+  },
+  "nietzsche/nachgelassene-fragmente-kgw": {
+    "author": "Nietzsche",
+    "title": "Nachgelassene Fragmente (KGW)"
+  },
+  "nietzsche/nietzsche-contra-wagner": {
+    "author": "Nietzsche",
+    "title": "Nietzsche contra Wagner"
+  },
+  "nietzsche/uber-die-zukunft-unserer-bildungs-anstalten": {
+    "author": "Nietzsche",
+    "title": "Über die Zukunft unserer Bildungs-Anstalten"
+  },
+  "nietzsche/uber-wahrheit-und-luge-im-aussermoralischen-sinn": {
+    "author": "Nietzsche",
+    "title": "Über Wahrheit und Lüge im außermoralischen Sinn"
+  },
+  "nietzsche/unzeitgemasse-betrachtungen": {
+    "author": "Nietzsche",
+    "title": "Unzeitgemäße Betrachtungen"
+  },
+  "nietzsche/wir-philologen": {
+    "author": "Nietzsche",
+    "title": "Wir Philologen"
+  },
+  "nietzsche/wissenschaft-und-weisheit-im-kampfe": {
+    "author": "Nietzsche",
+    "title": "Wissenschaft und Weisheit im Kampfe"
+  },
+  "nietzsche/zur-genealogie-der-moral": {
+    "author": "Nietzsche",
+    "title": "Zur Genealogie der Moral"
+  },
+  "origen/contra-celsum": {
+    "author": "Origen",
+    "title": "Contra Celsum"
+  },
+  "parmenides/fragments-dk-28": {
+    "author": "Parmenides",
+    "title": "Fragments (DK 28)"
+  },
+  "pascal/pensees": {
+    "author": "Pascal",
+    "title": "Pensées"
+  },
+  "plato/alkibiades-i": {
+    "author": "Plato",
+    "title": "Alkibiades I"
+  },
+  "plato/alkibiades-ii": {
+    "author": "Plato",
+    "title": "Alkibiades II"
+  },
+  "plato/apologia": {
+    "author": "Plato",
+    "title": "Apologia"
+  },
+  "plato/charmides": {
+    "author": "Plato",
+    "title": "Charmides"
+  },
+  "plato/epinomis": {
+    "author": "Plato",
+    "title": "Epinomis"
+  },
+  "plato/epistole-i": {
+    "author": "Plato",
+    "title": "Epistole I"
+  },
+  "plato/epistole-ii": {
+    "author": "Plato",
+    "title": "Epistole II"
+  },
+  "plato/epistole-iii": {
+    "author": "Plato",
+    "title": "Epistole III"
+  },
+  "plato/epistole-iv": {
+    "author": "Plato",
+    "title": "Epistole IV"
+  },
+  "plato/epistole-ix": {
+    "author": "Plato",
+    "title": "Epistole IX"
+  },
+  "plato/epistole-v": {
+    "author": "Plato",
+    "title": "Epistole V"
+  },
+  "plato/epistole-vi": {
+    "author": "Plato",
+    "title": "Epistole VI"
+  },
+  "plato/epistole-vii": {
+    "author": "Plato",
+    "title": "Epistole VII"
+  },
+  "plato/epistole-viii": {
+    "author": "Plato",
+    "title": "Epistole VIII"
+  },
+  "plato/epistole-x": {
+    "author": "Plato",
+    "title": "Epistole X"
+  },
+  "plato/epistole-xi": {
+    "author": "Plato",
+    "title": "Epistole XI"
+  },
+  "plato/epistole-xii": {
+    "author": "Plato",
+    "title": "Epistole XII"
+  },
+  "plato/epistole-xiii": {
+    "author": "Plato",
+    "title": "Epistole XIII"
+  },
+  "plato/erastai": {
+    "author": "Plato",
+    "title": "Erastai"
+  },
+  "plato/euthydemos": {
+    "author": "Plato",
+    "title": "Euthydemos"
+  },
+  "plato/euthyphron": {
+    "author": "Plato",
+    "title": "Euthyphron"
+  },
+  "plato/gorgias": {
+    "author": "Plato",
+    "title": "Gorgias"
+  },
+  "plato/hipparchos": {
+    "author": "Plato",
+    "title": "Hipparchos"
+  },
+  "plato/hippias-elatton": {
+    "author": "Plato",
+    "title": "Hippias Elatton"
+  },
+  "plato/hippias-meizon": {
+    "author": "Plato",
+    "title": "Hippias Meizon"
+  },
+  "plato/ion": {
+    "author": "Plato",
+    "title": "Ion"
+  },
+  "plato/kleitophon": {
+    "author": "Plato",
+    "title": "Kleitophon"
+  },
+  "plato/kratylos": {
+    "author": "Plato",
+    "title": "Kratylos"
+  },
+  "plato/kritias": {
+    "author": "Plato",
+    "title": "Kritias"
+  },
+  "plato/kriton": {
+    "author": "Plato",
+    "title": "Kriton"
+  },
+  "plato/laches": {
+    "author": "Plato",
+    "title": "Laches"
+  },
+  "plato/lysis": {
+    "author": "Plato",
+    "title": "Lysis"
+  },
+  "plato/menexenos": {
+    "author": "Plato",
+    "title": "Menexenos"
+  },
+  "plato/menon": {
+    "author": "Plato",
+    "title": "Menon"
+  },
+  "plato/minos": {
+    "author": "Plato",
+    "title": "Minos"
+  },
+  "plato/nomoi": {
+    "author": "Plato",
+    "title": "Nomoi"
+  },
+  "plato/parmenides": {
+    "author": "Plato",
+    "title": "Parmenides"
+  },
+  "plato/phaidon": {
+    "author": "Plato",
+    "title": "Phaidon"
+  },
+  "plato/phaidros": {
+    "author": "Plato",
+    "title": "Phaidros"
+  },
+  "plato/philebos": {
+    "author": "Plato",
+    "title": "Philebos"
+  },
+  "plato/politeia": {
+    "author": "Plato",
+    "title": "Politeia"
+  },
+  "plato/politikos": {
+    "author": "Plato",
+    "title": "Politikos"
+  },
+  "plato/protagoras": {
+    "author": "Plato",
+    "title": "Protagoras"
+  },
+  "plato/sophistes": {
+    "author": "Plato",
+    "title": "Sophistes"
+  },
+  "plato/symposion": {
+    "author": "Plato",
+    "title": "Symposion"
+  },
+  "plato/theages": {
+    "author": "Plato",
+    "title": "Theages"
+  },
+  "plato/theaitetos": {
+    "author": "Plato",
+    "title": "Theaitetos"
+  },
+  "plato/timaios": {
+    "author": "Plato",
+    "title": "Timaios"
+  },
+  "quran/aal-imran": {
+    "author": "Quran",
+    "title": "Aal-Imran"
+  },
+  "quran/abasa": {
+    "author": "Quran",
+    "title": "Abasa"
+  },
+  "quran/ad-duhaa": {
+    "author": "Quran",
+    "title": "Ad-Duhaa"
+  },
+  "quran/ad-dukhan": {
+    "author": "Quran",
+    "title": "Ad-Dukhan"
+  },
+  "quran/adh-dhariyat": {
+    "author": "Quran",
+    "title": "Adh-Dhariyat"
+  },
+  "quran/al-adiyat": {
+    "author": "Quran",
+    "title": "Al-Adiyat"
+  },
+  "quran/al-ahqaf": {
+    "author": "Quran",
+    "title": "Al-Ahqaf"
+  },
+  "quran/al-ahzab": {
+    "author": "Quran",
+    "title": "Al-Ahzab"
+  },
+  "quran/al-ala": {
+    "author": "Quran",
+    "title": "Al-Ala"
+  },
+  "quran/al-alaq": {
+    "author": "Quran",
+    "title": "Al-Alaq"
+  },
+  "quran/al-anaam": {
+    "author": "Quran",
+    "title": "Al-Anaam"
+  },
+  "quran/al-anbiyaa": {
+    "author": "Quran",
+    "title": "Al-Anbiyaa"
+  },
+  "quran/al-anfal": {
+    "author": "Quran",
+    "title": "Al-Anfal"
+  },
+  "quran/al-ankabut": {
+    "author": "Quran",
+    "title": "Al-Ankabut"
+  },
+  "quran/al-araf": {
+    "author": "Quran",
+    "title": "Al-Araf"
+  },
+  "quran/al-asr": {
+    "author": "Quran",
+    "title": "Al-Asr"
+  },
+  "quran/al-balad": {
+    "author": "Quran",
+    "title": "Al-Balad"
+  },
+  "quran/al-baqarah": {
+    "author": "Quran",
+    "title": "Al-Baqarah"
+  },
+  "quran/al-bayyinah": {
+    "author": "Quran",
+    "title": "Al-Bayyinah"
+  },
+  "quran/al-buruj": {
+    "author": "Quran",
+    "title": "Al-Buruj"
+  },
+  "quran/al-fajr": {
+    "author": "Quran",
+    "title": "Al-Fajr"
+  },
+  "quran/al-falaq": {
+    "author": "Quran",
+    "title": "Al-Falaq"
+  },
+  "quran/al-fath": {
+    "author": "Quran",
+    "title": "Al-Fath"
+  },
+  "quran/al-fatihah": {
+    "author": "Quran",
+    "title": "Al-Fatihah"
+  },
+  "quran/al-fil": {
+    "author": "Quran",
+    "title": "Al-Fil"
+  },
+  "quran/al-furqan": {
+    "author": "Quran",
+    "title": "Al-Furqan"
+  },
+  "quran/al-ghashiyah": {
+    "author": "Quran",
+    "title": "Al-Ghashiyah"
+  },
+  "quran/al-hadid": {
+    "author": "Quran",
+    "title": "Al-Hadid"
+  },
+  "quran/al-hajj": {
+    "author": "Quran",
+    "title": "Al-Hajj"
+  },
+  "quran/al-haqqah": {
+    "author": "Quran",
+    "title": "Al-Haqqah"
+  },
+  "quran/al-hashr": {
+    "author": "Quran",
+    "title": "Al-Hashr"
+  },
+  "quran/al-hijr": {
+    "author": "Quran",
+    "title": "Al-Hijr"
+  },
+  "quran/al-hujurat": {
+    "author": "Quran",
+    "title": "Al-Hujurat"
+  },
+  "quran/al-humazah": {
+    "author": "Quran",
+    "title": "Al-Humazah"
+  },
+  "quran/al-ikhlas": {
+    "author": "Quran",
+    "title": "Al-Ikhlas"
+  },
+  "quran/al-infitar": {
+    "author": "Quran",
+    "title": "Al-Infitar"
+  },
+  "quran/al-insan": {
+    "author": "Quran",
+    "title": "Al-Insan"
+  },
+  "quran/al-inshiqaq": {
+    "author": "Quran",
+    "title": "Al-Inshiqaq"
+  },
+  "quran/al-isra": {
+    "author": "Quran",
+    "title": "Al-Isra"
+  },
+  "quran/al-jathiyah": {
+    "author": "Quran",
+    "title": "Al-Jathiyah"
+  },
+  "quran/al-jinn": {
+    "author": "Quran",
+    "title": "Al-Jinn"
+  },
+  "quran/al-jumuah": {
+    "author": "Quran",
+    "title": "Al-Jumuah"
+  },
+  "quran/al-kafirun": {
+    "author": "Quran",
+    "title": "Al-Kafirun"
+  },
+  "quran/al-kahf": {
+    "author": "Quran",
+    "title": "Al-Kahf"
+  },
+  "quran/al-kawthar": {
+    "author": "Quran",
+    "title": "Al-Kawthar"
+  },
+  "quran/al-layl": {
+    "author": "Quran",
+    "title": "Al-Layl"
+  },
+  "quran/al-maaidah": {
+    "author": "Quran",
+    "title": "Al-Maaidah"
+  },
+  "quran/al-maarij": {
+    "author": "Quran",
+    "title": "Al-Maarij"
+  },
+  "quran/al-masad": {
+    "author": "Quran",
+    "title": "Al-Masad"
+  },
+  "quran/al-maun": {
+    "author": "Quran",
+    "title": "Al-Maun"
+  },
+  "quran/al-muddaththir": {
+    "author": "Quran",
+    "title": "Al-Muddaththir"
+  },
+  "quran/al-mujadilah": {
+    "author": "Quran",
+    "title": "Al-Mujadilah"
+  },
+  "quran/al-mulk": {
+    "author": "Quran",
+    "title": "Al-Mulk"
+  },
+  "quran/al-muminun": {
+    "author": "Quran",
+    "title": "Al-Muminun"
+  },
+  "quran/al-mumtahanah": {
+    "author": "Quran",
+    "title": "Al-Mumtahanah"
+  },
+  "quran/al-munafiqun": {
+    "author": "Quran",
+    "title": "Al-Munafiqun"
+  },
+  "quran/al-mursalat": {
+    "author": "Quran",
+    "title": "Al-Mursalat"
+  },
+  "quran/al-mutaffifin": {
+    "author": "Quran",
+    "title": "Al-Mutaffifin"
+  },
+  "quran/al-muzzammil": {
+    "author": "Quran",
+    "title": "Al-Muzzammil"
+  },
+  "quran/al-qadr": {
+    "author": "Quran",
+    "title": "Al-Qadr"
+  },
+  "quran/al-qalam": {
+    "author": "Quran",
+    "title": "Al-Qalam"
+  },
+  "quran/al-qamar": {
+    "author": "Quran",
+    "title": "Al-Qamar"
+  },
+  "quran/al-qariah": {
+    "author": "Quran",
+    "title": "Al-Qariah"
+  },
+  "quran/al-qasas": {
+    "author": "Quran",
+    "title": "Al-Qasas"
+  },
+  "quran/al-qiyamah": {
+    "author": "Quran",
+    "title": "Al-Qiyamah"
+  },
+  "quran/al-waqiah": {
+    "author": "Quran",
+    "title": "Al-Waqiah"
+  },
+  "quran/an-naba": {
+    "author": "Quran",
+    "title": "An-Naba"
+  },
+  "quran/an-nahl": {
+    "author": "Quran",
+    "title": "An-Nahl"
+  },
+  "quran/an-najm": {
+    "author": "Quran",
+    "title": "An-Najm"
+  },
+  "quran/an-naml": {
+    "author": "Quran",
+    "title": "An-Naml"
+  },
+  "quran/an-nas": {
+    "author": "Quran",
+    "title": "An-Nas"
+  },
+  "quran/an-nasr": {
+    "author": "Quran",
+    "title": "An-Nasr"
+  },
+  "quran/an-naziat": {
+    "author": "Quran",
+    "title": "An-Naziat"
+  },
+  "quran/an-nisaa": {
+    "author": "Quran",
+    "title": "An-Nisaa"
+  },
+  "quran/an-nur": {
+    "author": "Quran",
+    "title": "An-Nur"
+  },
+  "quran/ar-rad": {
+    "author": "Quran",
+    "title": "Ar-Rad"
+  },
+  "quran/ar-rahman": {
+    "author": "Quran",
+    "title": "Ar-Rahman"
+  },
+  "quran/ar-rum": {
+    "author": "Quran",
+    "title": "Ar-Rum"
+  },
+  "quran/as-saff": {
+    "author": "Quran",
+    "title": "As-Saff"
+  },
+  "quran/as-saffat": {
+    "author": "Quran",
+    "title": "As-Saffat"
+  },
+  "quran/as-sajdah": {
+    "author": "Quran",
+    "title": "As-Sajdah"
+  },
+  "quran/ash-shams": {
+    "author": "Quran",
+    "title": "Ash-Shams"
+  },
+  "quran/ash-sharh": {
+    "author": "Quran",
+    "title": "Ash-Sharh"
+  },
+  "quran/ash-shuaraa": {
+    "author": "Quran",
+    "title": "Ash-Shuaraa"
+  },
+  "quran/ash-shura": {
+    "author": "Quran",
+    "title": "Ash-Shura"
+  },
+  "quran/at-taghabun": {
+    "author": "Quran",
+    "title": "At-Taghabun"
+  },
+  "quran/at-tahrim": {
+    "author": "Quran",
+    "title": "At-Tahrim"
+  },
+  "quran/at-takathur": {
+    "author": "Quran",
+    "title": "At-Takathur"
+  },
+  "quran/at-takwir": {
+    "author": "Quran",
+    "title": "At-Takwir"
+  },
+  "quran/at-talaq": {
+    "author": "Quran",
+    "title": "At-Talaq"
+  },
+  "quran/at-tariq": {
+    "author": "Quran",
+    "title": "At-Tariq"
+  },
+  "quran/at-tawbah": {
+    "author": "Quran",
+    "title": "At-Tawbah"
+  },
+  "quran/at-tin": {
+    "author": "Quran",
+    "title": "At-Tin"
+  },
+  "quran/at-tur": {
+    "author": "Quran",
+    "title": "At-Tur"
+  },
+  "quran/az-zalzalah": {
+    "author": "Quran",
+    "title": "Az-Zalzalah"
+  },
+  "quran/az-zukhruf": {
+    "author": "Quran",
+    "title": "Az-Zukhruf"
+  },
+  "quran/az-zumar": {
+    "author": "Quran",
+    "title": "Az-Zumar"
+  },
+  "quran/fatir": {
+    "author": "Quran",
+    "title": "Fatir"
+  },
+  "quran/fussilat": {
+    "author": "Quran",
+    "title": "Fussilat"
+  },
+  "quran/ghafir": {
+    "author": "Quran",
+    "title": "Ghafir"
+  },
+  "quran/hud": {
+    "author": "Quran",
+    "title": "Hud"
+  },
+  "quran/ibrahim": {
+    "author": "Quran",
+    "title": "Ibrahim"
+  },
+  "quran/luqman": {
+    "author": "Quran",
+    "title": "Luqman"
+  },
+  "quran/maryam": {
+    "author": "Quran",
+    "title": "Maryam"
+  },
+  "quran/muhammad": {
+    "author": "Quran",
+    "title": "Muhammad"
+  },
+  "quran/nuh": {
+    "author": "Quran",
+    "title": "Nuh"
+  },
+  "quran/qaf": {
+    "author": "Quran",
+    "title": "Qaf"
+  },
+  "quran/quraysh": {
+    "author": "Quran",
+    "title": "Quraysh"
+  },
+  "quran/saba": {
+    "author": "Quran",
+    "title": "Saba"
+  },
+  "quran/sad": {
+    "author": "Quran",
+    "title": "Sad"
+  },
+  "quran/ta-ha": {
+    "author": "Quran",
+    "title": "Ta-Ha"
+  },
+  "quran/ya-sin": {
+    "author": "Quran",
+    "title": "Ya-Sin"
+  },
+  "quran/yunus": {
+    "author": "Quran",
+    "title": "Yunus"
+  },
+  "quran/yusuf": {
+    "author": "Quran",
+    "title": "Yusuf"
+  },
+  "renan/histoire-du-peuple-d-israel-vol-1": {
+    "author": "Renan",
+    "title": "Histoire du peuple d'Israël, vol. 1"
+  },
+  "renan/histoire-du-peuple-d-israel-vol-2": {
+    "author": "Renan",
+    "title": "Histoire du peuple d'Israël, vol. 2"
+  },
+  "renan/histoire-du-peuple-d-israel-vol-3": {
+    "author": "Renan",
+    "title": "Histoire du peuple d'Israël, vol. 3"
+  },
+  "renan/histoire-du-peuple-d-israel-vol-4": {
+    "author": "Renan",
+    "title": "Histoire du peuple d'Israël, vol. 4"
+  },
+  "renan/histoire-du-peuple-d-israel-vol-5": {
+    "author": "Renan",
+    "title": "Histoire du peuple d'Israël, vol. 5"
+  },
+  "renan/l-antechrist": {
+    "author": "Renan",
+    "title": "L'Antéchrist"
+  },
+  "renan/vie-de-jesus": {
+    "author": "Renan",
+    "title": "Vie de Jésus"
+  },
+  "rousseau/discours-sur-l-economie-politique": {
+    "author": "Rousseau",
+    "title": "Discours sur l'économie politique"
+  },
+  "rousseau/discours-sur-l-origine-de-l-inegalite": {
+    "author": "Rousseau",
+    "title": "Discours sur l'origine de l'inégalité"
+  },
+  "rousseau/discours-sur-les-sciences-et-les-arts": {
+    "author": "Rousseau",
+    "title": "Discours sur les sciences et les arts"
+  },
+  "rousseau/du-contrat-social": {
+    "author": "Rousseau",
+    "title": "Du contrat social"
+  },
+  "rousseau/emile-ou-de-l-education": {
+    "author": "Rousseau",
+    "title": "Émile, ou De l'éducation"
+  },
+  "rousseau/essai-sur-l-origine-des-langues": {
+    "author": "Rousseau",
+    "title": "Essai sur l'origine des langues"
+  },
+  "sacy/1-chronicles": {
+    "author": "Sacy",
+    "title": "1 Chronicles"
+  },
+  "sacy/1-corinthians": {
+    "author": "Sacy",
+    "title": "1 Corinthians"
+  },
+  "sacy/1-john": {
+    "author": "Sacy",
+    "title": "1 John"
+  },
+  "sacy/1-kings": {
+    "author": "Sacy",
+    "title": "1 Kings"
+  },
+  "sacy/1-peter": {
+    "author": "Sacy",
+    "title": "1 Peter"
+  },
+  "sacy/1-samuel": {
+    "author": "Sacy",
+    "title": "1 Samuel"
+  },
+  "sacy/1-thessalonians": {
+    "author": "Sacy",
+    "title": "1 Thessalonians"
+  },
+  "sacy/1-timothy": {
+    "author": "Sacy",
+    "title": "1 Timothy"
+  },
+  "sacy/2-chronicles": {
+    "author": "Sacy",
+    "title": "2 Chronicles"
+  },
+  "sacy/2-corinthians": {
+    "author": "Sacy",
+    "title": "2 Corinthians"
+  },
+  "sacy/2-john": {
+    "author": "Sacy",
+    "title": "2 John"
+  },
+  "sacy/2-kings": {
+    "author": "Sacy",
+    "title": "2 Kings"
+  },
+  "sacy/2-peter": {
+    "author": "Sacy",
+    "title": "2 Peter"
+  },
+  "sacy/2-samuel": {
+    "author": "Sacy",
+    "title": "2 Samuel"
+  },
+  "sacy/2-thessalonians": {
+    "author": "Sacy",
+    "title": "2 Thessalonians"
+  },
+  "sacy/2-timothy": {
+    "author": "Sacy",
+    "title": "2 Timothy"
+  },
+  "sacy/3-john": {
+    "author": "Sacy",
+    "title": "3 John"
+  },
+  "sacy/acts": {
+    "author": "Sacy",
+    "title": "Acts"
+  },
+  "sacy/amos": {
+    "author": "Sacy",
+    "title": "Amos"
+  },
+  "sacy/colossians": {
+    "author": "Sacy",
+    "title": "Colossians"
+  },
+  "sacy/daniel": {
+    "author": "Sacy",
+    "title": "Daniel"
+  },
+  "sacy/deuteronomy": {
+    "author": "Sacy",
+    "title": "Deuteronomy"
+  },
+  "sacy/ecclesiastes": {
+    "author": "Sacy",
+    "title": "Ecclesiastes"
+  },
+  "sacy/ephesians": {
+    "author": "Sacy",
+    "title": "Ephesians"
+  },
+  "sacy/esther": {
+    "author": "Sacy",
+    "title": "Esther"
+  },
+  "sacy/exodus": {
+    "author": "Sacy",
+    "title": "Exodus"
+  },
+  "sacy/ezekiel": {
+    "author": "Sacy",
+    "title": "Ezekiel"
+  },
+  "sacy/ezra": {
+    "author": "Sacy",
+    "title": "Ezra"
+  },
+  "sacy/galatians": {
+    "author": "Sacy",
+    "title": "Galatians"
+  },
+  "sacy/genesis": {
+    "author": "Sacy",
+    "title": "Genesis"
+  },
+  "sacy/habakkuk": {
+    "author": "Sacy",
+    "title": "Habakkuk"
+  },
+  "sacy/haggai": {
+    "author": "Sacy",
+    "title": "Haggai"
+  },
+  "sacy/hebrews": {
+    "author": "Sacy",
+    "title": "Hebrews"
+  },
+  "sacy/hosea": {
+    "author": "Sacy",
+    "title": "Hosea"
+  },
+  "sacy/isaiah": {
+    "author": "Sacy",
+    "title": "Isaiah"
+  },
+  "sacy/james": {
+    "author": "Sacy",
+    "title": "James"
+  },
+  "sacy/jeremiah": {
+    "author": "Sacy",
+    "title": "Jeremiah"
+  },
+  "sacy/job": {
+    "author": "Sacy",
+    "title": "Job"
+  },
+  "sacy/joel": {
+    "author": "Sacy",
+    "title": "Joel"
+  },
+  "sacy/john": {
+    "author": "Sacy",
+    "title": "John"
+  },
+  "sacy/jonah": {
+    "author": "Sacy",
+    "title": "Jonah"
+  },
+  "sacy/joshua": {
+    "author": "Sacy",
+    "title": "Joshua"
+  },
+  "sacy/jude": {
+    "author": "Sacy",
+    "title": "Jude"
+  },
+  "sacy/judges": {
+    "author": "Sacy",
+    "title": "Judges"
+  },
+  "sacy/lamentations": {
+    "author": "Sacy",
+    "title": "Lamentations"
+  },
+  "sacy/leviticus": {
+    "author": "Sacy",
+    "title": "Leviticus"
+  },
+  "sacy/luke": {
+    "author": "Sacy",
+    "title": "Luke"
+  },
+  "sacy/malachi": {
+    "author": "Sacy",
+    "title": "Malachi"
+  },
+  "sacy/mark": {
+    "author": "Sacy",
+    "title": "Mark"
+  },
+  "sacy/matthew": {
+    "author": "Sacy",
+    "title": "Matthew"
+  },
+  "sacy/micah": {
+    "author": "Sacy",
+    "title": "Micah"
+  },
+  "sacy/nahum": {
+    "author": "Sacy",
+    "title": "Nahum"
+  },
+  "sacy/nehemiah": {
+    "author": "Sacy",
+    "title": "Nehemiah"
+  },
+  "sacy/numbers": {
+    "author": "Sacy",
+    "title": "Numbers"
+  },
+  "sacy/obadiah": {
+    "author": "Sacy",
+    "title": "Obadiah"
+  },
+  "sacy/philemon": {
+    "author": "Sacy",
+    "title": "Philemon"
+  },
+  "sacy/philippians": {
+    "author": "Sacy",
+    "title": "Philippians"
+  },
+  "sacy/proverbs": {
+    "author": "Sacy",
+    "title": "Proverbs"
+  },
+  "sacy/psalms": {
+    "author": "Sacy",
+    "title": "Psalms"
+  },
+  "sacy/revelation": {
+    "author": "Sacy",
+    "title": "Revelation"
+  },
+  "sacy/romans": {
+    "author": "Sacy",
+    "title": "Romans"
+  },
+  "sacy/ruth": {
+    "author": "Sacy",
+    "title": "Ruth"
+  },
+  "sacy/song-of-songs": {
+    "author": "Sacy",
+    "title": "Song of Songs"
+  },
+  "sacy/titus": {
+    "author": "Sacy",
+    "title": "Titus"
+  },
+  "sacy/zechariah": {
+    "author": "Sacy",
+    "title": "Zechariah"
+  },
+  "sacy/zephaniah": {
+    "author": "Sacy",
+    "title": "Zephaniah"
+  },
+  "schiller/kallias-oder-uber-die-schonheit": {
+    "author": "Schiller",
+    "title": "Kallias oder über die Schönheit"
+  },
+  "schiller/philosophische-briefe": {
+    "author": "Schiller",
+    "title": "Philosophische Briefe"
+  },
+  "schiller/uber-anmut-und-wurde": {
+    "author": "Schiller",
+    "title": "Über Anmut und Würde"
+  },
+  "schiller/uber-das-erhabene": {
+    "author": "Schiller",
+    "title": "Über das Erhabene"
+  },
+  "schiller/uber-das-pathetische": {
+    "author": "Schiller",
+    "title": "Über das Pathetische"
+  },
+  "schiller/uber-den-grund-des-vergnugens-an-tragischen-gegenstanden": {
+    "author": "Schiller",
+    "title": "Über den Grund des Vergnügens an tragischen Gegenständen"
+  },
+  "schiller/uber-die-asthetische-erziehung-des-menschen": {
+    "author": "Schiller",
+    "title": "Über die ästhetische Erziehung des Menschen"
+  },
+  "schiller/uber-die-tragische-kunst": {
+    "author": "Schiller",
+    "title": "Über die tragische Kunst"
+  },
+  "schiller/uber-naive-und-sentimentalische-dichtung": {
+    "author": "Schiller",
+    "title": "Über naive und sentimentalische Dichtung"
+  },
+  "schiller/vom-erhabenen": {
+    "author": "Schiller",
+    "title": "Vom Erhabenen"
+  },
+  "septuagint/1-chronicles": {
+    "author": "Septuagint",
+    "title": "1 Chronicles"
+  },
+  "septuagint/1-kings": {
+    "author": "Septuagint",
+    "title": "1 Kings"
+  },
+  "septuagint/1-maccabees": {
+    "author": "Septuagint",
+    "title": "1 Maccabees"
+  },
+  "septuagint/1-samuel": {
+    "author": "Septuagint",
+    "title": "1 Samuel"
+  },
+  "septuagint/2-chronicles": {
+    "author": "Septuagint",
+    "title": "2 Chronicles"
+  },
+  "septuagint/2-kings": {
+    "author": "Septuagint",
+    "title": "2 Kings"
+  },
+  "septuagint/2-maccabees": {
+    "author": "Septuagint",
+    "title": "2 Maccabees"
+  },
+  "septuagint/2-samuel": {
+    "author": "Septuagint",
+    "title": "2 Samuel"
+  },
+  "septuagint/amos": {
+    "author": "Septuagint",
+    "title": "Amos"
+  },
+  "septuagint/baruch": {
+    "author": "Septuagint",
+    "title": "Baruch"
+  },
+  "septuagint/bel-and-the-dragon": {
+    "author": "Septuagint",
+    "title": "Bel and the Dragon"
+  },
+  "septuagint/daniel": {
+    "author": "Septuagint",
+    "title": "Daniel"
+  },
+  "septuagint/deuteronomy": {
+    "author": "Septuagint",
+    "title": "Deuteronomy"
+  },
+  "septuagint/esther": {
+    "author": "Septuagint",
+    "title": "Esther"
+  },
+  "septuagint/exodus": {
+    "author": "Septuagint",
+    "title": "Exodus"
+  },
+  "septuagint/ezekiel": {
+    "author": "Septuagint",
+    "title": "Ezekiel"
+  },
+  "septuagint/ezra-nehemiah": {
+    "author": "Septuagint",
+    "title": "Ezra-Nehemiah"
+  },
+  "septuagint/genesis": {
+    "author": "Septuagint",
+    "title": "Genesis"
+  },
+  "septuagint/habakkuk": {
+    "author": "Septuagint",
+    "title": "Habakkuk"
+  },
+  "septuagint/haggai": {
+    "author": "Septuagint",
+    "title": "Haggai"
+  },
+  "septuagint/hosea": {
+    "author": "Septuagint",
+    "title": "Hosea"
+  },
+  "septuagint/isaiah": {
+    "author": "Septuagint",
+    "title": "Isaiah"
+  },
+  "septuagint/jeremiah": {
+    "author": "Septuagint",
+    "title": "Jeremiah"
+  },
+  "septuagint/job": {
+    "author": "Septuagint",
+    "title": "Job"
+  },
+  "septuagint/joel": {
+    "author": "Septuagint",
+    "title": "Joel"
+  },
+  "septuagint/jonah": {
+    "author": "Septuagint",
+    "title": "Jonah"
+  },
+  "septuagint/joshua": {
+    "author": "Septuagint",
+    "title": "Joshua"
+  },
+  "septuagint/judges": {
+    "author": "Septuagint",
+    "title": "Judges"
+  },
+  "septuagint/judith": {
+    "author": "Septuagint",
+    "title": "Judith"
+  },
+  "septuagint/lamentations": {
+    "author": "Septuagint",
+    "title": "Lamentations"
+  },
+  "septuagint/letter-of-jeremiah": {
+    "author": "Septuagint",
+    "title": "Letter of Jeremiah"
+  },
+  "septuagint/leviticus": {
+    "author": "Septuagint",
+    "title": "Leviticus"
+  },
+  "septuagint/malachi": {
+    "author": "Septuagint",
+    "title": "Malachi"
+  },
+  "septuagint/micah": {
+    "author": "Septuagint",
+    "title": "Micah"
+  },
+  "septuagint/nahum": {
+    "author": "Septuagint",
+    "title": "Nahum"
+  },
+  "septuagint/numbers": {
+    "author": "Septuagint",
+    "title": "Numbers"
+  },
+  "septuagint/obadiah": {
+    "author": "Septuagint",
+    "title": "Obadiah"
+  },
+  "septuagint/proverbs": {
+    "author": "Septuagint",
+    "title": "Proverbs"
+  },
+  "septuagint/psalms": {
+    "author": "Septuagint",
+    "title": "Psalms"
+  },
+  "septuagint/ruth": {
+    "author": "Septuagint",
+    "title": "Ruth"
+  },
+  "septuagint/sirach": {
+    "author": "Septuagint",
+    "title": "Sirach"
+  },
+  "septuagint/song-of-songs": {
+    "author": "Septuagint",
+    "title": "Song of Songs"
+  },
+  "septuagint/susanna": {
+    "author": "Septuagint",
+    "title": "Susanna"
+  },
+  "septuagint/tobit": {
+    "author": "Septuagint",
+    "title": "Tobit"
+  },
+  "septuagint/wisdom": {
+    "author": "Septuagint",
+    "title": "Wisdom"
+  },
+  "septuagint/zechariah": {
+    "author": "Septuagint",
+    "title": "Zechariah"
+  },
+  "septuagint/zephaniah": {
+    "author": "Septuagint",
+    "title": "Zephaniah"
+  },
+  "sophocles/ajax": {
+    "author": "Sophocles",
+    "title": "Ajax"
+  },
+  "sophocles/antigone": {
+    "author": "Sophocles",
+    "title": "Antigone"
+  },
+  "sophocles/electra": {
+    "author": "Sophocles",
+    "title": "Electra"
+  },
+  "sophocles/oedipus-at-colonus": {
+    "author": "Sophocles",
+    "title": "Oedipus at Colonus"
+  },
+  "sophocles/oedipus-tyrannus": {
+    "author": "Sophocles",
+    "title": "Oedipus Tyrannus"
+  },
+  "sophocles/philoctetes": {
+    "author": "Sophocles",
+    "title": "Philoctetes"
+  },
+  "sophocles/trachiniae": {
+    "author": "Sophocles",
+    "title": "Trachiniae"
+  },
+  "spinoza/ethica": {
+    "author": "Spinoza",
+    "title": "Ethica"
+  },
+  "spinoza/tractatus-de-intellectus-emendatione": {
+    "author": "Spinoza",
+    "title": "Tractatus de Intellectus Emendatione"
+  },
+  "spinoza/tractatus-politicus": {
+    "author": "Spinoza",
+    "title": "Tractatus Politicus"
+  },
+  "spinoza/tractatus-theologico-politicus": {
+    "author": "Spinoza",
+    "title": "Tractatus Theologico-Politicus"
+  },
+  "theognis/theognidea": {
+    "author": "Theognis",
+    "title": "Theognidea"
+  },
+  "vulgate/1-chronicles": {
+    "author": "Vulgate",
+    "title": "1 Chronicles"
+  },
+  "vulgate/1-corinthians": {
+    "author": "Vulgate",
+    "title": "1 Corinthians"
+  },
+  "vulgate/1-john": {
+    "author": "Vulgate",
+    "title": "1 John"
+  },
+  "vulgate/1-kings": {
+    "author": "Vulgate",
+    "title": "1 Kings"
+  },
+  "vulgate/1-maccabees": {
+    "author": "Vulgate",
+    "title": "1 Maccabees"
+  },
+  "vulgate/1-peter": {
+    "author": "Vulgate",
+    "title": "1 Peter"
+  },
+  "vulgate/1-samuel": {
+    "author": "Vulgate",
+    "title": "1 Samuel"
+  },
+  "vulgate/1-thessalonians": {
+    "author": "Vulgate",
+    "title": "1 Thessalonians"
+  },
+  "vulgate/1-timothy": {
+    "author": "Vulgate",
+    "title": "1 Timothy"
+  },
+  "vulgate/2-chronicles": {
+    "author": "Vulgate",
+    "title": "2 Chronicles"
+  },
+  "vulgate/2-corinthians": {
+    "author": "Vulgate",
+    "title": "2 Corinthians"
+  },
+  "vulgate/2-john": {
+    "author": "Vulgate",
+    "title": "2 John"
+  },
+  "vulgate/2-kings": {
+    "author": "Vulgate",
+    "title": "2 Kings"
+  },
+  "vulgate/2-maccabees": {
+    "author": "Vulgate",
+    "title": "2 Maccabees"
+  },
+  "vulgate/2-peter": {
+    "author": "Vulgate",
+    "title": "2 Peter"
+  },
+  "vulgate/2-samuel": {
+    "author": "Vulgate",
+    "title": "2 Samuel"
+  },
+  "vulgate/2-thessalonians": {
+    "author": "Vulgate",
+    "title": "2 Thessalonians"
+  },
+  "vulgate/2-timothy": {
+    "author": "Vulgate",
+    "title": "2 Timothy"
+  },
+  "vulgate/3-john": {
+    "author": "Vulgate",
+    "title": "3 John"
+  },
+  "vulgate/acts": {
+    "author": "Vulgate",
+    "title": "Acts"
+  },
+  "vulgate/amos": {
+    "author": "Vulgate",
+    "title": "Amos"
+  },
+  "vulgate/baruch": {
+    "author": "Vulgate",
+    "title": "Baruch"
+  },
+  "vulgate/colossians": {
+    "author": "Vulgate",
+    "title": "Colossians"
+  },
+  "vulgate/daniel": {
+    "author": "Vulgate",
+    "title": "Daniel"
+  },
+  "vulgate/deuteronomy": {
+    "author": "Vulgate",
+    "title": "Deuteronomy"
+  },
+  "vulgate/ecclesiastes": {
+    "author": "Vulgate",
+    "title": "Ecclesiastes"
+  },
+  "vulgate/ephesians": {
+    "author": "Vulgate",
+    "title": "Ephesians"
+  },
+  "vulgate/esther": {
+    "author": "Vulgate",
+    "title": "Esther"
+  },
+  "vulgate/exodus": {
+    "author": "Vulgate",
+    "title": "Exodus"
+  },
+  "vulgate/ezekiel": {
+    "author": "Vulgate",
+    "title": "Ezekiel"
+  },
+  "vulgate/ezra": {
+    "author": "Vulgate",
+    "title": "Ezra"
+  },
+  "vulgate/galatians": {
+    "author": "Vulgate",
+    "title": "Galatians"
+  },
+  "vulgate/genesis": {
+    "author": "Vulgate",
+    "title": "Genesis"
+  },
+  "vulgate/habakkuk": {
+    "author": "Vulgate",
+    "title": "Habakkuk"
+  },
+  "vulgate/haggai": {
+    "author": "Vulgate",
+    "title": "Haggai"
+  },
+  "vulgate/hebrews": {
+    "author": "Vulgate",
+    "title": "Hebrews"
+  },
+  "vulgate/hosea": {
+    "author": "Vulgate",
+    "title": "Hosea"
+  },
+  "vulgate/isaiah": {
+    "author": "Vulgate",
+    "title": "Isaiah"
+  },
+  "vulgate/james": {
+    "author": "Vulgate",
+    "title": "James"
+  },
+  "vulgate/jeremiah": {
+    "author": "Vulgate",
+    "title": "Jeremiah"
+  },
+  "vulgate/job": {
+    "author": "Vulgate",
+    "title": "Job"
+  },
+  "vulgate/joel": {
+    "author": "Vulgate",
+    "title": "Joel"
+  },
+  "vulgate/john": {
+    "author": "Vulgate",
+    "title": "John"
+  },
+  "vulgate/jonah": {
+    "author": "Vulgate",
+    "title": "Jonah"
+  },
+  "vulgate/joshua": {
+    "author": "Vulgate",
+    "title": "Joshua"
+  },
+  "vulgate/jude": {
+    "author": "Vulgate",
+    "title": "Jude"
+  },
+  "vulgate/judges": {
+    "author": "Vulgate",
+    "title": "Judges"
+  },
+  "vulgate/judith": {
+    "author": "Vulgate",
+    "title": "Judith"
+  },
+  "vulgate/lamentations": {
+    "author": "Vulgate",
+    "title": "Lamentations"
+  },
+  "vulgate/leviticus": {
+    "author": "Vulgate",
+    "title": "Leviticus"
+  },
+  "vulgate/luke": {
+    "author": "Vulgate",
+    "title": "Luke"
+  },
+  "vulgate/malachi": {
+    "author": "Vulgate",
+    "title": "Malachi"
+  },
+  "vulgate/mark": {
+    "author": "Vulgate",
+    "title": "Mark"
+  },
+  "vulgate/matthew": {
+    "author": "Vulgate",
+    "title": "Matthew"
+  },
+  "vulgate/micah": {
+    "author": "Vulgate",
+    "title": "Micah"
+  },
+  "vulgate/nahum": {
+    "author": "Vulgate",
+    "title": "Nahum"
+  },
+  "vulgate/nehemiah": {
+    "author": "Vulgate",
+    "title": "Nehemiah"
+  },
+  "vulgate/numbers": {
+    "author": "Vulgate",
+    "title": "Numbers"
+  },
+  "vulgate/obadiah": {
+    "author": "Vulgate",
+    "title": "Obadiah"
+  },
+  "vulgate/philemon": {
+    "author": "Vulgate",
+    "title": "Philemon"
+  },
+  "vulgate/philippians": {
+    "author": "Vulgate",
+    "title": "Philippians"
+  },
+  "vulgate/proverbs": {
+    "author": "Vulgate",
+    "title": "Proverbs"
+  },
+  "vulgate/psalms": {
+    "author": "Vulgate",
+    "title": "Psalms"
+  },
+  "vulgate/revelation": {
+    "author": "Vulgate",
+    "title": "Revelation"
+  },
+  "vulgate/romans": {
+    "author": "Vulgate",
+    "title": "Romans"
+  },
+  "vulgate/ruth": {
+    "author": "Vulgate",
+    "title": "Ruth"
+  },
+  "vulgate/sirach": {
+    "author": "Vulgate",
+    "title": "Sirach"
+  },
+  "vulgate/song-of-songs": {
+    "author": "Vulgate",
+    "title": "Song of Songs"
+  },
+  "vulgate/titus": {
+    "author": "Vulgate",
+    "title": "Titus"
+  },
+  "vulgate/tobit": {
+    "author": "Vulgate",
+    "title": "Tobit"
+  },
+  "vulgate/wisdom": {
+    "author": "Vulgate",
+    "title": "Wisdom"
+  },
+  "vulgate/zechariah": {
+    "author": "Vulgate",
+    "title": "Zechariah"
+  },
+  "vulgate/zephaniah": {
+    "author": "Vulgate",
+    "title": "Zephaniah"
+  },
+  "xenophanes/fragments-dk-21": {
+    "author": "Xenophanes",
+    "title": "Fragments (DK 21)"
+  },
+  "zeno-of-elea/fragments-dk-29": {
+    "author": "Zeno of Elea",
+    "title": "Fragments (DK 29)"
+  }
+}

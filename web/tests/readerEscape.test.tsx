@@ -98,7 +98,9 @@ const TERM = {
   related: [],
 };
 
-const READER_HASH = "#/r/Das%20Kapital%2C%20Band%20I?lang=deu";
+// Slug form since #602. This constant used to read
+// `#/r/Das%20Kapital%2C%20Band%20I?lang=deu`.
+const READER_HASH = "#/r/das-kapital-band-i?lang=deu";
 
 let fetchMock: MockedFunction<typeof fetch>;
 

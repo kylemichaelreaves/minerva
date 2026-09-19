@@ -93,7 +93,7 @@ describe("<Reader />", () => {
       if (url.includes("/api/terms/7")) return Promise.resolve(okResponse(TERM_DETAIL));
       return Promise.resolve(okResponse(TERM_RANGE));
     });
-    const { container } = renderReader(() => <Reader workId="Categories" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="categories" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.querySelector(".term-mark")).not.toBeNull();
     });
@@ -129,7 +129,7 @@ describe("<Reader />", () => {
 
   it("fetches the work range on mount and renders lines with section labels", async () => {
     fetchMock.mockResolvedValueOnce(okResponse(SAMPLE_RANGE));
-    const { container } = renderReader(() => <Reader workId="Republic" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="republic" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
@@ -151,7 +151,7 @@ describe("<Reader />", () => {
 
   it("language pill defaults to EN active and switches on click", async () => {
     fetchMock.mockResolvedValueOnce(okResponse(SAMPLE_RANGE));
-    const { container } = renderReader(() => <Reader workId="Republic" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="republic" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
@@ -164,7 +164,7 @@ describe("<Reader />", () => {
 
   it("does not render the right rail until a translation is requested", async () => {
     fetchMock.mockResolvedValueOnce(okResponse(SAMPLE_RANGE));
-    const { container } = renderReader(() => <Reader workId="Republic" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="republic" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
@@ -175,7 +175,7 @@ describe("<Reader />", () => {
 
   it("renders an error message when the work range request fails", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 404 } as unknown as Response);
-    const { container } = renderReader(() => <Reader workId="Nope" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="nope" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.textContent).toMatch(/Could not load the source/);
     });
@@ -185,13 +185,17 @@ describe("<Reader />", () => {
     fetchMock.mockResolvedValueOnce(
       okResponse({ ...SAMPLE_RANGE, lang: "deu", work: "Phänomenologie" }),
     );
-    renderReader(() => <Reader workId="Phänomenologie" sourceLang="deu" />);
+    renderReader(() => <Reader workSlug="phanomenologie" sourceLang="deu" />);
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/lang=de/);
-    expect(decodeURIComponent(url)).toContain("Phänomenologie");
+    // The path carries the SLUG since #602 — the request URL is the reader
+    // URL, so nothing in it is percent-encoded any more. This used to read
+    // `/api/works/Ph%C3%A4nomenologie`.
+    expect(url).toContain("/api/works/phanomenologie");
+    expect(url).not.toContain("%");
   });
 
   it("renders .term-mark for words inside a term occurrence span", async () => {
@@ -248,7 +252,7 @@ describe("<Reader />", () => {
       if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(occMap));
       return Promise.resolve(okResponse(range));
     });
-    const { container } = renderReader(() => <Reader workId="Categories" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="categories" sourceLang="grc" />);
     await waitFor(() => {
       // .term-mark only appears once the occurrence_map fetch resolves
       // and the Reader re-renders. Wait for the marker.
@@ -348,7 +352,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
@@ -430,7 +434,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
@@ -508,7 +512,7 @@ describe("<Reader />", () => {
       }
       return Promise.resolve(okResponse(range));
     });
-    const { container } = renderReader(() => <Reader workId="Nicomachean Ethics" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="nicomachean-ethics" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
@@ -567,7 +571,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
@@ -637,7 +641,7 @@ describe("<Reader />", () => {
       }
       return Promise.resolve(okResponse(range));
     });
-    const { container } = renderReader(() => <Reader workId="Nicomachean Ethics" sourceLang="grc" />);
+    const { container } = renderReader(() => <Reader workSlug="nicomachean-ethics" sourceLang="grc" />);
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
@@ -690,7 +694,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
@@ -742,7 +746,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
@@ -781,7 +785,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelector(".gw")).not.toBeNull();
@@ -838,7 +842,7 @@ describe("<Reader />", () => {
       return Promise.resolve(okResponse(range));
     });
     const { container } = renderReader(() => (
-      <Reader workId="Phänomenologie des Geistes" sourceLang="deu" />
+      <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
     ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
@@ -867,7 +871,10 @@ describe("<Reader />", () => {
     // comma in the title came back as two scope entries, which is 26 of the
     // corpus's 866 works (#236).
     //
-    // A title with a comma is the whole point of the fixture.
+    // A title with a comma is the whole point of the fixture. Since #602 the
+    // ROUTE carries `das-kapital-band-i` and this title reaches the Reader
+    // only in the range response — so the assertion below now also proves the
+    // scope is taken from the data rather than from the URL.
     const WORK = "Das Kapital, Band I";
 
     const range = {
@@ -915,7 +922,7 @@ describe("<Reader />", () => {
     async function openRail(): Promise<HTMLElement> {
       mockReader();
       const { container } = renderReader(() => (
-        <Reader workId={WORK} sourceLang="deu" />
+        <Reader workSlug="das-kapital-band-i" sourceLang="deu" />
       ));
       await waitFor(() => {
         expect(container.querySelectorAll(".gw").length).toBe(3);

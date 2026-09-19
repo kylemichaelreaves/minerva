@@ -1,6 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "./fixtures";
 import { ReaderPage } from "./pages/ReaderPage";
+import { slugify } from "../../src/slug";
 
 /** The work (and its source language) the Reader opens, derived from the
  *  running server rather than written down: which works exist — and what
@@ -70,5 +71,49 @@ test.describe("Reader selection", () => {
     // sound. This assertion alone should not be read as proof the toolbar
     // element exists on this page.
     await expect(reader.toolbar).toBeHidden();
+  });
+});
+
+test.describe("readable work URLs (#602)", () => {
+  /** The slug pair is resolved SERVER-side, so this is the only level at which
+   *  the two slugify implementations are checked against each other through a
+   *  real request. `data/authors/work_slugs.json` pins them statically; this
+   *  proves the pinned algorithm is also the one the running server resolves
+   *  with. jsdom cannot see it — `make check` runs neither this suite nor the
+   *  e2e one (#604). */
+  test("an author/title slug pair resolves against the running server", async ({
+    page,
+    request,
+  }) => {
+    const reader = new ReaderPage(page);
+    const res = await request.get("/api/works");
+    const body = (await res.json()) as { works: { work: string; author: string; lang: string }[] };
+    const first = body.works[0];
+    if (!first)
+      throw new Error("/api/works returned no works — the fixture index is empty (#133).");
+
+    await reader.gotoSlugs(slugify(first.author), slugify(first.work), first.lang);
+
+    await expect(reader.line().first()).toBeVisible();
+    // Nothing percent-encoded survives in the address bar — the point of the
+    // change. `Beantwortung%20der%20Frage%3A%20Was%20ist%20Aufkl%C3%A4rung%3F`
+    // is what this used to look like.
+    expect(page.url()).not.toContain("%");
+  });
+
+  test("a pre-#602 bookmark rewrites itself to the slug form", async ({ page, request }) => {
+    const reader = new ReaderPage(page);
+    const res = await request.get("/api/works");
+    const body = (await res.json()) as { works: { work: string; author: string; lang: string }[] };
+    const first = body.works[0];
+    if (!first)
+      throw new Error("/api/works returned no works — the fixture index is empty (#133).");
+
+    await reader.goto(first.work, first.lang);
+
+    // `useRouting` canonicalises the hash on first load via replaceState, so
+    // the old URL both resolves AND stops being the one the user copies.
+    await expect(page).toHaveURL(new RegExp(`#/r/${slugify(first.work)}\\?`));
+    await expect(reader.line().first()).toBeVisible();
   });
 });

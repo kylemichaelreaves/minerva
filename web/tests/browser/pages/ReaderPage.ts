@@ -17,8 +17,17 @@ export class ReaderPage {
    *  Nicomachean Ethics are) 404s with "no chunks for that (work, lang)"
    *  when `lang` is omitted. The brief's `goto(workId)` signature assumed
    *  `lang` was optional; it is not, for this fixture. */
+  /** Open the PRE-#602 URL: the raw title as the path segment. Kept
+   *  deliberately — it is the shape every existing bookmark holds, and the
+   *  only end-to-end check that they still resolve. */
   async goto(workId: string, lang: string): Promise<void> {
     await this.page.goto(`/#/r/${encodeURIComponent(workId)}?lang=${encodeURIComponent(lang)}`);
+    await this.line().first().waitFor();
+  }
+
+  /** Open the canonical `#/r/<authorSlug>/<titleSlug>` URL (#602). */
+  async gotoSlugs(authorSlug: string, titleSlug: string, lang: string): Promise<void> {
+    await this.page.goto(`/#/r/${authorSlug}/${titleSlug}?lang=${encodeURIComponent(lang)}`);
     await this.line().first().waitFor();
   }
 

@@ -78,9 +78,9 @@ export function ReaderRoute(props: RouteContextProps) {
   return (
     <Show when={work() !== null}>
       <Reader
-        workId={work()!.workId}
+        workSlug={work()!.workSlug}
         sourceLang={work()!.sourceLang}
-        author={work()!.author}
+        authorSlug={work()!.authorSlug}
         focusChunkId={work()!.focusChunkId}
         openTermId={work()!.openTermId}
         onOpenTermIdChange={props.reader.setOpenTermId}

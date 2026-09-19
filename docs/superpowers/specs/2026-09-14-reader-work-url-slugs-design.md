@@ -1,6 +1,7 @@
 # Reader work URLs: slugs the eye can read
 
-**Status:** drafted 2026-09-14, awaiting review
+**Status:** drafted 2026-09-14; implemented 2026-09-18, with two corrections
+and one omission recorded below
 **Issues:** #602
 **Related:** #589 (readRoute cognitive complexity), #428 (lazy works list vs.
 route-driven render), #50 (edition switcher), #547 (frontend test location),
@@ -201,10 +202,24 @@ pair, so both slugify locally.
   (a chunk deep-link, resolved off `around=`).
 - **Chunk deep-links.** `App.tsx:50` calls `openAtChunk(workTitle, undefined,
   chunkId)` — a title with **no author**, so no author slug can be computed.
+  (Corrected 2026-09-18: there are **two** author-less callers, not one —
+  `ChatRoute.tsx:39` is the other, and it passes a `sourceLang` as well. Same
+  shape, same treatment; the design is unchanged.)
   These emit the single-segment form. Resolution is unaffected, because the
   server resolves work, lang and edition off `around=<chunk>` regardless of the
   path segment. Once the response supplies the canonical author, the Reader
   `replace()`s up to the two-segment form and the link self-heals.
+
+  > **Not implemented, 2026-09-18.** The `replace()` writes the route signal,
+  > which changes `useWorkRange`'s `windowKey` memo (#347), which reloads the
+  > window and blanks the stage — the exact failure that memo exists to
+  > prevent. Measured: it turned four assertions red across
+  > `readerSyntaxLayer` and `readerEscape` ("does not tear down the rendered
+  > chunks when the overlay opens"). Resolving it means deciding whether an
+  > `authorSlug` derived FROM the loaded range counts as a change of window
+  > identity, which is a change to #347's mechanism and larger than this PR.
+  > The one-segment form resolves correctly either way; it simply stays one
+  > segment. Filed separately.
 
 ### Keeping the two slugifiers honest
 
@@ -217,10 +232,24 @@ index to regenerate from.
 
 Two consequences worth stating, both learned the hard way in this repo:
 
-- The file needs an explicit `!data/authors/work_slugs.json` line in
-  `.gitignore`. `data/*` is ignored and only `manifest.yaml` is un-ignored by
-  name; the other two snapshots survive only because they are already tracked.
-  A gate artifact that silently fails to commit leaves CI checking nothing.
+- ~~The file needs an explicit `!data/authors/work_slugs.json` line in
+  `.gitignore`.~~ **Corrected 2026-09-18: it does not, and no such line was
+  added.** `.gitignore` carries `!data/authors/` — the whole directory, not
+  just `manifest.yaml` — so a new file inside it is not ignored:
+
+  ```
+  $ touch data/authors/__probe.json && git check-ignore -v data/authors/__probe.json
+  $ echo $?
+  1                                    # not ignored
+  $ git status --porcelain data/authors/
+  ?? data/authors/__probe.json
+  ```
+
+  Material because the claim also implies `chunk_counts.json` and
+  `chunk_granularity.json` survive only by being pre-tracked, which is false
+  and would send the next person adding a snapshot hunting a hazard that is
+  not there. The hazard it names is still real — a gate artifact that fails to
+  commit leaves CI checking nothing — it is simply not this one.
 - The same committed table is the shared fixture the Python and TypeScript
   slugifiers are both tested against. A test that read the live index would
   pass locally and measure nothing in CI.

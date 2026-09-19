@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import chunk_granularity
+import work_slug_snapshot
 from chunk_count_validation import (
     DEFAULT_DB,
     SNAPSHOT_PATH,
@@ -69,9 +70,7 @@ def check_corpus(corpus_id: str, manifest: dict, ingest_ids: set[str]) -> list[s
     if corpus_id not in {e.id for e in corpus_registry.CORPORA}:
         errors.append(f"corpus {corpus_id!r} missing from corpus_registry.CORPORA")
     author_names = [
-        a["display_name"]
-        for a in manifest.get("authors") or []
-        if a.get("corpus_id") == corpus_id
+        a["display_name"] for a in manifest.get("authors") or [] if a.get("corpus_id") == corpus_id
     ]
     if not author_names:
         errors.append(f"no manifest author row with corpus_id={corpus_id!r}")
@@ -196,6 +195,43 @@ def _granularity_errors(
     return errs
 
 
+def _slug_errors(conn: sqlite3.Connection | None) -> list[str]:
+    """Work-slug gate (#602). Two different checks on two different machines.
+
+    Locally the index is authoritative, so the committed table is compared
+    against it and a newly ingested collision raises out of ``work_slug_table``.
+    In CI there is no index, so all that is left is the table's internal
+    consistency — which is still the property that matters, because it is what
+    pins ``web/src/slug.ts`` to ``minerva.reader.slugs``. ``conn`` is ``None``
+    there, mirroring :func:`_granularity_errors`.
+
+    Takes an open connection rather than a path deliberately: ``main`` already
+    holds one for exactly this branch, and opening a second from ``--db`` is a
+    `pythonsecurity:*` connection-string sink that SonarCloud fails the build
+    on (CONTRIBUTING, "Security findings in operator tooling"). Reusing the
+    connection removes the sink instead of arguing with it, and is one fewer
+    handle on the index besides.
+    """
+
+    from minerva.reader.slugs import SlugCollisionError, slug_snapshot_drift, validate_slug_snapshot
+
+    if not work_slug_snapshot.SNAPSHOT_PATH.is_file():
+        return [
+            f"no work-slug snapshot at "
+            f"{work_slug_snapshot.SNAPSHOT_PATH.relative_to(REPO_ROOT)} — run "
+            f"`make generate-authors`"
+        ]
+    snapshot = work_slug_snapshot.load_snapshot()
+    errors = validate_slug_snapshot(snapshot)
+    if conn is None:
+        return errors
+    try:
+        errors += slug_snapshot_drift(conn, snapshot)
+    except SlugCollisionError as exc:
+        errors.append(str(exc))
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", help="Check one corpus id")
@@ -267,11 +303,11 @@ def main() -> int:
             return 1
         with sqlite3.connect(db_path) as conn:
             write_snapshot(build_snapshot(conn, manifest))
-            chunk_granularity.write_snapshot(
-                chunk_granularity.build_snapshot(conn, manifest)
-            )
+            chunk_granularity.write_snapshot(chunk_granularity.build_snapshot(conn, manifest))
+            work_slug_snapshot.write_snapshot(work_slug_snapshot.build_snapshot(conn))
         print(f"wrote {SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         print(f"wrote {chunk_granularity.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
+        print(f"wrote {work_slug_snapshot.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         return 1 if failed else 0
 
     if args.skip_chunk_counts:
@@ -285,14 +321,13 @@ def main() -> int:
 
     count_errs: list[str] = []
     gran_errs: list[str] = []
+    slug_errs: list[str] = []
     if db_path.is_file():
         # Local: the index is authoritative. Check it against the bands,
         # and check the committed snapshot against it so the file CI
         # relies on can't quietly go stale.
         with sqlite3.connect(db_path) as conn:
-            count_errs += validate_chunk_counts(
-                conn, manifest, corpus_ids=tuple(corpus_ids)
-            )
+            count_errs += validate_chunk_counts(conn, manifest, corpus_ids=tuple(corpus_ids))
             count_errs += validate_corpus_authors(conn)
             if SNAPSHOT_PATH.is_file():
                 count_errs += snapshot_drift(conn, manifest, load_snapshot())
@@ -303,6 +338,7 @@ def main() -> int:
                     f"`make generate-authors`"
                 )
             gran_errs += _granularity_errors(conn, manifest)
+            slug_errs += _slug_errors(conn)
     elif SNAPSHOT_PATH.is_file():
         # CI: `data/index.sqlite` is gitignored and never built here, so
         # the committed snapshot is the only thing to validate against.
@@ -310,6 +346,7 @@ def main() -> int:
         print(f"chunk counts: no DB at {db_path}, using committed snapshot")
         count_errs += validate_snapshot(load_snapshot(), manifest)
         gran_errs += _granularity_errors(None, manifest)
+        slug_errs += _slug_errors(None)
     else:
         failed = True
         print(
@@ -319,6 +356,10 @@ def main() -> int:
             f"--skip-chunk-counts to waive.",
             file=sys.stderr,
         )
+        # Still run the work-slug check: it needs no index at all, only the
+        # committed table, so letting it fall through here would be exactly
+        # the silent skip #157 was about.
+        slug_errs += _slug_errors(None)
 
     if count_errs:
         failed = True
@@ -330,6 +371,12 @@ def main() -> int:
         failed = True
         print("chunk granularity:")
         for e in gran_errs:
+            print(f"  - {e}")
+
+    if slug_errs:
+        failed = True
+        print("work slugs:")
+        for e in slug_errs:
             print(f"  - {e}")
 
     return 1 if failed else 0

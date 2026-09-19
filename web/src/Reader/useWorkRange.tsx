@@ -13,7 +13,7 @@
 //   * the four signals the orchestrator reads (range, occMap,
 //     refsMap, loadError) PLUS `loadMore` / `hasMore` / `loadingMore`
 //     for the pagination control surface
-// The caller provides `props` (with workId / sourceLang /
+// The caller provides `props` (with workSlug / sourceLang /
 // focusChunkId) and a `getStage` accessor so the hook can scroll the
 // focused chunk into view after paint.
 //
@@ -43,10 +43,12 @@ import { errorMessage, isAbortError } from "~/utils/util";
 import type { OccurrenceMap, ReferencesMap, WorkRange } from "~/utils/types";
 
 export interface UseWorkRangeProps {
-  workId: string;
+  /** Title slug from the route (#602). The canonical title comes back in the
+   *  response as `work`; nothing upstream of this hook knows it. */
+  workSlug: string;
   sourceLang?: string;
-  /** Disambiguates same-titled works; forwarded to /api/works/:work. */
-  author?: string;
+  /** Author slug; the second path segment of `/api/works/<a>/<t>`. */
+  authorSlug?: string;
   focusChunkId?: string;
 }
 
@@ -99,7 +101,7 @@ export function useWorkRange(
 
   // Cancellation controller for the currently-active work. We
   // reuse it across the initial load AND every ``loadMore`` page
-  // fetch so a work-switch via ``workId`` reactivity aborts both
+  // fetch so a work-switch via ``workSlug`` reactivity aborts both
   // the in-flight initial load AND any pagination request that's
   // mid-flight. The controller is rotated on each new ``loadWork``
   // call; the closure inside ``loadMore`` snapshots the current
@@ -197,10 +199,10 @@ export function useWorkRange(
       const atSection = pendingAtSection;
       pendingAtSection = undefined;
       const r = await getWorkRange(
-        props.workId,
+        props.workSlug,
         {
           lang: props.sourceLang ?? "grc",
-          author: props.author,
+          authorSlug: props.authorSlug,
           edition: editionOverride,
           ...(props.focusChunkId
             ? { around: props.focusChunkId, limit: FOCUS_WINDOW }
@@ -268,13 +270,13 @@ export function useWorkRange(
     setLoadingMore(true);
     try {
       const next = await getWorkRange(
-        props.workId,
+        props.workSlug,
         {
           // Page within the SAME edition — falling back to lang would
           // re-resolve the default edition and could paginate into a
           // different translation (#50). The selector pins it.
           edition: cur.edition,
-          author: props.author,
+          authorSlug: props.authorSlug,
           from: cur.chunks.length,
           limit: PAGE_SIZE,
         },
@@ -307,7 +309,7 @@ export function useWorkRange(
     }
   }
 
-  // Single load path: this effect runs on mount AND whenever workId /
+  // Single load path: this effect runs on mount AND whenever workSlug /
   // focusChunkId change, so the previous `onMount(loadWork)` +
   // separate effect produced two requests on first paint. The effect
   // alone is sufficient — Solid runs it synchronously after the
@@ -322,7 +324,7 @@ export function useWorkRange(
   // on a change of VALUE and not on a change of object.
   //
   // Every one of these four props is read out of the route (`ReaderRoute`
-  // passes `readerWork()!.workId` and friends as JSX props, which Solid
+  // passes `readerWork()!.workSlug` and friends as JSX props, which Solid
   // compiles to getters), and each hashchange installs a NEW Route object.
   // Solid signals notify on identity, so reading the props directly inside
   // the effect meant any route change at all reloaded the window — including
@@ -330,7 +332,7 @@ export function useWorkRange(
   // `?syntax=<id>` opening the syntax layer (#342). The reload starts with
   // `setRange(null)`, so the cost was a blanked stage, not just a request.
   const windowKey = createMemo(() =>
-    JSON.stringify([props.workId, props.sourceLang, props.author, props.focusChunkId]),
+    JSON.stringify([props.workSlug, props.sourceLang, props.authorSlug, props.focusChunkId]),
   );
 
   createEffect(

@@ -40,6 +40,7 @@ from .http.handlers import (  # noqa: F401
     _handle_work_occurrence_map,
     _handle_work_occurrences,
     _handle_work_range,
+    _handle_work_range_by_slug,
     _handle_work_references_map,
     _handle_works_list,
     _history_from_payload,

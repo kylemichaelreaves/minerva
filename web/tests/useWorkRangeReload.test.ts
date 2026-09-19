@@ -20,7 +20,7 @@ import type { Route } from "~/routing";
 const RANGE = {
   work_id: 781,
   corpus: "marx",
-  author: "Marx",
+  authorSlug: "marx",
   work: "Das Kapital, Band I",
   lang: "deu",
   total: 1,
@@ -57,7 +57,7 @@ vi.mock("~/api/refsApi", async (importOriginal) => ({
   ),
 }));
 
-const READER: Route = { kind: "reader", workId: "Das Kapital, Band I", sourceLang: "deu" };
+const READER: Route = { kind: "reader", workSlug: "das-kapital-band-i", sourceLang: "deu" };
 
 /** Mount the hook behind route-derived getters, exactly as `ReaderRoute`
  *  does, so the effect subscribes to the route signal rather than to four
@@ -73,14 +73,14 @@ function mount(initial: Route = READER) {
     dispose = d;
     useWorkRange(
       {
-        get workId() {
-          return loc()?.workId ?? "";
+        get workSlug() {
+          return loc()?.workSlug ?? "";
         },
         get sourceLang() {
           return loc()?.sourceLang;
         },
-        get author() {
-          return loc()?.author;
+        get authorSlug() {
+          return loc()?.authorSlug;
         },
         get focusChunkId() {
           return loc()?.focusChunkId;
@@ -131,7 +131,7 @@ describe("useWorkRange reload policy", () => {
     const { setRoute, dispose } = mount();
     await settle();
 
-    setRoute({ kind: "reader", workId: "Das Kapital, Band II", sourceLang: "deu" });
+    setRoute({ kind: "reader", workSlug: "das-kapital-band-ii", sourceLang: "deu" });
     await settle();
 
     expect(getWorkRange).toHaveBeenCalledTimes(2);

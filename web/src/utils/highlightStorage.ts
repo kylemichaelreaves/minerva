@@ -15,10 +15,14 @@
 // instantly).
 //
 // Storage shape: one key per work, JSON-serialized array of
-// SavedHighlight. The work id is the same string the Reader uses to
-// fetch the range (`props.workId` in Reader/index.tsx). Per-work
-// isolation keeps the localStorage entries small and lets us load
-// only the relevant highlights on Reader mount.
+// SavedHighlight. The key is the work TITLE. It used to also be what the
+// Reader fetched with (`props.workId`), but since #602 the route carries a
+// SLUG and the title arrives with the range response — Reader/index.tsx
+// derives `workTitle()` from it and passes that here. Keeping the key on the
+// title is what made that change need no data migration: every existing
+// user's annotation layer is already filed under it. Per-work isolation keeps
+// the localStorage entries small and lets us load only the relevant
+// highlights on Reader mount.
 
 const KEY_PREFIX = "minerva:highlights:";
 
