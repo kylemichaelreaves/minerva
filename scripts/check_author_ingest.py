@@ -217,7 +217,12 @@ def _slug_errors(db_path: Path) -> list[str]:
     errors = validate_slug_snapshot(snapshot)
     if not db_path.is_file():
         return errors
-    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+    # Plain path, not a `file:...?mode=ro` URI: `db_path` comes from `--db`,
+    # and interpolating argv into a connection string is the `pythonsecurity:*`
+    # shape CONTRIBUTING's "Security findings in operator tooling" section is
+    # about. The two sibling branches below already connect this way, so this
+    # is also just the idiom of the file.
+    with sqlite3.connect(db_path) as conn:
         try:
             errors += slug_snapshot_drift(conn, snapshot)
         except SlugCollisionError as exc:
