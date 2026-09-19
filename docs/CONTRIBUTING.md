@@ -68,7 +68,8 @@ minutes before you push. Three layers, in order of how often each fires:
    `--no-verify` only in genuine emergencies; the CI gate will catch you.
 
 3. **CI — every push / PR.** [`.github/workflows/check.yml`](../.github/workflows/check.yml)
-   mirrors `make check` (ruff + eslint + tsc + pytest + vitest unit).
+   mirrors `make check` (ruff + eslint + tsc + pytest + vitest unit, plus
+   the e2e and Playwright browser suites — `web · e2e` is a required check).
    PRs can't merge red.
 
 If you're adding a new lint rule, also add it to the existing layer that
@@ -78,7 +79,8 @@ debt starts.
 ## Verify before a PR
 
 ```bash
-make check    # ruff + eslint + tsc + pytest + vitest unit + check-authors + check-api-types + check-author-imports
+make check    # ruff + eslint + tsc + pytest + vitest unit + e2e + browser
+              # + check-authors + check-api-types + check-author-imports
 ```
 
 Backend: import per-author work tables from `minerva.authors.<author>_works`

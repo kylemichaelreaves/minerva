@@ -89,10 +89,15 @@ body. Silence reads as an oversight.
 ## Verify before claiming
 
 `make check` — ruff (`src tests scripts perseus`) + eslint + tsc + pytest
-+ vitest + changed-line coverage + author/API/import gates. Run it and read
-the output before saying something passes. **Re-run it after any edit you
-make while fixing its output** — two pushes on #254 failed CI on a lint
-error and a tsc arity error introduced *after* the last local run.
++ vitest + **the e2e and Playwright browser suites** + changed-line coverage
++ author/API/import gates. Run it and read the output before saying something
+passes. The two UI suites joined the aggregate in #604; before that they were
+targets beside it, so a UI change could pass every local gate and fail the
+required `web · e2e` check. They cost ~7s together, build included.
+
+**Re-run it after any edit you make while fixing its output** — two pushes on
+#254 failed CI on a lint error and a tsc arity error introduced *after* the
+last local run.
 
 **SonarCloud** fails PRs under 80% coverage *of the lines you changed*, and
 is a **required check** as of #158 — a red gate blocks the merge. `make check`
@@ -126,7 +131,8 @@ coverage — a different number, which can be green while the gate is red. On
 `src/minerva/` and `web/src/`. Comparing against something other than main:
 `make check DIFF_BASE=origin/other`.
 
-`make check` still does not cover everything CI does:
+`make check` still does not cover everything CI does — the remaining gaps are
+all Sonar, which has no local equivalent:
 
 - **Duplication** (≤3% on new code) and the **reliability** rating are Sonar
   gates with no local equivalent. Copying a component wholesale fails them at

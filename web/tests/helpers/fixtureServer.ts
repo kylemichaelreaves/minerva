@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");
 const MINERVA_BIN = resolve(REPO_ROOT, ".venv/bin/minerva");
 const STATIC_DIR = resolve(REPO_ROOT, "web/dist");
+const NPM_BIN = process.platform === "win32" ? "npm.cmd" : "npm";
 const FIXTURE_JSONL = resolve(REPO_ROOT, "tests/fixtures/corpus.jsonl");
 
 export interface FixtureServer {
@@ -114,6 +115,24 @@ export async function startFixtureServer(): Promise<FixtureServer> {
         `fixture index build failed (exit ${String(built.status)}):\n` +
           `${built.stdout}\n${built.stderr}\n${String(built.error)}\n` +
           `If MINERVA_BIN is missing, run \`uv sync\` to create .venv/ first.`,
+      );
+    }
+
+    // Build the bundle for the same reason the index is built above: a suite
+    // must be measured against THIS tree, not against whatever a previous
+    // branch left on disk. Owning it here rather than in the caller is the
+    // point — `make test-browser` and the CI workflow both used to build
+    // first, so the one entry point that did not (`npx playwright test`, the
+    // one you reach for when iterating on a single spec) silently served a
+    // stale bundle (#610). Vite's cache makes the no-op case ~0.6s.
+    const bundled = spawnSync(NPM_BIN, ["--prefix", "web", "run", "build"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    });
+    if (bundled.status !== 0) {
+      throw new Error(
+        `web bundle build failed (exit ${String(bundled.status)}):\n` +
+          `${bundled.stdout}\n${bundled.stderr}\n${String(bundled.error)}`,
       );
     }
 
