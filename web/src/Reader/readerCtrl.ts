@@ -9,16 +9,19 @@
 import { createEffect, createSignal } from "solid-js";
 import { listWorks } from "~/api/readerApi";
 import { keepsReaderAlive } from "~/routes/routeUtils";
+import { slugify } from "~/slug";
 import { apiError } from "~/utils/apiError";
 import type { RoutingApi } from "~/routing";
 import type { AppMode } from "~/features/Sidebar";
 import type { Work } from "~/utils/types";
 
 interface ReaderLocation {
-  workId: string;
+  /** Title SLUG, mirroring the route (#602) — not the title. The canonical
+   *  title is not knowable from here; it arrives with the range response. */
+  workSlug: string;
   sourceLang?: string;
-  /** Disambiguates same-titled works (Luther 1912 vs 1545). */
-  author?: string;
+  /** Author slug. Disambiguates same-titled works (Luther 1912 vs 1545). */
+  authorSlug?: string;
   focusChunkId?: string;
   /** Term-card open state mirrored from the URL (`?term=<id>`). When
    *  set, the Reader resumes the popover on next paint. */
@@ -54,7 +57,7 @@ export interface ReaderApi {
   switchMode: (target: AppMode) => Promise<void>;
   /** Open the reader directly at a specific chunk — used when the user
    *  clicks a citation locator in marginalia. */
-  openAtChunk: (workId: string, sourceLang: string | undefined, chunkId: string) => void;
+  openAtChunk: (workTitle: string, sourceLang: string | undefined, chunkId: string) => void;
   /** All available works from `/api/works`. Populated lazily the first
    *  time Reader mode is entered. */
   works: () => Work[];
@@ -88,9 +91,9 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     const r = routing.route();
     return r.kind === "reader"
       ? {
-          workId: r.workId,
+          workSlug: r.workSlug,
           sourceLang: r.sourceLang,
-          author: r.author,
+          authorSlug: r.authorSlug,
           focusChunkId: r.focusChunkId,
           openTermId: r.openTermId,
         }
@@ -116,9 +119,9 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
   const matchWork = (loc: ReaderLocation, list: Work[]): Work | null =>
     list.find(
       (w) =>
-        w.work === loc.workId &&
+        slugify(w.work) === loc.workSlug &&
         (loc.sourceLang == null || w.lang === loc.sourceLang) &&
-        (loc.author == null || w.author === loc.author),
+        (loc.authorSlug == null || slugify(w.author) === loc.authorSlug),
     ) ?? null;
 
   const currentWork = (): Work | null => {
@@ -153,18 +156,26 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     return matchWork(loc, works());
   }
 
-  function openAtChunk(workId: string, sourceLang: string | undefined, chunkId: string) {
+  function openAtChunk(workTitle: string, sourceLang: string | undefined, chunkId: string) {
     abortChat();
-    routing.navigate({ kind: "reader", workId, sourceLang, focusChunkId: chunkId });
+    // No author to slugify — a citation locator carries a title and a chunk.
+    // The one-segment URL self-heals: the range response names the author and
+    // the Reader replaces up to the canonical pair.
+    routing.navigate({
+      kind: "reader",
+      workSlug: slugify(workTitle),
+      sourceLang,
+      focusChunkId: chunkId,
+    });
   }
 
   function openWork(work: Work) {
     abortChat();
     routing.navigate({
       kind: "reader",
-      workId: work.work,
+      workSlug: slugify(work.work),
       sourceLang: work.lang,
-      author: work.author,
+      authorSlug: slugify(work.author),
     });
   }
 
@@ -209,9 +220,23 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     const remembered = localStorage.getItem(STORAGE_KEY);
     if (remembered) {
       try {
-        const { workId, sourceLang, author } = JSON.parse(remembered) as ReaderLocation;
-        if (workId) {
-          routing.navigate({ kind: "reader", workId, sourceLang, author });
+        // Blobs written before #602 hold RAW TITLES under `workId`/`author`;
+        // newer ones hold slugs. `slugify` is idempotent, so reading both
+        // fields and folding whatever is there covers both without a
+        // migration — and without stranding a returning user on the fallback
+        // work because their bookmark predates the URL change.
+        const stored = JSON.parse(remembered) as Partial<
+          ReaderLocation & { workId: string; author: string }
+        >;
+        const workSlug = stored.workSlug ?? stored.workId;
+        const rawAuthor = stored.authorSlug ?? stored.author;
+        if (workSlug) {
+          routing.navigate({
+            kind: "reader",
+            workSlug: slugify(workSlug),
+            sourceLang: stored.sourceLang,
+            authorSlug: rawAuthor ? slugify(rawAuthor) : undefined,
+          });
           return;
         }
       } catch (_) {
@@ -231,9 +256,9 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
       if (pick === undefined) return;
       routing.navigate({
         kind: "reader",
-        workId: pick.work,
+        workSlug: slugify(pick.work),
         sourceLang: pick.lang,
-        author: pick.author,
+        authorSlug: slugify(pick.author),
       });
     } catch (err) {
       console.warn("failed to fetch works for reader", err);

@@ -45,6 +45,7 @@ from .reader import (  # noqa: F401
     _handle_lemma_highlights,
     _handle_word_lookup,
     _handle_work_range,
+    _handle_work_range_by_slug,
     _handle_works_list,
 )
 from .references import (  # noqa: F401

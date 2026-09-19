@@ -64,14 +64,14 @@ describe("useReader()", () => {
   it("readerWork reflects the reader route", async () => {
     const routing = createTestRouting({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
     });
     const { api, dispose } = runReader(routing);
     await flush();
     expect(api.readerWork()).toEqual({
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
       openTermId: undefined,
@@ -83,7 +83,7 @@ describe("useReader()", () => {
   it("currentWork resolves against loaded works", async () => {
     const routing = createTestRouting({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
     });
     const { api, dispose } = runReader(routing);
@@ -102,7 +102,7 @@ describe("useReader()", () => {
     expect(abortChat).toHaveBeenCalled();
     expect(r.navigateSpy).toHaveBeenCalledWith({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
     });
@@ -116,9 +116,9 @@ describe("useReader()", () => {
     expect(abortChat).toHaveBeenCalled();
     expect(r.navigateSpy).toHaveBeenCalledWith({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "eng",
-      author: "Plato",
+      authorSlug: "plato",
     });
     dispose();
   });
@@ -126,7 +126,7 @@ describe("useReader()", () => {
   it("setOpenTermId updates the reader route term param", () => {
     const routing = createTestRouting({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
     });
     const { api, routing: r, dispose } = runReader(routing);
@@ -149,7 +149,7 @@ describe("useReader()", () => {
     localStorage.setItem("minerva:last-conversation", "thread-9");
     const routing = createTestRouting({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
     });
     const { api, routing: r, dispose } = runReader(routing);
@@ -161,7 +161,7 @@ describe("useReader()", () => {
   it("switchMode to chat falls back to landing without a saved conversation", async () => {
     const routing = createTestRouting({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
     });
     const { api, routing: r, dispose } = runReader(routing);
@@ -173,13 +173,13 @@ describe("useReader()", () => {
   it("switchMode to reader uses remembered location from localStorage", async () => {
     localStorage.setItem(
       "minerva:last-reader",
-      JSON.stringify({ workId: "Republic", sourceLang: "eng" }),
+      JSON.stringify({ workSlug: "republic", sourceLang: "eng" }),
     );
     const { api, routing: r, dispose } = runReader();
     await api.switchMode("reader");
     expect(r.navigateSpy).toHaveBeenCalledWith({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "eng",
     });
     dispose();
@@ -191,9 +191,9 @@ describe("useReader()", () => {
     await flush();
     expect(r.navigateSpy).toHaveBeenCalledWith({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
-      author: "Plato",
+      authorSlug: "plato",
     });
     dispose();
   });
@@ -231,14 +231,14 @@ describe("useReader()", () => {
   it("persists reader location and conversation id to localStorage", async () => {
     const routing = createTestRouting({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
     });
     const { dispose } = runReader(routing);
     await flush();
     expect(JSON.parse(localStorage.getItem("minerva:last-reader") ?? "{}")).toMatchObject({
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
     });
@@ -261,7 +261,7 @@ describe("useReader()", () => {
     // loader instead, which is why it returns a promise.
     const READER_ROUTE = {
       kind: "reader" as const,
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
     };
 
@@ -322,7 +322,7 @@ describe("useReader()", () => {
     it("resolves null for a location with no matching work", async () => {
       const routing = createTestRouting({
         kind: "reader",
-        workId: "Nonexistent",
+        workSlug: "nonexistent",
         sourceLang: "grc",
       });
       const { api, dispose } = runReader(routing);

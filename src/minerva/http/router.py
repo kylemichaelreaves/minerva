@@ -38,6 +38,7 @@ from .handlers import (
     _handle_work_occurrence_map,
     _handle_work_occurrences,
     _handle_work_range,
+    _handle_work_range_by_slug,
     _handle_work_references_map,
     _handle_works_list,
 )
@@ -45,6 +46,10 @@ from .server_core import ServerDeps
 
 _CONVERSATION_PATH_RE = re.compile(r"^/api/conversations/([^/]+)$")
 _WORK_PATH_RE = re.compile(r"^/api/works/(.+)$")
+# Readable reader URLs (#602). Must be registered AFTER every
+# `/api/works/<int>/<name>` route — this pattern matches those too — and
+# BEFORE the greedy `_WORK_PATH_RE`, which would swallow the pair.
+_WORK_SLUG_PAIR_RE = re.compile(r"^/api/works/([^/]+)/([^/]+)$")
 _CHUNK_CONTEXT_PATH_RE = re.compile(r"^/api/chunks/([^/]+)/context$")
 _CHUNK_SYNTAX_PATH_RE = re.compile(r"^/api/chunks/([^/]+)/syntax$")
 _CHUNK_SYNTAX_CORRECTIONS_RE = re.compile(r"^/api/chunks/([^/]+)/syntax/corrections$")
@@ -184,6 +189,13 @@ def build_get_routes(
             "/api/metrics/series",
             "metrics series",
             lambda: _handle_metrics_series(deps, qs()),
+        ),
+        (
+            _WORK_SLUG_PAIR_RE,
+            "work range by slug",
+            lambda m: _handle_work_range_by_slug(
+                deps, unquote(m.group(1)), unquote(m.group(2)), qs()
+            ),
         ),
         (
             _WORK_PATH_RE,

@@ -74,3 +74,43 @@ def test_a_non_numeric_correction_id_is_not_a_route(populated_db) -> None:
     deps = make_deps(populated_db, StubBackend())
     routes = build_delete_routes(deps)
     assert _match_route("/api/syntax/corrections/all", routes) is None
+
+
+# ── Slug-pair work route (#602) ──────────────────────────────────────────
+# `#/r/<authorSlug>/<titleSlug>` resolves through `/api/works/<a>/<t>`, which
+# has to sit between the numeric sub-resource routes and the `(.+)` catch-all.
+# Both neighbours can swallow it, in opposite directions, so both are asserted.
+
+
+def test_slug_pair_route_matches_two_segments(populated_db) -> None:
+    deps = make_deps(populated_db, StubBackend())
+    matched = _match_route("/api/works/plato/republic", build_get_routes(deps, dict))
+    assert matched is not None
+    assert matched[0] == "work range by slug"
+
+
+def test_slug_pair_route_does_not_shadow_the_numeric_sub_resources(populated_db) -> None:
+    """`/api/works/42/term_occurrences` is two segments too.
+
+    Registered before the numeric routes, the slug pattern would eat every one
+    of them and the reader would lose term occurrences, occurrence maps, lemma
+    highlights and the references map at once.
+    """
+
+    deps = make_deps(populated_db, StubBackend())
+    routes = build_get_routes(deps, dict)
+    for path, label in (
+        ("/api/works/42/term_occurrences", "work-occurrences"),
+        ("/api/works/42/occurrence_map", "work-occurrence-map"),
+        ("/api/works/42/lemma_highlights", "lemma-highlights"),
+        ("/api/works/42/references_map", "work references map"),
+    ):
+        matched = _match_route(path, routes)
+        assert matched is not None and matched[0] == label, path
+
+
+def test_the_single_segment_work_route_still_reaches_work_range(populated_db) -> None:
+    deps = make_deps(populated_db, StubBackend())
+    matched = _match_route("/api/works/Republic", build_get_routes(deps, dict))
+    assert matched is not None
+    assert matched[0] == "work range"

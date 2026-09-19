@@ -263,7 +263,10 @@ def work_range(conn: sqlite3.Connection, work_id: str, query: dict[str, str]) ->
     editions so it can offer a switcher (#50).
 
     ``work_id`` (the path segment) is the work TITLE string — the SPA
-    hash routes pre-date the works table.
+    hash routes pre-date the works table. Since #602 the reader sends a
+    title SLUG instead, and ``_handle_work_range`` folds it to a title
+    before calling this; an exact title is still tried first and is never
+    reinterpreted, so pre-slug callers are unaffected.
 
     The range is scoped to a single edition, never ``(work_id, lang)``:
     two translations of one work share that key and used to page across

@@ -43,7 +43,7 @@ describe("readRoute", () => {
       withHash("#/r/Republic?lang=grc&focus=rep-509d", readRoute),
     ).toEqual({
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
       openTermId: undefined,
@@ -65,7 +65,7 @@ describe("readRoute", () => {
     const route = withHash("#/r/Republic?lang=grc&syntax=rep-509d", readRoute);
     expect(route.kind).toBe("reader");
     if (route.kind === "reader") {
-      expect(route.workId).toBe("Republic");
+      expect(route.workSlug).toBe("republic");
       expect(route.sourceLang).toBe("grc");
       expect(route.syntaxChunkId).toBe("rep-509d");
     }
@@ -79,7 +79,7 @@ describe("readRoute", () => {
     const route = withHash("#/syntax/rep-509d?work=Republic", readRoute);
     expect(route.kind).toBe("reader");
     if (route.kind === "reader") {
-      expect(route.workId).toBe("Republic");
+      expect(route.workSlug).toBe("republic");
       expect(route.syntaxChunkId).toBe("rep-509d");
       expect(route.focusChunkId).toBe("rep-509d");
       expect(route.sourceLang).toBeUndefined();
@@ -207,31 +207,29 @@ describe("routeHash", () => {
   });
 
   it("reader omits absent optional params", () => {
-    expect(routeHash({ kind: "reader", workId: "Republic" })).toBe(
-      "#/r/Republic",
-    );
+    expect(routeHash({ kind: "reader", workSlug: "republic" })).toBe("#/r/republic");
   });
 
   it("reader includes term=", () => {
     expect(
       routeHash({
         kind: "reader",
-        workId: "Republic",
+        workSlug: "republic",
         sourceLang: "grc",
         openTermId: 7,
       }),
-    ).toBe("#/r/Republic?lang=grc&term=7");
+    ).toBe("#/r/republic?lang=grc&term=7");
   });
 
   it("reader includes syntax=", () => {
     expect(
       routeHash({
         kind: "reader",
-        workId: "Republic",
+        workSlug: "republic",
         sourceLang: "grc",
         syntaxChunkId: "rep-509d",
       }),
-    ).toBe("#/r/Republic?lang=grc&syntax=rep-509d");
+    ).toBe("#/r/republic?lang=grc&syntax=rep-509d");
   });
 
   it("refs serializes filters in deterministic order", () => {
@@ -271,14 +269,14 @@ describe("round-trip", () => {
     { kind: "conversation", id: "abc-123" },
     {
       kind: "reader",
-      workId: "Republic",
+      workSlug: "republic",
       sourceLang: "grc",
       focusChunkId: "rep-509d",
       openTermId: 42,
     },
     {
       kind: "reader",
-      workId: "Das Kapital, Band I",
+      workSlug: "das-kapital-band-i",
       sourceLang: "deu",
       syntaxChunkId: "k-1",
     },

@@ -44,15 +44,19 @@ import { SelectionToolbar } from "~/Reader/components/SelectionToolbar";
 import "~/Reader/reader.css";
 
 interface ReaderProps {
-  workId: string;
+  /** Title slug from the route (#602). The Reader never receives a title —
+   *  `workTitle()` below derives it from the loaded range instead, which is
+   *  what keeps the title-keyed localStorage and API surfaces working
+   *  without a migration. */
+  workSlug: string;
   /** ISO 639-3. Defaults to "grc" for Plato/Aristotle; caller can hint
    *  "deu" for Hegel/Kant. The reader exposes a lang chip in the
    *  chrome for the TARGET (translation) language, not the source. */
   sourceLang?: string;
-  /** Disambiguates same-titled works (Luther 1912 vs 1545 share every
-   *  book title AND lang). Optional — the server falls back to one
-   *  deterministic edition for legacy bookmarks. */
-  author?: string;
+  /** Author slug. Disambiguates same-titled works (Luther 1912 vs 1545
+   *  share every book title AND lang). Optional — a citation deep-link
+   *  carries no author and the server resolves off `around=<chunk>`. */
+  authorSlug?: string;
   /** When set, open the reader at the window around this chunk and
    *  scroll it into view. Used by citation locator clicks from chat. */
   focusChunkId?: string;
@@ -97,14 +101,14 @@ export default function Reader(props: ReaderProps) {
   const { range, occMap, refsMap, loadError, loadMore, hasMore, loadingMore, switchEdition } =
     useWorkRange(
       {
-        get workId() {
-          return props.workId;
+        get workSlug() {
+          return props.workSlug;
         },
         get sourceLang() {
           return props.sourceLang;
         },
-        get author() {
-          return props.author;
+        get authorSlug() {
+          return props.authorSlug;
         },
         get focusChunkId() {
           return props.focusChunkId;
@@ -174,9 +178,20 @@ export default function Reader(props: ReaderProps) {
   // keeps a dead button off screen, it is not the safety property.
   const syntaxEnabled = () => isSyntaxLangEnabled(range()?.lang, props.sourceLang);
 
+  // The route carries slugs, so the canonical title arrives with the DATA
+  // (#602). Three things downstream are title-keyed and stay that way: the
+  // saved-highlight localStorage key (no migration — the key is simply
+  // computed a beat later, once the range resolves, which is already when
+  // highlights can be applied to rendered text), the displayed title, and the
+  // concordance scope filter, whose API matches on `works.title`.
+  //
+  // Empty string until the range lands. `useSelectionToolbar` reloads its
+  // layer whenever this changes, so the highlights appear with the text.
+  const workTitle = () => range()?.work ?? "";
+
   const selection = useSelectionToolbar({
     getStage: () => stageRef,
-    workId: () => props.workId,
+    workId: () => workTitle(),
     onTranslateRequest: (source, ref) => {
       hoverTranslations.clearPending();
       railApi.runTranslate(source, ref);
@@ -206,9 +221,9 @@ export default function Reader(props: ReaderProps) {
       // which is the failure the old peer route caused by unmounting.
       window.location.hash = routeHash({
         kind: "reader",
-        workId: props.workId,
+        workSlug: props.workSlug,
         sourceLang: props.sourceLang,
-        author: props.author,
+        authorSlug: props.authorSlug,
         focusChunkId: props.focusChunkId,
         openTermId: props.openTermId,
         syntaxChunkId: chunkId,
@@ -403,7 +418,7 @@ export default function Reader(props: ReaderProps) {
             // threaded through readerCtrl.
             window.location.hash = routeHash({ kind: "concordance-lemma", lemma, lang });
           }}
-          workTitle={props.workId}
+          workTitle={workTitle()}
           onOpenWorkConcordance={() => {
             // The hand-built version of this one had already drifted. It
             // single-encoded the title into `&work=`, so `URLSearchParams.get`
@@ -415,7 +430,7 @@ export default function Reader(props: ReaderProps) {
               kind: "concordance",
               lang: props.sourceLang ?? "deu",
               scope: "work",
-              scopeWorks: [props.workId],
+              scopeWorks: [workTitle()],
             });
           }}
           sourceLang={props.sourceLang}

@@ -8,19 +8,30 @@
 
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { METRIC_WINDOWS, type MetricWindow } from "~/api/metricsApi";
+import { slugify } from "~/slug";
 
 export type Route =
   | { kind: "landing" }
   | { kind: "conversation"; id: string }
   | {
       kind: "reader";
-      workId: string;
+      /** URL slug of the work's title (#602). NOT the title: the route
+       *  carries `die-frohliche-wissenschaft`, and the canonical
+       *  `Die fröhliche Wissenschaft` arrives with the range response.
+       *
+       *  The title used to be the path segment, which meant three encoders
+       *  fired on one string and the URL was unreadable and untypeable. */
+      workSlug: string;
       sourceLang?: string;
-      /** Disambiguates same-titled works (Luther 1912 vs 1545 share
-       *  every book title AND lang). Optional so pre-existing
-       *  bookmarks keep working — the server then picks one edition
-       *  deterministically. */
-      author?: string;
+      /** URL slug of the author, when known. Part of identity rather than a
+       *  `?author=` hint, because that is what disambiguates same-titled
+       *  works (Luther 1912 vs 1545 share every book title AND lang).
+       *
+       *  Optional because a citation deep-link carries a title and a chunk
+       *  but no author; the server resolves that off `around=<chunk>`, and
+       *  the Reader canonicalises the URL once the response names the
+       *  author. */
+      authorSlug?: string;
       focusChunkId?: string;
       /** Term-card open state. When set, the Reader resumes the
        *  popover for this term on next paint — used so a click on a
@@ -185,6 +196,47 @@ const decodeCsv = (raw: string | null): string[] | undefined =>
         .filter(Boolean)
         .map((s) => safeDecode(s) ?? s);
 
+/** `#/r/<authorSlug>/<titleSlug>` — and every shape that folds into it.
+ *
+ *  Extracted from `readRoute` rather than written inline (#602). `readRoute`
+ *  is already past the cognitive-complexity limit that gates new code (#589),
+ *  and the rating applies to lines that MOVE as well as lines that are added,
+ *  so growing its reader branch in place would have handed this change
+ *  #589's problem. As its own function the parse scores on its own.
+ *
+ *  Returns `null` when the hash is not a reader hash at all, so the caller can
+ *  fall through the ladder; a reader hash that cannot be decoded returns the
+ *  landing route, same defensive posture as the rest of `readRoute`. */
+function parseReaderRoute(hash: string): Route | null {
+  const m = /^#\/r\/([^/?]+)(?:\/([^/?]+))?(?:\?(.*))?$/.exec(hash);
+  if (!m) return null;
+  const first = safeDecode(m[1] ?? "");
+  const second = m[2] === undefined ? undefined : safeDecode(m[2]);
+  if (first === null || second === null) return { kind: "landing" };
+  const qs = new URLSearchParams(m[3]);
+  const termParam = qs.get("term");
+  // Parse `term=<int>` defensively — a bad value (e.g. a stale
+  // bookmark) shouldn't break the reader; it just means no card
+  // opens on first paint.
+  const openTermId = termParam && /^\d+$/.test(termParam) ? Number(termParam) : undefined;
+  // One segment is the title, two are author-then-title, and an OLD bookmark
+  // holds the raw title in that same position with the author in `?author=`.
+  // `slugify` is idempotent on a slug, so all three fold through one pair of
+  // calls and the Reader never sees a second route shape — the address bar is
+  // then rewritten to the canonical form by `useRouting`'s first-load
+  // `replaceState`, exactly as the legacy `#/syntax/` hash already is.
+  const rawAuthor = second === undefined ? qs.get("author") : first;
+  return {
+    kind: "reader",
+    authorSlug: rawAuthor ? slugify(rawAuthor) : undefined,
+    workSlug: slugify(second ?? first),
+    sourceLang: qs.get("lang") ?? undefined,
+    focusChunkId: qs.get("focus") ?? undefined,
+    openTermId,
+    syntaxChunkId: qs.get("syntax") ?? undefined,
+  };
+}
+
 export function readRoute(): Route {
   const hash = window.location.hash;
   let m = /^#\/c\/([^/?]+)$/.exec(hash);
@@ -192,26 +244,8 @@ export function readRoute(): Route {
     const id = safeDecode(m[1] ?? "");
     return id === null ? { kind: "landing" } : { kind: "conversation", id };
   }
-  m = /^#\/r\/([^/?]+)(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const workId = safeDecode(m[1] ?? "");
-    if (workId === null) return { kind: "landing" };
-    const qs = new URLSearchParams(m[2]);
-    const termParam = qs.get("term");
-    // Parse `term=<int>` defensively — a bad value (e.g. a stale
-    // bookmark) shouldn't break the reader; it just means no card
-    // opens on first paint.
-    const openTermId = termParam && /^\d+$/.test(termParam) ? Number(termParam) : undefined;
-    return {
-      kind: "reader",
-      workId,
-      sourceLang: qs.get("lang") ?? undefined,
-      author: qs.get("author") ?? undefined,
-      focusChunkId: qs.get("focus") ?? undefined,
-      openTermId,
-      syntaxChunkId: qs.get("syntax") ?? undefined,
-    };
-  }
+  const readerRoute = parseReaderRoute(hash);
+  if (readerRoute) return readerRoute;
   // Legacy syntax hash (#237's shape). Rewritten into the reader route with
   // the syntax modifier — see `syntaxChunkId` above. The chunk goes through as
   // `focus=` as well because this hash carries no lang: `around=<chunk>` makes
@@ -228,7 +262,7 @@ export function readRoute(): Route {
     if (workId === null || chunkId === null) return { kind: "landing" };
     return {
       kind: "reader",
-      workId,
+      workSlug: slugify(workId),
       focusChunkId: chunkId,
       syntaxChunkId: chunkId,
     };
@@ -353,12 +387,17 @@ export function routeHash(route: Route): string {
   if (route.kind === "reader") {
     const params = new URLSearchParams();
     if (route.sourceLang) params.set("lang", route.sourceLang);
-    if (route.author) params.set("author", route.author);
+
     if (route.focusChunkId) params.set("focus", route.focusChunkId);
     if (route.openTermId !== undefined) params.set("term", String(route.openTermId));
     if (route.syntaxChunkId) params.set("syntax", route.syntaxChunkId);
     const qs = params.toString();
-    const base = `#/r/${encodeURIComponent(route.workId)}`;
+    // Slugs are `[a-z0-9-]` by construction, so `encodeURIComponent` is the
+    // identity here; it stays as a guard against a non-slug ever reaching this
+    // path, not because anything needs escaping.
+    const base = route.authorSlug
+      ? `#/r/${encodeURIComponent(route.authorSlug)}/${encodeURIComponent(route.workSlug)}`
+      : `#/r/${encodeURIComponent(route.workSlug)}`;
     return qs ? `${base}?${qs}` : base;
   }
   if (route.kind === "refs") {

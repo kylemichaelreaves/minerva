@@ -19,8 +19,9 @@ export async function listWorks(signal?: AbortSignal): Promise<Work[]> {
 
 export interface WorkRangeArgs {
   lang?: string;
-  /** Disambiguates same-titled works (Luther 1912 vs 1545). */
-  author?: string;
+  /** Author SLUG. Disambiguates same-titled works (Luther 1912 vs 1545) —
+   *  it is a path segment now, not a query parameter (#602). */
+  authorSlug?: string;
   from?: number;
   limit?: number;
   around?: string;
@@ -33,15 +34,22 @@ export interface WorkRangeArgs {
 }
 
 export async function getWorkRange(
-  work: string,
+  workSlug: string,
   args: WorkRangeArgs = {},
   signal?: AbortSignal,
 ): Promise<WorkRange> {
+  // `#/r/<authorSlug>/<titleSlug>` maps straight onto
+  // `/api/works/<authorSlug>/<titleSlug>` (#602); the server resolves the pair
+  // and returns the canonical author and title in the payload. Without an
+  // author the one-segment form is sent, which the server also accepts.
+  //
   // Cached: a route switch unmounts the Reader, and returning to it asks
   // for the same window again. See `readCache.ts`.
-  const path = `/api/works/${encodeURIComponent(work)}${qs({
+  const segments = args.authorSlug
+    ? `${encodeURIComponent(args.authorSlug)}/${encodeURIComponent(workSlug)}`
+    : encodeURIComponent(workSlug);
+  const path = `/api/works/${segments}${qs({
     lang: args.lang,
-    author: args.author,
     from: args.from,
     limit: args.limit,
     around: args.around,

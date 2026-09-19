@@ -103,8 +103,8 @@ describe("the reader GETs are actually wired to the cache", () => {
   });
 
   it("serves a repeat work-range load without hitting the network", async () => {
-    await getWorkRange("Ethica", { author: "Spinoza", from: 0, limit: 80 });
-    await getWorkRange("Ethica", { author: "Spinoza", from: 0, limit: 80 });
+    await getWorkRange("ethica", { authorSlug: "spinoza", from: 0, limit: 80 });
+    await getWorkRange("ethica", { authorSlug: "spinoza", from: 0, limit: 80 });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

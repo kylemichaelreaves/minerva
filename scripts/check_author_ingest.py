@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import chunk_granularity
+import work_slug_snapshot
 from chunk_count_validation import (
     DEFAULT_DB,
     SNAPSHOT_PATH,
@@ -69,9 +70,7 @@ def check_corpus(corpus_id: str, manifest: dict, ingest_ids: set[str]) -> list[s
     if corpus_id not in {e.id for e in corpus_registry.CORPORA}:
         errors.append(f"corpus {corpus_id!r} missing from corpus_registry.CORPORA")
     author_names = [
-        a["display_name"]
-        for a in manifest.get("authors") or []
-        if a.get("corpus_id") == corpus_id
+        a["display_name"] for a in manifest.get("authors") or [] if a.get("corpus_id") == corpus_id
     ]
     if not author_names:
         errors.append(f"no manifest author row with corpus_id={corpus_id!r}")
@@ -196,6 +195,36 @@ def _granularity_errors(
     return errs
 
 
+def _slug_errors(db_path: Path) -> list[str]:
+    """Work-slug gate (#602). Two different checks on two different machines.
+
+    Locally the index is authoritative, so the committed table is compared
+    against it and a newly ingested collision raises out of ``work_slug_table``.
+    In CI there is no index, so all that is left is the table's internal
+    consistency — which is still the property that matters, because it is what
+    pins ``web/src/slug.ts`` to ``minerva.reader.slugs``.
+    """
+
+    from minerva.reader.slugs import SlugCollisionError, slug_snapshot_drift, validate_slug_snapshot
+
+    if not work_slug_snapshot.SNAPSHOT_PATH.is_file():
+        return [
+            f"no work-slug snapshot at "
+            f"{work_slug_snapshot.SNAPSHOT_PATH.relative_to(REPO_ROOT)} — run "
+            f"`make generate-authors`"
+        ]
+    snapshot = work_slug_snapshot.load_snapshot()
+    errors = validate_slug_snapshot(snapshot)
+    if not db_path.is_file():
+        return errors
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        try:
+            errors += slug_snapshot_drift(conn, snapshot)
+        except SlugCollisionError as exc:
+            errors.append(str(exc))
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", help="Check one corpus id")
@@ -267,11 +296,11 @@ def main() -> int:
             return 1
         with sqlite3.connect(db_path) as conn:
             write_snapshot(build_snapshot(conn, manifest))
-            chunk_granularity.write_snapshot(
-                chunk_granularity.build_snapshot(conn, manifest)
-            )
+            chunk_granularity.write_snapshot(chunk_granularity.build_snapshot(conn, manifest))
+            work_slug_snapshot.write_snapshot(work_slug_snapshot.build_snapshot(conn))
         print(f"wrote {SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         print(f"wrote {chunk_granularity.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
+        print(f"wrote {work_slug_snapshot.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         return 1 if failed else 0
 
     if args.skip_chunk_counts:
@@ -290,9 +319,7 @@ def main() -> int:
         # and check the committed snapshot against it so the file CI
         # relies on can't quietly go stale.
         with sqlite3.connect(db_path) as conn:
-            count_errs += validate_chunk_counts(
-                conn, manifest, corpus_ids=tuple(corpus_ids)
-            )
+            count_errs += validate_chunk_counts(conn, manifest, corpus_ids=tuple(corpus_ids))
             count_errs += validate_corpus_authors(conn)
             if SNAPSHOT_PATH.is_file():
                 count_errs += snapshot_drift(conn, manifest, load_snapshot())
@@ -330,6 +357,13 @@ def main() -> int:
         failed = True
         print("chunk granularity:")
         for e in gran_errs:
+            print(f"  - {e}")
+
+    slug_errs = _slug_errors(db_path)
+    if slug_errs:
+        failed = True
+        print("work slugs:")
+        for e in slug_errs:
             print(f"  - {e}")
 
     return 1 if failed else 0

@@ -244,3 +244,88 @@ def test_handle_translate_refusal_is_not_cached(populated_db, translations_conn)
     body = server._handle_translate(deps, {"source_text": "Μῆνιν ἄειδε θεὰ", "target_lang": "eng"})
     assert body["translated_text"] == "Sing, goddess, the wrath"
     assert body["cached"] is False
+
+
+# ---------- /api/works/:authorSlug/:titleSlug (#602) ----------
+
+
+def test_work_range_by_slug_resolves_the_pair_to_the_canonical_work(populated_db):
+    deps = _make_deps(populated_db, StubBackend())
+    body = server._handle_work_range_by_slug(
+        deps, "aristotle", "nicomachean-ethics", {"lang": "eng"}
+    )
+    assert (body["author"], body["work"]) == ("Aristotle", "Nicomachean Ethics")
+
+
+def test_work_range_by_slug_disambiguates_on_the_author_slug(populated_db):
+    """The author is part of identity now, not an optional `?author=` hint.
+
+    Two works sharing a title is the case `?author=` was added for (Luther 1912
+    vs 1545); carrying the author in the path is what makes the pair unique.
+    """
+
+    populated_db.execute(
+        "INSERT INTO works (author, title, original_language, citation_system) "
+        "VALUES ('Xenophon', 'Republic', 'grc', 'stephanus')"
+    )
+    deps = _make_deps(populated_db, StubBackend())
+    body = server._handle_work_range_by_slug(deps, "plato", "republic", {"lang": "eng"})
+    assert body["author"] == "Plato"
+
+
+def test_work_range_by_slug_404s_on_an_unknown_pair(populated_db):
+    deps = _make_deps(populated_db, StubBackend())
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_work_range_by_slug(deps, "plato", "no-such-dialogue", {"lang": "eng"})
+    assert info.value.status == HTTPStatus.NOT_FOUND
+
+
+def test_work_range_by_slug_404s_on_an_unknown_author_slug(populated_db):
+    deps = _make_deps(populated_db, StubBackend())
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_work_range_by_slug(deps, "nobody", "republic", {"lang": "eng"})
+    assert info.value.status == HTTPStatus.NOT_FOUND
+
+
+def test_work_range_by_slug_ignores_the_path_when_the_query_deep_links_a_chunk(populated_db):
+    """`around=` resolves work, lang and edition off the chunk row itself.
+
+    That is what lets a citation deep-link emit the single-segment form with no
+    author — the path segment is decoration once `around=` is present, and this
+    asserts it stays that way rather than becoming a second, conflicting
+    source of truth.
+    """
+
+    deps = _make_deps(populated_db, StubBackend())
+    body = server._handle_work_range_by_slug(
+        deps, "plato", "republic", {"around": "ne-1097b"}
+    )
+    assert body["work"] == "Nicomachean Ethics"
+
+
+def test_single_segment_work_route_accepts_a_title_slug(populated_db):
+    """A chunk deep-link has a title but no author, so it emits one segment.
+
+    Without this the slug would reach the title-keyed lookup, match nothing and
+    404 — the failure would only appear on links that carry no `around=`.
+    """
+
+    deps = _make_deps(populated_db, StubBackend())
+    body = server._handle_work_range(deps, "nicomachean-ethics", {"lang": "eng"})
+    assert body["work"] == "Nicomachean Ethics"
+
+
+def test_single_segment_work_route_still_prefers_an_exact_title(populated_db):
+    """The slug pass is a FALLBACK. `/api/works/<title>` is a public shape with
+    callers older than this change, and an exact title must never be reinterpreted."""
+
+    deps = _make_deps(populated_db, StubBackend())
+    body = server._handle_work_range(deps, "Nicomachean Ethics", {"lang": "eng"})
+    assert body["work"] == "Nicomachean Ethics"
+
+
+def test_single_segment_work_route_404s_when_neither_title_nor_slug_matches(populated_db):
+    deps = _make_deps(populated_db, StubBackend())
+    with pytest.raises(server._HTTPError) as info:
+        server._handle_work_range(deps, "no-such-work", {"lang": "eng"})
+    assert info.value.status == HTTPStatus.NOT_FOUND
