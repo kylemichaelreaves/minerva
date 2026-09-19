@@ -8,7 +8,9 @@ file outright (`cli/index_cmd.py:84` -> `store/schema.py:101`), and a
 from __future__ import annotations
 
 import dataclasses
+import json
 import sqlite3
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,19 @@ from .histogram import BUCKET_COUNT, bucket_index, quantile
 # Bucket width. 5 minutes keeps a day of one busy route near 288 rows, so
 # nothing needs a rollup job and history can be kept indefinitely.
 BUCKET_SECONDS = 300
+
+# How many days of per-request rows to keep. `None` means keep everything, and
+# that is the decision, not an oversight: measured at the observed 751
+# requests/day, 18 years of complete history is 567 MB and the "last 24h"
+# query stays flat at 0.1 ms. What grows with the table is UNINDEXED scans —
+# "slowest 20" and the json_each phase rollup — and the three indexes on
+# `request_spans` flatten those (177 ms -> 0.0 ms, 170 ms -> 15 ms at 5M rows).
+# So indexes are the mitigation and deletion is not needed.
+#
+# A constant rather than a CLI flag: nobody has wanted a value yet, and adding
+# the flag later is additive. The real hazard is a RATE change, not row count —
+# a `#/metrics` tab polling every 5s is 23x the observed rate.
+RETAIN_DAYS: int | None = None
 
 _BUCKET_COLS = ", ".join(f"b{i}" for i in range(BUCKET_COUNT))
 _BUCKET_DECLS = ",\n    ".join(f"b{i} INTEGER NOT NULL DEFAULT 0" for i in range(BUCKET_COUNT))
@@ -41,6 +56,35 @@ CREATE TABLE IF NOT EXISTS request_timings (
     {_BUCKET_DECLS},
     PRIMARY KEY (bucket_start, label, method, kind, span, status_class)
 ) WITHOUT ROWID;
+
+-- One row per completed request, beside the aggregate rather than instead of
+-- it. `request_timings` answers "how is this route behaving"; a bucket mixes
+-- requests, so it cannot answer "which request was slow and where did its time
+-- go". This table can, and is the only durable place the two halves are paired.
+CREATE TABLE IF NOT EXISTS request_spans (
+    id            TEXT    PRIMARY KEY,
+    at            REAL    NOT NULL,
+    label         TEXT    NOT NULL,
+    method        TEXT    NOT NULL,
+    status        INTEGER NOT NULL,
+    total_ms      REAL    NOT NULL,
+    accounted_ms  REAL    NOT NULL,
+    -- JSON array of objects, each with a name and a ms. Empty array when no
+    -- phase fired. A column rather than a child table because a phase gains
+    -- a cpu_ms next, and a JSON object grows a key where a table needs an
+    -- ALTER. Also: only 0.22% of observed requests carry any phase, so a
+    -- child table would be empty for almost every row. json_each keeps it
+    -- queryable; see notes/phase-1-plan.md for the measurements.
+    phases        TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS request_spans_at ON request_spans(at);
+-- `total_ms DESC` keeps "the slowest N" flat as the table grows: measured
+-- 177ms -> 0.0ms at 5M rows.
+CREATE INDEX IF NOT EXISTS request_spans_slow ON request_spans(total_ms DESC);
+-- Partial, because phases are rare: indexes thousands of rows instead of
+-- millions and takes the json_each rollup from 170ms to 15ms at 5M rows.
+CREATE INDEX IF NOT EXISTS request_spans_phased ON request_spans(at)
+    WHERE phases != '[]';
 """
 
 
@@ -57,20 +101,59 @@ class Sample:
     ms: float
 
 
-def open_db(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
+@dataclasses.dataclass(frozen=True, slots=True)
+class RequestRow:
+    """One completed request, for `request_spans`."""
+
+    id: str
+    at: float
+    label: str
+    method: str
+    status: int
+    total_ms: float
+    accounted_ms: float
+    phases: list[tuple[str, float]]
+
+
+def open_db(
+    path: Path,
+    *,
+    check_same_thread: bool = True,
+    retain_days: int | None = RETAIN_DAYS,
+) -> sqlite3.Connection:
     """Open the metrics DB, creating tables if missing.
 
     Mirrors `conversations.open_db`. The HTTP server passes
     `check_same_thread=False` and serializes with its own lock.
+
+    Pruning happens HERE, once per process, and never on the request path:
+    a DELETE in `_finish` would put a scan in front of every request to bound
+    a table that does not need bounding. `retain_days=None` prunes nothing.
     """
 
     from ..sqlite_util import open_sqlite
 
-    return open_sqlite(path, SCHEMA, check_same_thread=check_same_thread)
+    conn = open_sqlite(path, SCHEMA, check_same_thread=check_same_thread)
+    if retain_days is not None:
+        prune(conn, retain_days=retain_days)
+    return conn
 
 
-def write(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
-    """Fold *samples* into their buckets, one transaction for the batch."""
+def prune(conn: sqlite3.Connection, *, retain_days: int, now: float | None = None) -> int:
+    """Drop `request_spans` rows older than *retain_days*. Returns the count.
+
+    `request_timings` is deliberately untouched: it is bounded by construction
+    (one row per 5-minute bucket per route) and is not what grows.
+    """
+
+    cutoff = (time.time() if now is None else now) - retain_days * 86400
+    with conn:
+        cur = conn.execute("DELETE FROM request_spans WHERE at < ?", (cutoff,))
+    return cur.rowcount
+
+
+def _fold_samples(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
+    """Fold *samples* into their buckets. Caller owns the transaction."""
 
     if not samples:
         return
@@ -100,8 +183,45 @@ def write(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
                 1, s.ms, s.ms, s.ms, *buckets,
             )
         )
+    conn.executemany(sql, rows)
+
+
+def write(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
+    """Fold *samples* into their buckets, one transaction for the batch."""
+
+    if not samples:
+        return
     with conn:
-        conn.executemany(sql, rows)
+        _fold_samples(conn, samples)
+
+
+def _insert_span(conn: sqlite3.Connection, row: RequestRow) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
+        " VALUES (?,?,?,?,?,?,?,?)",
+        (
+            row.id, row.at, row.label, row.method, row.status,
+            row.total_ms, row.accounted_ms,
+            json.dumps([{"name": n, "ms": ms} for n, ms in row.phases]),
+        ),
+    )
+
+
+def write_request(
+    conn: sqlite3.Connection, samples: Sequence[Sample], row: RequestRow
+) -> None:
+    """Both sinks for one request, in ONE transaction.
+
+    Two `with conn:` blocks would mean two commits — and two fsyncs — on the
+    request path, for data that describes the same event. They also would not
+    agree under failure: the aggregate could commit while the per-request row
+    was lost, leaving a bucket whose count no row explains.
+    """
+
+    with conn:
+        _fold_samples(conn, samples)
+        _insert_span(conn, row)
 
 
 def _quantiles(buckets: list[int]) -> dict[str, float]:
@@ -230,4 +350,7 @@ def series(
     return out
 
 
-__all__ = ["BUCKET_SECONDS", "SCHEMA", "Sample", "open_db", "series", "summary", "write"]
+__all__ = [
+    "BUCKET_SECONDS", "SCHEMA", "RequestRow", "Sample", "open_db", "series",
+    "summary", "write", "write_request",
+]

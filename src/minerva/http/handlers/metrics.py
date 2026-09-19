@@ -89,7 +89,20 @@ def _handle_metrics_summary(deps: ServerDeps, qs: dict[str, str]) -> dict[str, A
             rows = metrics_store.summary(
                 deps.metrics_conn, since=since, until=until, label=label
             )
-    return {"window": name, "since": since, "until": until, "rows": rows}
+    return {
+        "window": name,
+        "since": since,
+        "until": until,
+        "rows": rows,
+        # Additive (#615-era `health`): three states used to render identically
+        # as an empty page — no traffic, metrics switched off, and every write
+        # failing. `persisting` separates the second; `write_failures` the
+        # third. Existing consumers ignore the key.
+        "health": {
+            "write_failures": deps.metrics.write_failures,
+            "persisting": deps.metrics_conn is not None,
+        },
+    }
 
 
 def _handle_metrics_series(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
