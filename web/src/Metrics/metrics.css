@@ -934,3 +934,20 @@
 .mledger-cpuv {
   color: var(--ink-faint);
 }
+
+/* Database time (Phase 3). A different fill from a span's, because it is a
+   sum over disjoint statements rather than one contiguous interval. */
+.mledger-dbbar {
+  background: var(--metric-p50);
+}
+.mledger-tag {
+  font: 500 9px var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--metric-p50);
+  border: 1px solid var(--metric-p50);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-left: 5px;
+  opacity: 0.8;
+}

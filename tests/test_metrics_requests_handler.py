@@ -44,6 +44,7 @@ def test_shape(deps):
     assert set(row) == {
         "id", "at", "label", "method", "status",
         "total_ms", "accounted_ms", "unaccounted_ms", "phases", "cpu_ms",
+        "sqlite_ms", "sqlite_queries",
     }
 
 

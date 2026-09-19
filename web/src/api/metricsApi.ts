@@ -73,6 +73,15 @@ export interface MetricsRequestRow {
    *  from 0, which means measured and idle. Present on every request, unlike
    *  phase CPU: only 0.22% of requests carry a phase at all. */
   cpu_ms: number | null;
+  /** Database time, summed over every statement the request issued, measured
+   *  at the connection layer rather than by a span at a call site.
+   *
+   *  This is usually most of the request: `works list` measured 240.5 ms of
+   *  SQLite inside a 241.3 ms request — 99.7%, in a single statement. `null`
+   *  means not measured (a row written before Phase 3), which is a different
+   *  answer from 0. */
+  sqlite_ms: number | null;
+  sqlite_queries: number | null;
 }
 
 export interface MetricsRequestsResponse {

@@ -80,7 +80,13 @@ CREATE TABLE IF NOT EXISTS request_spans (
     -- on this platform, or a row written before Phase 2); 0.0 means "measured,
     -- and the request used no CPU". Collapsing the two would make a missing
     -- clock indistinguishable from an idle request.
-    cpu_ms        REAL
+    cpu_ms        REAL,
+    -- Database time, summed over every statement the request issued, and the
+    -- count so a mean is derivable. Nullable for the same reason as cpu_ms:
+    -- a route that genuinely touches no database must not be indistinguishable
+    -- from a row written before this was measured.
+    sqlite_ms     REAL,
+    sqlite_queries INTEGER
 );
 CREATE INDEX IF NOT EXISTS request_spans_at ON request_spans(at);
 -- `total_ms DESC` keeps "the slowest N" flat as the table grows: measured
@@ -122,6 +128,8 @@ class RequestRow:
     # every existing consumer unpacks exactly two elements.
     phase_cpu: dict[str, float] = dataclasses.field(default_factory=dict)
     cpu_ms: float | None = None
+    sqlite_ms: float | None = None
+    sqlite_queries: int | None = None
 
 
 def open_db(
@@ -152,7 +160,11 @@ def open_db(
 # Columns added to `request_spans` after #619 shipped it. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that already exists, so a database in the
 # wild keeps the old shape unless something adds them.
-_ADDED_COLUMNS: tuple[tuple[str, str], ...] = (("cpu_ms", "REAL"),)
+_ADDED_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("cpu_ms", "REAL"),
+    ("sqlite_ms", "REAL"),
+    ("sqlite_queries", "INTEGER"),
+)
 
 
 def _add_missing_columns(conn: sqlite3.Connection) -> None:
@@ -230,8 +242,9 @@ def write(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
 def _insert_span(conn: sqlite3.Connection, row: RequestRow) -> None:
     conn.execute(
         "INSERT OR REPLACE INTO request_spans"
-        " (id, at, label, method, status, total_ms, accounted_ms, phases, cpu_ms)"
-        " VALUES (?,?,?,?,?,?,?,?,?)",
+        " (id, at, label, method, status, total_ms, accounted_ms, phases, cpu_ms,"
+        "  sqlite_ms, sqlite_queries)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (
             row.id, row.at, row.label, row.method, row.status,
             row.total_ms, row.accounted_ms,
@@ -244,6 +257,8 @@ def _insert_span(conn: sqlite3.Connection, row: RequestRow) -> None:
                 ]
             ),
             row.cpu_ms,
+            row.sqlite_ms,
+            row.sqlite_queries,
         ),
     )
 
@@ -304,13 +319,15 @@ def requests(
     params.append(max(1, min(limit, REQUESTS_MAX_LIMIT)))
 
     sql = (
-        "SELECT id, at, label, method, status, total_ms, accounted_ms, phases, cpu_ms"
+        "SELECT id, at, label, method, status, total_ms, accounted_ms, phases,"
+        " cpu_ms, sqlite_ms, sqlite_queries"
         f" FROM request_spans WHERE {' AND '.join(where)}"
         " ORDER BY at DESC LIMIT ?"
     )
     out: list[dict[str, Any]] = []
     for row in conn.execute(sql, params):
-        rid, at, lbl, meth, status, total_ms, accounted_ms, phases, cpu_ms = row
+        (rid, at, lbl, meth, status, total_ms, accounted_ms, phases,
+         cpu_ms, sqlite_ms, sqlite_queries) = row
         out.append(
             {
                 "id": rid,
@@ -327,6 +344,8 @@ def requests(
                 # None, not 0: "not measured" is a different answer from
                 # "measured, and idle".
                 "cpu_ms": cpu_ms,
+                "sqlite_ms": sqlite_ms,
+                "sqlite_queries": sqlite_queries,
             }
         )
     return out

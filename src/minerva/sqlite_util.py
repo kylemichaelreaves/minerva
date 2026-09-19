@@ -6,8 +6,11 @@ import contextlib
 import hashlib
 import re
 import sqlite3
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
+
+from .metrics.recorder import current_span
 
 
 def text_hash(text: str) -> str:
@@ -40,6 +43,76 @@ def register_text_hash(conn: sqlite3.Connection) -> None:
     conn.create_function("text_hash", 1, lambda t: text_hash(t or ""), deterministic=True)
 
 
+class TimedConnection(sqlite3.Connection):
+    """Attributes every statement's duration to the request in flight.
+
+    **Why the Connection and not the Cursor.** The obvious design is a
+    `Cursor` subclass via `connect(factory=...)`, and it does not work:
+    `conn.execute()` creates its cursor in C and ignores a Python `cursor()`
+    override, so a cursor-layer design instruments only explicit
+    `conn.cursor().execute(...)` calls. Measured — of four call shapes, only
+    the explicit cursor was intercepted. Almost every query here uses the
+    shortcut, so that design would have recorded nothing while appearing to
+    work.
+
+    Overriding the three `Connection` entry points catches all of them. What
+    it does NOT catch is an explicit `.cursor()`; there are zero such call
+    sites, and `tests/test_sqlite_timing.py` fails if one appears.
+
+    **What this does NOT measure: row materialisation.** These time
+    `execute()`, which for a SELECT prepares the statement and steps to the
+    first row. Fetching the remaining rows happens in the caller and is not
+    counted. Measured on a 20,000-row query against the real corpus:
+
+        execute()      1.3 ms
+        fetchall()    57.4 ms     <- lands in `unaccounted`, not `sqlite_ms`
+
+    So `sqlite_ms` is a LOWER BOUND, and it under-reports most for queries
+    returning many rows. It is accurate where the cost is in the scan: on
+    `works list`, whose 2 statements aggregate over the corpus, it accounts
+    for 84.9% of a 260 ms request that previously read as 0% accounted.
+    Capturing the fetch needs the returned cursor wrapped, which changes what
+    `execute()` returns — a bigger design question, tracked separately.
+
+    Outside a request `current_span()` is None and this is a no-op, so the
+    CLI and ingest paths are unaffected. The metrics write is also unattributed,
+    because `Recorder.record` resets the ContextVar before `_finish` runs.
+    """
+
+    def execute(self, sql, parameters=(), /):  # type: ignore[override]
+        span = current_span()
+        if span is None:
+            return super().execute(sql, parameters)
+        t0 = time.perf_counter()
+        try:
+            return super().execute(span.sql_prefix + sql, parameters)
+        finally:
+            span.add_db((time.perf_counter() - t0) * 1000.0)
+
+    def executemany(self, sql, parameters, /):  # type: ignore[override]
+        span = current_span()
+        if span is None:
+            return super().executemany(sql, parameters)
+        t0 = time.perf_counter()
+        try:
+            return super().executemany(span.sql_prefix + sql, parameters)
+        finally:
+            span.add_db((time.perf_counter() - t0) * 1000.0)
+
+    # NOT prefixed: `executescript` takes a whole multi-statement script and is
+    # used for schema work rather than request work. A leading comment risks
+    # changing how the script parses, for a benefit that does not apply to it.
+    def executescript(self, sql_script, /):  # type: ignore[override]
+        span = current_span()
+        if span is None:
+            return super().executescript(sql_script)
+        t0 = time.perf_counter()
+        try:
+            return super().executescript(sql_script)
+        finally:
+            span.add_db((time.perf_counter() - t0) * 1000.0)
+
+
 def open_sqlite(
     path: Path,
     schema: str,
@@ -61,7 +134,9 @@ def open_sqlite(
     """
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+    conn = sqlite3.connect(
+        path, check_same_thread=check_same_thread, factory=TimedConnection
+    )
     # Close on the way out of a failed open. `executescript` raises
     # `DatabaseError: file is not a database` on a corrupt or truncated
     # file, and every caller until `serve_cmd._open_metrics_db` died on the
