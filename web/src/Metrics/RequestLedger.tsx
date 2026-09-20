@@ -155,51 +155,60 @@ export function RequestLedger(props: { window: MetricWindow }) {
 
       <Show when={list().length > 0}>
         <div class="mledger-split">
-          <table class="mledger-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Route</th>
-                <th>Status</th>
-                <th class="r">Total</th>
-                <th>Unaccounted</th>
-                <th>Phases</th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={list()}>
-                {(r) => (
-                  <tr
-                    onClick={() => setSelected(r.id)}
-                    aria-selected={selected() === r.id}
-                    classList={{ sel: selected() === r.id }}
-                  >
-                    <td class="num dim">{stampOf(r.at)}</td>
-                    <td>
-                      {r.label} <span class="mledger-meth">{r.method}</span>
-                    </td>
-                    <td>
-                      <span class={`mledger-st ${toneOf(r.status)}`}>{r.status}</span>
-                    </td>
-                    <td class="num r">{ms(r.total_ms)}</td>
-                    <td class="num dim">
-                      {/* Usually 100%: only 0.22% of requests carry any
+          {/* Bounded and scrolled. Unbounded, a 200-row page is ~6,600px of
+              table and the "Load older" control below it sits that far down
+              the document — rendered, reachable by a test that only checks
+              for a bounding box, and invisible to a person. */}
+          <div class="mledger-tblwrap">
+            <table class="mledger-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Route</th>
+                  <th>Status</th>
+                  <th class="r">Total</th>
+                  <th>Unaccounted</th>
+                  <th>Phases</th>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={list()}>
+                  {(r) => (
+                    <tr
+                      onClick={() => setSelected(r.id)}
+                      aria-selected={selected() === r.id}
+                      classList={{ sel: selected() === r.id }}
+                    >
+                      <td class="num dim">{stampOf(r.at)}</td>
+                      <td>
+                        {r.label} <span class="mledger-meth">{r.method}</span>
+                      </td>
+                      <td>
+                        <span class={`mledger-st ${toneOf(r.status)}`}>{r.status}</span>
+                      </td>
+                      <td class="num r">{ms(r.total_ms)}</td>
+                      <td class="num dim">
+                        {/* Usually 100%: only 0.22% of requests carry any
                           phase at all, so a full bar is the measurement
                           rather than a rendering gap. */}
-                      {Math.round((r.unaccounted_ms / r.total_ms) * 100)}%
-                    </td>
-                    <td>
-                      <Show when={r.phases.length > 0} fallback={<span class="dim">&mdash;</span>}>
-                        <For each={r.phases}>
-                          {(p) => <span class="mledger-chip">{p.name}</span>}
-                        </For>
-                      </Show>
-                    </td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
+                        {Math.round((r.unaccounted_ms / r.total_ms) * 100)}%
+                      </td>
+                      <td>
+                        <Show
+                          when={r.phases.length > 0}
+                          fallback={<span class="dim">&mdash;</span>}
+                        >
+                          <For each={r.phases}>
+                            {(p) => <span class="mledger-chip">{p.name}</span>}
+                          </For>
+                        </Show>
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </div>
 
           <aside class="mledger-detail" role="region" aria-label="Request detail">
             <Show when={chosen()} fallback={<p class="mledger-msg">Select a request.</p>}>
