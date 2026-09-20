@@ -100,3 +100,70 @@ def test_limit_is_clamped_so_a_caller_cannot_ask_for_the_whole_table(conn):
     got = m.requests(conn, since=0.0, until=T0 + 1000, limit=10**9)
     assert len(got) == 5
     assert m.REQUESTS_MAX_LIMIT <= 1000
+
+
+def test_unaccounted_excludes_database_time(conn):
+    """A request whose time is entirely SQLite must not read as unexplained.
+
+    Phase 3 measures the database time and the row carries it, but
+    `unaccounted_ms` was `total - accounted` where `accounted` counts only
+    phases — so `metrics series`, at 0.3 ms total and 0.3 ms SQLite, reported
+    100% unaccounted on a surface whose whole job is saying where time went.
+    """
+
+    conn.execute(
+        "INSERT INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases,"
+        "  sqlite_ms, sqlite_queries)"
+        " VALUES ('a', ?, 'metrics series', 'GET', 200, 0.3, 0.0, '[]', 0.3, 1)",
+        (T0,),
+    )
+    conn.commit()
+    (row,) = m.requests(conn, since=0.0, until=T0 + 100)
+    assert row["unaccounted_ms"] == pytest.approx(0.0)
+
+
+def test_phases_and_database_time_are_both_subtracted(conn):
+    """They are disjoint: of the three instrumented spans, `llm_call` is an
+    HTTP call, `stanza_parse` is NLP, and `embed_search` wraps a numpy search
+    over an already-loaded matrix. None touches a connection."""
+
+    conn.execute(
+        "INSERT INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases,"
+        "  sqlite_ms, sqlite_queries)"
+        " VALUES ('a', ?, 'chat', 'POST', 200, 100.0, 60.0,"
+        " '[{\"name\": \"llm_call\", \"ms\": 60.0}]', 30.0, 4)",
+        (T0,),
+    )
+    conn.commit()
+    (row,) = m.requests(conn, since=0.0, until=T0 + 100)
+    assert row["unaccounted_ms"] == pytest.approx(10.0)
+
+
+def test_unaccounted_never_goes_negative(conn):
+    """Clamped, and the clamp is a DETECTOR: reaching zero while `total_ms` is
+    larger than zero means a span has started wrapping database work, so the
+    two are being double-counted and the assumption above has expired."""
+
+    conn.execute(
+        "INSERT INTO request_spans"
+        " (id, at, label, method, status, total_ms, accounted_ms, phases,"
+        "  sqlite_ms, sqlite_queries)"
+        " VALUES ('a', ?, 'chat', 'POST', 200, 10.0, 8.0,"
+        " '[{\"name\": \"llm_call\", \"ms\": 8.0}]', 9.0, 2)",
+        (T0,),
+    )
+    conn.commit()
+    (row,) = m.requests(conn, since=0.0, until=T0 + 100)
+    assert row["unaccounted_ms"] == 0.0
+
+
+def test_a_row_without_database_timing_is_unchanged(conn):
+    """Rows written before Phase 3 carry NULL, which must not be read as 0
+    database time and must not change the arithmetic."""
+
+    _add(conn, n=0, total=50.0, phases=[{"name": "llm_call", "ms": 20.0}])
+    (row,) = m.requests(conn, since=0.0, until=T0 + 100)
+    assert row["sqlite_ms"] is None
+    assert row["unaccounted_ms"] == pytest.approx(30.0)

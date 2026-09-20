@@ -416,9 +416,23 @@ def requests(
                 "status": status,
                 "total_ms": total_ms,
                 "accounted_ms": accounted_ms,
-                # Stored as a complement so the two measured numbers are the
-                # two kept; the derived one is computed at read time.
-                "unaccounted_ms": total_ms - accounted_ms,
+                # Derived at read time from the measured numbers. Database
+                # time is subtracted as well as the phases: Phase 3 knows
+                # where that time went, and leaving it in made a request that
+                # was ENTIRELY SQLite report 100% unexplained.
+                #
+                # Safe to subtract both because they are disjoint. Of the
+                # three instrumented spans, `llm_call` is an HTTP call,
+                # `stanza_parse` is NLP, and `embed_search` wraps a numpy
+                # search over an already-loaded matrix — none touches a
+                # connection, so no statement is counted twice.
+                #
+                # The clamp is a DETECTOR for that assumption expiring: a
+                # zero here while `total_ms` is larger means a span has begun
+                # wrapping database work and the two overlap.
+                "unaccounted_ms": max(
+                    0.0, total_ms - accounted_ms - (sqlite_ms or 0.0)
+                ),
                 "phases": json.loads(phases),
                 # None, not 0: "not measured" is a different answer from
                 # "measured, and idle".
