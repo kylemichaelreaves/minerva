@@ -56,6 +56,16 @@ async function settleFrames(page: Page): Promise<void> {
   );
 }
 
+/** Named once so neither the in-page reads nor the opacity checks repeat a
+ *  literal. Passed INTO `page.evaluate`, since that callback runs in the
+ *  browser and cannot close over anything from this scope. */
+const SEL = {
+  verdict: ".metrics-verdict",
+  views: ".metrics-views",
+  row: ".metrics-row",
+  ledgerCount: ".mledger-count",
+} as const;
+
 interface Shot {
   verdict: number;
   verdictHeight: number;
@@ -67,16 +77,16 @@ interface Shot {
  *  than a Playwright matcher on purpose — see the note on retrying matchers
  *  in the second test. */
 function shoot(page: Page): Promise<Shot> {
-  return page.evaluate(() => {
-    const verdict = document.querySelector(".metrics-verdict");
-    const views = document.querySelector(".metrics-views");
+  return page.evaluate((sel) => {
+    const verdict = document.querySelector(sel.verdict);
+    const views = document.querySelector(sel.views);
     return {
       verdict: verdict ? 1 : 0,
       verdictHeight: verdict ? Math.round(verdict.getBoundingClientRect().height) : 0,
       viewsTop: views ? Math.round(views.getBoundingClientRect().top) : -1,
-      rows: document.querySelectorAll(".metrics-row").length,
+      rows: document.querySelectorAll(sel.row).length,
     };
-  });
+  }, SEL);
 }
 
 const opacityOf = (page: Page, selector: string): Promise<number> =>
@@ -107,11 +117,11 @@ test("switching time window holds the routes view still instead of blanking it",
   expect(during.viewsTop).toBe(before.viewsTop);
 
   // Held-over numbers are dimmed rather than passed off as current.
-  expect(await opacityOf(page, ".metrics-verdict")).toBeLessThan(1);
+  expect(await opacityOf(page, SEL.verdict)).toBeLessThan(1);
 
   hold.release();
   // And back to full strength once the new data lands.
-  await expect.poll(() => opacityOf(page, ".metrics-verdict")).toBe(1);
+  await expect.poll(() => opacityOf(page, SEL.verdict)).toBe(1);
 });
 
 test("switching time window keeps the Requests count on screen", async ({ page }) => {
@@ -121,7 +131,7 @@ test("switching time window keeps the Requests count on screen", async ({ page }
   await metrics.goto();
   await metrics.openRequests();
 
-  const count = page.locator(".mledger-count");
+  const count = page.locator(SEL.ledgerCount);
   await expect(count).toHaveCount(1);
 
   const hold = await holdMetricsRequests(page);
@@ -135,8 +145,8 @@ test("switching time window keeps the Requests count on screen", async ({ page }
   // assertion that waits for it to stop happening. Same trap as `isVisible()`
   // reporting an element 6,600px below the fold as visible.
   expect(await count.count()).toBe(1);
-  expect(await opacityOf(page, ".mledger-count")).toBeLessThan(1);
+  expect(await opacityOf(page, SEL.ledgerCount)).toBeLessThan(1);
 
   hold.release();
-  await expect.poll(() => opacityOf(page, ".mledger-count")).toBe(1);
+  await expect.poll(() => opacityOf(page, SEL.ledgerCount)).toBe(1);
 });
