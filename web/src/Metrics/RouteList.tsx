@@ -37,7 +37,14 @@ export function sortEntries(entries: RouteEntry[], mode: SortMode): RouteEntry[]
 
 export interface RouteListProps {
   entries: RouteEntry[];
+  /** FIRST load only — nothing to render yet. Deliberately NOT a
+   *  resource's `.loading`, which is also true during a refresh and would
+   *  unmount rows that are still perfectly good. `MetricsPanel.firstLoad`
+   *  is the only thing that should feed this. */
   loading: boolean;
+  /** These rows belong to the previous request and the next one is in
+   *  flight. Dims them; never hides them. */
+  stale?: boolean;
   /** Inline message when the summary fetch failed; rendered INSTEAD of
    *  the list, since an empty list would otherwise read as "no traffic". */
   errorText?: string;
@@ -116,7 +123,7 @@ export function RouteList(props: RouteListProps) {
   );
 
   return (
-    <div class="metrics-routes">
+    <div classList={{ "metrics-routes": true, "metrics-stale": props.stale }}>
       <div class="metrics-routes-head">
         <span class="metrics-label">
           {props.entries.length} {props.entries.length === 1 ? "route" : "routes"}
@@ -142,11 +149,7 @@ export function RouteList(props: RouteListProps) {
         <Show when={!props.loading} fallback={<div class="metrics-loading">Loading…</div>}>
           <Show
             when={props.entries.length > 0}
-            fallback={
-              <div class="metrics-empty" role="status">
-                No requests recorded in this window.
-              </div>
-            }
+            fallback={<output class="metrics-empty">No requests recorded in this window.</output>}
           >
             {/* Named, and a group rather than a bare div: the rows are
                 toggle buttons (`aria-pressed`), so a set of related
@@ -155,7 +158,7 @@ export function RouteList(props: RouteListProps) {
                 is also what lets the browser suite address the list by
                 role + name (#593's tier 1) now that the route TABLE it
                 named is gone. */}
-            <div class="metrics-routes-scroll" role="group" aria-label="Routes">
+            <fieldset class="metrics-routes-scroll" aria-label="Routes">
               <Show when={grouped()} fallback={<For each={sorted()}>{rowFor}</For>}>
                 <Show when={needsLook().length > 0}>
                   <div class="metrics-group">
@@ -172,7 +175,7 @@ export function RouteList(props: RouteListProps) {
                   <For each={fine()}>{rowFor}</For>
                 </Show>
               </Show>
-            </div>
+            </fieldset>
           </Show>
         </Show>
       </Show>

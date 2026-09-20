@@ -20,6 +20,7 @@ from .handlers import (
     _handle_health,
     _handle_landing_stats,
     _handle_lemma_highlights,
+    _handle_metrics_requests,
     _handle_metrics_series,
     _handle_metrics_summary,
     _handle_network_summary,
@@ -189,6 +190,11 @@ def build_get_routes(
             "/api/metrics/series",
             "metrics series",
             lambda: _handle_metrics_series(deps, qs()),
+        ),
+        (
+            "/api/metrics/requests",
+            "metrics requests",
+            lambda: _handle_metrics_requests(deps, qs()),
         ),
         (
             _WORK_SLUG_PAIR_RE,

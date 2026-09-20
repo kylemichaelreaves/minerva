@@ -118,6 +118,35 @@ def _worker_parse_source(
     }
 
 
+def ingest_runs_from_results(results: dict, log) -> None:
+    """Turn the workers' result dicts into per-source history rows.
+
+    The orchestrator already receives `elapsed`, `count`, `skipped` and
+    `error` and already reads them to print `timing: ingest:<id>` — so
+    nothing new crosses the process boundary, only the parent writes.
+
+    A result can be BOTH skipped and errored; failure wins. A source that
+    failed is not a source that was skipped, and reporting it as skipped
+    would hide the failure behind a benign-looking row.
+    """
+
+    for source_id, res in results.items():
+        error = res.get("error")
+        if error:
+            status = "failed"
+        elif res.get("skipped"):
+            status = "skipped"
+        else:
+            status = "ok"
+        log.record(
+            source_id,
+            status=status,
+            elapsed_ms=float(res.get("elapsed", 0.0)) * 1000.0,
+            chunks=int(res.get("count", 0)),
+            error=str(error) if error else None,
+        )
+
+
 def parallel_ingest(
     source_ids: list[str],
     paths_by_kwarg: dict[str, Path | None],
@@ -125,6 +154,7 @@ def parallel_ingest(
     *,
     jobs: int,
     per_source_timing: bool = False,
+    run_log: object | None = None,
 ) -> tuple[list[Path], int, dict[str, int], dict[str, list[str]], list[str]]:
     """Parse ``source_ids`` in parallel across ``jobs`` worker processes.
 
@@ -245,6 +275,12 @@ def parallel_ingest(
         total += res["count"]
         for k, v in res.get("counts", {}).items():
             counts[k] = counts.get(k, 0) + v
+
+    # Unconditional — NOT gated on `per_source_timing`. That flag controls the
+    # stderr print; a history assembled only from runs where someone
+    # remembered a flag is not a history.
+    if run_log is not None:
+        ingest_runs_from_results(results, run_log)
 
     return shard_paths, total, counts, failures, dropped
 

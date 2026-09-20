@@ -66,8 +66,10 @@ def test_get_route_records_a_sample(populated_db, metrics_conn):
     deps.metrics = Recorder(metrics_conn)
     with deps.metrics.record("works list", "GET") as span:
         span.status = 200
+    # Selected by kind: a request now also writes a `cpu` row, so the first
+    # row returned is no longer guaranteed to be the one this asserts on.
     row = metrics_conn.execute(
-        "SELECT label, method, kind FROM request_timings"
+        "SELECT label, method, kind FROM request_timings WHERE kind = 'total'"
     ).fetchone()
     assert row == ("works list", "GET", "total")
 

@@ -47,6 +47,22 @@ interface Percentile {
   of: (r: MetricsSummaryRow) => number;
 }
 
+/** Why every percentile tile carries this.
+ *
+ *  Quantiles are interpolated from 14 log-scale buckets while `min_ms` and
+ *  `max_ms` are exact, so a quantile can report a duration that never
+ *  occurred — on live data p99 exceeds max on 8 of 24 routes (#616). Nothing
+ *  renders max today, which is the only reason the contradiction is invisible.
+ *  Saying "estimate" here costs nothing and makes a later "slowest request"
+ *  panel honest by default rather than by someone remembering.
+ *
+ *  Not applied to the errors tile: `error_rate` is a ratio of counted
+ *  requests, not a bucketed quantile.
+ */
+const PERCENTILE_TITLE =
+  "Estimated from 14 log-scale buckets, not exact — it can exceed the slowest " +
+  "request actually recorded. min/max are measured.";
+
 const PERCENTILES: Percentile[] = [
   { key: "p50", of: (r) => r.p50_ms },
   { key: "p95", of: (r) => r.p95_ms },
@@ -70,7 +86,7 @@ export function StatTiles(props: StatTilesProps) {
     <div class="metrics-tiles">
       <For each={PERCENTILES}>
         {(p) => (
-          <div class="metrics-tile">
+          <div class="metrics-tile" title={PERCENTILE_TITLE}>
             <span class="metrics-tile-label">{p.key}</span>
             <span class="metrics-tile-value">
               {Math.round(p.of(props.row))}
