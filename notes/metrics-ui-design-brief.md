@@ -5,6 +5,16 @@ Written 2026-09-18 against `main` at `5fa2206` + PR #615.
 
 **Everything numeric below is measured from the live `data/metrics.sqlite`
 (4,039 requests, 2026-09-13 → 09-18) or from the code.** Nothing is invented.
+
+> **Corrected 2026-09-19 — the traffic is not purely an operator's.** The e2e
+> and browser suites run `minerva serve` without `--metrics-db`, so they record
+> into this same file (**#627**). The counts below therefore mix real use with
+> test runs in an unknown proportion, and the loud days line up with sessions
+> that ran the suites repeatedly. The *shapes* are still the right ones to
+> design against — p50 of 1 ms nearly everywhere, four orders of magnitude of
+> tail, three span names, 0.22% phase coverage — because those come from how
+> the routes are built rather than from who called them. Treat the per-route
+> **counts** as indicative, not as a usage measurement.
 That matters here because in this project *the mock's fixture data is the
 spec* — derived values get read back out and verified against the formula — so
 a mock built on plausible-looking numbers propagates wrong assumptions into the

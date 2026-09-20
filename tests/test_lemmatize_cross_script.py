@@ -38,6 +38,10 @@ class _WhitespaceLemmatizer:
     surface. Records every (lang, text) it was actually asked to
     process, so a test can assert the primary pass saw MASKED text and
     the secondary pass saw only the extracted alternate-script run."""
+    # The real Lemmatizer exposes these, and the pipeline-stats key is
+    # built from them. A stub without them is an incomplete stand-in.
+    backend = "stub"
+    model = "stub"
 
     calls: ClassVar[list[tuple[str, str]]] = []
 

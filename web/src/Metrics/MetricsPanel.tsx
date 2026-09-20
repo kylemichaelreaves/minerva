@@ -14,6 +14,9 @@
 // nothing local warns.
 
 import { For, Show, createMemo, createResource, createSignal, type Resource } from "solid-js";
+
+import { MetricsHealthBanner } from "./MetricsHealthBanner";
+import { RequestLedger } from "./RequestLedger";
 import {
   METRIC_WINDOWS,
   fetchMetricsSeries,
@@ -23,6 +26,7 @@ import {
 } from "~/api/metricsApi";
 import { RouteDetail, type SpanKind } from "~/Metrics/RouteDetail";
 import { RouteList } from "~/Metrics/RouteList";
+import { firstLoad, refreshing } from "~/Metrics/resourceState";
 import { summarise } from "~/Metrics/severity";
 import { errorMessage } from "~/utils/util";
 import "./metrics.css";
@@ -103,6 +107,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
     props.onNavigate?.({ window: win(), label });
   };
 
+  const [view, setView] = createSignal<"routes" | "requests">("routes");
   const [summary] = createResource(win, (w) => fetchMetricsSummary(w));
   // The baseline. `offset: 1` is the window immediately before this one,
   // which is why it needed a backend parameter at all: before it, the
@@ -185,9 +190,16 @@ export function MetricsPanel(props: MetricsPanelProps) {
   );
 
   // Sub-span rows (the labeled query, `span != ''`) are ALWAYS
-  // `kind: "total"` — the recorder never tags a sub-span `ttfe`
-  // (`recorder.py`) — so this list is never filtered by `spanKind`.
-  // `SpanWaterfall` says so on the ttfe tab rather than looking stale.
+  // Passed through UNFILTERED, and that is now load-bearing: since CPU
+  // entered the aggregate the drill-down returns a `kind: "cpu"` row
+  // alongside each wall row, and `SpanWaterfall` needs both — it splits
+  // them itself (`wallRows` / `cpuByName`) so one span is drawn once with
+  // its CPU share beside it.
+  //
+  // This comment used to say the list "is never filtered by `spanKind`"
+  // because the recorder only ever emitted one kind per span. That stopped
+  // being true when `kind: "cpu"` was added; filtering still does not happen
+  // HERE, but it does happen, and the reason changed.
   const detailRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(detail)?.rows ?? []);
   const seriesPoints = createMemo(() => valueUnlessErrored(series)?.points ?? []);
   // The chart labels its x-axis from this: the server buckets daily for
@@ -200,10 +212,10 @@ export function MetricsPanel(props: MetricsPanelProps) {
     <div class="metrics-panel">
       <header class="metrics-head">
         <h1>Request timing</h1>
-        <span class="metrics-sub">
+        <span classList={{ "metrics-sub": true, "metrics-stale": refreshing(summary) }}>
           {WINDOW_PROSE[win()]} · {totalRequests().toLocaleString()} requests
         </span>
-        <div class="metrics-windows" role="group" aria-label="Time window">
+        <fieldset class="metrics-windows" aria-label="Time window">
           <For each={METRIC_WINDOWS}>
             {(w) => (
               <button
@@ -216,15 +228,25 @@ export function MetricsPanel(props: MetricsPanelProps) {
               </button>
             )}
           </For>
-        </div>
+        </fieldset>
       </header>
 
       {/* One recomputable sentence, never prose. Hidden while the fetch
           is in flight or failed: a verdict over zero rows would read "No
           requests recorded in this window", which is a claim about the
           data rather than about the fetch. */}
-      <Show when={!summary.loading && errorTextOf(summary) === undefined}>
-        <p class="metrics-verdict">
+      {/* Above the verdict, not instead of it: the verdict describes the
+          routes, this describes whether the numbers under it can be trusted
+          at all. Renders nothing when healthy, so its presence is the
+          signal (#618). */}
+      {/* `summary.error &&` first, deliberately: reading an errored Solid
+          resource RE-THROWS, so `summary()?.health` alone takes down the
+          whole error path — which is the one path where the page most needs
+          to still render. */}
+      <MetricsHealthBanner health={summary.error ? undefined : summary()?.health} />
+
+      <Show when={!firstLoad(summary) && errorTextOf(summary) === undefined}>
+        <p classList={{ "metrics-verdict": true, "metrics-stale": refreshing(summary) }}>
           <span class={`metrics-dot ${graded().verdict.severity}`} aria-hidden="true" />
           <span>
             <b>{graded().verdict.headline}</b> {graded().verdict.detail}
@@ -232,38 +254,62 @@ export function MetricsPanel(props: MetricsPanelProps) {
         </p>
       </Show>
 
-      <main classList={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
-        <RouteList
-          entries={entries()}
-          loading={summary.loading}
-          errorText={errorTextOf(summary)}
-          selectedLabel={selectedLabel()}
-          onSelect={selectLabel}
-        />
+      {/* A view toggle rather than a second hash route: `readRoute` is already
+          over the Sonar complexity limit (#589) and grows a branch per
+          surface, so adding one here would make that worse for no gain. */}
+      <fieldset class="metrics-views" aria-label="Metrics view">
+        <button type="button" aria-pressed={view() === "routes"} onClick={() => setView("routes")}>
+          Routes
+        </button>
+        <button
+          type="button"
+          aria-pressed={view() === "requests"}
+          onClick={() => setView("requests")}
+        >
+          Requests
+        </button>
+      </fieldset>
 
-        <Show when={selectedEntry()}>
-          {(entry) => (
-            <RouteDetail
-              label={entry().row.label}
-              method={entry().row.method}
-              row={activeRow()}
-              prior={activePrior()}
-              windowLabel={WINDOW_LABELS[win()]}
-              spanKind={spanKind()}
-              onSpanKind={setSpanKind}
-              hasTtfe={ttfeRow() !== undefined}
-              onBack={() => selectLabel(undefined)}
-              seriesPoints={seriesPoints()}
-              seriesBucketSeconds={seriesBucketSeconds()}
-              seriesLoading={series.loading}
-              seriesErrorText={errorTextOf(series)}
-              detailRows={detailRows()}
-              detailLoading={detail.loading}
-              detailErrorText={errorTextOf(detail)}
-            />
-          )}
-        </Show>
-      </main>
+      <Show when={view() === "requests"}>
+        <RequestLedger window={win()} />
+      </Show>
+
+      <Show when={view() === "routes"}>
+        <main classList={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
+          <RouteList
+            entries={entries()}
+            loading={firstLoad(summary)}
+            stale={refreshing(summary)}
+            errorText={errorTextOf(summary)}
+            selectedLabel={selectedLabel()}
+            onSelect={selectLabel}
+          />
+
+          <Show when={selectedEntry()}>
+            {(entry) => (
+              <RouteDetail
+                label={entry().row.label}
+                method={entry().row.method}
+                stale={refreshing(summary) || refreshing(series) || refreshing(detail)}
+                row={activeRow()}
+                prior={activePrior()}
+                windowLabel={WINDOW_LABELS[win()]}
+                spanKind={spanKind()}
+                onSpanKind={setSpanKind}
+                hasTtfe={ttfeRow() !== undefined}
+                onBack={() => selectLabel(undefined)}
+                seriesPoints={seriesPoints()}
+                seriesBucketSeconds={seriesBucketSeconds()}
+                seriesLoading={firstLoad(series)}
+                seriesErrorText={errorTextOf(series)}
+                detailRows={detailRows()}
+                detailLoading={firstLoad(detail)}
+                detailErrorText={errorTextOf(detail)}
+              />
+            )}
+          </Show>
+        </main>
+      </Show>
     </div>
   );
 }

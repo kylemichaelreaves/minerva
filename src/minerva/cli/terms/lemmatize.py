@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import time
 
 from ...lemmatize import (
     SUPPORTED_LANGUAGES as _SUPPORTED,
@@ -32,7 +33,10 @@ from ...lemmatize import (
     is_valid_lemma,
     mask_runs,
 )
+from ...metrics import store as metrics_store
+from ...metrics.pipeline_stats import PipelineStats, observe_windows
 from ...sqlite_util import register_text_hash, text_hash
+from .._shared import DEFAULT_METRICS_DB
 from ._io import _open
 
 # Commit every N chunk-batches. Bigger = fewer fsyncs; smaller = less
@@ -244,9 +248,24 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
                     )
             return out
 
-        for tokens, chunk_id in lm.batch_pipe(
-            _items(), batch_size=args.batch_size, n_process=args.n_process
-        ):
+        # Durations are recorded per WINDOW of chunks, not per chunk, because
+        # `batch_pipe` delegates to spaCy's `nlp.pipe` and the time between
+        # two yields is queue drain rather than work. Measured on 400 `lat`
+        # chunks: 7 iterations carried 96% of the cost, so a per-chunk p50
+        # read 0.115 ms against a true mean of 2.598 ms. Windows partition the
+        # stream, so the durations sum to the run and throughput is exact.
+        stats = PipelineStats()
+        observed = observe_windows(
+            lm.batch_pipe(
+                _items(), batch_size=args.batch_size, n_process=args.n_process
+            ),
+            stats,
+            lang=args.lang,
+            backend=lm.backend,
+            model=lm.model,
+            window=args.batch_size,
+        )
+        for tokens, chunk_id in observed:
             # Primary tokens carry no explicit lang (NULL — "this
             # chunk's own language"); secondary tokens carry the
             # alternate language they were actually lemmatized under.
@@ -273,6 +292,11 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
                 )
                 kept += 1
                 tokens_total += 1
+            # Token counts ARE per chunk and exact — `len` does not care how
+            # the work was batched.
+            stats.record_tokens(
+                lang=args.lang, backend=lm.backend, model=lm.model, tokens=kept
+            )
             attempts.append((chunk_id, pending_hash.pop(chunk_id), kept))
             chunks_done += 1
             chunks_productive += bool(kept)
@@ -291,6 +315,7 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
             f"lemmatize: done · {chunks_done} chunks "
             f"({chunks_productive} productive) · {tokens_total} tokens"
         )
+        _record_pipeline_stats(args, stats)
 
         # Rebuild the concordance aggregate table — the only consumer
         # of chunk_lemmas at read time. Skipping this would leave the
@@ -313,6 +338,28 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         return 0
     finally:
         conn.close()
+
+
+def _record_pipeline_stats(args, stats) -> None:
+    """Persist the run's distributions, and never fail the run over it.
+
+    Same posture as `Recorder`: losing a measurement is strictly better than
+    losing the work that produced it. A machine that has only ever run the
+    CLI may have no metrics database at all, and creating one is fine —
+    refusing to lemmatize because metrics could not be written is not.
+    """
+
+    rows = stats.rows(at=time.time(), pipeline="lemmatize")
+    if not rows:
+        return
+    try:
+        conn = metrics_store.open_db(DEFAULT_METRICS_DB)
+        try:
+            metrics_store.write_pipeline_rows(conn, rows)
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError) as exc:
+        print(f"lemmatize: could not record pipeline stats ({exc})", file=sys.stderr)
 
 
 def _progress_bar(*, total: int, lang: str):

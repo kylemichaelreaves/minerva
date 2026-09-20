@@ -565,6 +565,7 @@ def iter_registered_chunks(
     only: frozenset[str] | None = None,
     per_source_timing: bool = False,
     allow_missing_sources: bool = False,
+    run_log: object | None = None,
 ) -> Iterator[tei.Chunk]:
     """Walk every configured corpus source whose path exists on disk.
 
@@ -606,7 +607,12 @@ def iter_registered_chunks(
         path = paths.get(source.kwarg_name)
         if not source.path_present(path):
             continue
-        if not per_source_timing:
+        # Skip the counting loop entirely only when NOTHING wants the
+        # numbers. `run_log` is checked alongside `per_source_timing`
+        # because recording is unconditional while printing is not: a
+        # history assembled only from runs where someone passed
+        # `--timing` would be a biased sample of the runs, not a trend.
+        if not per_source_timing and run_log is None:
             yield from source.parse(path)  # type: ignore[arg-type]
             continue
         start = _time.perf_counter()
@@ -615,9 +621,14 @@ def iter_registered_chunks(
             n += 1
             yield chunk
         elapsed = _time.perf_counter() - start
-        # Round to centiseconds; lots of trivial sources finish in
-        # <100 ms and a full-precision float just clutters the output.
-        print(
-            f"timing: ingest:{source.id}  {elapsed:.2f}s ({n} chunks)",
-            file=_sys.stderr,
-        )
+        if run_log is not None:
+            run_log.record(
+                source.id, status="ok", elapsed_ms=elapsed * 1000.0, chunks=n
+            )
+        if per_source_timing:
+            # Round to centiseconds; lots of trivial sources finish in
+            # <100 ms and a full-precision float just clutters the output.
+            print(
+                f"timing: ingest:{source.id}  {elapsed:.2f}s ({n} chunks)",
+                file=_sys.stderr,
+            )

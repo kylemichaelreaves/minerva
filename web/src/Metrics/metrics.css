@@ -4,17 +4,14 @@
 .mchart {
   --metric-p50: #1f6ea8;
   --metric-p95: #a8452f;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 [data-theme="dark"] .mchart {
   --metric-p50: #3a93d1;
   --metric-p95: #c97a65;
-}
-
-.mchart {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
 }
 
 .mchart-empty {
@@ -103,9 +100,20 @@
   gap: 0.9rem;
   padding: 1.25rem;
   font-family: var(--sans);
-  max-width: 1280px;
+  /* 1800, not 1280: at 1280 the route list was capped at 420px and the name
+     column inside it came to ~84px once the severity dot and method badge
+     had taken their share — `conversation delete` wanted 136px and got 62.
+     Raising this alone would NOT have helped, because `.metrics-split` caps
+     the list independently; both moved together. */
+  max-width: 1800px;
   margin: 0 auto;
   width: 100%;
+  /* Queried by `.metrics-split` below. The existing 768px breakpoint keys on
+     the VIEWPORT, but this panel sits inside app chrome ~290px wide, so at a
+     900px viewport the panel is only ~609px — two columns already do not fit
+     and the media query has not fired. Asking the container removes the
+     guesswork. */
+  container-type: inline-size;
 }
 
 /* --- head ------------------------------------------------------------ */
@@ -130,7 +138,11 @@
 }
 
 .metrics-windows {
-  margin-left: auto;
+  /* A <fieldset>; see the note on `.metrics-views`. */
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+  margin: 0 0 0 auto;
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
@@ -160,9 +172,36 @@
   color: var(--paper);
 }
 
+/* --- held-over data ------------------------------------------------- */
+
+/* The previous request's numbers, still on screen while the next request is
+   in flight. Dimmed rather than unmounted: swapping these for a spinner is
+   what made a time-window switch jump 94px up and back inside one frame.
+
+   The transition lives on the base selectors rather than on `.metrics-stale`
+   itself. A declaration that exists only while the class is applied fades
+   out and then snaps back, because it is gone by the time the class is
+   removed. */
+.metrics-sub,
+.metrics-verdict,
+.metrics-routes,
+.metrics-detail,
+.mledger-count,
+.mledger-split {
+  transition: opacity 120ms ease-out;
+}
+
+.metrics-stale {
+  opacity: 0.55;
+}
+
 /* --- verdict --------------------------------------------------------- */
 
+/* The one thing that should NOT use the full width: the verdict is prose,
+   and a 1760px line is a worse read than a clipped name. Everything else on
+   this surface is tabular and benefits from the room. */
 .metrics-verdict {
+  max-width: 88ch;
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
@@ -211,7 +250,9 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(320px, 420px) 1fr;
+  /* The list column has to grow with the panel or the extra width all goes
+     to the chart and the route names stay clipped. */
+  grid-template-columns: minmax(320px, 500px) 1fr;
   gap: 1.25rem;
 }
 
@@ -219,6 +260,21 @@
    narrow gutter beside an empty half-page. */
 .metrics-split:not(.detail-open) {
   grid-template-columns: minmax(320px, 640px);
+}
+
+/* One column once the PANEL is too narrow for two, whatever the viewport is
+   doing. Below this the list gets the full width, so the route names stop
+   competing with a detail pane that had nowhere to live either. */
+@container (max-width: 900px) {
+  .metrics-split,
+  .metrics-split:not(.detail-open) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metrics-routes {
+    border-right: none;
+    padding-right: 0;
+  }
 }
 
 .metrics-routes {
@@ -258,6 +314,9 @@
    content height — without it the scroller grows to fit every row and
    nothing scrolls. */
 .metrics-routes-scroll {
+  /* A <fieldset>; see the note on `.metrics-views`. */
+  border: 0;
+  min-inline-size: 0;
   flex: 1 1 auto;
   min-height: 8rem;
   overflow-y: auto;
@@ -431,7 +490,11 @@
 }
 
 .metrics-tabs {
-  margin-left: auto;
+  /* A <fieldset>; see the note on `.metrics-views`. */
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+  margin: 0 0 0 auto;
   display: flex;
   gap: 0.15rem;
 }
@@ -587,6 +650,8 @@
 
 .metrics-loading,
 .metrics-empty {
+  /* An <output>, which is inline by default. */
+  display: block;
   padding: 2.5rem 0;
   text-align: center;
   color: var(--ink-faint);
@@ -594,6 +659,8 @@
 }
 
 .metrics-empty-inline {
+  /* An <output>, which is inline by default. */
+  display: block;
   color: var(--ink-faint);
   font-size: 0.78rem;
   margin: 0;
@@ -672,4 +739,362 @@
   .metrics-wf {
     grid-template-columns: minmax(0, 6rem) 1fr minmax(0, 4.5rem);
   }
+}
+
+/* Degraded-state banner (#618). Shares the verdict's shape deliberately —
+   same slot, same dot, same reading rhythm — so a reader does not have to
+   learn a second layout to find out the numbers are untrustworthy.
+   No new colour tokens: --bad and --warn already carry light and dark
+   values in styles.css, so this inherits both themes for free. */
+.metrics-health {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 2px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.metrics-health b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.metrics-health code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.metrics-health .metrics-dot {
+  margin-top: 6px;
+  flex: none;
+}
+.metrics-health-bad {
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+  background: color-mix(in srgb, var(--bad) 7%, transparent);
+}
+.metrics-health-warn {
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 7%, transparent);
+}
+
+/* Per-request ledger (#619's request_spans). Reuses the panel's tokens
+   throughout — no new colours, so both themes come for free. */
+.metrics-views {
+  /* A <fieldset> rather than a <div role="group">: the native element
+     carries the role. Its UA styles have to be undone — `min-inline-size:
+     min-content` in particular, which stops a fieldset shrinking inside a
+     flex or grid parent. Border and padding below are deliberate, not
+     leftovers. */
+  min-inline-size: 0;
+  display: flex;
+  gap: 3px;
+  margin: 10px 0 4px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  width: fit-content;
+}
+.metrics-views button {
+  font: 500 11.5px var(--sans);
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.metrics-views button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--paper);
+}
+.mledger-filters {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.mledger-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+.mledger-chk input {
+  accent-color: var(--accent);
+}
+.mledger-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.mledger-msg {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  line-height: 1.55;
+  margin: 12px 0;
+}
+.mledger {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.mledger-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  /* A grid item stretches to its ROW, not to the container, and an implicit
+     row is `auto` — sized to content. Without this the wrapper grew to the
+     full 13,325px of a 200-row table inside a 651px split and the scroll
+     never engaged. `align-items: start` did the same thing a second way. */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0 20px;
+  margin-top: 12px;
+}
+.mledger-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mledger-table th {
+  text-align: left;
+  font: 500 10px var(--sans);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rule);
+}
+.mledger-table th.r,
+.mledger-table td.r {
+  text-align: right;
+}
+.mledger-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.mledger-table tbody tr {
+  cursor: pointer;
+}
+.mledger-table tbody tr:hover td,
+.mledger-table tbody tr.sel td {
+  background: var(--paper-edge);
+}
+.mledger-table .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.mledger-table .dim {
+  color: var(--ink-faint);
+}
+.mledger-meth {
+  font: 500 9.5px var(--mono);
+  color: var(--ink-faint);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.mledger-st {
+  font: 500 10.5px var(--mono);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.mledger-st.ok {
+  color: var(--ink-faint);
+}
+.mledger-st.warn {
+  color: var(--warn);
+}
+.mledger-st.bad {
+  color: var(--bad);
+}
+.mledger-chip {
+  font: 500 10px var(--mono);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-right: 4px;
+}
+.mledger-detail {
+  border: 1px solid var(--rule);
+  padding: 14px 15px;
+  /* Scrolls on its own so a long phase list cannot push the table's height
+     around — the two panes are siblings in the same bounded row. */
+  max-height: 100%;
+  overflow: auto;
+}
+.mledger-detail h3 {
+  margin: 2px 0 10px;
+  font-size: 15px;
+}
+.mledger-id {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin: 0;
+}
+.mledger-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  margin: 0 0 12px;
+}
+.mledger-tiles > div {
+  background: var(--paper);
+  padding: 8px 10px;
+}
+.mledger-tiles dt {
+  font: 500 10px var(--sans);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.mledger-tiles dd {
+  margin: 3px 0 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+.mledger-phase {
+  display: grid;
+  /* Four tracks since Phase 2 added the CPU column. */
+  grid-template-columns: 86px minmax(0, 1fr) 54px 54px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.mledger-phase .num {
+  text-align: right;
+  font-family: var(--mono);
+}
+.mledger-bar {
+  height: 8px;
+  background: var(--rule-soft);
+  display: block;
+  /* Containing block for `.mledger-cpu`, which overlays it. */
+  position: relative;
+}
+.mledger-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+@media (max-width: 900px) {
+  .mledger-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Wall-vs-CPU (Phase 2). */
+.mledger-verdict {
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  text-transform: lowercase;
+}
+.mledger-unmeasured {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+}
+.mledger-cpu {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  background: var(--paper);
+  opacity: 0.55;
+  border-right: 1px solid var(--paper);
+}
+.mledger-cpuv {
+  color: var(--ink-faint);
+}
+
+/* Database time (Phase 3). A different fill from a span's, because it is a
+   sum over disjoint statements rather than one contiguous interval. */
+.mledger-dbbar {
+  background: var(--metric-p50);
+}
+.mledger-tag {
+  font: 500 9px var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--metric-p50);
+  border: 1px solid var(--metric-p50);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-left: 5px;
+  opacity: 0.8;
+}
+
+/* CPU verdict and the connection-layer tag in the aggregate waterfall. */
+.metrics-wf-cpu {
+  font: 500 10px var(--sans);
+  color: var(--ink-faint);
+  margin-left: 6px;
+  text-transform: lowercase;
+}
+.metrics-wf-tag {
+  font: 500 9px var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--metric-p50);
+  border: 1px solid var(--metric-p50);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-left: 5px;
+  opacity: 0.8;
+}
+
+.mledger-more {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 0.9rem;
+  font: 500 12px var(--sans);
+  padding: 6px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.mledger-more:hover {
+  background: var(--paper-edge);
+  color: var(--ink);
+}
+
+/* The table scrolls inside a bounded box so the paging control below it stays
+   on screen. Without this a 200-row page is ~6,600px tall and "Load older"
+   sits that far down the document — present in the DOM, and unreachable. */
+/* Fills the section rather than taking a fixed slice of the viewport: 62vh
+   left dead space below the control on a tall window and overflowed the
+   panel on a short one. `min-height: 0` on every link in the chain is what
+   lets a flex/grid child actually shrink — without it the default
+   `min-height: auto` sizes to content and the scroll never engages. */
+.mledger-tblwrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+/* Header stays put while the rows move under it; a 200-row scroll otherwise
+   loses the column meanings immediately. */
+.mledger-tblwrap .mledger-table th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 1;
 }

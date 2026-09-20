@@ -105,6 +105,100 @@ def _handle_metrics_summary(deps: ServerDeps, qs: dict[str, str]) -> dict[str, A
     }
 
 
+def _parse_limit(raw: str | None) -> int:
+    """A junk `limit` is a 400, not a silently-ignored default.
+
+    Ignoring it would answer a question the caller did not ask and look like
+    a small table rather than a rejected parameter.
+    """
+
+    if raw is None or raw == "":
+        return 200
+    try:
+        return int(raw)
+    except ValueError:
+        raise _HTTPError(HTTPStatus.BAD_REQUEST, f"limit is not a number: {raw!r}") from None
+
+
+def _parse_cursor(qs: dict[str, str]) -> tuple[float | None, str | None]:
+    """The keyset cursor, or `(None, None)`.
+
+    Both halves or neither: `at` alone cannot resume inside a group of
+    requests sharing a timestamp, and accepting it would silently skip one.
+
+    Junk is a 400 rather than a silent first page — ignoring it would hand
+    back page one while the client believed it was on page two, which looks
+    like duplicated rows and reports no error.
+    """
+
+    raw_at = qs.get("before_at")
+    raw_id = qs.get("before_id")
+    if not raw_at and not raw_id:
+        return None, None
+    if not raw_at or not raw_id:
+        raise _HTTPError(
+            HTTPStatus.BAD_REQUEST, "before_at and before_id must be given together"
+        )
+    try:
+        return float(raw_at), raw_id
+    except ValueError:
+        raise _HTTPError(
+            HTTPStatus.BAD_REQUEST, f"before_at is not a number: {raw_at!r}"
+        ) from None
+
+
+def _handle_metrics_requests(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
+    """Per-request rows (#619's `request_spans`), newest first.
+
+    The aggregate endpoints answer "how is this route behaving"; a 5-minute
+    bucket mixes requests, so it cannot answer "which request was slow, and
+    where did its time go". This one can.
+    """
+
+    since, until, name = _range(qs)
+    limit = _parse_limit(qs.get("limit"))
+    before_at, before_id = _parse_cursor(qs)
+    capped = max(1, min(limit, metrics_store.REQUESTS_MAX_LIMIT))
+    if deps.metrics_conn is None:
+        rows: list[dict[str, Any]] = []
+    else:
+        with deps.metrics_lock:
+            # One more than asked for, purely to answer "is there another
+            # page". A COUNT over the same filters would be a second query
+            # against a table designed to hold years; the probe row costs one
+            # extra row and is trimmed below.
+            rows = metrics_store.requests(
+                deps.metrics_conn,
+                since=since,
+                until=until,
+                label=qs.get("label") or None,
+                method=qs.get("method") or None,
+                errors_only=qs.get("errors") in ("1", "true"),
+                phased_only=qs.get("phased") in ("1", "true"),
+                limit=capped + 1,
+                before_at=before_at,
+                before_id=before_id,
+            )
+    has_more = len(rows) > capped
+    rows = rows[:capped]
+    return {
+        "window": name,
+        "since": since,
+        "until": until,
+        "rows": rows,
+        # The CLAMPED limit, not what was asked for: a caller requesting
+        # 100,000 rows should see it got 500, not infer a small table.
+        "limit": capped,
+        "has_more": has_more,
+        # Handed back rather than left for the client to rebuild from the last
+        # row — reconstructing it would couple every caller to the ordering,
+        # which is the detail keyset pagination exists to hide.
+        "next_before": (
+            {"at": rows[-1]["at"], "id": rows[-1]["id"]} if has_more and rows else None
+        ),
+    }
+
+
 def _handle_metrics_series(deps: ServerDeps, qs: dict[str, str]) -> dict[str, Any]:
     label = qs.get("label")
     if not label:
@@ -131,4 +225,4 @@ def _handle_metrics_series(deps: ServerDeps, qs: dict[str, str]) -> dict[str, An
     }
 
 
-__all__ = ["_handle_metrics_series", "_handle_metrics_summary"]
+__all__ = ["_handle_metrics_requests", "_handle_metrics_series", "_handle_metrics_summary"]

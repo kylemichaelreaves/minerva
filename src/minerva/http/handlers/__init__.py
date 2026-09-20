@@ -37,6 +37,7 @@ from .conversations import (  # noqa: F401
 )
 from .health import _handle_health, _handle_landing_stats  # noqa: F401
 from .metrics import (  # noqa: F401
+    _handle_metrics_requests,
     _handle_metrics_series,
     _handle_metrics_summary,
 )

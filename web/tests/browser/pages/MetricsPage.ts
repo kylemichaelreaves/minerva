@@ -109,6 +109,20 @@ export class MetricsPage {
     return this.routeList.evaluate((el) => el.scrollTop);
   }
 
+  /** The Requests tab (the per-request ledger), behind the Routes/Requests
+   *  toggle in `MetricsPanel`. */
+  async openRequests(): Promise<void> {
+    await this.page.getByRole("button", { name: "Requests", exact: true }).click();
+    await this.page.locator(".mledger-table tbody tr").first().waitFor();
+  }
+
+  /** The ledger's scroll container. Deliberately a CSS locator: this element
+   *  exists only to bound and scroll the table, so it carries no role and no
+   *  accessible name to target instead — and it is the element under test. */
+  get ledgerScroll(): Locator {
+    return this.page.locator(".mledger-tblwrap");
+  }
+
   /** A row identified by the route it reports, via the data-testid the
    *  rebuild kept (`RouteList.tsx`'s `Row`). Tier 1 still cannot
    *  distinguish rows: a row's accessible name concatenates its every
