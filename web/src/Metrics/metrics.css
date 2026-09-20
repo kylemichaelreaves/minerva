@@ -103,9 +103,20 @@
   gap: 0.9rem;
   padding: 1.25rem;
   font-family: var(--sans);
-  max-width: 1280px;
+  /* 1800, not 1280: at 1280 the route list was capped at 420px and the name
+     column inside it came to ~84px once the severity dot and method badge
+     had taken their share — `conversation delete` wanted 136px and got 62.
+     Raising this alone would NOT have helped, because `.metrics-split` caps
+     the list independently; both moved together. */
+  max-width: 1800px;
   margin: 0 auto;
   width: 100%;
+  /* Queried by `.metrics-split` below. The existing 768px breakpoint keys on
+     the VIEWPORT, but this panel sits inside app chrome ~290px wide, so at a
+     900px viewport the panel is only ~609px — two columns already do not fit
+     and the media query has not fired. Asking the container removes the
+     guesswork. */
+  container-type: inline-size;
 }
 
 /* --- head ------------------------------------------------------------ */
@@ -162,6 +173,13 @@
 
 /* --- verdict --------------------------------------------------------- */
 
+/* The one thing that should NOT use the full width: the verdict is prose,
+   and a 1760px line is a worse read than a clipped name. Everything else on
+   this surface is tabular and benefits from the room. */
+.metrics-verdict {
+  max-width: 88ch;
+}
+
 .metrics-verdict {
   display: flex;
   align-items: flex-start;
@@ -211,7 +229,9 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(320px, 420px) 1fr;
+  /* The list column has to grow with the panel or the extra width all goes
+     to the chart and the route names stay clipped. */
+  grid-template-columns: minmax(320px, 500px) 1fr;
   gap: 1.25rem;
 }
 
@@ -219,6 +239,21 @@
    narrow gutter beside an empty half-page. */
 .metrics-split:not(.detail-open) {
   grid-template-columns: minmax(320px, 640px);
+}
+
+/* One column once the PANEL is too narrow for two, whatever the viewport is
+   doing. Below this the list gets the full width, so the route names stop
+   competing with a detail pane that had nowhere to live either. */
+@container (max-width: 900px) {
+  .metrics-split,
+  .metrics-split:not(.detail-open) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metrics-routes {
+    border-right: none;
+    padding-right: 0;
+  }
 }
 
 .metrics-routes {
