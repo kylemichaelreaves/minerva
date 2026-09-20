@@ -543,6 +543,19 @@ def summary(
 
     Without *label*, returns whole-request rows only (`span = ''`). With
     *label*, returns that route's sub-spans instead — the drill-down.
+
+    **`p50_ms` / `p95_ms` / `p99_ms` are ESTIMATES; `min_ms` / `max_ms` are
+    exact.** The quantiles are interpolated from 14 log-scale buckets, so a
+    quantile can report a duration the corpus never contained — on live data
+    p99 exceeds max on 8 of 24 routes. A 116 ms request lands in the
+    (100, 250] bucket, and with few samples the p99 resolves toward that
+    bucket's top.
+
+    This is arithmetic, not a defect, and it bites only where a quantile and
+    an exact extreme are shown together. Clamping (`min(quantile, max_ms)`)
+    would make them agree at the cost of biasing the tail DOWNWARD — the
+    direction that hides slow routes. See #616 and
+    `tests/test_metrics_quantile_estimates.py`.
     """
 
     span_clause = "span = ''" if label is None else "label = ? AND span != ''"
