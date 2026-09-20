@@ -65,7 +65,9 @@ def test_summary_returns_recorded_routes(deps):
     with deps.metrics.record("works list", "GET") as span:
         span.status = 200
     body = _handle_metrics_summary(deps, {"window": "all"})
-    assert [r["label"] for r in body["rows"]] == ["works list"]
+    # Filtered by kind: the unlabeled summary carries a `ttfe` row and, since
+    # CPU entered the aggregate, a `cpu` row for the same route.
+    assert [r["label"] for r in body["rows"] if r["kind"] == "total"] == ["works list"]
 
 
 def test_series_shape(deps):
@@ -112,7 +114,8 @@ def test_summary_offset_shifts_the_window_back_one_whole_width(deps):
 def test_summary_offset_excludes_rows_recorded_in_the_current_window(deps):
     with deps.metrics.record("works list", "GET") as span:
         span.status = 200
-    assert [r["label"] for r in _handle_metrics_summary(deps, {"window": "1h"})["rows"]] == [
+    rows_1h = _handle_metrics_summary(deps, {"window": "1h"})["rows"]
+    assert [r["label"] for r in rows_1h if r["kind"] == "total"] == [
         "works list"
     ]
     prior = _handle_metrics_summary(deps, {"window": "1h", "offset": "1"})

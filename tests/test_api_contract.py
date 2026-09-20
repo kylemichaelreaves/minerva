@@ -16,6 +16,7 @@ from minerva.http.handlers import (
     _handle_concordance_lemma,
     _handle_health,
     _handle_landing_stats,
+    _handle_metrics_requests,
     _handle_metrics_series,
     _handle_metrics_summary,
     _handle_network_summary,
@@ -166,6 +167,13 @@ def test_metrics_series_contract(populated_db):
     body = _handle_metrics_series(deps, {"label": "works list", "window": "24h"})
     _assert_has_keys(body, _load_keys("metrics_series.keys.json"))
     assert isinstance(body["points"], list)
+
+
+def test_metrics_requests_contract(populated_db):
+    deps = make_deps(populated_db, StubBackend())
+    body = _handle_metrics_requests(deps, {"window": "24h"})
+    _assert_has_keys(body, _load_keys("metrics_requests.keys.json"))
+    assert isinstance(body["rows"], list)
 
 
 def test_concordance_lemma_contract(populated_db):

@@ -27,6 +27,19 @@ _log = logging.getLogger(__name__)
 # Per-thread by construction: each thread gets its own top-level Context,
 # which is what makes this safe under ThreadingHTTPServer. Threading the
 # span through every handler signature would be the alternative.
+# CPU time comes from `thread_time`, which is scoped to the calling thread.
+# NOT `process_time`: that is process-wide, and this server runs one thread per
+# request, so a span would absorb every concurrent request's CPU. Measured with
+# three neighbours, a span using 12.5 ms of CPU reported 56.5 ms — and the error
+# is directional, turning a WAITING phase into a CPU-bound one exactly when the
+# server is busy.
+#
+# `thread_time` is not on every platform. Absent, CPU capture turns off; it does
+# NOT fall back to `process_time`, because a confidently wrong number is worse
+# here than no number.
+_THREAD_TIME: Callable[[], float] | None = getattr(time, "thread_time", None)
+
+
 _CURRENT: contextvars.ContextVar[Span | None] = contextvars.ContextVar(
     "minerva_metrics_span", default=None
 )
@@ -45,7 +58,11 @@ def current_span() -> Span | None:
 class Span:
     """One in-flight request. Mutable; the dispatch site sets `status`."""
 
-    __slots__ = ("_clock", "_subs", "_t0", "_ttfe_ms", "id", "label", "method", "status")
+    __slots__ = (
+        "_clock", "_cpu0", "_subs", "_subs_cpu", "_t0", "_ttfe_ms",
+        "id", "label", "method", "sql_prefix", "sqlite_ms", "sqlite_queries",
+        "status",
+    )
 
     def __init__(self, label: str, method: str, clock: Callable[[], float]) -> None:
         # Random, not a counter: a counter restarts at the same value in the
@@ -60,9 +77,49 @@ class Span:
         self._t0 = clock()
         self._ttfe_ms: float | None = None
         self._subs: list[tuple[str, float]] = []
+        # Parallel to `_subs`, keyed by name, rather than widening the tuple:
+        # every consumer of `_subs` unpacks exactly two elements, and the
+        # backward-compatibility constraint rules a third out.
+        self._subs_cpu: dict[str, float] = {}
+        self._cpu0: float | None = _THREAD_TIME() if _THREAD_TIME else None
+        # Database time is a sum over many DISJOINT intervals, not one
+        # contiguous phase — which is why it is its own field rather than a
+        # `sub_span`. Putting it in `phases` would make the waterfall's
+        # ordering a lie.
+        self.sqlite_ms: float = 0.0
+        self.sqlite_queries: int = 0
+        # Built ONCE, here, and reused for every statement this request
+        # issues. Interpolating a fresh id per query would make each statement
+        # a distinct SQL string and defeat Python's prepared-statement cache:
+        # measured at 5.88x on a point lookup (0.59 -> 3.49 us). Constant
+        # within a request, repeated shapes still hit the cache.
+        self.sql_prefix: str = f"/*request_id='{self.id}'*/ "
 
     def elapsed_ms(self) -> float:
         return (self._clock() - self._t0) * 1000.0
+
+    @property
+    def cpu_ms(self) -> float | None:
+        """CPU this request's thread has used, or None when unmeasurable.
+
+        None and 0.0 are different answers — "not measured" versus "measured,
+        and it was idle" — and a reader cannot tell them apart if both render
+        as zero. Callers must preserve the distinction.
+        """
+
+        if self._cpu0 is None or _THREAD_TIME is None:
+            return None
+        return (_THREAD_TIME() - self._cpu0) * 1000.0
+
+    def add_db(self, ms: float) -> None:
+        """Accumulate one statement's duration. Called from the connection
+        layer, so no handler has to know it is being measured."""
+
+        self.sqlite_ms += ms
+        self.sqlite_queries += 1
+
+    def add_sub_cpu(self, name: str, ms: float) -> None:
+        self._subs_cpu[name] = self._subs_cpu.get(name, 0.0) + ms
 
     def first_event(self) -> None:
         """Mark time-to-first-event. Called from every SSE write; only the
@@ -76,19 +133,43 @@ class Span:
 
 
 @contextlib.contextmanager
-def sub_span(name: str, *, clock: Callable[[], float] = time.perf_counter) -> Iterator[None]:
-    """Time a named step inside the active request. A no-op with no request
-    in flight, so the same code path stays usable from the CLI."""
+def sub_span(
+    name: str,
+    *,
+    clock: Callable[[], float] | None = None,
+    cpu_clock: Callable[[], float] | None = None,
+) -> Iterator[None]:
+    """Time a named step inside the active request, in wall AND cpu time.
+
+    A no-op with no request in flight, so the same code path stays usable from
+    the CLI.
+
+    Both clocks default to None and are resolved HERE rather than in the
+    signature. A default bound in the signature is evaluated at import, so
+    monkeypatching `time.perf_counter` afterwards never reached it — which is
+    the trap the audit recorded and Phase 1 deferred to this phase.
+
+    One limitation, stated rather than hidden: `llm_call` wraps a generator
+    that yields across `_send_sse`'s loop, so on a streaming call the consumer
+    runs on this same thread between yields and its work lands in this span's
+    `cpu_ms`. Thread-scoped CPU cannot separate them. The wall time is exact;
+    the CPU time is an upper bound for that one span.
+    """
 
     span = _CURRENT.get()
     if span is None:
         yield
         return
-    t0 = clock()
+    wall = clock or time.perf_counter
+    cpu = cpu_clock or _THREAD_TIME
+    t0 = wall()
+    c0 = cpu() if cpu else None
     try:
         yield
     finally:
-        span.add_sub(name, (clock() - t0) * 1000.0)
+        span.add_sub(name, (wall() - t0) * 1000.0)
+        if cpu is not None and c0 is not None:
+            span.add_sub_cpu(name, (cpu() - c0) * 1000.0)
 
 
 class Recorder:
@@ -160,6 +241,37 @@ class Recorder:
             Sample(at, span.label, span.method, "total", name, status_class, ms)
             for name, ms in span._subs
         )
+        # CPU in the AGGREGATE as well as per request. The interesting
+        # question is per ROUTE — one request being CPU-bound says little,
+        # while "this route is CPU-bound across 500 requests" is actionable.
+        # A new `kind` VALUE in the existing columns, so the schema is
+        # untouched and every existing consumer keeps working.
+        #
+        # Emitted only when measured: where `thread_time` is unavailable
+        # there is no measurement, and a 0 ms row would assert one.
+        cpu_ms = span.cpu_ms
+        if cpu_ms is not None:
+            samples.append(
+                Sample(at, span.label, span.method, "cpu", "", status_class, cpu_ms)
+            )
+            samples.extend(
+                Sample(at, span.label, span.method, "cpu", name, status_class, ms)
+                for name, ms in span._subs_cpu.items()
+            )
+        # Database time as its own span. In an aggregate the rows are shares
+        # of a p95 rather than a timeline, so the "disjoint intervals" reason
+        # for keeping it out of `phases` per-request does not apply here.
+        #
+        # Only when the route actually touched the database: a 0 ms bar in
+        # the waterfall is noise, and absence reads correctly as "no database
+        # time recorded for this route".
+        if span.sqlite_queries:
+            samples.append(
+                Sample(
+                    at, span.label, span.method, "total", "sqlite",
+                    status_class, span.sqlite_ms,
+                )
+            )
         self._ring.append(
             {
                 "at": at,
@@ -184,6 +296,10 @@ class Recorder:
             total_ms=total_ms,
             accounted_ms=sum(ms for _, ms in span._subs),
             phases=list(span._subs),
+            phase_cpu=dict(span._subs_cpu),
+            cpu_ms=span.cpu_ms,
+            sqlite_ms=span.sqlite_ms,
+            sqlite_queries=span.sqlite_queries,
         )
         try:
             with self._lock:

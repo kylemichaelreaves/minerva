@@ -38,7 +38,10 @@ def test_records_a_total_sample(conn):
     with rec.record("work range", "GET") as span:
         clock.advance(0.020)
         span.status = 200
-    row = conn.execute("SELECT kind, count, sum_ms FROM request_timings").fetchone()
+    # By kind, not the first row: a request now also writes a `cpu` row.
+    row = conn.execute(
+        "SELECT kind, count, sum_ms FROM request_timings WHERE kind = 'total'"
+    ).fetchone()
     assert row[0] == "total"
     assert row[1] == 1
     assert row[2] == pytest.approx(20.0)

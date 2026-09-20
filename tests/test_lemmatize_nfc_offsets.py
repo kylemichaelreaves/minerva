@@ -247,6 +247,10 @@ def test_stanza_tokens_are_skipped_when_the_map_refuses():
 class _RecordingLemmatizer:
     """Real ``batch_pipe`` / ``_tokens_from_spacy_doc`` over a fake
     pipeline, so the whole chain from the SELECT to the INSERT runs."""
+    # The real Lemmatizer exposes these, and the pipeline-stats key is
+    # built from them. A stub without them is an incomplete stand-in.
+    backend = "stub"
+    model = "stub"
 
     instances: ClassVar[list[_RecordingLemmatizer]] = []
 

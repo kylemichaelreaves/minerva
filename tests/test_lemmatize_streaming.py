@@ -31,6 +31,12 @@ class _StubLemmatizer:
     dependency surface while still exercising ``batch_pipe``'s
     contract (consume the items generator, yield ``(tokens, ctx)``)."""
 
+    # The real Lemmatizer exposes these, and the pipeline-stats key
+    # is built from them. A stub without them is an incomplete stand-in,
+    # not a reason for production to use getattr.
+    backend = "stub"
+    model = "stub"
+
     seen: ClassVar[list[str]] = []
 
     def __init__(self, lang: str) -> None:

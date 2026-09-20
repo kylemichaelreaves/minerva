@@ -75,7 +75,18 @@ CREATE TABLE IF NOT EXISTS request_spans (
     -- ALTER. Also: only 0.22% of observed requests carry any phase, so a
     -- child table would be empty for almost every row. json_each keeps it
     -- queryable; see notes/phase-1-plan.md for the measurements.
-    phases        TEXT    NOT NULL
+    phases        TEXT    NOT NULL,
+    -- NULLABLE on purpose. NULL means "not measured" (no `time.thread_time`
+    -- on this platform, or a row written before Phase 2); 0.0 means "measured,
+    -- and the request used no CPU". Collapsing the two would make a missing
+    -- clock indistinguishable from an idle request.
+    cpu_ms        REAL,
+    -- Database time, summed over every statement the request issued, and the
+    -- count so a mean is derivable. Nullable for the same reason as cpu_ms:
+    -- a route that genuinely touches no database must not be indistinguishable
+    -- from a row written before this was measured.
+    sqlite_ms     REAL,
+    sqlite_queries INTEGER
 );
 CREATE INDEX IF NOT EXISTS request_spans_at ON request_spans(at);
 -- `total_ms DESC` keeps "the slowest N" flat as the table grows: measured
@@ -85,6 +96,53 @@ CREATE INDEX IF NOT EXISTS request_spans_slow ON request_spans(total_ms DESC);
 -- millions and takes the json_each rollup from 170ms to 15ms at 5M rows.
 CREATE INDEX IF NOT EXISTS request_spans_phased ON request_spans(at)
     WHERE phases != '[]';
+
+-- Batch-pipeline distributions (Phase 5). Its own table, not `request_timings`:
+-- that one's vocabulary is route/method/status and a pipeline run has none of
+-- them, so `label` would mean two different things depending on the row.
+--
+-- One row per (run, lang, backend, model, kind). 428,982 chunks fold into a
+-- handful of rows, which is the point — a distribution across the corpus, not
+-- a log of runs. `backend` is in the key because spaCy falls back to Stanza
+-- when a model is missing, and the two are different populations.
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    at        REAL    NOT NULL,
+    pipeline  TEXT    NOT NULL,
+    lang      TEXT    NOT NULL,
+    backend   TEXT    NOT NULL,
+    model     TEXT    NOT NULL,
+    kind      TEXT    NOT NULL,
+    -- Observations folded in: BATCHES for `batch_duration`, CHUNKS for
+    -- `tokens`. `items` is the chunks a duration row covers, which is what
+    -- makes throughput derivable — a batch duration alone cannot say
+    -- chunks-per-second.
+    count     INTEGER NOT NULL,
+    items     INTEGER NOT NULL DEFAULT 0,
+    sum       REAL    NOT NULL,
+    min       REAL    NOT NULL,
+    max       REAL    NOT NULL,
+    {_BUCKET_DECLS}
+);
+CREATE INDEX IF NOT EXISTS pipeline_runs_at ON pipeline_runs(at);
+
+-- One row per source per ingest run. Its own table, not `pipeline_runs`: a
+-- source has no language, engine or model, and one elapsed per run is a
+-- scalar rather than a distribution.
+--
+-- `status` is not decoration. A skipped source returns elapsed=0, and without
+-- it that row reads as a source which suddenly became instant.
+CREATE TABLE IF NOT EXISTS ingest_runs (
+    at         REAL    NOT NULL,
+    run_id     TEXT    NOT NULL,
+    source_id  TEXT    NOT NULL,
+    status     TEXT    NOT NULL,
+    elapsed_ms REAL    NOT NULL,
+    chunks     INTEGER NOT NULL,
+    error      TEXT
+);
+-- (source_id, at) rather than (at): the query is always "this source, over
+-- time", which is the whole feature.
+CREATE INDEX IF NOT EXISTS ingest_runs_source ON ingest_runs(source_id, at);
 """
 
 
@@ -113,6 +171,12 @@ class RequestRow:
     total_ms: float
     accounted_ms: float
     phases: list[tuple[str, float]]
+    # name -> cpu ms. Parallel to `phases` rather than widening its tuples:
+    # every existing consumer unpacks exactly two elements.
+    phase_cpu: dict[str, float] = dataclasses.field(default_factory=dict)
+    cpu_ms: float | None = None
+    sqlite_ms: float | None = None
+    sqlite_queries: int | None = None
 
 
 def open_db(
@@ -134,9 +198,52 @@ def open_db(
     from ..sqlite_util import open_sqlite
 
     conn = open_sqlite(path, SCHEMA, check_same_thread=check_same_thread)
+    # WAL, because every metrics write is one transaction ON THE REQUEST PATH
+    # and the SQLite default fsyncs a rollback journal for each. Measured on
+    # this schema, 20,000 insert+commit:
+    #
+    #     DELETE + synchronous=FULL   315.43 us
+    #     WAL    + synchronous=FULL    57.34 us      5.5x
+    #
+    # FULL-to-FULL, so durability is unchanged. `synchronous=NORMAL` would buy
+    # another 24 us and is deliberately not taken.
+    #
+    # Journal mode is a property of the FILE, so this converts an existing
+    # `delete`-mode database rather than applying only to fresh ones. It is
+    # also not novel here: `data/index.sqlite` has been WAL all along
+    # (cli/terms/__init__.py). Scoped to the metrics DB — the other three
+    # satellites have not been measured (#617).
+    conn.execute("PRAGMA journal_mode = WAL")
+    _add_missing_columns(conn)
     if retain_days is not None:
         prune(conn, retain_days=retain_days)
     return conn
+
+
+# Columns added to `request_spans` after #619 shipped it. `CREATE TABLE IF NOT
+# EXISTS` does nothing to a table that already exists, so a database in the
+# wild keeps the old shape unless something adds them.
+_ADDED_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("cpu_ms", "REAL"),
+    ("sqlite_ms", "REAL"),
+    ("sqlite_queries", "INTEGER"),
+)
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    """Bring an existing `request_spans` up to the current column set.
+
+    Additive only, and every added column is nullable with no default, so old
+    rows read as NOT MEASURED rather than as a measured zero.
+    """
+
+    have = {r[1] for r in conn.execute("PRAGMA table_info(request_spans)")}
+    missing = [(n, decl) for n, decl in _ADDED_COLUMNS if n not in have]
+    if not missing:
+        return
+    with conn:
+        for name, decl in missing:
+            conn.execute(f"ALTER TABLE request_spans ADD COLUMN {name} {decl}")
 
 
 def prune(conn: sqlite3.Connection, *, retain_days: int, now: float | None = None) -> int:
@@ -198,12 +305,23 @@ def write(conn: sqlite3.Connection, samples: Sequence[Sample]) -> None:
 def _insert_span(conn: sqlite3.Connection, row: RequestRow) -> None:
     conn.execute(
         "INSERT OR REPLACE INTO request_spans"
-        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
-        " VALUES (?,?,?,?,?,?,?,?)",
+        " (id, at, label, method, status, total_ms, accounted_ms, phases, cpu_ms,"
+        "  sqlite_ms, sqlite_queries)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (
             row.id, row.at, row.label, row.method, row.status,
             row.total_ms, row.accounted_ms,
-            json.dumps([{"name": n, "ms": ms} for n, ms in row.phases]),
+            json.dumps(
+                [
+                    # `cpu_ms` omitted entirely when unmeasured, so a reader can
+                    # tell it apart from a measured zero.
+                    {"name": n, "ms": ms, **({"cpu_ms": row.phase_cpu[n]} if n in row.phase_cpu else {})}
+                    for n, ms in row.phases
+                ]
+            ),
+            row.cpu_ms,
+            row.sqlite_ms,
+            row.sqlite_queries,
         ),
     )
 
@@ -222,6 +340,196 @@ def write_request(
     with conn:
         _fold_samples(conn, samples)
         _insert_span(conn, row)
+
+
+# Retention is uncapped by design, so `request_spans` is expected to reach
+# years. A caller-supplied `limit` is therefore clamped rather than trusted:
+# without this, one query string could materialise the whole table.
+REQUESTS_MAX_LIMIT = 500
+
+
+def requests(
+    conn: sqlite3.Connection,
+    *,
+    since: float,
+    until: float,
+    label: str | None = None,
+    method: str | None = None,
+    errors_only: bool = False,
+    phased_only: bool = False,
+    limit: int = 200,
+    before_at: float | None = None,
+    before_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Per-request rows, newest first.
+
+    Filtering happens in SQL, not in the caller: every filter here has an
+    index behind it, and `phased_only` deliberately uses `phases != '[]'` —
+    the exact predicate `request_spans_phased` is built on, so the filter the
+    UI offers is one the index can serve.
+    """
+
+    where = ["at >= ?", "at < ?"]
+    params: list[Any] = [since, until]
+    if label:
+        where.append("label = ?")
+        params.append(label)
+    if method:
+        where.append("method = ?")
+        params.append(method)
+    if errors_only:
+        where.append("status >= 400")
+    if phased_only:
+        where.append("phases != '[]'")
+    # Keyset, not offset. The table is append-only and sorted newest-first, so
+    # an offset drifts: rows arriving between two fetches push the window down
+    # and the reader sees the same request on consecutive pages. A cursor names
+    # a position in the ordering instead.
+    #
+    # The `id` tiebreak is not decorative — `at` is a float from `time.time()`
+    # and two requests can share one. A cursor on `at` alone would drop
+    # whichever of them sat on the boundary.
+    if before_at is not None and before_id is not None:
+        where.append("(at < ? OR (at = ? AND id < ?))")
+        params.extend([before_at, before_at, before_id])
+    params.append(max(1, min(limit, REQUESTS_MAX_LIMIT)))
+
+    sql = (
+        "SELECT id, at, label, method, status, total_ms, accounted_ms, phases,"
+        " cpu_ms, sqlite_ms, sqlite_queries"
+        f" FROM request_spans WHERE {' AND '.join(where)}"
+        # `id DESC` alongside `at DESC` so the ordering is total: the cursor
+        # above can only be resumed from if equal timestamps have a stable
+        # order to resume within.
+        " ORDER BY at DESC, id DESC LIMIT ?"
+    )
+    out: list[dict[str, Any]] = []
+    for row in conn.execute(sql, params):
+        (rid, at, lbl, meth, status, total_ms, accounted_ms, phases,
+         cpu_ms, sqlite_ms, sqlite_queries) = row
+        out.append(
+            {
+                "id": rid,
+                "at": at,
+                "label": lbl,
+                "method": meth,
+                "status": status,
+                "total_ms": total_ms,
+                "accounted_ms": accounted_ms,
+                # Derived at read time from the measured numbers. Database
+                # time is subtracted as well as the phases: Phase 3 knows
+                # where that time went, and leaving it in made a request that
+                # was ENTIRELY SQLite report 100% unexplained.
+                #
+                # Safe to subtract both because they are disjoint. Of the
+                # three instrumented spans, `llm_call` is an HTTP call,
+                # `stanza_parse` is NLP, and `embed_search` wraps a numpy
+                # search over an already-loaded matrix — none touches a
+                # connection, so no statement is counted twice.
+                #
+                # The clamp is a DETECTOR for that assumption expiring: a
+                # zero here while `total_ms` is larger means a span has begun
+                # wrapping database work and the two overlap.
+                "unaccounted_ms": max(
+                    0.0, total_ms - accounted_ms - (sqlite_ms or 0.0)
+                ),
+                "phases": json.loads(phases),
+                # None, not 0: "not measured" is a different answer from
+                # "measured, and idle".
+                "cpu_ms": cpu_ms,
+                "sqlite_ms": sqlite_ms,
+                "sqlite_queries": sqlite_queries,
+            }
+        )
+    return out
+
+
+def write_pipeline_rows(conn: sqlite3.Connection, rows: Sequence[Any]) -> None:
+    """Append one run's distributions. Appends rather than upserts: history
+    across runs is the point, so last-run-wins would discard it."""
+
+    if not rows:
+        return
+    placeholders = ", ".join("?" * (11 + BUCKET_COUNT))
+    sql = (
+        f"INSERT INTO pipeline_runs (at, pipeline, lang, backend, model, kind,"
+        f" count, items, sum, min, max, {_BUCKET_COLS}) VALUES ({placeholders})"
+    )
+    with conn:
+        conn.executemany(
+            sql,
+            [
+                (
+                    r.at, r.pipeline, r.lang, r.backend, r.model, r.kind,
+                    r.count, r.items, r.sum, r.min, r.max, *r.buckets,
+                )
+                for r in rows
+            ],
+        )
+
+
+def pipeline_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Stored distributions, newest first, with quantiles recovered."""
+
+    sql = (
+        f"SELECT at, pipeline, lang, backend, model, kind, count, items,"
+        f" sum, min, max, {_BUCKET_COLS} FROM pipeline_runs"
+        f" ORDER BY at DESC, lang, kind"
+    )
+    out: list[dict[str, Any]] = []
+    for row in conn.execute(sql):
+        (at, pipeline, lang, backend, model, kind,
+         count, items, total, lo, hi) = row[:11]
+        buckets = list(row[11:])
+        out.append(
+            {
+                "at": at, "pipeline": pipeline, "lang": lang, "backend": backend,
+                "model": model, "kind": kind, "count": count, "sum": total,
+                "min": lo, "max": hi, "items": items,
+                "mean": total / count if count else 0.0,
+                # Chunks per second, only meaningful for a duration row.
+                "items_per_s": (items / (total / 1000.0)) if total else 0.0,
+                **_quantiles(buckets),
+            }
+        )
+    return out
+
+
+def write_ingest_runs(conn: sqlite3.Connection, rows: Sequence[Any]) -> None:
+    """Append one invocation's per-source outcomes."""
+
+    if not rows:
+        return
+    with conn:
+        conn.executemany(
+            "INSERT INTO ingest_runs"
+            " (at, run_id, source_id, status, elapsed_ms, chunks, error)"
+            " VALUES (?,?,?,?,?,?,?)",
+            [
+                (r.at, r.run_id, r.source_id, r.status, r.elapsed_ms, r.chunks, r.error)
+                for r in rows
+            ],
+        )
+
+
+def ingest_runs(
+    conn: sqlite3.Connection, *, source_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Per-source ingest history, newest first."""
+
+    where = " WHERE source_id = ?" if source_id else ""
+    params = (source_id,) if source_id else ()
+    sql = (
+        "SELECT at, run_id, source_id, status, elapsed_ms, chunks, error"
+        f" FROM ingest_runs{where} ORDER BY at DESC, source_id"
+    )
+    return [
+        {
+            "at": at, "run_id": run_id, "source_id": sid, "status": status,
+            "elapsed_ms": ms, "chunks": chunks, "error": err,
+        }
+        for at, run_id, sid, status, ms, chunks, err in conn.execute(sql, params)
+    ]
 
 
 def _quantiles(buckets: list[int]) -> dict[str, float]:
@@ -265,6 +573,19 @@ def summary(
 
     Without *label*, returns whole-request rows only (`span = ''`). With
     *label*, returns that route's sub-spans instead — the drill-down.
+
+    **`p50_ms` / `p95_ms` / `p99_ms` are ESTIMATES; `min_ms` / `max_ms` are
+    exact.** The quantiles are interpolated from 14 log-scale buckets, so a
+    quantile can report a duration the corpus never contained — on live data
+    p99 exceeds max on 8 of 24 routes. A 116 ms request lands in the
+    (100, 250] bucket, and with few samples the p99 resolves toward that
+    bucket's top.
+
+    This is arithmetic, not a defect, and it bites only where a quantile and
+    an exact extreme are shown together. Clamping (`min(quantile, max_ms)`)
+    would make them agree at the cost of biasing the tail DOWNWARD — the
+    direction that hides slow routes. See #616 and
+    `tests/test_metrics_quantile_estimates.py`.
     """
 
     span_clause = "span = ''" if label is None else "label = ? AND span != ''"
@@ -351,6 +672,19 @@ def series(
 
 
 __all__ = [
-    "BUCKET_SECONDS", "SCHEMA", "RequestRow", "Sample", "open_db", "series",
-    "summary", "write", "write_request",
+    "BUCKET_SECONDS",
+    "REQUESTS_MAX_LIMIT",
+    "SCHEMA",
+    "RequestRow",
+    "Sample",
+    "ingest_runs",
+    "open_db",
+    "pipeline_runs",
+    "requests",
+    "series",
+    "summary",
+    "write",
+    "write_ingest_runs",
+    "write_pipeline_rows",
+    "write_request",
 ]
