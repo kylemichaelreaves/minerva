@@ -22,10 +22,25 @@ function ms(v: number): string {
   return `${(v / 1000).toFixed(1)}s`;
 }
 
-function clockOf(at: number): string {
+/** `MM-DD HH:MM:SS`, in UTC.
+ *
+ *  The date is not decoration. The window selector reaches `7d`, `30d` and
+ *  `all`, so a clock alone makes two requests a week apart look like two a
+ *  second apart — and the table is sorted newest-first, which makes that read
+ *  as a burst rather than as history.
+ *
+ *  Shown unconditionally rather than only on windows over a day: a format
+ *  that changes shape with the selector is one the reader has to re-learn
+ *  each time, and the cost here is five characters.
+ *
+ *  UTC, like the rest of this surface. A local date beside a UTC clock would
+ *  be worse than either alone, and at 23:30Z they disagree about the day.
+ */
+function stampOf(at: number): string {
   const d = new Date(at * 1000);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+  const date = `${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+  return `${date} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
 
 function toneOf(status: number): string {
@@ -114,7 +129,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                     aria-selected={selected() === r.id}
                     classList={{ sel: selected() === r.id }}
                   >
-                    <td class="num dim">{clockOf(r.at)}</td>
+                    <td class="num dim">{stampOf(r.at)}</td>
                     <td>
                       {r.label} <span class="mledger-meth">{r.method}</span>
                     </td>
@@ -145,7 +160,9 @@ export function RequestLedger(props: { window: MetricWindow }) {
             <Show when={chosen()} fallback={<p class="mledger-msg">Select a request.</p>}>
               {(r) => (
                 <>
-                  <p class="mledger-id num">{r().id}</p>
+                  <p class="mledger-id num">
+                    {r().id} · {stampOf(r().at)} UTC
+                  </p>
                   <h3>{r().label}</h3>
                   <dl class="mledger-tiles">
                     <div>
