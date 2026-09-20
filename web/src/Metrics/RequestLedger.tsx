@@ -7,6 +7,7 @@ import {
   type MetricWindow,
 } from "../api/metricsApi";
 import { cpuVerdict } from "./cpu";
+import { firstLoad, refreshing } from "~/Metrics/resourceState";
 
 /** One row per request, from `request_spans` (#619).
  *
@@ -119,7 +120,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 setErrorsOnly(e.currentTarget.checked);
               });
             }}
-          />
+          />{" "}
           Errors only
         </label>
         <label class="mledger-chk">
@@ -133,11 +134,14 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 setPhasedOnly(e.currentTarget.checked);
               });
             }}
-          />
+          />{" "}
           Has a phase
         </label>
-        <Show when={!rows.loading && !rows.error}>
-          <span class="mledger-count">
+        {/* `firstLoad`, not `rows.loading`: on a window switch the count was
+            unmounted and remounted 17ms later, blinking for no reason. The
+            previous count, dimmed, is a better thing to show than nothing. */}
+        <Show when={!firstLoad(rows) && !rows.error}>
+          <span classList={{ "mledger-count": true, "metrics-stale": refreshing(rows) }}>
             {list().length} requests{hasMore() ? "+" : ""}
           </span>
         </Show>
@@ -154,7 +158,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
       </Show>
 
       <Show when={list().length > 0}>
-        <div class="mledger-split">
+        <div classList={{ "mledger-split": true, "metrics-stale": refreshing(rows) }}>
           {/* Bounded and scrolled. Unbounded, a 200-row page is ~6,600px of
               table and the "Load older" control below it sits that far down
               the document — rendered, reachable by a test that only checks
@@ -210,7 +214,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
             </table>
           </div>
 
-          <aside class="mledger-detail" role="region" aria-label="Request detail">
+          <section class="mledger-detail" aria-label="Request detail">
             <Show when={chosen()} fallback={<p class="mledger-msg">Select a request.</p>}>
               {(r) => (
                 <>
@@ -253,8 +257,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                   <Show when={r().sqlite_ms !== null}>
                     <div class="mledger-phase mledger-db">
                       <span>
-                        sqlite
-                        <span class="mledger-tag">connection layer</span>
+                        sqlite <span class="mledger-tag">connection layer</span>
                       </span>
                       <span class="mledger-bar">
                         <i
@@ -304,7 +307,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 </>
               )}
             </Show>
-          </aside>
+          </section>
         </div>
       </Show>
 

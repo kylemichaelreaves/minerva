@@ -26,6 +26,7 @@ import {
 } from "~/api/metricsApi";
 import { RouteDetail, type SpanKind } from "~/Metrics/RouteDetail";
 import { RouteList } from "~/Metrics/RouteList";
+import { firstLoad, refreshing } from "~/Metrics/resourceState";
 import { summarise } from "~/Metrics/severity";
 import { errorMessage } from "~/utils/util";
 import "./metrics.css";
@@ -211,10 +212,10 @@ export function MetricsPanel(props: MetricsPanelProps) {
     <div class="metrics-panel">
       <header class="metrics-head">
         <h1>Request timing</h1>
-        <span class="metrics-sub">
+        <span classList={{ "metrics-sub": true, "metrics-stale": refreshing(summary) }}>
           {WINDOW_PROSE[win()]} · {totalRequests().toLocaleString()} requests
         </span>
-        <div class="metrics-windows" role="group" aria-label="Time window">
+        <fieldset class="metrics-windows" aria-label="Time window">
           <For each={METRIC_WINDOWS}>
             {(w) => (
               <button
@@ -227,7 +228,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
               </button>
             )}
           </For>
-        </div>
+        </fieldset>
       </header>
 
       {/* One recomputable sentence, never prose. Hidden while the fetch
@@ -244,8 +245,8 @@ export function MetricsPanel(props: MetricsPanelProps) {
           to still render. */}
       <MetricsHealthBanner health={summary.error ? undefined : summary()?.health} />
 
-      <Show when={!summary.loading && errorTextOf(summary) === undefined}>
-        <p class="metrics-verdict">
+      <Show when={!firstLoad(summary) && errorTextOf(summary) === undefined}>
+        <p classList={{ "metrics-verdict": true, "metrics-stale": refreshing(summary) }}>
           <span class={`metrics-dot ${graded().verdict.severity}`} aria-hidden="true" />
           <span>
             <b>{graded().verdict.headline}</b> {graded().verdict.detail}
@@ -256,7 +257,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
       {/* A view toggle rather than a second hash route: `readRoute` is already
           over the Sonar complexity limit (#589) and grows a branch per
           surface, so adding one here would make that worse for no gain. */}
-      <div class="metrics-views" role="group" aria-label="Metrics view">
+      <fieldset class="metrics-views" aria-label="Metrics view">
         <button type="button" aria-pressed={view() === "routes"} onClick={() => setView("routes")}>
           Routes
         </button>
@@ -267,7 +268,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
         >
           Requests
         </button>
-      </div>
+      </fieldset>
 
       <Show when={view() === "requests"}>
         <RequestLedger window={win()} />
@@ -277,7 +278,8 @@ export function MetricsPanel(props: MetricsPanelProps) {
         <main classList={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
           <RouteList
             entries={entries()}
-            loading={summary.loading}
+            loading={firstLoad(summary)}
+            stale={refreshing(summary)}
             errorText={errorTextOf(summary)}
             selectedLabel={selectedLabel()}
             onSelect={selectLabel}
@@ -288,6 +290,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
               <RouteDetail
                 label={entry().row.label}
                 method={entry().row.method}
+                stale={refreshing(summary) || refreshing(series) || refreshing(detail)}
                 row={activeRow()}
                 prior={activePrior()}
                 windowLabel={WINDOW_LABELS[win()]}
@@ -297,10 +300,10 @@ export function MetricsPanel(props: MetricsPanelProps) {
                 onBack={() => selectLabel(undefined)}
                 seriesPoints={seriesPoints()}
                 seriesBucketSeconds={seriesBucketSeconds()}
-                seriesLoading={series.loading}
+                seriesLoading={firstLoad(series)}
                 seriesErrorText={errorTextOf(series)}
                 detailRows={detailRows()}
-                detailLoading={detail.loading}
+                detailLoading={firstLoad(detail)}
                 detailErrorText={errorTextOf(detail)}
               />
             )}

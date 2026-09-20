@@ -111,9 +111,15 @@ each had looked in only one of the two places.
 ### Browser tests
 
 `web/tests/browser/` runs under Playwright against the production bundle
-served by the real server. Five regression tests plus a smoke check,
-Chromium only, in the `web · e2e` job.
-Run locally with `make test-browser`.
+served by the real server. Regression tests plus a smoke check, Chromium
+only, in the `web · e2e` job. Run locally with `make test-browser`.
+
+The count is not quoted here because it rots — it read "five" for a while
+after it was fourteen. Ask the runner instead:
+
+```
+cd web && npx playwright test --list | tail -1
+```
 
 **Locators, in order. Reach lower only when every tier above genuinely
 cannot distinguish the target.**
@@ -135,6 +141,23 @@ locates by `.st-btn` plus `buttons[0]`/`buttons[1]`. That suite is not being
 converted, but do not "fix" the browser suite to match it — locating by class
 and index is why #594 went unnoticed for the life of the component: nothing
 ever consulted an accessible name.
+
+**Asserting on a state that passes through, read it once and do not let
+the matcher wait.** Playwright's `expect(locator)` matchers retry until
+their timeout, which is right for "this will appear" and wrong for "this
+must never disappear": against a build where the Requests count unmounted
+for 251ms during a refetch, `await expect(count).toHaveCount(1)` waited the
+absence out and went green. `await locator.count()` reads once and caught
+it. The same shape bit the pagination check one PR earlier — `isVisible()`
+means "has a non-empty bounding box", and returned `true` for a control
+6,600px below the fold; `boundingBox().y` against the viewport height is the
+honest read.
+
+Pair that with a deterministic window rather than a sleep: hold the request
+open in a `page.route` handler until the assertions are done (see
+`metricsWindowSwitch.spec.ts`), and sync on two `requestAnimationFrame`s so
+the render has landed. Do not release the handler with `page.unroute` while
+a request is parked in it — that fails with "Route is already handled!".
 
 **A flaky browser test is a defective test. Delete it; do not retry it.**
 `retries: 0` is permanent. The first flaky red becomes a re-run, and once
