@@ -113,6 +113,7 @@ def test_request_timings_is_still_written_and_unchanged(conn):
         span.status = 200
     row = conn.execute(
         "SELECT label, method, kind, span, count FROM request_timings"
+        " WHERE kind = 'total' AND span = ''"
     ).fetchone()
     assert row == ("works list", "GET", "total", "", 1)
 

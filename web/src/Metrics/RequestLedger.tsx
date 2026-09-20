@@ -1,6 +1,7 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 
 import { fetchMetricsRequests, type MetricsRequestRow, type MetricWindow } from "../api/metricsApi";
+import { cpuVerdict } from "./cpu";
 
 /** One row per request, from `request_spans` (#619).
  *
@@ -25,22 +26,6 @@ function clockOf(at: number): string {
   const d = new Date(at * 1000);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
-}
-
-/** The design's thresholds (obs-render.js), not invented here.
- *
- *  Returns undefined when CPU was not measured — `time.thread_time` is not on
- *  every platform and pre-Phase-2 rows carry no value. Rendering that as
- *  "0ms, waiting" would assert a measurement nobody took, which is the same
- *  mistake the health block exists to prevent one level up.
- */
-function cpuVerdict(wall: number, cpu: number | null | undefined): string | undefined {
-  if (cpu === null || cpu === undefined) return undefined;
-  if (wall <= 0) return undefined;
-  const ratio = cpu / wall;
-  if (ratio > 0.6) return "cpu-bound";
-  if (ratio < 0.1) return "waiting";
-  return "mixed";
 }
 
 function toneOf(status: number): string {
