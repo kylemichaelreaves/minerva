@@ -9,6 +9,7 @@
 import { For, Show } from "solid-js";
 import type { MetricsSummaryRow } from "~/api/metricsApi";
 import type { SpanKind } from "~/Metrics/RouteDetail";
+import { cpuVerdict } from "~/Metrics/cpu";
 
 /** A span's p95 as a fraction of the route's. Verified against the
  *  source design's own fixture data, which carries both the millisecond
@@ -34,9 +35,31 @@ export interface SpanWaterfallProps {
   spanKind?: SpanKind;
 }
 
+/** Wall rows only.
+ *
+ *  `summary(label=...)` filters on `span != ''` and NOT on kind, so since CPU
+ *  joined `request_timings` the drill-down returns a wall row and a cpu row
+ *  for each span. Rendering the list unfiltered draws every span twice.
+ */
+export function wallRows(rows: MetricsSummaryRow[]): MetricsSummaryRow[] {
+  return rows.filter((r) => r.kind !== "cpu");
+}
+
+/** CPU p95 by span name. A span with no entry was not measured — which is a
+ *  different answer from zero, and must not render as one. */
+export function cpuByName(rows: MetricsSummaryRow[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.kind === "cpu" && r.span) out[r.span] = r.p95_ms;
+  }
+  return out;
+}
+
 export function SpanWaterfall(props: SpanWaterfallProps) {
   const pct = (row: MetricsSummaryRow): number =>
     Math.round(spanShare(row.p95_ms, props.totalP95) * 100);
+  const walls = () => wallRows(props.rows);
+  const cpu = () => cpuByName(props.rows);
 
   return (
     // Named for the same reason #595 named the sub-span table this
@@ -49,14 +72,26 @@ export function SpanWaterfall(props: SpanWaterfallProps) {
       </div>
 
       <Show
-        when={props.rows.length > 0}
+        when={walls().length > 0}
         fallback={<p class="metrics-empty-inline">No sub-spans recorded for this route.</p>}
       >
         <div class="metrics-wf">
-          <For each={props.rows}>
+          <For each={walls()}>
             {(row) => (
               <>
-                <span class="metrics-wf-name">{row.span}</span>
+                <span class="metrics-wf-name">
+                  {row.span}
+                  {/* Database time is measured at the connection layer
+                      rather than by a span at a call site, so it is tagged
+                      differently — it is a sum over many statements, not one
+                      instrumented interval. */}
+                  <Show when={row.span === "sqlite"}>
+                    <span class="metrics-wf-tag">connection layer</span>
+                  </Show>
+                  <Show when={cpuVerdict(row.p95_ms, cpu()[row.span])}>
+                    {(v) => <span class="metrics-wf-cpu">{v()}</span>}
+                  </Show>
+                </span>
                 <span class="metrics-wf-bar">
                   <i style={{ width: `${Math.min(100, pct(row))}%` }} />
                 </span>

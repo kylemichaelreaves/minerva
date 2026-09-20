@@ -121,3 +121,34 @@ def test_no_metrics_skips_the_metrics_database(args, monkeypatch, tmp_path):
     # fresh empty file created from a mis-stringified path.
     assert isinstance(seen["conn"], sqlite3.Connection)
     assert seen["conn"].execute("SELECT count(*) FROM chunks").fetchone()[0] > 0
+
+
+def test_a_backend_failure_opens_no_databases_at_all(args, monkeypatch, capsys):
+    """#614: four connections were opened before the backend was built, and
+    the LLMError path returned past them without closing any.
+
+    Asserted as ORDERING rather than by counting live handles: the fix is that
+    `make_backend` runs first, so there is no window to leak in. Counting
+    handles would pass just as well for a fix that opened them and closed them
+    in a `finally`, which is a different and larger change.
+    """
+
+    opened: list[str] = []
+    monkeypatch.setattr(serve_cmd.serve_lock, "find_running_server", lambda _db: None)
+    for name in ("store", "conversations", "translations", "concept_cache"):
+        mod = getattr(serve_cmd, name)
+        real = mod.open_db
+
+        def spy(*a, _n=name, _real=real, **k):
+            opened.append(_n)
+            return _real(*a, **k)
+
+        monkeypatch.setattr(mod, "open_db", spy)
+
+    monkeypatch.setattr(
+        serve_cmd, "make_backend", lambda _a: (_ for _ in ()).throw(llm.LLMError("no api key"))
+    )
+
+    assert serve_cmd.cmd_serve(args) == 2
+    assert opened == [], f"opened {opened} before discovering the backend could not be built"
+    assert "no api key" in capsys.readouterr().err

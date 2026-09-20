@@ -62,6 +62,18 @@ def cmd_serve(args: argparse.Namespace) -> int:
         )
         return 2
 
+    # BEFORE any database is opened. `make_backend` needs nothing but `args`,
+    # and building it first removes the window rather than managing it: this
+    # used to sit below four `open_db` calls, so the LLMError path returned
+    # past four live connections without closing them (#614). Closing them in
+    # a `finally` would also work and is a larger change; not opening them is
+    # smaller and cannot be got wrong later.
+    try:
+        backend = make_backend(args)
+    except llm.LLMError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     conn = store.open_db(args.db, check_same_thread=False)
     conversations_conn = conversations.open_db(args.conversations_db, check_same_thread=False)
     translations_conn = translations.open_db(args.translations_db, check_same_thread=False)
@@ -77,11 +89,6 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # can, even without --use-vectors on the command line. The CLI
     # `ask` command still uses maybe_embedder (explicit opt-in).
     embedder = auto_embedder(args, conn)
-    try:
-        backend = make_backend(args)
-    except llm.LLMError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
     # `--no-metrics` keeps the in-memory recent-request ring (Recorder
     # still runs at each dispatch site) but skips durable persistence.
     metrics_conn = None if args.no_metrics else _open_metrics_db(args.metrics_db)

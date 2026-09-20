@@ -22,6 +22,7 @@ plan all converge here.
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -40,7 +41,16 @@ from ..ingest.registry import (
     build_iter_corpus_kwargs,
     missing_registered_sources,
 )
-from ._shared import DEFAULT_CHUNKS, DEFAULT_DB, Timer, fmt_elapsed, record_timing
+from ..metrics import store as metrics_store
+from ..metrics.ingest_runs import IngestRunLog
+from ._shared import (
+    DEFAULT_CHUNKS,
+    DEFAULT_DB,
+    DEFAULT_METRICS_DB,
+    Timer,
+    fmt_elapsed,
+    record_timing,
+)
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
@@ -102,15 +112,23 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             )
             return 2
 
+    # One log per invocation, fed by whichever path runs. `--jobs` defaults
+    # to 1, so the SEQUENTIAL path is the default — recording only the
+    # parallel path would mean the ordinary invocation records nothing.
+    run_log = IngestRunLog()
+
     with Timer() as overall:
         if args.jobs > 1:
-            total, touched, counts, mode, failures = _parallel_ingest_path(args, only, overrides)
+            total, touched, counts, mode, failures = _parallel_ingest_path(
+                args, only, overrides, run_log
+            )
         else:
             reset_parse_failures()
             chunks = iter_corpus_chunks(
                 only=only,
                 per_source_timing=args.timing,
                 allow_missing_sources=getattr(args, "allow_missing_sources", False),
+                run_log=run_log,
                 **overrides,
             )
             if only is None:
@@ -149,6 +167,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     # run without re-running with --timing. No-op when the DB doesn't
     # exist yet (fresh checkout, pre-index).
     record_timing(args.db, "ingest", overall.elapsed)
+    _record_ingest_run(run_log)
     # Persist the --only IngestSource ids so a subsequent
     # ``minerva index --incremental --from-ingest-only`` can pick them
     # up as the scope. No-op when --only wasn't passed (full ingests
@@ -248,10 +267,31 @@ def _record_ingest_only(db_path: Path, only: frozenset[str] | None) -> None:
         pass
 
 
+def _record_ingest_run(run_log) -> None:
+    """Persist the run's per-source history, and never fail the ingest over it.
+
+    Same posture as `Recorder` and `PipelineStats`: losing a measurement is
+    strictly better than losing the work that produced it.
+    """
+
+    rows = run_log.rows()
+    if not rows:
+        return
+    try:
+        conn = metrics_store.open_db(DEFAULT_METRICS_DB)
+        try:
+            metrics_store.write_ingest_runs(conn, rows)
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError) as exc:
+        print(f"ingest: could not record run history ({exc})", file=sys.stderr)
+
+
 def _parallel_ingest_path(
     args: argparse.Namespace,
     only: frozenset[str] | None,
     overrides: dict[str, Path | None],
+    run_log: object | None = None,
 ) -> tuple[int, int, dict[str, int], str, list[str]]:
     """Run the ``--jobs N`` parallel path.
 
@@ -284,6 +324,7 @@ def _parallel_ingest_path(
             shard_dir,
             jobs=args.jobs,
             per_source_timing=args.timing,
+            run_log=run_log,
         )
         failures = [
             f"ingest:{sid}: {msg}"

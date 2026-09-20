@@ -33,6 +33,11 @@ export interface RouteDetailProps {
   prior?: MetricsSummaryRow;
   /** Rendered into the tiles' delta captions, e.g. "6h". */
   windowLabel: string;
+  /** Everything in this pane belongs to one route+window snapshot, so it
+   *  dims as a unit while any of the three resources behind it refreshes.
+   *  One flag rather than three: dimming the chart for its own fetch AND
+   *  again for the pane's would compound to 0.3 opacity. */
+  stale?: boolean;
 
   spanKind: SpanKind;
   onSpanKind: (kind: SpanKind) => void;
@@ -46,10 +51,12 @@ export interface RouteDetailProps {
 
   seriesPoints: MetricsSeriesPoint[];
   seriesBucketSeconds: number;
+  /** FIRST load only, not `series.loading` — see `RouteListProps.loading`. */
   seriesLoading: boolean;
   seriesErrorText?: string;
 
   detailRows: MetricsSummaryRow[];
+  /** FIRST load only, not `detail.loading` — see `RouteListProps.loading`. */
   detailLoading: boolean;
   detailErrorText?: string;
 }
@@ -79,7 +86,7 @@ export function RouteDetail(props: RouteDetailProps) {
   };
 
   return (
-    <section class="metrics-detail">
+    <section classList={{ "metrics-detail": true, "metrics-stale": props.stale }}>
       <div class="metrics-detail-head">
         <button type="button" class="metrics-back" onClick={() => props.onBack()}>
           ← All routes
@@ -88,19 +95,19 @@ export function RouteDetail(props: RouteDetailProps) {
         <span class="metrics-method">{props.method}</span>
         <span class="metrics-note">{meta()}</span>
         <Show when={props.hasTtfe}>
-          <div class="metrics-tabs" role="group" aria-label="Metric">
+          <fieldset class="metrics-tabs" aria-label="Metric">
             <Tab kind="total" active={props.spanKind} onPick={props.onSpanKind} />
             <Tab kind="ttfe" active={props.spanKind} onPick={props.onSpanKind} />
-          </div>
+          </fieldset>
         </Show>
       </div>
 
       <Show
         when={props.row}
         fallback={
-          <p class="metrics-empty-inline" role="status">
+          <output class="metrics-empty-inline">
             This route recorded nothing in the selected window.
-          </p>
+          </output>
         }
       >
         {(row) => <StatTiles row={row()} prior={props.prior} windowLabel={props.windowLabel} />}

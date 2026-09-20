@@ -74,7 +74,12 @@ def test_unaccounted_time_is_recoverable_from_the_row(conn):
     assert row["total_ms"] == pytest.approx(100.0)
     assert row["accounted_ms"] == pytest.approx(80.0)
     assert row["total_ms"] - row["accounted_ms"] == pytest.approx(20.0)
-    assert json.loads(row["phases"]) == [{"name": "llm_call", "ms": pytest.approx(80.0)}]
+    # Asserted by the keys this test is about, not by exact equality: the
+    # phase object grows keys (Phase 2 added `cpu_ms`), and a whole-object
+    # match would break on every additive change without testing anything more.
+    (phase,) = json.loads(row["phases"])
+    assert phase["name"] == "llm_call"
+    assert phase["ms"] == pytest.approx(80.0)
 
 
 def test_a_request_with_no_phase_stores_an_empty_array(conn):
@@ -108,6 +113,7 @@ def test_request_timings_is_still_written_and_unchanged(conn):
         span.status = 200
     row = conn.execute(
         "SELECT label, method, kind, span, count FROM request_timings"
+        " WHERE kind = 'total' AND span = ''"
     ).fetchone()
     assert row == ("works list", "GET", "total", "", 1)
 

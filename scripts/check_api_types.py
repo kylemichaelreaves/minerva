@@ -31,6 +31,7 @@ FIXTURE_TYPES: dict[str, tuple[Path, str]] = {
     "syntax_correction": (TS_API / "syntaxApi.ts", "CorrectionAccepted"),
     "metrics_summary": (TS_API / "metricsApi.ts", "MetricsSummaryResponse"),
     "metrics_series": (TS_API / "metricsApi.ts", "MetricsSeriesResponse"),
+    "metrics_requests": (TS_API / "metricsApi.ts", "MetricsRequestsResponse"),
 }
 
 # Fixtures with no TS interface to check against, and why. An entry here is a
