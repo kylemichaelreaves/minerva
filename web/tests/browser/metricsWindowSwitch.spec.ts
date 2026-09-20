@@ -134,7 +134,18 @@ test("switching time window holds the routes view still instead of blanking it",
   expect(during.viewsTop).toBe(before.viewsTop);
 
   // Held-over numbers are dimmed rather than passed off as current.
-  expect(await opacityOf(page, SEL.verdict)).toBeLessThan(1);
+  //
+  // Polled, unlike the discrete reads above, because opacity is ANIMATED:
+  // `.metrics-stale` transitions over 120ms, and a single read two frames
+  // after the class lands can still catch the start value. Measured: passes
+  // alone, fails inside a full `make check` run.
+  //
+  // Retrying is sound HERE and was not sound for the count in the second
+  // test — the difference is the hold. While the request is parked, "is it
+  // dimmed" is a state that persists, so a poll converges on the truth; a
+  // poll against a 251ms absence merely outlasts it. Poll an animated value
+  // whose end state is pinned; read a discrete one once.
+  await expect.poll(() => opacityOf(page, SEL.verdict)).toBeLessThan(1);
 
   hold.release();
   // And back to full strength once the new data lands.
@@ -162,7 +173,8 @@ test("switching time window keeps the Requests count on screen", async ({ page }
   // assertion that waits for it to stop happening. Same trap as `isVisible()`
   // reporting an element 6,600px below the fold as visible.
   expect(await count.count()).toBe(1);
-  expect(await opacityOf(page, SEL.ledgerCount)).toBeLessThan(1);
+  // Animated; see the note in the first test on why polling is sound here.
+  await expect.poll(() => opacityOf(page, SEL.ledgerCount)).toBeLessThan(1);
 
   hold.release();
   await expect.poll(() => opacityOf(page, SEL.ledgerCount)).toBe(1);

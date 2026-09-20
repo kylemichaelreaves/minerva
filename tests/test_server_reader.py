@@ -11,6 +11,7 @@ from conftest import StubBackend
 from conftest import make_deps as _make_deps
 
 from minerva import server
+from minerva.reader import queries
 
 # ---------- /api/translate ----------
 
@@ -297,9 +298,7 @@ def test_work_range_by_slug_ignores_the_path_when_the_query_deep_links_a_chunk(p
     """
 
     deps = _make_deps(populated_db, StubBackend())
-    body = server._handle_work_range_by_slug(
-        deps, "plato", "republic", {"around": "ne-1097b"}
-    )
+    body = server._handle_work_range_by_slug(deps, "plato", "republic", {"around": "ne-1097b"})
     assert body["work"] == "Nicomachean Ethics"
 
 
@@ -329,3 +328,51 @@ def test_single_segment_work_route_404s_when_neither_title_nor_slug_matches(popu
     with pytest.raises(server._HTTPError) as info:
         server._handle_work_range(deps, "no-such-work", {"lang": "eng"})
     assert info.value.status == HTTPStatus.NOT_FOUND
+
+
+# ---------- /api/works: the per-work chunk counts ----------
+
+# The view-based formulation this query replaced, kept as the executable
+# statement of what the rewrite claims: that grouping on `chunks` alone and
+# joining `works` afterwards returns exactly what grouping through
+# `chunks_full` returned. It is a reference, not dead code — delete it and
+# the equivalence below stops being checkable.
+_VIEW_BASED_COUNTS = (
+    "SELECT cf.work_id, cf.corpus, cf.author, cf.work, cf.lang, COUNT(*) AS n "
+    "FROM chunks_full cf "
+    "GROUP BY cf.work_id, cf.corpus, cf.author, cf.work, cf.lang"
+)
+
+
+def test_work_counts_query_is_satisfied_from_an_index(populated_db):
+    """The counts come out of a covering index, not a scan through the view.
+
+    `chunks_full` joins `works`, `editions` and `translations`, so grouping
+    through it makes SQLite do that join once per chunk — 428,982 times on
+    the live corpus — to produce 1,046 rows of counts. Grouping on `chunks`
+    alone is index-only, and the join then runs 1,046 times instead.
+
+    Asserting the PLAN rather than a duration: a timing assertion on a
+    428k-row corpus that CI does not have would be both flaky and
+    unmeasurable there, while the plan is the property that actually makes
+    it fast and is stable on any row count.
+    """
+    plan = [
+        row[-1] for row in populated_db.execute("EXPLAIN QUERY PLAN " + queries.WORK_COUNTS_SQL)
+    ]
+    assert any("COVERING INDEX" in step for step in plan), plan
+    assert not any("chunks_full" in step for step in plan), plan
+
+
+def test_work_counts_query_matches_the_view_it_replaced(populated_db):
+    """Equivalence, on the fixture's mixed corpus.
+
+    This one passes before and after the rewrite by design — it is the
+    invariant, not the change. It earns its place by catching drift later:
+    add a column to `chunks_full` or change how `corpus` is derived and this
+    fails, where the plan test above would not.
+    """
+    rewritten = sorted(tuple(r) for r in populated_db.execute(queries.WORK_COUNTS_SQL))
+    reference = sorted(tuple(r) for r in populated_db.execute(_VIEW_BASED_COUNTS))
+    assert rewritten == reference
+    assert len(rewritten) > 0

@@ -159,6 +159,15 @@ open in a `page.route` handler until the assertions are done (see
 the render has landed. Do not release the handler with `page.unroute` while
 a request is parked in it — that fails with "Route is already handled!".
 
+**Once the state is held open, poll an ANIMATED value and read a discrete
+one once.** The rule above is about transience, not about matchers: what
+makes `toHaveCount` unsafe is a condition that stops being true on its own,
+and a parked request stops that happening. A CSS transition still needs the
+poll — `.metrics-stale` fades over 120ms, and a single read two frames after
+the class lands can return the start value. That one passed alone and failed
+inside a full `make check`, which is the only place the timing was tight
+enough to show it.
+
 **A flaky browser test is a defective test. Delete it; do not retry it.**
 `retries: 0` is permanent. The first flaky red becomes a re-run, and once
 re-running is routine the gate consumes attention and pays nothing — which is
