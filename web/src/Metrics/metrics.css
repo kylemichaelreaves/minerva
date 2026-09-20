@@ -801,11 +801,24 @@
   line-height: 1.55;
   margin: 12px 0;
 }
+.mledger {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .mledger-split {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  /* A grid item stretches to its ROW, not to the container, and an implicit
+     row is `auto` — sized to content. Without this the wrapper grew to the
+     full 13,325px of a 200-row table inside a 651px split and the scroll
+     never engaged. `align-items: start` did the same thing a second way. */
+  grid-template-rows: minmax(0, 1fr);
   gap: 0 20px;
-  align-items: start;
   margin-top: 12px;
 }
 .mledger-table {
@@ -878,6 +891,10 @@
 .mledger-detail {
   border: 1px solid var(--rule);
   padding: 14px 15px;
+  /* Scrolls on its own so a long phase list cannot push the table's height
+     around — the two panes are siblings in the same bounded row. */
+  max-height: 100%;
+  overflow: auto;
 }
 .mledger-detail h3 {
   margin: 2px 0 10px;
@@ -1007,6 +1024,8 @@
 }
 
 .mledger-more {
+  flex: none;
+  align-self: flex-start;
   margin-top: 0.9rem;
   font: 500 12px var(--sans);
   padding: 6px 14px;
@@ -1019,4 +1038,28 @@
 .mledger-more:hover {
   background: var(--paper-edge);
   color: var(--ink);
+}
+
+/* The table scrolls inside a bounded box so the paging control below it stays
+   on screen. Without this a 200-row page is ~6,600px tall and "Load older"
+   sits that far down the document — present in the DOM, and unreachable. */
+/* Fills the section rather than taking a fixed slice of the viewport: 62vh
+   left dead space below the control on a tall window and overflowed the
+   panel on a short one. `min-height: 0` on every link in the chain is what
+   lets a flex/grid child actually shrink — without it the default
+   `min-height: auto` sizes to content and the scroll never engages. */
+.mledger-tblwrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+/* Header stays put while the rows move under it; a 200-row scroll otherwise
+   loses the column meanings immediately. */
+.mledger-tblwrap .mledger-table th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 1;
 }
