@@ -16,31 +16,48 @@ import { MetricsPage } from "./pages/MetricsPage";
 // flaky test this suite refuses to have. The request is held until the
 // assertions are done, so the window under test is unbounded.
 
-/** Holds every metrics request until `release()` is called. Resolves once
- *  the first one has arrived, which is the deterministic signal that the
- *  refresh has actually started. */
-async function holdMetricsRequests(page: Page) {
-  let arrived!: () => void;
-  const arrival = new Promise<void>((r) => (arrived = r));
-  let release!: () => void;
-  const held = new Promise<void>((r) => (release = r));
+interface Deferred {
+  promise: Promise<void>;
+  resolve: () => void;
+}
+
+/** A promise with its resolver exposed. Written out rather than inlined as
+ *  `new Promise((r) => (resolve = r))` so nothing needs a definite-assignment
+ *  assertion or an assignment buried in an expression. */
+function deferred(): Deferred {
+  let settle: () => void = () => undefined;
+  const promise = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  return { promise, resolve: () => settle() };
+}
+
+interface HeldRequests {
+  /** Resolves once the first metrics request has arrived — the
+   *  deterministic signal that the refresh has actually started. */
+  started: Promise<void>;
+  /** Lets the parked requests through.
+   *
+   *  Deliberately not `page.unroute`: tearing the handler down while a
+   *  request is still parked inside it fails with "Route is already
+   *  handled!". Released handlers continue normally, and the next
+   *  navigation drops them. */
+  release: () => void;
+}
+
+/** Holds every metrics request until `release()` is called, so a transient
+ *  state can be asserted without racing it. */
+async function holdMetricsRequests(page: Page): Promise<HeldRequests> {
+  const arrival = deferred();
+  const held = deferred();
 
   await page.route("**/api/metrics/**", async (route) => {
-    arrived();
-    await held;
+    arrival.resolve();
+    await held.promise;
     await route.continue();
   });
 
-  return {
-    started: arrival,
-    release: () => {
-      release();
-      // Deliberately NOT `page.unroute`: tearing the handler down while a
-      // request is still parked inside it fails with "Route is already
-      // handled!". Released handlers continue normally and the next
-      // navigation drops them.
-    },
-  };
+  return { started: arrival.promise, release: held.resolve };
 }
 
 /** Waits two animation frames, so Solid's render of the refreshing state has
