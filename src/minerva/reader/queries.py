@@ -20,6 +20,34 @@ from .window import (
     parse_window_params,
 )
 
+# Per-(work, lang) chunk counts for the reader's work picker.
+#
+# Grouped on `chunks` alone and joined to `works` afterwards, NOT through
+# `chunks_full`. In that view `corpus`, `author` and `work` are
+# `LOWER(w.author)`, `w.author` and `w.title` — each functionally determined
+# by `work_id` — so naming them in the GROUP BY adds nothing but work, and
+# the view's LEFT JOINs to `editions`/`translations` supply no column read
+# here. Grouping through it made SQLite run that three-way join once per
+# chunk, then sort the result in a temp B-tree, to produce ~1,000 rows.
+#
+# Measured on the live corpus (428,982 chunks -> 1,046 result rows):
+#
+#     through the view   median  243.8 ms
+#     this query         median   12.6 ms     identical result set
+#
+# The worst single request recorded beforehand spent 5,569 ms in SQLite.
+# The inner GROUP BY is now answered entirely from
+# `idx_chunks_work_lang_ord`; `tests/test_server_reader.py` pins that plan,
+# because the plan is the property that makes it fast.
+#
+# Column ORDER is load-bearing: `works_list` unpacks these rows positionally.
+WORK_COUNTS_SQL = (
+    "SELECT g.work_id AS work_id, LOWER(w.author) AS corpus, w.author AS author, "
+    "w.title AS work, g.lang AS lang, g.n AS n "
+    "FROM (SELECT work_id, lang, COUNT(*) AS n FROM chunks GROUP BY work_id, lang) g "
+    "JOIN works w ON w.id = g.work_id"
+)
+
 
 def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
     """List distinct (corpus, author, work, lang) tuples for the
@@ -39,11 +67,7 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
     ``author_ordering.LANG_ORDINAL``).
     """
 
-    rows = conn.execute(
-            "SELECT cf.work_id, cf.corpus, cf.author, cf.work, cf.lang, COUNT(*) AS n "
-            "FROM chunks_full cf "
-            "GROUP BY cf.work_id, cf.corpus, cf.author, cf.work, cf.lang"
-        ).fetchall()
+    rows = conn.execute(WORK_COUNTS_SQL).fetchall()
 
     # Per-edition/translation local title, keyed on (work_id, lang). This is
     # the language's own name for the work — "Republic"/"Laws" on the English
