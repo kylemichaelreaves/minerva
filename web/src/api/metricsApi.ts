@@ -87,6 +87,14 @@ export interface MetricsRequestRow {
   sqlite_queries: number | null;
 }
 
+/** Keyset cursor. Both halves are required: `at` is a float from
+ *  `time.time()` and two requests can share one, so resuming from `at` alone
+ *  would skip whichever sat on the boundary. */
+export interface MetricsRequestsCursor {
+  at: number;
+  id: string;
+}
+
 export interface MetricsRequestsResponse {
   window: string;
   since: number;
@@ -94,6 +102,11 @@ export interface MetricsRequestsResponse {
   rows: MetricsRequestRow[];
   /** The limit actually applied after clamping, not the one requested. */
   limit: number;
+  has_more: boolean;
+  /** Handed back rather than rebuilt by the client from the last row —
+   *  reconstructing it would couple every caller to the ordering, which is
+   *  what keyset pagination exists to hide. */
+  next_before: MetricsRequestsCursor | null;
 }
 
 export interface MetricsSeriesPoint {
@@ -153,6 +166,7 @@ export interface MetricsRequestsOptions {
   errors?: boolean;
   phased?: boolean;
   limit?: number;
+  before?: MetricsRequestsCursor;
 }
 
 export async function fetchMetricsRequests(
@@ -170,6 +184,8 @@ export async function fetchMetricsRequests(
       errors: opts.errors ? "1" : undefined,
       phased: opts.phased ? "1" : undefined,
       limit: opts.limit,
+      before_at: opts.before?.at,
+      before_id: opts.before?.id,
     })}`,
     signal,
   );

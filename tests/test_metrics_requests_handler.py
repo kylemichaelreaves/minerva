@@ -39,7 +39,9 @@ def _add(d, *, n=0, at=T0, label="works list", method="GET", status=200,
 def test_shape(deps):
     _add(deps, at=T0)
     body = _handle_metrics_requests(deps, {"window": "all"})
-    assert set(body) == {"window", "since", "until", "rows", "limit"}
+    assert set(body) == {
+        "window", "since", "until", "rows", "limit", "has_more", "next_before",
+    }
     row = body["rows"][0]
     assert set(row) == {
         "id", "at", "label", "method", "status",
@@ -82,3 +84,60 @@ def test_the_reported_limit_is_the_clamped_one(deps):
 
     body = _handle_metrics_requests(deps, {"window": "all", "limit": "100000"})
     assert body["limit"] == m.REQUESTS_MAX_LIMIT
+
+
+def test_the_response_carries_a_cursor_for_the_next_page(deps):
+    """A client should not have to reconstruct the cursor from the last row —
+    that couples it to the ordering, which is exactly what keyset hides."""
+
+    for i in range(5):
+        _add(deps, n=i, at=T0 + i)
+    body = _handle_metrics_requests(deps, {"window": "all", "limit": "2"})
+    assert body["has_more"] is True
+    assert body["next_before"] == {"at": body["rows"][-1]["at"], "id": body["rows"][-1]["id"]}
+
+
+def test_the_last_page_says_so(deps):
+    for i in range(2):
+        _add(deps, n=i, at=T0 + i)
+    body = _handle_metrics_requests(deps, {"window": "all", "limit": "10"})
+    assert body["has_more"] is False
+    assert body["next_before"] is None
+
+
+def test_has_more_does_not_cost_an_extra_page(deps):
+    """Asked for 2, got 2 — the probe row used to detect a third must not
+    leak into the payload."""
+
+    for i in range(5):
+        _add(deps, n=i, at=T0 + i)
+    body = _handle_metrics_requests(deps, {"window": "all", "limit": "2"})
+    assert len(body["rows"]) == 2
+
+
+def test_the_cursor_round_trips(deps):
+    for i in range(5):
+        _add(deps, n=i, at=T0 + i)
+    first = _handle_metrics_requests(deps, {"window": "all", "limit": "2"})
+    nxt = _handle_metrics_requests(
+        deps,
+        {
+            "window": "all", "limit": "2",
+            "before_at": str(first["next_before"]["at"]),
+            "before_id": first["next_before"]["id"],
+        },
+    )
+    assert {r["id"] for r in first["rows"]} & {r["id"] for r in nxt["rows"]} == set()
+
+
+def test_a_junk_cursor_is_a_400_not_a_silent_first_page(deps):
+    """Silently ignoring it would hand back page one while the client
+    believed it was on page two — a duplicate-looking list with no error."""
+
+    with pytest.raises(_HTTPError):
+        _handle_metrics_requests(deps, {"window": "all", "before_at": "yesterday"})
+
+
+def test_a_cursor_needs_both_halves(deps):
+    with pytest.raises(_HTTPError):
+        _handle_metrics_requests(deps, {"window": "all", "before_at": "1.0"})
