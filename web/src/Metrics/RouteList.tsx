@@ -37,7 +37,14 @@ export function sortEntries(entries: RouteEntry[], mode: SortMode): RouteEntry[]
 
 export interface RouteListProps {
   entries: RouteEntry[];
+  /** FIRST load only — nothing to render yet. Deliberately NOT a
+   *  resource's `.loading`, which is also true during a refresh and would
+   *  unmount rows that are still perfectly good. `MetricsPanel.firstLoad`
+   *  is the only thing that should feed this. */
   loading: boolean;
+  /** These rows belong to the previous request and the next one is in
+   *  flight. Dims them; never hides them. */
+  stale?: boolean;
   /** Inline message when the summary fetch failed; rendered INSTEAD of
    *  the list, since an empty list would otherwise read as "no traffic". */
   errorText?: string;
@@ -116,7 +123,7 @@ export function RouteList(props: RouteListProps) {
   );
 
   return (
-    <div class="metrics-routes">
+    <div classList={{ "metrics-routes": true, "metrics-stale": props.stale }}>
       <div class="metrics-routes-head">
         <span class="metrics-label">
           {props.entries.length} {props.entries.length === 1 ? "route" : "routes"}
