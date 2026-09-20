@@ -95,19 +95,19 @@ export function RouteDetail(props: RouteDetailProps) {
         <span class="metrics-method">{props.method}</span>
         <span class="metrics-note">{meta()}</span>
         <Show when={props.hasTtfe}>
-          <div class="metrics-tabs" role="group" aria-label="Metric">
+          <fieldset class="metrics-tabs" aria-label="Metric">
             <Tab kind="total" active={props.spanKind} onPick={props.onSpanKind} />
             <Tab kind="ttfe" active={props.spanKind} onPick={props.onSpanKind} />
-          </div>
+          </fieldset>
         </Show>
       </div>
 
       <Show
         when={props.row}
         fallback={
-          <p class="metrics-empty-inline" role="status">
+          <output class="metrics-empty-inline">
             This route recorded nothing in the selected window.
-          </p>
+          </output>
         }
       >
         {(row) => <StatTiles row={row()} prior={props.prior} windowLabel={props.windowLabel} />}

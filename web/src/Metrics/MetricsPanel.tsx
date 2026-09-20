@@ -215,7 +215,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
         <span classList={{ "metrics-sub": true, "metrics-stale": refreshing(summary) }}>
           {WINDOW_PROSE[win()]} · {totalRequests().toLocaleString()} requests
         </span>
-        <div class="metrics-windows" role="group" aria-label="Time window">
+        <fieldset class="metrics-windows" aria-label="Time window">
           <For each={METRIC_WINDOWS}>
             {(w) => (
               <button
@@ -228,7 +228,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
               </button>
             )}
           </For>
-        </div>
+        </fieldset>
       </header>
 
       {/* One recomputable sentence, never prose. Hidden while the fetch
@@ -257,7 +257,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
       {/* A view toggle rather than a second hash route: `readRoute` is already
           over the Sonar complexity limit (#589) and grows a branch per
           surface, so adding one here would make that worse for no gain. */}
-      <div class="metrics-views" role="group" aria-label="Metrics view">
+      <fieldset class="metrics-views" aria-label="Metrics view">
         <button type="button" aria-pressed={view() === "routes"} onClick={() => setView("routes")}>
           Routes
         </button>
@@ -268,7 +268,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
         >
           Requests
         </button>
-      </div>
+      </fieldset>
 
       <Show when={view() === "requests"}>
         <RequestLedger window={win()} />

@@ -120,7 +120,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 setErrorsOnly(e.currentTarget.checked);
               });
             }}
-          />
+          />{" "}
           Errors only
         </label>
         <label class="mledger-chk">
@@ -134,7 +134,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 setPhasedOnly(e.currentTarget.checked);
               });
             }}
-          />
+          />{" "}
           Has a phase
         </label>
         {/* `firstLoad`, not `rows.loading`: on a window switch the count was
@@ -214,7 +214,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
             </table>
           </div>
 
-          <aside class="mledger-detail" role="region" aria-label="Request detail">
+          <section class="mledger-detail" aria-label="Request detail">
             <Show when={chosen()} fallback={<p class="mledger-msg">Select a request.</p>}>
               {(r) => (
                 <>
@@ -257,8 +257,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                   <Show when={r().sqlite_ms !== null}>
                     <div class="mledger-phase mledger-db">
                       <span>
-                        sqlite
-                        <span class="mledger-tag">connection layer</span>
+                        sqlite <span class="mledger-tag">connection layer</span>
                       </span>
                       <span class="mledger-bar">
                         <i
@@ -308,7 +307,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 </>
               )}
             </Show>
-          </aside>
+          </section>
         </div>
       </Show>
 

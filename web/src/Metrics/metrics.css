@@ -4,17 +4,14 @@
 .mchart {
   --metric-p50: #1f6ea8;
   --metric-p95: #a8452f;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 [data-theme="dark"] .mchart {
   --metric-p50: #3a93d1;
   --metric-p95: #c97a65;
-}
-
-.mchart {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
 }
 
 .mchart-empty {
@@ -141,7 +138,11 @@
 }
 
 .metrics-windows {
-  margin-left: auto;
+  /* A <fieldset>; see the note on `.metrics-views`. */
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+  margin: 0 0 0 auto;
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
@@ -313,6 +314,9 @@
    content height — without it the scroller grows to fit every row and
    nothing scrolls. */
 .metrics-routes-scroll {
+  /* A <fieldset>; see the note on `.metrics-views`. */
+  border: 0;
+  min-inline-size: 0;
   flex: 1 1 auto;
   min-height: 8rem;
   overflow-y: auto;
@@ -486,7 +490,11 @@
 }
 
 .metrics-tabs {
-  margin-left: auto;
+  /* A <fieldset>; see the note on `.metrics-views`. */
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+  margin: 0 0 0 auto;
   display: flex;
   gap: 0.15rem;
 }
@@ -642,6 +650,8 @@
 
 .metrics-loading,
 .metrics-empty {
+  /* An <output>, which is inline by default. */
+  display: block;
   padding: 2.5rem 0;
   text-align: center;
   color: var(--ink-faint);
@@ -649,6 +659,8 @@
 }
 
 .metrics-empty-inline {
+  /* An <output>, which is inline by default. */
+  display: block;
   color: var(--ink-faint);
   font-size: 0.78rem;
   margin: 0;
@@ -771,6 +783,12 @@
 /* Per-request ledger (#619's request_spans). Reuses the panel's tokens
    throughout — no new colours, so both themes come for free. */
 .metrics-views {
+  /* A <fieldset> rather than a <div role="group">: the native element
+     carries the role. Its UA styles have to be undone — `min-inline-size:
+     min-content` in particular, which stops a fieldset shrinking inside a
+     flex or grid parent. Border and padding below are deliberate, not
+     leftovers. */
+  min-inline-size: 0;
   display: flex;
   gap: 3px;
   margin: 10px 0 4px;
@@ -950,7 +968,8 @@
 }
 .mledger-phase {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 58px;
+  /* Four tracks since Phase 2 added the CPU column. */
+  grid-template-columns: 86px minmax(0, 1fr) 54px 54px;
   gap: 8px;
   align-items: center;
   font-size: 12px;
@@ -964,6 +983,8 @@
   height: 8px;
   background: var(--rule-soft);
   display: block;
+  /* Containing block for `.mledger-cpu`, which overlays it. */
+  position: relative;
 }
 .mledger-bar i {
   display: block;
@@ -988,9 +1009,6 @@
   color: var(--ink-faint);
   font-family: var(--sans);
 }
-.mledger-bar {
-  position: relative;
-}
 .mledger-cpu {
   position: absolute;
   left: 0;
@@ -999,9 +1017,6 @@
   background: var(--paper);
   opacity: 0.55;
   border-right: 1px solid var(--paper);
-}
-.mledger-phase {
-  grid-template-columns: 86px minmax(0, 1fr) 54px 54px;
 }
 .mledger-cpuv {
   color: var(--ink-faint);

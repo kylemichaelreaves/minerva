@@ -149,11 +149,7 @@ export function RouteList(props: RouteListProps) {
         <Show when={!props.loading} fallback={<div class="metrics-loading">Loading…</div>}>
           <Show
             when={props.entries.length > 0}
-            fallback={
-              <div class="metrics-empty" role="status">
-                No requests recorded in this window.
-              </div>
-            }
+            fallback={<output class="metrics-empty">No requests recorded in this window.</output>}
           >
             {/* Named, and a group rather than a bare div: the rows are
                 toggle buttons (`aria-pressed`), so a set of related
@@ -162,7 +158,7 @@ export function RouteList(props: RouteListProps) {
                 is also what lets the browser suite address the list by
                 role + name (#593's tier 1) now that the route TABLE it
                 named is gone. */}
-            <div class="metrics-routes-scroll" role="group" aria-label="Routes">
+            <fieldset class="metrics-routes-scroll" aria-label="Routes">
               <Show when={grouped()} fallback={<For each={sorted()}>{rowFor}</For>}>
                 <Show when={needsLook().length > 0}>
                   <div class="metrics-group">
@@ -179,7 +175,7 @@ export function RouteList(props: RouteListProps) {
                   <For each={fine()}>{rowFor}</For>
                 </Show>
               </Show>
-            </div>
+            </fieldset>
           </Show>
         </Show>
       </Show>
