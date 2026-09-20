@@ -241,6 +241,37 @@ class Recorder:
             Sample(at, span.label, span.method, "total", name, status_class, ms)
             for name, ms in span._subs
         )
+        # CPU in the AGGREGATE as well as per request. The interesting
+        # question is per ROUTE — one request being CPU-bound says little,
+        # while "this route is CPU-bound across 500 requests" is actionable.
+        # A new `kind` VALUE in the existing columns, so the schema is
+        # untouched and every existing consumer keeps working.
+        #
+        # Emitted only when measured: where `thread_time` is unavailable
+        # there is no measurement, and a 0 ms row would assert one.
+        cpu_ms = span.cpu_ms
+        if cpu_ms is not None:
+            samples.append(
+                Sample(at, span.label, span.method, "cpu", "", status_class, cpu_ms)
+            )
+            samples.extend(
+                Sample(at, span.label, span.method, "cpu", name, status_class, ms)
+                for name, ms in span._subs_cpu.items()
+            )
+        # Database time as its own span. In an aggregate the rows are shares
+        # of a p95 rather than a timeline, so the "disjoint intervals" reason
+        # for keeping it out of `phases` per-request does not apply here.
+        #
+        # Only when the route actually touched the database: a 0 ms bar in
+        # the waterfall is noise, and absence reads correctly as "no database
+        # time recorded for this route".
+        if span.sqlite_queries:
+            samples.append(
+                Sample(
+                    at, span.label, span.method, "total", "sqlite",
+                    status_class, span.sqlite_ms,
+                )
+            )
         self._ring.append(
             {
                 "at": at,

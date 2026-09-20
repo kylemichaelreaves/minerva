@@ -951,3 +951,22 @@
   margin-left: 5px;
   opacity: 0.8;
 }
+
+/* CPU verdict and the connection-layer tag in the aggregate waterfall. */
+.metrics-wf-cpu {
+  font: 500 10px var(--sans);
+  color: var(--ink-faint);
+  margin-left: 6px;
+  text-transform: lowercase;
+}
+.metrics-wf-tag {
+  font: 500 9px var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--metric-p50);
+  border: 1px solid var(--metric-p50);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-left: 5px;
+  opacity: 0.8;
+}

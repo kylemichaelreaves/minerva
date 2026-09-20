@@ -7,7 +7,10 @@ export type MetricWindow = (typeof METRIC_WINDOWS)[number];
 export interface MetricsSummaryRow {
   label: string;
   method: string;
-  kind: "total" | "ttfe";
+  /** `"cpu"` joined the two originals when CPU time entered the aggregate.
+   *  The labeled drill-down filters on `span != ''` and NOT on kind, so a
+   *  consumer that does not filter will draw every span twice. */
+  kind: "total" | "ttfe" | "cpu";
   span: string;
   count: number;
   mean_ms: number;

@@ -189,9 +189,16 @@ export function MetricsPanel(props: MetricsPanelProps) {
   );
 
   // Sub-span rows (the labeled query, `span != ''`) are ALWAYS
-  // `kind: "total"` — the recorder never tags a sub-span `ttfe`
-  // (`recorder.py`) — so this list is never filtered by `spanKind`.
-  // `SpanWaterfall` says so on the ttfe tab rather than looking stale.
+  // Passed through UNFILTERED, and that is now load-bearing: since CPU
+  // entered the aggregate the drill-down returns a `kind: "cpu"` row
+  // alongside each wall row, and `SpanWaterfall` needs both — it splits
+  // them itself (`wallRows` / `cpuByName`) so one span is drawn once with
+  // its CPU share beside it.
+  //
+  // This comment used to say the list "is never filtered by `spanKind`"
+  // because the recorder only ever emitted one kind per span. That stopped
+  // being true when `kind: "cpu"` was added; filtering still does not happen
+  // HERE, but it does happen, and the reason changed.
   const detailRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(detail)?.rows ?? []);
   const seriesPoints = createMemo(() => valueUnlessErrored(series)?.points ?? []);
   // The chart labels its x-axis from this: the server buckets daily for
