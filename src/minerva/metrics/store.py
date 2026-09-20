@@ -358,6 +358,8 @@ def requests(
     errors_only: bool = False,
     phased_only: bool = False,
     limit: int = 200,
+    before_at: float | None = None,
+    before_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Per-request rows, newest first.
 
@@ -379,13 +381,27 @@ def requests(
         where.append("status >= 400")
     if phased_only:
         where.append("phases != '[]'")
+    # Keyset, not offset. The table is append-only and sorted newest-first, so
+    # an offset drifts: rows arriving between two fetches push the window down
+    # and the reader sees the same request on consecutive pages. A cursor names
+    # a position in the ordering instead.
+    #
+    # The `id` tiebreak is not decorative — `at` is a float from `time.time()`
+    # and two requests can share one. A cursor on `at` alone would drop
+    # whichever of them sat on the boundary.
+    if before_at is not None and before_id is not None:
+        where.append("(at < ? OR (at = ? AND id < ?))")
+        params.extend([before_at, before_at, before_id])
     params.append(max(1, min(limit, REQUESTS_MAX_LIMIT)))
 
     sql = (
         "SELECT id, at, label, method, status, total_ms, accounted_ms, phases,"
         " cpu_ms, sqlite_ms, sqlite_queries"
         f" FROM request_spans WHERE {' AND '.join(where)}"
-        " ORDER BY at DESC LIMIT ?"
+        # `id DESC` alongside `at DESC` so the ordering is total: the cursor
+        # above can only be resumed from if equal timestamps have a stable
+        # order to resume within.
+        " ORDER BY at DESC, id DESC LIMIT ?"
     )
     out: list[dict[str, Any]] = []
     for row in conn.execute(sql, params):

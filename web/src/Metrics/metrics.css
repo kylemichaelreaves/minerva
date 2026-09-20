@@ -1005,3 +1005,18 @@
   margin-left: 5px;
   opacity: 0.8;
 }
+
+.mledger-more {
+  margin-top: 0.9rem;
+  font: 500 12px var(--sans);
+  padding: 6px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.mledger-more:hover {
+  background: var(--paper-edge);
+  color: var(--ink);
+}

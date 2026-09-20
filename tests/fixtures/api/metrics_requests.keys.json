@@ -1,1 +1,1 @@
-["window", "since", "until", "rows", "limit"]
+["window", "since", "until", "rows", "limit", "has_more", "next_before"]

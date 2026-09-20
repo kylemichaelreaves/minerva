@@ -1,6 +1,11 @@
-import { For, Show, createResource, createSignal } from "solid-js";
+import { For, Show, batch, createResource, createSignal } from "solid-js";
 
-import { fetchMetricsRequests, type MetricsRequestRow, type MetricWindow } from "../api/metricsApi";
+import {
+  fetchMetricsRequests,
+  type MetricsRequestRow,
+  type MetricsRequestsCursor,
+  type MetricWindow,
+} from "../api/metricsApi";
 import { cpuVerdict } from "./cpu";
 
 /** One row per request, from `request_spans` (#619).
@@ -54,21 +59,49 @@ export function RequestLedger(props: { window: MetricWindow }) {
   const [phasedOnly, setPhasedOnly] = createSignal(false);
   const [selected, setSelected] = createSignal<string | undefined>();
 
+  // Pages already loaded, newest first. The resource holds only the page
+  // currently in flight; everything before it lives here.
+  const [older, setOlder] = createSignal<MetricsRequestRow[]>([]);
+  const [cursor, setCursor] = createSignal<MetricsRequestsCursor | undefined>();
+
   const source = () => ({
     window: props.window,
     errors: errorsOnly(),
     phased: phasedOnly(),
+    before: cursor(),
   });
   const [rows] = createResource(source, (s) =>
-    fetchMetricsRequests(s.window, { errors: s.errors, phased: s.phased }),
+    fetchMetricsRequests(s.window, {
+      errors: s.errors,
+      phased: s.phased,
+      before: s.before,
+    }),
   );
+
+  // A filter or window change invalidates every page already appended: they
+  // describe the PREVIOUS query, and keeping them would interleave two result
+  // sets with nothing on screen to say so.
+  const reset = () => {
+    setOlder([]);
+    setCursor(undefined);
+    setSelected(undefined);
+  };
 
   // `rows.error` first: reading an errored Solid resource re-throws, which
   // would take down the error branch below with it.
   const list = (): MetricsRequestRow[] => {
-    if (rows.error) return [];
+    if (rows.error) return older();
     const body = rows();
-    return body ? body.rows : [];
+    return body ? [...older(), ...body.rows] : older();
+  };
+
+  const hasMore = () => (rows.error ? false : (rows()?.has_more ?? false));
+
+  const loadOlder = () => {
+    const body = rows.error ? undefined : rows();
+    if (!body?.next_before) return;
+    setOlder((prev) => [...prev, ...body.rows]);
+    setCursor(body.next_before);
   };
   const chosen = () => list().find((r) => r.id === selected());
 
@@ -80,7 +113,12 @@ export function RequestLedger(props: { window: MetricWindow }) {
             type="checkbox"
             aria-label="Errors only"
             checked={errorsOnly()}
-            onChange={(e) => setErrorsOnly(e.currentTarget.checked)}
+            onChange={(e) => {
+              batch(() => {
+                reset();
+                setErrorsOnly(e.currentTarget.checked);
+              });
+            }}
           />
           Errors only
         </label>
@@ -89,12 +127,19 @@ export function RequestLedger(props: { window: MetricWindow }) {
             type="checkbox"
             aria-label="Has a phase"
             checked={phasedOnly()}
-            onChange={(e) => setPhasedOnly(e.currentTarget.checked)}
+            onChange={(e) => {
+              batch(() => {
+                reset();
+                setPhasedOnly(e.currentTarget.checked);
+              });
+            }}
           />
           Has a phase
         </label>
         <Show when={!rows.loading && !rows.error}>
-          <span class="mledger-count">{list().length} requests</span>
+          <span class="mledger-count">
+            {list().length} requests{hasMore() ? "+" : ""}
+          </span>
         </Show>
       </div>
 
@@ -252,6 +297,15 @@ export function RequestLedger(props: { window: MetricWindow }) {
             </Show>
           </aside>
         </div>
+      </Show>
+
+      {/* Append rather than replace: this is a time-ordered feed and "older"
+          only ever means further down it. A back-stack of cursors would buy
+          page numbers, which is not a thing anyone wants on a log. */}
+      <Show when={hasMore()}>
+        <button type="button" class="mledger-more" onClick={loadOlder}>
+          Load older
+        </button>
       </Show>
     </section>
   );
