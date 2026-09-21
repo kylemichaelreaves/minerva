@@ -18,10 +18,21 @@ Conventions
   (re-apply then fails on e.g. "duplicate column" and the DB is
   wedged).
 * ``.py`` files must define ``def apply(conn: sqlite3.Connection) ->
-  None``. Use these when the migration needs branching logic or row-
-  by-row processing that would be unreadable in pure SQL. The runner
+  int | None``. Use these when the migration needs branching logic or
+  row-by-row processing that would be unreadable in pure SQL. The runner
   loads them via ``importlib.util`` so they can live alongside the
   ``.sql`` peers.
+* **A migration that repairs data returns the number of rows it
+  changed.** The runner stores it in ``schema_migrations.rows_changed``
+  and prints a warning when an established database gets 0 — because
+  "applied" means the code ran, which is the same fact as "the schema
+  changed" and a different fact from "the repair happened". #551 is the
+  difference: ``0035_relink_targets`` was applied to a developer index
+  three days before its branch merged, found the corpus not yet in the
+  state it expected, changed nothing, and was never revisited. Returning
+  None means "not measured" and is right for every schema migration;
+  it is 0 that is worth reporting, so do not return 0 for "not
+  applicable".
 * ``.py`` migrations MUST NOT call ``conn.executescript`` (same
   implicit-COMMIT trap; use ``sqlite_util.execute_script_statements``
   or plain ``execute`` loops — see 0021/0022 for the pattern). A
@@ -67,10 +78,24 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version    INTEGER PRIMARY KEY,
             name       TEXT NOT NULL,
-            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            -- Rows the migration reported changing, or NULL when it
+            -- reported nothing. NULL and 0 are different facts: the
+            -- first means "not measured" (every .sql file, every schema
+            -- change), the second means "measured, and it did nothing".
+            -- Only the second is worth anyone's attention. See #551.
+            rows_changed INTEGER
         )
         """
     )
+    # Databases written before this column existed carry the three-column
+    # table. Widened here rather than by a numbered migration because
+    # this table is the runner's own bookkeeping — a migration that adds
+    # the column would have to run before there was anywhere to record
+    # the result of running it.
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(schema_migrations)")}
+    if "rows_changed" not in cols:
+        conn.execute("ALTER TABLE schema_migrations ADD COLUMN rows_changed INTEGER")
 
 
 def _discover() -> list[tuple[int, str, str, Callable[[sqlite3.Connection], None]]]:
@@ -121,6 +146,27 @@ def _discover() -> list[tuple[int, str, str, Callable[[sqlite3.Connection], None
     return out
 
 
+def _warn_repair_did_nothing(stem: str, version: int) -> None:
+    """A data repair ran and changed nothing on an established database.
+
+    Not an error: it is legitimate when an earlier run already did the
+    work. It is reported because the failure it also describes is
+    invisible otherwise — #551's `0035_relink_targets` ran against a
+    developer index three days before its branch merged, found the
+    corpus not yet in the state it expected, and was recorded as applied.
+    The four rows it existed to fix stayed broken, and the runner never
+    looked at that version again.
+    """
+
+    print(
+        f"warning: migration {stem} ran and changed 0 rows. Version "
+        f"{version} is now recorded as applied and will not be retried. "
+        f"If this database holds the data the repair targets, re-run its "
+        f"`apply()` directly once the data is in place.",
+        file=sys.stderr,
+    )
+
+
 def apply(conn: sqlite3.Connection) -> list[int]:
     """Apply pending migrations to ``conn`` and return the versions that
     ran. Idempotent: a connection that's already up-to-date returns
@@ -135,6 +181,13 @@ def apply(conn: sqlite3.Connection) -> list[int]:
     applied: set[int] = {
         row[0] for row in conn.execute("SELECT version FROM schema_migrations")
     }
+    # An established database being upgraded, as against a fresh one
+    # bootstrapping. A repair that changes nothing is expected on a fresh
+    # database — there is no data to repair yet — and suspicious on an
+    # established one. Warning on both would put a false positive in
+    # front of every new checkout and every test, which is how a real
+    # signal gets tuned out.
+    preexisting = bool(applied)
     ran: list[int] = []
     for version, stem, kind, runner in _discover():
         if version in applied:
@@ -150,12 +203,19 @@ def apply(conn: sqlite3.Connection) -> list[int]:
             # transaction) — see the module docstring conventions.
             if kind == "sql" and not conn.in_transaction:
                 conn.execute("BEGIN")
-            runner(conn)
+            # A data repair reports what it changed by returning a count.
+            # Anything else returns None and is recorded as unmeasured.
+            changed = runner(conn)
+            if not isinstance(changed, int) or isinstance(changed, bool):
+                changed = None
             conn.execute(
-                "INSERT INTO schema_migrations(version, name) VALUES (?, ?)",
-                (version, stem),
+                "INSERT INTO schema_migrations(version, name, rows_changed) "
+                "VALUES (?, ?, ?)",
+                (version, stem, changed),
             )
             conn.commit()
+            if changed == 0 and preexisting:
+                _warn_repair_did_nothing(stem, version)
         except BaseException:
             conn.rollback()
             raise
