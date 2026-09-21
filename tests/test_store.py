@@ -111,3 +111,47 @@ def test_open_db_check_same_thread_flag_is_passed_through(tmp_path: Path):
     t.start()
     t.join()
     assert err == []
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Page cache (#645)
+# ──────────────────────────────────────────────────────────────────
+
+
+def test_corpus_connection_sizes_its_page_cache(tmp_path: Path) -> None:
+    """The corpus database is 8.4 GB; SQLite's default page cache is 2 MB,
+    which holds 0.02% of it.
+
+    Asserted as the negative (KiB) form rather than a page count: the two
+    are only equal at the current 4 KiB page size, and a future
+    `page_size` change would silently shrink a positive value by the same
+    factor.
+    """
+
+    conn = store.open_db(tmp_path / "corpus.sqlite")
+    try:
+        (cache_size,) = conn.execute("PRAGMA cache_size").fetchone()
+    finally:
+        conn.close()
+    assert cache_size == -65536, "expected 64 MiB, expressed in KiB"
+
+
+def test_the_page_cache_is_set_on_the_corpus_store_not_the_shared_helper(
+    tmp_path: Path,
+) -> None:
+    """Scoping, and the reason the pragma is not in `sqlite_util.open_db`.
+
+    `serve` holds five connections — corpus, metrics, conversations,
+    translations, concept cache — and only the first one reads an 8 GB
+    file. Setting this in the shared helper would multiply the budget by
+    five to buy nothing on the other four.
+    """
+
+    from minerva import metrics
+
+    conn = metrics.open_db(tmp_path / "metrics.sqlite")
+    try:
+        (cache_size,) = conn.execute("PRAGMA cache_size").fetchone()
+    finally:
+        conn.close()
+    assert cache_size == -2000, "the metrics DB keeps SQLite's default"
