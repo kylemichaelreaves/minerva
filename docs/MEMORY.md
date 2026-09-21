@@ -22,6 +22,29 @@ the satellite databases, and `chunks.jsonl` (when present). Required before:
 The auto-snapshot inside `cmd_index` is a fallback; the manual snapshot
 from pre-flight is the primary recovery point.
 
+Rotation keeps the 5 most recent (`MINERVA_SNAPSHOT_KEEP`) and `rm -rf`s the
+rest — ~8.8 GB each, irreversibly. It names every directory it removes, with
+its reason tag, before removing it; read that output.
+
+**Protect a snapshot you have written down somewhere.** A baseline cited in an
+issue, a PR, or a plan is exactly the kind that a later unrelated run will
+evict, because rotation sorts on timestamp and knows nothing about value:
+
+```sh
+touch data/snapshots/20260911T201736Z-before-0035/KEEP
+```
+
+A protected snapshot is never pruned and does not count against the keep
+budget, so protecting one does not silently shorten how far back the rest of
+the history reaches. It is also the one way this directory grows without
+bound — deliberately, since you named it.
+
+To see what rotation would do without writing anything:
+
+```sh
+MINERVA_SNAPSHOT_DRY_RUN=1 scripts/snapshot-db.sh check
+```
+
 ## never-cp-a-sqlite-database
 
 Copy a database with `sqlite3 <src> ".backup '<dst>'"` (or `VACUUM INTO`).
