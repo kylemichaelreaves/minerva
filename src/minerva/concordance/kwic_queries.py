@@ -70,6 +70,18 @@ _MORPH_FEATURE_KEYS = frozenset(
 )
 
 
+# How a token's language is decided, for every query in this module.
+#
+# `chunk_lemmas.lang` (migration 0032) is NULL for an ordinary same-script
+# token and carries an explicit code for a cross-script run — an embedded
+# Latin phrase inside a `grc` chunk, tagged 'lat' by the lemmatizer. #430
+# taught `lemma_counts` to count that run as Latin vocabulary; the read
+# path behind the click kept matching on the chunk's own language, so
+# 2,869 leaderboard cells listed a count and returned no rows (#644).
+# One rule, and the two agree by construction.
+_LANG_MATCH = "COALESCE(cl.lang, cf.lang) = ?"
+
+
 def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, Any]:
     """For one lemma, return all occurrence rows with KWIC snippets.
 
@@ -218,30 +230,25 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
         extra_sql += " AND cl.feats LIKE ? ESCAPE '\\'"
         extra_params.append(f"%{escape_like_substring(k)}={escape_like_substring(v)}%")
 
-    # Total + breakdowns. Two extra aggregate queries; both hit the
-    # same index path so they're cheap.
-    total_row = conn.execute(
-        f"""
-        SELECT COUNT(*) AS n
-        FROM chunk_lemmas cl
-        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}{extra_sql}
-        """,
-        [lang, lemma, *scope_params, *extra_params],
-    ).fetchone()
-    total = int(total_row["n"]) if total_row else 0
+    # One grouped pass yields the filtered total *and* the four
+    # unfiltered breakdowns. The five aggregate queries this replaces
+    # each carried the identical FROM/WHERE, so one request paid the
+    # lemma seek and the per-row join into `chunks` six times over —
+    # 733 ms for `haben`/deu, 3.6 s for `der`/deu (#643).
+    breakdowns, total = _lemma_aggregates(
+        conn,
+        lemma,
+        lang,
+        scope_sql,
+        scope_params,
+        lemma_match_sql,
+        extra_sql,
+        extra_params,
+    )
     if total == 0:
-        # Empty result — still return the breakdowns under the *un-
-        # filtered* scope so the empty-state UI can suggest broadening
+        # Empty result — the breakdowns above describe the *unfiltered*
+        # scope, so the empty-state UI can still suggest broadening
         # moves (the wireframe's F6 "Drop Number — 3 hits" affordance).
-        breakdowns = _lemma_breakdowns(
-            conn,
-            lemma,
-            lang,
-            scope_sql,
-            scope_params,
-            lemma_match_sql,
-        )
         return {
             "lemma": lemma,
             "lang": lang,
@@ -264,15 +271,6 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
             "next_offset": None,
         }
 
-    breakdowns = _lemma_breakdowns(
-        conn,
-        lemma,
-        lang,
-        scope_sql,
-        scope_params,
-        lemma_match_sql,
-    )
-
     # Main page query — joins to chunks_full for section/work/author
     # + the chunk text so we can build KWIC snippets in Python.
     sql_rows = f"""
@@ -290,7 +288,7 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
                cf.text         AS text
         FROM chunk_lemmas cl
         JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}{extra_sql}
+        WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}{extra_sql}
         ORDER BY cf.ord ASC, cl.surface_start ASC
         LIMIT ? OFFSET ?
     """
@@ -342,89 +340,104 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
     }
 
 
-def _lemma_breakdowns(
+def _lemma_aggregates(
     conn: sqlite3.Connection,
     lemma: str,
     lang: str,
     scope_sql: str,
     scope_params: list[Any],
-    lemma_match_sql: str = "cl.lemma = ?",
-) -> dict[str, Any]:
-    """Compute pos/case/number/gender/surface breakdowns under the
-    unfiltered scope. Drives the filter rail's facet counts and the
-    F6 empty-state's "drop filter X for N hits" suggestions.
+    lemma_match_sql: str,
+    extra_sql: str,
+    extra_params: list[Any],
+) -> tuple[dict[str, Any], int]:
+    """One grouped pass over a lemma's rows → (breakdowns, total).
 
-    ``lemma_match_sql`` is the SQL fragment matching ``cl.lemma`` —
-    pass ``LOWER(cl.lemma) = LOWER(?)`` for case-folded matching."""
+    Returns the pos/case/number/gender/surface/work breakdowns under the
+    **unfiltered** scope — they drive the filter rail's facet counts and
+    the F6 empty-state's "drop filter X for N hits" suggestions — and the
+    total under the **filtered** one.
+
+    Those two scopes are why this is not simply ``SUM(n)``. The group key
+    is ``(pos, surface_form, feats, work)``, and ``pos`` / ``surface`` /
+    ``morph`` are the only filters this endpoint accepts — so every filter
+    lands on a column already in the key, and the filtered total is a
+    sub-sum of the same groups. It is computed by SQLite in the same pass
+    rather than re-derived in Python, so `LIKE`'s semantics (ASCII-case-
+    insensitive, and `%`/`_` escaped by the caller) stay in one place.
+
+    Group cardinality is what makes the Python-side fold affordable, and
+    it was measured rather than assumed: the busiest lemma in each
+    language yields 39–16,434 groups, the worst being grc `ὁ` (344,606
+    occurrences), whose `feats` column is the widest in the corpus at
+    1,722 distinct values.
+    """
+
+    # The `CASE` sits in the SELECT list, which precedes the WHERE in the
+    # statement text, and SQLite binds `?` by position in that text — so
+    # the filter params bind FIRST. Same ordering trap as the concordance
+    # totals query.
+    filtered_col = ""
+    lead_params: list[Any] = []
+    if extra_sql:
+        filtered_col = f", SUM(CASE WHEN 1=1{extra_sql} THEN 1 ELSE 0 END) AS n_filtered"
+        lead_params = list(extra_params)
 
     rows = conn.execute(
         f"""
-        SELECT cl.pos AS pos, COUNT(*) AS n
+        SELECT cl.pos          AS pos,
+               cl.surface_form AS surface,
+               cl.feats        AS feats,
+               cf.work         AS work,
+               COUNT(*)        AS n{filtered_col}
         FROM chunk_lemmas cl
         JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
-          AND cl.pos IS NOT NULL AND cl.pos != ''
-        GROUP BY cl.pos
+        WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}
+        GROUP BY 1, 2, 3, 4
         """,
-        [lang, lemma, *scope_params],
-    ).fetchall()
-    pos_b = {r["pos"]: int(r["n"]) for r in rows}
-
-    surface_rows = conn.execute(
-        f"""
-        SELECT cl.surface_form AS surface, COUNT(*) AS n
-        FROM chunk_lemmas cl
-        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
-          AND cl.surface_form IS NOT NULL AND cl.surface_form != ''
-        GROUP BY cl.surface_form
-        """,
-        [lang, lemma, *scope_params],
-    ).fetchall()
-    surface_b = {r["surface"]: int(r["n"]) for r in surface_rows}
-
-    feat_rows = conn.execute(
-        f"""
-        SELECT cl.feats AS feats, COUNT(*) AS n
-        FROM chunk_lemmas cl
-        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
-          AND cl.feats IS NOT NULL AND cl.feats != ''
-        GROUP BY cl.feats
-        """,
-        [lang, lemma, *scope_params],
+        [*lead_params, lang, lemma, *scope_params],
     ).fetchall()
 
+    pos_b: dict[str, int] = {}
+    surface_b: dict[str, int] = {}
     case_b: dict[str, int] = {}
     number_b: dict[str, int] = {}
     gender_b: dict[str, int] = {}
-    for r in feat_rows:
-        feats = _parse_morph_feats(r["feats"])
-        count = int(r["n"])
-        if "Case" in feats:
-            case_b[feats["Case"]] = case_b.get(feats["Case"], 0) + count
-        if "Number" in feats:
-            number_b[feats["Number"]] = number_b.get(feats["Number"], 0) + count
-        if "Gender" in feats:
-            gender_b[feats["Gender"]] = gender_b.get(feats["Gender"], 0) + count
-
-    work_rows = conn.execute(
-        f"""
-        SELECT cf.work AS work, COUNT(*) AS n
-        FROM chunk_lemmas cl
-        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE cf.lang = ? AND {lemma_match_sql}{scope_sql}
-        GROUP BY cf.work
-        ORDER BY n DESC
-        """,
-        [lang, lemma, *scope_params],
-    ).fetchall()
-    work_b = {wr["work"]: int(wr["n"]) for wr in work_rows}
+    work_b: dict[str, int] = {}
+    total = 0
+    for r in rows:
+        n = int(r["n"])
+        total += int(r["n_filtered"] or 0) if extra_sql else n
+        # The empty-string guards mirror the `IS NOT NULL AND != ''`
+        # predicates the four separate queries carried: a token with no
+        # POS is not a POS bucket of its own.
+        if r["pos"]:
+            pos_b[r["pos"]] = pos_b.get(r["pos"], 0) + n
+        if r["surface"]:
+            surface_b[r["surface"]] = surface_b.get(r["surface"], 0) + n
+        if r["feats"]:
+            feats = _parse_morph_feats(r["feats"])
+            if "Case" in feats:
+                case_b[feats["Case"]] = case_b.get(feats["Case"], 0) + n
+            if "Number" in feats:
+                number_b[feats["Number"]] = number_b.get(feats["Number"], 0) + n
+            if "Gender" in feats:
+                gender_b[feats["Gender"]] = gender_b.get(feats["Gender"], 0) + n
+        work_b[r["work"]] = work_b.get(r["work"], 0) + n
 
     def _top(d: dict[str, int], n: int = 12) -> list[dict[str, Any]]:
-        return [{"value": k, "count": v} for k, v in sorted(d.items(), key=lambda x: -x[1])[:n]]
+        # Ties break on the value, not on scan order. Sorting by count
+        # alone left the order of equal counts to the order SQLite
+        # happened to emit the groups in — stable in practice, arbitrary
+        # in principle, and it silently changed when the five separate
+        # GROUP BYs became one. `Geist` has six surface variants tied at
+        # 1 and 3 occurrences; which of them the top-12 shows was already
+        # unspecified, and now it is not.
+        return [
+            {"value": k, "count": v}
+            for k, v in sorted(d.items(), key=lambda x: (-x[1], x[0]))[:n]
+        ]
 
-    return {
+    breakdowns = {
         "pos_breakdown": _top(pos_b),
         "case_breakdown": _top(case_b),
         "number_breakdown": _top(number_b),
@@ -432,6 +445,7 @@ def _lemma_breakdowns(
         "surface_breakdown": _top(surface_b),
         "work_breakdown": _top(work_b, n=20),
     }
+    return breakdowns, total
 
 
 # Order in which we report morphology in the compact ``morph_str``.
