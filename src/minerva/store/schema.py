@@ -95,6 +95,32 @@ def open_db(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection
     # `upsert_embeddings` on every batch) and raises "Error creating
     # function".
     register_text_hash(conn)
+    # Page cache, set here and not in `open_sqlite`: this is the only
+    # connection that reads an 8.4 GB file. SQLite's default is -2000
+    # (2 MB), which holds 0.02% of the corpus, and `serve` holds four
+    # other connections through the same helper — metrics,
+    # conversations, translations, concept cache — that would inherit a
+    # budget none of them can use.
+    #
+    # 64 MiB rather than the 256 MB #645 proposed. Measured on the
+    # concordance rail/totals scan, the query with the most to gain
+    # (phase-separated A/B, median of 9, live index):
+    #
+    #     2 MB    194.8 ms     64 MB   140.7 ms   -28%
+    #    16 MB    164.4 ms    128 MB   138.8 ms   -29%
+    #    32 MB    138.7 ms    256 MB   140.5 ms   -28%
+    #                         512 MB   139.6 ms   -28%
+    #
+    # The curve is flat from 32 MB up — 256 MB bought nothing over 32 and
+    # cost 8x the memory. 64 MiB sits a factor of two past the measured
+    # knee, which is the headroom for a corpus that keeps growing, not a
+    # number anything measured.
+    #
+    # Negative means KiB rather than pages, so it survives a `page_size`
+    # change. The win is confined to queries that re-walk a hot index;
+    # anything dominated by random row lookups into `chunks` is unmoved
+    # (KWIC's lemma seek measured +7%, i.e. noise).
+    conn.execute("PRAGMA cache_size = -65536")
     return conn
 
 
