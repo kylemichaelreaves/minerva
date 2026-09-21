@@ -14,7 +14,15 @@ from minerva.store.schema import get_meta
 from minerva.store.stats import (
     _STATS_CACHE_KEY,
     _STATS_CACHE_TOTAL_KEY,
+    CHUNKS_BY_CORPUS_LANG_SQL,
     _chunks_by_corpus_lang_cached,
+)
+
+# The query CHUNKS_BY_CORPUS_LANG_SQL replaced (#641). Kept verbatim as the
+# equivalence reference — the rewrite is only correct if it still answers
+# exactly what the view-based grouping did.
+_VIEW_BASED_CORPUS_LANG = (
+    "SELECT corpus, lang, COUNT(*) FROM chunks_full GROUP BY corpus, lang ORDER BY 1, 2"
 )
 
 
@@ -67,6 +75,72 @@ class TestChunksByCorpusLangCache:
         result = _chunks_by_corpus_lang_cached(populated_db)
         assert isinstance(result, list)
         assert len(result) >= 1
+
+
+class TestChunksByCorpusLangQuery:
+    """#641: the breakdown grouped through `chunks_full`, whose keys are all
+    functionally determined by `work_id`. 212.3 ms against 12.7 ms on the live
+    corpus, identical 76 rows."""
+
+    def test_the_query_plan_avoids_the_view(self, populated_db):
+        """Assert the PLAN, not a duration — #642's reasoning applies here too.
+
+        A timing assertion needs the 428k-row corpus CI does not have, while
+        the plan is the property that makes it fast and holds at any row
+        count. `chunks_full` joins `works`, `editions` and `translations`, so
+        grouping through it runs that join once per chunk to produce 76 rows.
+        """
+        plan = [
+            row[-1]
+            for row in populated_db.execute("EXPLAIN QUERY PLAN " + CHUNKS_BY_CORPUS_LANG_SQL)
+        ]
+        assert any("COVERING INDEX" in step for step in plan), plan
+        assert not any("chunks_full" in step for step in plan), plan
+
+    def test_it_matches_the_view_based_query_it_replaced(self, populated_db):
+        """Equivalence on the fixture's mixed corpus.
+
+        Passes before and after the rewrite by design — it is the invariant,
+        not the change. It earns its place by catching drift: change how
+        `corpus` is derived in `chunks_full` and this fails.
+        """
+        rewritten = [tuple(r) for r in populated_db.execute(CHUNKS_BY_CORPUS_LANG_SQL)]
+        reference = [tuple(r) for r in populated_db.execute(_VIEW_BASED_CORPUS_LANG)]
+        assert rewritten == reference
+        assert len(rewritten) > 0
+
+    def test_counts_are_summed_per_corpus_not_per_work(self, populated_db):
+        """The outer GROUP BY is the one thing this query does not share with
+        `WORK_COUNTS_SQL`, and dropping it is silently wrong rather than loud.
+
+        An author owning two works in one language yields two inner rows that
+        must sum to one output row. Without the outer aggregate the row count
+        can stay the same while the values halve, which is why this asserts a
+        total rather than a length.
+        """
+        populated_db.execute(
+            "INSERT INTO works (id, author, title, original_language, citation_system) "
+            "VALUES (9001, 'Hegel', 'Second Hegel Work', 'deu', 'paragraph')"
+        )
+        populated_db.execute(
+            "INSERT INTO editions (id, work_id, name, language) "
+            "VALUES (9001, 9001, 'Test Edition', 'deu')"
+        )
+        populated_db.execute(
+            "INSERT INTO chunks (chunk_id, edition_id, lang, source_file, text, ord, work_id) "
+            "VALUES ('hegel-second-1', 9001, 'deu', 'test.xml', 'Zweites Werk.', 1, 9001)"
+        )
+
+        rows = {
+            (r[0], r[1]): r[2] for r in populated_db.execute(CHUNKS_BY_CORPUS_LANG_SQL)
+        }
+        reference = {
+            (r[0], r[1]): r[2] for r in populated_db.execute(_VIEW_BASED_CORPUS_LANG)
+        }
+        assert rows == reference
+        # One row for (hegel, deu), carrying both works' chunks.
+        assert rows[("hegel", "deu")] == reference[("hegel", "deu")]
+        assert rows[("hegel", "deu")] >= 2
 
 
 def test_store_stats_shape(populated_db):
