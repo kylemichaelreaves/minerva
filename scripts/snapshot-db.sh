@@ -34,11 +34,29 @@
 #
 # Rotation policy: keeps the most recent $MINERVA_SNAPSHOT_KEEP
 # snapshots (default 5). Older ones are pruned automatically so the
-# snapshot directory doesn't grow without bound — at ~7G per snapshot
-# of the current DB, 5 is ~35G; the old default of 20 quietly grew to
-# 128G. If you need a permanent baseline, copy the snapshot directory
-# out of data/snapshots/ to data/snapshots-archive/ (or anywhere
-# outside the auto-rotation).
+# snapshot directory doesn't grow without bound — at ~8.8G per snapshot
+# of the current DB, 5 is ~44G; the old default of 20 quietly grew to
+# 128G.
+#
+# Rotation names every directory it removes, with its reason tag, BEFORE
+# removing it. It used to print `(pruned 3 older snapshots)` afterwards,
+# which is true and tells you nothing about which three — that is what it
+# said while destroying three ~8.8G rollback points, one of them the
+# baseline an issue comment cited (#653).
+#
+# To keep one permanently, `touch` a KEEP file inside it:
+#
+#     touch data/snapshots/20260911T201736Z-before-0035/KEEP
+#
+# A protected snapshot is never pruned AND does not count against
+# $MINERVA_SNAPSHOT_KEEP — otherwise protecting one would silently
+# shorten how far back the unprotected history reaches, which is a second
+# surprise deletion caused by preventing the first. The corollary is that
+# protection is the one way this directory can grow without bound, which
+# is the point: you asked for it by name.
+#
+# MINERVA_SNAPSHOT_DRY_RUN=1 reports what rotation would prune and writes
+# nothing at all — no snapshot, no deletions.
 
 set -euo pipefail
 
@@ -67,6 +85,66 @@ snapshot_root="$data_dir/snapshots"
 if [[ ! -f "$data_dir/index.sqlite" ]]; then
     echo "error: $data_dir/index.sqlite does not exist; nothing to snapshot" >&2
     exit 1
+fi
+
+# Reason tag of a snapshot directory, for the prune report. A name alone
+# is a timestamp; the reason is what tells you whether losing it matters.
+describe_snapshot() {
+    local name="$1" reason=""
+    if [[ -f "$snapshot_root/$name/manifest.txt" ]]; then
+        reason=$(sed -n 's/^reason: //p' "$snapshot_root/$name/manifest.txt" | head -1)
+    fi
+    if [[ -n "$reason" ]]; then
+        printf '%s  (reason: %s)' "$name" "$reason"
+    else
+        printf '%s' "$name"
+    fi
+}
+
+# Split existing snapshots into protected (KEEP marker) and prunable,
+# oldest first. Lexical order is chronological — the names are ISO 8601
+# in UTC.
+protected_snapshots=()
+prunable_snapshots=()
+if [[ -d "$snapshot_root" ]]; then
+    while IFS= read -r snap_name; do
+        [[ -n "$snap_name" ]] || continue
+        if [[ -e "$snapshot_root/$snap_name/KEEP" ]]; then
+            protected_snapshots+=("$snap_name")
+        else
+            prunable_snapshots+=("$snap_name")
+        fi
+    done < <(cd "$snapshot_root" 2>/dev/null && ls -1d -- *-* 2>/dev/null | sort)
+fi
+
+keep="${MINERVA_SNAPSHOT_KEEP:-5}"
+if ! [[ "$keep" =~ ^[0-9]+$ ]] || (( keep < 1 )); then
+    echo "warning: MINERVA_SNAPSHOT_KEEP='$keep' is not a positive integer; using 5" >&2
+    keep=5
+fi
+
+if [[ -n "${MINERVA_SNAPSHOT_DRY_RUN:-}" ]]; then
+    # Counts the snapshot this run WOULD have taken, since that is the one
+    # whose arrival does the evicting.
+    would_have=$(( ${#prunable_snapshots[@]} + 1 ))
+    echo "dry run: nothing written." >&2
+    echo "  ${#prunable_snapshots[@]} prunable + ${#protected_snapshots[@]} protected snapshot(s); keep=$keep" >&2
+    if (( would_have > keep )); then
+        overflow_count=$(( would_have - keep ))
+        echo "  would prune $overflow_count:" >&2
+        for old in "${prunable_snapshots[@]:0:$overflow_count}"; do
+            echo "    $(describe_snapshot "$old")" >&2
+        done
+    else
+        echo "  would prune 0" >&2
+    fi
+    if (( ${#protected_snapshots[@]} > 0 )); then
+        echo "  protected, never pruned:" >&2
+        for kept in "${protected_snapshots[@]}"; do
+            echo "    $(describe_snapshot "$kept")" >&2
+        done
+    fi
+    exit 0
 fi
 
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -132,28 +210,24 @@ fi
     fi
 } > "$snapshot_dir/manifest.txt"
 
-# Rotation: keep the N most-recent snapshots, drop the rest. Sorting
-# by directory name works because the timestamp prefix is ISO 8601 in
-# UTC, so lexical order == chronological order. Override the keep
-# count per-invocation with MINERVA_SNAPSHOT_KEEP (e.g. bump it before
-# a risky multi-step migration where you want more rollback points).
-keep="${MINERVA_SNAPSHOT_KEEP:-5}"
-if ! [[ "$keep" =~ ^[0-9]+$ ]] || (( keep < 1 )); then
-    echo "warning: MINERVA_SNAPSHOT_KEEP='$keep' is not a positive integer; using 5" >&2
-    keep=5
-fi
+# Rotation: keep the N most-recent PRUNABLE snapshots, drop the rest.
+# The partition, the keep count and the ordering were all established
+# above (the dry-run path needs them before anything is written).
 # while-read (not mapfile) so the script also runs under macOS's
 # /bin/bash 3.2 if the env-resolved bash is ever the system one.
-all_snapshots=()
-while IFS= read -r snap_name; do
-    all_snapshots+=("$snap_name")
-done < <(cd "$snapshot_root" && ls -1d -- *-* 2>/dev/null | sort)
-if (( ${#all_snapshots[@]} > keep )); then
-    overflow_count=$(( ${#all_snapshots[@]} - keep ))
-    for old in "${all_snapshots[@]:0:$overflow_count}"; do
+#
+# The snapshot just taken is itself prunable and is not in the array —
+# it is counted here, because its arrival is what does the evicting.
+prunable_total=$(( ${#prunable_snapshots[@]} + 1 ))
+if (( prunable_total > keep )); then
+    overflow_count=$(( prunable_total - keep ))
+    # Name them BEFORE deleting: this output is the only record that a
+    # ~8.8G rollback point existed.
+    echo "pruning $overflow_count older snapshot$( (( overflow_count == 1 )) || echo s ):" >&2
+    for old in "${prunable_snapshots[@]:0:$overflow_count}"; do
+        echo "  $(describe_snapshot "$old")" >&2
         rm -rf -- "$snapshot_root/$old"
     done
-    echo "(pruned $overflow_count older snapshot$( (( overflow_count == 1 )) || echo s ))" >&2
 fi
 
 echo "$snapshot_dir"
