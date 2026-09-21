@@ -12,8 +12,8 @@ that you cannot trivially undo:
 scripts/snapshot-db.sh pre-<short-reason>
 ```
 
-Writes `data/snapshots/<timestamp>-<reason>/` with copies of `index.sqlite`
-and `chunks.jsonl` (when present). Required before:
+Writes `data/snapshots/<timestamp>-<reason>/` with copies of `index.sqlite`,
+the satellite databases, and `chunks.jsonl` (when present). Required before:
 
 - `minerva index` (especially `--reset`)
 - `minerva refs build` with LLM verify
@@ -21,6 +21,35 @@ and `chunks.jsonl` (when present). Required before:
 
 The auto-snapshot inside `cmd_index` is a fallback; the manual snapshot
 from pre-flight is the primary recovery point.
+
+## never-cp-a-sqlite-database
+
+Copy a database with `sqlite3 <src> ".backup '<dst>'"` (or `VACUUM INTO`).
+Never `cp`.
+
+`index.sqlite` and `metrics.sqlite` both run in WAL mode, where committed
+rows live in the `-wal` sibling until a checkpoint folds them into the main
+file. `cp` of the main file alone produces a **readable database that is
+silently short** — measured, a copy of a 5,000-row WAL database opened with
+zero rows and no error. If a writer is mid-transaction you instead get
+`database disk image is malformed`, which at least fails loudly. The quiet
+outcome is the dangerous one, and it is intermittent: the same `cp` succeeds
+whenever a checkpoint happens to have just run, so "it worked last time"
+proves nothing.
+
+```sh
+# wrong — silently short
+cp data/metrics.sqlite /tmp/look.sqlite
+
+# right
+sqlite3 data/metrics.sqlite ".backup '/tmp/look.sqlite'"
+```
+
+`conversations.sqlite`, `translations.sqlite` and `concept_cache.sqlite` are
+`journal_mode=delete` today and would survive a `cp` — verify with
+`sqlite3 <db> "PRAGMA journal_mode"` rather than assuming, since #630 moved
+`metrics.sqlite` without anything announcing it. Using `.backup` for all of
+them is the rule because it is correct for both modes.
 
 ## reingest-wipes-lemmas
 

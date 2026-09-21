@@ -37,11 +37,21 @@ import sqlite3
 from minerva.refs.schema import find_work_by_title_key
 
 
-def apply(conn: sqlite3.Connection) -> None:
+def apply(conn: sqlite3.Connection) -> int:
+    """Returns the number of targets relinked.
+
+    Returning a count rather than None is what marks this a *data*
+    repair: the runner records it, and says so when an established
+    database gets 0. That is the report this migration did not make on
+    2026-09-08, when it ran three days ahead of the corpus it repairs,
+    changed nothing, and was recorded as applied anyway (#551).
+    """
+
     unlinked = conn.execute(
         "SELECT id, canonical_author, canonical_work FROM reference_targets "
         "WHERE in_corpus_work_id IS NULL AND canonical_work <> '*'"
     ).fetchall()
+    relinked = 0
     for target_id, author, work in unlinked:
         match = find_work_by_title_key(conn, author=str(author), title=str(work))
         if match is None:
@@ -50,3 +60,5 @@ def apply(conn: sqlite3.Connection) -> None:
             "UPDATE reference_targets SET in_corpus_work_id = ? WHERE id = ?",
             (match[0], target_id),
         )
+        relinked += 1
+    return relinked

@@ -5,9 +5,13 @@
 #   scripts/snapshot-db.sh <short-reason>
 #
 # Writes to data/snapshots/<timestamp>-<reason>/ a copy of
-# data/index.sqlite and (if present) data/chunks.jsonl. The reason
-# tag is required and goes into the directory name so a later
-# `ls data/snapshots/` reads as a log of what was about to happen.
+# data/index.sqlite, the satellite databases, and (if present)
+# data/chunks.jsonl. The reason tag is required and goes into the
+# directory name so a later `ls data/snapshots/` reads as a log of what
+# was about to happen.
+#
+# Set MINERVA_DATA_DIR to point at a different data/ — used by the tests,
+# which must never snapshot the live 8.4G corpus.
 #
 # The DB is copied via `sqlite3 .backup`, NOT a filesystem cp: the DB
 # runs in WAL mode, and a plain copy grabs the main file without the
@@ -17,6 +21,16 @@
 # proper locks and folds the WAL in. It's O(filesize) rather than the
 # old clonefile O(metadata) — ~a minute for the ~8G DB — which is the
 # price of a snapshot that actually contains the data.
+#
+# The satellite databases go through the same .backup for the same
+# reason. metrics.sqlite joined WAL in #630 and inherited the hazard
+# without inheriting the warning — measured, a plain cp of it produced a
+# readable database missing 5,000 committed rows (#639). conversations,
+# translations and concept_cache are still journal_mode=delete and would
+# survive a cp today, but they are copied the same way rather than
+# differently: the safe call costs nothing on a <1M file, and a per-file
+# rule would have to be re-checked every time one of them changes mode,
+# which is the mistake this is fixing.
 #
 # Rotation policy: keeps the most recent $MINERVA_SNAPSHOT_KEEP
 # snapshots (default 5). Older ones are pruned automatically so the
@@ -47,7 +61,7 @@ fi
 # its parent. Resolving via dirname keeps the script callable from any
 # cwd.
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
-data_dir="$repo_root/data"
+data_dir="${MINERVA_DATA_DIR:-$repo_root/data}"
 snapshot_root="$data_dir/snapshots"
 
 if [[ ! -f "$data_dir/index.sqlite" ]]; then
@@ -62,16 +76,27 @@ mkdir -p "$snapshot_dir"
 # WAL-safe copy via the backup API (see header). Fallback for hosts
 # without the sqlite3 CLI: copy main + -wal + -shm together — only
 # consistent if nothing is writing, hence the loud warning.
+# Satellites are optional — a fresh checkout has none of them — so the
+# list is filtered by existence rather than required.
+satellites=(metrics conversations translations concept_cache)
+
 if command -v sqlite3 >/dev/null 2>&1; then
     sqlite3 "$data_dir/index.sqlite" ".backup '$snapshot_dir/index.sqlite'"
+    for name in "${satellites[@]}"; do
+        if [[ -f "$data_dir/$name.sqlite" ]]; then
+            sqlite3 "$data_dir/$name.sqlite" ".backup '$snapshot_dir/$name.sqlite'"
+        fi
+    done
 else
     echo "warning: sqlite3 CLI not found — falling back to file copy of" >&2
-    echo "         index.sqlite + WAL siblings. Only consistent if no" >&2
-    echo "         process is writing to the DB right now." >&2
-    for f in index.sqlite index.sqlite-wal index.sqlite-shm; do
-        if [[ -f "$data_dir/$f" ]]; then
-            cp -p "$data_dir/$f" "$snapshot_dir/$f"
-        fi
+    echo "         each database + its WAL siblings. Only consistent if no" >&2
+    echo "         process is writing to them right now." >&2
+    for stem in index "${satellites[@]}"; do
+        for f in "$stem.sqlite" "$stem.sqlite-wal" "$stem.sqlite-shm"; do
+            if [[ -f "$data_dir/$f" ]]; then
+                cp -p "$data_dir/$f" "$snapshot_dir/$f"
+            fi
+        done
     done
 fi
 
