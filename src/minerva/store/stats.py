@@ -14,6 +14,32 @@ from .schema import _set_meta, get_meta
 _STATS_CACHE_KEY = "stats.chunks_by_corpus_lang"
 _STATS_CACHE_TOTAL_KEY = "stats.chunks_by_corpus_lang.total"
 
+# Per-(corpus, lang) chunk counts for `/api/health` and `minerva stats`.
+#
+# Grouped on `chunks` and joined to `works` afterwards, NOT through the
+# `chunks_full` view — the same rewrite #642 applied to the reader's work
+# counts, and the second instance of the shape #641 went looking for. In the
+# view `corpus` is `LOWER(w.author)`, functionally determined by `work_id`, and
+# no `editions`/`translations` column is read here, so grouping through it made
+# SQLite run that three-way join once per chunk and sort the result in a temp
+# B-tree to produce 76 rows.
+#
+# Measured on the live corpus (428,982 chunks -> 76 result rows):
+#
+#     through the view   median  212.3 ms
+#     this query         median   12.7 ms     identical result set
+#
+# The outer GROUP BY is load-bearing and is what differs from `WORK_COUNTS_SQL`:
+# the inner aggregate is per `work_id`, and an author owns several works, so the
+# per-work counts must be summed back up per corpus. Dropping it returns 76 rows
+# here too — the same count, with wrong values.
+CHUNKS_BY_CORPUS_LANG_SQL = (
+    "SELECT LOWER(w.author) AS corpus, g.lang AS lang, SUM(g.n) AS n "
+    "FROM (SELECT work_id, lang, COUNT(*) AS n FROM chunks GROUP BY work_id, lang) g "
+    "JOIN works w ON w.id = g.work_id "
+    "GROUP BY 1, 2 ORDER BY 1, 2"
+)
+
 
 def stats(conn: sqlite3.Connection) -> dict[str, object]:
     return {
@@ -31,10 +57,14 @@ def _chunks_by_corpus_lang_cached(conn: sqlite3.Connection) -> list[dict[str, ob
     """The `GROUP BY corpus, lang` breakdown `/api/health` exposes,
     cached in `meta` rather than recomputed on every call (#344).
 
-    `corpus` is a computed column (`LOWER(w.author)`) joined through
-    three tables, so nothing indexes it and the query full-scans all of
-    `chunks` — ~210 ms against the live corpus, next to sub-millisecond
-    for every other statement on this read path.
+    `corpus` is a computed column (`LOWER(w.author)`), so nothing
+    indexes it directly. It is still functionally determined by
+    `work_id`, which is what lets `CHUNKS_BY_CORPUS_LANG_SQL` group on
+    `chunks` alone and join `works` afterwards — 212.3 ms through the
+    view against 12.7 ms grouped on `chunks`, identical 76 rows on the
+    live corpus (#641). The cache below predates that rewrite and is
+    kept: 12.7 ms is still the most expensive statement on this read
+    path by an order of magnitude.
 
     Cache-invalidation is read-side rather than write-side: `chunks`
     has more than one writer (`insert_chunks`, plus at least one
@@ -59,9 +89,7 @@ def _chunks_by_corpus_lang_cached(conn: sqlite3.Connection) -> list[dict[str, ob
     if cached_json is not None and cached_total == str(current_total):
         return json.loads(cached_json)
 
-    rows = conn.execute(
-        "SELECT corpus, lang, COUNT(*) FROM chunks_full GROUP BY corpus, lang ORDER BY 1, 2"
-    ).fetchall()
+    rows = conn.execute(CHUNKS_BY_CORPUS_LANG_SQL).fetchall()
     breakdown = [{"corpus": c, "lang": lang, "count": n} for (c, lang, n) in rows]
     try:
         _set_meta(conn, _STATS_CACHE_KEY, json.dumps(breakdown))
