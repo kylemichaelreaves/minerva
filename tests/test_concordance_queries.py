@@ -1744,3 +1744,359 @@ def test_migration_0031_is_idempotent_and_fills_nulls(
         "SELECT DISTINCT lemma_initial FROM lemma_counts WHERE lemma LIKE 'Ä%'"
     ).fetchone()
     assert val == "A"
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Cross-script language partitioning (#644) + one-pass breakdowns (#643)
+# ──────────────────────────────────────────────────────────────────
+
+
+def _insert_lemma_lang(
+    conn: sqlite3.Connection,
+    *,
+    chunk_id: str,
+    token_index: int,
+    surface: str,
+    lemma: str,
+    pos: str,
+    feats: str = "",
+    lang: str | None = None,
+) -> None:
+    """Seed one chunk_lemmas row carrying the token-level ``lang``
+    override (migration 0032). ``lang`` is NULL for an ordinary
+    same-script token and set only for a cross-script run."""
+
+    conn.execute(
+        """
+        INSERT INTO chunk_lemmas
+            (chunk_id, token_index, surface_form, surface_start, surface_end,
+             lemma, lemma_fold, pos, feats, lang)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            chunk_id,
+            token_index,
+            surface,
+            token_index * 10,
+            token_index * 10 + len(surface),
+            lemma,
+            lemma.lower(),
+            pos,
+            feats,
+            lang,
+        ),
+    )
+
+
+@pytest.fixture
+def cross_script_db(tmp_path: Path) -> sqlite3.Connection:
+    """A Latin run embedded in a Greek chunk, plus the same Latin lemma
+    in an ordinary Latin chunk.
+
+    Mirrors the corpus shape #430 introduced: ``chunk_lemmas.lang`` is
+    NULL for a same-script token and 'lat' for the embedded run, while
+    the chunk itself stays 'grc'. The leaderboard counts the run as
+    Latin (``COALESCE(cl.lang, cf.lang)``); the KWIC panel behind it
+    must reach the same rows.
+    """
+
+    import json
+
+    chunks = [
+        make_chunk(
+            chunk_id="grc-1",
+            corpus="plato",
+            author="Plato",
+            work="Republic",
+            lang="grc",
+            section="509d",
+            text="λόγος ratio λόγος",
+        ),
+        make_chunk(
+            chunk_id="lat-1",
+            corpus="cicero",
+            author="Cicero",
+            work="De Officiis",
+            lang="lat",
+            section="I.1",
+            text="ratio ratio",
+        ),
+    ]
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text("\n".join(json.dumps(c) for c in chunks))
+    conn = store.open_db(tmp_path / "cross.sqlite")
+    store.insert_chunks(conn, jsonl)
+
+    # grc-1: two Greek tokens (no override) + one Latin token tagged 'lat'
+    _insert_lemma_lang(conn, chunk_id="grc-1", token_index=0, surface="λόγος",
+                       lemma="λόγος", pos="NOUN", feats="Case=Nom|Number=Sing")
+    _insert_lemma_lang(conn, chunk_id="grc-1", token_index=1, surface="ratio",
+                       lemma="ratio", pos="NOUN", feats="Case=Nom|Number=Sing",
+                       lang="lat")
+    _insert_lemma_lang(conn, chunk_id="grc-1", token_index=2, surface="λόγου",
+                       lemma="λόγος", pos="NOUN", feats="Case=Gen|Number=Sing")
+    # lat-1: the same Latin lemma in an ordinary Latin chunk
+    _insert_lemma_lang(conn, chunk_id="lat-1", token_index=0, surface="ratio",
+                       lemma="ratio", pos="NOUN", feats="Case=Nom|Number=Sing")
+    _insert_lemma_lang(conn, chunk_id="lat-1", token_index=1, surface="rationis",
+                       lemma="ratio", pos="NOUN", feats="Case=Gen|Number=Sing")
+    conn.commit()
+
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def _board_count(conn: sqlite3.Connection, lemma: str, lang: str) -> int:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM lemma_counts "
+        "WHERE scope_kind='corpus' AND lemma = ? AND lang = ?",
+        (lemma, lang),
+    ).fetchone()
+    return int(row[0])
+
+
+def test_the_leaderboard_lists_the_embedded_run_under_latin(
+    cross_script_db: sqlite3.Connection,
+) -> None:
+    """Guards the premise: without this the KWIC assertions below would
+    pass for the wrong reason. #430's COALESCE is what puts it here."""
+
+    assert _board_count(cross_script_db, "ratio", "lat") == 3
+    assert _board_count(cross_script_db, "ratio", "grc") == 0
+
+
+def test_kwic_reaches_the_cross_script_run_the_leaderboard_counts(
+    cross_script_db: sqlite3.Connection,
+) -> None:
+    """#644: clicking a leaderboard cell must return its rows. The
+    embedded Latin token lives in a 'grc' chunk, so a ``cf.lang = 'lat'``
+    rule never sees it."""
+
+    res = concordance_queries.lemma_detail(
+        cross_script_db, {"lemma": "ratio", "lang": "lat"}
+    )
+    assert res["total"] == _board_count(cross_script_db, "ratio", "lat")
+    assert res["total"] == 3
+    chunks_seen = {r["chunk_id"] for r in res["rows"]}
+    assert "grc-1" in chunks_seen, "the embedded Latin run is unreachable"
+
+
+def test_kwic_does_not_serve_the_latin_run_under_greek(
+    cross_script_db: sqlite3.Connection,
+) -> None:
+    """The other half of one rule: a token overridden to 'lat' is Latin
+    vocabulary everywhere, so 'grc' must not serve it either (#427)."""
+
+    res = concordance_queries.lemma_detail(
+        cross_script_db, {"lemma": "ratio", "lang": "grc"}
+    )
+    assert res["total"] == 0
+    # The Greek tokens in the same chunk are untouched.
+    greek = concordance_queries.lemma_detail(
+        cross_script_db, {"lemma": "λόγος", "lang": "grc"}
+    )
+    assert greek["total"] == 2
+
+
+def test_cross_script_breakdowns_match_the_leaderboard_partition(
+    cross_script_db: sqlite3.Connection,
+) -> None:
+    """The facet counts partition on the same rule as the total."""
+
+    res = concordance_queries.lemma_detail(
+        cross_script_db, {"lemma": "ratio", "lang": "lat"}
+    )
+    assert {b["value"]: b["count"] for b in res["pos_breakdown"]} == {"NOUN": 3}
+    assert {b["value"]: b["count"] for b in res["case_breakdown"]} == {
+        "Nom": 2,
+        "Gen": 1,
+    }
+    assert {b["value"]: b["count"] for b in res["work_breakdown"]} == {
+        "Republic": 1,
+        "De Officiis": 2,
+    }
+
+
+def _aggregate_scans(conn: sqlite3.Connection, fn) -> int:
+    """Run ``fn`` and count the statements that scan ``chunk_lemmas``."""
+
+    seen: list[str] = []
+    conn.set_trace_callback(seen.append)
+    try:
+        fn()
+    finally:
+        conn.set_trace_callback(None)
+    return sum(1 for s in seen if "chunk_lemmas" in s)
+
+
+def test_lemma_detail_reads_chunk_lemmas_twice_not_six_times(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """#643: the total and the four breakdowns are one grouped pass, so
+    one request pays the lemma seek twice — once for the aggregates and
+    once for the page — not six times.
+
+    Asserted as a statement count rather than a duration: the 428k-chunk
+    corpus is not in CI, where a timing assertion would be flaky, while
+    the number of scans is what makes it slow and is stable at any row
+    count. Same reasoning as #642 / #646's plan tests.
+    """
+
+    n = _aggregate_scans(
+        concordance_db,
+        lambda: concordance_queries.lemma_detail(
+            concordance_db, {"lemma": "haben", "lang": "deu"}
+        ),
+    )
+    assert n == 2, f"expected 2 reads of chunk_lemmas, saw {n}"
+
+
+def test_the_empty_result_path_also_reads_chunk_lemmas_once(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """A zero-hit request still returns unfiltered breakdowns (the F6
+    "drop filter X" affordance), and must not pay a second pass for them."""
+
+    n = _aggregate_scans(
+        concordance_db,
+        lambda: concordance_queries.lemma_detail(
+            concordance_db,
+            {"lemma": "haben", "lang": "deu", "surface": "nonexistent"},
+        ),
+    )
+    assert n == 1, f"expected 1 read of chunk_lemmas, saw {n}"
+
+
+def test_filters_narrow_the_total_while_breakdowns_stay_unfiltered(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The trap in consolidating the five queries: the ``COUNT(*)`` is
+    filtered by pos/surface/morph and the four breakdowns deliberately
+    are not — they drive the "drop this filter for N hits" affordance.
+    One grouped pass has to produce both, so summing every group would
+    silently widen the total.
+    """
+
+    filtered = concordance_queries.lemma_detail(
+        concordance_db,
+        {"lemma": "Geist", "lang": "deu", "morph": "Case=Nom"},
+    )
+    unfiltered = concordance_queries.lemma_detail(
+        concordance_db, {"lemma": "Geist", "lang": "deu"}
+    )
+    assert unfiltered["total"] == 4
+    assert filtered["total"] == 3, "Case=Nom must narrow the total"
+    assert len(filtered["rows"]) == filtered["total"], "page must match total"
+    # …while the facet counts keep describing the unfiltered scope.
+    assert filtered["case_breakdown"] == unfiltered["case_breakdown"]
+    assert {b["value"]: b["count"] for b in filtered["case_breakdown"]} == {
+        "Nom": 3,
+        "Acc": 1,
+    }
+
+
+def test_a_surface_filter_narrows_the_total_the_same_way(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """The surface filter is an equality on a consolidated group key,
+    so it exercises the same derivation as the morph filter above."""
+
+    res = concordance_queries.lemma_detail(
+        concordance_db, {"lemma": "Geist", "lang": "deu", "surface": "Geist"}
+    )
+    assert res["total"] == 4
+    missing = concordance_queries.lemma_detail(
+        concordance_db, {"lemma": "Geist", "lang": "deu", "surface": "Geistes"}
+    )
+    assert missing["total"] == 0
+    assert missing["pos_breakdown"], "empty state keeps its broadening hints"
+
+
+def test_breakdown_ties_are_ordered_deterministically(
+    concordance_db: sqlite3.Connection,
+) -> None:
+    """Equal counts sort by value, so the top-N is a function of the data
+    rather than of the order SQLite emitted the groups in."""
+
+    res = concordance_queries.lemma_detail(
+        concordance_db, {"lemma": "Geist", "lang": "deu"}
+    )
+    cases = res["case_breakdown"]
+    assert [b["value"] for b in cases] == ["Nom", "Acc"], "count order wins"
+    surfaces = concordance_queries.lemma_detail(
+        concordance_db, {"lemma": "haben", "lang": "deu"}
+    )["work_breakdown"]
+    values = [b["value"] for b in surfaces]
+    assert values == sorted(values), "ties fall back to the value"
+
+
+@pytest.fixture
+def untagged_lemma_db(tmp_path: Path) -> sqlite3.Connection:
+    """A lemma whose rows carry no POS and no feats.
+
+    Legacy rows from before migration 0008 look like this, and so does
+    anything the lemmatizer declined to tag. The four separate breakdown
+    queries excluded them with `IS NOT NULL AND != ''`; the consolidated
+    pass has to exclude them in Python instead.
+    """
+
+    import json
+
+    jsonl = tmp_path / "chunks.jsonl"
+    jsonl.write_text(
+        json.dumps(
+            make_chunk(
+                chunk_id="u-1",
+                corpus="hegel",
+                author="Hegel",
+                work="Wissenschaft der Logik",
+                lang="deu",
+                text="Sein Sein Sein",
+            )
+        )
+    )
+    conn = store.open_db(tmp_path / "untagged.sqlite")
+    store.insert_chunks(conn, jsonl)
+    # One tagged row, two untagged ones: NULL pos/feats and empty-string
+    # pos/feats, the two shapes the old SQL predicates each excluded.
+    _insert_lemma_lang(conn, chunk_id="u-1", token_index=0, surface="Sein",
+                       lemma="Sein", pos="NOUN", feats="Case=Nom|Number=Sing")
+    conn.execute(
+        "INSERT INTO chunk_lemmas (chunk_id, token_index, surface_form, "
+        "surface_start, surface_end, lemma, lemma_fold, pos, feats) "
+        "VALUES ('u-1', 1, 'Sein', 10, 14, 'Sein', 'sein', NULL, NULL)"
+    )
+    conn.execute(
+        "INSERT INTO chunk_lemmas (chunk_id, token_index, surface_form, "
+        "surface_start, surface_end, lemma, lemma_fold, pos, feats) "
+        "VALUES ('u-1', 2, 'Sein', 20, 24, 'Sein', 'sein', '', '')"
+    )
+    conn.commit()
+    from minerva.concordance import aggregate
+
+    aggregate.build(conn)
+    return conn
+
+
+def test_untagged_rows_count_toward_the_total_but_not_the_facets(
+    untagged_lemma_db: sqlite3.Connection,
+) -> None:
+    """An untagged token is still an occurrence — it just isn't a POS or
+    a morphology bucket of its own. Only the work breakdown, which has no
+    such predicate, counts all three."""
+
+    res = concordance_queries.lemma_detail(
+        untagged_lemma_db, {"lemma": "Sein", "lang": "deu"}
+    )
+    assert res["total"] == 3
+    assert {b["value"]: b["count"] for b in res["pos_breakdown"]} == {"NOUN": 1}
+    assert {b["value"]: b["count"] for b in res["case_breakdown"]} == {"Nom": 1}
+    assert {b["value"]: b["count"] for b in res["number_breakdown"]} == {"Sing": 1}
+    assert res["gender_breakdown"] == [], "no row carries a Gender feature"
+    assert {b["value"]: b["count"] for b in res["work_breakdown"]} == {
+        "Wissenschaft der Logik": 3
+    }
+    # The surface guard is the same shape; all three rows carry one here.
+    assert {b["value"]: b["count"] for b in res["surface_breakdown"]} == {"Sein": 3}
