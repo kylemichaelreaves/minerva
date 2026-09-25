@@ -274,7 +274,7 @@ def test_the_kwic_aggregate_never_probes_chunks(tmp_path: Path) -> None:
 
     conn = _kwic_db(tmp_path)
     try:
-        agg, _page = _kwic_plans(conn, {"lemma": "haben", "lang": "deu"})
+        agg, *_page = _kwic_plans(conn, {"lemma": "haben", "lang": "deu"})
     finally:
         conn.close()
     assert "COVERING INDEX" in agg, agg
@@ -284,9 +284,9 @@ def test_the_kwic_aggregate_never_probes_chunks(tmp_path: Path) -> None:
 def test_the_kwic_page_walks_an_index_in_order(tmp_path: Path) -> None:
     """The walk that picks the page needs no sort, so it stops after `limit`
     index entries instead of visiting every matching row — for a work scope
-    too. The plan's `CO-ROUTINE p` block is that walk; whatever follows
-    `SCAN p` handles only the `limit` rows it produced, and re-sorting those
-    is cheap and required (a subquery's row order is not guaranteed)."""
+    too. Since #656 the walk is one statement per work the page touches,
+    seeking `(lemma_fold, lang_resolved, work_id)`; the last statement joins
+    only the chosen rows to `chunks_full`, by rowid."""
 
     conn = _kwic_db(tmp_path)
     try:
@@ -294,10 +294,13 @@ def test_the_kwic_page_walks_an_index_in_order(tmp_path: Path) -> None:
             {"lemma": "haben", "lang": "deu"},
             {"lemma": "haben", "lang": "deu", "scope": "work", "work": "Republic"},
         ):
-            _agg, page = _kwic_plans(conn, {**query, "limit": "2"})
-            walk = page.split("SCAN p")[0]
-            assert "COVERING INDEX chunk_lemmas_by_locator" in walk, page
-            assert "TEMP B-TREE" not in walk, page
+            _agg, *walks, details = _kwic_plans(conn, {**query, "limit": "2"})
+            assert walks, details
+            for walk in walks:
+                assert "COVERING INDEX chunk_lemmas_by_locator" in walk, walk
+                assert "work_id=?" in walk.replace(" ", ""), walk
+                assert "TEMP B-TREE" not in walk, walk
+            assert "USING INTEGER PRIMARY KEY (rowid=?)" in details, details
     finally:
         conn.close()
 
@@ -415,9 +418,9 @@ def test_the_reset_restore_leaves_both_kwic_indexes_in_place(tmp_path: Path) -> 
                 "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'chunk_lemmas'"
             )
         }
-        agg, page = _kwic_plans(conn, {"lemma": "haben", "lang": "deu"})
+        agg, walk, _details = _kwic_plans(conn, {"lemma": "haben", "lang": "deu"})
     finally:
         conn.close()
     assert {"chunk_lemmas_by_locator", "chunk_lemmas_by_facet"} <= names
     assert "COVERING INDEX chunk_lemmas_by_facet" in agg, agg
-    assert "COVERING INDEX chunk_lemmas_by_locator" in page, page
+    assert "COVERING INDEX chunk_lemmas_by_locator" in walk, walk

@@ -2037,6 +2037,12 @@ def test_lemma_detail_reads_chunk_lemmas_twice_not_six_times(
     one request pays the lemma seek twice — once for the aggregates and
     once for the page — not six times.
 
+    Three statements read `chunk_lemmas` since #656, and still two seeks:
+    the aggregate, the page's walk of this fixture's one work (a page that
+    spans k works seeks k times, each stopping at its share of `limit`),
+    and a join of the chosen rows to `chunks_full` by rowid, which seeks no
+    lemma at all.
+
     Asserted as a statement count rather than a duration: the 428k-chunk
     corpus is not in CI, where a timing assertion would be flaky, while
     the number of scans is what makes it slow and is stable at any row
@@ -2049,7 +2055,7 @@ def test_lemma_detail_reads_chunk_lemmas_twice_not_six_times(
             concordance_db, {"lemma": "haben", "lang": "deu"}
         ),
     )
-    assert n == 2, f"expected 2 reads of chunk_lemmas, saw {n}"
+    assert n == 3, f"expected 3 reads of chunk_lemmas, saw {n}"
 
 
 def test_the_empty_result_path_also_reads_chunk_lemmas_once(

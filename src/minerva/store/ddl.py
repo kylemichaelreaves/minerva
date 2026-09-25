@@ -98,17 +98,19 @@ def recreate_chunks_full_view(conn: sqlite3.Connection) -> None:
 # rather than in the migration because the `--reset` restore drops and
 # rebuilds them around its bulk copy, and the two definitions must not drift.
 #
-# `chunk_lemmas_by_locator` serves the page: walked in order, stopping after
-# `limit` entries. `work_id` trails so an author/work scope is tested on the
-# index entry rather than a table row — a 4-row work scope measured 283 ms
-# without it, 20 ms with.
+# `chunk_lemmas_by_locator` serves the page: one seek per work the page
+# touches, walked in paragraph order and stopped after that work's share of
+# `limit`. `work_id` leads `chunk_ord` because `ord` restarts in every work:
+# ordered the other way round, as #649 shipped it, the index interleaved every
+# work's opening paragraphs, and so did page 1 (#656, migration 0038).
 #
 # `chunk_lemmas_by_facet` serves the aggregate: every column the breakdowns
 # group on, so the pass is an index-only scan. The `work_id` column without
 # this index measured only 25-45% of the win (`der` 1,231 -> 778 ms, against
-# 63 ms with it).
+# 63 ms with it). It also serves a page whose filter is rare (#657): the
+# matches are found in it by `pos`, and only they are read and sorted.
 _KWIC_INDEXES = (
-    ("chunk_lemmas_by_locator", "lemma_fold, lang_resolved, chunk_ord, surface_start, work_id"),
+    ("chunk_lemmas_by_locator", "lemma_fold, lang_resolved, work_id, chunk_ord, surface_start"),
     ("chunk_lemmas_by_facet", "lemma_fold, lang_resolved, pos, surface_form, feats, work_id"),
 )
 
