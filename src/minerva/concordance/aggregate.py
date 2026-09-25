@@ -29,7 +29,7 @@ import sqlite3
 import time
 from collections import defaultdict
 
-from minerva.concordance.index_queries import _fold_initial
+from minerva.concordance.index_queries import _fold_initial, _lower_unicode
 
 
 def build(conn: sqlite3.Connection, *, verbose: bool = False) -> dict[str, int]:
@@ -231,12 +231,17 @@ def _bulk_insert(
     # read path folds its request parameter with — imported, not reimplemented,
     # because a second copy of the fold is exactly how the stored value and the
     # query drift apart. See migration 0031 for why the column exists.
+    # `lemma_key` (#655) is the `merge_case` group key, stored for the same
+    # reason and derived the same way: with the read path's own function.
     for i in range(0, len(rows), _INSERT_BATCH):
-        batch = [(*r, _fold_initial(r[3])) for r in rows[i : i + _INSERT_BATCH]]
+        batch = [
+            (*r, _fold_initial(r[3]), _lower_unicode(r[3]))
+            for r in rows[i : i + _INSERT_BATCH]
+        ]
         conn.executemany(
             "INSERT INTO lemma_counts "
             "(lang, scope_kind, scope_value, lemma, pos, "
-            " count, distinct_works, per_work_json, lemma_initial) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " count, distinct_works, per_work_json, lemma_initial, lemma_key) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             batch,
         )

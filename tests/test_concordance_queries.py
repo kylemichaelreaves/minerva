@@ -1746,6 +1746,105 @@ def test_migration_0031_is_idempotent_and_fills_nulls(
     assert val == "A"
 
 
+# ── the stored merge_case key (#655) ──────────────────────────────────
+#
+# The index page's load grouped every lemma of the language on
+# `lower_uni(lemma)`, twice, through an index that covered neither the key nor
+# the columns summed: ~230 ms for deu, each time the page opened. The key is
+# now stored in `lemma_counts.lemma_key` (migration 0037) and a covering index
+# leads with it, so both statements group straight off the index. Same shape
+# of derived-state coupling as `lemma_initial`, guarded the same way.
+
+
+def test_stored_lemma_key_equals_the_merge_case_fold_for_every_row(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """The grouping and the page's detail seeks both read the stored key, so a
+    key that disagreed with `_lower_unicode` would split or merge variants
+    differently from what `merge_case` claims, silently."""
+
+    rows = umlaut_concordance_db.execute("SELECT lemma, lemma_key FROM lemma_counts").fetchall()
+    assert rows, "fixture built no aggregate rows"
+    mismatched = [
+        (r["lemma"], r["lemma_key"])
+        for r in rows
+        if r["lemma_key"] != index_queries._lower_unicode(r["lemma"])
+    ]
+    assert mismatched == []
+
+
+def _grouped_load_plans(conn: sqlite3.Connection, query: dict[str, str]) -> list[str]:
+    """EXPLAIN every grouped `lemma_counts` statement a real `lemma_index` call
+    issues — the shipped SQL, captured, not a restatement of it. The page's
+    per-group detail seeks do not group and are left out."""
+
+    issued: list[str] = []
+    conn.set_trace_callback(issued.append)
+    try:
+        concordance_queries.lemma_index(conn, query)
+    finally:
+        conn.set_trace_callback(None)
+    return [
+        "\n".join(str(r[-1]) for r in conn.execute("EXPLAIN QUERY PLAN " + sql))
+        for sql in issued
+        if "lemma_counts" in sql and "GROUP BY" in sql
+    ]
+
+
+def test_index_page_load_groups_off_the_key_index(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """Asserted on the plan, not the clock, for the reason given above #425's
+    tests. Before #655 each grouping read `lemma_counts_by_pos` and built a
+    temp B-tree over the partition; now every grouped read comes from the
+    covering index in key order. What remains are the rail's GROUP BY letter
+    and the page's ORDER BY, over the grouped rows rather than the table."""
+
+    grouped = _grouped_load_plans(umlaut_concordance_db, {"lang": "deu", "min_count": "1"})
+    assert len(grouped) == 2, grouped  # the page's top-N and the rail/totals scan
+    for plan in grouped:
+        assert "COVERING INDEX lemma_counts_by_key" in plan, plan
+    top_n, rail = grouped[0], grouped[1]
+    assert "TEMP B-TREE FOR GROUP BY" not in top_n, top_n
+    # One temp B-tree left in the rail: the outer GROUP BY letter.
+    assert rail.count("TEMP B-TREE FOR GROUP BY") == 1, rail
+
+
+def test_no_aggregate_row_is_left_without_a_key(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    """A NULL key would drop the row out of every merged group — the page's
+    detail seek matches on it."""
+
+    (n_null,) = umlaut_concordance_db.execute(
+        "SELECT COUNT(*) FROM lemma_counts WHERE lemma_key IS NULL"
+    ).fetchone()
+    assert n_null == 0
+
+
+def test_migration_0037_is_idempotent_and_fills_nulls(
+    umlaut_concordance_db: sqlite3.Connection,
+) -> None:
+    import importlib
+
+    mod = importlib.import_module("minerva.migrations.0037_lemma_counts_key")
+
+    umlaut_concordance_db.execute("UPDATE lemma_counts SET lemma_key = NULL WHERE lemma LIKE 'Ä%'")
+    (n_null,) = umlaut_concordance_db.execute(
+        "SELECT COUNT(*) FROM lemma_counts WHERE lemma_key IS NULL"
+    ).fetchone()
+    assert n_null > 0, "fixture has no Ä-initial rows to null out"
+
+    mod.apply(umlaut_concordance_db)
+
+    rows = umlaut_concordance_db.execute(
+        "SELECT lemma, lemma_key FROM lemma_counts WHERE lemma LIKE 'Ä%'"
+    ).fetchall()
+    # Python's lower, not SQL's ASCII-only LOWER(): `Ä` must become `ä`.
+    assert all(r["lemma_key"] == r["lemma"].lower() for r in rows), rows
+    assert any(r["lemma_key"].startswith("ä") for r in rows), rows
+
+
 # ──────────────────────────────────────────────────────────────────
 #  Cross-script language partitioning (#644) + one-pass breakdowns (#643)
 # ──────────────────────────────────────────────────────────────────
