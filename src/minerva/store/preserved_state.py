@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .. import store
 from ..sqlite_util import foreign_keys_disabled, table_exists
+from .ddl import chunk_lemmas_kwic_index_creates, chunk_lemmas_kwic_index_drops
 
 
 def _maybe_snapshot_pre_index(db_path: Path, *, incremental: bool = False) -> None:
@@ -139,14 +140,20 @@ def _count_or_zero(conn: sqlite3.Connection, table: str) -> int:
     return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
-def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_path: Path) -> None:
+def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_path: Path) -> bool:
     """Replay the pre-index snapshot's preserved rows — xrefs, targets,
-    lemmas and their attempt markers, syntax corrections, embeddings and
-    the rules-scan cache — into the freshly-migrated DB."""
+    lemma attempt markers, syntax corrections, embeddings and the
+    rules-scan cache — into the freshly-migrated DB.
+
+    Returns whether ``chunk_lemmas`` should be restored too, which this
+    function no longer does itself: see ``restore_chunk_lemmas_from_snapshot``.
+    The decision stays here because this guard is the one that knows the
+    database is freshly reset; the caller carries it past ``insert_chunks``.
+    """
 
     backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
     if not backup.exists():
-        return
+        return False
     for table in (
         "cross_references",
         "chunk_lemmas",
@@ -163,7 +170,7 @@ def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_pa
         "refs_scan_state",
     ):
         if _count_or_zero(conn, table):
-            return
+            return False
     # `reference_targets` is deliberately absent from that "live table is
     # already populated, leave it alone" guard: migration 0012 seeds it,
     # so it is NEVER empty on a migrated DB and including it would make
@@ -208,7 +215,7 @@ def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_pa
         and syntax_count == 0
         and scan_count == 0
     ):
-        return
+        return False
 
     with foreign_keys_disabled(conn):
         conn.execute("ATTACH DATABASE ? AS snap", (str(backup),))
@@ -229,9 +236,6 @@ def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_pa
                     target_restored = _restore_from_snap(conn, "reference_targets")
                 if xref_count:
                     xref_restored = _restore_from_snap(conn, "cross_references")
-                lemma_restored = 0
-                if lemma_count:
-                    lemma_restored = _restore_from_snap(conn, "chunk_lemmas")
                 state_restored = 0
                 if state_count:
                     state_restored = _restore_from_snap(conn, "chunk_lemma_state")
@@ -263,12 +267,6 @@ def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_pa
                     f"Restored {syntax_restored:,} chunk_syntax_corrections from {backup}.",
                     file=sys.stderr,
                 )
-            if lemma_restored:
-                print(
-                    f"Restored {lemma_restored:,} chunk_lemmas from {backup}; "
-                    f"orphan sweep will drop rows whose chunk_id changed.",
-                    file=sys.stderr,
-                )
             if state_restored:
                 print(
                     f"Restored {state_restored:,} chunk_lemma_state from {backup}; "
@@ -290,6 +288,90 @@ def _maybe_restore_preserved_state_from_snapshot(conn: sqlite3.Connection, db_pa
                 )
         finally:
             conn.execute("DETACH DATABASE snap")
+    return lemma_count > 0
+
+
+# ══════════════════════════════════════════════════════════════════
+# Lemma rows (#649)
+# ══════════════════════════════════════════════════════════════════
+#
+# Restored after `insert_chunks`, not with the tables above, because each
+# row carries a copy of its chunk's `ord`, resolved language and `work_id`
+# (migration 0036) and `--reset` changes all three: `ord` is renumbered in
+# JSONL order and every `works.id` is reassigned. Restored before the
+# chunks exist, a row can only bring back the snapshot's values, and each
+# chunk insert then has to rewrite its lemma rows through the triggers —
+# 26.1M rows whose locators sit in two indexes. Measured on a clone,
+# rewriting `work_id` alone that way was stopped after more than five
+# minutes, on a `--reset` that main completes in 8 m 31 s in all. Joined
+# to the new `chunks`, each row is written once with the right values, and
+# the triggers find nothing to correct.
+#
+# The inner join also leaves out every row whose chunk did not come back —
+# the same rows `_sweep_orphan_chunk_lemmas` would delete a moment later.
+
+# Written by the restore rather than copied: the snapshot's values are the
+# ones that went stale.
+_LEMMA_LOCATORS = ("chunk_ord", "lang_resolved", "work_id")
+
+
+def restore_chunk_lemmas_from_snapshot(conn: sqlite3.Connection, db_path: Path) -> int:
+    """Copy the pre-index snapshot's ``chunk_lemmas`` into the live table,
+    taking each row's locators from its chunk as ``insert_chunks`` just
+    wrote it. Returns the number of rows restored.
+
+    Call only when ``_maybe_restore_preserved_state_from_snapshot`` said so:
+    an incremental run takes no snapshot, so the newest one on disk can
+    predate a deliberate clear-out, and restoring it would resurrect it.
+    """
+
+    backup = db_path.with_suffix(db_path.suffix + ".bak.pre-index")
+    if not backup.exists() or _count_or_zero(conn, "chunk_lemmas"):
+        return 0
+    conn.execute("ATTACH DATABASE ? AS lemmasnap", (str(backup),))
+    try:
+        live = [row[1] for row in conn.execute("PRAGMA table_info(chunk_lemmas)")]
+        snapped = {row[1] for row in conn.execute("PRAGMA lemmasnap.table_info(chunk_lemmas)")}
+        copied = [c for c in live if c in snapped and c not in _LEMMA_LOCATORS]
+        cols = ", ".join(copied)
+        try:
+            # The two KWIC indexes come off for the copy and are rebuilt
+            # after it, in one transaction. Inserted in `chunk_id` order into
+            # two lemma-keyed B-trees far larger than the page cache, the
+            # rows landed at random: a full `--reset` measured 26 m 01 s this
+            # way against main's 8 m 31 s. `CREATE INDEX` sorts once instead,
+            # and the same `--reset` with the rebuild measured 8 m 06 s.
+            #
+            # The explicit BEGIN is what makes it one transaction: without an
+            # open one, `sqlite3` runs DDL in autocommit, so a copy that
+            # failed would roll back its rows and leave both indexes gone.
+            conn.execute("BEGIN")
+            for stmt in chunk_lemmas_kwic_index_drops():
+                conn.execute(stmt)
+            # Foreign keys stay on: the inner join means every row written
+            # has its chunk.
+            conn.execute(
+                f"INSERT INTO chunk_lemmas ({cols}, {', '.join(_LEMMA_LOCATORS)}) "
+                f"SELECT {', '.join('s.' + c for c in copied)}, "
+                f"       c.ord, COALESCE(s.lang, c.lang), c.work_id "
+                f"FROM lemmasnap.chunk_lemmas s JOIN chunks c ON c.chunk_id = s.chunk_id"
+            )
+            for stmt in chunk_lemmas_kwic_index_creates():
+                conn.execute(stmt)
+            restored = conn.execute("SELECT COUNT(*) FROM chunk_lemmas").fetchone()[0]
+            snapped_n = conn.execute("SELECT COUNT(*) FROM lemmasnap.chunk_lemmas").fetchone()[0]
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+    finally:
+        conn.execute("DETACH DATABASE lemmasnap")
+    print(
+        f"Restored {restored:,} chunk_lemmas from {backup}; "
+        f"{snapped_n - restored:,} left behind with chunks whose chunk_id changed.",
+        file=sys.stderr,
+    )
+    return restored
 
 
 # ══════════════════════════════════════════════════════════════════
