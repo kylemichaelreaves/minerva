@@ -58,10 +58,10 @@ def test_record_timing_writes_meta(tmp_path: Path):
     conn.commit()
     conn.close()
 
-    record_timing(db, "ingest", 3.14)
+    record_timing(db, "ingest", 3.14, mode="full")
 
     conn = sqlite3.connect(db)
-    row = conn.execute("SELECT value FROM meta WHERE key = 'timing.ingest'").fetchone()
+    row = conn.execute("SELECT value FROM meta WHERE key = 'timing.ingest.full'").fetchone()
     assert row is not None
     # Stored to millisecond precision as a string.
     assert row[0] == "3.140"
@@ -70,7 +70,7 @@ def test_record_timing_writes_meta(tmp_path: Path):
 def test_record_timing_noop_when_db_missing(tmp_path: Path):
     """A fresh ingest (no DB yet) shouldn't crash on record_timing."""
 
-    record_timing(tmp_path / "doesnotexist.sqlite", "ingest", 1.0)
+    record_timing(tmp_path / "doesnotexist.sqlite", "ingest", 1.0, mode="full")
     # No exception = pass.
 
 
@@ -83,5 +83,5 @@ def test_record_timing_noop_without_meta_table(tmp_path: Path):
     conn.commit()
     conn.close()
 
-    record_timing(db, "ingest", 1.0)
+    record_timing(db, "ingest", 1.0, mode="full")
     # No exception = pass.
