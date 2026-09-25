@@ -59,12 +59,14 @@ def cmd_embed(args: argparse.Namespace) -> int:
             total = store.chunk_count(conn, lang=lang_filter)
             row_source = store.iter_chunks(conn, lang=lang_filter)
             mode_label = "all chunks"
+            timing_mode = "all"
         else:
             total = store.count_chunks_without_embeddings(conn, model=args.model, lang=lang_filter)
             row_source = store.iter_chunks_without_embeddings(
                 conn, model=args.model, lang=lang_filter
             )
             mode_label = "missing chunks"
+            timing_mode = "missing"
 
         if total == 0:
             t_overall.__exit__(None, None, None)
@@ -85,7 +87,7 @@ def cmd_embed(args: argparse.Namespace) -> int:
             )
             if args.timing:
                 print(f"timing: embed  {fmt_elapsed(t_overall.elapsed)}", file=sys.stderr)
-            record_timing(args.db, "embed", t_overall.elapsed)
+            record_timing(args.db, "embed", t_overall.elapsed, mode=timing_mode)
             return 0
 
         print(f"Embedding {total} {mode_label} with {args.model} (dim={embedder.dim})...")
@@ -151,7 +153,7 @@ def cmd_embed(args: argparse.Namespace) -> int:
         t_overall.__exit__(None, None, None)
         if args.timing:
             print(f"timing: embed  {fmt_elapsed(t_overall.elapsed)}", file=sys.stderr)
-        record_timing(args.db, "embed", t_overall.elapsed)
+        record_timing(args.db, "embed", t_overall.elapsed, mode=timing_mode)
         return 0
 
 
@@ -211,7 +213,7 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
         action="store_true",
         help=(
             "Print model-load + overall wall times to stderr. The "
-            "overall time is persisted to meta.timing.embed for "
+            "overall time is persisted to meta.timing.embed.<all|missing> for "
             "later inspection via `minerva stats`."
         ),
     )

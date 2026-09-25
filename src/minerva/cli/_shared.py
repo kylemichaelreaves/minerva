@@ -320,12 +320,21 @@ def record_timing(
     db: Path,
     key: str,
     elapsed: float,
+    *,
+    mode: str,
 ) -> None:
-    """Persist a timing into the ``meta`` table under ``timing.<key>``
-    so ``minerva stats`` and future tooling can read the last run
-    without re-instrumenting. Idempotent (overwrites). Safely no-ops
+    """Persist a timing into the ``meta`` table under ``timing.<key>.<mode>``
+    so ``minerva stats`` and future tooling can read the last run of each
+    kind without re-instrumenting. Idempotent (overwrites). Safely no-ops
     when the DB doesn't exist yet (e.g. a fresh ``ingest`` that
     hasn't been indexed) — timings are diagnostic, not load-bearing.
+
+    ``mode`` is part of the key because the same command's runs differ by
+    an order of magnitude: the live index held ``timing.index = 74.9`` from
+    an incremental run while a full ``--reset`` of the same corpus takes
+    8 m 31 s, and nothing said which it was (#658). Keyed per mode, a fast
+    run no longer overwrites the full one. The unqualified pre-#658 key is
+    deleted on the first write, since it cannot say which run it timed.
     """
 
     if not db.exists():
@@ -342,8 +351,9 @@ def record_timing(
             return
         conn.execute(
             "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
-            (f"timing.{key}", f"{elapsed:.3f}"),
+            (f"timing.{key}.{mode}", f"{elapsed:.3f}"),
         )
+        conn.execute("DELETE FROM meta WHERE key = ?", (f"timing.{key}",))
         conn.commit()
     finally:
         conn.close()

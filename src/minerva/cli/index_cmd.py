@@ -163,7 +163,11 @@ def cmd_index(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             print(f"timing: index  {fmt_elapsed(overall.elapsed)}", file=sys.stderr)
-        record_timing(args.db, "index", overall.elapsed)
+        # Three shapes that differ by an order of magnitude (#658): a full
+        # rebuild, a corpus-scoped rebuild, and an insert into the existing
+        # DB with neither flag.
+        mode = "reset" if args.reset else "incremental" if incremental else "append"
+        record_timing(args.db, "index", overall.elapsed, mode=mode)
         return 0
 
 
@@ -384,7 +388,8 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
         action="store_true",
         help=(
             "Print stage timings (insert, overall) to stderr; the "
-            "overall wall time is persisted to meta.timing.index "
+            "overall wall time is persisted to "
+            "meta.timing.index.<reset|incremental|append> "
             "regardless."
         ),
     )

@@ -13,7 +13,7 @@ Three knobs control the work shape:
   regardless of worker scheduling.
 * **Timing** — ``--timing`` prints per-source and overall wall times
   to stderr; the overall duration is persisted to
-  ``meta.timing.ingest``.
+  ``meta.timing.ingest.<full|only>``.
 
 Phases 0 + 1b + 2 of the 2026-05-29 ingestion-bottleneck remediation
 plan all converge here.
@@ -166,7 +166,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     # Persist overall timing so `minerva stats` can surface the last
     # run without re-running with --timing. No-op when the DB doesn't
     # exist yet (fresh checkout, pre-index).
-    record_timing(args.db, "ingest", overall.elapsed)
+    record_timing(args.db, "ingest", overall.elapsed, mode="only" if only else "full")
     _record_ingest_run(run_log)
     # Persist the --only IngestSource ids so a subsequent
     # ``minerva index --incremental --from-ingest-only`` can pick them
@@ -466,7 +466,7 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:  # type: ig
         action="store_true",
         help=(
             "Print per-source parse times to stderr and persist the "
-            "overall wall time to meta.timing.ingest for later "
+            "overall wall time to meta.timing.ingest.<full|only> for later "
             "inspection via `minerva stats`."
         ),
     )
