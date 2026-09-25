@@ -49,6 +49,35 @@ WORK_COUNTS_SQL = (
 )
 
 
+def work_sort_key(author: str, work: str) -> tuple[int, int, str, str]:
+    """The corpus's reading order of works: chronological by author (Thales →
+    Hegel, per ``author_ordering.AUTHOR_ORDINAL``), then each author's works
+    in canonical order.
+
+    Per-author work ordering:
+      * Hebrew Bible    → Tanakh canon (Torah → Nevi'im → Ketuvim)
+      * Quran           → Mushaf order (surah number 1..114)
+      * LXX / NT / Vulg → Christian / Vulgate BCV ordinal
+      * everyone else   → alphabetical-by-title (fall through 9999)
+    The bcv ordinal stays the cross-corpus alignment key — only the
+    per-author display sequence changes here.
+
+    Shared by the Reader's work picker and the Concordance's corpus- and
+    author-scope KWIC page (#656), so the two read the corpus in the same
+    order. The author name trails the title so two authors sharing an
+    ordinal (the unlisted ones, at 9999) and a title do not tie.
+    """
+
+    if author == "Hebrew Bible":
+        work_ord = TANAKH_BOOK_ORDINAL.get(work, 9999)
+    elif author == "Quran":
+        surah = _find_surah(work)
+        work_ord = surah.number if surah is not None else 9999
+    else:
+        work_ord = BCV_BOOK_ORDINAL.get(work, 9999)
+    return (author_sort_key(author), work_ord, work, author)
+
+
 def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
     """List distinct (corpus, author, work, lang) tuples for the
     reader picker.
@@ -87,26 +116,7 @@ def works_list(conn: sqlite3.Connection) -> dict[str, Any]:
 
     def sort_key(row: tuple[int, str, str, str, str, int]) -> tuple:
         _work_id, _corpus, author, work, lang, _n = row
-        # Per-author work ordering:
-        #   * Hebrew Bible    → Tanakh canon (Torah → Nevi'im → Ketuvim)
-        #   * Quran           → Mushaf order (surah number 1..114)
-        #   * LXX / NT / Vulg → Christian / Vulgate BCV ordinal
-        #   * everyone else   → alphabetical-by-title (fall through 9999)
-        # The bcv ordinal stays the cross-corpus alignment key — only
-        # the per-author display sequence changes here.
-        if author == "Hebrew Bible":
-            work_ord = TANAKH_BOOK_ORDINAL.get(work, 9999)
-        elif author == "Quran":
-            surah = _find_surah(work)
-            work_ord = surah.number if surah is not None else 9999
-        else:
-            work_ord = BCV_BOOK_ORDINAL.get(work, 9999)
-        return (
-            author_sort_key(author),
-            work_ord,
-            work,
-            lang_sort_key(lang),
-        )
+        return (*work_sort_key(author, work), lang_sort_key(lang))
 
     rows_sorted = sorted(rows, key=sort_key)
 

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
 
 from ..errors import BadRequestError
 from ..query_params import escape_like_substring, parse_int_param
-from ..reader.queries import _parse_morph_feats
+from ..reader.queries import _parse_morph_feats, work_sort_key
 from ..text import build_kwic
 from ._scope import (
     _DEFAULT_KWIC_LIMIT,
@@ -240,7 +241,7 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
     # each carried the identical FROM/WHERE, so one request paid the
     # lemma seek and the per-row join into `chunks` six times over —
     # 733 ms for `haben`/deu, 3.6 s for `der`/deu (#643).
-    breakdowns, total = _lemma_aggregates(
+    breakdowns, total, groups = _lemma_aggregates(
         conn,
         lemma,
         lang,
@@ -276,46 +277,24 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
             "next_offset": None,
         }
 
-    # Main page query. The inner select picks the page from
-    # `chunk_lemmas_by_locator` alone, walking it in order and stopping after
-    # `limit` entries; only those rows are then joined to chunks_full for
-    # section/work/author and the text the KWIC snippet is cut from. Joining
-    # first meant probing `chunks` for every matching row — 671,411 of them
-    # for `der` — to keep 50 (#649).
-    #
-    # The order ends on `work_id, rowid` so it is total: `ord` restarts in
-    # every work, so `(ord, surface_start)` ties across works, and an offset
-    # boundary through a tie can serve one row twice and its partner never.
-    # Both trailing keys are the index's own, so it still needs no sort.
-    order = "cl.chunk_ord ASC, cl.surface_start ASC, cl.work_id ASC, cl.rowid ASC"
-    sql_rows = f"""
-        SELECT cl.chunk_id    AS chunk_id,
-               cl.surface_form AS surface,
-               cl.surface_start AS s_start,
-               cl.surface_end   AS s_end,
-               cl.pos          AS pos,
-               cl.feats        AS feats,
-               cf.section      AS section,
-               cf.book         AS book,
-               cf.work         AS work,
-               cf.author       AS author,
-               cf.ord          AS ord,
-               cf.text         AS text
-        FROM (
-            SELECT cl.rowid AS rid
-            FROM chunk_lemmas cl
-            WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}{extra_sql}
-            ORDER BY {order}
-            LIMIT ? OFFSET ?
-        ) p
-        JOIN chunk_lemmas cl ON cl.rowid = p.rid
-        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        ORDER BY {order}
-    """
-    page = conn.execute(
-        sql_rows,
-        [lang, lemma, *scope_params, *extra_params, limit, offset],
-    ).fetchall()
+    # The page, in two steps. First its rows are chosen as `chunk_lemmas`
+    # rowids, in reading order, from the counts the aggregate pass already
+    # returned (`_page_rowids`). Then those rows alone are joined to
+    # chunks_full for section/work/author and the text the KWIC snippet is
+    # cut from. Joining first meant probing `chunks` for every matching row,
+    # 671,411 of them for `der`, to keep 50 (#649).
+    where = _Where(lang, lemma, lemma_match_sql, scope_sql, scope_params, extra_sql, extra_params)
+    works = _work_counts(groups, filtered=bool(extra_sql))
+    facet_ok = bool(extra_sql) and merge_case and scope == "corpus"
+    rowids = _page_rowids(
+        conn,
+        where,
+        works,
+        offset=offset,
+        limit=limit,
+        facet_range=_facet_range(groups, pos, surface) if facet_ok else None,
+    )
+    page = _page_details(conn, rowids)
 
     out: list[dict[str, Any]] = []
     for r in page:
@@ -369,8 +348,13 @@ def _lemma_aggregates(
     lemma_match_sql: str,
     extra_sql: str,
     extra_params: list[Any],
-) -> tuple[dict[str, Any], int]:
-    """One grouped pass over a lemma's rows → (breakdowns, total).
+) -> tuple[dict[str, Any], int, list[sqlite3.Row]]:
+    """One grouped pass over a lemma's rows → (breakdowns, total, groups).
+
+    ``groups`` is the grouped rows themselves, one per
+    ``(pos, surface, feats, work)``. The page is planned from them: which
+    works it touches, how far into each, and which index to read (#656,
+    #657).
 
     Returns the pos/case/number/gender/surface/work breakdowns under the
     **unfiltered** scope — they drive the filter rail's facet counts and
@@ -411,7 +395,8 @@ def _lemma_aggregates(
     # of one; the fold below sums by title, so the breakdowns are unchanged.
     rows = conn.execute(
         f"""
-        SELECT g.pos, g.surface, g.feats, w.title AS work, g.n{outer_filtered}
+        SELECT g.pos, g.surface, g.feats, g.work_id, w.title AS work, w.author,
+               g.n{outer_filtered}
         FROM (
             SELECT cl.pos          AS pos,
                    cl.surface_form AS surface,
@@ -427,16 +412,28 @@ def _lemma_aggregates(
         [*lead_params, lang, lemma, *scope_params],
     ).fetchall()
 
+    breakdowns = _fold_breakdowns(rows)
+    total = sum(_matches(r, filtered=bool(extra_sql)) for r in rows)
+    return breakdowns, total, rows
+
+
+def _matches(group: sqlite3.Row, *, filtered: bool) -> int:
+    """The rows of one aggregate group that the request's filters keep."""
+
+    return int(group["n_filtered"] or 0) if filtered else int(group["n"])
+
+
+def _fold_breakdowns(rows: list[sqlite3.Row]) -> dict[str, Any]:
+    """The facet rail's breakdowns, summed from the grouped rows."""
+
     pos_b: dict[str, int] = {}
     surface_b: dict[str, int] = {}
     case_b: dict[str, int] = {}
     number_b: dict[str, int] = {}
     gender_b: dict[str, int] = {}
     work_b: dict[str, int] = {}
-    total = 0
     for r in rows:
         n = int(r["n"])
-        total += int(r["n_filtered"] or 0) if extra_sql else n
         # The empty-string guards mirror the `IS NOT NULL AND != ''`
         # predicates the four separate queries carried: a token with no
         # POS is not a POS bucket of its own.
@@ -467,7 +464,7 @@ def _lemma_aggregates(
             for k, v in sorted(d.items(), key=lambda x: (-x[1], x[0]))[:n]
         ]
 
-    breakdowns = {
+    return {
         "pos_breakdown": _top(pos_b),
         "case_breakdown": _top(case_b),
         "number_breakdown": _top(number_b),
@@ -475,7 +472,221 @@ def _lemma_aggregates(
         "surface_breakdown": _top(surface_b),
         "work_breakdown": _top(work_b, n=20),
     }
-    return breakdowns, total
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Choosing the page's rows (#656, #657)
+# ──────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _Where:
+    """The lemma/lang/scope/filter predicate, shared by every page statement."""
+
+    lang: str
+    lemma: str
+    lemma_match_sql: str
+    scope_sql: str
+    scope_params: list[Any]
+    extra_sql: str
+    extra_params: list[Any]
+
+
+@dataclass(frozen=True)
+class _WorkCount:
+    work_id: int
+    rank: tuple[Any, ...]
+    rows: int  # the lemma's rows in this work, before the filters
+    matches: int  # the rows the filters keep
+
+
+def _work_counts(groups: list[sqlite3.Row], *, filtered: bool) -> list[_WorkCount]:
+    """Per-work totals from the aggregate groups, in reading order.
+
+    Reading order is the Reader's (`work_sort_key`): author chronology, then
+    each author's canon or titles (#656). It cannot come from an index,
+    because it is a Python table, so the page is planned from these counts
+    instead. `work_id` ends the rank so two works that compare equal (the two
+    Luther Bibles share every book title, at different ordinals, but an
+    unlisted author could tie) still order totally.
+    """
+
+    acc: dict[int, list[Any]] = {}
+    for g in groups:
+        a = acc.setdefault(g["work_id"], [g["author"], g["work"], 0, 0])
+        a[2] += int(g["n"])
+        a[3] += _matches(g, filtered=filtered)
+    works = [
+        _WorkCount(wid, (*work_sort_key(author, title), wid), n, m)
+        for wid, (author, title, n, m) in acc.items()
+        if m > 0
+    ]
+    works.sort(key=lambda w: w.rank)
+    return works
+
+
+def _slice_works(
+    works: list[_WorkCount], offset: int, limit: int
+) -> list[tuple[_WorkCount, int, int]]:
+    """The page as `(work, offset into it, rows to take)`, walking works in
+    order and skipping whole works that end before `offset`."""
+
+    out: list[tuple[_WorkCount, int, int]] = []
+    for w in works:
+        if limit <= 0:
+            break
+        if offset >= w.matches:
+            offset -= w.matches
+            continue
+        take = min(limit, w.matches - offset)
+        out.append((w, offset, take))
+        limit -= take
+        offset = 0
+    return out
+
+
+def _walk_length(page: list[tuple[_WorkCount, int, int]]) -> int:
+    """Expected locator-index entries a filtered walk visits for this page:
+    in each work, as far as its last wanted match, assuming matches are
+    spread evenly through the work's rows — and never more than all of them."""
+
+    return sum(min(w.rows, -(-(off + take) * w.rows // w.matches)) for w, off, take in page)
+
+
+def _facet_range(groups: list[sqlite3.Row], pos: str | None, surface: str | None) -> int:
+    """Entries in the `chunk_lemmas_by_facet` range a filtered page reads.
+
+    The index is `(lemma_fold, lang_resolved, pos, surface_form, feats, …)`,
+    so `pos`, and `surface` after it, narrow the seek. A `surface` without
+    `pos`, or any `morph`, is checked on every entry of the lemma's range.
+    """
+
+    return sum(
+        int(g["n"])
+        for g in groups
+        if not pos or (g["pos"] == pos and (not surface or g["surface"] == surface))
+    )
+
+
+# Microseconds per unit of work, measured on the live index (`der`/deu,
+# 671,411 rows, warm, #657's prototype). A filtered locator walk checks each
+# entry on its table row: 266 ms for all 671,411. A facet range read is index
+# only: 45 ms for the same count. Each facet match then fetches `chunk_ord`
+# and `surface_start` from its row: 104 ms for 85,934 `PRON` matches.
+_US_PER_WALKED = 0.4
+_US_PER_SCANNED = 0.07
+_US_PER_MATCH = 1.1
+
+
+def _prefer_facet(*, matches: int, walked: int, scanned: int) -> bool:
+    """Whether reading every match from the facet index beats walking.
+
+    The walk stops after the page's last match, so it wins whenever matches
+    are common (`pos=PRON`: a ~390-entry walk against 85,934 match reads). The
+    facet read wins when they are rare and the walk would visit nearly every
+    entry to find them (`pos=NOUN`: 37 matches, 266 ms walking, ~0 ms here).
+    """
+
+    facet = scanned * _US_PER_SCANNED + matches * _US_PER_MATCH
+    return facet < walked * _US_PER_WALKED
+
+
+def _page_rowids(
+    conn: sqlite3.Connection,
+    where: _Where,
+    works: list[_WorkCount],
+    *,
+    offset: int,
+    limit: int,
+    facet_range: int | None,
+) -> list[int]:
+    """The page's `chunk_lemmas` rowids, in reading order.
+
+    Two access paths. The default seeks `chunk_lemmas_by_locator` once per
+    work the page touches, walked in paragraph order with no sort. When the
+    request is filtered and the filter is rare, it reads every match from
+    `chunk_lemmas_by_facet` instead and sorts them here. `facet_range` is
+    None when that path is not on offer: an unfiltered request always
+    walks, and so does a scoped one, whose facet range the corpus-wide
+    groups cannot size.
+    """
+
+    page = _slice_works(works, offset, limit)
+    if facet_range is not None and _prefer_facet(
+        matches=sum(w.matches for w in works), walked=_walk_length(page), scanned=facet_range
+    ):
+        return _facet_rowids(conn, where, works, offset=offset, limit=limit)
+    return _walk_rowids(conn, where, page)
+
+
+def _walk_rowids(
+    conn: sqlite3.Connection, where: _Where, page: list[tuple[_WorkCount, int, int]]
+) -> list[int]:
+    # `rowid` ends the order so it is total within a work, and it is the
+    # index's own implicit last column, so the walk still needs no sort.
+    sql = f"""
+        SELECT cl.rowid FROM chunk_lemmas cl
+        WHERE {_LANG_MATCH} AND {where.lemma_match_sql} AND cl.work_id = ?{where.extra_sql}
+        ORDER BY cl.chunk_ord, cl.surface_start, cl.rowid
+        LIMIT ? OFFSET ?
+    """
+    rowids: list[int] = []
+    for w, off, take in page:
+        params = [where.lang, where.lemma, w.work_id, *where.extra_params, take, off]
+        rowids += [r[0] for r in conn.execute(sql, params)]
+    return rowids
+
+
+def _facet_rowids(
+    conn: sqlite3.Connection, where: _Where, works: list[_WorkCount], *, offset: int, limit: int
+) -> list[int]:
+    # INDEXED BY because the planner, left alone, prefers the locator walk: it
+    # avoids a sort, and the planner cannot see the filter is rare.
+    sql = f"""
+        SELECT cl.rowid, cl.work_id, cl.chunk_ord, cl.surface_start
+        FROM chunk_lemmas cl INDEXED BY chunk_lemmas_by_facet
+        WHERE {_LANG_MATCH} AND {where.lemma_match_sql}{where.scope_sql}{where.extra_sql}
+    """
+    params = [where.lang, where.lemma, *where.scope_params, *where.extra_params]
+    rank = {w.work_id: w.rank for w in works}
+    # A work missing from `rank` means lemmatize wrote between the two
+    # statements; it sorts last rather than failing the request.
+    last = (float("inf"),)
+    rows = sorted(
+        conn.execute(sql, params), key=lambda r: (rank.get(r[1], last), r[2], r[3], r[0])
+    )
+    return [r[0] for r in rows[offset : offset + limit]]
+
+
+def _page_details(conn: sqlite3.Connection, rowids: list[int]) -> list[sqlite3.Row]:
+    """The page's rows, joined to chunks_full, in `rowids` order."""
+
+    if not rowids:
+        return []
+    placeholders = ",".join("?" * len(rowids))
+    rows = conn.execute(
+        f"""
+        SELECT cl.rowid        AS rid,
+               cl.chunk_id     AS chunk_id,
+               cl.surface_form AS surface,
+               cl.surface_start AS s_start,
+               cl.surface_end   AS s_end,
+               cl.pos          AS pos,
+               cl.feats        AS feats,
+               cf.section      AS section,
+               cf.book         AS book,
+               cf.work         AS work,
+               cf.author       AS author,
+               cf.ord          AS ord,
+               cf.text         AS text
+        FROM chunk_lemmas cl
+        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
+        WHERE cl.rowid IN ({placeholders})
+        """,
+        rowids,
+    ).fetchall()
+    by_rid = {r["rid"]: r for r in rows}
+    return [by_rid[rid] for rid in rowids if rid in by_rid]
 
 
 # Order in which we report morphology in the compact ``morph_str``.
