@@ -155,12 +155,8 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
     # request the page issues on load. See `_fold_text` for the cost.
     if q:
         conn.create_function("fold_text", 1, _fold_text_cached, deterministic=True)
-    # The `merge_case` group key. Unlike `q` this cannot be gated on a
-    # request parameter — `merge_case` defaults to on, so the callback is
-    # installed on the page's own load request. See `_lower_unicode` for
-    # what that costs and why SQL `LOWER()` could not stay.
-    if merge_case:
-        conn.create_function("lower_uni", 1, _lower_unicode_cached, deterministic=True)
+    # The `merge_case` group key needs no callback: it is the stored
+    # `lemma_key` column (#655). See `_lemma_group_expr`.
 
     # ── Materialized read path ────────────────────────────────────
     # The ``lemma_counts`` table (migration 0019, populated by
@@ -291,7 +287,7 @@ def lemma_index(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
 
         `MIN(lemma_initial)` rather than adding it to the GROUP BY: every lemma
         sharing a `lemma_key` necessarily shares an initial, because `lemma_key`
-        is `lower_uni(lemma)` and `_fold_initial` upper-cases — so the group is
+        is `_lower_unicode(lemma)` and `_fold_initial` upper-cases — so the group is
         constant in this column and MIN just picks it out without widening the
         grouping.
         """
@@ -416,9 +412,15 @@ def _lemma_group_expr(*, merge_case: bool) -> str:
     POS collapsed into one row (#366). ``fold_initial`` keeps its real
     job, the A–Z letter rail's WHERE clause; it was only ever reused
     here on the strength of its name.
+
+    Since #655 the ``merge_case`` key is the stored ``lemma_key`` column,
+    written by ``aggregate.build`` with ``_lower_unicode`` — the same
+    Python lower the per-row callback used to apply on every request.
+    ``lemma_counts_by_key`` leads with it, so the grouping streams off the
+    index instead of sorting the partition into a temp B-tree.
     """
 
-    return "lower_uni(lemma)" if merge_case else "lemma"
+    return "lemma_key" if merge_case else "lemma"
 
 
 def _fetch_aggregate_page(
@@ -466,41 +468,50 @@ def _fetch_aggregate_page(
         "pos": "pos COLLATE NOCASE ASC, n DESC, lemma_key COLLATE NOCASE ASC",
     }[sort]
 
-    sql = f"""
-        SELECT lemma_key, pos, n, variants_blob, per_work_blob
+    # Two steps, because the page's detail columns cannot be covered: they
+    # concatenate every variant's `per_work_json`. Grouped in one statement,
+    # all ~140k rows of a partition fetched their table row to build blobs
+    # for 200 survivors — 86 ms for deu. So the top `limit` groups are picked
+    # from `lemma_counts_by_key` alone, and the details are fetched for just
+    # those groups by `(…, key, pos)`, which that index seeks (#655).
+    where_sql = " AND ".join(where_parts)
+    top = conn.execute(
+        f"""
+        SELECT lemma_key, pos, n
         FROM (
-            SELECT
-                {group_expr} AS lemma_key,
-                pos,
-                SUM(count) AS n,
-                GROUP_CONCAT(lemma || CHAR(1) || count, CHAR(2)) AS variants_blob,
-                GROUP_CONCAT(per_work_json, CHAR(3)) AS per_work_blob
+            SELECT {group_expr} AS lemma_key, pos, SUM(count) AS n
             FROM lemma_counts
-            WHERE {" AND ".join(where_parts)}
+            WHERE {where_sql}
             GROUP BY lemma_key, pos
             HAVING {" AND ".join(having_parts)}
         )
         ORDER BY {order_clause}
         LIMIT ? OFFSET ?
-    """
-    raw_rows = conn.execute(
-        sql,
+        """,
         [*where_params, *having_params, limit, offset],
     ).fetchall()
 
+    detail_sql = f"""
+        SELECT GROUP_CONCAT(lemma || CHAR(1) || count, CHAR(2)) AS variants_blob,
+               GROUP_CONCAT(per_work_json, CHAR(3)) AS per_work_blob
+        FROM lemma_counts
+        WHERE {where_sql} AND {group_expr} = ? AND pos = ?
+    """
+
     rows: list[dict[str, Any]] = []
     variants_by_display: dict[tuple[str, str], list[str]] = {}
-    for r in raw_rows:
-        pos = r["pos"] or ""
-        variants = _parse_variants_blob(r["variants_blob"] or "")
+    for t in top:
+        d = conn.execute(detail_sql, [*where_params, t["lemma_key"], t["pos"]]).fetchone()
+        pos = t["pos"] or ""
+        variants = _parse_variants_blob(d["variants_blob"] or "")
         display = _canonical_display(lang, pos, [v[0] for v in variants])
-        work_counts = _merge_per_work_blobs(r["per_work_blob"] or "")
+        work_counts = _merge_per_work_blobs(d["per_work_blob"] or "")
         top_per_work = sorted(work_counts.items(), key=lambda kv: -kv[1])[:8]
         rows.append(
             {
                 "lemma": display,
                 "pos": pos,
-                "n": int(r["n"]),
+                "n": int(t["n"]),
                 "distinct_works": len(work_counts),
                 "per_work": [{"work": w, "n": n} for w, n in top_per_work],
             }
@@ -712,14 +723,6 @@ def _lower_unicode(s: str | None) -> str:
     return (s or "").lower()
 
 
-# One callback per row of an already-narrowed partition, same shape as
-# `_fold_text_cached` above and memoized for the same reason: the
-# vocabulary is tiny next to the row count. Measured on the largest
-# partition (deu, 165,049 rows), a 200-row freq page costs 166.3 ms with
-# SQL `LOWER(lemma)` and 197.5 ms with this — +19%, and unlike `q` this
-# one is installed on the request the page issues on load, because a
-# group key runs on every request.
-_lower_unicode_cached = functools.lru_cache(maxsize=200_000)(_lower_unicode)
 
 
 def _fold_initial(s: str | None) -> str:
