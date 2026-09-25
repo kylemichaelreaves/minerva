@@ -246,6 +246,77 @@ def test_a_common_filter_still_walks_the_locator_index(tmp_path: Path) -> None:
     assert got == want
 
 
+def _build_skewed_counted(tmp_path: Path) -> sqlite3.Connection:
+    """`_build_skewed`, with `lemma_counts` built over it as `lemmatize` does."""
+
+    from minerva.concordance import aggregate
+
+    conn = _build_skewed(tmp_path)
+    aggregate.build(conn)
+    return conn
+
+
+@pytest.mark.parametrize(
+    "scope", [{"scope": "author", "author": "Hegel"}, {"scope": "work", "work": "Lang"}]
+)
+def test_a_scoped_rare_filter_is_answered_from_the_facet_index(
+    tmp_path: Path, scope: dict[str, str]
+) -> None:
+    """#665: a scoped request's groups count only in-scope rows, so they cannot
+    size a facet range that spans every work, and a scoped rare filter always
+    walked. The corpus-wide size is in `lemma_counts`."""
+
+    conn = _build_skewed_counted(tmp_path)
+    try:
+        query = {"lemma": "der", "lang": "deu", "pos": "NOUN", **scope}
+        plans = _page_plans(conn, query)
+        got = _page_ids(conn, pos="NOUN", **scope)
+    finally:
+        conn.close()
+    assert len(plans) == 1, plans
+    assert "chunk_lemmas_by_facet" in plans[0] and "pos=?" in plans[0], plans
+    assert got == ["s199"] * 3
+
+
+def test_a_scoped_common_filter_still_walks(tmp_path: Path) -> None:
+    conn = _build_skewed_counted(tmp_path)
+    try:
+        query = {"lemma": "der", "lang": "deu", "pos": "DET", "limit": "5",
+                 "scope": "author", "author": "Hegel"}
+        plans = _page_plans(conn, query)
+    finally:
+        conn.close()
+    assert plans and all("chunk_lemmas_by_locator" in p for p in plans), plans
+
+
+def test_the_corpus_facet_range_is_sized_from_lemma_counts(tmp_path: Path) -> None:
+    """Sized to the row, under the KWIC match's own fold: SQL `LOWER` is
+    ASCII-only, so `Der` joins `der`'s range and an `Ä`-variant would not."""
+
+    conn = _build_skewed_counted(tmp_path)
+    try:
+        size = kwic_queries._corpus_facet_range
+        assert size(conn, "deu", "der", pos=None) == 600
+        assert size(conn, "deu", "DER", pos="NOUN") == 3
+        assert size(conn, "deu", "der", pos="VERB") == 0
+        assert size(conn, "grc", "der", pos=None) == 0
+    finally:
+        conn.close()
+
+
+def test_a_scoped_filter_without_lemma_counts_still_answers(tmp_path: Path) -> None:
+    """Before the first `aggregate.build` the table is empty. The range is then
+    sized from the scope's own groups, a lower bound, and the rows are right
+    whichever path that picks."""
+
+    conn = _build_skewed(tmp_path)
+    try:
+        got = _page_ids(conn, pos="NOUN", scope="author", author="Hegel")
+    finally:
+        conn.close()
+    assert got == ["s199"] * 3
+
+
 def test_the_facet_path_honours_offset_and_morph(tmp_path: Path) -> None:
     conn = _build(tmp_path)
     try:

@@ -18,7 +18,7 @@ from ._scope import (
     parse_authors,
     parse_works,
 )
-from .index_queries import _corpus_label
+from .index_queries import _corpus_label, _lower_unicode
 
 # Feature keys the `morph=` filter will accept.
 #
@@ -218,23 +218,7 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
     # ``cl.lemma`` — the primary lemma index already covers it.
     lemma_match_sql = "cl.lemma_fold = LOWER(?)" if merge_case else "cl.lemma = ?"
 
-    extra_sql = ""
-    extra_params: list[Any] = []
-    if pos:
-        extra_sql += " AND cl.pos = ?"
-        extra_params.append(pos)
-    if surface:
-        extra_sql += " AND cl.surface_form = ?"
-        extra_params.append(surface)
-    # spaCy feats stored as ``Key=Val|Key=Val``; a string-contains
-    # match is faster than parsing every row in SQL. We require all
-    # requested features to appear as substrings.
-    # `morph` is free-form beyond its Key=Val shape check, so the key
-    # and value are escaped — an unescaped `%` would widen the match
-    # to "any row carrying this feature" instead of narrowing it (#120).
-    for k, v in morph_filters.items():
-        extra_sql += " AND cl.feats LIKE ? ESCAPE '\\'"
-        extra_params.append(f"%{escape_like_substring(k)}={escape_like_substring(v)}%")
+    extra_sql, extra_params = _filter_sql("cl", pos, surface, morph_filters)
 
     # One grouped pass yields the filtered total *and* the four
     # unfiltered breakdowns. The five aggregate queries this replaces
@@ -248,7 +232,7 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
         scope_sql,
         scope_params,
         lemma_match_sql,
-        extra_sql,
+        _filter_sql("g", pos, surface, morph_filters)[0],
         extra_params,
     )
     if total == 0:
@@ -285,14 +269,15 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
     # 671,411 of them for `der`, to keep 50 (#649).
     where = _Where(lang, lemma, lemma_match_sql, scope_sql, scope_params, extra_sql, extra_params)
     works = _work_counts(groups, filtered=bool(extra_sql))
-    facet_ok = bool(extra_sql) and merge_case and scope == "corpus"
     rowids = _page_rowids(
         conn,
         where,
         works,
         offset=offset,
         limit=limit,
-        facet_range=_facet_range(groups, pos, surface) if facet_ok else None,
+        facet_range=_facet_range_for(conn, where, groups, scope, pos, surface)
+        if extra_sql and merge_case
+        else None,
     )
     page = _page_details(conn, rowids)
 
@@ -339,6 +324,33 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
     }
 
 
+def _filter_sql(
+    alias: str, pos: str | None, surface: str | None, morph_filters: dict[str, str]
+) -> tuple[str, list[Any]]:
+    """The request's `pos`/`surface`/`morph` filter as ` AND …` terms on
+    ``alias``, which is either a `chunk_lemmas` row or an aggregate group:
+    both carry the three columns under the same names."""
+
+    sql = ""
+    params: list[Any] = []
+    if pos:
+        sql += f" AND {alias}.pos = ?"
+        params.append(pos)
+    if surface:
+        sql += f" AND {alias}.surface_form = ?"
+        params.append(surface)
+    # spaCy feats stored as ``Key=Val|Key=Val``; a string-contains
+    # match is faster than parsing every row in SQL. We require all
+    # requested features to appear as substrings.
+    # `morph` is free-form beyond its Key=Val shape check, so the key
+    # and value are escaped — an unescaped `%` would widen the match
+    # to "any row carrying this feature" instead of narrowing it (#120).
+    for k, v in morph_filters.items():
+        sql += f" AND {alias}.feats LIKE ? ESCAPE '\\'"
+        params.append(f"%{escape_like_substring(k)}={escape_like_substring(v)}%")
+    return sql, params
+
+
 def _lemma_aggregates(
     conn: sqlite3.Connection,
     lemma: str,
@@ -346,8 +358,8 @@ def _lemma_aggregates(
     scope_sql: str,
     scope_params: list[Any],
     lemma_match_sql: str,
-    extra_sql: str,
-    extra_params: list[Any],
+    group_filter_sql: str,
+    filter_params: list[Any],
 ) -> tuple[dict[str, Any], int, list[sqlite3.Row]]:
     """One grouped pass over a lemma's rows → (breakdowns, total, groups).
 
@@ -365,27 +377,30 @@ def _lemma_aggregates(
     is ``(pos, surface_form, feats, work)``, and ``pos`` / ``surface`` /
     ``morph`` are the only filters this endpoint accepts — so every filter
     lands on a column already in the key, and the filtered total is a
-    sub-sum of the same groups. It is computed by SQLite in the same pass
-    rather than re-derived in Python, so `LIKE`'s semantics (ASCII-case-
+    sub-sum of the same groups. ``group_filter_sql`` is that filter on the
+    group (`g.`) rather than on the row, and SQLite evaluates it once per
+    group in the outer SELECT, so `LIKE`'s semantics (ASCII-case-
     insensitive, and `%`/`_` escaped by the caller) stay in one place.
+    Evaluated per row inside the grouping, as it first was, it ran 671,411
+    times for `der`/deu instead of 16,075, and cost 14–40 ms of a ~58 ms
+    pass (#666).
 
     Group cardinality is what makes the Python-side fold affordable, and
     it was measured rather than assumed: the busiest lemma in each
-    language yields 39–16,434 groups, the worst being grc `ὁ` (344,606
-    occurrences), whose `feats` column is the widest in the corpus at
-    1,722 distinct values.
+    language yields thousands of groups (16,075 for `der`/deu, 16,604 for
+    grc `ὁ`, measured 2026-09-25), over far fewer distinct `feats` strings
+    (143 and 159), which is why the fold parses each string once.
     """
 
     # The `CASE` sits in the SELECT list, which precedes the WHERE in the
     # statement text, and SQLite binds `?` by position in that text — so
     # the filter params bind FIRST. Same ordering trap as the concordance
     # totals query.
-    filtered_col = outer_filtered = ""
+    filtered_col = ""
     lead_params: list[Any] = []
-    if extra_sql:
-        filtered_col = f", SUM(CASE WHEN 1=1{extra_sql} THEN 1 ELSE 0 END) AS n_filtered"
-        outer_filtered = ", g.n_filtered"
-        lead_params = list(extra_params)
+    if group_filter_sql:
+        filtered_col = f", CASE WHEN 1=1{group_filter_sql} THEN g.n ELSE 0 END AS n_filtered"
+        lead_params = list(filter_params)
 
     # Grouped on the lemma row's own `work_id`, then joined to `works` once
     # per group for the title. Every grouped column is in
@@ -395,14 +410,14 @@ def _lemma_aggregates(
     # of one; the fold below sums by title, so the breakdowns are unchanged.
     rows = conn.execute(
         f"""
-        SELECT g.pos, g.surface, g.feats, g.work_id, w.title AS work, w.author,
-               g.n{outer_filtered}
+        SELECT g.pos, g.surface_form AS surface, g.feats, g.work_id, w.title AS work,
+               w.author, g.n{filtered_col}
         FROM (
             SELECT cl.pos          AS pos,
-                   cl.surface_form AS surface,
+                   cl.surface_form AS surface_form,
                    cl.feats        AS feats,
                    cl.work_id      AS work_id,
-                   COUNT(*)        AS n{filtered_col}
+                   COUNT(*)        AS n
             FROM chunk_lemmas cl
             WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}
             GROUP BY 1, 2, 3, 4
@@ -413,7 +428,7 @@ def _lemma_aggregates(
     ).fetchall()
 
     breakdowns = _fold_breakdowns(rows)
-    total = sum(_matches(r, filtered=bool(extra_sql)) for r in rows)
+    total = sum(_matches(r, filtered=bool(group_filter_sql)) for r in rows)
     return breakdowns, total, rows
 
 
@@ -428,9 +443,7 @@ def _fold_breakdowns(rows: list[sqlite3.Row]) -> dict[str, Any]:
 
     pos_b: dict[str, int] = {}
     surface_b: dict[str, int] = {}
-    case_b: dict[str, int] = {}
-    number_b: dict[str, int] = {}
-    gender_b: dict[str, int] = {}
+    feats_b: dict[str, int] = {}
     work_b: dict[str, int] = {}
     for r in rows:
         n = int(r["n"])
@@ -442,14 +455,9 @@ def _fold_breakdowns(rows: list[sqlite3.Row]) -> dict[str, Any]:
         if r["surface"]:
             surface_b[r["surface"]] = surface_b.get(r["surface"], 0) + n
         if r["feats"]:
-            feats = _parse_morph_feats(r["feats"])
-            if "Case" in feats:
-                case_b[feats["Case"]] = case_b.get(feats["Case"], 0) + n
-            if "Number" in feats:
-                number_b[feats["Number"]] = number_b.get(feats["Number"], 0) + n
-            if "Gender" in feats:
-                gender_b[feats["Gender"]] = gender_b.get(feats["Gender"], 0) + n
+            feats_b[r["feats"]] = feats_b.get(r["feats"], 0) + n
         work_b[r["work"]] = work_b.get(r["work"], 0) + n
+    case_b, number_b, gender_b = _morph_breakdowns(feats_b)
 
     def _top(d: dict[str, int], n: int = 12) -> list[dict[str, Any]]:
         # Ties break on the value, not on scan order. Sorting by count
@@ -472,6 +480,23 @@ def _fold_breakdowns(rows: list[sqlite3.Row]) -> dict[str, Any]:
         "surface_breakdown": _top(surface_b),
         "work_breakdown": _top(work_b, n=20),
     }
+
+
+def _morph_breakdowns(
+    feats_counts: dict[str, int],
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Case/Number/Gender buckets from per-`feats`-string counts, parsing
+    each distinct string once: `der`/deu's 16,075 groups carry 143 (#666)."""
+
+    case_b: dict[str, int] = {}
+    number_b: dict[str, int] = {}
+    gender_b: dict[str, int] = {}
+    for raw, n in feats_counts.items():
+        feats = _parse_morph_feats(raw)
+        for key, bucket in (("Case", case_b), ("Number", number_b), ("Gender", gender_b)):
+            if key in feats:
+                bucket[feats[key]] = bucket.get(feats[key], 0) + n
+    return case_b, number_b, gender_b
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -568,6 +593,53 @@ def _facet_range(groups: list[sqlite3.Row], pos: str | None, surface: str | None
     )
 
 
+def _facet_range_for(
+    conn: sqlite3.Connection,
+    where: _Where,
+    groups: list[sqlite3.Row],
+    scope: str,
+    pos: str | None,
+    surface: str | None,
+) -> int:
+    """`_facet_range` for any scope.
+
+    At corpus scope the groups are the whole range. A scoped request's groups
+    count only its own works, but the facet seek has no `work_id` ahead of the
+    filter columns and reads the lemma's range across every work, so the size
+    comes from `lemma_counts` instead (#665). The scope's own count is a lower
+    bound on it, and it stands in when `lemma_counts` has not been built.
+    """
+
+    in_scope = _facet_range(groups, pos, surface)
+    if scope == "corpus":
+        return in_scope
+    return max(in_scope, _corpus_facet_range(conn, where.lang, where.lemma, pos=pos))
+
+
+def _corpus_facet_range(conn: sqlite3.Connection, lang: str, lemma: str, *, pos: str | None) -> int:
+    """The lemma's corpus-wide rows, under the KWIC fold, from `lemma_counts`.
+
+    `lemma_key` is Python's Unicode `lower()`, and the KWIC match is SQL's
+    ASCII-only `LOWER`, which never merges more. So the seek on the key is a
+    superset and the `LOWER` check trims it to the KWIC match exactly.
+    Without `pos` this is the whole range. With `pos` it is the `pos` range,
+    which overstates a `surface` seek within it. A larger range only makes the
+    walk look cheaper, so the rule errs towards the path it took before.
+    `lemma_counts` skips untagged rows, so it can undercount.
+    """
+
+    pos_sql = " AND pos = ?" if pos else ""
+    row = conn.execute(
+        f"""
+        SELECT COALESCE(SUM(count), 0) FROM lemma_counts
+        WHERE lang = ? AND scope_kind = 'corpus' AND scope_value IS NULL
+          AND lemma_key = ? AND LOWER(lemma) = LOWER(?){pos_sql}
+        """,
+        [lang, _lower_unicode(lemma), lemma, *([pos] if pos else [])],
+    ).fetchone()
+    return int(row[0])
+
+
 # Microseconds per unit of work, measured on the live index (`der`/deu,
 # 671,411 rows, warm, #657's prototype). A filtered locator walk checks each
 # entry on its table row: 266 ms for all 671,411. A facet range read is index
@@ -607,8 +679,8 @@ def _page_rowids(
     request is filtered and the filter is rare, it reads every match from
     `chunk_lemmas_by_facet` instead and sorts them here. `facet_range` is
     None when that path is not on offer: an unfiltered request always
-    walks, and so does a scoped one, whose facet range the corpus-wide
-    groups cannot size.
+    walks, and so does an exact-case (`merge_case=0`) one, whose match is
+    not the index's leading `lemma_fold`.
     """
 
     page = _slice_works(works, offset, limit)
