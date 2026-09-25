@@ -63,12 +63,15 @@ def parse_authors(query: dict[str, str]) -> list[str]:
 
 def _scope_clause(scope: str, authors: list[str], works: list[str]) -> tuple[str, list[Any]]:
     """Translate (scope, authors, works) into a SQL fragment + params
-    that filters the JOIN to ``chunks_full``.
+    that filters ``chunk_lemmas cl`` by its own ``work_id``.
 
-    Always emits language as ``cf.lang = ?`` — that param is appended
-    by the caller. The scope check follows. ``authors``/``works`` may
-    each name one or more values (``scope=author`` → ``cf.author IN
-    (...)``; ``scope=work`` → ``cf.work IN (...)``).
+    ``authors``/``works`` may each name one or more values. The fragment
+    resolves them through ``works`` — ``cl.work_id IN (SELECT id FROM
+    works WHERE author|title IN (...))`` — which is the same set the
+    ``cf.author`` / ``cf.work`` filter it replaces selected, because
+    ``chunks_full`` defines those as ``w.author`` / ``w.title``. Filtering
+    on the lemma row's copy is what lets the KWIC indexes answer a scoped
+    request without probing ``chunks`` per row (#649).
     """
 
     if scope not in ("corpus", "author", "work"):
@@ -83,6 +86,9 @@ def _scope_clause(scope: str, authors: list[str], works: list[str]) -> tuple[str
     if scope == "corpus":
         return "", []
     values = authors if scope == "author" else works
-    col = "cf.author" if scope == "author" else "cf.work"
+    col = "author" if scope == "author" else "title"
     placeholders = ",".join("?" * len(values))
-    return f" AND {col} IN ({placeholders})", list(values)
+    return (
+        f" AND cl.work_id IN (SELECT id FROM works WHERE {col} IN ({placeholders}))",
+        list(values),
+    )

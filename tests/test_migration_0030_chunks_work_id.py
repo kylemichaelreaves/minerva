@@ -110,6 +110,11 @@ def _undo_0030(conn: sqlite3.Connection) -> None:
 
     conn.execute("DROP VIEW IF EXISTS chunks_full")
     conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+    # Migration 0036's triggers copy `chunks.work_id` onto `chunk_lemmas`
+    # (#649), and SQLite refuses to drop a column a trigger names. Rewinding
+    # to before 0030 means before 0036 too, as far as `chunks` is concerned.
+    conn.execute("DROP TRIGGER IF EXISTS chunks_locators_ai")
+    conn.execute("DROP TRIGGER IF EXISTS chunks_locators_au")
     conn.execute("ALTER TABLE chunks DROP COLUMN work_id")
     conn.execute(_PRE_0030_VIEW.strip())
     conn.execute("DELETE FROM schema_migrations WHERE version = 30")

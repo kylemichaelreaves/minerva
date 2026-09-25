@@ -1,4 +1,5 @@
-"""Shared DDL fragments for ``chunks_fts`` triggers and ``chunks_full``."""
+"""Shared DDL fragments for ``chunks_fts`` triggers, ``chunks_full`` and the
+KWIC indexes on ``chunk_lemmas``."""
 
 from __future__ import annotations
 
@@ -91,3 +92,32 @@ JOIN works w ON w.id = c.work_id
 def recreate_chunks_full_view(conn: sqlite3.Connection) -> None:
     conn.execute("DROP VIEW IF EXISTS chunks_full")
     conn.execute(CHUNKS_FULL_VIEW_SQL.strip())
+
+
+# The two indexes the KWIC endpoint answers from (migration 0036, #649). Here
+# rather than in the migration because the `--reset` restore drops and
+# rebuilds them around its bulk copy, and the two definitions must not drift.
+#
+# `chunk_lemmas_by_locator` serves the page: walked in order, stopping after
+# `limit` entries. `work_id` trails so an author/work scope is tested on the
+# index entry rather than a table row — a 4-row work scope measured 283 ms
+# without it, 20 ms with.
+#
+# `chunk_lemmas_by_facet` serves the aggregate: every column the breakdowns
+# group on, so the pass is an index-only scan. The `work_id` column without
+# this index measured only 25-45% of the win (`der` 1,231 -> 778 ms, against
+# 63 ms with it).
+_KWIC_INDEXES = (
+    ("chunk_lemmas_by_locator", "lemma_fold, lang_resolved, chunk_ord, surface_start, work_id"),
+    ("chunk_lemmas_by_facet", "lemma_fold, lang_resolved, pos, surface_form, feats, work_id"),
+)
+
+
+def chunk_lemmas_kwic_index_drops() -> tuple[str, ...]:
+    return tuple(f"DROP INDEX IF EXISTS {name}" for name, _cols in _KWIC_INDEXES)
+
+
+def chunk_lemmas_kwic_index_creates() -> tuple[str, ...]:
+    return tuple(
+        f"CREATE INDEX IF NOT EXISTS {name} ON chunk_lemmas({cols})" for name, cols in _KWIC_INDEXES
+    )

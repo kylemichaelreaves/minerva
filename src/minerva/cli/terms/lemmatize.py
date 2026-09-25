@@ -145,8 +145,9 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         # the read cursor's SHARED lock blocks the writer's EXCLUSIVE
         # lock acquisition at commit time.)
         # Tuple shape matches the INSERT in ``_flush`` — the lemma_fold
-        # slot was added with migration 0018 so KWIC lookups can seek
-        # ``chunk_lemmas_by_fold`` instead of forcing a scan via
+        # slot was added with migration 0018 so KWIC lookups can seek an
+        # index led by it (``chunk_lemmas_by_locator`` / ``_by_facet``
+        # since migration 0036) instead of forcing a scan via
         # ``LOWER(lemma) = LOWER(?)``. ``lang`` (migration 0032) is NULL
         # for an ordinary same-script token — meaning "this row's
         # language is its chunk's language", still true for every row

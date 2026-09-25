@@ -79,7 +79,12 @@ _MORPH_FEATURE_KEYS = frozenset(
 # path behind the click kept matching on the chunk's own language, so
 # 2,869 leaderboard cells listed a count and returned no rows (#644).
 # One rule, and the two agree by construction.
-_LANG_MATCH = "COALESCE(cl.lang, cf.lang) = ?"
+#
+# The rule is `COALESCE(cl.lang, chunks.lang)`, stored resolved in
+# `cl.lang_resolved` by migration 0036 and kept current by its triggers.
+# Computing it here instead forced a probe into `chunks` for every matching
+# row, which was the whole cost of this endpoint (#649).
+_LANG_MATCH = "cl.lang_resolved = ?"
 
 
 def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, Any]:
@@ -206,8 +211,8 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
     # available in SQLite but LOWER handles all the ASCII-only
     # capitalization variants the Lutheran convention produces.
     # Use the stored ``lemma_fold`` column (migration 0018) for the
-    # case-folded path so the KWIC seek hits ``chunk_lemmas_by_fold``
-    # instead of forcing a full chunks scan via
+    # case-folded path so the KWIC seek hits the ``lemma_fold``-led
+    # indexes of migration 0036 instead of forcing a full chunks scan via
     # ``LOWER(cl.lemma) = LOWER(?)``. The exact-match path stays on
     # ``cl.lemma`` — the primary lemma index already covers it.
     lemma_match_sql = "cl.lemma_fold = LOWER(?)" if merge_case else "cl.lemma = ?"
@@ -271,8 +276,18 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
             "next_offset": None,
         }
 
-    # Main page query — joins to chunks_full for section/work/author
-    # + the chunk text so we can build KWIC snippets in Python.
+    # Main page query. The inner select picks the page from
+    # `chunk_lemmas_by_locator` alone, walking it in order and stopping after
+    # `limit` entries; only those rows are then joined to chunks_full for
+    # section/work/author and the text the KWIC snippet is cut from. Joining
+    # first meant probing `chunks` for every matching row — 671,411 of them
+    # for `der` — to keep 50 (#649).
+    #
+    # The order ends on `work_id, rowid` so it is total: `ord` restarts in
+    # every work, so `(ord, surface_start)` ties across works, and an offset
+    # boundary through a tie can serve one row twice and its partner never.
+    # Both trailing keys are the index's own, so it still needs no sort.
+    order = "cl.chunk_ord ASC, cl.surface_start ASC, cl.work_id ASC, cl.rowid ASC"
     sql_rows = f"""
         SELECT cl.chunk_id    AS chunk_id,
                cl.surface_form AS surface,
@@ -286,11 +301,16 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
                cf.author       AS author,
                cf.ord          AS ord,
                cf.text         AS text
-        FROM chunk_lemmas cl
+        FROM (
+            SELECT cl.rowid AS rid
+            FROM chunk_lemmas cl
+            WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}{extra_sql}
+            ORDER BY {order}
+            LIMIT ? OFFSET ?
+        ) p
+        JOIN chunk_lemmas cl ON cl.rowid = p.rid
         JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}{extra_sql}
-        ORDER BY cf.ord ASC, cl.surface_start ASC
-        LIMIT ? OFFSET ?
+        ORDER BY {order}
     """
     page = conn.execute(
         sql_rows,
@@ -376,23 +396,33 @@ def _lemma_aggregates(
     # statement text, and SQLite binds `?` by position in that text — so
     # the filter params bind FIRST. Same ordering trap as the concordance
     # totals query.
-    filtered_col = ""
+    filtered_col = outer_filtered = ""
     lead_params: list[Any] = []
     if extra_sql:
         filtered_col = f", SUM(CASE WHEN 1=1{extra_sql} THEN 1 ELSE 0 END) AS n_filtered"
+        outer_filtered = ", g.n_filtered"
         lead_params = list(extra_params)
 
+    # Grouped on the lemma row's own `work_id`, then joined to `works` once
+    # per group for the title. Every grouped column is in
+    # `chunk_lemmas_by_facet`, so the pass never leaves that index — 1,176 ms
+    # for `der` through `chunks_full`, 57 ms this way (#649). Two works that
+    # share a title (the two Luther Bibles) now arrive as two groups instead
+    # of one; the fold below sums by title, so the breakdowns are unchanged.
     rows = conn.execute(
         f"""
-        SELECT cl.pos          AS pos,
-               cl.surface_form AS surface,
-               cl.feats        AS feats,
-               cf.work         AS work,
-               COUNT(*)        AS n{filtered_col}
-        FROM chunk_lemmas cl
-        JOIN chunks_full cf ON cf.chunk_id = cl.chunk_id
-        WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}
-        GROUP BY 1, 2, 3, 4
+        SELECT g.pos, g.surface, g.feats, w.title AS work, g.n{outer_filtered}
+        FROM (
+            SELECT cl.pos          AS pos,
+                   cl.surface_form AS surface,
+                   cl.feats        AS feats,
+                   cl.work_id      AS work_id,
+                   COUNT(*)        AS n{filtered_col}
+            FROM chunk_lemmas cl
+            WHERE {_LANG_MATCH} AND {lemma_match_sql}{scope_sql}
+            GROUP BY 1, 2, 3, 4
+        ) g
+        JOIN works w ON w.id = g.work_id
         """,
         [*lead_params, lang, lemma, *scope_params],
     ).fetchall()

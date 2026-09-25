@@ -18,6 +18,7 @@ from ..sqlite_util import sweep_orphan_chunk_ids
 from ..store.preserved_state import (
     _maybe_restore_preserved_state_from_snapshot,
     _maybe_snapshot_pre_index,
+    restore_chunk_lemmas_from_snapshot,
     restore_glossary_from_snapshot,
 )
 from ._shared import (
@@ -96,7 +97,7 @@ def cmd_index(args: argparse.Namespace) -> int:
         # downstream paths reconnect to the rows naturally. Idempotent /
         # no-op when the snapshot is missing or already-empty.
         with Timer() as overall:
-            _maybe_restore_preserved_state_from_snapshot(conn, args.db)
+            restore_lemmas = _maybe_restore_preserved_state_from_snapshot(conn, args.db)
             with Timer() as t_insert:
                 if incremental:
                     print(
@@ -111,6 +112,11 @@ def cmd_index(args: argparse.Namespace) -> int:
                     )
                 else:
                     n = store.insert_chunks(conn, args.input)
+            # After the insert, not with the restore above: each lemma row
+            # copies its chunk's `ord` and `work_id`, which the insert has
+            # just renumbered and reassigned (#649). See preserved_state.py.
+            if restore_lemmas:
+                restore_chunk_lemmas_from_snapshot(conn, args.db)
             # Post-insert orphan sweep for chunk_lemmas. Chunks whose text
             # genuinely changed get a fresh chunk_id (content-hashed);
             # their pre-restored lemma rows now point at a non-existent
