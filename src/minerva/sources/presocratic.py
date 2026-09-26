@@ -400,74 +400,103 @@ def parse_file(
 
     with path.open("r", encoding="utf-8") as fh:
         text = fh.read()
-    lines = text.split("\n")
+    parser = _Parser(path.name)
+    for line in text.split("\n"):
+        yield from parser.feed(line)
+    # Final flush for the last chapter in the file.
+    yield from parser.flush_chapter()
 
-    current_phil: tuple[int, int, str, str] | None = None
-    mode: str = "outside"  # outside | pre_b | in_b
-    block: str = "none"  # none | greek | german | apparatus | doubtful
-    # Two separate "last fragment number" trackers, one per language.
-    # The page layout interleaves apparatus + page-break running heads
-    # between a fragment's Greek lines and its German translation;
-    # routing continuations by the language they look like (Greek
-    # script vs Latin/German) is more robust than tracking a single
-    # cur_frag. See `_classify_line` + the `continuation` branch below.
-    last_greek_frag: int | None = None
-    last_german_frag: int | None = None
-    greek_buf: dict[int, list[str]] = {}
-    german_buf: dict[int, list[str]] = {}
 
-    def flush_chapter() -> Iterator[Chunk]:
-        nonlocal greek_buf, german_buf, last_greek_frag, last_german_frag
-        if current_phil is None:
+class _Parser:
+    """The line-at-a-time state machine behind `parse_file`, one method
+    per line kind."""
+
+    def __init__(self, source_file: str) -> None:
+        self.source_file = source_file
+        self.current_phil: tuple[int, int, str, str] | None = None
+        self.mode: str = "outside"  # outside | pre_b | in_b
+        self.block: str = "none"  # none | greek | german | apparatus | doubtful
+        # Two separate "last fragment number" trackers, one per language.
+        # The page layout interleaves apparatus + page-break running heads
+        # between a fragment's Greek lines and its German translation;
+        # routing continuations by the language they look like (Greek
+        # script vs Latin/German) is more robust than tracking a single
+        # cur_frag. See `_classify_line` + `_on_continuation`.
+        self.last_greek_frag: int | None = None
+        self.last_german_frag: int | None = None
+        self.greek_buf: dict[int, list[str]] = {}
+        self.german_buf: dict[int, list[str]] = {}
+
+    def flush_chapter(self) -> Iterator[Chunk]:
+        if self.current_phil is None:
             return
-        yield from _emit_chapter_chunks(current_phil, greek_buf, german_buf, path.name)
-        greek_buf = {}
-        german_buf = {}
-        last_greek_frag = None
-        last_german_frag = None
+        yield from _emit_chapter_chunks(
+            self.current_phil, self.greek_buf, self.german_buf, self.source_file
+        )
+        self.greek_buf = {}
+        self.german_buf = {}
+        self.last_greek_frag = None
+        self.last_german_frag = None
 
-    def reset_blocks() -> None:
-        nonlocal block, last_greek_frag, last_german_frag
-        block = "none"
-        last_greek_frag = None
-        last_german_frag = None
+    def _reset_blocks(self) -> None:
+        self.block = "none"
+        self.last_greek_frag = None
+        self.last_german_frag = None
 
-    for line in lines:
+    def feed(self, line: str) -> Iterator[Chunk]:
         kind, payload = _classify_line(line)
 
+        if kind == "chapter":
+            yield from self._on_chapter(payload)
+            return
+        if self.current_phil is None or self.mode == "outside":
+            return
+        if kind in ("a_marker", "b_marker", "c_marker", "doubtful"):
+            yield from self._on_marker(kind)
+            return
+        if kind in ("running_head", "page_num", "blank"):
+            # Page chrome — never opens or interrupts a fragment.
+            return
+        # In pre-B mode (skipping testimonia + apparatus), only B-marker
+        # transitions matter; everything else is dropped.
+        if self.mode == "pre_b":
+            return
+
+        # mode == "in_b" beyond this point.
+        if kind == "apparatus":
+            self.block = "apparatus"
+        elif kind == "frag_greek":
+            self._on_frag_greek(payload)  # type: ignore[arg-type]
+        elif kind == "frag_german":
+            self._on_frag_german(payload)  # type: ignore[arg-type]
+        elif kind == "continuation":
+            assert isinstance(payload, str)
+            self._on_continuation(payload)
+
+    def _on_chapter(self, payload: object) -> Iterator[Chunk]:
         # Chapter heading: switch to new philosopher (and flush prior)
         # only when the captured name resolves to a Phase-1 entry.
         # A regex match that doesn't resolve is treated as noise (an
         # uppercase token that happens to follow `N. ` — e.g. a
         # quoted SEXT abbreviation in an A-fragment that we want to
         # ignore in pre_b mode).
-        if kind == "chapter":
-            chap_int, name = payload  # type: ignore[misc]
-            entry = find_by_chapter_heading(chap_int, name)
-            if entry is None:
-                # Not a recognized philosopher — treat as continuation
-                # in the current mode (drop in pre_b; accumulate in_b
-                # if we're in a block, which is essentially never
-                # because frag-start regexes match first).
-                continue
-            if entry == current_phil:
-                # Same philosopher running-head — ignore.
-                continue
-            # New Phase-1 philosopher — flush prior chapter's chunks.
-            yield from flush_chapter()
-            current_phil = entry
-            mode = "pre_b"
-            reset_blocks()
-            continue
+        chap_int, name = payload  # type: ignore[misc]
+        entry = find_by_chapter_heading(chap_int, name)
+        # Not a recognized philosopher, or the same philosopher's
+        # running head — ignore.
+        if entry is None or entry == self.current_phil:
+            return
+        # New Phase-1 philosopher — flush prior chapter's chunks.
+        yield from self.flush_chapter()
+        self.current_phil = entry
+        self.mode = "pre_b"
+        self._reset_blocks()
 
-        if current_phil is None or mode == "outside":
-            continue
-
+    def _on_marker(self, kind: str) -> Iterator[Chunk]:
         if kind == "a_marker":
-            mode = "pre_b"
-            reset_blocks()
-            continue
-        if kind == "b_marker":
+            self.mode = "pre_b"
+            self._reset_blocks()
+        elif kind == "b_marker":
             # First entry into in_b: reset block state. A running-head
             # b_marker re-fire while ALREADY in_b must NOT reset block
             # state — otherwise a page-break running head between a
@@ -479,135 +508,116 @@ def parse_file(
             # running B-marker that follows it signals we're back in
             # canonical B-fragments — clear the doubtful flag so
             # subsequent frag-openers fire.
-            if mode != "in_b":
-                mode = "in_b"
-                reset_blocks()
-            elif block == "doubtful":
-                block = "none"
-            continue
-        if kind == "c_marker":
+            if self.mode != "in_b":
+                self.mode = "in_b"
+                self._reset_blocks()
+            elif self.block == "doubtful":
+                self.block = "none"
+        elif kind == "c_marker":
             # C-fragments aren't canonical B; emit what we have and
             # stop collecting for this chapter.
-            yield from flush_chapter()
-            current_phil = None
-            mode = "outside"
-            reset_blocks()
-            continue
-        if kind == "doubtful":
+            yield from self.flush_chapter()
+            self.current_phil = None
+            self.mode = "outside"
+            self._reset_blocks()
+        else:
             # ZWEIFELHAFTE FRAGMENTE — skip until next B-marker, C, or
             # chapter. Just enter a sentinel block; non-frag-start
             # lines are ignored anyway in `in_b` mode unless we
             # explicitly accumulate.
-            block = "doubtful"
-            continue
-        if kind in ("running_head", "page_num", "blank"):
-            # Page chrome — never opens or interrupts a fragment.
-            continue
+            self.block = "doubtful"
 
-        # In pre-B mode (skipping testimonia + apparatus), only B-marker
-        # transitions matter; everything else is dropped.
-        if mode == "pre_b":
-            continue
+    def _on_frag_greek(self, frag_list: list[tuple[int, str]]) -> None:
+        # Payload is a list of (num, body) pairs — one entry for a
+        # normal single-fragment line, multiple when the OCR
+        # crammed several fragments onto one text line.
+        for frag_num, head_text in frag_list:
+            self.greek_buf.setdefault(frag_num, []).append(head_text)
+        # The "current" Greek fragment for continuation routing is
+        # the LAST one in the crammed list — subsequent continuation
+        # lines (page-break Greek tails) belong to that one.
+        self.last_greek_frag = frag_list[-1][0]
+        self.block = "greek"
 
-        # mode == "in_b" beyond this point.
-        if kind == "apparatus":
-            block = "apparatus"
-            continue
+    def _on_frag_german(self, frag_list: list[tuple[int, str]]) -> None:
+        # Same shape as frag_greek to handle crammed-OCR
+        # multi-fragment lines.
+        for frag_num, head_text in frag_list:
+            self.german_buf.setdefault(frag_num, []).append(head_text)
+        self.last_german_frag = frag_list[-1][0]
+        self.block = "german"
 
-        if kind == "frag_greek":
-            # Payload is a list of (num, body) pairs — one entry for a
-            # normal single-fragment line, multiple when the OCR
-            # crammed several fragments onto one text line.
-            frag_list = payload  # type: ignore[assignment]
-            for frag_num, head_text in frag_list:  # type: ignore[misc]
-                greek_buf.setdefault(frag_num, []).append(head_text)
-            # The "current" Greek fragment for continuation routing is
-            # the LAST one in the crammed list — subsequent continuation
-            # lines (page-break Greek tails) belong to that one.
-            last_greek_frag = frag_list[-1][0]  # type: ignore[index]
-            block = "greek"
-            continue
+    def _on_continuation(self, text_payload: str) -> None:
+        has_greek = bool(_GREEK_CHAR_RE.search(text_payload))
+        if has_greek and self._split_crammed_greek_continuation(text_payload):
+            return
+        if not has_greek and self._split_crammed_german_continuation(text_payload):
+            return
+        self._route_by_content(text_payload, has_greek)
 
-        if kind == "frag_german":
-            # Payload is a list of (num, body) pairs — same shape as
-            # frag_greek to handle crammed-OCR multi-fragment lines.
-            frag_list = payload  # type: ignore[assignment]
-            for frag_num, head_text in frag_list:  # type: ignore[misc]
-                german_buf.setdefault(frag_num, []).append(head_text)
-            last_german_frag = frag_list[-1][0]  # type: ignore[index]
-            block = "german"
-            continue
+    def _split_crammed_greek_continuation(self, text_payload: str) -> bool:
+        # Continuation lines can themselves contain interior
+        # `N. [<crossref>]` markers when the OCR linearizes a
+        # Greek poem followed by mid-line new fragments. Detect
+        # and split: the prefix continues the prior Greek
+        # fragment; each subsequent split begins a new one.
+        first_split = _CRAMMED_FRAG_SPLIT_RE.search(text_payload)
+        if first_split is None:
+            return False
+        prefix = text_payload[: first_split.start()]
+        if prefix.strip() and self.last_greek_frag is not None:
+            self.greek_buf[self.last_greek_frag].append(prefix.strip())
+        # The first inner fragment + any further crammed
+        # ones get split via the shared helper. Note
+        # `first_split.end() - 1` backs up to the `[`.
+        rest = text_payload[first_split.end() - 1 :]
+        for frag_num, head_text in _split_crammed_greek(int(first_split.group(1)), rest):
+            self.greek_buf.setdefault(frag_num, []).append(head_text)
+            self.last_greek_frag = frag_num
+        self.block = "greek"
+        return True
 
-        if kind == "continuation":
-            text_payload = payload  # type: ignore[assignment]
-            assert isinstance(text_payload, str)
-            has_greek = bool(_GREEK_CHAR_RE.search(text_payload))
+    def _split_crammed_german_continuation(self, text_payload: str) -> bool:
+        # German continuation can ALSO contain crammed interior
+        # `N. <CapitalizedWord>` markers (Heraclitus has many).
+        # Split + route similarly to the Greek case.
+        if self.block not in ("german", "apparatus", "none"):
+            return False
+        first_split = _CRAMMED_GERMAN_SPLIT_RE.search(text_payload)
+        if first_split is None:
+            return False
+        prefix = text_payload[: first_split.start()]
+        if prefix.strip() and self.last_german_frag is not None:
+            self.german_buf[self.last_german_frag].append(prefix.strip())
+        rest = text_payload[first_split.end() :]
+        for frag_num, head_text in _split_crammed_german(int(first_split.group(1)), rest):
+            self.german_buf.setdefault(frag_num, []).append(head_text)
+            self.last_german_frag = frag_num
+        self.block = "german"
+        return True
 
-            # Continuation lines can themselves contain interior
-            # `N. [<crossref>]` markers when the OCR linearizes a
-            # Greek poem followed by mid-line new fragments. Detect
-            # and split: the prefix continues the prior Greek
-            # fragment; each subsequent split begins a new one.
-            if has_greek:
-                first_split = _CRAMMED_FRAG_SPLIT_RE.search(text_payload)
-                if first_split is not None:
-                    prefix = text_payload[: first_split.start()]
-                    if prefix.strip() and last_greek_frag is not None:
-                        greek_buf[last_greek_frag].append(prefix.strip())
-                    # The first inner fragment + any further crammed
-                    # ones get split via the shared helper. Note
-                    # `first_split.end() - 1` backs up to the `[`.
-                    rest = text_payload[first_split.end() - 1 :]
-                    for frag_num, head_text in _split_crammed_greek(
-                        int(first_split.group(1)), rest
-                    ):
-                        greek_buf.setdefault(frag_num, []).append(head_text)
-                        last_greek_frag = frag_num
-                    block = "greek"
-                    continue
-
-            # German continuation can ALSO contain crammed interior
-            # `N. <CapitalizedWord>` markers (Heraclitus has many).
-            # Split + route similarly to the Greek case.
-            if not has_greek and block in ("german", "apparatus", "none"):
-                first_split = _CRAMMED_GERMAN_SPLIT_RE.search(text_payload)
-                if first_split is not None:
-                    prefix = text_payload[: first_split.start()]
-                    if prefix.strip() and last_german_frag is not None:
-                        german_buf[last_german_frag].append(prefix.strip())
-                    rest = text_payload[first_split.end() :]
-                    first_inner = int(first_split.group(1))
-                    for frag_num, head_text in _split_crammed_german(first_inner, rest):
-                        german_buf.setdefault(frag_num, []).append(head_text)
-                        last_german_frag = frag_num
-                    block = "german"
-                    continue
-
-            # Route the continuation by its CONTENT (Greek vs. Latin)
-            # rather than by the block-state machine. After the German
-            # block + apparatus + page-break running heads, a Greek
-            # poem can resume mid-fragment; routing by content lets us
-            # pick that up without an explicit page-break marker.
-            if has_greek and last_greek_frag is not None:
-                greek_buf[last_greek_frag].append(text_payload)
-                block = "greek"
-            elif (
-                not has_greek
-                and last_german_frag is not None
-                and block in ("german", "apparatus", "none")
-            ):
-                # Pure-Latin/German continuation. Avoid accidentally
-                # picking up a Latin source citation from `block ==
-                # "greek"` — Greek fragments can legitimately have
-                # Latin trailing notes, but those should stay with
-                # the Greek chunk, not jump to German.
-                german_buf[last_german_frag].append(text_payload)
-                block = "german"
-            # else: dropped (no anchor fragment yet, or ambiguous).
-            continue
-
-    # Final flush for the last chapter in the file.
-    yield from flush_chapter()
+    def _route_by_content(self, text_payload: str, has_greek: bool) -> None:
+        # Route the continuation by its CONTENT (Greek vs. Latin)
+        # rather than by the block-state machine. After the German
+        # block + apparatus + page-break running heads, a Greek
+        # poem can resume mid-fragment; routing by content lets us
+        # pick that up without an explicit page-break marker.
+        if has_greek and self.last_greek_frag is not None:
+            self.greek_buf[self.last_greek_frag].append(text_payload)
+            self.block = "greek"
+        elif (
+            not has_greek
+            and self.last_german_frag is not None
+            and self.block in ("german", "apparatus", "none")
+        ):
+            # Pure-Latin/German continuation. Avoid accidentally
+            # picking up a Latin source citation from `block ==
+            # "greek"` — Greek fragments can legitimately have
+            # Latin trailing notes, but those should stay with
+            # the Greek chunk, not jump to German.
+            self.german_buf[self.last_german_frag].append(text_payload)
+            self.block = "german"
+        # else: dropped (no anchor fragment yet, or ambiguous).
 
 
 def _emit_chapter_chunks(
