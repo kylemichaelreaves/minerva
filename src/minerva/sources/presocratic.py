@@ -229,14 +229,19 @@ _LEADING_LINE_NUMBER_RE = re.compile(r"^\s*(\d+)\s+(.*)$")
 # A line can also end on a bare siglum (`22 αἵματ᾽ ἐγένοντο F`).
 _APPARATUS_SIGNATURE_RE = re.compile(
     r"\]|\*|[A-Za-z][\w.]*\s?:|\bHss?\.|\b[Vv]gl\.|\bverb\.|\berg\.|\bfehlt\b|\bübr|\bmeisten\b"
-    r"|\s[A-Z]{1,3}\s*$"
 )
+_TRAILING_SIGLUM_RE = re.compile(r"\s[A-Z]{1,3}\s*$")
+
+
+def _has_apparatus_signature(text: str) -> bool:
+    return bool(_APPARATUS_SIGNATURE_RE.search(text) or _TRAILING_SIGLUM_RE.search(text))
+
 
 # Page footer: `Diels, Fragm. d. Vorsokr. I. 3. Aufl. 17`, and the
 # `17*` signature mark on the first page of each sheet. Without its own
 # kind the footer was routed as German text, and ` 3. Aufl.` split off
 # a phantom German fragment 3.
-_PAGE_FOOT_RE = re.compile(r"^\s*(?:Diels,\s*Fragm\.|\d+\*\s*$)")
+_PAGE_FOOT_RE = re.compile(r"^\s*(?:Diels,\s*Fragm\..*|\d+\*\s*)$")
 
 # German prose, told apart from a Latin source citation: two or more
 # German function words. Used only for a non-Greek line met while the
@@ -266,7 +271,7 @@ def _numbered_verse(line: str) -> str | None:
     # Verse is Greek: a German note that quotes a Greek word is not.
     if len(_GREEK_CHAR_RE.findall(bare)) <= len(_LATIN_LETTER_RE.findall(bare)):
         return None
-    if _APPARATUS_SIGNATURE_RE.search(bare) and not _looks_like_text(body):
+    if _has_apparatus_signature(bare) and not _looks_like_text(body):
         return None
     return body
 
@@ -724,17 +729,13 @@ class _Parser:
                 return
             if verse is not None:
                 self._on_continuation(verse)
-            elif _APPARATUS_SIGNATURE_RE.search(_BRACKETED_RE.sub("", line)):
+            elif _has_apparatus_signature(_BRACKETED_RE.sub("", line)):
                 self._to_apparatus(line)
             return
         # After the German a leading number is itself apparatus evidence:
         # it takes a clean line that is plainly text to overrule it.
         bare = _BRACKETED_RE.sub("", verse or "")
-        if (
-            verse is not None
-            and not _APPARATUS_SIGNATURE_RE.search(bare)
-            and _looks_like_text(verse)
-        ):
+        if verse is not None and not _has_apparatus_signature(bare) and _looks_like_text(verse):
             self._on_continuation(verse)
             return
         self._to_apparatus(line)
