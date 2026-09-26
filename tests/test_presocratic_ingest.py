@@ -240,7 +240,7 @@ class TestChapterHeadingLookup:
 # ════════════════════════════════════════════════════════════════════
 
 
-_OCR_FILE = Path.home() / "Downloads" / "diefragmentederv12diel_hocr_searchtext.txt"
+_OCR_FILE = Path("data/presocratic/diefragmentederv12diel_hocr_searchtext.txt")
 
 
 @pytest.mark.skipif(
@@ -306,3 +306,359 @@ class TestRealFile:
         assert len(set(chapters_1912)) == len(chapters_1912)
         assert len(set(chapters_mod)) == len(chapters_mod)
         assert len(set(names)) == len(names)
+
+
+# ════════════════════════════════════════════════════════════════════
+# Line numbers vs. apparatus (#673, #680)
+# ════════════════════════════════════════════════════════════════════
+#
+# Diels numbers every fifth verse in the margin, and the apparatus at
+# the foot of each page refers to verses by the same numbers. A leading
+# integer therefore marks both, and the parser used to read it as
+# "apparatus" either way: numbered verse was dropped (#680) and the
+# apparatus's own unnumbered continuation lines were routed into the
+# fragments as text (#673).
+
+
+def _parse(tmp_path: Path, src: str) -> list:
+    p = tmp_path / "dk.txt"
+    p.write_text(src, encoding="utf-8")
+    return list(presocratic.parse_file(p))
+
+
+def _body(chunks: list, section: str, lang: str) -> str:
+    """Text of the one body (non-editorial) chunk for section/lang."""
+
+    (c,) = [c for c in chunks if c.section == section and c.lang == lang and c.block_type is None]
+    return c.text
+
+
+def _editorial(chunks: list) -> str:
+    return " ".join(c.text for c in chunks if c.block_type == "editorial")
+
+
+_PAGE = (
+    "21. EMPEDOKLES,.\n"
+    "B. FRAGMENTE.\n"
+    "98. [215 K.] Simpl. phys. 32,3 ἡ δὲ Χθὼν τούτοισιν ἴση συνέκυρσε μάλιστα,\n"
+    "5 ἐκ τῶν αἷμά τε γέντο καὶ ἄλλης εἴδεα σαρκός.\n"
+    "98. Nachdem aber die Erde vor Anker gegangen, begegneten sie diesen.\n"
+    "4 εὐστέρνοις Arist., Simpl. phys. D: εὐτύκτοις Simpl. phys. EF\n"
+    "Νήστιδος] vgl. B 6,3 Karsten\n"
+    "Aufl. und Hss. übereinstimmend nach Wilamowitz\n"
+    "Diels, Fragm. d. Vorsokr. I. 3. Aufl. 17\n"
+    "17*\n"
+    "258 21. EMPEDOKLES.\n"
+    "10 εὖτε μὲν αὐλοῦ πορθμὸν ἐπ᾽ εὐειδεῖ χερὶ θεῖσα\n"
+    "15 πνεύματος ἐλλείποντος ἐσέρχεται αἴσιμον ὕδωρ.\n"
+    "aus glänzendem Erze spielt. Solange es die Mündung des Halses hält.\n"
+    "κλεψύδραις wenige Hss. (Simpl. de caelo 524, 10). Über die Sache vgl. Photiadis\n"
+)
+
+
+class TestLineNumbersVersusApparatus:
+    def test_numbered_verse_line_is_kept(self, tmp_path: Path) -> None:
+        # #680: `5 ἐκ τῶν …` is verse 5 of B 98, not apparatus.
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "grc")
+        assert "ἐκ τῶν αἷμά τε γέντο" in text
+
+    def test_numbered_verse_line_loses_its_margin_number(self, tmp_path: Path) -> None:
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "grc")
+        assert "μάλιστα, ἐκ τῶν" in text
+
+    def test_numbered_verse_after_page_break_is_kept(self, tmp_path: Path) -> None:
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "grc")
+        assert "εὖτε μὲν αὐλοῦ" in text
+        assert "πνεύματος ἐλλείποντος" in text
+
+    def test_numbered_apparatus_line_is_not_text(self, tmp_path: Path) -> None:
+        # Carries an apparatus signature (`D:`), so it stays apparatus
+        # even though it follows German directly.
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "grc")
+        assert "εὐστέρνοις" not in text
+
+    def test_apparatus_continuation_with_greek_is_not_text(self, tmp_path: Path) -> None:
+        # #673: unnumbered, Greek-bearing, so content routing used to
+        # send it to the last Greek fragment.
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "grc")
+        assert "Νήστιδος" not in text
+
+    def test_apparatus_continuation_without_greek_is_not_german_text(self, tmp_path: Path) -> None:
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "deu")
+        assert "Wilamowitz" not in text
+
+    def test_page_footer_is_not_german_text(self, tmp_path: Path) -> None:
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "deu")
+        assert "Vorsokr" not in text
+        assert "17*" not in text
+
+    def test_german_resuming_after_page_break_is_kept(self, tmp_path: Path) -> None:
+        # The page opens with Greek verse, then the German translation
+        # carries on. The German must not be dropped for following Greek.
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "deu")
+        assert "aus glänzendem Erze spielt" in text
+
+    def test_greek_after_german_on_the_same_page_is_apparatus(self, tmp_path: Path) -> None:
+        # Page layout is Greek, then German, then apparatus. Greek that
+        # follows the German before the next page break is apparatus.
+        text = _body(_parse(tmp_path, _PAGE), "31 B 98", "grc")
+        assert "κλεψύδραις" not in text
+
+    def test_apparatus_is_kept_as_editorial_chunks(self, tmp_path: Path) -> None:
+        chunks = _parse(tmp_path, _PAGE)
+        ed = [c for c in chunks if c.block_type == "editorial"]
+        assert ed, "apparatus should be kept, typed editorial"
+        assert {c.section for c in ed} == {"31 B 98"}
+        assert {c.lang for c in ed} == {"grc"}
+        joined = _editorial(chunks)
+        for piece in ("εὐστέρνοις", "Νήστιδος", "Wilamowitz", "κλεψύδραις"):
+            assert piece in joined
+
+    def test_editorial_chunk_ids_are_distinct_from_body(self, tmp_path: Path) -> None:
+        chunks = _parse(tmp_path, _PAGE)
+        ids = [c.chunk_id for c in chunks]
+        assert len(ids) == len(set(ids))
+
+
+# A verbatim excerpt of the 1912 OCR (Empedocles B 96–103, pp. 257–260),
+# so this runs in CI, where `data/` is absent.
+_EXCERPT = Path(__file__).parent / "fixtures" / "presocratic_empedocles_b96_b103.txt"
+
+
+@pytest.fixture(scope="module")
+def chunks() -> list:
+    return list(presocratic.parse_file(_EXCERPT))
+
+
+class TestEmpedoclesExcerpt:
+    def test_numbered_verse_of_b98_present(self, chunks) -> None:
+        assert "ἐκ τῶν αἷμά τε γέντο" in _body(chunks, "31 B 98", "grc")
+        # `1 δὲ Χθὼν …` too: the verse counter prints 1 as well as fives.
+        assert "δὲ Χθὼν τούτοισιν" in _body(chunks, "31 B 98", "grc")
+
+    @pytest.mark.parametrize(
+        "verse",
+        ["εὖτε μὲν αὐλοῦ", "πνεύματος ἐλλείποντος", "εἰσόκε χειρὶ μεθῆι", "αἰθέρος εὐθὺς ῥεῦμα"],
+    )
+    def test_b100_verses_after_page_breaks_are_greek_text(self, chunks, verse) -> None:
+        greek = " ".join(c.text for c in chunks if c.lang == "grc" and c.block_type is None)
+        assert verse in greek
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="#681: `99. Das Ohr … (Ὁ) Töne` reads as a Greek opener and "
+        "moves last_greek_frag back to 99, so B 100's resumed verse lands in B 99",
+    )
+    def test_b100_verses_land_in_b100(self, chunks) -> None:
+        assert "εὖτε μὲν αὐλοῦ" in _body(chunks, "31 B 100", "grc")
+
+    @pytest.mark.parametrize("section", ["31 B 98", "31 B 99", "31 B 100", "31 B 103"])
+    def test_no_apparatus_in_greek(self, chunks, section) -> None:
+        text = _body(chunks, section, "grc")
+        for sig in ("Hss.", "κλεψύδραις wenige", "εὐστέρνοις", "Steinhart"):
+            assert sig not in text
+
+    def test_german_of_b100_resumes_across_both_page_breaks(self, chunks) -> None:
+        text = _body(chunks, "31 B 100", "deu")
+        assert "aus glänzendem Erze" in text
+        assert "Innern abströmt" in text
+
+    def test_no_page_chrome_in_german(self, chunks) -> None:
+        for c in chunks:
+            if c.lang == "deu":
+                assert "Vorsokr" not in c.text
+                assert "17*" not in c.text
+
+    def test_footer_spawns_no_phantom_fragment(self, chunks) -> None:
+        # ` 3. Aufl.` in the footer used to split off a German `31 B 3`.
+        assert not [c for c in chunks if c.section == "31 B 3"]
+
+    def test_apparatus_kept_as_editorial(self, chunks) -> None:
+        joined = _editorial(chunks)
+        assert "κλεψύδραις wenige Hss." in joined
+        assert "πνοῆς Hss." in joined
+
+
+def _one_page(*lines: str) -> str:
+    return "21. EMPEDOKLES,.\nB. FRAGMENTE.\n" + "".join(line + "\n" for line in lines)
+
+
+_GREEK_OPENER = "98. [215 K.] Simpl. phys. 32,3 ἡ δὲ Χθὼν τούτοισιν ἴση συνέκυρσε μάλιστα,"
+_GERMAN_OPENER = "98. Nachdem aber die Erde vor Anker gegangen, begegneten sie diesen."
+_NUMBERED_APPARATUS = "4 εὐστέρνοις Arist., Simpl. phys. D: εὐτύκτοις Simpl. phys. EF"
+# Running Greek, no Latin script: text however it is reached.
+_PLAIN_GREEK = "περιχωρήσει ἐπὶ πλέον. καὶ τὰ συμμισγόμενά τε καὶ ἀποκρινόμενα πάντα ἔγνω νοῦς."
+
+
+class TestPageBreaks:
+    @pytest.mark.parametrize(
+        "head",
+        [
+            "B. FRAGMENTE. 99—100. 259",
+            "B, FRAGMENTE. 6—7. 429",
+            "Β. FRAGMENTE. 11—13. 405",
+            "B. FR. 18—19. ZWEIFELH. 20. 165",
+            "258 21. EMPEDOKLES.",
+            "21. EMPEDOKLES.",
+            "259",
+        ],
+    )
+    def test_page_break_ends_the_apparatus(self, tmp_path: Path, head: str) -> None:
+        # Greek resuming after the break is text again, and it is only
+        # recognisable as text by the break: it carries a Latin siglum.
+        src = _one_page(
+            _GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, head, "ἀλλ᾽ ἄγε μύθων κλῦθι Stein"
+        )
+        assert "μύθων κλῦθι" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+
+    def test_heading_is_skipped(self, tmp_path: Path) -> None:
+        src = _one_page(_GREEK_OPENER, _GERMAN_OPENER, "GEFÄLSCHTE FRAGMENTE.")
+        assert "GEFÄLSCHTE" not in _body(_parse(tmp_path, src), "31 B 98", "deu")
+
+
+class TestLeavingTheApparatus:
+    def test_plain_greek_resumes_the_text_after_a_missed_page_break(self, tmp_path: Path) -> None:
+        src = _one_page(_GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, _PLAIN_GREEK)
+        assert "περιχωρήσει" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+
+    def test_numbered_plain_greek_resumes_the_text(self, tmp_path: Path) -> None:
+        src = _one_page(_GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, "15 " + _PLAIN_GREEK)
+        assert "περιχωρήσει" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+
+    def test_opener_with_ocr_comma_resumes_the_text(self, tmp_path: Path) -> None:
+        # `80, [62] …` (Heraclitus B 80) is an opener the classifier misses.
+        line = "80, [62] Oric. c. Cels. vi 42 Koetschau εἰδέναι δὲ χρὴ τὸν πόλεμον ἐόντα ξυνόν"
+        src = _one_page(_GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, line)
+        assert "πόλεμον ἐόντα" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+
+    def test_crammed_opener_ends_the_apparatus(self, tmp_path: Path) -> None:
+        line = "ἐκπνεῖ Hss. 19 κέρματα 99. [p. 483 K.] Theophr. de sens. 9 κώδων. σάρκινος ὄζος."
+        chunks = _parse(
+            tmp_path, _one_page(_GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, line)
+        )
+        assert "σάρκινος ὄζος" in _body(chunks, "31 B 99", "grc")
+        assert "ἐκπνεῖ Hss." in _editorial(chunks)
+        assert "ἐκπνεῖ" not in _body(chunks, "31 B 98", "grc")
+
+    def test_stray_greek_letter_is_not_greek_below_the_german(self, tmp_path: Path) -> None:
+        # `ΟἹ,` is OCR for 61: the line is German, not apparatus. (Content
+        # routing still files it by its Greek letter, which is #681.)
+        src = _one_page(
+            _GREEK_OPENER, _GERMAN_OPENER, "ΟἹ, Meerwasser ist das reinste und scheußlichste."
+        )
+        assert "Meerwasser" not in _editorial(_parse(tmp_path, src))
+
+
+class TestApparatusWithoutAFragment:
+    def test_apparatus_before_any_fragment_is_dropped(self, tmp_path: Path) -> None:
+        chunks = _parse(
+            tmp_path, _one_page(_NUMBERED_APPARATUS, "Νήστιδος vgl. B 6", _GREEK_OPENER)
+        )
+        assert not _editorial(chunks)
+        assert "Νήστιδος" not in _body(chunks, "31 B 98", "grc")
+
+
+class TestNumberedLinesInText:
+    def test_garbled_line_number_is_still_verse(self, tmp_path: Path) -> None:
+        # `16` for 15: the number is no guide, the content is.
+        src = _one_page(_GREEK_OPENER, "16 καὶ ἦν ἐν τῶι παντί.")
+        assert "καὶ ἦν ἐν τῶι παντί" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+
+    def test_diels_bracketed_insertion_is_not_a_lemma_bracket(self, tmp_path: Path) -> None:
+        src = _one_page(
+            _GREEK_OPENER, "5 καὶ ἀλλαχοῦ δὲ οὕτως φησί [Β 6]. καὶ τοῦτο δὲ ὁ Α. ἀξιοῖ."
+        )
+        assert "ἀλλαχοῦ" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+
+    def test_stray_ocr_signature_in_running_greek_is_still_verse(self, tmp_path: Path) -> None:
+        line = "10 ἥ τε σεμνότης αὕτη καὶ ἡ προσποίητος πίστις καὶ ἡ ἀπάθεια, εἴ τις περιστήσειεν] φόβον"
+        assert "σεμνότης" in _body(
+            _parse(tmp_path, _one_page(_GREEK_OPENER, line)), "31 B 98", "grc"
+        )
+
+    def test_german_note_quoting_greek_is_not_verse(self, tmp_path: Path) -> None:
+        line = "8 Die Emendation des Namens gab der lat. Übersetzer, doch bleibt ππ unsicher"
+        chunks = _parse(tmp_path, _one_page(_GREEK_OPENER, line))
+        assert "Emendation" not in _body(chunks, "31 B 98", "grc")
+
+    def test_numbered_latin_testimony_is_skipped_without_opening_the_apparatus(
+        self, tmp_path: Path
+    ) -> None:
+        # The German resuming below it must not be swallowed as apparatus.
+        src = _one_page(
+            _GREEK_OPENER,
+            _GERMAN_OPENER,
+            "259",
+            "ἀλλ᾽ ἄγε μύθων κλῦθι",
+            "20 discipulus Asclepiadis libro primo De semine dixit libro physico: etenim",
+            "die Seele ein und dasselbe, nämlich Luft, die zwar wärmer ist als die äußere.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert "die Seele ein und dasselbe" in _body(chunks, "31 B 98", "deu")
+        assert "discipulus" not in _editorial(chunks)
+
+    def test_numbered_latin_greek_testimony_is_skipped(self, tmp_path: Path) -> None:
+        line = "20 causam erroris fuisse, quia in Empedocli carmine versus hic invenitur δειλοί"
+        chunks = _parse(tmp_path, _one_page(_GREEK_OPENER, line))
+        assert "causam" not in _body(chunks, "31 B 98", "grc")
+        assert not _editorial(chunks)
+
+    def test_numbered_apparatus_right_after_greek_opens_the_apparatus(self, tmp_path: Path) -> None:
+        chunks = _parse(
+            tmp_path, _one_page(_GREEK_OPENER, _NUMBERED_APPARATUS, "Νήστιδος vgl. B 6")
+        )
+        assert "Νήστιδος" in _editorial(chunks)
+        assert "Νήστιδος" not in _body(chunks, "31 B 98", "grc")
+
+
+class TestGermanResumingAtPageTop:
+    def _page_top(self, tmp_path: Path, *lines: str) -> list:
+        src = _one_page(_GREEK_OPENER, _GERMAN_OPENER, "259", "ἀλλ᾽ ἄγε μύθων κλῦθι", *lines)
+        return _parse(tmp_path, src)
+
+    def test_latin_citation_after_greek_stays_out_of_the_german(self, tmp_path: Path) -> None:
+        chunks = self._page_top(tmp_path, "Theophr. p. 5. 7. ed. Paris. 1836")
+        assert "Theophr" not in _body(chunks, "31 B 98", "deu")
+
+    def test_ocr_german_words_in_latin_do_not_make_it_german(self, tmp_path: Path) -> None:
+        # `sic` read as `sie`, `in` as `im`.
+        line = "ita vitalis calor sie procedens im omnibus quae vivunt et est in medio telae"
+        chunks = self._page_top(tmp_path, line)
+        assert "vitalis" not in _body(chunks, "31 B 98", "deu")
+
+    def test_line_starting_like_an_opener_does_not_resume(self, tmp_path: Path) -> None:
+        # `48,` is OCR for 43: another fragment, not 98 carrying on.
+        chunks = self._page_top(
+            tmp_path, "48, Sobald das Sonnenlicht den Kreis des Mondes getroffen, kehrt es zurück."
+        )
+        assert "Sonnenlicht" not in _body(chunks, "31 B 98", "deu")
+
+    def test_resumed_german_splits_at_a_crammed_opener(self, tmp_path: Path) -> None:
+        line = "teter Kehrichthaufen, und es ist so. 99. Auch der Gerstentrank zersetzt sich, wenn man ihn nicht umrührt."
+        chunks = self._page_top(tmp_path, line)
+        assert "Kehrichthaufen" in _body(chunks, "31 B 98", "deu")
+        assert "Gerstentrank" in _body(chunks, "31 B 99", "deu")
+
+    def test_no_resume_after_a_german_opener_on_the_page(self, tmp_path: Path) -> None:
+        src = _one_page(
+            _GREEK_OPENER,
+            "259",
+            "97. Die Wirbelsäule hat ihre Form daher.",
+            "ἀλλ᾽ ἄγε μύθων κλῦθι",
+            "und es ist nicht so, wie die Menschen meinen.",
+        )
+        assert "Menschen meinen" not in _body(_parse(tmp_path, src), "31 B 97", "deu")
+
+    def test_margin_column_of_fragment_numbers_blocks_resuming(self, tmp_path: Path) -> None:
+        # The OCR moved the page's openers into a margin column: the German
+        # below has lost its numbers, and is not 98 carrying on.
+        src = _one_page(
+            _GREEK_OPENER,
+            _GERMAN_OPENER,
+            "19.",
+            "20.",
+            "259",
+            "ἀλλ᾽ ἄγε μύθων κλῦθι",
+            "Leute, die weder zu hören noch zu reden verstehen.",
+        )
+        assert "Leute" not in _body(_parse(tmp_path, src), "31 B 98", "deu")
