@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { Atlas } from "~/features/Landing/components/Atlas";
 import type { LandingStats } from "~/api/landingApi";
+import { ATLAS_AUTHORS, BANDS } from "~/data/atlasData";
 
 // Found by the ErrorBoundary added for #426, which is the point of having one.
 //
@@ -83,5 +84,16 @@ describe("<Atlas /> author popover", () => {
 
   it("opens leftward for the latest author, so it stays on the page", () => {
     expect(hoverAuthor("last")).toHaveClass("atlas-tooltip-flip");
+  });
+});
+
+// The axis ran to a fixed 1880 while Luther Bibel 1912 sat past it, a tick
+// dangling off the end of the line.
+describe("atlas axis", () => {
+  it("reaches the latest author", () => {
+    const lineEnd = Math.max(...BANDS.map((b) => b.yEnd));
+    const latest = Math.max(...ATLAS_AUTHORS.map((a) => a.year));
+    expect(latest).toBeGreaterThan(1880);
+    expect(lineEnd).toBe(latest);
   });
 });

@@ -567,10 +567,13 @@
 /* Mirror image for authors in the right half (see Atlas.tsx): the box's
    right edge sits 22px past the anchor instead of its left edge 22px
    before it, and the arrow moves to the matching corner. */
-.atlas-tooltip-flip {
+/* Two classes so these outrank `.atlas-tooltip` and `.atlas-tooltip::after`
+   whatever their order in the file — with one, the base `::after` below won
+   and the arrow stayed on the left corner, pointing away from the author. */
+.atlas-tooltip.atlas-tooltip-flip {
   transform: translate(calc(-100% + 22px), calc(-100% - 12px));
 }
-.atlas-tooltip-flip::after {
+.atlas-tooltip.atlas-tooltip-flip::after {
   left: auto;
   right: 16px;
 }
