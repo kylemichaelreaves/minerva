@@ -11,10 +11,18 @@
 #     server ran against the gitignored `data/index.sqlite`, and each
 #     data-dependent test skipped itself in CI (#133).
 #
-# Coverage is reported but not yet gated — the audit asked for
-# visibility, not a hard threshold. Once a baseline is settled, add a
-# `--cov-fail-under=N` flag to the pytest step and a `thresholds`
-# block in `vite.config.ts` to enforce regressions.
+# Coverage is gated, but not here: SonarCloud's required new-code gate
+# (#158) blocks the merge, and `make check`'s `check-diff-coverage` (#255)
+# evaluates the same thing locally. This workflow only produces the
+# reports Sonar reads. (This paragraph used to say coverage was "not yet
+# gated" and suggested `--cov-fail-under`; that stopped being true at #158.)
+#
+# Every `make check` gate runs here except `check-diff-coverage`, whose
+# remote twin (Sonar's coverage gate) is already required. Before #685,
+# `check-format-baseline` and
+# `check-coverage-exclusions` ran only in `make check`, with no remote
+# backstop at all, so a PR from anyone who skipped it could merge with
+# either kind of drift.
 #
 # Installs are locked: `uv sync --locked` resolves from `uv.lock`, not
 # fresh from pyproject's ranges, so two runs of the same commit install
@@ -148,6 +156,19 @@ jobs:
         # module imports outside the manifest-driven paths.
         run: uv run --no-sync python scripts/check_author_imports.py
 
+      - name: Coverage exclusions agree
+        # Mirrors `make check-coverage-exclusions`: pyproject's coverage
+        # `omit` and `sonar.coverage.exclusions` must agree on
+        # src/minerva/. Sonar can't see a disagreement; it just scores the
+        # file 0% (#339, #345). No remote backstop, so it runs here (#685).
+        run: uv run --no-sync python scripts/check_coverage_exclusions.py
+
+      - name: Frontend test location
+        # Mirrors `make check-test-location`. Sonar's coverage gate does
+        # catch a test under web/src, but as an unexplained coverage drop
+        # (#547); this fails first, and says why.
+        run: uv run --no-sync python scripts/check_test_location.py
+
       - name: Tests (pytest with coverage)
         # `--cov` reads config from [tool.coverage.run] in
         # pyproject.toml. `xml:coverage.xml` emits the artifact in a
@@ -204,6 +225,13 @@ jobs:
 
       - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
+
+      - name: Prettier against the pinned baseline
+        # Mirrors `make check-format-baseline` (#483). eslint can't stand in:
+        # `eslint-config-prettier` only *disables* formatting rules. Runs
+        # prettier over web/ via npx, so it needs the install above; the
+        # script is stdlib-only, so the runner's system python3 serves (#685).
+        run: python3 ../scripts/check_format_baseline.py
 
       - name: Tests (vitest, unit + component, with coverage)
         # `test:coverage` excludes tests/e2e/** and emits text + lcov
