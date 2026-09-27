@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Tests for `useAbortableFetch` — the lifecycle hook that owns the
 // AbortController dance, loading/error signals, and last-write-wins
 // guards.

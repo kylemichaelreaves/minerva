@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { ESLint } from "eslint";
 import { execFileSync } from "node:child_process";

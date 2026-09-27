@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { SyntaxSentence, SyntaxToken } from "~/api/syntaxApi";
 import { parseConllu } from "~/Syntax/conllu/parse";

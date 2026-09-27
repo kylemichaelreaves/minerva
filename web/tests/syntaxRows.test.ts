@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { Arc } from "~/Syntax/layout/arcs";
 import { breakRows, segmentArcs } from "~/Syntax/layout/rows";

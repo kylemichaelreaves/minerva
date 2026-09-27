@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The part-of-speech inventory and its validator (#253).
  *

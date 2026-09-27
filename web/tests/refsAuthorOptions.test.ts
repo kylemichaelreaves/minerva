@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Ordering of the Refs page's two author filter dropdowns.
 //
 // Both lists have an endpoint path and a fallback path. The fallback fires

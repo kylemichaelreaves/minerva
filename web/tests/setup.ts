@@ -142,3 +142,18 @@ if (typeof process !== "undefined") {
     throw reason instanceof Error ? reason : new Error(msg);
   });
 }
+
+// happy-dom brings its own `fetch`, which resolves a relative URL against
+// the page URL (http://localhost:3000) and opens a socket: ECONNREFUSED in
+// CI, and whatever happens to answer on :3000 locally. Under jsdom the same
+// unmocked call used Node's fetch, which rejects a relative URL at once.
+// Keep that contract. An unmocked fetch never reaches the network; a test
+// that needs a response stubs `fetch` itself, which overrides this.
+if (typeof window !== "undefined" && "happyDOM" in window) {
+  const urlOf = (input: RequestInfo | URL): string =>
+    typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const offline: typeof fetch = (input) =>
+    Promise.reject(new TypeError(`unmocked fetch in a unit test: ${urlOf(input)}`));
+  globalThis.fetch = offline;
+  window.fetch = offline;
+}

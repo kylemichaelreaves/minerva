@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { METRIC_WINDOWS, fetchMetricsSeries, fetchMetricsSummary } from "~/api/metricsApi";
 

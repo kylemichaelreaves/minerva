@@ -108,6 +108,16 @@ when a second `Lines.test.tsx` was added under `web/src`, and both the
 implementer and the reviewer of that change reported no such file existed —
 each had looked in only one of the two places.
 
+**Pick the cheapest test environment the file needs.** The default is
+happy-dom. A test that touches no DOM at all (pure functions, API clients,
+stores) starts with `// @vitest-environment node`, which skips building a
+DOM entirely. Only a test that stubs jsdom's own internals asks for
+`// @vitest-environment jsdom`. Building the environment was ~60% of the
+suite's run on the critical-path CI job, and splitting it this way cut the
+run by ~43% (#687). One trap: happy-dom's `fetch` would open a real socket
+for an unmocked `/api/...` call. `tests/setup.ts` replaces it with one that
+rejects at once, so stub `fetch` in any test that needs a response.
+
 ### Browser tests
 
 `web/tests/browser/` runs under Playwright against the production bundle
@@ -136,7 +146,7 @@ Selecting the Nth word of a line is **not** tier 4 — a word's position in a
 sentence is its identity. Picking the second `.st-btn` to mean "Translate"
 is.
 
-**This differs from the jsdom suite on purpose.** `tests/SelectionToolbar.test.tsx`
+**This differs from the vitest component suite on purpose.** `tests/SelectionToolbar.test.tsx`
 locates by `.st-btn` plus `buttons[0]`/`buttons[1]`. That suite is not being
 converted, but do not "fix" the browser suite to match it — locating by class
 and index is why #594 went unnoticed for the life of the component: nothing

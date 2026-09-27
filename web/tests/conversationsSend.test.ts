@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { askMinerva, type AskMinervaDeps } from "~/features/conversations/conversationsSend";

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { createRoot, createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/api/client";
