@@ -190,6 +190,8 @@ _ENGLISH: tuple[CorpusWork, ...] = (
         filenames=("de_re_publica_en.txt",),
         fmt="txt", locator="chapter", lang="eng",
         corpus="cicero", author="Cicero",
+        # Transcriber's notes and the PG end line close the file (#705).
+        editorial_runs=(("TRANSCRIBER’S NOTES", None),),
     ),
     # PG 14988 — Yonge, Tusculans standalone.
     CorpusWork(
