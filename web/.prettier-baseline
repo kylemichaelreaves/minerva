@@ -70,7 +70,6 @@ src/hooks/usePopoverPosition.tsx
 src/Network/components/Body.tsx
 src/Network/components/HeatmapPanel.tsx
 src/Network/components/LeaderboardPanel.tsx
-src/Network/components/MatrixPanel.tsx
 src/Network/components/MobileFooterLinks.tsx
 src/Network/components/MobileMostCitedCard.tsx
 src/Network/components/MobileTopPairsCard.tsx
@@ -78,7 +77,6 @@ src/Network/components/NetworkCoverage.tsx
 src/Network/components/NetworkDrilldownShell.tsx
 src/Network/components/NetworkTopNCard.tsx
 src/Network/components/VerificationPanel.tsx
-src/Network/network.css
 src/Reader/components/Chrome.stories.tsx
 src/Reader/components/Chrome.tsx
 src/Reader/components/ConcordanceTabPanel.tsx

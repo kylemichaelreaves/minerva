@@ -11,6 +11,16 @@
   --net-navy-pale: #efe9dc;
   --net-terra: #b56247;
   --net-terra-mute: #c98a73;
+  /* Matrix colour steps, low → high. Light theme darkens as counts
+     rise; each step clears the previous by ≥1.5:1 and the top step is
+     12.4:1 on the field. */
+  --net-matrix-field: var(--paper-soft);
+  --net-step-0: #bacde1;
+  --net-step-1: #8ca7c7;
+  --net-step-2: #6282ad;
+  --net-step-3: #406190;
+  --net-step-4: #28426d;
+  --net-step-5: #132341;
 }
 [data-theme="dark"] .net {
   --net-navy: #a8bce0;
@@ -18,6 +28,15 @@
   --net-navy-pale: #1a1410;
   --net-terra: #e09a82;
   --net-terra-mute: #a55c4a;
+  /* Dark theme brightens as counts rise, ending on cream (14.6:1 on
+     the field). Values from the Citation Matrix design mock. */
+  --net-matrix-field: #1a1612;
+  --net-step-0: #1e2f44;
+  --net-step-1: #314c6d;
+  --net-step-2: #4e6e97;
+  --net-step-3: #7092bd;
+  --net-step-4: #a0bedd;
+  --net-step-5: #f3e7ce;
 }
 
 .net {
@@ -134,8 +153,7 @@
   overflow-y: auto;
   background: var(--paper);
   border: 1px solid var(--ink);
-  box-shadow: 3px 3px 0 0
-    color-mix(in oklab, var(--ink) 80%, transparent);
+  box-shadow: 3px 3px 0 0 color-mix(in oklab, var(--ink) 80%, transparent);
   font-size: 12px;
   font-family: var(--sans);
 }
@@ -416,19 +434,33 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   flex: 0 0 auto;
 }
-.net-matrix-legend .ramp {
+.net-matrix-legend {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.net-matrix-steps {
   display: flex;
+  gap: 2px;
+  align-items: flex-end;
+}
+.net-matrix-steps div {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 3px;
 }
-.net-ramp-bar {
-  display: inline-flex;
-  height: 8px;
+.net-matrix-steps i {
+  width: 30px;
+  height: 9px;
+  display: block;
 }
-.net-ramp-bar span {
-  width: 14px;
-  height: 8px;
-  display: inline-block;
+.net-matrix-bands line {
+  stroke: color-mix(in oklab, var(--rule) 55%, var(--ink-mute));
+  stroke-width: 1;
+}
+.net-matrix-crosshair rect {
+  fill: var(--ink);
+  opacity: 0.08;
 }
 .net-matrix-svg-wrap {
   flex: 1 1 auto;
@@ -505,6 +537,12 @@
   color: var(--net-navy);
   margin: 2px 0 6px;
   font-weight: 500;
+}
+.net-tooltip .shares {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  line-height: 1.5;
 }
 .net-tooltip .hint {
   margin-top: 6px;
