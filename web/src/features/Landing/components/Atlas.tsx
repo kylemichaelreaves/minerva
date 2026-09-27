@@ -159,7 +159,12 @@ export function Atlas(props: {
         <Show when={hover()}>
           {(h) => (
             <div
-              class="atlas-tooltip"
+              classList={{
+                "atlas-tooltip": true,
+                // Past the midpoint the popover opens leftward instead, so the
+                // authors near the right edge don't push it off the page.
+                "atlas-tooltip-flip": xOf(h().year) > VB_WIDTH / 2,
+              }}
               style={{
                 left: `${(xOf(h().year) / VB_WIDTH) * 100}%`,
                 top: `${((BASE_Y - 14 - h().computedRow * rowGap() - 10) / VB_HEIGHT) * 100}%`,

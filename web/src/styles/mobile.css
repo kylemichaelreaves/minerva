@@ -407,6 +407,31 @@
     font-size: 48px;
     margin-bottom: 24px;
   }
+  /* Stands in for the epigraph lines that moved into the popover, which
+     wrapped to three lines here (14px margin + 58px) — see landing.css. */
+  .landing-monogram-wrap {
+    margin-bottom: 72px;
+  }
+  /* With the epigraph in it, the owl popover is ~150px tall and wider than
+     the phone; above the mark it runs off the top of the screen. Same
+     treatment as the rose variant below: under the mark, wrapped to the
+     viewport, arrow pointing up. `:not(...)` keeps these off the rose
+     variant, whose own rules follow. */
+  .landing-monogram-tooltip:not(.landing-monogram-tooltip-long) {
+    white-space: normal;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    bottom: auto;
+    top: calc(100% + 16px);
+  }
+  .landing-monogram-tooltip:not(.landing-monogram-tooltip-long)::before {
+    bottom: auto;
+    top: -5px;
+    border-bottom: none;
+    border-right: none;
+    border-top: 1px solid var(--ink);
+    border-left: 1px solid var(--ink);
+  }
   /* The desktop rose-cross tooltip sits to the LEFT of the monogram —
      on a 390px-wide mobile viewport that 420px wide passage overflows
      ~290px off the left edge of the screen. Reposition it BELOW the
