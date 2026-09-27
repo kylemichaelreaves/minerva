@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createRoot, createSignal, type Setter } from "solid-js";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
+import { must } from "./helpers/must";
 
 /** Build a deferred promise so the test can decide when the fetch
  *  resolves (or rejects, or never settles). */
@@ -25,9 +26,7 @@ const flush = (): Promise<void> => Promise.resolve();
 describe("useAbortableFetch", () => {
   it("calls the fetcher with current args and exposes data on success", async () => {
     await createRoot(async (dispose) => {
-      const fetcher = vi.fn((args: { id: number }) =>
-        Promise.resolve({ echo: args.id }),
-      );
+      const fetcher = vi.fn((args: { id: number }) => Promise.resolve({ echo: args.id }));
       const { data, loading, error } = useAbortableFetch(() => ({ id: 7 }), fetcher);
       // createEffect runs on the next microtask; flush so the
       // fetcher has been dispatched and resolved.
@@ -42,7 +41,9 @@ describe("useAbortableFetch", () => {
   });
 
   it("re-fetches when the args accessor's reactive reads change", async () => {
-    interface Args { id: number }
+    interface Args {
+      id: number;
+    }
     let setId!: Setter<number>;
     const fetcher = vi.fn((args: Args) => Promise.resolve({ echo: args.id }));
     await createRoot(async (dispose) => {
@@ -62,14 +63,16 @@ describe("useAbortableFetch", () => {
   });
 
   it("aborts the prior fetch when args change before it resolves", async () => {
-    interface Args { id: number }
+    interface Args {
+      id: number;
+    }
     const d1 = deferred<{ echo: number }>();
     const d2 = deferred<{ echo: number }>();
     const queue = [d1, d2];
     const signals: AbortSignal[] = [];
     const fetcher = vi.fn(async (_args: Args, signal: AbortSignal) => {
       signals.push(signal);
-      return queue.shift()!.promise;
+      return must(queue.shift()).promise;
     });
     await createRoot(async (dispose) => {
       const [id, setId] = createSignal(1);
@@ -79,8 +82,8 @@ describe("useAbortableFetch", () => {
       setId(2);
       await flush();
       // The first controller should now be aborted.
-      expect(signals[0]!.aborted).toBe(true);
-      expect(signals[1]!.aborted).toBe(false);
+      expect(must(signals[0]).aborted).toBe(true);
+      expect(must(signals[1]).aborted).toBe(false);
       // Now resolve the second (current) fetch — that's the one whose
       // data should land.
       d2.resolve({ echo: 2 });

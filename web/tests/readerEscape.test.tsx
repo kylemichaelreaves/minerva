@@ -4,6 +4,7 @@ import App from "~/App";
 import { invalidateReads } from "~/api/readCache";
 import { _resetToastsForTesting } from "~/utils/apiError";
 import { okResponse } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 // Escape leaves the Reader — but only when nothing else is using it.
 //
@@ -164,8 +165,7 @@ describe("Escape in the Reader", () => {
     // scope FROM, and the assertion below would fail for that reason
     // rather than for the behaviour it is testing.
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/syntax")) return Promise.resolve(okResponse(SYNTAX));
       if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
       if (url.includes("occurrence_map") || url.includes("references_map")) {
@@ -215,9 +215,7 @@ describe("Escape in the Reader", () => {
     expect(chip).not.toBeNull();
     expect(chip?.textContent).toMatch(/Das Kapital, Band I/);
     // And it is dismissible, so the reader is never stuck with it.
-    expect(
-      document.querySelector('.chat-scope__clear[aria-label^="Clear scope"]'),
-    ).not.toBeNull();
+    expect(document.querySelector('.chat-scope__clear[aria-label^="Clear scope"]')).not.toBeNull();
   });
 
   it("lets the landing chip re-scope through its picker (#350)", async () => {
@@ -226,8 +224,7 @@ describe("Escape in the Reader", () => {
     // before the first question. This exercises the `works` / `ensureWorks`
     // wiring `ChatRoute` hands it, which a label-only chip would never call.
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/syntax")) return Promise.resolve(okResponse(SYNTAX));
       if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
       if (url.includes("occurrence_map") || url.includes("references_map")) {
@@ -274,7 +271,7 @@ describe("Escape in the Reader", () => {
 
     const workBtn = document.querySelector<HTMLButtonElement>(".chat-scope__work");
     expect(workBtn).not.toBeNull();
-    fireEvent.click(workBtn!);
+    fireEvent.click(must(workBtn));
 
     // Picker opens and is populated from the works list.
     await waitFor(() => {
@@ -285,7 +282,7 @@ describe("Escape in the Reader", () => {
     });
 
     // Clearing drops the chip entirely, so the landing goes back to unscoped.
-    fireEvent.click(document.querySelector<HTMLButtonElement>(".chat-scope__clear")!);
+    fireEvent.click(must(document.querySelector<HTMLButtonElement>(".chat-scope__clear")));
     await waitFor(() => {
       expect(document.querySelector(".chat-scope")).toBeNull();
     });
@@ -304,8 +301,7 @@ describe("Escape in the Reader", () => {
       releaseWorks = r;
     });
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/syntax")) return okResponse(SYNTAX);
       if (url.includes("/api/terms/")) return okResponse(TERM);
       if (url.includes("occurrence_map") || url.includes("references_map")) {
@@ -332,14 +328,12 @@ describe("Escape in the Reader", () => {
     // used to be permanent.
     expect(document.querySelector(".chat-scope")).toBeNull();
 
-    releaseWorks!();
+    must(releaseWorks)();
 
     await waitFor(() => {
       expect(document.querySelector(".chat-scope")).not.toBeNull();
     });
-    expect(document.querySelector(".chat-scope")?.textContent).toMatch(
-      /Das Kapital, Band I/,
-    );
+    expect(document.querySelector(".chat-scope")?.textContent).toMatch(/Das Kapital, Band I/);
   });
 
   it("does not re-seed a scope the reader cleared while it resolved (#428)", async () => {
@@ -348,8 +342,7 @@ describe("Escape in the Reader", () => {
     // ×, and a second exit's late resolution must not put it back — otherwise
     // dismissing the chip would be undone by a race the reader cannot see.
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/syntax")) return Promise.resolve(okResponse(SYNTAX));
       if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
       if (url.includes("occurrence_map") || url.includes("references_map")) {
@@ -372,7 +365,7 @@ describe("Escape in the Reader", () => {
       expect(document.querySelector(".chat-scope")).not.toBeNull();
     });
 
-    document.querySelector<HTMLButtonElement>(".chat-scope__clear")!.click();
+    must(document.querySelector<HTMLButtonElement>(".chat-scope__clear")).click();
     await waitFor(() => {
       expect(document.querySelector(".chat-scope")).toBeNull();
     });

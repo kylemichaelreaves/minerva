@@ -33,7 +33,10 @@ export type ExpandedState =
 export type ExpandedStateValue = ExpandedState | undefined;
 
 export function useCitationExpand(
-  onOpenReader?: (workId: string, sourceLang: string | undefined, chunkId: string) => void,
+  // An accessor, read at click time, so a handler that changes (or
+  // arrives) after mount is the one that fires.
+  getOnOpenReader: () =>
+    ((workId: string, sourceLang: string | undefined, chunkId: string) => void) | undefined,
 ) {
   const [expanded, setExpanded] = createSignal<Record<string, ExpandedState>>({});
   const inflight = new Map<string, AbortController>();
@@ -82,10 +85,10 @@ export function useCitationExpand(
 
   function openInReader(citation: Citation) {
     const id = citation.chunk_id;
+    const onOpenReader = getOnOpenReader();
     if (!id || !onOpenReader) return;
     const cur = expanded()[id] as
-      | { status: "ready"; context: { work: string; lang: string } }
-      | undefined;
+      { status: "ready"; context: { work: string; lang: string } } | undefined;
     if (cur?.status === "ready") {
       onOpenReader(cur.context.work, cur.context.lang, id);
       return;
@@ -181,7 +184,7 @@ export function MinervaTurnView(props: {
   const citationsByN = createMemo(() => new Map(props.msg.citations.map((c) => [c.n, c])));
 
   const { expanded, anyExpanded, toggleExpand, openInReader } = useCitationExpand(
-    props.onOpenReader,
+    () => props.onOpenReader,
   );
 
   return (

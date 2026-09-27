@@ -25,24 +25,17 @@ export default function MobileTopBar(props: MobileTopBarProps) {
         type="button"
         class="mobile-topbar-ham"
         aria-label="Open menu"
-        onClick={props.onOpenDrawer}
+        onClick={() => props.onOpenDrawer()}
       >
         <span />
       </button>
       <span class="mobile-topbar-title">{props.title}</span>
-      <Show
-        when={props.action}
-        fallback={<span class="mobile-topbar-action" aria-hidden="true" />}
-      >
+      <Show when={props.action} fallback={<span class="mobile-topbar-action" aria-hidden="true" />}>
         <Show
           when={props.onAction}
           fallback={<span class="mobile-topbar-action">{props.action}</span>}
         >
-          <button
-            type="button"
-            class="mobile-topbar-action"
-            onClick={() => props.onAction?.()}
-          >
+          <button type="button" class="mobile-topbar-action" onClick={() => props.onAction?.()}>
             {props.action}
           </button>
         </Show>

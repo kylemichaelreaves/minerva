@@ -47,9 +47,7 @@ export default function Sidebar(props: SidebarProps) {
   const recent = () => props.history.slice(0, 4);
   const earlier = () => props.history.slice(4);
 
-  const [collapsedAuthors, setCollapsedAuthors] = createSignal<Set<string>>(
-    loadCollapsedAuthors(),
-  );
+  const [collapsedAuthors, setCollapsedAuthors] = createSignal<Set<string>>(loadCollapsedAuthors());
   const toggleAuthor = (author: string) => {
     setCollapsedAuthors((prev) => {
       const next = new Set(prev);
@@ -90,7 +88,7 @@ export default function Sidebar(props: SidebarProps) {
         <Show when={!props.collapsed}>
           <button
             class="icon-btn"
-            onClick={props.onToggle}
+            onClick={() => props.onToggle()}
             aria-label="Collapse sidebar"
             title="Collapse"
           >
@@ -98,15 +96,17 @@ export default function Sidebar(props: SidebarProps) {
           </button>
         </Show>
         <Show when={props.onCloseMobile}>
-          <button
-            class="sidebar-close-mobile"
-            onClick={props.onCloseMobile}
-            aria-label="Close menu"
-            title="Close"
-            type="button"
-          >
-            ✕
-          </button>
+          {(closeMobile) => (
+            <button
+              class="sidebar-close-mobile"
+              onClick={() => closeMobile()()}
+              aria-label="Close menu"
+              title="Close"
+              type="button"
+            >
+              ✕
+            </button>
+          )}
         </Show>
       </div>
 
@@ -116,7 +116,7 @@ export default function Sidebar(props: SidebarProps) {
           returns to the landing where a new mode can be picked. */}
 
       <Show when={props.mode === "chat"}>
-        <button class="new-btn" onClick={props.onNew} title="New conversation">
+        <button class="new-btn" onClick={() => props.onNew()} title="New conversation">
           <PlusIcon />
           <Show when={!props.collapsed}>
             <span class="new-btn-label">New conversation</span>
@@ -128,7 +128,7 @@ export default function Sidebar(props: SidebarProps) {
         <button
           class="icon-btn"
           style={{ margin: "14px auto 0" }}
-          onClick={props.onToggle}
+          onClick={() => props.onToggle()}
           aria-label="Expand sidebar"
         >
           <SidebarIcon />
@@ -229,7 +229,6 @@ export default function Sidebar(props: SidebarProps) {
           />
         </div>
       </Show>
-
     </aside>
   );
 }

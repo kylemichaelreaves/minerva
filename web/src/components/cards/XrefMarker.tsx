@@ -66,10 +66,12 @@ export function XrefMarker(props: XrefMarkerProps): JSX.Element {
       onClick={handleClick}
     >
       ▸
-      <Show when={props.count !== undefined && props.count > 1}>
-        <span class="xref-count" aria-hidden="true">
-          {xrefSuperscript(props.count!)}
-        </span>
+      <Show when={props.count !== undefined && props.count > 1 && props.count}>
+        {(count) => (
+          <span class="xref-count" aria-hidden="true">
+            {xrefSuperscript(count())}
+          </span>
+        )}
       </Show>
     </button>
   );

@@ -45,6 +45,7 @@ export function SuspendedSubtreeProvider(props: {
   // Wrapped rather than passed through so the provider's value is a stable
   // reference while the accessor stays reactive.
   return (
+    // eslint-disable-next-line solid/reactivity -- the value is an accessor consumers call inside their own tracking scopes; wrapping it is what keeps the context reactive without re-providing
     <SuspendedSubtreeContext.Provider value={() => props.suspended()}>
       {props.children}
     </SuspendedSubtreeContext.Provider>

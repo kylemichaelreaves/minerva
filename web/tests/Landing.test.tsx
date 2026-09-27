@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import Landing from "~/features/Landing";
+import { must } from "./helpers/must";
 
 function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
   const onSubmit = vi.fn();
@@ -146,7 +147,7 @@ describe("<Landing />", () => {
       const chip = screen.getByTestId("scope-chip");
       const input = container.querySelector(".landing-input");
       expect(input).not.toBeNull();
-      expect(chip.compareDocumentPosition(input!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(chip.compareDocumentPosition(must(input))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     it("still submits normally with a chip present", () => {
@@ -180,7 +181,7 @@ describe("<Landing />", () => {
 
   it("keeps the monogram in the tab order", () => {
     const { container } = renderLanding();
-    const trigger = container.querySelector<HTMLElement>(".landing-monogram")!;
+    const trigger = must(container.querySelector<HTMLElement>(".landing-monogram"));
     trigger.focus();
     expect(document.activeElement).toBe(trigger);
   });

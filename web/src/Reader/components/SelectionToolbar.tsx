@@ -90,16 +90,20 @@ export function SelectionToolbar(props: {
           reach of a role+name locator (#594, #593). The close button's icon
           in Rail.tsx already uses this pattern. */}
       <Show when={props.singleWord && props.onLookup}>
-        <button
-          type="button"
-          class="st-btn"
-          onClick={() => { props.onLookup!(); }}
-          title="Look up (L)"
-        >
-          <span>Look up</span>
-          <span class="kbd" aria-hidden="true">L</span>
-        </button>
-        <div class="st-sep" />
+        {(onLookup) => (
+          <>
+            <button
+              type="button"
+              class="st-btn"
+              onClick={() => { onLookup()(); }}
+              title="Look up (L)"
+            >
+              <span>Look up</span>
+              <span class="kbd" aria-hidden="true">L</span>
+            </button>
+            <div class="st-sep" />
+          </>
+        )}
       </Show>
       <button
         type="button"
@@ -111,16 +115,20 @@ export function SelectionToolbar(props: {
         <span class="kbd" aria-hidden="true">T</span>
       </button>
       <Show when={props.onSyntax}>
-        <div class="st-sep" />
-        <button
-          type="button"
-          class="st-btn"
-          onClick={() => { props.onSyntax!(); }}
-          title="Syntax (S)"
-        >
-          <span>Syntax</span>
-          <span class="kbd" aria-hidden="true">S</span>
-        </button>
+        {(onSyntax) => (
+          <>
+            <div class="st-sep" />
+            <button
+              type="button"
+              class="st-btn"
+              onClick={() => { onSyntax()(); }}
+              title="Syntax (S)"
+            >
+              <span>Syntax</span>
+              <span class="kbd" aria-hidden="true">S</span>
+            </button>
+          </>
+        )}
       </Show>
       <div class="st-sep" />
       <button

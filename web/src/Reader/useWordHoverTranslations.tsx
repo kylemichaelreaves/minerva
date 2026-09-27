@@ -53,11 +53,10 @@ export function useWordHoverTranslations(
     const key = cacheKey(pending.chunkId, pending.offset, lang);
     setTranslations((prev) => {
       const next = { ...prev, [key]: r.response.translated_text };
-      const keys = Object.keys(next);
-      if (keys.length <= HOVER_TRANSLATION_CACHE_MAX) return next;
-      const drop = keys.length - HOVER_TRANSLATION_CACHE_MAX;
-      const kept = keys.slice(drop);
-      return Object.fromEntries(kept.map((k) => [k, next[k]!]));
+      const entries = Object.entries(next);
+      if (entries.length <= HOVER_TRANSLATION_CACHE_MAX) return next;
+      const drop = entries.length - HOVER_TRANSLATION_CACHE_MAX;
+      return Object.fromEntries(entries.slice(drop));
     });
   });
 

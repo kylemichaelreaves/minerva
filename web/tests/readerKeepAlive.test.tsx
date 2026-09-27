@@ -4,6 +4,7 @@ import App from "~/App";
 import { invalidateReads } from "~/api/readCache";
 import { _resetToastsForTesting } from "~/utils/apiError";
 import { okResponse } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 // The concordance is a step-out from the Reader, not a destination (#348).
 //
@@ -159,13 +160,13 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
     // the first, `inert` the second — the same treatment `App` applies to the
     // shell under the syntax layer.
     await mountReader();
-    expect(keepAlive()!.hasAttribute("hidden")).toBe(false);
-    expect(keepAlive()!.hasAttribute("inert")).toBe(false);
+    expect(must(keepAlive()).hasAttribute("hidden")).toBe(false);
+    expect(must(keepAlive()).hasAttribute("inert")).toBe(false);
 
     await goAndSettle(LEMMA_HASH);
 
-    expect(keepAlive()!.hasAttribute("hidden")).toBe(true);
-    expect(keepAlive()!.hasAttribute("inert")).toBe(true);
+    expect(must(keepAlive()).hasAttribute("hidden")).toBe(true);
+    expect(must(keepAlive()).hasAttribute("inert")).toBe(true);
   });
 
   it("shows the Reader again when the concordance closes", async () => {
@@ -174,8 +175,8 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
     await goAndSettle(LEMMA_HASH);
     await goAndSettle(READER_HASH);
 
-    expect(keepAlive()!.hasAttribute("hidden")).toBe(false);
-    expect(keepAlive()!.hasAttribute("inert")).toBe(false);
+    expect(must(keepAlive()).hasAttribute("hidden")).toBe(false);
+    expect(must(keepAlive()).hasAttribute("inert")).toBe(false);
   });
 
   it("leaves Escape to the concordance instead of exiting the Reader", async () => {

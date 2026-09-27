@@ -199,14 +199,20 @@ export function Lines(props: {
             when this chunk has outgoing references AND the caller
             has wired an open-handler. */}
         <span class="line-marker">
-          <Show when={xref() && props.onXrefOpen}>
-            <XrefMarker
-              count={xref()!.count}
-              active={props.openRefChunkId === chunk.chunk_id}
-              onOpen={(rect) => {
-                props.onXrefOpen!(chunk.chunk_id, rect);
-              }}
-            />
+          <Show when={xref()}>
+            {(x) => (
+              <Show when={props.onXrefOpen}>
+                {(onXrefOpen) => (
+                  <XrefMarker
+                    count={x().count}
+                    active={props.openRefChunkId === chunk.chunk_id}
+                    onOpen={(rect) => {
+                      onXrefOpen()(chunk.chunk_id, rect);
+                    }}
+                  />
+                )}
+              </Show>
+            )}
           </Show>
         </span>
       </div>

@@ -1,17 +1,10 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type MockedFunction,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Review, { type ReviewProps } from "~/features/Refs/components/Review";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import type { ReviewQueueResponse, ReviewQueueRow } from "~/api/refsApi";
 import { okResponse } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -123,7 +116,7 @@ describe("<Review />", () => {
     await waitFor(() => {
       expect(container.querySelector(".review-btn-approve")).not.toBeNull();
     });
-    fireEvent.click(container.querySelector(".review-btn-approve")!);
+    fireEvent.click(must(container.querySelector(".review-btn-approve")));
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true);
     });
@@ -155,7 +148,7 @@ describe("<Review />", () => {
     await waitFor(() => {
       expect(container.querySelector(".review-btn-reject")).not.toBeNull();
     });
-    fireEvent.click(container.querySelector(".review-btn-reject")!);
+    fireEvent.click(must(container.querySelector(".review-btn-reject")));
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true);
     });
@@ -182,7 +175,7 @@ describe("<Review />", () => {
     await waitFor(() => {
       expect(container.querySelector(".review-btn-skip")).not.toBeNull();
     });
-    fireEvent.click(container.querySelector(".review-btn-skip")!);
+    fireEvent.click(must(container.querySelector(".review-btn-skip")));
     await waitFor(() => {
       expect(props.onNavigateToReference).toHaveBeenLastCalledWith(11);
     });
@@ -273,7 +266,7 @@ describe("<Review />", () => {
     });
 
     // Approve row 10 → advance to row 11 (still local, no refetch).
-    fireEvent.click(container.querySelector(".review-btn-approve")!);
+    fireEvent.click(must(container.querySelector(".review-btn-approve")));
     await waitFor(() => {
       expect(props.onNavigateToReference).toHaveBeenLastCalledWith(11);
     });
@@ -281,7 +274,7 @@ describe("<Review />", () => {
 
     // Approve row 11 → local rows exhausted → next page fetched. Both
     // loaded rows were decided, so the fetch must ask for offset 0.
-    fireEvent.click(container.querySelector(".review-btn-approve")!);
+    fireEvent.click(must(container.querySelector(".review-btn-approve")));
     await waitFor(() => {
       expect(props.onNavigateToReference).toHaveBeenLastCalledWith(12);
     });

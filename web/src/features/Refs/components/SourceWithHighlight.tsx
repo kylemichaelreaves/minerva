@@ -10,20 +10,29 @@ export function SourceWithHighlight(props: {
   // across curator navigation — e.g. advancing to a row whose span is
   // null — the stale branch would linger and slice(null, null) would
   // wrap the whole passage in a <mark> (issue #61).
-  const valid = createMemo(
-    () =>
-      props.start !== null &&
-      props.end !== null &&
-      props.start >= 0 &&
-      props.end > props.start &&
-      props.end <= props.text.length,
-  );
+  // The memo yields the narrowed span itself (or `false`), so the
+  // children receive non-null offsets without an assertion.
+  const span = createMemo(() => {
+    const start = props.start;
+    const end = props.end;
+    return (
+      start !== null &&
+      end !== null &&
+      start >= 0 &&
+      end > start &&
+      end <= props.text.length && { start, end }
+    );
+  });
 
   return (
-    <Show when={valid()} fallback={<span>{props.text}</span>}>
-      <span>{props.text.slice(0, props.start!)}</span>
-      <mark class="review-hit">{props.text.slice(props.start!, props.end!)}</mark>
-      <span>{props.text.slice(props.end!)}</span>
+    <Show when={span()} fallback={<span>{props.text}</span>}>
+      {(s) => (
+        <>
+          <span>{props.text.slice(0, s().start)}</span>
+          <mark class="review-hit">{props.text.slice(s().start, s().end)}</mark>
+          <span>{props.text.slice(s().end)}</span>
+        </>
+      )}
     </Show>
   );
 }

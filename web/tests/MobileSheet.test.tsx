@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { MobileSheet } from "~/components/shell/MobileSheet";
+import { must } from "./helpers/must";
 
 afterEach(cleanup);
 
@@ -49,13 +50,13 @@ describe("<MobileSheet />", () => {
     renderSheet();
     const scrim = document.querySelector(".mobile-sheet-scrim");
     expect(scrim).not.toBeNull();
-    expect(scrim!.tagName).toBe("BUTTON");
-    expect(scrim!.getAttribute("aria-label")).toBe("Dismiss");
+    expect(must(scrim).tagName).toBe("BUTTON");
+    expect(must(scrim).getAttribute("aria-label")).toBe("Dismiss");
   });
 
   it("clicking the scrim closes the sheet", () => {
     const { onClose } = renderSheet();
-    fireEvent.click(document.querySelector(".mobile-sheet-scrim")!);
+    fireEvent.click(must(document.querySelector(".mobile-sheet-scrim")));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

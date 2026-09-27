@@ -34,10 +34,12 @@ export function FilterChipGroup(props: {
             <span class="applied">· {props.applied}</span>
           </Show>
         </span>
-        <Show when={props.applied && props.onClear}>
-          <span class="clr" onClick={() => props.onClear!()}>
-            clear
-          </span>
+        <Show when={props.applied ? props.onClear : undefined}>
+          {(onClear) => (
+            <span class="clr" onClick={() => onClear()()}>
+              clear
+            </span>
+          )}
         </Show>
       </div>
       <div class="fr-opts">

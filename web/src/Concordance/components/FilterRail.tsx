@@ -67,13 +67,18 @@ export function FilterRail(props: {
   /** Fast membership test for the checkbox `.on` state + applied pills. */
   const selectedWorks = createMemo(() => new Set(props.scopeWorks ?? []));
 
+  /** The one selected work. Only read where `selectedWorks().size === 1`,
+   *  so joining the set yields exactly that work — the same value as
+   *  `scopeWorks[0]`, duplicates included. */
+  const soleWork = () => [...selectedWorks()].join("");
+
   /** Author segment label: one author → its name; multiple → "N
    *  authors"; none → the "Author" prompt. */
   const authorLabel = createMemo(() => {
-    const authors = props.scopeAuthors ?? [];
-    if (authors.length === 0) return "Author";
-    if (authors.length === 1) return authors[0]!;
-    return `${authors.length} authors`;
+    const [first, ...rest] = props.scopeAuthors ?? [];
+    if (first === undefined) return "Author";
+    if (rest.length === 0) return first;
+    return `${rest.length + 1} authors`;
   });
 
   const [workSearch, setWorkSearch] = createSignal("");
@@ -193,7 +198,7 @@ export function FilterRail(props: {
             {selectedWorks().size === 0
               ? "Work"
               : selectedWorks().size === 1
-                ? abbrevWork(props.scopeWorks![0]!)
+                ? abbrevWork(soleWork())
                 : `${selectedWorks().size} works`}
           </span>
         </div>
@@ -240,7 +245,7 @@ export function FilterRail(props: {
                 <span class="applied">
                   ·{" "}
                   {selectedWorks().size === 1
-                    ? abbrevWork(props.scopeWorks![0]!)
+                    ? abbrevWork(soleWork())
                     : `${selectedWorks().size} selected`}
                 </span>
               </Show>

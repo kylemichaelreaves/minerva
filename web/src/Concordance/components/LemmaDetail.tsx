@@ -1,9 +1,14 @@
 // F2 — Lemma detail / KWIC grid. Orchestrator composes useLemmaDetail;
 // presentational pieces live in ./components.
 
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, type Accessor } from "solid-js";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
-import { fetchLemmaDetail, type ConcScope, type KwicRow } from "~/api/concordanceApi";
+import {
+  fetchLemmaDetail,
+  type ConcScope,
+  type KwicRow,
+  type LemmaDetailResponse,
+} from "~/api/concordanceApi";
 import { useListKeyboardNav } from "~/hooks/useListKeyboardNav";
 import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
 import { FilterRail } from "~/Concordance/components/FilterRail";
@@ -124,11 +129,11 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
   /** FilterRail closure — same pattern as Refs/index.tsx's filtersBar.
    *  Invoked once in the desktop rail slot and once inside the mobile
    *  sheet, so the 12 props are wired in exactly one place. Only
-   *  called from inside `<Show when={data()}>` guards (hence the
-   *  non-null assertions). */
-  const filterRail = () => (
+   *  called from inside `<Show when={data()}>` guards, which hand it
+   *  their narrowed accessor. */
+  const filterRail = (d: Accessor<LemmaDetailResponse>) => (
     <FilterRail
-      data={data()!}
+      data={d()}
       scope={scope()}
       scopeAuthors={props.scopeAuthors}
       scopeWorks={props.scopeWorks}
@@ -170,9 +175,10 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
   return (
     <div class="conc-stage conc-detail">
       <Show when={data()}>
+        {(d) => (
         <div class="conc-head" style={{ "align-items": "flex-start" }}>
           <div style={{ flex: 1 }}>
-            <LemmaIdentityCard lemma={props.lemma} lang={lang()} data={data()!} />
+            <LemmaIdentityCard lemma={props.lemma} lang={lang()} data={d()} />
             <div
               style={{
                 "font-family": "var(--sans)",
@@ -183,13 +189,14 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
             >
               <a
                 style={{ color: "var(--accent)", cursor: "pointer", "text-decoration": "none" }}
-                onClick={props.onBackToIndex}
+                onClick={() => props.onBackToIndex()}
               >
                 ‹ back to index
               </a>
             </div>
           </div>
         </div>
+        )}
       </Show>
 
       <Show when={!!error()}>
@@ -222,9 +229,11 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         <KwicSkeleton />
       </Show>
 
-      <Show when={data() && !error()}>
+      <Show when={!error()}>
+      <Show when={data()}>
+        {(d) => (
         <Show
-          when={data()!.total > 0}
+          when={d().total > 0}
           fallback={
             <ConcEmpty icon="∅" title="No occurrences with these filters">
               <div>
@@ -233,14 +242,14 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                   .map(([k, v]) => ` · ${k}=${v}`)
                   .join("")}
                 {props.surface ? ` · surface=${props.surface}` : ""} doesn't appear in{" "}
-                {data()!.scope_label || "this scope"}.
+                {d().scope_label || "this scope"}.
               </div>
               <div class="broaden">
                 <Show when={props.numberFilter}>
                   {(() => {
                     const drop = props.caseFilter
-                      ? data()!.case_breakdown.find((b) => b.value === props.caseFilter)?.count
-                      : data()!.case_breakdown.reduce((s, b) => s + b.count, 0);
+                      ? d().case_breakdown.find((b) => b.value === props.caseFilter)?.count
+                      : d().case_breakdown.reduce((s, b) => s + b.count, 0);
                     return (
                       <a onClick={() => props.onNavigate({ numberFilter: undefined })}>
                         Drop Number{drop !== undefined ? ` · ${drop.toLocaleString()} hits` : ""}
@@ -251,8 +260,8 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                 <Show when={props.caseFilter}>
                   {(() => {
                     const drop = props.numberFilter
-                      ? data()!.number_breakdown.find((b) => b.value === props.numberFilter)?.count
-                      : data()!.case_breakdown.reduce((s, b) => s + b.count, 0);
+                      ? d().number_breakdown.find((b) => b.value === props.numberFilter)?.count
+                      : d().case_breakdown.reduce((s, b) => s + b.count, 0);
                     return (
                       <a onClick={() => props.onNavigate({ caseFilter: undefined })}>
                         Drop Case{drop !== undefined ? ` · ${drop.toLocaleString()} hits` : ""}
@@ -271,25 +280,25 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
           }
         >
           <div class="kwic-stage">
-            <Show when={!isMobile()}>{filterRail()}</Show>
+            <Show when={!isMobile()}>{filterRail(d)}</Show>
             <div class="kwic-pane" classList={{ "kwic-refetching": loading() }}>
               <div class="kwic-toolbar">
                 <span class="ct">
-                  Showing <b>{data()!.rows.length}</b> of <b>{data()!.total.toLocaleString()}</b>
+                  Showing <b>{d().rows.length}</b> of <b>{d().total.toLocaleString()}</b>
                 </span>
                 <span class="kbd">
                   <kbd>j</kbd>/<kbd>k</kbd> next / prev · <kbd>↵</kbd> open chunk ·{" "}
                   <Show when={scope() !== "corpus"}>
                     <kbd>⌘↑</kbd> zoom out ·{" "}
                   </Show>
-                  <Show when={scope() !== "work" && data()!.work_breakdown.length > 0}>
+                  <Show when={scope() !== "work" && d().work_breakdown.length > 0}>
                     <kbd>⌘↓</kbd> zoom in ·{" "}
                   </Show>
                   <kbd>esc</kbd> back
                 </span>
               </div>
               <div class="kwic-grid">
-                <For each={data()!.rows}>
+                <For each={d().rows}>
                   {(row, idx) => (
                     <KwicRowEl
                       row={row}
@@ -306,11 +315,16 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
             </div>
           </div>
         </Show>
+        )}
+      </Show>
       </Show>
 
       {/* Mobile FAB + sheet. Renders the same FilterRail inside the
           sheet body — content drives the design, not duplicated layout. */}
-      <Show when={isMobile() && data() && !error() && data()!.total > 0}>
+      <Show when={isMobile() && !error()}>
+      <Show when={data()}>
+        {(d) => (
+      <Show when={d().total > 0}>
         <button type="button" class="conc-fab" onClick={() => setSheetOpen(true)}>
           ≡ Filters
           <Show when={filterCount() > 0}>
@@ -323,7 +337,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
           onClose={() => setSheetOpen(false)}
         >
           <div class="conc-mob-sheet">
-            {filterRail()}
+            {filterRail(d)}
             <div class="conc-mob-sheet-foot">
               <span
                 class="reset"
@@ -335,11 +349,14 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                 ↺ Reset all
               </span>
               <span class="done" onClick={() => setSheetOpen(false)}>
-                <b>{data()!.total.toLocaleString()}</b> occurrences →
+                <b>{d().total.toLocaleString()}</b> occurrences →
               </span>
             </div>
           </div>
         </MobileSheet>
+      </Show>
+        )}
+      </Show>
       </Show>
     </div>
   );
@@ -361,8 +378,10 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
 
   const morph = createMemo<Record<string, string>>(() => {
     const m: Record<string, string> = {};
-    if (args.caseFilter()) m.Case = args.caseFilter()!;
-    if (args.numberFilter()) m.Number = args.numberFilter()!;
+    const caseFilter = args.caseFilter();
+    const numberFilter = args.numberFilter();
+    if (caseFilter) m.Case = caseFilter;
+    if (numberFilter) m.Number = numberFilter;
     return m;
   });
 

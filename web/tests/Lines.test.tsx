@@ -3,6 +3,7 @@ import { render } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { Lines } from "~/Reader/components/Lines";
 import type { SourceChunk } from "~/utils/types";
+import { must } from "./helpers/must";
 
 const CHUNKS: SourceChunk[] = [
   {
@@ -52,10 +53,10 @@ describe("<Lines /> structural blocks", () => {
     const lines = [...container.querySelectorAll(".line")];
     expect(lines).toHaveLength(3);
     // Body prose carries no data-block (renders as ordinary text).
-    expect(lines[0]!.getAttribute("data-block")).toBeNull();
+    expect(must(lines[0]).getAttribute("data-block")).toBeNull();
     // Remark / Addition are tagged so reader.css can indent them.
-    expect(lines[1]!.getAttribute("data-block")).toBe("remark");
-    expect(lines[2]!.getAttribute("data-block")).toBe("addition");
+    expect(must(lines[1]).getAttribute("data-block")).toBe("remark");
+    expect(must(lines[2]).getAttribute("data-block")).toBe("addition");
   });
 });
 

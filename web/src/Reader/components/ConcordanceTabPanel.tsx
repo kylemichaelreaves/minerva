@@ -55,6 +55,10 @@ export function ConcordanceTabPanel(props: Props) {
    *  defect in the syntax overlay under #235 — deliberately the same spelling
    *  rather than a third one. */
   const loaded = () => (data.error === undefined ? data() : undefined);
+  /** The loaded rows, or none while loading / on error. `?? []` also
+   *  absorbs a malformed payload missing `rows`, which the response type
+   *  claims is always present. */
+  const rows = () => loaded()?.rows ?? [];
 
   return (
     <div class="rail-concord">
@@ -65,7 +69,7 @@ export function ConcordanceTabPanel(props: Props) {
       }>
         <button
           class="rail-concord-cta"
-          onClick={props.onOpenWorkScope}
+          onClick={() => props.onOpenWorkScope()}
           disabled={!props.workTitle}
         >
           Full concordance for this work{" "}
@@ -88,12 +92,9 @@ export function ConcordanceTabPanel(props: Props) {
           </div>
         </Show>
 
-        {/* `rows?.` is defensive against a malformed server payload —
-            the response type claims it's always present. */}
-        {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-        <Show when={(loaded()?.rows?.length ?? 0) > 0}>
+        <Show when={rows().length > 0}>
           <ul class="rail-concord-list">
-            <For each={loaded()!.rows}>
+            <For each={rows()}>
               {(row: LemmaIndexRow) => (
                 <li
                   class="rail-concord-row"

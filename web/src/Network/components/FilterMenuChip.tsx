@@ -41,7 +41,7 @@ export function FilterMenuChip(props: {
           <div class="net-menu-head">
             <span>{props.label}</span>
             <Show when={props.selected.length > 0}>
-              <button onClick={props.onClear}>Clear</button>
+              <button onClick={() => props.onClear()}>Clear</button>
             </Show>
           </div>
           <div class="net-menu-list">

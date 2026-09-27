@@ -25,6 +25,7 @@ vi.mock("~/api/concordanceApi", async (importOriginal) => {
 });
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
+import { must } from "./helpers/must";
 
 const PAGE = 200;
 
@@ -111,10 +112,10 @@ describe("concordance index paging", () => {
     const { container } = mount();
     await waitFor(() => expect(rowCount(container)).toBe(PAGE));
 
-    fireIntersect!();
+    must(fireIntersect)();
 
     await waitFor(() => expect(rowCount(container)).toBe(PAGE + 50));
-    const second = fetchLemmaIndex.mock.calls[1]![0] as Record<string, unknown>;
+    const second = must(fetchLemmaIndex.mock.calls[1])[0] as Record<string, unknown>;
     expect(second.offset).toBe(PAGE);
     expect(second.limit).toBe(PAGE);
   });
@@ -143,14 +144,14 @@ describe("concordance index paging", () => {
     const { container } = mount();
     await waitFor(() => expect(rowCount(container)).toBe(PAGE));
 
-    fireIntersect!();
-    fireIntersect!();
-    fireIntersect!();
+    must(fireIntersect)();
+    must(fireIntersect)();
+    must(fireIntersect)();
 
     // One page in flight, not three.
     expect(fetchLemmaIndex).toHaveBeenCalledTimes(2);
 
-    release!(page(PAGE, 50, null));
+    must<(v: unknown) => void>(release)(page(PAGE, 50, null));
     await waitFor(() => expect(rowCount(container)).toBe(PAGE + 50));
     expect(fetchLemmaIndex).toHaveBeenCalledTimes(2);
   });
@@ -173,7 +174,7 @@ describe("concordance index paging", () => {
       />
     ));
     await waitFor(() => expect(rowCount(container)).toBe(PAGE));
-    fireIntersect!();
+    must(fireIntersect)();
     await waitFor(() => expect(rowCount(container)).toBe(PAGE + 50));
 
     expect(container.querySelector(".afs-ct")?.textContent).toContain("250");

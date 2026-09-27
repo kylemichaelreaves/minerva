@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
+import { must } from "./helpers/must";
 
 // #426. The app mounted no `ErrorBoundary` anywhere, so anything that threw
 // during a render escaped the tree entirely: no fallback, no message, and
@@ -46,7 +47,7 @@ describe("<SurfaceErrorBoundary />", () => {
     ));
     const box = container.querySelector(".surface-error");
     expect(box).not.toBeNull();
-    expect(box!.textContent).toMatch(/Concordance/);
+    expect(must(box).textContent).toMatch(/Concordance/);
   });
 
   it("surfaces the underlying message rather than swallowing it", () => {
@@ -57,7 +58,7 @@ describe("<SurfaceErrorBoundary />", () => {
         <Boom />
       </SurfaceErrorBoundary>
     ));
-    expect(container.querySelector(".surface-error")!.textContent).toMatch(/kaboom/);
+    expect(must(container.querySelector(".surface-error")).textContent).toMatch(/kaboom/);
   });
 
   it("offers a retry that re-renders the subtree", () => {
@@ -77,7 +78,7 @@ describe("<SurfaceErrorBoundary />", () => {
     expect(container.querySelector(".surface-error")).not.toBeNull();
 
     setFail(false);
-    container.querySelector<HTMLButtonElement>(".surface-error__retry")!.click();
+    must(container.querySelector<HTMLButtonElement>(".surface-error__retry")).click();
 
     expect(container.querySelector(".recovered")).not.toBeNull();
     expect(container.querySelector(".surface-error")).toBeNull();
@@ -115,7 +116,7 @@ describe("<SurfaceErrorBoundary />", () => {
           <Thrower />
         </SurfaceErrorBoundary>
       ));
-      return container.querySelector(".surface-error__detail")!.textContent;
+      return must(container.querySelector(".surface-error__detail")).textContent;
     };
 
     it("shows a thrown string as itself", () => {
@@ -124,9 +125,7 @@ describe("<SurfaceErrorBoundary />", () => {
 
     it("serializes a thrown object", () => {
       // Server error payloads arrive this shape often enough to matter.
-      expect(detailFor({ status: 503, detail: "index rebuilding" })).toMatch(
-        /"status":\s*503/,
-      );
+      expect(detailFor({ status: 503, detail: "index rebuilding" })).toMatch(/"status":\s*503/);
     });
 
     it("falls back to String() when the value cannot be serialized", () => {

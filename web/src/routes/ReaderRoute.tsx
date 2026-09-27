@@ -62,10 +62,9 @@ export function ReaderRoute(props: RouteContextProps) {
   const seedScopeFromReader = () => {
     const loc = props.reader.readerWork();
     const w = props.reader.currentWork();
-    props.conversations.setChatScope(
-      w ? { workId: w.work_id, title: w.display_title } : null,
-    );
+    props.conversations.setChatScope(w ? { workId: w.work_id, title: w.display_title } : null);
     if (w || !loc) return;
+    // eslint-disable-next-line solid/reactivity -- deliberately untracked: the late callback must read chatScope as it is when the list resolves, not subscribe to it
     void props.reader.resolveWork(loc).then((late) => {
       if (!late) return;
       if (props.conversations.chatScope() !== null) return;
@@ -76,41 +75,43 @@ export function ReaderRoute(props: RouteContextProps) {
     });
   };
   return (
-    <Show when={work() !== null}>
-      <Reader
-        workSlug={work()!.workSlug}
-        sourceLang={work()!.sourceLang}
-        authorSlug={work()!.authorSlug}
-        focusChunkId={work()!.focusChunkId}
-        openTermId={work()!.openTermId}
-        onOpenTermIdChange={props.reader.setOpenTermId}
-        syntaxOpen={syntaxOpen()}
-        suspended={props.reader.mode() !== "reader"}
-        onExit={() => {
-          // Escape leaves for the landing. Deliberately NOT `onClose`: the
-          // back arrow resumes the last conversation, and "escape out of the
-          // Reader" should not drop the user into a thread they did not ask
-          // for. The passage is not lost either way; `minerva:last-reader`
-          // brings Read back to it.
-          //
-          // The work IS carried over now, the same way `onClose` carries it
-          // (#350). This used to clear the scope, and said so because the
-          // landing had no chip to render one and `startFromLanding` cleared
-          // it on submit anyway — both of which were true and are no longer:
-          // `ChatRoute` passes `WorkScopeControl` to `<Landing>` when a scope
-          // is set, and `startFromLanding` keeps it. So seeding here is now
-          // visible and survives, which is what the agreed design asked for.
-          seedScopeFromReader();
-          props.routing.navigate({ kind: "landing" });
-        }}
-        onClose={() => {
-          // Seed the chat scope with the work being read, so a question
-          // asked right after closing the Reader is scoped to it. Shown
-          // as a dismissible composer chip — never silent.
-          seedScopeFromReader();
-          void props.reader.switchMode("chat");
-        }}
-      />
+    <Show when={work()}>
+      {(w) => (
+        <Reader
+          workSlug={w().workSlug}
+          sourceLang={w().sourceLang}
+          authorSlug={w().authorSlug}
+          focusChunkId={w().focusChunkId}
+          openTermId={w().openTermId}
+          onOpenTermIdChange={props.reader.setOpenTermId}
+          syntaxOpen={syntaxOpen()}
+          suspended={props.reader.mode() !== "reader"}
+          onExit={() => {
+            // Escape leaves for the landing. Deliberately NOT `onClose`: the
+            // back arrow resumes the last conversation, and "escape out of the
+            // Reader" should not drop the user into a thread they did not ask
+            // for. The passage is not lost either way; `minerva:last-reader`
+            // brings Read back to it.
+            //
+            // The work IS carried over now, the same way `onClose` carries it
+            // (#350). This used to clear the scope, and said so because the
+            // landing had no chip to render one and `startFromLanding` cleared
+            // it on submit anyway — both of which were true and are no longer:
+            // `ChatRoute` passes `WorkScopeControl` to `<Landing>` when a scope
+            // is set, and `startFromLanding` keeps it. So seeding here is now
+            // visible and survives, which is what the agreed design asked for.
+            seedScopeFromReader();
+            props.routing.navigate({ kind: "landing" });
+          }}
+          onClose={() => {
+            // Seed the chat scope with the work being read, so a question
+            // asked right after closing the Reader is scoped to it. Shown
+            // as a dismissible composer chip — never silent.
+            seedScopeFromReader();
+            void props.reader.switchMode("chat");
+          }}
+        />
+      )}
     </Show>
   );
 }

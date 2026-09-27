@@ -7,6 +7,7 @@ import {
 } from "~/hooks/useListKeyboardNav";
 
 function Harness(props: { opts: ListKeyboardNavOpts }) {
+  // eslint-disable-next-line solid/reactivity -- the hook takes its options once at setup, as its real callers do; each test mounts a fresh harness
   useListKeyboardNav(props.opts);
   return <div data-testid="page" />;
 }
