@@ -137,21 +137,23 @@ export default function Network(props: NetworkProps) {
         />
       </MobileSheet>
       <Show
-        when={data() && !error()}
+        when={!error() && data()}
         fallback={
           <div class={error() ? "net-error" : "net-loading"}>
             {error() ?? (loading() ? "Loading citation network…" : "")}
           </div>
         }
       >
-        <NetworkBody
-          summary={data()!}
-          onOpenPair={props.onOpenPair}
-          onOpenTargetWork={props.onOpenTargetWork}
-          onOpenArc={props.onOpenArc}
-          onOpenCoverage={props.onOpenCoverage}
-          onOpenMore={() => shell.setFiltersSheetOpen(true)}
-        />
+        {(summary) => (
+          <NetworkBody
+            summary={summary()}
+            onOpenPair={props.onOpenPair}
+            onOpenTargetWork={props.onOpenTargetWork}
+            onOpenArc={props.onOpenArc}
+            onOpenCoverage={props.onOpenCoverage}
+            onOpenMore={() => shell.setFiltersSheetOpen(true)}
+          />
+        )}
       </Show>
       <footer class="net-footer">
         <span>

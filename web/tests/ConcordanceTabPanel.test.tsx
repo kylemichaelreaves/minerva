@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, waitFor } from "@solidjs/testing-library";
 import { ConcordanceTabPanel } from "~/Reader/components/ConcordanceTabPanel";
+import { must } from "./helpers/must";
 
 // #426. Solid **rethrows** when an errored resource is read, so a component
 // that reads its resource outside an error guard throws out of the update the
@@ -116,7 +117,7 @@ describe("<ConcordanceTabPanel />", () => {
       const { container, onOpenWorkScope } = await renderFailed();
       const cta = container.querySelector<HTMLButtonElement>(".rail-concord-cta");
       expect(cta).not.toBeNull();
-      cta!.click();
+      must(cta).click();
       expect(onOpenWorkScope).toHaveBeenCalledTimes(1);
     });
   });

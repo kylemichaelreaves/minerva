@@ -3,6 +3,7 @@ import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MetricsPanel } from "~/Metrics/MetricsPanel";
 import type { MetricWindow } from "~/api/metricsApi";
+import { must } from "./helpers/must";
 
 const row = (label: string, p95: number) => ({
   label,
@@ -430,7 +431,7 @@ describe("MetricsPanel", () => {
     await view.findAllByTestId("metrics-route-label");
 
     const panel = view.container.querySelector(".metrics-panel");
-    const order = [...panel!.children].map((c) => c.className);
+    const order = [...must(panel).children].map((c) => c.className);
     expect(order.findIndex((c) => c.includes("metrics-head"))).toBeLessThan(
       order.findIndex((c) => c.includes("metrics-verdict")),
     );
@@ -439,8 +440,8 @@ describe("MetricsPanel", () => {
     );
 
     const split = view.container.querySelector(".metrics-split");
-    expect(split!.querySelector(".metrics-routes")).not.toBeNull();
-    await waitFor(() => expect(split!.querySelector(".metrics-detail")).not.toBeNull());
+    expect(must(split).querySelector(".metrics-routes")).not.toBeNull();
+    await waitFor(() => expect(must(split).querySelector(".metrics-detail")).not.toBeNull());
   });
 
   it("marks the split as open only while a route is selected", async () => {
@@ -450,11 +451,13 @@ describe("MetricsPanel", () => {
     const view = render(() => <Host />);
     await view.findAllByTestId("metrics-route-label");
     await waitFor(() =>
-      expect(view.container.querySelector(".metrics-split")!.classList).toContain("detail-open"),
+      expect(must(view.container.querySelector(".metrics-split")).classList).toContain(
+        "detail-open",
+      ),
     );
     fireEvent.click(await view.findByText(/all routes/i));
     await waitFor(() =>
-      expect(view.container.querySelector(".metrics-split")!.classList).not.toContain(
+      expect(must(view.container.querySelector(".metrics-split")).classList).not.toContain(
         "detail-open",
       ),
     );
@@ -488,7 +491,7 @@ describe("MetricsPanel", () => {
     const verdict = await waitFor(() => {
       const el = view.container.querySelector(".metrics-verdict");
       expect(el).not.toBeNull();
-      return el!;
+      return must(el);
     });
     expect(verdict.textContent).toContain("One route is failing.");
     expect(verdict.textContent).toContain("work range");

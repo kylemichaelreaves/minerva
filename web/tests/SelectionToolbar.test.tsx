@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { SelectionToolbar } from "~/Reader/components/SelectionToolbar";
+import { must } from "./helpers/must";
 
 function renderToolbar(
   overrides: Partial<{
@@ -41,10 +42,10 @@ describe("<SelectionToolbar />", () => {
     const { container, onTranslate, onCopy } = renderToolbar();
     expect(container.textContent).toContain("Translate phrase");
     expect(container.textContent).toContain("Copy");
-    fireEvent.click(container.querySelector(".st-btn")!);
+    fireEvent.click(must(container.querySelector(".st-btn")));
     expect(onTranslate).toHaveBeenCalledTimes(1);
     const buttons = container.querySelectorAll(".st-btn");
-    fireEvent.click(buttons[1]!);
+    fireEvent.click(must(buttons[1]));
     expect(onCopy).toHaveBeenCalledTimes(1);
   });
 
@@ -52,8 +53,8 @@ describe("<SelectionToolbar />", () => {
     const { container, onLookup, onTranslate } = renderToolbar({ singleWord: true });
     expect(container.textContent).toContain("Look up");
     const buttons = container.querySelectorAll(".st-btn");
-    fireEvent.click(buttons[0]!);
-    fireEvent.click(buttons[1]!);
+    fireEvent.click(must(buttons[0]));
+    fireEvent.click(must(buttons[1]));
     expect(onLookup).toHaveBeenCalledTimes(1);
     expect(onTranslate).toHaveBeenCalledTimes(1);
   });
@@ -87,16 +88,16 @@ describe("<SelectionToolbar />", () => {
     const btn = Array.from(container.querySelectorAll(".st-btn")).find((b) =>
       b.textContent.includes("Syntax"),
     );
-    fireEvent.click(btn!);
+    fireEvent.click(must(btn));
     expect(onSyntax).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the other actions working when syntax is present", () => {
     const { container, onTranslate, onCopy } = renderToolbar({ onSyntax: vi.fn() });
     const byText = (s: string) =>
-      Array.from(container.querySelectorAll(".st-btn")).find((b) =>
-        b.textContent.includes(s),
-      )!;
+      must(
+        Array.from(container.querySelectorAll(".st-btn")).find((b) => b.textContent.includes(s)),
+      );
     fireEvent.click(byText("Translate"));
     fireEvent.click(byText("Copy"));
     expect(onTranslate).toHaveBeenCalledTimes(1);

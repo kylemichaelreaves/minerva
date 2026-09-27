@@ -22,8 +22,8 @@ export function KwicRowEl(props: {
   return (
     <div
       class={"kwic-row" + (props.cur ? " cur" : "")}
-      onClick={props.onClick}
-      onMouseEnter={props.onHover}
+      onClick={() => props.onClick()}
+      onMouseEnter={() => props.onHover()}
     >
       <span class="loc">
         <b>{abbrevWork(props.row.work)}</b>

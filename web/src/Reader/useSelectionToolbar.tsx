@@ -321,6 +321,7 @@ export function useSelectionToolbar(
 
   // Esc / keyboard shortcuts for the selection toolbar.
   createEffect(() => {
+    // eslint-disable-next-line solid/reactivity -- deliberate per-run snapshot: the effect re-runs on every toolbar change and onCleanup drops the listener holding the old `t`.
     const t = selToolbar();
     if (!t) return;
     if (props.suspended?.()) return;

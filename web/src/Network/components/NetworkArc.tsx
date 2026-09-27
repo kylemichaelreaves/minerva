@@ -184,10 +184,17 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
   const validNames = () =>
     new Set(ATLAS_AUTHORS.map((a) => a.name).filter((n) => yearOf(n) !== null));
 
+  // Each arc carries both endpoint years so the render below never
+  // re-looks them up. ``validNames`` already guarantees both are in the
+  // year table; the guard only narrows the type.
   const arcs = () =>
     selectArcPairs(props.summary.top_pairs.all, props.summary.top_pairs.per_author_top, {
       validNames: validNames(),
       cap: MAX_ARCS,
+    }).flatMap((p) => {
+      const srcYear = yearOf(p.src);
+      const tgtYear = yearOf(p.tgt);
+      return srcYear === null || tgtYear === null ? [] : [{ p, srcYear, tgtYear }];
     });
 
   return (
@@ -258,14 +265,14 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
           }}
         </For>
         <For each={arcs()}>
-          {(p) => {
-            const ys = yOf(yearOf(p.src)!);
-            const yt = yOf(yearOf(p.tgt)!);
+          {({ p, srcYear, tgtYear }) => {
+            const ys = yOf(srcYear);
+            const yt = yOf(tgtYear);
             const yA = Math.min(ys, yt);
             const yB = Math.max(ys, yt);
             const ry = (yB - yA) / 2;
             const rx = Math.max(18, Math.min((yB - yA) * 0.48, 250));
-            const backward = yearOf(p.src)! > yearOf(p.tgt)!;
+            const backward = srcYear > tgtYear;
             const stroke = backward ? "var(--accent)" : "var(--ink-mute, #6b6357)";
             const sw = 0.6 + Math.log10(p.n + 1) * 0.5;
             const isHovered = () => hovered()?.pair === p;

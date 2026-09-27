@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import Sidebar from "~/features/Sidebar";
 import type { HistoryItem, Work } from "~/utils/types";
+import { must } from "./helpers/must";
 
 function makeWork(author: string, work: string, lang = "grc"): Work {
   return {
@@ -77,7 +78,7 @@ describe("<Sidebar /> — delete affordance", () => {
 
   it("clicking the delete button calls onRequestDelete with the item", () => {
     const { onRequestDelete, container } = renderSidebar();
-    const firstDelete = container.querySelector(".history-delete")!;
+    const firstDelete = must(container.querySelector(".history-delete"));
     fireEvent.click(firstDelete);
     expect(onRequestDelete).toHaveBeenCalledTimes(1);
     expect(onRequestDelete).toHaveBeenCalledWith(HISTORY[0]);
@@ -85,7 +86,7 @@ describe("<Sidebar /> — delete affordance", () => {
 
   it("clicking the delete button does NOT also pick the conversation", () => {
     const { onRequestDelete, onPick, container } = renderSidebar();
-    const firstDelete = container.querySelector(".history-delete")!;
+    const firstDelete = must(container.querySelector(".history-delete"));
     fireEvent.click(firstDelete);
     expect(onRequestDelete).toHaveBeenCalledTimes(1);
     expect(onPick).not.toHaveBeenCalled();
@@ -177,16 +178,10 @@ describe("<Sidebar /> — works list ordering", () => {
     // Toggle buttons render as `.history-label-toggle` with children
     // [caret, author-name span (no class), count badge]; grab the
     // middle child's text content to read the author name.
-    const headers = Array.from(
-      utils.container.querySelectorAll(".history-label-toggle"),
-    ).map((el) => el.children[1]!.textContent.trim());
-    expect(headers).toEqual([
-      "Homer",
-      "Heraclitus",
-      "Plato",
-      "Aristotle",
-      "Hegel",
-    ]);
+    const headers = Array.from(utils.container.querySelectorAll(".history-label-toggle")).map(
+      (el) => must(el.children[1]).textContent.trim(),
+    );
+    expect(headers).toEqual(["Homer", "Heraclitus", "Plato", "Aristotle", "Hegel"]);
   });
 
   it("groups consecutive works by the same author into one section", () => {
@@ -211,9 +206,9 @@ describe("<Sidebar /> — works list ordering", () => {
     // Toggle buttons render as `.history-label-toggle` with children
     // [caret, author-name span (no class), count badge]; grab the
     // middle child's text content to read the author name.
-    const headers = Array.from(
-      utils.container.querySelectorAll(".history-label-toggle"),
-    ).map((el) => el.children[1]!.textContent.trim());
+    const headers = Array.from(utils.container.querySelectorAll(".history-label-toggle")).map(
+      (el) => must(el.children[1]).textContent.trim(),
+    );
     expect(headers).toEqual(["Plato", "Aristotle"]);
   });
 });

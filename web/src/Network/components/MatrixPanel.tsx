@@ -104,9 +104,7 @@ export function MatrixPanel(props: {
                     fill={rampColor(c.n)}
                     onMouseEnter={() => setHover(c)}
                     onMouseLeave={() => setHover(null)}
-                    onClick={() =>
-                      props.onOpenPair(authorName(c.r), authorName(c.c))
-                    }
+                    onClick={() => props.onOpenPair(authorName(c.r), authorName(c.c))}
                   >
                     <title>
                       {authorName(c.r)} → {authorName(c.c)}: {c.n.toLocaleString()}
@@ -132,15 +130,18 @@ export function MatrixPanel(props: {
               {/* col labels — cited (top, rotated 45°) */}
               <For each={props.authors}>
                 {(a, c) => {
-                  const x = layout().padL + c() * layout().cell + layout().cell / 2;
+                  // An accessor, not a value: the For body runs once per
+                  // row, so a plain const would freeze x at the first
+                  // layout and leave the column labels behind on resize.
+                  const x = () => layout().padL + c() * layout().cell + layout().cell / 2;
                   return (
                     <text
-                      x={x}
+                      x={x()}
                       y={layout().padT - 6}
                       font-size={String(Math.min(10.5, layout().cell + 2))}
                       font-family="var(--sans)"
                       fill={a.corpus === "scrip" ? "var(--net-terra)" : "var(--ink)"}
-                      transform={`rotate(-45 ${x} ${layout().padT - 6})`}
+                      transform={`rotate(-45 ${x()} ${layout().padT - 6})`}
                       text-anchor="start"
                     >
                       {a.short}
@@ -169,7 +170,7 @@ export function MatrixPanel(props: {
               </text>
             </svg>
             <Show when={hover()}>
-              <MatrixTooltip authors={props.authors} cell={hover()!} layout={layout()} />
+              {(cell) => <MatrixTooltip authors={props.authors} cell={cell()} layout={layout()} />}
             </Show>
           </div>
           <div class="net-matrix-strip">

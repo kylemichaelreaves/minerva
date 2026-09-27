@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { renumberCitations } from "~/utils/renumber";
 import type { Citation } from "~/utils/types";
+import { must } from "./helpers/must";
 
 function cite(n: number, extras: Partial<Citation> = {}): Citation {
   return { n, src: `s${n}`, text: `t${n}`, ...extras };
@@ -16,9 +17,9 @@ describe("renumberCitations()", () => {
     expect(out.paragraphs).toEqual(["First [1] then [2].", "And later [3] again [1]."]);
     expect(out.citations.map((c) => c.n)).toEqual([1, 2, 3]);
     // The order in the citations array matches the new numbering.
-    expect(out.citations[0]!.src).toBe("s3"); // was #3, now #1
-    expect(out.citations[1]!.src).toBe("s1"); // was #1, now #2
-    expect(out.citations[2]!.src).toBe("s2"); // was #2, now #3
+    expect(must(out.citations[0]).src).toBe("s3"); // was #3, now #1
+    expect(must(out.citations[1]).src).toBe("s1"); // was #1, now #2
+    expect(must(out.citations[2]).src).toBe("s2"); // was #2, now #3
   });
 
   it("leaves an already-sequential ordering untouched", () => {

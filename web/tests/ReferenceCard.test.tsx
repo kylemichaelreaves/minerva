@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import ReferenceCard from "~/components/cards/ReferenceCard";
 import type { Reference, ReferenceTarget } from "~/utils/types";
+import { must } from "./helpers/must";
 
 function makeTarget(overrides: Partial<ReferenceTarget> = {}): ReferenceTarget {
   return {
@@ -44,11 +45,7 @@ const ANCHOR = new DOMRect(100, 200, 20, 16);
 describe("<ReferenceCard />", () => {
   it("renders target citation with author + italic work + locator", () => {
     const { container } = render(() => (
-      <ReferenceCard
-        reference={makeReference()}
-        anchor={ANCHOR}
-        onClose={() => undefined}
-      />
+      <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={() => undefined} />
     ));
     const head = container.querySelector(".refcard-head");
     expect(head?.textContent).toContain("Aristotle");
@@ -65,9 +62,7 @@ describe("<ReferenceCard />", () => {
         onClose={() => undefined}
       />
     ));
-    expect(container.querySelector(".refcard-chip")?.textContent).toBe(
-      "comments on",
-    );
+    expect(container.querySelector(".refcard-chip")?.textContent).toBe("comments on");
     unmount();
 
     const second = render(() => (
@@ -77,9 +72,7 @@ describe("<ReferenceCard />", () => {
         onClose={() => undefined}
       />
     ));
-    expect(second.container.querySelector(".refcard-chip")?.textContent).toBe(
-      "alludes",
-    );
+    expect(second.container.querySelector(".refcard-chip")?.textContent).toBe("alludes");
   });
 
   it("renders quoted_phrase block when present", () => {
@@ -112,21 +105,13 @@ describe("<ReferenceCard />", () => {
 
   it("in-corpus variant renders 'Open in reader →' with default hash href", () => {
     const { container } = render(() => (
-      <ReferenceCard
-        reference={makeReference()}
-        anchor={ANCHOR}
-        onClose={() => undefined}
-      />
+      <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={() => undefined} />
     ));
-    const open = container.querySelector(
-      ".refcard-open",
-    );
+    const open = container.querySelector(".refcard-open");
     expect(open).not.toBeNull();
     expect(open?.textContent).toContain("Open in reader");
     // Default href uses work + ?focus=<chunk_id>.
-    expect(open?.getAttribute("href")).toBe(
-      "#/r/Nicomachean%20Ethics?focus=ne-1097b",
-    );
+    expect(open?.getAttribute("href")).toBe("#/r/Nicomachean%20Ethics?focus=ne-1097b");
   });
 
   it("openInReader prop overrides the default href computation", () => {
@@ -161,13 +146,13 @@ describe("<ReferenceCard />", () => {
     expect(container.querySelector(".refcard-open")).toBeNull();
     const linkRow = container.querySelector(".refcard-ext-links");
     expect(linkRow).not.toBeNull();
-    const links = linkRow!.querySelectorAll("a");
+    const links = must(linkRow).querySelectorAll("a");
     // Default external slot is Logeion / Perseus / archive.org.
     expect(Array.from(links, (a) => a.textContent.trim())).toEqual(
       expect.arrayContaining(["Logeion", "Perseus", "archive.org"]),
     );
     // Logeion URL embeds the encoded author.
-    expect(links[0]!.getAttribute("href")).toContain("Cicero");
+    expect(must(links[0]).getAttribute("href")).toContain("Cicero");
   });
 
   it("custom externalLinks override the defaults", () => {
@@ -183,8 +168,8 @@ describe("<ReferenceCard />", () => {
     ));
     const links = container.querySelectorAll(".refcard-ext-links a");
     expect(links.length).toBe(1);
-    expect(links[0]!.textContent.trim()).toBe("Custom Source");
-    expect(links[0]!.getAttribute("href")).toBe("https://example.org");
+    expect(must(links[0]).textContent.trim()).toBe("Custom Source");
+    expect(must(links[0]).getAttribute("href")).toBe("https://example.org");
   });
 
   it("pending state (curator_status='auto') shows unverified pill + is-pending class", () => {
@@ -196,20 +181,12 @@ describe("<ReferenceCard />", () => {
       />
     ));
     expect(container.querySelector(".refcard.is-pending")).not.toBeNull();
-    expect(container.querySelector(".refcard-unverified")?.textContent).toBe(
-      "unverified · auto",
-    );
+    expect(container.querySelector(".refcard-unverified")?.textContent).toBe("unverified · auto");
   });
 
   it("Escape calls onClose", () => {
     const onClose = vi.fn();
-    render(() => (
-      <ReferenceCard
-        reference={makeReference()}
-        anchor={ANCHOR}
-        onClose={onClose}
-      />
-    ));
+    render(() => <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={onClose} />);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -222,13 +199,7 @@ describe("<ReferenceCard />", () => {
     // card open had Escape or re-clicking a 24px gutter glyph and nothing
     // else.
     const onClose = vi.fn();
-    render(() => (
-      <ReferenceCard
-        reference={makeReference()}
-        anchor={ANCHOR}
-        onClose={onClose}
-      />
-    ));
+    render(() => <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={onClose} />);
 
     fireEvent.mouseDown(document.body);
 
@@ -246,15 +217,11 @@ describe("<ReferenceCard />", () => {
         <button class="xref-pin" type="button">
           ▸
         </button>
-        <ReferenceCard
-          reference={makeReference()}
-          anchor={ANCHOR}
-          onClose={onClose}
-        />
+        <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={onClose} />
       </>
     ));
 
-    fireEvent.mouseDown(container.querySelector(".xref-pin")!);
+    fireEvent.mouseDown(must(container.querySelector(".xref-pin")));
 
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -267,14 +234,10 @@ describe("<ReferenceCard />", () => {
     // have, and asserts the behaviour instead.
     const onClose = vi.fn();
     const { container } = render(() => (
-      <ReferenceCard
-        reference={makeReference()}
-        anchor={ANCHOR}
-        onClose={onClose}
-      />
+      <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={onClose} />
     ));
 
-    fireEvent.mouseDown(container.querySelector(".refcard-head")!);
+    fireEvent.mouseDown(must(container.querySelector(".refcard-head")));
 
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -283,14 +246,10 @@ describe("<ReferenceCard />", () => {
     // #358. This card had no button of any kind before it.
     const onClose = vi.fn();
     const { container } = render(() => (
-      <ReferenceCard
-        reference={makeReference()}
-        anchor={ANCHOR}
-        onClose={onClose}
-      />
+      <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={onClose} />
     ));
 
-    fireEvent.click(container.querySelector(".popover-close")!);
+    fireEvent.click(must(container.querySelector(".popover-close")));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -307,15 +266,11 @@ describe("<ReferenceCard />", () => {
     const parentClick = vi.fn();
     const { container } = render(() => (
       <div onClick={parentClick}>
-        <ReferenceCard
-          reference={makeReference()}
-          anchor={ANCHOR}
-          onClose={() => undefined}
-        />
+        <ReferenceCard reference={makeReference()} anchor={ANCHOR} onClose={() => undefined} />
       </div>
     ));
 
-    fireEvent.click(container.querySelector(".refcard")!);
+    fireEvent.click(must(container.querySelector(".refcard")));
 
     expect(parentClick).toHaveBeenCalledTimes(1);
   });

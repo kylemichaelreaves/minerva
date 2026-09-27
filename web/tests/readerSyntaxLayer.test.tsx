@@ -6,6 +6,7 @@ import { invalidateReads } from "~/api/readCache";
 import { SyntaxLayer } from "~/routes/SyntaxLayer";
 import { _resetToastsForTesting } from "~/utils/apiError";
 import { createTestRouting, okResponse } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 // The syntax overlay is a LAYER over the Reader, not a peer route (#342).
 //
@@ -181,7 +182,7 @@ describe("the syntax overlay as a layer over the Reader", () => {
     // unreachable before only because it was destroyed. `inert` on the shell
     // is what replaces that.
     await mountReader();
-    const shell = document.querySelector("main.main")!;
+    const shell = must(document.querySelector("main.main"));
     expect(shell.hasAttribute("inert")).toBe(false);
 
     go(SYNTAX_OPEN_HASH);
@@ -205,7 +206,7 @@ describe("the syntax overlay as a layer over the Reader", () => {
     });
     const reader = document.querySelector(".reader");
 
-    fireEvent.click(document.querySelector(".syn-back")!);
+    fireEvent.click(must(document.querySelector(".syn-back")));
 
     await waitFor(() => {
       expect(document.querySelector(".syn")).toBeNull();
@@ -227,7 +228,7 @@ describe("the syntax overlay as a layer over the Reader", () => {
       expect(document.querySelector(".syn")).not.toBeNull();
     });
 
-    fireEvent.click(document.querySelector(".syn-back")!);
+    fireEvent.click(must(document.querySelector(".syn-back")));
 
     expect(routing.navigateSpy).not.toHaveBeenCalled();
   });

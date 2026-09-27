@@ -20,42 +20,42 @@ export interface ComposeFieldProps {
 }
 
 export default function ComposeField(props: ComposeFieldProps) {
-  const isLanding = props.variant === "landing";
+  const isLanding = () => props.variant === "landing";
   const shell = useMobileShellOptional();
   const fallbackMobile = useMobile();
   const isMobile = () => shell?.isMobile() ?? fallbackMobile();
-  const wrapClass = isLanding ? "landing-input-wrap" : "composer-wrap";
-  const innerClass = isLanding ? "" : "composer";
-  const inputClass = isLanding ? "landing-input" : "composer-input";
-  const footClass = isLanding ? "landing-input-foot" : "composer-foot";
+  const wrapClass = () => (isLanding() ? "landing-input-wrap" : "composer-wrap");
+  const innerClass = () => (isLanding() ? "" : "composer");
+  const inputClass = () => (isLanding() ? "landing-input" : "composer-input");
+  const footClass = () => (isLanding() ? "landing-input-foot" : "composer-foot");
 
   // Chat composer placeholder differs on mobile per design 2a:
   // "Reply to Minerva…" reads as a quoted invitation in the cramped
   // mobile context, where "Continue the enquiry…" felt abstract.
   const placeholder = (): string => {
-    if (isLanding) return "What would you like to consider?";
+    if (isLanding()) return "What would you like to consider?";
     if (props.disabled) return "Awaiting reply…";
     return isMobile() ? "Reply to Minerva…" : "Continue the enquiry…";
   };
 
   return (
-    <div class={wrapClass}>
+    <div class={wrapClass()}>
       {props.scopeChip}
-      <div class={innerClass}>
+      <div class={innerClass()}>
         <textarea
           ref={props.c.setRef}
-          class={inputClass}
+          class={inputClass()}
           placeholder={placeholder()}
           value={props.c.value()}
           disabled={props.disabled}
-          onInput={props.c.onInput}
-          onKeyDown={props.c.onKeyDown}
+          onInput={(e) => props.c.onInput(e)}
+          onKeyDown={(e) => props.c.onKeyDown(e)}
           rows={1}
-          autofocus={isLanding}
+          autofocus={isLanding()}
         />
         {props.accessory}
-        <div class={footClass}>
-          {isLanding ? (
+        <div class={footClass()}>
+          {isLanding() ? (
             <>
               <span class="landing-input-hint">{props.hint}</span>
               <button
