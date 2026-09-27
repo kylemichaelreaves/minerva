@@ -43,6 +43,8 @@ WORKS: tuple[CorpusWork, ...] = (
         lang="eng",
         corpus="marcus_aurelius",
         author="Marcus Aurelius",
+        # The Project Gutenberg header, through "*** START OF…" (#705).
+        editorial_runs=(("The Project Gutenberg eBook of Meditations", "By Marcus Aurelius"),),
     ),
 )
 

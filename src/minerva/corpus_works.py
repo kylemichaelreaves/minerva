@@ -108,6 +108,14 @@ class CorpusWork:
     # work sets ``block_type="note"`` so its chunks attribute to the
     # editor, not Hegel. Leave ``None`` for ordinary body works.
     block_type: str | None = None
+    # Editorial runs inside an otherwise-body work, typed
+    # ``block_type='editorial'`` in place by `corpus/editorial_runs.py`
+    # (#705): Project Gutenberg transcriber's notes and headers, which
+    # arrive as body paragraphs no heading filter can see. Each entry is
+    # ``(opener, closer)``: prefixes of the paragraph that opens the run
+    # and of the first paragraph after it, or ``None`` to run to the end
+    # of the work. Matched in order; a run that no longer matches raises.
+    editorial_runs: tuple[tuple[str, str | None], ...] = ()
 
 
 def filename_index(works: Iterable[CorpusWork]) -> dict[str, CorpusWork]:

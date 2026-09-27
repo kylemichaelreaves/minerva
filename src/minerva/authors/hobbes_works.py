@@ -78,6 +78,9 @@ WORKS: tuple[CorpusWork, ...] = (
         lang="eng",
         corpus="hobbes",
         author="Hobbes",
+        # The e-text's transcriber's notes (14 paragraphs) sit between the
+        # title page and the Godolphin dedication (#705).
+        editorial_runs=(("TRANSCRIBER’S NOTES ON THE E-TEXT", "TO MY MOST HONOR’D FRIEND"),),
     ),
     # ─── De Cive ──────────────────────────────────────────────────
     CorpusWork(
@@ -110,6 +113,10 @@ WORKS: tuple[CorpusWork, ...] = (
         # cap: since the Molesworth re-source (#535) it chunks per
         # paragraph like this one, and its longest is 5,099 chars.
         max_paragraph_chars=8000,
+        # Transcriber's notes at both ends (#705): four paragraphs before
+        # the Molesworth title page, and at the tail a note plus a 17-line
+        # page.line corrections list ("56.14 Prov. xxii. 10[)]: Removed.").
+        editorial_runs=(("Transcriber’s Note:", "THE"), ("Transcriber’s Note", None)),
     ),
     # ─── Elements of Law (1640) ───────────────────────────────────
     # Two-part 1650 publication; English only.
