@@ -37,42 +37,60 @@ function mount(onOpenPair = vi.fn()) {
 }
 
 function arcPaths(container: HTMLElement) {
-  return [...container.querySelectorAll('[data-panel="arc"] path')].filter((p) =>
-    (p.getAttribute("d") ?? "").includes(" Q "),
-  );
+  return [...container.querySelectorAll<SVGPathElement>('[data-panel="arc"] path.net-arc')];
+}
+
+/** Baseline tick x for each author, in axis order. */
+function tickX(container: HTMLElement): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const g of container.querySelectorAll(".net-arc-label")) {
+    const name = g.querySelector("text")?.textContent ?? "";
+    out.set(name, Number(g.querySelector("line")?.getAttribute("x1")));
+  }
+  return out;
+}
+
+/** The outline's vertices, as [x, y] pairs. */
+function vertices(d: string): number[][] {
+  return d
+    .replace(/[MZ]/g, "")
+    .split("L")
+    .map((pt) => pt.split(",").map(Number));
 }
 
 describe("<ArcPanel /> geometry", () => {
   it("anchors each arc's endpoints at its authors' baseline x positions", () => {
     const { container, onOpenPair } = mount();
-    // padL 24, padR 24, w 700, N 3 → x = 24 + 652·i/2 → 24, 350, 676.
-    // baseY = padT = 32. One pair, so its half-span is arcMaxR and the
-    // dip is the full maxDip (arcH 364 − 32 − 12 = 320) × 0.96.
+    const x = tickX(container);
     const arcs = arcPaths(container);
     expect(arcs).toHaveLength(1);
     const arc = must(arcs[0], "arc path");
-    expect(arc.getAttribute("d")).toBe(`M 676 32 Q 350 ${32 + 320 * 0.96} 24 32`);
+    // The tapered outline runs out along one edge (citing → cited) and back
+    // along the other: vertex 0 is at the citing end, vertex n/2 − 1 at the
+    // cited end, both on the baseline (y = 112) within half a stroke.
+    const pts = vertices(arc.getAttribute("d") ?? "");
+    const citing = must(pts[0], "first vertex");
+    const cited = must(pts[pts.length / 2 - 1], "cited-end vertex");
+    expect(Math.abs((citing[0] ?? 0) - (x.get("Ar") ?? NaN))).toBeLessThan(1);
+    expect(Math.abs((cited[0] ?? 0) - (x.get("Pl") ?? NaN))).toBeLessThan(4);
+    expect(Math.abs((citing[1] ?? 0) - 112)).toBeLessThan(1);
 
     fireEvent.click(arc);
     expect(onOpenPair).toHaveBeenCalledWith("Aristotle", "Plato");
   });
 
-  it("labels a baseline year only for authors with a known year", () => {
+  it("places an author with no known year between its neighbours and never shows a year for it", () => {
     const { container } = mount();
-    // Zoom to ≥2.6× so every author's label is shown, not just the sparse set.
-    const zoomIn = screen.getByRole("button", { name: "Zoom in" });
-    for (let i = 0; i < 3; i++) fireEvent.click(zoomIn);
+    const x = tickX(container);
+    expect([...x.keys()]).toEqual(["Pl", "No", "Ar"]);
+    const [pl, no, ar] = [x.get("Pl") ?? 0, x.get("No") ?? 0, x.get("Ar") ?? 0];
+    expect(no).toBeGreaterThan(pl);
+    expect(no).toBeLessThan(ar);
 
-    const shorts = [...container.querySelectorAll('text[font-size="9.5"][text-anchor="middle"]')];
-    expect(shorts.map((t) => t.textContent)).toEqual(["Pl", "No", "Ar"]);
-
-    const years = [...container.querySelectorAll('text[font-size="8.5"]')];
-    expect(years.map((t) => t.textContent)).toEqual(["380 BC", "340 BC"]);
-    // …and each sits at its own author's x, not at Nobody's.
-    const xOf = (t: Element) => t.getAttribute("x");
-    expect(years.map(xOf)).toEqual([
-      xOf(must(shorts[0], "Pl label")),
-      xOf(must(shorts[2], "Ar label")),
-    ]);
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Nobody: show citations" }));
+    const detail = container.querySelector(".net-arc-detail")?.textContent ?? "";
+    expect(detail).toMatch(/^Nobody(?! ·)/);
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Plato: show citations" }));
+    expect(container.querySelector(".net-arc-detail")?.textContent).toContain("Plato · 380 BC");
   });
 });

@@ -21,6 +21,11 @@
   --net-step-3: #406190;
   --net-step-4: #28426d;
   --net-step-5: #132341;
+  /* Arc diagram direction: what the focused author cites (out) and who
+     cites them (in). Navy vs ochre stays apart under all three CVD
+     simulations (ΔE ≥ 29); ochre is 4.05:1 on paper. */
+  --net-arc-out: var(--net-navy);
+  --net-arc-in: #a0691c;
 }
 [data-theme="dark"] .net {
   --net-navy: #a8bce0;
@@ -37,6 +42,10 @@
   --net-step-3: #7092bd;
   --net-step-4: #a0bedd;
   --net-step-5: #f3e7ce;
+  /* The design mock used cream (--ink) for "cited by"; against navy it
+     is ΔE 12.6 under normal vision, below the 15 floor. Ochre is 17.1. */
+  --net-arc-out: var(--net-navy);
+  --net-arc-in: #d9a35a;
 }
 
 .net {
@@ -562,65 +571,174 @@
   display: flex;
   flex-direction: column;
 }
-.net-arc-stage {
-  /* Scrollable horizontal stage that holds the arc SVG. When zoom is
-     > 1 the inner SVG is wider than this container; the user pans
-     by scrolling. Vertical overflow is hidden — the strip sits in a
-     sibling SVG below. */
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-}
-.net-arc-strip {
+.net-arc-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 4px 12px 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--ink-mute);
   flex: 0 0 auto;
 }
-
-/* Zoom controls in the panel header. Small monospace pill with
-   −/level/+ buttons; the level text doubles as a "reset" button. */
-.net-arc-zoom {
-  display: inline-flex;
+.net-arc-legend span {
+  display: flex;
   align-items: center;
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  background: var(--paper-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  height: 22px;
-  overflow: hidden;
-  margin-right: 8px;
+  gap: 6px;
 }
-.net-arc-zoom-btn {
-  appearance: none;
-  background: transparent;
+.net-arc-legend .sw {
+  width: 18px;
+  height: 3px;
+  display: block;
+}
+.net-arc-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.net-arc {
+  cursor: pointer;
+}
+.net-arc-context path {
+  fill: var(--ink-mute);
+  fill-opacity: 0.06;
+  pointer-events: none;
+}
+.net-arc-eras line {
+  stroke: color-mix(in oklab, var(--rule) 55%, var(--ink-mute));
+  stroke-width: 1;
+}
+.net-arc-break rect {
+  fill: var(--paper);
+}
+.net-arc-break line {
+  stroke: var(--ink-mute);
+}
+.net-arc-label {
+  cursor: pointer;
+  outline: none;
+}
+.net-arc-label line {
+  stroke: var(--ink-mute);
+  stroke-width: 0.8;
+}
+.net-arc-label rect {
+  fill: transparent;
+}
+.net-arc-label:focus-visible rect {
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+.net-tooltip .sub {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--ink-mute);
+}
+
+/* Detail strip under the arcs: top pairs, or the focused author's
+   cites / cited-by lists. Fixed minimum height so focusing an author
+   barely moves the arcs. */
+.net-arc-detail {
+  flex: 0 0 auto;
+  min-height: 150px;
+  border-top: 1px solid var(--rule);
+  margin: 6px 12px 0;
+  padding: 10px 0 4px;
+}
+.net-arc-detail .h {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.net-arc-detail .clr {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: none;
   border: 0;
-  padding: 0 8px;
-  height: 100%;
+  padding: 0;
+  color: var(--ink-mute);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.net-arc-detail .clr:hover {
+  color: var(--ink);
+}
+.net-arc-detail .two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+}
+.net-arc-detail .ct {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-mute);
+}
+.net-arc-detail .ct .sw {
+  width: 18px;
+  height: 3px;
+  display: block;
+}
+.net-arc-detail .li {
+  display: grid;
+  /* Bar column shrinks with the panel; bar widths are % of it. */
+  grid-template-columns: minmax(0, 1fr) minmax(24px, 90px) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 2px 0;
+  background: none;
+  border: 0;
   color: var(--ink);
   font: inherit;
+  font-size: 12px;
+  text-align: left;
   cursor: pointer;
-  user-select: none;
 }
-.net-arc-zoom-btn:hover:not(:disabled) {
-  background: var(--ink);
-  color: var(--paper);
+.net-arc-detail .li:hover .nm,
+.net-arc-detail .li:focus-visible .nm {
+  text-decoration: underline;
 }
-.net-arc-zoom-btn:disabled {
-  color: var(--ink-faint);
-  cursor: not-allowed;
+.net-arc-detail .nm {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.net-arc-zoom-level {
-  padding: 0 10px;
+.net-arc-detail .bar {
+  height: 6px;
+  display: block;
+}
+.net-arc-detail .v {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-align: right;
+}
+.net-arc-detail .yr {
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
   color: var(--ink-mute);
-  border-left: 1px solid var(--rule);
-  border-right: 1px solid var(--rule);
-  cursor: pointer;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
 }
-.net-arc-zoom-level:hover {
-  color: var(--ink);
+.net-arc-detail .empty {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-mute);
 }
 
 /* ---------- HEATMAP ---------- */
