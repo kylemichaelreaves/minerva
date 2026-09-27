@@ -2,7 +2,9 @@
 
 One row per (chunk, token) for every chunk of a supported language
 (``SUPPORTED_LANGUAGES`` in ``lemmatize.py`` — grc, deu, fra, eng, lat,
-heb, ara); downstream the glossary importer joins this against
+heb, ara) except editorial apparatus (``block_types.APPARATUS_TYPES``),
+which is the translator's or editor's text and so is never counted as
+the author's (#674); downstream the glossary importer joins this against
 `terms.lemma` to find term occurrences. Designed to be run once per
 language after a fresh ingest and then left alone — re-runs skip
 chunks already present unless ``--all`` is passed.
@@ -20,6 +22,7 @@ import sqlite3
 import sys
 import time
 
+from ...block_types import APPARATUS_TYPES
 from ...lemmatize import (
     SUPPORTED_LANGUAGES as _SUPPORTED,
 )
@@ -73,6 +76,11 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         if args.edition_id is not None:
             where.append("cf.edition_id = ?")
             params.append(args.edition_id)
+        # Editorial apparatus is the translator's or editor's text, and
+        # counting it credits the author with it (#674).
+        purged = _purge_apparatus(conn, args)
+        where.append(_NOT_APPARATUS_SQL)
+        params.extend(APPARATUS_TYPES)
         if not args.all:
             # Skip chunks already ATTEMPTED at their current text —
             # not merely chunks that produced output. Keying this on
@@ -97,7 +105,7 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         total = conn.execute(count_sql, params).fetchone()[0]
         print(f"lemmatize: {total} chunks to process for lang={lang}")
         if total == 0:
-            return 0
+            return _finish_without_candidates(args, conn, purged)
 
         if args.dry_run:
             # Tokenise the first few chunks just to confirm the model
@@ -318,27 +326,94 @@ def cmd_terms_lemmatize(args: argparse.Namespace) -> int:
         )
         _record_pipeline_stats(args, stats)
 
-        # Rebuild the concordance aggregate table — the only consumer
-        # of chunk_lemmas at read time. Skipping this would leave the
-        # leaderboard stale until the next manual ``aggregate-lemmas``
-        # run.
-        #
-        # Cost: measured 205.2s (4,487,900 rows) on 2026-09-10. This used
-        # to read "~30s … dwarfed by the lemmatize pass itself", which is
-        # now wrong twice over: it is ~7x that, and for a SCOPED run the
-        # relationship inverts — re-lemmatising 1,176 Hegel chunks took
-        # well under a minute and then paid the full 205s here, because
-        # `aggregate.build` has no scope parameter. See #548.
-        if not getattr(args, "skip_aggregate", False):
-            from ...concordance import aggregate
-            summary = aggregate.build(conn, verbose=True)
-            print(
-                f"aggregate-lemmas: {summary['total']:,} rows in "
-                f"{summary['elapsed_seconds']:.1f}s"
-            )
+        _rebuild_aggregate(args, conn)
         return 0
     finally:
         conn.close()
+
+
+_APPARATUS_SLOTS = ", ".join("?" for _ in APPARATUS_TYPES)
+_NOT_APPARATUS_SQL = f"(cf.block_type IS NULL OR cf.block_type NOT IN ({_APPARATUS_SLOTS}))"
+
+
+def _purge_apparatus(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
+    """Delete the lemma rows, and the attempt markers, of every apparatus
+    chunk in this pass's scope. Returns the number of rows deleted; a dry
+    run deletes nothing.
+
+    The candidate filter alone would only stop *new* rows: lemmatize is
+    incremental, so rows written before a chunk was typed as apparatus —
+    all 348,868 of them when #674 landed, or any chunk a typing pass
+    re-types in place with its ``chunk_id`` unchanged — would stay counted.
+    The attempt marker goes too, so a chunk later re-typed back to body
+    text is a candidate again rather than hidden by its matching text hash.
+    """
+
+    if args.dry_run:
+        return 0
+    lang, edition_id = args.lang, args.edition_id
+    scope = "c.lang = ? AND c.block_type IN (" + _APPARATUS_SLOTS + ")"
+    params: list[object] = [lang, *APPARATUS_TYPES]
+    if edition_id is not None:
+        scope += " AND c.edition_id = ?"
+        params.append(edition_id)
+    # Joined through chunk_lemma_state, not chunk_lemmas: every attempted
+    # chunk has exactly one state row, so this finds zero-token chunks too
+    # and never probes the 26M-row table. The plan scans chunks and seeks
+    # the state's primary key — 0.24s on the live index, paid every run.
+    ids_sql = (
+        "SELECT s.chunk_id FROM chunk_lemma_state s "
+        "JOIN chunks c ON c.chunk_id = s.chunk_id WHERE " + scope
+    )
+    chunk_ids = [r[0] for r in conn.execute(ids_sql, params)]
+    if not chunk_ids:
+        return 0
+    rows = 0
+    for chunk_id in chunk_ids:
+        rows += conn.execute(
+            "DELETE FROM chunk_lemmas WHERE chunk_id = ?", (chunk_id,)
+        ).rowcount
+        conn.execute("DELETE FROM chunk_lemma_state WHERE chunk_id = ?", (chunk_id,))
+    conn.commit()
+    print(
+        f"lemmatize: purged {rows} rows from {len(chunk_ids)} apparatus chunks "
+        f"for lang={lang}"
+    )
+    return rows
+
+
+def _finish_without_candidates(
+    args: argparse.Namespace, conn: sqlite3.Connection, purged: int
+) -> int:
+    """Nothing left to lemmatize — but a purge alone still changes what the
+    leaderboard should count, so it still pays for the rebuild."""
+
+    if purged:
+        _rebuild_aggregate(args, conn)
+    return 0
+
+
+def _rebuild_aggregate(args: argparse.Namespace, conn: sqlite3.Connection) -> None:
+    """Rebuild the concordance aggregate table — the only consumer of
+    chunk_lemmas at read time. Skipping this would leave the leaderboard
+    stale until the next manual ``aggregate-lemmas`` run.
+
+    Cost: measured 205.2s (4,487,900 rows) on 2026-09-10. This used to read
+    "~30s … dwarfed by the lemmatize pass itself", which is now wrong twice
+    over: it is ~7x that, and for a SCOPED run the relationship inverts —
+    re-lemmatising 1,176 Hegel chunks took well under a minute and then paid
+    the full 205s here, because `aggregate.build` has no scope parameter.
+    See #548.
+    """
+
+    if getattr(args, "skip_aggregate", False):
+        return
+    from ...concordance import aggregate
+    summary = aggregate.build(conn, verbose=True)
+    print(
+        f"aggregate-lemmas: {summary['total']:,} rows in "
+        f"{summary['elapsed_seconds']:.1f}s"
+    )
 
 
 def _record_pipeline_stats(args, stats) -> None:

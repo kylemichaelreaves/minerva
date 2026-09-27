@@ -15,6 +15,7 @@ from collections.abc import Iterable
 import numpy as np
 
 from . import embed, orthography, store
+from .block_types import APPARATUS_LABEL, APPARATUS_TYPES
 from .corpus_registry import corpus_authors
 from .metrics.recorder import sub_span
 from .store.embeddings import load_embeddings_with_meta
@@ -157,13 +158,10 @@ def _verse_work_ids(conn: sqlite3.Connection) -> np.ndarray:
 # personae lists (<castList>). Retrievable, but `format_locator` attributes
 # them to the responsible translator/editor (NEVER the author), so neither the
 # LLM prompt nor the citation can present a footnote as the philosopher's
-# words. See 2b in docs/block-structure-remediation-plan.md.
-_APPARATUS_TYPES = ("note", "cast", "editorial")
-_APPARATUS_LABEL = {
-    "note": "editorial note",
-    "cast": "cast list",
-    "editorial": "editorial apparatus",
-}
+# words. See 2b in docs/block-structure-remediation-plan.md. The same set is
+# kept out of the concordance (#674), so it lives in `block_types`.
+_APPARATUS_TYPES = APPARATUS_TYPES
+_APPARATUS_LABEL = APPARATUS_LABEL
 
 # The author's OWN words, but paratextual rather than discursive — Nachlass
 # title-page drafts and Briefe valedictions that end "... Von Friedrich

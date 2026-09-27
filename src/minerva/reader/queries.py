@@ -8,6 +8,7 @@ from typing import Any
 from .. import store
 from ..author_ordering import author_sort_key, lang_sort_key
 from ..authors.quran_works import find_surah_by_transliteration as _find_surah
+from ..block_types import APPARATUS_LABEL
 from ..errors import BadRequestError, NotFoundError
 from ..locations import BCV_BOOK_ORDINAL, TANAKH_BOOK_ORDINAL
 from ..text import build_mark_snippet
@@ -485,6 +486,25 @@ def _parse_morph_feats(feats: str | None) -> dict[str, str]:
     return out
 
 
+def _no_lemma_error(conn: sqlite3.Connection, chunk_id: str) -> NotFoundError:
+    """Why a clicked word has no lemma. Apparatus is never lemmatized
+    (#674), so the usual advice to run lemmatize would change nothing."""
+
+    row = conn.execute(
+        "SELECT block_type FROM chunks WHERE chunk_id = ?", (chunk_id,)
+    ).fetchone()
+    label = APPARATUS_LABEL.get(row["block_type"]) if row else None
+    if label:
+        return NotFoundError(
+            f"no word lookup in apparatus ({label}): it is the translator's "
+            "or editor's text, which is not lemmatized."
+        )
+    return NotFoundError(
+        "no lemma cache entry at that (chunk_id, offset). Run "
+        "`minerva terms lemmatize --lang <lang>` for the chunk's edition.",
+    )
+
+
 def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, Any]:
     """Look up one token in chunk_lemmas, then summarise its lemma's
     footprint in the same edition.
@@ -544,10 +564,7 @@ def word_lookup(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, An
         (chunk_id, offset),
     ).fetchone()
     if focus is None:
-        raise NotFoundError(
-            "no lemma cache entry at that (chunk_id, offset). Run "
-            "`minerva terms lemmatize --lang <lang>` for the chunk's edition.",
-        )
+        raise _no_lemma_error(conn, chunk_id)
     # Every chunk belongs to exactly one of edition / translation
     # (never both, never neither — enforced by 0001's schema).
     # We filter cross-chunk searches on whichever side is non-null
