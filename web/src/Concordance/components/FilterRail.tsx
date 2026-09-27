@@ -251,9 +251,9 @@ export function FilterRail(props: {
               </Show>
             </span>
             <Show when={selectedWorks().size > 0}>
-              <span class="clr" onClick={() => props.onClearWorks()}>
+              <button type="button" class="clr" onClick={() => props.onClearWorks()}>
                 clear
-              </span>
+              </button>
             </Show>
           </div>
           <Show when={props.data.work_breakdown.length > WORK_CAP}>

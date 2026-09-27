@@ -36,9 +36,9 @@ export function FilterChipGroup(props: {
         </span>
         <Show when={props.applied ? props.onClear : undefined}>
           {(onClear) => (
-            <span class="clr" onClick={() => onClear()()}>
+            <button type="button" class="clr" onClick={() => onClear()()}>
               clear
-            </span>
+            </button>
           )}
         </Show>
       </div>

@@ -40,7 +40,10 @@ describe("<FilterChipGroup /> clear control", () => {
   it("shows the clear link when applied with onClear, and clicking it calls onClear", () => {
     const onClear = vi.fn();
     renderGroup({ applied: "Accusative", onClear });
-    fireEvent.click(screen.getByText("clear"));
+    // A real button, so it is reachable and operable from the keyboard.
+    const clear = screen.getByRole("button", { name: "clear" });
+    expect(clear).toHaveAttribute("type", "button");
+    fireEvent.click(clear);
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 });
