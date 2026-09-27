@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { createRoot, createSignal } from "solid-js";
 import { usePaginatedAppend } from "~/hooks/usePaginatedAppend";

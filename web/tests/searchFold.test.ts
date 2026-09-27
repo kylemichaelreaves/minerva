@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Match-folding for type-to-filter (#363).
 //
 // A reader narrowing the Concordance's Work picker should not have to reproduce

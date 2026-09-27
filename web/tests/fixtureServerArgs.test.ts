@@ -1,3 +1,4 @@
+// @vitest-environment node
 /** Every database the fixture server opens must live in the run's tmp dir.
  *
  * `startFixtureServer` routed `--db` and `--conversations-db` to tmp and left

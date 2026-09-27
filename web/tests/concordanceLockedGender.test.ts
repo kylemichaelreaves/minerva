@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 
 import { formatGenderShare, lockedGender } from "~/Concordance/constants";

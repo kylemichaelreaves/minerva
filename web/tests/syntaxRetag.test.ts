@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Retagging a token's part of speech, end to end through the store and out
  * into the layout (#253).

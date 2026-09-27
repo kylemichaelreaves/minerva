@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, screen } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { TimeSeriesChart, formatTimeLabel } from "~/Metrics/TimeSeriesChart";
