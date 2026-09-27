@@ -2,6 +2,35 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import { useElementSize } from "~/hooks/useElementSize";
+import {
+  MODE_BINS,
+  MODE_HINT,
+  buildAxes,
+  cellValue,
+  bandLabel,
+  pct,
+  stepFor,
+  type MatrixAxes,
+  type MatrixMode,
+} from "~/Network/components/matrixLayout";
+
+const MODES: { id: MatrixMode; label: string }[] = [
+  { id: "n", label: "Counts" },
+  { id: "row", label: "% of row" },
+  { id: "col", label: "% of col" },
+];
+
+const PAD = { l: 112, t: 104, r: 6, b: 6 };
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
+interface Geometry {
+  w: number;
+  h: number;
+  cw: number;
+  ch: number;
+  gridW: number;
+  gridH: number;
+}
 
 export function MatrixPanel(props: {
   authors: NetworkAuthor[];
@@ -11,30 +40,24 @@ export function MatrixPanel(props: {
   let wrapEl: HTMLDivElement | undefined;
   const size = useElementSize(() => wrapEl, { w: 720, h: 460 });
   const [hover, setHover] = createSignal<MatrixCell | null>(null);
+  const [mode, setMode] = createSignal<MatrixMode>("n");
 
-  const layout = createMemo(() => {
+  const axes = createMemo(() => buildAxes(props.authors, props.cells));
+
+  // Cells are rectangles sized to width and height separately, so the
+  // grid fills the panel instead of letterboxing to a square.
+  const geo = createMemo<Geometry>(() => {
     const { w, h } = size();
-    const N = props.authors.length || 1;
-    const padL = 78,
-      padT = 72,
-      padR = 8,
-      padB = 12;
-    const cellW = (w - padL - padR) / N;
-    const cellH = (h - padT - padB) / N;
-    const cell = Math.max(2, Math.min(cellW, cellH));
-    return { w, h, N, padL, padT, padR, padB, cell };
+    const gridW = Math.max(0, w - PAD.l - PAD.r);
+    const gridH = Math.max(0, h - PAD.t - PAD.b);
+    const cw = gridW / Math.max(1, axes().cols.length);
+    const ch = gridH / Math.max(1, axes().rows.length);
+    return { w, h, cw, ch, gridW, gridH };
   });
 
-  const maxN = createMemo(() => Math.max(1, ...props.cells.map((c) => c.n)));
-
-  const authorName = (i: number): string => props.authors[i]?.name ?? "";
-
-  function rampColor(n: number) {
-    if (!n) return "transparent";
-    const t = Math.log10(n + 1) / Math.log10(maxN() + 1);
-    const a = Math.max(0.08, Math.min(1, t));
-    return `color-mix(in oklab, var(--net-navy) ${(a * 100).toFixed(0)}%, var(--paper))`;
-  }
+  const author = (i: number) => props.authors[i];
+  const labelFill = (i: number) =>
+    author(i)?.corpus === "scrip" ? "var(--net-terra)" : "var(--ink)";
 
   return (
     <section class="net-panel" data-panel="matrix">
@@ -45,132 +68,115 @@ export function MatrixPanel(props: {
             Who, across {CORPUS_YEAR_SPAN_LABEL} years, cited whom — and how heavily?
           </div>
         </div>
-        <div class="net-segment">
-          <button class="on">Counts</button>
+        <div class="net-segment" role="group" aria-label="Cell values">
+          <For each={MODES}>
+            {(m) => (
+              <button
+                type="button"
+                classList={{ on: mode() === m.id }}
+                aria-pressed={mode() === m.id}
+                onClick={() => setMode(m.id)}
+              >
+                {m.label}
+              </button>
+            )}
+          </For>
         </div>
       </div>
       <div class="net-panel-body">
         <div class="net-matrix-wrap">
           <div class="net-matrix-legend">
-            <div class="ramp">
-              <span>log&nbsp;n</span>
-              <span class="net-ramp-bar">
-                <For each={[0, 1, 10, 100, 1000, 10000]}>
-                  {(v) => <span style={{ background: rampColor(v) }} />}
-                </For>
-              </span>
-              <span>1 → 10⁴</span>
+            <div class="net-matrix-steps" aria-label="Colour scale">
+              <For each={MODE_BINS[mode()].labels}>
+                {(label, k) => (
+                  <div>
+                    <i style={{ background: `var(--net-step-${k()})` }} />
+                    <span>{label}</span>
+                  </div>
+                )}
+              </For>
             </div>
-            <div>rows = citing &nbsp;·&nbsp; cols = cited &nbsp;·&nbsp; sort = chronological</div>
+            <div>{MODE_HINT[mode()]}</div>
           </div>
           <div class="net-matrix-svg-wrap" ref={wrapEl}>
             <svg
-              width={layout().w}
-              height={layout().h}
-              viewBox={`0 0 ${layout().w} ${layout().h}`}
+              width={geo().w}
+              height={geo().h}
+              viewBox={`0 0 ${geo().w} ${geo().h}`}
               style={{ display: "block" }}
             >
-              {/* background grid (paper-edge alternating per row for readability) */}
-              <For each={props.authors}>
-                {(_, r) => (
-                  <rect
-                    x={layout().padL}
-                    y={layout().padT + r() * layout().cell}
-                    width={layout().N * layout().cell}
-                    height={layout().cell - 0.4}
-                    fill={r() % 2 === 0 ? "var(--paper)" : "var(--paper-soft)"}
-                  />
-                )}
-              </For>
-              {/* diagonal hairline */}
-              <line
-                x1={layout().padL}
-                y1={layout().padT}
-                x2={layout().padL + layout().N * layout().cell}
-                y2={layout().padT + layout().N * layout().cell}
-                stroke="var(--rule)"
-                stroke-width={0.5}
-                stroke-dasharray="2 2"
+              <rect
+                x={PAD.l}
+                y={PAD.t}
+                width={geo().gridW}
+                height={geo().gridH}
+                fill="var(--net-matrix-field)"
               />
-              {/* nonzero cells */}
-              <For each={props.cells}>
-                {(c) => (
-                  <rect
-                    class="net-cell"
-                    x={layout().padL + c.c * layout().cell}
-                    y={layout().padT + c.r * layout().cell}
-                    width={layout().cell - 0.4}
-                    height={layout().cell - 0.4}
-                    fill={rampColor(c.n)}
-                    onMouseEnter={() => setHover(c)}
-                    onMouseLeave={() => setHover(null)}
-                    onClick={() => props.onOpenPair(authorName(c.r), authorName(c.c))}
-                  >
-                    <title>
-                      {authorName(c.r)} → {authorName(c.c)}: {c.n.toLocaleString()}
-                    </title>
-                  </rect>
-                )}
-              </For>
-              {/* row labels — citing (left) */}
-              <For each={props.authors}>
-                {(a, r) => (
+              <Show when={hover()}>
+                {(c) => <Crosshair cell={c()} axes={axes()} geo={geo()} />}
+              </Show>
+              <Bands axes={axes()} geo={geo()} />
+              <For each={axes().rows}>
+                {(i) => (
                   <text
-                    x={layout().padL - 6}
-                    y={layout().padT + r() * layout().cell + layout().cell / 2 + 3}
+                    x={PAD.l - 6}
+                    y={PAD.t + (axes().rowPos.get(i) ?? 0) * geo().ch + geo().ch / 2 + 3.5}
                     text-anchor="end"
-                    font-size={String(Math.min(10.5, layout().cell + 2))}
+                    font-size="10.5"
                     font-family="var(--sans)"
-                    fill={a.corpus === "scrip" ? "var(--net-terra)" : "var(--ink)"}
+                    fill={labelFill(i)}
+                    {...labelEmphasis(hover()?.r, i)}
                   >
-                    {a.short}
+                    {author(i)?.short}
                   </text>
                 )}
               </For>
-              {/* col labels — cited (top, rotated 45°) */}
-              <For each={props.authors}>
-                {(a, c) => {
-                  // An accessor, not a value: the For body runs once per
-                  // row, so a plain const would freeze x at the first
-                  // layout and leave the column labels behind on resize.
-                  const x = () => layout().padL + c() * layout().cell + layout().cell / 2;
+              <For each={axes().cols}>
+                {(i) => {
+                  const x = () =>
+                    PAD.l + (axes().colPos.get(i) ?? 0) * geo().cw + geo().cw / 2 + 3.5;
+                  const y = PAD.t - 6;
                   return (
                     <text
                       x={x()}
-                      y={layout().padT - 6}
-                      font-size={String(Math.min(10.5, layout().cell + 2))}
+                      y={y}
+                      transform={`rotate(-90 ${x()} ${y})`}
+                      font-size="10.5"
                       font-family="var(--sans)"
-                      fill={a.corpus === "scrip" ? "var(--net-terra)" : "var(--ink)"}
-                      transform={`rotate(-45 ${x()} ${layout().padT - 6})`}
-                      text-anchor="start"
+                      fill={labelFill(i)}
+                      {...labelEmphasis(hover()?.c, i)}
                     >
-                      {a.short}
+                      {author(i)?.short}
                     </text>
                   );
                 }}
               </For>
-              {/* axis captions */}
-              <text
-                x={8}
-                y={layout().padT - 18}
-                font-size="9.5"
-                fill="var(--ink-mute)"
-                font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-              >
-                citing ↓
-              </text>
-              <text
-                x={layout().padL - 4}
-                y={layout().padT - 56}
-                font-size="9.5"
-                fill="var(--ink-mute)"
-                font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-              >
-                cited →
-              </text>
+              <For each={props.cells}>
+                {(c) => (
+                  <rect
+                    class="net-cell"
+                    x={PAD.l + (axes().colPos.get(c.c) ?? 0) * geo().cw + 0.5}
+                    y={PAD.t + (axes().rowPos.get(c.r) ?? 0) * geo().ch + 0.5}
+                    width={Math.max(0, geo().cw - 1)}
+                    height={Math.max(0, geo().ch - 1)}
+                    fill={`var(--net-step-${stepFor(cellValue(c, mode(), axes()), mode())})`}
+                    onMouseEnter={() => setHover(c)}
+                    onMouseLeave={() => setHover(null)}
+                    onClick={() =>
+                      props.onOpenPair(author(c.r)?.name ?? "", author(c.c)?.name ?? "")
+                    }
+                  >
+                    <title>
+                      {author(c.r)?.name} → {author(c.c)?.name}: {c.n.toLocaleString()}
+                    </title>
+                  </rect>
+                )}
+              </For>
             </svg>
             <Show when={hover()}>
-              {(cell) => <MatrixTooltip authors={props.authors} cell={cell()} layout={layout()} />}
+              {(c) => (
+                <MatrixTooltip authors={props.authors} cell={c()} axes={axes()} geo={geo()} />
+              )}
             </Show>
           </div>
           <div class="net-matrix-strip">
@@ -185,31 +191,122 @@ export function MatrixPanel(props: {
   );
 }
 
+/** While a cell is hovered, its row and column labels go bold and every
+ *  other label fades. */
+function labelEmphasis(hovered: number | undefined, i: number) {
+  if (hovered === undefined) return {};
+  return hovered === i ? { "font-weight": 600 } : { opacity: 0.45 };
+}
+
+function Crosshair(props: { cell: MatrixCell; axes: MatrixAxes; geo: Geometry }) {
+  const r = () => props.axes.rowPos.get(props.cell.r) ?? 0;
+  const c = () => props.axes.colPos.get(props.cell.c) ?? 0;
+  return (
+    <g class="net-matrix-crosshair" pointer-events="none">
+      <rect
+        x={PAD.l}
+        y={PAD.t + r() * props.geo.ch}
+        width={props.geo.gridW}
+        height={props.geo.ch}
+      />
+      <rect
+        x={PAD.l + c() * props.geo.cw}
+        y={PAD.t}
+        width={props.geo.cw}
+        height={props.geo.gridH}
+      />
+    </g>
+  );
+}
+
+/** Band dividers plus band captions: rotated down the left edge for
+ *  rows, along the top edge for columns. */
+function Bands(props: { axes: MatrixAxes; geo: Geometry }) {
+  const bandText = { "font-size": "8.5", "font-family": MONO, fill: "var(--ink-mute)" };
+  return (
+    <g class="net-matrix-bands">
+      <For each={props.axes.rowBands}>
+        {(b, k) => {
+          const y = () => PAD.t + b.start * props.geo.ch;
+          const cy = () => PAD.t + ((b.start + b.end) / 2) * props.geo.ch;
+          return (
+            <>
+              <Show when={k() > 0}>
+                <line x1={6} x2={PAD.l + props.geo.gridW} y1={y()} y2={y()} />
+              </Show>
+              <text
+                x={12}
+                y={cy()}
+                transform={`rotate(-90 12 ${cy()})`}
+                text-anchor="middle"
+                letter-spacing=".12em"
+                {...bandText}
+              >
+                {bandLabel(b.corpus, (b.end - b.start) * props.geo.ch)}
+              </text>
+            </>
+          );
+        }}
+      </For>
+      <For each={props.axes.colBands}>
+        {(b, k) => {
+          const x = () => PAD.l + b.start * props.geo.cw;
+          const width = () => (b.end - b.start) * props.geo.cw;
+          return (
+            <>
+              <Show when={k() > 0}>
+                <line x1={x()} x2={x()} y1={14} y2={PAD.t + props.geo.gridH} />
+              </Show>
+              <text
+                x={x() + width() / 2}
+                y={10}
+                text-anchor="middle"
+                letter-spacing=".12em"
+                {...bandText}
+              >
+                {bandLabel(b.corpus, width())}
+              </text>
+            </>
+          );
+        }}
+      </For>
+    </g>
+  );
+}
+
+const TIP_W = 240;
+const TIP_H = 110;
+
 function MatrixTooltip(props: {
   authors: NetworkAuthor[];
   cell: MatrixCell;
-  layout: { padL: number; padT: number; cell: number; w: number; h: number };
+  axes: MatrixAxes;
+  geo: Geometry;
 }) {
+  const src = () => props.authors[props.cell.r];
+  const tgt = () => props.authors[props.cell.c];
+  // Right of the cell, flipping to the left when it would overflow.
   const left = () => {
-    const raw = props.layout.padL + (props.cell.c + 1) * props.layout.cell + 8;
-    return Math.min(raw, props.layout.w - 260);
+    const cellX = PAD.l + (props.axes.colPos.get(props.cell.c) ?? 0) * props.geo.cw;
+    const right = cellX + props.geo.cw + 10;
+    return right + TIP_W > props.geo.w ? Math.max(0, cellX - TIP_W - 10) : right;
   };
   const top = () => {
-    const raw = props.layout.padT + props.cell.r * props.layout.cell - 4;
-    return Math.min(raw, props.layout.h - 90);
+    const raw = PAD.t + (props.axes.rowPos.get(props.cell.r) ?? 0) * props.geo.ch - 6;
+    return Math.max(0, Math.min(raw, props.geo.h - TIP_H));
   };
   return (
     <div class="net-tooltip" style={{ left: `${left()}px`, top: `${top()}px` }}>
       <div class="pair">
-        {props.authors[props.cell.r]?.name} <span class="arr">→</span>{" "}
-        {props.authors[props.cell.c]?.name}
+        {src()?.name} <span class="arr">→</span> {tgt()?.name}
       </div>
       <div class="count">{props.cell.n.toLocaleString()} xrefs</div>
+      <div class="shares">
+        {pct(props.cell.n, props.axes.rowTotal.get(props.cell.r))} of {src()?.short}’s citations
+        <br />
+        {pct(props.cell.n, props.axes.colTotal.get(props.cell.c))} of citations to {tgt()?.short}
+      </div>
       <div class="hint">click to filter /refs ↘</div>
     </div>
   );
 }
-
-/* ============================================================
-   Arc diagram + top-pairs strip
-   ============================================================ */

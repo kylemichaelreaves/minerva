@@ -14,6 +14,9 @@ const fetchMock = vi.mocked(fetchNetworkSummary);
 
 const plato: NetworkAuthor = { name: "Plato", short: "Pl", ord: 100, corpus: "class" };
 const kant: NetworkAuthor = { name: "Kant", short: "Ka", ord: 900, corpus: "mod" };
+// The matrix drops authors who are never cited, so a lone author needs a
+// cell to get a column.
+const SELF = { r: 0, c: 0, n: 1 };
 
 beforeEach(() => {
   fetchMock.mockReset();
@@ -51,16 +54,20 @@ function mount(initialConf?: number) {
   return { ...result, setConf, handlers };
 }
 
-/** The matrix panel's column labels (rotated <text>) name the summary's authors. */
+/** The matrix panel's column labels name the summary's cited authors. They
+ *  are the rotated <text> directly under the SVG; the rotated row-band
+ *  captions sit inside a <g>. */
 function matrixColumns(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('[data-panel="matrix"] svg text[transform]')].map(
+  return [...container.querySelectorAll('[data-panel="matrix"] svg > text[transform]')].map(
     (t) => t.textContent,
   );
 }
 
 describe("<Network />", () => {
   it("renders the body from the loaded summary and re-renders it on refetch", async () => {
-    fetchMock.mockResolvedValueOnce(makeNetworkSummary({ xrefs: 1000, authors: [plato] }));
+    fetchMock.mockResolvedValueOnce(
+      makeNetworkSummary({ xrefs: 1000, authors: [plato], cells: [SELF] }),
+    );
     const { container, setConf } = mount(0.5);
 
     expect(container.querySelector(".net-loading")).toHaveTextContent("Loading citation network…");
@@ -71,7 +78,9 @@ describe("<Network />", () => {
       `${(1000).toLocaleString()} xrefs`,
     );
 
-    fetchMock.mockResolvedValueOnce(makeNetworkSummary({ xrefs: 2000, authors: [kant] }));
+    fetchMock.mockResolvedValueOnce(
+      makeNetworkSummary({ xrefs: 2000, authors: [kant], cells: [SELF] }),
+    );
     setConf(0.9);
     await waitFor(() => {
       expect(matrixColumns(container)).toEqual(["Ka"]);

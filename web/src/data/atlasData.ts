@@ -225,13 +225,20 @@ export const TRADITION_LABEL: Record<Tradition, string> = {
   modern: "Modern",
 };
 
+export const Y_MIN = -1000;
+// The axis — and the modern band that ends it — runs to the latest author,
+// not to a fixed year. It was a fixed 1880 (Nietzsche); Luther Bibel 1912
+// then plotted past the end of the line, its tick dangling off the far
+// right. Derived so the next later addition can't do the same.
+export const Y_MAX = Math.max(1880, ...ATLAS_AUTHORS.map((a) => a.year));
+
 // Band x-ranges (in years) — these drive the 5-colour baseline.
 export const BANDS: { key: Tradition; yStart: number; yEnd: number }[] = [
   { key: "scripture", yStart: -1000, yEnd: -850 },
   { key: "classical", yStart: -850, yEnd: 230 },
   { key: "medieval", yStart: 230, yEnd: 1450 },
   { key: "earlymodern", yStart: 1450, yEnd: 1770 },
-  { key: "modern", yStart: 1770, yEnd: 1880 },
+  { key: "modern", yStart: 1770, yEnd: Y_MAX },
 ];
 
 // YEAR_TICKS + fmtYear + layoutLabelsGreedy live in the shared
@@ -249,8 +256,6 @@ export const fmtYear = formatYear;
 // Atlas geometry. The SVG is rendered ~2x wider than the visible
 // landing area, so the strip scrolls horizontally — comfortably linear
 // chronology in exchange for some right-side scroll.
-export const Y_MIN = -1000;
-export const Y_MAX = 1880;
 export const VB_X0 = 60;
 export const VB_X1 = 2240;
 export const VB_WIDTH = 2280;
