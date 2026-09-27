@@ -21,6 +21,7 @@ from . import AuthorMentionRule, StrongMentionRule
 from .scripture_cite import (
     ScriptureCiteRule,
     ScriptureCiteRuleEn,
+    ScriptureCiteRuleEnRoman,
     ScriptureCiteRuleLatRoman,
 )
 
@@ -30,6 +31,11 @@ RULES = (
     # biblical interpretation. Expect the largest citation count
     # of any modern author.
     ScriptureCiteRuleEn(name="hobbes_scripture_cite_en"),
+    # The 1651 Leviathan cites with Arabic chapters ("Exod. 28. 3"),
+    # which the rule above covers. The English De Cive and De Corpore
+    # Politico set them in Roman ("Matth. xviii. 17") and contributed
+    # no scripture refs at all until this sibling (#703).
+    ScriptureCiteRuleEnRoman(name="hobbes_scripture_cite_en_roman"),
     # ── Latin Vulgate cites → the 1668 Latin Leviathan and 1642 De
     # Cive quote scripture in Latin; without this rule those biblical
     # citations were never detected (issue #55).

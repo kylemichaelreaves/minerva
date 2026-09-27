@@ -13,8 +13,11 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     (None, "Ex"): "Exodus",
     (None, "Exod"): "Exodus",
     (None, "Lev"): "Leviticus",
+    (None, "Levit"): "Leviticus",  # 17th-c. (Hobbes), #703
     (None, "Num"): "Numbers",
+    (None, "Numb"): "Numbers",  # 17th-c. (Hobbes), #703
     (None, "Deut"): "Deuteronomy",
+    (None, "Deuteron"): "Deuteronomy",  # 17th-c. (Hobbes), #703
     (None, "Dt"): "Deuteronomy",
     # ── Historical ────────────────────────────────────────────────
     (None, "Josh"): "Joshua",
@@ -52,6 +55,7 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     (None, "Ps"): "Psalms",
     (None, "Psa"): "Psalms",
     (None, "Psalm"): "Psalms",
+    (None, "Psal"): "Psalms",  # 17th-c. (Hobbes, Locke), #703
     (None, "Prov"): "Proverbs",
     (None, "Pr"): "Proverbs",
     (None, "Eccl"): "Ecclesiastes",
@@ -60,8 +64,10 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     (None, "Cant"): "Song of Songs",
     # ── Major prophets ────────────────────────────────────────────
     (None, "Isa"): "Isaiah",
+    (None, "Isai"): "Isaiah",  # 17th-c. (Hobbes), #703
     (None, "Is"): "Isaiah",
     (None, "Jer"): "Jeremiah",
+    (None, "Jerem"): "Jeremiah",  # 17th-c. (Hobbes), #703
     (None, "Lam"): "Lamentations",
     (None, "Ezek"): "Ezekiel",
     (None, "Ez"): "Ezekiel",
@@ -82,6 +88,7 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     (None, "Zep"): "Zephaniah",
     (None, "Hag"): "Haggai",
     (None, "Zech"): "Zechariah",
+    (None, "Zach"): "Zechariah",  # 17th-c. (Hobbes), #703
     (None, "Zec"): "Zechariah",
     (None, "Mal"): "Malachi",
     # ── Apocrypha (1611 KJV included; modern KJV often omits) ─────
@@ -99,6 +106,7 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     # ── Gospels + Acts ────────────────────────────────────────────
     (None, "Mt"): "Matthew",
     (None, "Matt"): "Matthew",
+    (None, "Matth"): "Matthew",  # 17th-c. (Hobbes), #703
     (None, "Mk"): "Mark",
     (None, "Mark"): "Mark",
     (None, "Lk"): "Luke",
@@ -118,9 +126,12 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     (None, "Cor"): "1 Corinthians",  # ambiguous-bare
     (None, "Gal"): "Galatians",
     (None, "Eph"): "Ephesians",
+    (None, "Ephes"): "Ephesians",  # 17th-c. (Hobbes), #703
     (None, "Phil"): "Philippians",
     (None, "Phi"): "Philippians",
     (None, "Col"): "Colossians",
+    (None, "Coloss"): "Colossians",  # 17th-c. (Hobbes), #703
+    (None, "Colos"): "Colossians",
     ("1", "Thess"): "1 Thessalonians",
     ("I", "Thess"): "1 Thessalonians",
     ("2", "Thess"): "2 Thessalonians",
@@ -165,8 +176,10 @@ _AMBIGUOUS_BARE_EN: frozenset[str] = frozenset(
 
 
 # English chap-verse separator: modern usage is colon ("Matt 5:48");
-# 17th-c. English (Hobbes Leviathan, Locke) frequently uses period
-# ("Gen. 3. 5", "Mark 3.21", "Rom. 8.9."). Accept both. We require
+# the 1651 *Leviathan* uses a period ("Exod. 28. 3", "Mark 3.21",
+# "Rom. 8.9."). Accept both. Locke and Hobbes's English *De Cive* and
+# *De Corpore Politico* set the chapter in Roman ("Gen. xiii. 5.") —
+# that is `ScriptureCiteRuleEnRoman` below, not this pattern. We require
 # the abbrev to start with an uppercase Latin letter to skip e.g.
 # clause numbering in modern editions.
 _CITE_RE_EN = re.compile(
@@ -193,4 +206,43 @@ class ScriptureCiteRuleEn(BaseScriptureCiteRule):
 
     lexicon = _LEXICON_EN
     cite_re = _CITE_RE_EN
+    ambiguous_bare = _AMBIGUOUS_BARE_EN
+
+
+# Roman-numeral-chapter cites — "Gen. xiii. 5." (Locke), "Matth. xviii.
+# 17" (Hobbes's English De Cive), "Psalm cxix. 160". `_CITE_RE_EN` takes
+# an Arabic chapter only, so none of these fired: 235 such shapes across
+# the English and German corpus, 0 detected (#703).
+#
+# A sibling rather than a widening of `_CITE_RE_EN`, as `lat.py` and
+# `fr.py` do. The chapter group is Roman-only, so an Arabic citation is
+# never counted twice, and it needs its own trailing period. The
+# abbreviation's period stays optional because "Acts", "Luke" and
+# "John" are written without one. The verse stays Arabic: a Roman verse
+# group would read the pronoun in "Mark ii. I said" as verse 1. Swept
+# over every chunk of the nine authors who run an English or German
+# scripture rule before landing; every new hit was read.
+_CITE_RE_EN_ROMAN = re.compile(
+    r"(?:\b(?P<prefix>I{1,3}V?|[1-3])\s*\.?\s*)?"  # optional ordinal
+    r"\b(?P<abbr>[A-Z][a-z]{1,8})\.?"  # English abbrev
+    r"\s+"
+    r"(?P<chap>[ivxlc]{1,7}|[IVXLC]{1,7})\."  # Roman chapter, one case
+    r"\s*"
+    r"(?P<verse>\d{1,3})"
+    r"(?:\s*[-–]\s*\d{1,3})?"  # optional verse range
+)
+
+
+@dataclass(frozen=True)
+class ScriptureCiteRuleEnRoman(BaseScriptureCiteRule):
+    """English rule accepting a Roman-numeral chapter with an Arabic
+    verse — the convention of Locke's *Second Treatise* and *Essay* and
+    of Hobbes's English *De Cive* and *De Corpore Politico*."""
+
+    name: str = "scripture_cite_kjv_en_roman"
+    target_author: str = "King James Bible"
+    langs: tuple[str, ...] = ("eng",)
+
+    lexicon = _LEXICON_EN
+    cite_re = _CITE_RE_EN_ROMAN
     ambiguous_bare = _AMBIGUOUS_BARE_EN

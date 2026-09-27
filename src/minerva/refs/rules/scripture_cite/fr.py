@@ -6,8 +6,8 @@ import re
 from dataclasses import dataclass
 
 from ._base import BaseScriptureCiteRule
-from .de import ScriptureCiteRuleDe
-from .en import ScriptureCiteRuleEn
+from .de import ScriptureCiteRuleDe, ScriptureCiteRuleDeRoman
+from .en import ScriptureCiteRuleEn, ScriptureCiteRuleEnRoman
 
 _LEXICON_FR: dict[tuple[str | None, str], str] = {
     # Pentateuch — French abbrevs
@@ -259,14 +259,17 @@ def default_scripture_rules(
 ) -> tuple[BaseScriptureCiteRule, ...]:
     """Standard vernacular scripture cite rules for 19th-c authors.
 
-    Includes DE + EN + both French shapes. Every rule is lang-gated,
+    Includes both shapes (Arabic- and Roman-numeral chapters) of DE,
+    EN and FR. Every rule is lang-gated,
     so a source corpus only ever fires the rules for languages it
     actually contains — including all four here used to silently
     hand a *French* author (Renan, via the YAML loader) only German
     and English rules, making ~1,265 cite-bearing chunks invisible."""
     return (
         ScriptureCiteRuleDe(name=f"{prefix}_scripture_cite_de"),
+        ScriptureCiteRuleDeRoman(name=f"{prefix}_scripture_cite_de_roman"),
         ScriptureCiteRuleEn(name=f"{prefix}_scripture_cite_en"),
+        ScriptureCiteRuleEnRoman(name=f"{prefix}_scripture_cite_en_roman"),
         ScriptureCiteRuleFr(name=f"{prefix}_scripture_cite_fr"),
         ScriptureCiteRuleFrRoman(name=f"{prefix}_scripture_cite_fr_roman"),
     )

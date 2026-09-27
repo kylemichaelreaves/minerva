@@ -19,6 +19,17 @@ _LEXICON_DE: dict[tuple[str | None, str], str] = {
     ("IV", "Mose"): "Numbers",
     ("5", "Mose"): "Deuteronomy",
     ("V", "Mose"): "Deuteronomy",
+    # The shortened "Mos." (Kant: "1. Mos. I, 28"), #703.
+    ("1", "Mos"): "Genesis",
+    ("I", "Mos"): "Genesis",
+    ("2", "Mos"): "Exodus",
+    ("II", "Mos"): "Exodus",
+    ("3", "Mos"): "Leviticus",
+    ("III", "Mos"): "Leviticus",
+    ("4", "Mos"): "Numbers",
+    ("IV", "Mos"): "Numbers",
+    ("5", "Mos"): "Deuteronomy",
+    ("V", "Mos"): "Deuteronomy",
     # ── Pentateuch — scholarly abbreviations ──────────────────────
     (None, "Gen"): "Genesis",
     (None, "Ex"): "Exodus",
@@ -105,6 +116,7 @@ _LEXICON_DE: dict[tuple[str | None, str], str] = {
     (None, "Mark"): "Mark",
     (None, "Lk"): "Luke",
     (None, "Luk"): "Luke",
+    (None, "Luc"): "Luke",  # Latin form (Kant, Nietzsche), #703
     (None, "Joh"): "John",  # bare "Joh" is ambiguous (Gospel vs 1-3 John)
     (None, "Apg"): "Acts",
     # ── Pauline epistles ──────────────────────────────────────────
@@ -204,4 +216,37 @@ class ScriptureCiteRuleDe(BaseScriptureCiteRule):
 
     lexicon = _LEXICON_DE
     cite_re = _CITE_RE_DE
+    ambiguous_bare = _AMBIGUOUS_BARE_DE
+
+
+# Roman-numeral-chapter cites — "Matth. XXV, 35-40", "Ev. Joh. III, 5"
+# (Kant), "Luc. IV, 18" (Nietzsche). `_CITE_RE_DE` takes an Arabic
+# chapter only (#703). A sibling for the reasons `en.py` gives: the
+# chapter group is Roman-only so nothing is counted twice, the verse
+# stays Arabic, and mixed-case numerals are rejected as OCR noise. The
+# abbreviation keeps its period here — German always prints one, and
+# requiring it keeps "Kap. IV, 3"-shaped prose behind the lexicon and a
+# second gate.
+_CITE_RE_DE_ROMAN = re.compile(
+    r"(?:\b(?P<prefix>I{1,3}V?|[1-5])\.?\s*)?"  # optional ordinal
+    r"\b(?P<abbr>[A-ZÄÖÜ][A-Za-zäöüß]{1,8})\."  # German abbrev
+    r"\s*"
+    r"(?P<chap>[ivxlc]{1,7}|[IVXLC]{1,7})"  # Roman chapter, one case
+    r"\s*[,.]\s*"  # comma OR period sep
+    r"(?P<verse>\d{1,3})"
+    r"(?:\s*[-–]\s*\d{1,3})?"  # optional verse range
+)
+
+
+@dataclass(frozen=True)
+class ScriptureCiteRuleDeRoman(BaseScriptureCiteRule):
+    """German rule accepting a Roman-numeral chapter with an Arabic
+    verse — Kant's *Religion* and Nietzsche's convention."""
+
+    name: str = "scripture_cite_luther_de_roman"
+    target_author: str = "Luther Bibel 1912"
+    langs: tuple[str, ...] = ("deu",)
+
+    lexicon = _LEXICON_DE
+    cite_re = _CITE_RE_DE_ROMAN
     ambiguous_bare = _AMBIGUOUS_BARE_DE

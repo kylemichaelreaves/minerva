@@ -22,13 +22,17 @@ All rules gate on `langs=("eng",)` — Hume is English-only.
 from __future__ import annotations
 
 from . import AuthorMentionRule, StrongMentionRule, _figures
-from .scripture_cite import ScriptureCiteRuleEn
+from .scripture_cite import ScriptureCiteRuleEn, ScriptureCiteRuleEnRoman
 
 RULES = (
     # ── English scripture cites → KJV. Hume's biblical engagement is
     # lightest of the British triad — Natural History of Religion and
     # Of Miracles cite scripture in critique. Expect <50 cites total.
     ScriptureCiteRuleEn(name="hume_scripture_cite_en"),
+    # Roman-chapter cites (#703). None in the current Hume text — kept
+    # so a re-source to an edition in that convention is not silently
+    # zeroed, which is how #535 lost the Latin Hobbes.
+    ScriptureCiteRuleEnRoman(name="hume_scripture_cite_en_roman"),
     # Locke — Hume's most-cited modern predecessor. The Treatise's
     # impressions-and-ideas distinction is a self-conscious refinement
     # of Locke's Essay Bk II ch 1.
