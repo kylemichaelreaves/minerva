@@ -45,13 +45,15 @@ export function FilterChipGroup(props: {
       <div class="fr-opts">
         <For each={props.buckets}>
           {(b) => (
-            <span
+            <button
+              type="button"
               class={"fr-opt" + (props.selected === b.value ? " on" : "")}
+              aria-pressed={props.selected === b.value}
               onClick={() => props.onToggle(props.selected === b.value ? undefined : b.value)}
               title={props.titleFor(b)}
             >
               {props.labelFor(b.value)}
-            </span>
+            </button>
           )}
         </For>
       </div>

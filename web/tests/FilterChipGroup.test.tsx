@@ -62,3 +62,14 @@ describe("<FilterChipGroup /> chips", () => {
     expect(onToggle).toHaveBeenLastCalledWith(undefined);
   });
 });
+
+describe("<FilterChipGroup /> chips are toggle buttons (#700)", () => {
+  it("renders each chip as a button whose pressed state tracks the selection", () => {
+    renderGroup({ selected: "Acc" });
+    const acc = screen.getByRole("button", { name: "ACC" });
+    const nom = screen.getByRole("button", { name: "NOM" });
+    expect(acc).toHaveAttribute("type", "button");
+    expect(acc).toHaveAttribute("aria-pressed", "true");
+    expect(nom).toHaveAttribute("aria-pressed", "false");
+  });
+});
