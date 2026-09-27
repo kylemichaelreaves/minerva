@@ -3,6 +3,7 @@ import { createSignal } from "solid-js";
 import { render, screen } from "@solidjs/testing-library";
 import Thread from "~/Thread";
 import type { MinervaTurn, Turn, UserTurn } from "~/utils/types";
+import { must } from "./helpers/must";
 
 const POIETES_TURN: MinervaTurn = {
   role: "minerva",
@@ -42,8 +43,8 @@ describe("<Thread />", () => {
     expect(cites).toHaveLength(2);
     // The [N] marker is in its own .cite-mark-n child (sibling of the
     // mobile-only .cite-mark-chip with source+locator inline).
-    expect(cites[0]!.querySelector(".cite-mark-n")?.textContent).toBe("[1]");
-    expect(cites[1]!.querySelector(".cite-mark-n")?.textContent).toBe("[2]");
+    expect(must(cites[0]).querySelector(".cite-mark-n")?.textContent).toBe("[1]");
+    expect(must(cites[1]).querySelector(".cite-mark-n")?.textContent).toBe("[2]");
   });
 
   it("shows margin notes when marginNotes=true and pull-quotes when false", () => {
@@ -260,7 +261,7 @@ describe("<Thread />", () => {
     const { container } = render(() => (
       <Thread messages={[turn]} thinking={false} marginNotes={true} onTogglePin={onTogglePin} />
     ));
-    const pin = container.querySelector<HTMLElement>(".cite-pin")!;
+    const pin = must(container.querySelector<HTMLElement>(".cite-pin"));
     expect(pin).not.toBeNull();
     pin.click();
     expect(onTogglePin).toHaveBeenCalledWith("rep-509d");

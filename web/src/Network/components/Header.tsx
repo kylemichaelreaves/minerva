@@ -44,7 +44,9 @@ export function NetworkHeader(props: {
       />
       <div class="net-totals">
         <Show when={props.totals} fallback={<div>—</div>}>
-          {/* The mobile design 5a renders the hero as:
+          {(totals) => (
+            <>
+              {/* The mobile design 5a renders the hero as:
                   <big xrefs>
                   verified cross-references
                   across the corpus
@@ -52,32 +54,34 @@ export function NetworkHeader(props: {
               All on the same totals block, with the inline desktop
               "citations · authors · works" reduced to a single number
               + an italic byline. */}
-          <Show
-            when={isMobile()}
-            fallback={
-              <div>
-                <span class="big">{props.totals!.xrefs.toLocaleString()}</span> citations
-                &nbsp;·&nbsp; <span class="big">{props.totals!.authors}</span> authors &nbsp;·&nbsp;{" "}
-                <span class="big">{props.totals!.works}</span> works
-              </div>
-            }
-          >
-            <div class="net-hero-num">
-              <span class="big">{props.totals!.xrefs.toLocaleString()}</span>
-            </div>
-            <div class="net-hero-what">
-              verified cross-references
-              <br />
-              across the corpus
-            </div>
-            <div class="net-hero-meta">
-              <span class="num">{props.totals!.authors}</span> authors
-              <span class="sep">·</span>
-              <span class="num">{props.totals!.works}</span> works
-              <span class="sep">·</span>
-              <span class="num">{CORPUS_YEAR_SPAN_LABEL}</span> yr
-            </div>
-          </Show>
+              <Show
+                when={isMobile()}
+                fallback={
+                  <div>
+                    <span class="big">{totals().xrefs.toLocaleString()}</span> citations
+                    &nbsp;·&nbsp; <span class="big">{totals().authors}</span> authors &nbsp;·&nbsp;{" "}
+                    <span class="big">{totals().works}</span> works
+                  </div>
+                }
+              >
+                <div class="net-hero-num">
+                  <span class="big">{totals().xrefs.toLocaleString()}</span>
+                </div>
+                <div class="net-hero-what">
+                  verified cross-references
+                  <br />
+                  across the corpus
+                </div>
+                <div class="net-hero-meta">
+                  <span class="num">{totals().authors}</span> authors
+                  <span class="sep">·</span>
+                  <span class="num">{totals().works}</span> works
+                  <span class="sep">·</span>
+                  <span class="num">{CORPUS_YEAR_SPAN_LABEL}</span> yr
+                </div>
+              </Show>
+            </>
+          )}
         </Show>
         {/* "filter: conf ≥0.8" crumb is desktop-only. The mobile chip
             strip above already carries the confidence value. */}

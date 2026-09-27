@@ -29,6 +29,7 @@ import {
   type MobileShellContextValue,
 } from "~/components/shell/MobileShellContext";
 import { render, cleanup } from "@solidjs/testing-library";
+import { must } from "./helpers/must";
 
 /** Render the provider and hand back its context value. */
 function withShell(fn: (shell: MobileShellContextValue) => void) {
@@ -43,7 +44,7 @@ function withShell(fn: (shell: MobileShellContextValue) => void) {
     </MobileShellProvider>
   ));
   try {
-    fn(shell!);
+    fn(must(shell));
   } finally {
     cleanup();
   }
@@ -53,9 +54,7 @@ describe("registerSurfaceActions", () => {
   it("routes a panel request to the registered handler", () => {
     withShell((shell) => {
       const calls: string[] = [];
-      createRoot(() =>
-        shell.registerSurfaceActions({ openFilters: () => calls.push("filters") }),
-      );
+      createRoot(() => shell.registerSurfaceActions({ openFilters: () => calls.push("filters") }));
 
       shell.openMobilePanel("filters");
 
@@ -88,9 +87,7 @@ describe("registerSurfaceActions", () => {
       );
       // A second surface registers, supplying only `openFilters`. It must
       // not erase the reader-settings handler above.
-      createRoot(() =>
-        shell.registerSurfaceActions({ openFilters: () => calls.push("filters") }),
-      );
+      createRoot(() => shell.registerSurfaceActions({ openFilters: () => calls.push("filters") }));
 
       shell.openMobilePanel("filters");
       shell.openMobilePanel("reader-settings");
@@ -103,9 +100,7 @@ describe("registerSurfaceActions", () => {
   it("does not let an unmounting surface clear a still-mounted one's handler", () => {
     withShell((shell) => {
       const calls: string[] = [];
-      createRoot(() =>
-        shell.registerSurfaceActions({ openFilters: () => calls.push("live") }),
-      );
+      createRoot(() => shell.registerSurfaceActions({ openFilters: () => calls.push("live") }));
       // A transient surface registers and then unmounts.
       const disposeTransient = createRoot((dispose) => {
         shell.registerSurfaceActions({ openThreadSearch: () => calls.push("gone") });
@@ -140,12 +135,8 @@ describe("registerSurfaceActions", () => {
   it("prefers the most recently registered handler for the same panel", () => {
     withShell((shell) => {
       const calls: string[] = [];
-      createRoot(() =>
-        shell.registerSurfaceActions({ openFilters: () => calls.push("first") }),
-      );
-      createRoot(() =>
-        shell.registerSurfaceActions({ openFilters: () => calls.push("second") }),
-      );
+      createRoot(() => shell.registerSurfaceActions({ openFilters: () => calls.push("first") }));
+      createRoot(() => shell.registerSurfaceActions({ openFilters: () => calls.push("second") }));
 
       shell.openMobilePanel("filters");
 
@@ -158,9 +149,7 @@ describe("registerSurfaceActions", () => {
   it("falls back to the earlier surface when the later one unmounts", () => {
     withShell((shell) => {
       const calls: string[] = [];
-      createRoot(() =>
-        shell.registerSurfaceActions({ openFilters: () => calls.push("first") }),
-      );
+      createRoot(() => shell.registerSurfaceActions({ openFilters: () => calls.push("first") }));
       const dispose = createRoot((d) => {
         shell.registerSurfaceActions({ openFilters: () => calls.push("second") });
         return d;

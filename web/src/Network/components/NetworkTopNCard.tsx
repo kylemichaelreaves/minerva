@@ -53,14 +53,13 @@ export function NetworkTopNCard<T>(props: Props<T>) {
         <span class="nw-card-meta">{props.meta}</span>
       </div>
       <For each={visible()}>
-        {(item, i) => props.renderRow(item, i())}
+        {/* The fragment keeps the call tracked: a row whose position
+            changes (or a swapped renderRow) re-renders with the new
+            index instead of keeping the one it was first built with. */}
+        {(item, i) => <>{props.renderRow(item, i())}</>}
       </For>
       <Show when={props.onShowAll && total() > props.limit}>
-        <button
-          type="button"
-          class="nw-more"
-          onClick={() => props.onShowAll?.()}
-        >
+        <button type="button" class="nw-more" onClick={() => props.onShowAll?.()}>
           {showAllLabel()}
         </button>
       </Show>

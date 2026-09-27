@@ -1,9 +1,6 @@
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import {
-  SuspendedSubtreeProvider,
-  useSuspendedSubtree,
-} from "~/hooks/suspendedSubtree";
+import { SuspendedSubtreeProvider, useSuspendedSubtree } from "~/hooks/suspendedSubtree";
 
 // The scoping property the #352 fix rests on: a hook answers "am I inside the
 // suspended subtree?", never "does the app have a suspended subtree
@@ -12,6 +9,7 @@ import {
 
 function Probe(props: { onRead: (v: boolean) => void }) {
   const suspended = useSuspendedSubtree();
+  // eslint-disable-next-line solid/reactivity -- the probe reports the context value once, at mount; that single read is what the test asserts
   props.onRead(suspended());
   return <div />;
 }

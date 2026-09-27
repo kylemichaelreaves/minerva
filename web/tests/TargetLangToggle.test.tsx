@@ -14,6 +14,7 @@
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TargetLangToggle, disabledLangFor } from "~/Reader/components/TargetLangToggle";
+import { must } from "./helpers/must";
 
 afterEach(cleanup);
 
@@ -52,19 +53,15 @@ describe("TargetLangToggle, chrome variant", () => {
     // A hover explanation costs nothing and removes the last of the ambiguity
     // for anyone who reads the segmented control before the label.
     const { container } = mountChrome();
-    const de = [...container.querySelectorAll(".lang button")].find(
-      (b) => b.textContent === "DE",
-    );
+    const de = [...container.querySelectorAll(".lang button")].find((b) => b.textContent === "DE");
     expect(de?.getAttribute("title")).toMatch(/translate/i);
     expect(de?.getAttribute("title")).toMatch(/german/i);
   });
 
   it("commits a target on click", () => {
     const { onTarget, container } = mountChrome();
-    const fr = [...container.querySelectorAll(".lang button")].find(
-      (b) => b.textContent === "FR",
-    );
-    fireEvent.click(fr!);
+    const fr = [...container.querySelectorAll(".lang button")].find((b) => b.textContent === "FR");
+    fireEvent.click(must(fr));
     expect(onTarget).toHaveBeenCalledWith("fra");
   });
 
@@ -83,9 +80,7 @@ describe("TargetLangToggle, chrome variant", () => {
 
 describe("TargetLangToggle, rail variant", () => {
   it("keeps its existing Target label", () => {
-    render(() => (
-      <TargetLangToggle variant="rail" target="deu" onTarget={vi.fn()} />
-    ));
+    render(() => <TargetLangToggle variant="rail" target="deu" onTarget={vi.fn()} />);
     expect(screen.getByText("Target")).toBeTruthy();
   });
 });

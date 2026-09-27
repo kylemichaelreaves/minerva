@@ -19,7 +19,11 @@ export default function Topbar(props: TopbarProps) {
     <div class={classnames("topbar", props.scrolled && "scrolled")}>
       <div class="topbar-left">
         <Show when={props.sidebarCollapsed}>
-          <button class="icon-btn" onClick={props.onToggleSidebar} aria-label="Show sidebar">
+          <button
+            class="icon-btn"
+            onClick={() => props.onToggleSidebar()}
+            aria-label="Show sidebar"
+          >
             <SidebarIcon />
           </button>
         </Show>
@@ -36,11 +40,7 @@ export default function Topbar(props: TopbarProps) {
         </div>
       </div>
       <div class="topbar-right">
-        <ThemeToggle
-          theme={props.theme}
-          onToggle={props.onToggleTheme}
-          variant="icon"
-        />
+        <ThemeToggle theme={props.theme} onToggle={props.onToggleTheme} variant="icon" />
       </div>
     </div>
   );

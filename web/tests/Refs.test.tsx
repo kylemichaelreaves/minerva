@@ -2,22 +2,12 @@
 // Covers the filter-fetch-render cycle that the maintainability audit
 // flagged as having no test coverage.
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type MockedFunction,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Refs, { type RefsProps } from "~/features/Refs";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
-import type {
-  ReferencesListResponse,
-  ReferencesListRow,
-} from "~/api/refsApi";
+import type { ReferencesListResponse, ReferencesListRow } from "~/api/refsApi";
+import { must } from "./helpers/must";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -120,9 +110,7 @@ describe("<Refs />", () => {
       expect(container.querySelectorAll(".ref-row").length).toBe(2);
     });
     // Summary shows total count.
-    expect(container.querySelector(".refs-meta")?.textContent).toContain(
-      "2 references",
-    );
+    expect(container.querySelector(".refs-meta")?.textContent).toContain("2 references");
     // First row shows source author + work + locator and the chip.
     const firstRow = container.querySelector(".ref-row");
     expect(firstRow?.textContent).toContain("Plato");
@@ -144,7 +132,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
-    const url = fetchMock.mock.calls[0]![0] as string;
+    const url = must(fetchMock.mock.calls[0])[0] as string;
     expect(url).toContain("source_author=Aquinas");
     expect(url).toContain("target_author=Aristotle");
     expect(url).toContain("reference_type=quotes");
@@ -158,9 +146,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(container.querySelector(".ref-row")).not.toBeNull();
     });
-    const checkbox = container.querySelector(
-      ".refs-filter-check input[type=checkbox]",
-    )!;
+    const checkbox = must(container.querySelector(".refs-filter-check input[type=checkbox]"));
     expect(checkbox).not.toBeNull();
     fireEvent.click(checkbox);
     expect(props.onNavigate).toHaveBeenCalledWith(
@@ -175,7 +161,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(container.querySelector(".ref-row")).not.toBeNull();
     });
-    fireEvent.click(container.querySelector(".ref-row")!);
+    fireEvent.click(must(container.querySelector(".ref-row")));
     expect(props.onOpenSource).toHaveBeenCalledWith("Republic", "rep-509d");
   });
 
@@ -186,9 +172,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(container.querySelector(".refs-empty")).not.toBeNull();
     });
-    const clearBtn = container.querySelector(
-      ".refs-clear",
-    )!;
+    const clearBtn = must(container.querySelector(".refs-clear"));
     expect(clearBtn).not.toBeNull();
     fireEvent.click(clearBtn);
     // Clearing pushes onNavigate with every filter cleared.
@@ -223,7 +207,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(container.querySelector(".refs-review-link")).not.toBeNull();
     });
-    fireEvent.click(container.querySelector(".refs-review-link")!);
+    fireEvent.click(must(container.querySelector(".refs-review-link")));
     expect(onOpenReview).toHaveBeenCalled();
   });
 
@@ -238,7 +222,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(container.querySelector(".ref-row")).not.toBeNull();
     });
-    return { props, row: container.querySelector<HTMLElement>(".ref-row")! };
+    return { props, row: must(container.querySelector<HTMLElement>(".ref-row")) };
   }
 
   it("gives a reference row a tab stop", async () => {
@@ -262,9 +246,7 @@ describe("<Refs />", () => {
   it("does not open a source the row has no chunk for", async () => {
     fetchMock.mockResolvedValueOnce(
       okResponse(
-        makeResponse([
-          makeRow({ source: { author: "Plato", work: null, section: null } }),
-        ]),
+        makeResponse([makeRow({ source: { author: "Plato", work: null, section: null } })]),
       ),
     );
     const props = defaultProps();
@@ -272,7 +254,7 @@ describe("<Refs />", () => {
     await waitFor(() => {
       expect(container.querySelector(".ref-row")).not.toBeNull();
     });
-    fireEvent.click(container.querySelector(".ref-row")!);
+    fireEvent.click(must(container.querySelector(".ref-row")));
     expect(props.onOpenSource).not.toHaveBeenCalled();
   });
 });

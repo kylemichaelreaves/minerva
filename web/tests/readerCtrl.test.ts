@@ -4,6 +4,7 @@ import { useReader } from "~/Reader/readerCtrl";
 import { _resetToastsForTesting, useToasts } from "~/utils/apiError";
 import type { Work } from "~/utils/types";
 import { createTestRouting, flush, okResponse } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -28,10 +29,7 @@ const WORKS: Work[] = [
   },
 ];
 
-function runReader(
-  routing = createTestRouting(),
-  abortChat: () => void = vi.fn(),
-) {
+function runReader(routing = createTestRouting(), abortChat: () => void = vi.fn()) {
   let api!: ReturnType<typeof useReader>;
   const dispose = createRoot((d) => {
     api = useReader(routing, abortChat);
@@ -112,7 +110,7 @@ describe("useReader()", () => {
   it("openWork navigates to the selected work", () => {
     const abortChat = vi.fn();
     const { api, routing: r, dispose } = runReader(createTestRouting(), abortChat);
-    api.openWork(WORKS[1]!);
+    api.openWork(must(WORKS[1]));
     expect(abortChat).toHaveBeenCalled();
     expect(r.navigateSpy).toHaveBeenCalledWith({
       kind: "reader",
@@ -222,9 +220,9 @@ describe("useReader()", () => {
     expect(a).toBe(b);
     await a;
     await flush();
-    expect(fetchMock.mock.calls.filter((c) => (c[0] as string).includes("/api/works"))).toHaveLength(
-      1,
-    );
+    expect(
+      fetchMock.mock.calls.filter((c) => (c[0] as string).includes("/api/works")),
+    ).toHaveLength(1);
     dispose();
   });
 
@@ -286,9 +284,9 @@ describe("useReader()", () => {
 
       const loc = api.readerWork();
       expect(loc).not.toBeNull();
-      const pending = api.resolveWork(loc!);
+      const pending = api.resolveWork(must(loc));
 
-      release!();
+      must(release)();
       await expect(pending).resolves.toMatchObject({
         work_id: 1,
         display_title: "Republic",
@@ -303,7 +301,7 @@ describe("useReader()", () => {
       await api.ensureWorks();
       const direct = api.currentWork();
       expect(direct).not.toBeNull();
-      await expect(api.resolveWork(api.readerWork()!)).resolves.toEqual(direct);
+      await expect(api.resolveWork(must(api.readerWork()))).resolves.toEqual(direct);
       dispose();
     });
 
@@ -312,7 +310,7 @@ describe("useReader()", () => {
       const routing = createTestRouting({ ...READER_ROUTE, sourceLang: "eng" });
       const { api, dispose } = runReader(routing);
       await flush();
-      await expect(api.resolveWork(api.readerWork()!)).resolves.toMatchObject({
+      await expect(api.resolveWork(must(api.readerWork()))).resolves.toMatchObject({
         work_id: 2,
         lang: "eng",
       });
@@ -327,7 +325,7 @@ describe("useReader()", () => {
       });
       const { api, dispose } = runReader(routing);
       await flush();
-      await expect(api.resolveWork(api.readerWork()!)).resolves.toBeNull();
+      await expect(api.resolveWork(must(api.readerWork()))).resolves.toBeNull();
       dispose();
     });
 
@@ -338,7 +336,7 @@ describe("useReader()", () => {
       const routing = createTestRouting(READER_ROUTE);
       const { api, dispose } = runReader(routing);
       await flush();
-      await expect(api.resolveWork(api.readerWork()!)).resolves.toBeNull();
+      await expect(api.resolveWork(must(api.readerWork()))).resolves.toBeNull();
       dispose();
     });
   });

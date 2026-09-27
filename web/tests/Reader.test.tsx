@@ -4,6 +4,7 @@ import Reader from "~/Reader";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import type { JSX } from "solid-js";
 import { readRoute, routeHash } from "~/routing";
+import { must } from "./helpers/must";
 
 function renderReader(ui: () => JSX.Element) {
   return render(() => <MobileShellProvider>{ui()}</MobileShellProvider>);
@@ -58,26 +59,51 @@ const TERM_RANGE = {
   ...SAMPLE_RANGE,
   work_id: 91,
   chunks: [
-    { chunk_id: "cat-1", section: "1.¶1", book: null, page: null,
-      speaker: null, text: "ὁμώνυμα λόγος", ord: 0 },
+    {
+      chunk_id: "cat-1",
+      section: "1.¶1",
+      book: null,
+      page: null,
+      speaker: null,
+      text: "ὁμώνυμα λόγος",
+      ord: 0,
+    },
   ],
   total: 1,
 };
 
 const TERM_OCC_MAP = {
-  work_id: 91, lang: "grc", from: 0, limit: 200,
-  by_chunk: { "cat-1": [
-    { id: 1, term_id: 7, source_start: 0, source_end: 7,
-      source_form: "ὁμώνυμα", lemma: "ὁμώνυμα",
-      transliteration: "homonyma", short_gloss: "homonyms" },
-  ] },
+  work_id: 91,
+  lang: "grc",
+  from: 0,
+  limit: 200,
+  by_chunk: {
+    "cat-1": [
+      {
+        id: 1,
+        term_id: 7,
+        source_start: 0,
+        source_end: 7,
+        source_form: "ὁμώνυμα",
+        lemma: "ὁμώνυμα",
+        transliteration: "homonyma",
+        short_gloss: "homonyms",
+      },
+    ],
+  },
 };
 
 const TERM_DETAIL = {
-  id: 7, source_form: "ὁμώνυμα", source_language: "grc",
-  transliteration: "homonyma", lemma: "ὁμώνυμα",
-  short_gloss: "homonyms", long_description: "",
-  renderings: [], occurrences_by_edition: [], related: [],
+  id: 7,
+  source_form: "ὁμώνυμα",
+  source_language: "grc",
+  transliteration: "homonyma",
+  lemma: "ὁμώνυμα",
+  short_gloss: "homonyms",
+  long_description: "",
+  renderings: [],
+  occurrences_by_edition: [],
+  related: [],
 };
 
 describe("<Reader />", () => {
@@ -85,10 +111,7 @@ describe("<Reader />", () => {
    *  the card has rendered its lemma. */
   async function openTermCard() {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(TERM_OCC_MAP));
       if (url.includes("/api/terms/7")) return Promise.resolve(okResponse(TERM_DETAIL));
       return Promise.resolve(okResponse(TERM_RANGE));
@@ -133,17 +156,17 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
-    expect(container.querySelectorAll(".line .num")[0]!.textContent).toBe("509d");
-    expect(container.querySelectorAll(".line .num")[1]!.textContent).toBe("510a");
+    expect(must(container.querySelectorAll(".line .num")[0]).textContent).toBe("509d");
+    expect(must(container.querySelectorAll(".line .num")[1]).textContent).toBe("510a");
     // Greek chunks are tokenized into per-word .gw spans inside
     // HoverTips. Reading the line's textContent would pick up the
     // hidden tooltip bodies too, so assert against the visible word
     // spans directly. Each .gw also carries a sibling tooltip whose
     // .hovertip-text holds the romanization.
     const lines = container.querySelectorAll(".line");
-    const words = lines[0]!.querySelectorAll(".gw");
+    const words = must(lines[0]).querySelectorAll(".gw");
     expect(Array.from(words, (w) => w.textContent)).toEqual(["τοῦ", "πατρός"]);
-    const tips = lines[0]!.querySelectorAll(".hovertip-text");
+    const tips = must(lines[0]).querySelectorAll(".hovertip-text");
     expect(Array.from(tips, (t) => t.textContent)).toEqual(["tou", "patros"]);
     // 'Plato' appears in both the chrome and the head — check via byline.
     expect(container.querySelector(".byline")?.textContent).toContain("Plato");
@@ -156,10 +179,10 @@ describe("<Reader />", () => {
       expect(container.querySelectorAll(".line").length).toBe(2);
     });
     const buttons = container.querySelectorAll(".lang button");
-    expect(buttons[0]!.classList.contains("on")).toBe(true);
-    fireEvent.click(buttons[1]!); // FR
-    expect(buttons[1]!.classList.contains("on")).toBe(true);
-    expect(buttons[0]!.classList.contains("on")).toBe(false);
+    expect(must(buttons[0]).classList.contains("on")).toBe(true);
+    fireEvent.click(must(buttons[1])); // FR
+    expect(must(buttons[1]).classList.contains("on")).toBe(true);
+    expect(must(buttons[0]).classList.contains("on")).toBe(false);
   });
 
   it("does not render the right rail until a translation is requested", async () => {
@@ -243,12 +266,7 @@ describe("<Reader />", () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       // `input` from the production fetch helpers is always a string;
       // narrow defensively without going through Object.toString.
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(occMap));
       return Promise.resolve(okResponse(range));
     });
@@ -260,7 +278,7 @@ describe("<Reader />", () => {
     });
     const marks = container.querySelectorAll(".term-mark");
     expect(Array.from(marks, (m) => m.textContent)).toEqual(["ὁμώνυμα"]);
-    expect(marks[0]!.getAttribute("data-term-id")).toBe("7");
+    expect(must(marks[0]).getAttribute("data-term-id")).toBe("7");
     // The second word stays as an ordinary .gw with its romanization.
     const greekWords = container.querySelectorAll(".gw");
     expect(Array.from(greekWords, (w) => w.textContent)).toEqual(["λόγος"]);
@@ -289,7 +307,7 @@ describe("<Reader />", () => {
     // loads, so the control under test is the shell's.
     const { container } = await openTermCard();
 
-    fireEvent.click(container.querySelector(".popover-close")!);
+    fireEvent.click(must(container.querySelector(".popover-close")));
 
     await waitFor(() => {
       expect(container.querySelector(".termcard")).toBeNull();
@@ -319,21 +337,31 @@ describe("<Reader />", () => {
       author: "Hegel",
       corpus: "hegel",
       chunks: [
-        { chunk_id: "ph-1", section: "¶1", book: null, page: null,
-          speaker: null, text: "Der Geist erscheint.", ord: 0 },
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
     let translateBody: { source_text?: string; target_lang?: string } | null = null;
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url === "/api/translate") {
         // `init.body` is a string in our client (chat.ts JSON-
@@ -342,12 +370,15 @@ describe("<Reader />", () => {
         // stringification hazard ESLint flags.
         const body = init?.body;
         translateBody =
-          typeof body === "string"
-            ? (JSON.parse(body) as typeof translateBody)
-            : null;
-        return Promise.resolve(okResponse({
-          translated_text: "the spirit", literal_text: "the spirit (lit)", model: "test", cached: false,
-        }));
+          typeof body === "string" ? (JSON.parse(body) as typeof translateBody) : null;
+        return Promise.resolve(
+          okResponse({
+            translated_text: "the spirit",
+            literal_text: "the spirit (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -359,14 +390,13 @@ describe("<Reader />", () => {
     });
     // Click the second word (Geist).
     const words = container.querySelectorAll(".gw");
-    fireEvent.click(words[1]!);
+    fireEvent.click(must(words[1]));
     // Wait for translate fetch + rail render.
     await waitFor(() => {
       if (translateBody === null) throw new Error("not yet");
     });
     // waitFor narrows nothing for TS; cast once we know it's set.
-    const body = translateBody as unknown as
-      { source_text?: string; target_lang?: string };
+    const body = translateBody as unknown as { source_text?: string; target_lang?: string };
     expect(body.source_text).toBe("Geist");
     // Rail opens with the translation.
     await waitFor(() => {
@@ -379,9 +409,7 @@ describe("<Reader />", () => {
       const txt = container.querySelector(".rail .translation")?.textContent ?? "";
       expect(txt).toContain("the spirit");
     });
-    expect(container.querySelector(".rail .translation")?.textContent).not.toContain(
-      "Translating",
-    );
+    expect(container.querySelector(".rail .translation")?.textContent).not.toContain("Translating");
   });
 
   it("Show more samples paginates word lookup", async () => {
@@ -393,24 +421,38 @@ describe("<Reader />", () => {
       author: "Hegel",
       corpus: "hegel",
       chunks: [
-        { chunk_id: "ph-1", section: "¶1", book: null, page: null,
-          speaker: null, text: "Der Geist erscheint.", ord: 0 },
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
     const mkSample = (i: number) => ({
-      chunk_id: `c${i}`, section: `¶${i}`, surface: "Geist",
-      surface_start: 0, surface_end: 5, snippet: `... Geist ${i} ...`,
+      chunk_id: `c${i}`,
+      section: `¶${i}`,
+      surface: "Geist",
+      surface_start: 0,
+      surface_end: 5,
+      snippet: `... Geist ${i} ...`,
     });
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
         const u = new URL(url, "http://test");
@@ -419,17 +461,30 @@ describe("<Reader />", () => {
         const limit = Math.min(10, 15 - off);
         const samples = Array.from({ length: limit }, (_, i) => mkSample(off + i));
         const next = off + samples.length < 15 ? off + samples.length : null;
-        return Promise.resolve(okResponse({
-          surface: "Geist", lemma: "Geist", lang: "deu", edition_id: 84,
-          work_id: 130, work_title: "Phänomenologie des Geistes",
-          occurrence_count: 15,
-          samples_offset: off, next_samples_offset: next, samples,
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "Geist",
+            lemma: "Geist",
+            lang: "deu",
+            edition_id: 84,
+            work_id: 130,
+            work_title: "Phänomenologie des Geistes",
+            occurrence_count: 15,
+            samples_offset: off,
+            next_samples_offset: next,
+            samples,
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "spirit", literal_text: "spirit (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "spirit",
+            literal_text: "spirit (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -440,7 +495,7 @@ describe("<Reader />", () => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
     const geist = container.querySelectorAll(".gw")[1];
-    fireEvent.click(geist!);
+    fireEvent.click(must(geist));
     // First page: 10 samples + a Show-more button.
     await waitFor(() => {
       expect(container.querySelectorAll(".wordinfo-samples li").length).toBe(10);
@@ -454,10 +509,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       const lookups = fetchMock.mock.calls.filter((c) => {
         const input = c[0];
-        const u =
-          typeof input === "string"
-            ? input
-            : input instanceof URL ? input.href : input.url;
+        const u = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         return u.includes("/api/words/lookup");
       });
       expect(lookups.length).toBeGreaterThanOrEqual(2);
@@ -471,52 +523,93 @@ describe("<Reader />", () => {
   it("closes the rail via the X button + clears the in-text highlight", async () => {
     const range = {
       ...SAMPLE_RANGE,
-      work_id: 86, lang: "grc", work: "Nicomachean Ethics",
-      author: "Aristotle", corpus: "aristotle",
+      work_id: 86,
+      lang: "grc",
+      work: "Nicomachean Ethics",
+      author: "Aristotle",
+      corpus: "aristotle",
       chunks: [
-        { chunk_id: "ne-1", section: "1094a", book: null, page: null,
-          speaker: null, text: "λόγος ἐστὶν λόγος.", ord: 0 },
+        {
+          chunk_id: "ne-1",
+          section: "1094a",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "λόγος ἐστὶν λόγος.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 86, lang: "grc", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 86,
+            lang: "grc",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
-        return Promise.resolve(okResponse({
-          surface: "λόγος", lemma: "λόγος", lang: "grc", edition_id: 53,
-          work_id: 86, work_title: "Nicomachean Ethics",
-          occurrence_count: 2, samples_offset: 0, next_samples_offset: null,
-          pos: "NOUN", gender: "Masc", number: "Sing",
-          feats: "Case=Nom|Gender=Masc|Number=Sing",
-          samples: [],
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "λόγος",
+            lemma: "λόγος",
+            lang: "grc",
+            edition_id: 53,
+            work_id: 86,
+            work_title: "Nicomachean Ethics",
+            occurrence_count: 2,
+            samples_offset: 0,
+            next_samples_offset: null,
+            pos: "NOUN",
+            gender: "Masc",
+            number: "Sing",
+            feats: "Case=Nom|Gender=Masc|Number=Sing",
+            samples: [],
+          }),
+        );
       }
       if (url.includes("/lemma_highlights")) {
-        return Promise.resolve(okResponse({
-          work_id: 86, lang: "grc", lemma: "λόγος", from: 0, limit: 200,
-          by_chunk: { "ne-1": [{ start: 0, end: 5 }, { start: 12, end: 17 }] },
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 86,
+            lang: "grc",
+            lemma: "λόγος",
+            from: 0,
+            limit: 200,
+            by_chunk: {
+              "ne-1": [
+                { start: 0, end: 5 },
+                { start: 12, end: 17 },
+              ],
+            },
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "speech", literal_text: "speech (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "speech",
+            literal_text: "speech (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
-    const { container } = renderReader(() => <Reader workSlug="nicomachean-ethics" sourceLang="grc" />);
+    const { container } = renderReader(() => (
+      <Reader workSlug="nicomachean-ethics" sourceLang="grc" />
+    ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[0]!);
+    fireEvent.click(must(container.querySelectorAll(".gw")[0]));
     // Rail opens and in-text highlights paint.
     await waitFor(() => {
       expect(container.querySelector(".rail.open")).not.toBeNull();
@@ -537,36 +630,66 @@ describe("<Reader />", () => {
   it("closes the rail when Esc is pressed", async () => {
     const range = {
       ...SAMPLE_RANGE,
-      work_id: 130, lang: "deu", work: "Phänomenologie des Geistes",
-      author: "Hegel", corpus: "hegel",
-      chunks: [{ chunk_id: "ph-1", section: "¶1", book: null, page: null,
-                 speaker: null, text: "Der Geist erscheint.", ord: 0 }],
+      work_id: 130,
+      lang: "deu",
+      work: "Phänomenologie des Geistes",
+      author: "Hegel",
+      corpus: "hegel",
+      chunks: [
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
+      ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
-        return Promise.resolve(okResponse({
-          surface: "Geist", lemma: "Geist", lang: "deu", edition_id: 84,
-          work_id: 130, work_title: "Phänomenologie des Geistes",
-          occurrence_count: 1, samples_offset: 0, next_samples_offset: null,
-          pos: "NOUN", gender: "Masc", number: "Sing",
-          feats: "Case=Nom|Gender=Masc|Number=Sing",
-          samples: [],
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "Geist",
+            lemma: "Geist",
+            lang: "deu",
+            edition_id: 84,
+            work_id: 130,
+            work_title: "Phänomenologie des Geistes",
+            occurrence_count: 1,
+            samples_offset: 0,
+            next_samples_offset: null,
+            pos: "NOUN",
+            gender: "Masc",
+            number: "Sing",
+            feats: "Case=Nom|Gender=Masc|Number=Sing",
+            samples: [],
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "spirit", literal_text: "spirit (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "spirit",
+            literal_text: "spirit (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -576,7 +699,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[1]!);
+    fireEvent.click(must(container.querySelectorAll(".gw")[1]));
     await waitFor(() => {
       expect(container.querySelector(".rail.open")).not.toBeNull();
     });
@@ -590,106 +713,175 @@ describe("<Reader />", () => {
   it("highlights every site of the clicked lemma in the text + snippet match", async () => {
     const range = {
       ...SAMPLE_RANGE,
-      work_id: 86, lang: "grc", work: "Nicomachean Ethics",
-      author: "Aristotle", corpus: "aristotle",
+      work_id: 86,
+      lang: "grc",
+      work: "Nicomachean Ethics",
+      author: "Aristotle",
+      corpus: "aristotle",
       chunks: [
-        { chunk_id: "ne-1", section: "1094a", book: null, page: null,
-          speaker: null, text: "λόγος ἐστὶν λόγος.", ord: 0 },
+        {
+          chunk_id: "ne-1",
+          section: "1094a",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "λόγος ἐστὶν λόγος.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 86, lang: "grc", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 86,
+            lang: "grc",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
-        return Promise.resolve(okResponse({
-          surface: "λόγος", lemma: "λόγος", lang: "grc", edition_id: 53,
-          work_id: 86, work_title: "Nicomachean Ethics",
-          occurrence_count: 2, samples_offset: 0, next_samples_offset: null,
-          pos: "NOUN", gender: "Masc", number: "Sing",
-          feats: "Case=Nom|Gender=Masc|Number=Sing",
-          samples: [
-            { chunk_id: "ne-1", section: "1094a", surface: "λόγος",
-              surface_start: 0, surface_end: 5,
-              snippet: "λόγος ἐστὶν λόγος.",
-              match_start: 0, match_end: 5 },
-          ],
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "λόγος",
+            lemma: "λόγος",
+            lang: "grc",
+            edition_id: 53,
+            work_id: 86,
+            work_title: "Nicomachean Ethics",
+            occurrence_count: 2,
+            samples_offset: 0,
+            next_samples_offset: null,
+            pos: "NOUN",
+            gender: "Masc",
+            number: "Sing",
+            feats: "Case=Nom|Gender=Masc|Number=Sing",
+            samples: [
+              {
+                chunk_id: "ne-1",
+                section: "1094a",
+                surface: "λόγος",
+                surface_start: 0,
+                surface_end: 5,
+                snippet: "λόγος ἐστὶν λόγος.",
+                match_start: 0,
+                match_end: 5,
+              },
+            ],
+          }),
+        );
       }
       if (url.includes("/lemma_highlights")) {
-        return Promise.resolve(okResponse({
-          work_id: 86, lang: "grc", lemma: "λόγος", from: 0, limit: 200,
-          by_chunk: {
-            "ne-1": [
-              { start: 0, end: 5 },
-              { start: 12, end: 17 },
-            ],
-          },
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 86,
+            lang: "grc",
+            lemma: "λόγος",
+            from: 0,
+            limit: 200,
+            by_chunk: {
+              "ne-1": [
+                { start: 0, end: 5 },
+                { start: 12, end: 17 },
+              ],
+            },
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "speech", literal_text: "speech (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "speech",
+            literal_text: "speech (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
-    const { container } = renderReader(() => <Reader workSlug="nicomachean-ethics" sourceLang="grc" />);
+    const { container } = renderReader(() => (
+      <Reader workSlug="nicomachean-ethics" sourceLang="grc" />
+    ));
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[0]!);
+    fireEvent.click(must(container.querySelectorAll(".gw")[0]));
     // In-text: both λόγος sites get .lemma-hl after the fetch lands.
     await waitFor(() => {
       expect(container.querySelectorAll(".gw.lemma-hl").length).toBe(2);
     });
     // Snippet inside the rail wraps the match in .lemma-hl too.
-    expect(container.querySelector(".wordinfo-snippet .lemma-hl")?.textContent).toBe(
-      "λόγος",
-    );
+    expect(container.querySelector(".wordinfo-snippet .lemma-hl")?.textContent).toBe("λόγος");
   });
 
   it("renders POS · gender · number chip when the lemma carries morph", async () => {
     const range = {
       ...SAMPLE_RANGE,
-      work_id: 130, lang: "deu", work: "Phänomenologie des Geistes",
-      author: "Hegel", corpus: "hegel",
-      chunks: [{ chunk_id: "ph-1", section: "¶1", book: null, page: null,
-                 speaker: null, text: "Der Geist erscheint.", ord: 0 }],
+      work_id: 130,
+      lang: "deu",
+      work: "Phänomenologie des Geistes",
+      author: "Hegel",
+      corpus: "hegel",
+      chunks: [
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
+      ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
-        return Promise.resolve(okResponse({
-          surface: "Geist", lemma: "Geist", lang: "deu", edition_id: 84,
-          work_id: 130, work_title: "Phänomenologie des Geistes",
-          occurrence_count: 682,
-          samples_offset: 0, next_samples_offset: null,
-          pos: "NOUN", gender: "Masc", number: "Sing",
-          feats: "Case=Nom|Gender=Masc|Number=Sing",
-          samples: [],
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "Geist",
+            lemma: "Geist",
+            lang: "deu",
+            edition_id: 84,
+            work_id: 130,
+            work_title: "Phänomenologie des Geistes",
+            occurrence_count: 682,
+            samples_offset: 0,
+            next_samples_offset: null,
+            pos: "NOUN",
+            gender: "Masc",
+            number: "Sing",
+            feats: "Case=Nom|Gender=Masc|Number=Sing",
+            samples: [],
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "spirit", literal_text: "spirit (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "spirit",
+            literal_text: "spirit (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -700,48 +892,76 @@ describe("<Reader />", () => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
     // Click "Geist" (second word).
-    fireEvent.click(container.querySelectorAll(".gw")[1]!);
+    fireEvent.click(must(container.querySelectorAll(".gw")[1]));
     await waitFor(() => {
       expect(container.querySelector(".wordinfo-morph")).not.toBeNull();
     });
-    expect(container.querySelector(".wordinfo-morph")?.textContent).toBe(
-      "noun · masc. · sing.",
-    );
+    expect(container.querySelector(".wordinfo-morph")?.textContent).toBe("noun · masc. · sing.");
   });
 
   it("omits the morph chip when pos/gender/number are all null (legacy chunk)", async () => {
     const range = {
       ...SAMPLE_RANGE,
-      work_id: 130, lang: "deu", work: "Phänomenologie des Geistes",
-      author: "Hegel", corpus: "hegel",
-      chunks: [{ chunk_id: "ph-1", section: "¶1", book: null, page: null,
-                 speaker: null, text: "Der Geist erscheint.", ord: 0 }],
+      work_id: 130,
+      lang: "deu",
+      work: "Phänomenologie des Geistes",
+      author: "Hegel",
+      corpus: "hegel",
+      chunks: [
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
+      ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
-        return Promise.resolve(okResponse({
-          surface: "Geist", lemma: "Geist", lang: "deu", edition_id: 84,
-          work_id: 130, work_title: "Phänomenologie des Geistes",
-          occurrence_count: 1,
-          samples_offset: 0, next_samples_offset: null,
-          pos: null, gender: null, number: null, feats: null,
-          samples: [],
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "Geist",
+            lemma: "Geist",
+            lang: "deu",
+            edition_id: 84,
+            work_id: 130,
+            work_title: "Phänomenologie des Geistes",
+            occurrence_count: 1,
+            samples_offset: 0,
+            next_samples_offset: null,
+            pos: null,
+            gender: null,
+            number: null,
+            feats: null,
+            samples: [],
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "spirit", literal_text: "spirit (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "spirit",
+            literal_text: "spirit (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -751,7 +971,7 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[1]!);
+    fireEvent.click(must(container.querySelectorAll(".gw")[1]));
     await waitFor(() => {
       expect(container.querySelector(".wordinfo-count")).not.toBeNull();
     });
@@ -767,20 +987,30 @@ describe("<Reader />", () => {
       author: "Hegel",
       corpus: "hegel",
       chunks: [
-        { chunk_id: "ph-1", section: "¶1", book: null, page: null,
-          speaker: null, text: "Der Geist erscheint.", ord: 0 },
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -809,35 +1039,60 @@ describe("<Reader />", () => {
       author: "Hegel",
       corpus: "hegel",
       chunks: [
-        { chunk_id: "ph-1", section: "¶1", book: null, page: null,
-          speaker: null, text: "Der Geist erscheint.", ord: 0 },
+        {
+          chunk_id: "ph-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Geist erscheint.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL ? input.href : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) {
-        return Promise.resolve(okResponse({
-          work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-        }));
+        return Promise.resolve(
+          okResponse({
+            work_id: 130,
+            lang: "deu",
+            from: 0,
+            limit: 200,
+            by_chunk: {},
+          }),
+        );
       }
       if (url.startsWith("/api/words/lookup")) {
-        return Promise.resolve(okResponse({
-          surface: "Geist", lemma: "Geist", lang: "deu", edition_id: 84,
-          work_id: 130, work_title: "Phänomenologie des Geistes",
-          occurrence_count: 1, samples_offset: 0, next_samples_offset: null,
-          pos: "NOUN", gender: "Masc", number: "Sing",
-          feats: "Case=Nom|Gender=Masc|Number=Sing",
-          samples: [],
-        }));
+        return Promise.resolve(
+          okResponse({
+            surface: "Geist",
+            lemma: "Geist",
+            lang: "deu",
+            edition_id: 84,
+            work_id: 130,
+            work_title: "Phänomenologie des Geistes",
+            occurrence_count: 1,
+            samples_offset: 0,
+            next_samples_offset: null,
+            pos: "NOUN",
+            gender: "Masc",
+            number: "Sing",
+            feats: "Case=Nom|Gender=Masc|Number=Sing",
+            samples: [],
+          }),
+        );
       }
       if (url === "/api/translate") {
-        return Promise.resolve(okResponse({
-          translated_text: "spirit", literal_text: "spirit (lit)", model: "test", cached: false,
-        }));
+        return Promise.resolve(
+          okResponse({
+            translated_text: "spirit",
+            literal_text: "spirit (lit)",
+            model: "test",
+            cached: false,
+          }),
+        );
       }
       return Promise.resolve(okResponse(range));
     });
@@ -847,17 +1102,15 @@ describe("<Reader />", () => {
     await waitFor(() => {
       expect(container.querySelectorAll(".gw").length).toBe(3);
     });
-    fireEvent.click(container.querySelectorAll(".gw")[1]!);
+    fireEvent.click(must(container.querySelectorAll(".gw")[1]));
     await waitFor(() => {
-      expect(container.querySelector(".rail .translation")?.textContent).toContain(
-        "spirit",
-      );
+      expect(container.querySelector(".rail .translation")?.textContent).toContain("spirit");
     });
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => {
       expect(container.querySelector(".rail.open")).toBeNull();
     });
-    const geist = container.querySelectorAll(".gw")[1]!;
+    const geist = must(container.querySelectorAll(".gw")[1]);
     fireEvent.mouseEnter(geist);
     await waitFor(() => {
       const tip = geist.closest(".hovertip-wrap")?.querySelector(".hovertip-text");
@@ -885,8 +1138,15 @@ describe("<Reader />", () => {
       author: "Marx",
       corpus: "marx",
       chunks: [
-        { chunk_id: "k-1", section: "¶1", book: null, page: null,
-          speaker: null, text: "Der Reichtum erscheint.", ord: 0 },
+        {
+          chunk_id: "k-1",
+          section: "¶1",
+          book: null,
+          page: null,
+          speaker: null,
+          text: "Der Reichtum erscheint.",
+          ord: 0,
+        },
       ],
       total: 1,
     };
@@ -894,25 +1154,37 @@ describe("<Reader />", () => {
     function mockReader(): void {
       fetchMock.mockImplementation((input: RequestInfo | URL) => {
         const url =
-          typeof input === "string"
-            ? input
-            : input instanceof URL ? input.href : input.url;
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         if (url.includes("/occurrence_map")) {
-          return Promise.resolve(okResponse({
-            work_id: 130, lang: "deu", from: 0, limit: 200, by_chunk: {},
-          }));
+          return Promise.resolve(
+            okResponse({
+              work_id: 130,
+              lang: "deu",
+              from: 0,
+              limit: 200,
+              by_chunk: {},
+            }),
+          );
         }
         if (url.startsWith("/api/concordance/index")) {
-          return Promise.resolve(okResponse({
-            rows: [{ lemma: "Reichtum", pos: "NOUN", count: 42 }],
-            total: 1, offset: 0, limit: 12,
-          }));
+          return Promise.resolve(
+            okResponse({
+              rows: [{ lemma: "Reichtum", pos: "NOUN", count: 42 }],
+              total: 1,
+              offset: 0,
+              limit: 12,
+            }),
+          );
         }
         if (url === "/api/translate") {
-          return Promise.resolve(okResponse({
-            translated_text: "wealth", literal_text: "wealth (lit)",
-            model: "test", cached: false,
-          }));
+          return Promise.resolve(
+            okResponse({
+              translated_text: "wealth",
+              literal_text: "wealth (lit)",
+              model: "test",
+              cached: false,
+            }),
+          );
         }
         return Promise.resolve(okResponse(range));
       });
@@ -927,7 +1199,7 @@ describe("<Reader />", () => {
       await waitFor(() => {
         expect(container.querySelectorAll(".gw").length).toBe(3);
       });
-      fireEvent.click(container.querySelectorAll(".gw")[1]!);
+      fireEvent.click(must(container.querySelectorAll(".gw")[1]));
       await waitFor(() => {
         expect(container.querySelector(".rail")).not.toBeNull();
       });

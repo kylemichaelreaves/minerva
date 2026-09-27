@@ -18,6 +18,7 @@ import { applyCorrections, type Correction } from "~/Syntax/corrections/apply";
 import { createCorrectionStore, type CorrectionTransport } from "~/Syntax/corrections/store";
 import { breakRows } from "~/Syntax/layout/rows";
 import { topologicalFields } from "~/Syntax/layout/fields";
+import { must } from "./helpers/must";
 
 function at<T>(xs: readonly T[], i: number): T {
   const v = xs[i];
@@ -64,7 +65,7 @@ function okTransport(): CorrectionTransport {
   let next = 100;
   return {
     post: vi.fn<CorrectionTransport["post"]>((_chunkId, req) => {
-      const base = at(doc()[0]!.tokens, req.tokId - 1);
+      const base = at(must(doc()[0]).tokens, req.tokId - 1);
       const patched: SyntaxToken = { ...base, corrected: true };
       if (req.kind === "upos") patched.upos = req.toVal;
       if (req.kind === "deprel") patched.deprel = req.toVal;
@@ -84,7 +85,11 @@ async function withStore(
   };
   const store = createRoot((d) => {
     dispose = d;
-    return createCorrectionStore(() => "abc", () => doc(), transport);
+    return createCorrectionStore(
+      () => "abc",
+      () => doc(),
+      transport,
+    );
   });
   try {
     await body(store);

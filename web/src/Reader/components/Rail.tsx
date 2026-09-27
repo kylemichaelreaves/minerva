@@ -76,6 +76,7 @@ export function RailContent(props: {
   // loading/ready): tapping a word is itself an explicit gesture, so
   // it wins over a previous manual tab pick, while later manual picks
   // are honored until the next lookup arrives.
+  // eslint-disable-next-line solid/reactivity -- deliberate one-time snapshot: seeds transition detection so a lookup already active at mount does not force-flip the tab.
   let prevLookupActive = hasLemma();
   createEffect(() => {
     const active = hasLemma();
@@ -180,13 +181,17 @@ export function RailContent(props: {
           </div>
         </Show>
 
-        <Show when={props.onTarget && sourceText() !== null}>
-          <TargetLangToggle
-            variant="rail"
-            target={props.target}
-            onTarget={props.onTarget!}
-            disabledLang={disabledLangFor(props.sourceLang)}
-          />
+        <Show when={sourceText() !== null}>
+          <Show when={props.onTarget}>
+            {(onTarget) => (
+              <TargetLangToggle
+                variant="rail"
+                target={props.target}
+                onTarget={onTarget()}
+                disabledLang={disabledLangFor(props.sourceLang)}
+              />
+            )}
+          </Show>
         </Show>
 
         <div class="target-label">

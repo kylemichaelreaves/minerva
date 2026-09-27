@@ -11,6 +11,7 @@
 import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PickerShell, type PickerGroup } from "~/Syntax/components/PickerShell";
+import { must } from "./helpers/must";
 
 afterEach(cleanup);
 
@@ -130,7 +131,7 @@ describe("<PickerShell />", () => {
   it("commits on Enter against a focused row, for keyboard-only list users", () => {
     const { onCommit } = mount();
     const row = screen.getByText("ADP").closest('[role="option"]');
-    fireEvent.keyDown(row!, { key: "Enter" });
+    fireEvent.keyDown(must(row), { key: "Enter" });
     expect(onCommit).toHaveBeenCalledWith("ADP");
   });
 

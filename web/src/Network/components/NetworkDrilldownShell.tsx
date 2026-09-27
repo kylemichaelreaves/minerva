@@ -17,10 +17,7 @@
 // alongside the visualization.
 
 import { Show, type JSX } from "solid-js";
-import {
-  fetchNetworkSummary,
-  type NetworkSummary,
-} from "~/api/networkApi";
+import { fetchNetworkSummary, type NetworkSummary } from "~/api/networkApi";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import "~/Network/network.css";
 
@@ -60,7 +57,7 @@ export function NetworkDrilldownShell(props: Props) {
         <button
           type="button"
           class="net-arc-back"
-          onClick={props.onBack}
+          onClick={() => props.onBack()}
           aria-label="Back to Network"
         >
           <span class="arr">←</span> Network
@@ -69,14 +66,16 @@ export function NetworkDrilldownShell(props: Props) {
         <span class="mobile-topbar-action" aria-hidden="true" />
       </header>
       <Show
-        when={data() && !error()}
+        when={!error() && data()}
         fallback={
           <div class={error() ? "net-error" : "net-loading"}>
             {error() ?? (loading() ? "Loading…" : "")}
           </div>
         }
       >
-        {props.children(data()!)}
+        {/* The fragment keeps the call tracked, so a refetch re-renders
+            the body with the new summary as it did before. */}
+        {(summary) => <>{props.children(summary())}</>}
       </Show>
     </div>
   );

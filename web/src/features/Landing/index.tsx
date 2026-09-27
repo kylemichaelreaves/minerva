@@ -169,7 +169,7 @@ export default function Landing(props: LandingProps) {
         </div>
 
         <div class="landing-modes">
-          <button class="landing-mode" onClick={props.onOpenRead}>
+          <button class="landing-mode" onClick={() => props.onOpenRead()}>
             <span class="lbl">
               Read the texts <span class="arr">→</span>
             </span>
@@ -186,13 +186,13 @@ export default function Landing(props: LandingProps) {
               <span class="num">{fmtNum(stats()?.xrefs)}</span> cross-references
             </span>
           </button>
-          <button class="landing-mode" onClick={props.onOpenNetwork}>
+          <button class="landing-mode" onClick={() => props.onOpenNetwork()}>
             <span class="lbl">
               See the network <span class="arr">→</span>
             </span>
             <span class="sub">visualize the corpus</span>
           </button>
-          <button class="landing-mode" onClick={props.onOpenConcordance}>
+          <button class="landing-mode" onClick={() => props.onOpenConcordance()}>
             <span class="lbl">
               Open concordance <span class="arr">→</span>
             </span>
@@ -208,7 +208,7 @@ export default function Landing(props: LandingProps) {
             reading the corpus, this one is for watching the server, so it
             reads as a utility rather than a peer. */}
         <div class="landing-modes-aside">
-          <button class="landing-mode-aside" onClick={props.onOpenMetrics}>
+          <button class="landing-mode-aside" onClick={() => props.onOpenMetrics()}>
             <span class="lbl">
               Request timing <span class="arr">→</span>
             </span>

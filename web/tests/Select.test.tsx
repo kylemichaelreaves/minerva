@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { Select, type SelectOption } from "~/components/primitives/Select";
+import { must } from "./helpers/must";
 
 const OPTS: SelectOption[] = [
   { value: "a", label: "Alpha" },
@@ -36,23 +37,17 @@ function harness(
       filterable={extra.filterable}
     />
   ));
-  const trigger = () =>
-    result.container.querySelector(
-      ".minerva-select__trigger",
-    )!;
-  const listbox = () =>
-    result.container.querySelector(".minerva-select__listbox");
+  const trigger = () => must(result.container.querySelector(".minerva-select__trigger"));
+  const listbox = () => result.container.querySelector(".minerva-select__listbox");
   const filter = () =>
-    result.container.querySelector<HTMLInputElement>(
-      ".minerva-select__filter-input",
-    );
+    result.container.querySelector<HTMLInputElement>(".minerva-select__filter-input");
   const optionLabels = () =>
     Array.from(
       result.container.querySelectorAll(".minerva-select__option"),
       (el) => el.textContent,
     );
   const type = (v: string) => {
-    fireEvent.input(filter()!, { target: { value: v } });
+    fireEvent.input(must(filter()), { target: { value: v } });
   };
   return {
     ...result,
@@ -69,16 +64,12 @@ function harness(
 describe("<Select />", () => {
   it("renders placeholder when value is undefined", () => {
     const { container } = harness(undefined);
-    expect(
-      container.querySelector(".minerva-select__placeholder")?.textContent,
-    ).toBe("Pick one");
+    expect(container.querySelector(".minerva-select__placeholder")?.textContent).toBe("Pick one");
   });
 
   it("renders selected option label when value is set", () => {
     const { container } = harness("b");
-    expect(
-      container.querySelector(".minerva-select__primary")?.textContent,
-    ).toBe("Beta");
+    expect(container.querySelector(".minerva-select__primary")?.textContent).toBe("Beta");
   });
 
   it("clicking the trigger opens the panel", () => {
@@ -93,7 +84,7 @@ describe("<Select />", () => {
     fireEvent.click(trigger());
     const opts = container.querySelectorAll(".minerva-select__option");
     expect(opts.length).toBe(3);
-    fireEvent.pointerDown(opts[1]!); // Beta
+    fireEvent.pointerDown(must(opts[1])); // Beta
     expect(onChange).toHaveBeenCalledWith("b");
     // Panel closes after commit.
     expect(listbox()).toBeNull();
@@ -137,7 +128,7 @@ describe("<Select />", () => {
     const { container, onChange } = harness("b");
     const clear = container.querySelector(".minerva-select__clear");
     expect(clear).not.toBeNull();
-    fireEvent.click(clear!);
+    fireEvent.click(must(clear));
     expect(onChange).toHaveBeenCalledWith("");
   });
 
@@ -147,21 +138,21 @@ describe("<Select />", () => {
     // is invalid HTML. That made it mouse-only (typescript:S1082); it now
     // answers Enter and Space like the native control it stands in for.
     const { container, onChange } = harness("b");
-    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    const clear = must(container.querySelector<HTMLElement>(".minerva-select__clear"));
     fireEvent.keyDown(clear, { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("");
   });
 
   it("clear control answers Space as well as Enter (#324)", () => {
     const { container, onChange } = harness("b");
-    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    const clear = must(container.querySelector<HTMLElement>(".minerva-select__clear"));
     fireEvent.keyDown(clear, { key: " " });
     expect(onChange).toHaveBeenCalledWith("");
   });
 
   it("a key that is not Enter or Space leaves the selection alone (#324)", () => {
     const { container, onChange } = harness("b");
-    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    const clear = must(container.querySelector<HTMLElement>(".minerva-select__clear"));
     fireEvent.keyDown(clear, { key: "a" });
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -173,7 +164,7 @@ describe("<Select />", () => {
     const { container, trigger, onChange } = harness("b");
     fireEvent.click(trigger());
     expect(container.querySelector(".minerva-select__panel")).not.toBeNull();
-    const clear = container.querySelector<HTMLElement>(".minerva-select__clear")!;
+    const clear = must(container.querySelector<HTMLElement>(".minerva-select__clear"));
     fireEvent.keyDown(clear, { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("");
     expect(container.querySelector(".minerva-select__panel")).toBeNull();
@@ -182,12 +173,7 @@ describe("<Select />", () => {
   it("clearable={false} hides the clear button", () => {
     const [value] = createSignal<string | undefined>("b");
     const { container } = render(() => (
-      <Select
-        options={OPTS}
-        value={value()}
-        onChange={() => undefined}
-        clearable={false}
-      />
+      <Select options={OPTS} value={value()} onChange={() => undefined} clearable={false} />
     ));
     expect(container.querySelector(".minerva-select__clear")).toBeNull();
   });
@@ -195,16 +181,9 @@ describe("<Select />", () => {
   it("disabled trigger doesn't open on click", () => {
     const [value] = createSignal<string | undefined>(undefined);
     const { container } = render(() => (
-      <Select
-        options={OPTS}
-        value={value()}
-        onChange={() => undefined}
-        disabled
-      />
+      <Select options={OPTS} value={value()} onChange={() => undefined} disabled />
     ));
-    const trigger = container.querySelector(
-      ".minerva-select__trigger",
-    )!;
+    const trigger = must(container.querySelector(".minerva-select__trigger"));
     fireEvent.click(trigger);
     expect(container.querySelector(".minerva-select__listbox")).toBeNull();
   });
@@ -216,12 +195,8 @@ describe("<Select />", () => {
     // The control renders under the same props without `disabled`, which is
     // what makes the null below about `disabled` rather than about a
     // mistyped selector or an unselected value.
-    const enabled = render(() => (
-      <Select options={OPTS} value="b" onChange={() => undefined} />
-    ));
-    expect(
-      enabled.container.querySelector(".minerva-select__clear"),
-    ).not.toBeNull();
+    const enabled = render(() => <Select options={OPTS} value="b" onChange={() => undefined} />);
+    expect(enabled.container.querySelector(".minerva-select__clear")).not.toBeNull();
 
     const onChange = vi.fn();
     const { container } = render(() => (
@@ -305,7 +280,7 @@ describe("<Select />", () => {
     const { trigger, filter } = harness(undefined, OPTS, { filterable: true });
     expect(trigger().tagName).not.toBe("BUTTON");
     expect(filter()).not.toBeNull();
-    expect(filter()!.tagName).toBe("INPUT");
+    expect(must(filter()).tagName).toBe("INPUT");
   });
 
   it("opens the panel when the input is clicked, and does not toggle shut", () => {
@@ -318,9 +293,9 @@ describe("<Select />", () => {
     // asserting it here would test jsdom. What is ours is the label itself,
     // pinned by the tagName test above.
     const { filter, listbox } = harness(undefined, OPTS, { filterable: true });
-    fireEvent.click(filter()!);
+    fireEvent.click(must(filter()));
     expect(listbox()).not.toBeNull();
-    fireEvent.click(filter()!);
+    fireEvent.click(must(filter()));
     expect(listbox()).not.toBeNull();
   });
 
@@ -331,7 +306,7 @@ describe("<Select />", () => {
     const { container, trigger, filter } = harness(undefined, OPTS, {
       filterable: true,
     });
-    expect(filter()!.getAttribute("role")).toBe("combobox");
+    expect(must(filter()).getAttribute("role")).toBe("combobox");
     expect(trigger().getAttribute("role")).toBeNull();
     fireEvent.click(trigger());
     expect(container.querySelectorAll('[role="combobox"]').length).toBe(1);
@@ -342,16 +317,16 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    fireEvent.keyDown(filter()!, { key: "ArrowDown" });
+    fireEvent.keyDown(must(filter()), { key: "ArrowDown" });
     const active = container.querySelector(".minerva-select__option.is-active");
-    expect(filter()!.getAttribute("aria-activedescendant")).toBe(active!.id);
+    expect(must(filter()).getAttribute("aria-activedescendant")).toBe(must(active).id);
   });
 
   it("carries the caller's ariaLabel on the input", () => {
     // No `?? "Filter options"` fallback: the input is the trigger, so the
     // label the caller gave the control is the label the control needs.
     const { filter } = harness(undefined, OPTS, { filterable: true });
-    expect(filter()!.getAttribute("aria-label")).toBe("Test select");
+    expect(must(filter()).getAttribute("aria-label")).toBe("Test select");
   });
 
   it("opens the panel and narrows the list as the trigger is typed into", () => {
@@ -376,7 +351,7 @@ describe("<Select />", () => {
     });
     fireEvent.click(trigger());
     type("gam");
-    fireEvent.pointerDown(container.querySelector(".minerva-select__option")!);
+    fireEvent.pointerDown(must(container.querySelector(".minerva-select__option")));
     expect(onChange).toHaveBeenCalledWith("c");
   });
 
@@ -386,7 +361,7 @@ describe("<Select />", () => {
     });
     fireEvent.click(trigger());
     type("bet");
-    fireEvent.keyDown(filter()!, { key: "Enter" });
+    fireEvent.keyDown(must(filter()), { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("b");
   });
 
@@ -394,18 +369,14 @@ describe("<Select />", () => {
     // PickerShell's rule, ported (`Syntax/components/PickerShell.tsx`): the
     // field filters, it never accepts. An accepted non-existent work title
     // would go into the URL, look valid, and return an empty concordance.
-    const { container, trigger, filter, type, onChange } = harness(
-      undefined,
-      OPTS,
-      { filterable: true },
-    );
+    const { container, trigger, filter, type, onChange } = harness(undefined, OPTS, {
+      filterable: true,
+    });
     fireEvent.click(trigger());
     type("zzz");
-    fireEvent.keyDown(filter()!, { key: "Enter" });
+    fireEvent.keyDown(must(filter()), { key: "Enter" });
     expect(onChange).not.toHaveBeenCalled();
-    expect(
-      container.querySelector(".minerva-select__empty")?.textContent,
-    ).toContain("zzz");
+    expect(container.querySelector(".minerva-select__empty")?.textContent).toContain("zzz");
   });
 
   it("Space does not commit — in a text field a space is text", () => {
@@ -413,8 +384,8 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    fireEvent.keyDown(filter()!, { key: "ArrowDown" });
-    fireEvent.keyDown(filter()!, { key: " " });
+    fireEvent.keyDown(must(filter()), { key: "ArrowDown" });
+    fireEvent.keyDown(must(filter()), { key: " " });
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -425,31 +396,29 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    expect(container.querySelector(".minerva-select__empty")?.textContent).toBe(
-      "No options",
-    );
+    expect(container.querySelector(".minerva-select__empty")?.textContent).toBe("No options");
   });
 
   it("shows the query while open and the selected label once closed", () => {
     // The input does double duty. `selected` still resolves against the full
     // list, so a query that excludes the selection does not erase it.
     const { trigger, filter, type } = harness("b", OPTS, { filterable: true });
-    expect(filter()!.value).toBe("Beta");
+    expect(must(filter()).value).toBe("Beta");
 
     fireEvent.click(trigger());
     type("gam");
-    expect(filter()!.value).toBe("gam");
+    expect(must(filter()).value).toBe("gam");
 
-    fireEvent.keyDown(filter()!, { key: "Escape" });
-    expect(filter()!.value).toBe("Beta");
+    fireEvent.keyDown(must(filter()), { key: "Escape" });
+    expect(must(filter()).value).toBe("Beta");
   });
 
   it("opens with the highlight on the current selection", () => {
     const { container, trigger } = harness("b", OPTS, { filterable: true });
     fireEvent.click(trigger());
-    expect(
-      container.querySelector(".minerva-select__option.is-active")?.textContent,
-    ).toContain("Beta");
+    expect(container.querySelector(".minerva-select__option.is-active")?.textContent).toContain(
+      "Beta",
+    );
   });
 
   it("wraps the arrow keys within the filtered list", () => {
@@ -458,10 +427,10 @@ describe("<Select />", () => {
     });
     fireEvent.click(trigger());
     type("a"); // every label contains an "a"
-    fireEvent.keyDown(filter()!, { key: "ArrowUp" });
-    expect(
-      container.querySelector(".minerva-select__option.is-active")?.textContent,
-    ).toContain("Gamma");
+    fireEvent.keyDown(must(filter()), { key: "ArrowUp" });
+    expect(container.querySelector(".minerva-select__option.is-active")?.textContent).toContain(
+      "Gamma",
+    );
   });
 
   it("clamps the highlight when the option list shrinks under it", () => {
@@ -469,14 +438,15 @@ describe("<Select />", () => {
     // removes it from `addWorkOptions`, and a language switch replaces the
     // list wholesale. An activeIdx past the end makes Enter a silent no-op.
     const [opts, setOpts] = createSignal<SelectOption[]>(OPTS);
+    // eslint-disable-next-line solid/reactivity -- harness() reads the accessor inside render()'s JSX, which is tracked
     const { trigger, filter, onChange } = harness(undefined, opts, {
       filterable: true,
     });
     fireEvent.click(trigger());
-    fireEvent.keyDown(filter()!, { key: "ArrowDown" });
-    fireEvent.keyDown(filter()!, { key: "ArrowDown" }); // → Gamma, index 2
+    fireEvent.keyDown(must(filter()), { key: "ArrowDown" });
+    fireEvent.keyDown(must(filter()), { key: "ArrowDown" }); // → Gamma, index 2
     setOpts([{ value: "a", label: "Alpha" }]);
-    fireEvent.keyDown(filter()!, { key: "Enter" });
+    fireEvent.keyDown(must(filter()), { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("a");
   });
 
@@ -485,10 +455,10 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    fireEvent.keyDown(filter()!, { key: "ArrowDown" });
-    fireEvent.keyDown(filter()!, { key: "ArrowDown" });
+    fireEvent.keyDown(must(filter()), { key: "ArrowDown" });
+    fireEvent.keyDown(must(filter()), { key: "ArrowDown" });
     type("alp");
-    fireEvent.keyDown(filter()!, { key: "Enter" });
+    fireEvent.keyDown(must(filter()), { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("a");
   });
 
@@ -497,8 +467,7 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    const foot = () =>
-      container.querySelector(".minerva-select__foot")?.textContent;
+    const foot = () => container.querySelector(".minerva-select__foot")?.textContent;
     expect(foot()).toContain("3 of 3");
     type("gam");
     expect(foot()).toContain("1 of 3");
@@ -519,32 +488,19 @@ describe("<Select />", () => {
   it("does not open a disabled filterable select", () => {
     const [value] = createSignal<string | undefined>(undefined);
     const { container } = render(() => (
-      <Select
-        options={OPTS}
-        value={value()}
-        onChange={() => undefined}
-        filterable
-        disabled
-      />
+      <Select options={OPTS} value={value()} onChange={() => undefined} filterable disabled />
     ));
-    fireEvent.click(container.querySelector(".minerva-select__trigger")!);
+    fireEvent.click(must(container.querySelector(".minerva-select__trigger")));
     expect(container.querySelector(".minerva-select__listbox")).toBeNull();
   });
 
   it("falls back to a default placeholder when the caller gives none", () => {
     const [value] = createSignal<string | undefined>(undefined);
     const { container } = render(() => (
-      <Select
-        options={OPTS}
-        value={value()}
-        onChange={() => undefined}
-        filterable
-      />
+      <Select options={OPTS} value={value()} onChange={() => undefined} filterable />
     ));
     expect(
-      container
-        .querySelector(".minerva-select__filter-input")
-        ?.getAttribute("placeholder"),
+      container.querySelector(".minerva-select__filter-input")?.getAttribute("placeholder"),
     ).toBe("Select…");
   });
 
@@ -553,7 +509,7 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    fireEvent.keyDown(filter()!, { key: "Escape" });
+    fireEvent.keyDown(must(filter()), { key: "Escape" });
     expect(listbox()).toBeNull();
     expect(document.activeElement).toBe(filter());
   });
@@ -564,9 +520,9 @@ describe("<Select />", () => {
     });
     fireEvent.click(trigger());
     type("gam");
-    fireEvent.keyDown(filter()!, { key: "Escape" });
+    fireEvent.keyDown(must(filter()), { key: "Escape" });
     fireEvent.click(trigger());
-    expect(filter()!.value).toBe("");
+    expect(must(filter()).value).toBe("");
     expect(optionLabels().length).toBe(3);
   });
 
@@ -575,7 +531,7 @@ describe("<Select />", () => {
       filterable: true,
     });
     fireEvent.click(trigger());
-    fireEvent.keyDown(filter()!, { key: "Tab" });
+    fireEvent.keyDown(must(filter()), { key: "Tab" });
     expect(listbox()).toBeNull();
   });
 
@@ -613,11 +569,7 @@ describe("<Select />", () => {
 
       fireEvent.click(trigger());
       expect(filter()).not.toBeNull();
-      expect(
-        container
-          .querySelector(".minerva-select__panel")!
-          .contains(filter()),
-      ).toBe(true);
+      expect(must(container.querySelector(".minerva-select__panel")).contains(filter())).toBe(true);
     });
 
     it("returns focus to the button trigger when Escape closes the sheet", () => {
@@ -625,7 +577,7 @@ describe("<Select />", () => {
         filterable: true,
       });
       fireEvent.click(trigger());
-      fireEvent.keyDown(filter()!, { key: "Escape" });
+      fireEvent.keyDown(must(filter()), { key: "Escape" });
       expect(listbox()).toBeNull();
       // The button is the control here, so that is where focus belongs — the
       // mirror of the desktop case, where focus stays in the input.

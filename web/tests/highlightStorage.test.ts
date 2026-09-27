@@ -3,11 +3,8 @@
 // graceful handling of corrupted / empty payloads.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  loadHighlights,
-  saveHighlights,
-  type SavedHighlight,
-} from "~/utils/highlightStorage";
+import { loadHighlights, saveHighlights, type SavedHighlight } from "~/utils/highlightStorage";
+import { must } from "./helpers/must";
 
 const SAMPLE: SavedHighlight = {
   chunkId: "rep-509d",
@@ -81,10 +78,7 @@ describe("highlightStorage", () => {
   });
 
   it("returns [] when stored payload is a non-array", () => {
-    localStorage.setItem(
-      "minerva:highlights:Republic",
-      JSON.stringify({ chunkId: "x" }),
-    );
+    localStorage.setItem("minerva:highlights:Republic", JSON.stringify({ chunkId: "x" }));
     expect(loadHighlights("Republic")).toEqual([]);
   });
 
@@ -97,7 +91,7 @@ describe("highlightStorage", () => {
     localStorage.setItem("minerva:highlights:Republic", JSON.stringify(mixed));
     const loaded = loadHighlights("Republic");
     expect(loaded.length).toBe(2);
-    expect(loaded[0]!.chunkId).toBe("rep-509d");
-    expect(loaded[1]!.chunkId).toBe("rep-510a");
+    expect(must(loaded[0]).chunkId).toBe("rep-509d");
+    expect(must(loaded[1]).chunkId).toBe("rep-510a");
   });
 });

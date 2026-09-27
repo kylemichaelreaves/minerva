@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, waitFor } from "@solidjs/testing-library";
 import TermCard from "~/components/cards/TermCard";
+import { must } from "./helpers/must";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -79,11 +80,8 @@ describe("<TermCard />", () => {
     // Fetched the right endpoint. `input` is always a string in our
     // client (the fetch helper builds the URL inline) so narrow
     // explicitly rather than coercing through String().
-    const input = fetchMock.mock.calls[0]![0];
-    const url =
-      typeof input === "string"
-        ? input
-        : input instanceof URL ? input.href : input.url;
+    const input = must(fetchMock.mock.calls[0])[0];
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     expect(url).toBe("/api/terms/4");
   });
 
@@ -123,14 +121,24 @@ describe("<TermCard />", () => {
       short_gloss: "spirit; mind",
       renderings: [
         {
-          id: 10, translation_id: 89, translator_name: "Pinkard", year: 2018,
-          language: "eng", work_title: "Phenomenology of Spirit (Pinkard)",
-          default_rendering: "spirit", translator_note: null,
+          id: 10,
+          translation_id: 89,
+          translator_name: "Pinkard",
+          year: 2018,
+          language: "eng",
+          work_title: "Phenomenology of Spirit (Pinkard)",
+          default_rendering: "spirit",
+          translator_note: null,
         },
         {
-          id: 11, translation_id: 90, translator_name: "Inwood", year: 2018,
-          language: "eng", work_title: "Phenomenology of Spirit (Inwood)",
-          default_rendering: "spirit", translator_note: null,
+          id: 11,
+          translation_id: 90,
+          translator_name: "Inwood",
+          year: 2018,
+          language: "eng",
+          work_title: "Phenomenology of Spirit (Inwood)",
+          default_rendering: "spirit",
+          translator_note: null,
         },
       ],
     };
@@ -210,8 +218,8 @@ describe("<TermCard />", () => {
       // is the only one that should be here.
       const buttons = Array.from(container.querySelectorAll("button"));
       expect(buttons).toHaveLength(1);
-      expect(buttons[0]!.className).toContain("popover-close");
-      expect(buttons[0]!.getAttribute("aria-label")).toBe("Close");
+      expect(must(buttons[0]).className).toContain("popover-close");
+      expect(must(buttons[0]).getAttribute("aria-label")).toBe("Close");
     });
 
     it("no longer renders the redundant Dismiss button", async () => {
@@ -224,7 +232,7 @@ describe("<TermCard />", () => {
       const { container, onClose } = await renderFailed();
       const close = container.querySelector<HTMLButtonElement>(".popover-close");
       expect(close).not.toBeNull();
-      close!.click();
+      must(close).click();
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });

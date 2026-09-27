@@ -17,6 +17,7 @@ import { render } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 import type { LemmaIndexRow } from "~/api/concordanceApi";
 import { LbRow } from "~/Concordance/components/LbRow";
+import { must } from "./helpers/must";
 
 function makeRow(overrides: Partial<LemmaIndexRow> = {}): LemmaIndexRow {
   return {
@@ -35,9 +36,7 @@ function makeRow(overrides: Partial<LemmaIndexRow> = {}): LemmaIndexRow {
 }
 
 function renderRow(row: LemmaIndexRow) {
-  return render(() => (
-    <LbRow row={row} href="#/concordance/Geist?lang=deu" onOpen={vi.fn()} />
-  ));
+  return render(() => <LbRow row={row} href="#/concordance/Geist?lang=deu" onOpen={vi.fn()} />);
 }
 
 describe("<LbRow /> sparkline", () => {
@@ -89,7 +88,7 @@ describe("<LbRow /> sparkline", () => {
   it("names the work in each bar's tooltip, not just the number", () => {
     const { container } = renderRow(makeRow());
     const bars = container.querySelectorAll(".spark .bar");
-    expect(bars[0]!.getAttribute("title")).toBe("Phänomenologie des Geistes: 400");
+    expect(must(bars[0]).getAttribute("title")).toBe("Phänomenologie des Geistes: 400");
   });
 
   it("names what the bars mean, so they are not read as broken", () => {
@@ -97,9 +96,7 @@ describe("<LbRow /> sparkline", () => {
     // the only affordance was a `title` on each bar showing the bare integer,
     // which at single-work scope duplicated the count two cells to the left.
     const { container } = renderRow(makeRow());
-    expect(container.querySelector(".spark")?.getAttribute("title")).toContain(
-      "top works",
-    );
+    expect(container.querySelector(".spark")?.getAttribute("title")).toContain("top works");
   });
 });
 
@@ -126,24 +123,20 @@ describe("<LbRow /> keyboard access", () => {
     const row = container.querySelector("a.lb-row");
 
     expect(row).not.toBeNull();
-    expect(row!.getAttribute("href")).toBe("#/conc/deu/lemma/Geist");
+    expect(must(row).getAttribute("href")).toBe("#/conc/deu/lemma/Geist");
   });
 
   it("drops role=link, which an anchor already announces", () => {
-    const { container } = render(() => (
-      <LbRow row={makeRow()} href="#/x" onOpen={vi.fn()} />
-    ));
-    expect(container.querySelector(".lb-row")!.getAttribute("role")).toBeNull();
+    const { container } = render(() => <LbRow row={makeRow()} href="#/x" onOpen={vi.fn()} />);
+    expect(must(container.querySelector(".lb-row")).getAttribute("role")).toBeNull();
   });
 
   it("still opens the lemma on click, without a full page navigation", () => {
     const onOpen = vi.fn();
-    const { container } = render(() => (
-      <LbRow row={makeRow()} href="#/x" onOpen={onOpen} />
-    ));
+    const { container } = render(() => <LbRow row={makeRow()} href="#/x" onOpen={onOpen} />);
 
     const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
-    container.querySelector(".lb-row")!.dispatchEvent(ev);
+    must(container.querySelector(".lb-row")).dispatchEvent(ev);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(ev.defaultPrevented).toBe(true);
@@ -153,12 +146,10 @@ describe("<LbRow /> keyboard access", () => {
     // The whole point of using an anchor. Cmd/Ctrl-click and middle-click must
     // reach the browser rather than being swallowed by the SPA handler.
     const onOpen = vi.fn();
-    const { container } = render(() => (
-      <LbRow row={makeRow()} href="#/x" onOpen={onOpen} />
-    ));
+    const { container } = render(() => <LbRow row={makeRow()} href="#/x" onOpen={onOpen} />);
 
     const ev = new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true });
-    container.querySelector(".lb-row")!.dispatchEvent(ev);
+    must(container.querySelector(".lb-row")).dispatchEvent(ev);
 
     expect(onOpen).not.toHaveBeenCalled();
     expect(ev.defaultPrevented).toBe(false);
