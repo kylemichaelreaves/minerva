@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchNetworkSummary } from "~/api/networkApi";
+import { fetchNetworkSummary, type NetworkSummary } from "~/api/networkApi";
 import { NetworkDrilldownShell } from "~/Network/components/NetworkDrilldownShell";
 import { makeNetworkSummary } from "./helpers/networkSummary";
 
@@ -43,12 +43,8 @@ describe("<NetworkDrilldownShell />", () => {
   });
 
   it("shows Loading… until the fetch settles, then hides the body on error", async () => {
-    let reject: (e: Error) => void = () => undefined;
-    fetchMock.mockReturnValueOnce(
-      new Promise((_, rej) => {
-        reject = rej;
-      }),
-    );
+    const pending = Promise.withResolvers<NetworkSummary>();
+    fetchMock.mockReturnValueOnce(pending.promise);
     const children = vi.fn(() => <p data-testid="body">body</p>);
     const { container } = render(() => (
       <NetworkDrilldownShell title="Verification coverage" onBack={vi.fn()}>
@@ -57,7 +53,7 @@ describe("<NetworkDrilldownShell />", () => {
     ));
     expect(container.querySelector(".net-loading")).toHaveTextContent("Loading…");
 
-    reject(new Error("summary exploded"));
+    pending.reject(new Error("summary exploded"));
     await waitFor(() => {
       expect(container.querySelector(".net-error")).toHaveTextContent("summary exploded");
     });
