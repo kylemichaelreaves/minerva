@@ -1,16 +1,9 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type MockedFunction,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
 import App from "~/App";
 import { _resetToastsForTesting } from "~/utils/apiError";
 import { okResponse } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -123,7 +116,7 @@ describe("<App />", () => {
     await waitFor(() => {
       expect(document.querySelectorAll(".history-delete").length).toBeGreaterThan(0);
     });
-    fireEvent.click(document.querySelector(".history-delete")!);
+    fireEvent.click(must(document.querySelector(".history-delete")));
     expect(screen.getByText("Delete this conversation?")).toBeInTheDocument();
   });
 

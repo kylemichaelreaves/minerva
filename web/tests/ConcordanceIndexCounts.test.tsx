@@ -33,6 +33,7 @@ vi.mock("~/api/concordanceApi", async (importOriginal) => {
 });
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
+import { must } from "./helpers/must";
 
 /** One row, lemma "Abend" — initial A, and A alone among the fetched rows. */
 const ROWS = [
@@ -70,9 +71,8 @@ function response(overrides: Record<string, unknown> = {}) {
 }
 
 function railLetter(L: string): HTMLElement | undefined {
-  return Array.from(document.querySelectorAll(".az-rail .l")).find(
-    (el) => el.textContent === L,
-  ) as HTMLElement | undefined;
+  return Array.from(document.querySelectorAll(".az-rail .l")).find((el) => el.textContent === L) as
+    HTMLElement | undefined;
 }
 
 beforeEach(() => {
@@ -84,90 +84,72 @@ beforeEach(() => {
 
 describe("A–Z rail populations (#376)", () => {
   it("marks a populous letter even when no fetched row starts with it", async () => {
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
     // Wait for the response, not merely for the rail to exist — the rail
     // renders before the fetch resolves.
-    await waitFor(() => expect(railLetter("G")!.className).toContain("has"));
+    await waitFor(() => expect(must(railLetter("G")).className).toContain("has"));
 
     // Only "Abend" was fetched, so folding the rows would light A and nothing
     // else. G and S are in scope and must be lit too.
-    expect(railLetter("S")!.className).toContain("has");
-    expect(railLetter("A")!.className).toContain("has");
+    expect(must(railLetter("S")).className).toContain("has");
+    expect(must(railLetter("A")).className).toContain("has");
   });
 
   it("leaves a letter with nothing in scope unmarked", async () => {
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
-    await waitFor(() => expect(railLetter("A")!.className).toContain("has"));
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
+    await waitFor(() => expect(must(railLetter("A")).className).toContain("has"));
 
-    expect(railLetter("Q")!.className).not.toContain("has");
+    expect(must(railLetter("Q")).className).not.toContain("has");
   });
 
   it("names the population in the letter's tooltip", async () => {
     // The dot says "something here"; the count says how much, which is what
     // makes the rail worth reading before clicking.
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
-    await waitFor(() =>
-      expect(railLetter("S")!.getAttribute("title")).toContain("15,366"),
-    );
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
+    await waitFor(() => expect(must(railLetter("S")).getAttribute("title")).toContain("15,366"));
   });
 
   it("says 'lemma' for a letter holding exactly one", async () => {
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
-    await waitFor(() =>
-      expect(railLetter("Z")!.getAttribute("title")).toBe("Z — 1 lemma"),
-    );
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
+    await waitFor(() => expect(must(railLetter("Z")).getAttribute("title")).toBe("Z — 1 lemma"));
   });
 
   it("does not fall back to folding the fetched rows when the scope is empty", async () => {
     // A response with no letters in scope must render an empty rail, not one
     // derived from whatever rows happen to be present.
     fetchLemmaIndex.mockResolvedValue(response({ letter_counts: {} }));
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
     await waitFor(() =>
-      expect(railLetter("A")!.getAttribute("title")).toContain("nothing in scope"),
+      expect(must(railLetter("A")).getAttribute("title")).toContain("nothing in scope"),
     );
-    expect(railLetter("A")!.className).not.toContain("has");
+    expect(must(railLetter("A")).className).not.toContain("has");
   });
 });
 
 describe("header counts (#377)", () => {
   it("shows the loaded row count beside the scope total", async () => {
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
 
     // One row loaded, 135,047 lemmas in scope. Both present, and the scope
     // total labelled as a scope figure rather than as the list's size.
     expect(await screen.findByText("135,047")).toBeInTheDocument();
     expect(screen.getByText(/in scope/)).toBeInTheDocument();
-    const head = document.querySelector(".conc-sub")!;
+    const head = must(document.querySelector(".conc-sub"));
     expect(head.textContent).toContain("Showing 1");
   });
 
   it("tracks the loaded count as pages append", async () => {
     fetchLemmaIndex.mockResolvedValueOnce(
       response({
-        rows: [...ROWS, { ...ROWS[0]!, rank: 2, lemma: "Bild" }],
+        rows: [...ROWS, { ...must(ROWS[0]), rank: 2, lemma: "Bild" }],
         next_offset: null,
       }),
     );
-    render(() => (
-      <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
-    ));
+    render(() => <ConcordanceIndexPage lang="deu" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />);
 
     await waitFor(() =>
-      expect(document.querySelector(".conc-sub")!.textContent).toContain("Showing 2"),
+      expect(must(document.querySelector(".conc-sub")).textContent).toContain("Showing 2"),
     );
   });
 });

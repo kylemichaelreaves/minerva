@@ -3,6 +3,7 @@ import { render, screen } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { TimeSeriesChart, formatTimeLabel } from "~/Metrics/TimeSeriesChart";
 import type { MetricsSeriesPoint } from "~/api/metricsApi";
+import { must } from "./helpers/must";
 
 const point = (t: number, p50: number, p95: number): MetricsSeriesPoint => ({
   t,
@@ -101,7 +102,7 @@ describe("TimeSeriesChart", () => {
     expect(pairs.length).toBe(1);
     const pair = pairs[0];
     expect(pair).toBeDefined();
-    const [x, y] = pair!;
+    const [x, y] = must(pair);
     expect(Number.isFinite(x)).toBe(true);
     expect(Number.isFinite(y)).toBe(true);
     expect(x).toBeGreaterThanOrEqual(0);
@@ -122,8 +123,8 @@ describe("TimeSeriesChart", () => {
     const [first, second] = pairs;
     expect(first).toBeDefined();
     expect(second).toBeDefined();
-    const [x0, y0] = first!;
-    const [x1, y1] = second!;
+    const [x0, y0] = must(first);
+    const [x1, y1] = must(second);
     expect(x0).not.toBe(x1);
     expect(y0).toBe(y1);
   });

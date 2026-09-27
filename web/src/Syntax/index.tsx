@@ -250,6 +250,10 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   const beginDrag = (id: number, e: PointerEvent): void => {
     // Only the primary button, and never over the picker.
     if (e.button !== 0 || picker() !== null) return;
+    // The dragged token's form is captured once at pointerdown on purpose: the
+    // ghost label must stay the word the user picked up, even if `tokens()`
+    // changes mid-drag.
+    // eslint-disable-next-line solid/reactivity -- deliberate snapshot at drag start, not a tracked read
     const form = tokens().find((t) => t.id === id)?.form ?? "";
     let dragging = false;
     const startX = e.clientX;
@@ -535,9 +539,8 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
                   Hover a token to isolate the subtree it governs · click to inspect ·{" "}
                   <span class="syn-kbd">L</span> relabel · <span class="syn-kbd">R</span> reattach ·{" "}
                   <span class="syn-kbd">P</span> part of speech · <span class="syn-kbd">F</span>{" "}
-                  fields · <span class="syn-kbd">←</span>{" "}
-                  <span class="syn-kbd">→</span> tokens · <span class="syn-kbd">↑</span>{" "}
-                  <span class="syn-kbd">↓</span> sentences
+                  fields · <span class="syn-kbd">←</span> <span class="syn-kbd">→</span> tokens ·{" "}
+                  <span class="syn-kbd">↑</span> <span class="syn-kbd">↓</span> sentences
                 </p>
               </Show>
             </Match>
@@ -561,9 +564,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
       </Show>
 
       <Show when={store.refusal()}>
-        {(refusal) => (
-          <RefusalPanel refusal={refusal()} onDismiss={() => store.clearRefusal()} />
-        )}
+        {(refusal) => <RefusalPanel refusal={refusal()} onDismiss={() => store.clearRefusal()} />}
       </Show>
 
       <Show when={selectedToken()}>

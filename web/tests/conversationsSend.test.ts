@@ -4,6 +4,7 @@ import { createSignal } from "solid-js";
 import { askMinerva, type AskMinervaDeps } from "~/features/conversations/conversationsSend";
 import type { chatStream } from "~/api/chatApi";
 import type { ChatStreamMeta, MinervaTurn, Turn, UserTurn } from "~/utils/types";
+import { must } from "./helpers/must";
 
 const chatStreamMock = vi.fn<typeof chatStream>();
 
@@ -81,10 +82,11 @@ describe("askMinerva()", () => {
     );
     const msgs = deps.messages();
     expect(msgs).toHaveLength(2);
-    expect(msgs[1]!.role).toBe("minerva");
-    if (msgs[1]!.role === "minerva") {
-      expect(msgs[1]!.streaming).toBe(false);
-      expect(msgs[1]!.paragraphs).toEqual(["Hello"]);
+    const reply = must(msgs[1]);
+    expect(reply.role).toBe("minerva");
+    if (reply.role === "minerva") {
+      expect(reply.streaming).toBe(false);
+      expect(reply.paragraphs).toEqual(["Hello"]);
     }
     expect(deps.refreshHistory).toHaveBeenCalled();
   });
@@ -158,9 +160,10 @@ describe("askMinerva()", () => {
 
     const msgs = deps.messages();
     expect(msgs).toHaveLength(2);
-    expect(msgs[1]!.role).toBe("minerva");
-    if (msgs[1]!.role === "minerva") {
-      expect(msgs[1]!.paragraphs[0]).toContain("upstream failed");
+    const reply = must(msgs[1]);
+    expect(reply.role).toBe("minerva");
+    if (reply.role === "minerva") {
+      expect(reply.paragraphs[0]).toContain("upstream failed");
     }
   });
 

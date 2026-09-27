@@ -220,11 +220,12 @@ export function useWorkRange(
       _fetchCompanionMaps(r.work_id, r.lang, r.offset, r.limit, controller);
 
       // After paint, scroll the focused chunk into view.
-      if (props.focusChunkId) {
+      const focusChunkId = props.focusChunkId;
+      if (focusChunkId) {
         queueMicrotask(() => {
           const stage = getStage();
           if (!stage) return;
-          const el = stage.querySelector(`[data-chunk-id="${CSS.escape(props.focusChunkId!)}"]`);
+          const el = stage.querySelector(`[data-chunk-id="${CSS.escape(focusChunkId)}"]`);
           if (el) {
             el.scrollIntoView({ block: "center", behavior: "smooth" });
             el.classList.add("focused");

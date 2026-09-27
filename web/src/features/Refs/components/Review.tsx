@@ -1,6 +1,14 @@
 // Curator review surface for `curator_status='auto'` cross-references.
 
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import {
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+} from "solid-js";
 import {
   fetchReferencesSources,
   fetchReviewQueue,
@@ -152,6 +160,9 @@ export default function Review(props: ReviewProps) {
 
     if (!hasMoreOnServer) return;
 
+    // The page fetcher runs once, inside this event-driven call, and must read
+    // the filters current at that moment; there is nothing to track.
+    // eslint-disable-next-line solid/reactivity -- one-shot fetch callback, reads props at call time by design
     await pagination.loadMore(firstPage(), async (offset, signal) => {
       const res = await fetchReviewQueue(
         {

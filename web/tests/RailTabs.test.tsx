@@ -7,6 +7,7 @@ import { createSignal } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import { RailContent } from "~/Reader/components/Rail";
 import type { RailState, WordInfoState } from "~/Reader/types";
+import { must } from "./helpers/must";
 
 const RAIL_READY: RailState = {
   kind: "ready",
@@ -36,7 +37,7 @@ function setup(initialWordInfo: WordInfoState = { kind: "idle" }) {
     utils.container.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? "";
   const clickTab = (label: string) => {
     const tabs = Array.from(utils.container.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-    tabs.find((t) => t.textContent.includes(label))!.click();
+    must(tabs.find((t) => t.textContent.includes(label))).click();
   };
   return { ...utils, setWordInfo, activeTab, clickTab };
 }

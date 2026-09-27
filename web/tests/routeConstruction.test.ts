@@ -4,6 +4,7 @@ import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { blankComments } from "./helpers/blankComments";
+import { must } from "./helpers/must";
 
 // Two properties about how the app builds navigations, checked against the
 // source rather than against behaviour — because both failure modes are
@@ -66,19 +67,19 @@ describe("the guards read code, not comments (#349)", () => {
     // A phrase that exists only inside a comment in the raw file.
     const commentOnly = "which is the failure the old peer route caused";
     expect(readerRaw).toContain(commentOnly);
-    expect(readerBlanked!.text).not.toContain(commentOnly);
+    expect(must(readerBlanked).text).not.toContain(commentOnly);
   });
 
   it("keeps every character position while doing it", () => {
     // The reported `file:line` is derived from a character offset, so a
     // transform that shifted anything would send readers to the wrong line.
-    expect(readerBlanked!.text).toHaveLength(readerRaw.length);
-    expect(readerBlanked!.text.split("\n")).toHaveLength(readerRaw.split("\n").length);
+    expect(must(readerBlanked).text).toHaveLength(readerRaw.length);
+    expect(must(readerBlanked).text.split("\n")).toHaveLength(readerRaw.split("\n").length);
   });
 
   it("leaves live code intact", () => {
     // The constructor the modifier case depends on must survive blanking.
-    expect(readerBlanked!.text).toContain("syntaxChunkId: chunkId,");
+    expect(must(readerBlanked).text).toContain("syntaxChunkId: chunkId,");
   });
 });
 

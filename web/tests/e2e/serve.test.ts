@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { hasMinervaBin, startFixtureServer, type FixtureServer } from "../helpers/fixtureServer";
+import { must } from "../helpers/must";
 
 const describeOrSkip = hasMinervaBin() ? describe : describe.skip;
 
@@ -197,7 +198,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     expect(r.ok).toBe(true);
     const json = (await r.json()) as { conversations: { id: string; title: string }[] };
     expect(json.conversations.length).toBeGreaterThan(0);
-    expect(json.conversations[0]!.id).toBeDefined();
+    expect(must(json.conversations[0]).id).toBeDefined();
   }, 30_000);
 
   it("GET /api/conversations/:id returns the message history", async () => {
@@ -212,8 +213,8 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     const json = (await r.json()) as { id: string; messages: { role: string }[] };
     expect(json.id).toBe(conversation_id);
     expect(json.messages.length).toBe(2);
-    expect(json.messages[0]!.role).toBe("user");
-    expect(json.messages[1]!.role).toBe("assistant");
+    expect(must(json.messages[0]).role).toBe("user");
+    expect(must(json.messages[1]).role).toBe("assistant");
   }, 30_000);
 
   it("DELETE /api/conversations/:id removes it (subsequent GET 404s)", async () => {
@@ -289,7 +290,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
     const target = (await fetchWorks()).find((w) => w.corpus === "plato" && w.lang === "eng");
     expect(target).toBeDefined();
     const r = await fetch(
-      `${baseUrl}/api/works/${encodeURIComponent(target!.work)}?lang=eng&limit=5`,
+      `${baseUrl}/api/works/${encodeURIComponent(must(target).work)}?lang=eng&limit=5`,
     );
     expect(r.ok).toBe(true);
     const json = (await r.json()) as {
@@ -298,7 +299,7 @@ describeOrSkip("e2e: minerva serve --llm none", () => {
       chunks: { ord: number }[];
       total: number;
     };
-    expect(json.work).toBe(target!.work);
+    expect(json.work).toBe(must(target).work);
     expect(json.lang).toBe("eng");
     expect(json.chunks.length).toBeGreaterThan(0);
     const ords = json.chunks.map((c) => c.ord);

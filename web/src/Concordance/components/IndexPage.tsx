@@ -476,17 +476,19 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           </Show>
         }
       >
+        <Show when={data()} fallback={<LoadingSkeleton />}>
+        {(d) => (
         <Show
-          when={data() && (data()!.rows.length > 0 || !loading())}
+          when={d().rows.length > 0 || !loading()}
           fallback={<LoadingSkeleton />}
         >
           <Show
-            when={data()!.rows.length > 0}
+            when={d().rows.length > 0}
             fallback={
               <Show
                 when={
-                  data()!.total_lemmas === 0 &&
-                  data()!.total_occurrences === 0 &&
+                  d().total_lemmas === 0 &&
+                  d().total_occurrences === 0 &&
                   !letter() &&
                   scope() === "corpus"
                 }
@@ -570,6 +572,8 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               </Show>
             </div>
           </Show>
+        </Show>
+        )}
         </Show>
       </Show>
       </Show>
@@ -705,8 +709,12 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
       // Bucket alpha-sort section headers on the folded initial so
       // ἀγαθός / ἄνθρωπος / Ἀθηνᾶ all sit under a single "Α" header.
       const c = foldInitial(r.lemma) || "·";
-      if (!map.has(c)) map.set(c, []);
-      map.get(c)!.push(r);
+      let bucket = map.get(c);
+      if (!bucket) {
+        bucket = [];
+        map.set(c, bucket);
+      }
+      bucket.push(r);
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))

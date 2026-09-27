@@ -203,13 +203,19 @@ export function ArcPanel(props: {
     // so the arcs spread out when zoomed. The strip stays at ``w``.
     const arcW = w * zoom();
     const innerW = arcW - padL - padR;
-    const xs = props.authors.map((_, i) => padL + (innerW * i) / Math.max(1, N - 1));
+    const xAt = (i: number) => padL + (innerW * i) / Math.max(1, N - 1);
+    const xs = props.authors.map((_, i) => xAt(i));
+    // Name → x, built the same way as ``idxOf`` (last index wins on a
+    // duplicate name), so a lookup is ``xs[idxOf().get(name)]`` without
+    // the double indirection. An unknown name falls back to 0.
+    const xByName = new Map<string, number>();
+    props.authors.forEach((a, i) => xByName.set(a.name, xAt(i)));
     const baseY = padT;
     const maxDip = arcH - baseY - 12;
     const arcMaxR = Math.max(
       1,
       ...visiblePairs().map(
-        (p) => Math.abs((xs[idxOf().get(p.tgt)!] ?? 0) - (xs[idxOf().get(p.src)!] ?? 0)) / 2,
+        (p) => Math.abs((xByName.get(p.tgt) ?? 0) - (xByName.get(p.src) ?? 0)) / 2,
       ),
     );
     return {
@@ -223,6 +229,7 @@ export function ArcPanel(props: {
       stripH,
       stripY,
       xs,
+      xByName,
       baseY,
       maxDip,
       arcMaxR,
@@ -301,8 +308,8 @@ export function ArcPanel(props: {
     return Math.sqrt(r / layout().arcMaxR) * layout().maxDip * 0.96;
   }
   function arcPath(p: AuthorPair) {
-    const x1 = layout().xs[idxOf().get(p.src)!] ?? 0;
-    const x2 = layout().xs[idxOf().get(p.tgt)!] ?? 0;
+    const x1 = layout().xByName.get(p.src) ?? 0;
+    const x2 = layout().xByName.get(p.tgt) ?? 0;
     const ctrlY = layout().baseY + dipFor(Math.abs(x2 - x1) / 2);
     return `M ${x1} ${layout().baseY} Q ${(x1 + x2) / 2} ${ctrlY} ${x2} ${layout().baseY}`;
   }
@@ -409,17 +416,21 @@ export function ArcPanel(props: {
                         >
                           {a.short}
                         </text>
-                        <Show when={YEAR_BY_NAME.has(a.name)}>
-                          <text
-                            x={layout().xs[i()]}
-                            y={layout().baseY - 5}
-                            font-size="8.5"
-                            font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-                            fill="var(--ink-faint)"
-                            text-anchor="middle"
-                          >
-                            {formatYearEra(YEAR_BY_NAME.get(a.name)!)}
-                          </text>
+                        {/* There is no year 0 in BC/CE reckoning, so a
+                            truthy lookup is equivalent to ``has``. */}
+                        <Show when={YEAR_BY_NAME.get(a.name)}>
+                          {(year) => (
+                            <text
+                              x={layout().xs[i()]}
+                              y={layout().baseY - 5}
+                              font-size="8.5"
+                              font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+                              fill="var(--ink-faint)"
+                              text-anchor="middle"
+                            >
+                              {formatYearEra(year())}
+                            </text>
+                          )}
                         </Show>
                       </Show>
                       <Show when={!showLabel()}>

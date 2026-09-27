@@ -33,10 +33,13 @@ export interface PopoverCardProps {
 
 export default function PopoverCard(props: PopoverCardProps) {
   const [cardRef, setCardRef] = createSignal<HTMLDivElement>();
-  const { pos } = usePopoverPosition(() => props.anchor, () => ({
-    heightEstimate: props.heightEstimate ?? 400,
-    direction: props.direction ?? "ltr",
-  }));
+  const { pos } = usePopoverPosition(
+    () => props.anchor,
+    () => ({
+      heightEstimate: props.heightEstimate ?? 400,
+      direction: props.direction ?? "ltr",
+    }),
+  );
 
   useEscape(() => {
     props.onClose();
@@ -58,14 +61,18 @@ export default function PopoverCard(props: PopoverCardProps) {
   // only mounted while open, so "mounted and not suspended" is the whole
   // active condition.
   const suspended = useSuspendedSubtree();
-  useClickOutside(cardRef, () => !suspended(), props.onClose, {
-    event: "mousedown",
-    capture: true,
-    ignore: (target) =>
-      (target as Element).closest(props.anchorSelector) != null,
-  });
+  useClickOutside(
+    cardRef,
+    () => !suspended(),
+    () => props.onClose(),
+    {
+      event: "mousedown",
+      capture: true,
+      ignore: (target) => (target as Element).closest(props.anchorSelector) != null,
+    },
+  );
 
-  const width = props.width ?? POPOVER_CARD_WIDTH;
+  const width = () => props.width ?? POPOVER_CARD_WIDTH;
   const shellClass = () =>
     `${props.variant}${pos().flipUp ? " flip-up" : ""}${props.class ? ` ${props.class}` : ""}`;
 
@@ -76,7 +83,7 @@ export default function PopoverCard(props: PopoverCardProps) {
       style={{
         top: `${pos().top}px`,
         left: `${pos().left}px`,
-        ...(props.variant === "termcard" ? { width: `${width}px` } : {}),
+        ...(props.variant === "termcard" ? { width: `${width()}px` } : {}),
       }}
       role="dialog"
       aria-modal="true"

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { Atlas } from "~/features/Landing/components/Atlas";
 import type { LandingStats } from "~/api/landingApi";
+import { must } from "./helpers/must";
 
 // Found by the ErrorBoundary added for #426, which is the point of having one.
 //
@@ -18,9 +19,7 @@ import type { LandingStats } from "~/api/landingApi";
 const FULL: LandingStats = { authors: 48, works: 866, xrefs: 54155 };
 
 function renderAtlas(stats: LandingStats | null) {
-  return render(() => (
-    <Atlas onPickAuthor={vi.fn()} stats={stats} isMobile={() => false} />
-  ));
+  return render(() => <Atlas onPickAuthor={vi.fn()} stats={stats} isMobile={() => false} />);
 }
 
 describe("<Atlas /> corpus-fact caption", () => {
@@ -28,18 +27,18 @@ describe("<Atlas /> corpus-fact caption", () => {
     const { container } = renderAtlas(FULL);
     const cap = container.querySelector(".landing-atlas-caption");
     expect(cap).not.toBeNull();
-    expect(cap!.textContent).toMatch(/48\s*AUTHORS/);
-    expect(cap!.textContent).toMatch(/866\s*WORKS/);
+    expect(must(cap).textContent).toMatch(/48\s*AUTHORS/);
+    expect(must(cap).textContent).toMatch(/866\s*WORKS/);
     // `toLocaleString` under the test locale — assert the grouping happened
     // rather than hard-coding a separator.
-    expect(cap!.textContent).toMatch(/54[,.\s]?155/);
+    expect(must(cap).textContent).toMatch(/54[,.\s]?155/);
   });
 
   it("renders nothing at all when stats have not arrived", () => {
     const { container } = renderAtlas(null);
     const cap = container.querySelector(".landing-atlas-caption");
     expect(cap).not.toBeNull();
-    expect(cap!.textContent.trim()).toBe("");
+    expect(must(cap).textContent.trim()).toBe("");
   });
 
   it.each([
@@ -55,7 +54,7 @@ describe("<Atlas /> corpus-fact caption", () => {
 
   it("shows an em dash for a missing number rather than blank or NaN", () => {
     const { container } = renderAtlas({ authors: 48 } as unknown as LandingStats);
-    const cap = container.querySelector(".landing-atlas-caption")!;
+    const cap = must(container.querySelector(".landing-atlas-caption"));
     expect(cap.textContent).toMatch(/—\s*WORKS/);
     expect(cap.textContent).toMatch(/—\s*VERIFIED CROSS-REFERENCES/);
     // The field that IS present must still render its real value.

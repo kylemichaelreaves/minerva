@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { ActiveFilterStrip } from "~/Concordance/components/ActiveFilterStrip";
+import { must } from "./helpers/must";
 
 describe("<ActiveFilterStrip />", () => {
   it("renders nothing when items is empty", () => {
-    const { container } = render(() => (
-      <ActiveFilterStrip items={[]} onReset={vi.fn()} />
-    ));
+    const { container } = render(() => <ActiveFilterStrip items={[]} onReset={vi.fn()} />);
     expect(container.querySelector(".afs")).toBeNull();
   });
 
@@ -41,20 +40,17 @@ describe("<ActiveFilterStrip />", () => {
     ));
     const closers = document.querySelectorAll(".afs .afs-pill .x");
     expect(closers).toHaveLength(2);
-    fireEvent.click(closers[0]!);
+    fireEvent.click(must(closers[0]));
     expect(removeA).toHaveBeenCalledTimes(1);
     expect(removeB).not.toHaveBeenCalled();
-    fireEvent.click(closers[1]!);
+    fireEvent.click(must(closers[1]));
     expect(removeB).toHaveBeenCalledTimes(1);
   });
 
   it("clicking 'reset all' calls onReset", () => {
     const onReset = vi.fn();
     render(() => (
-      <ActiveFilterStrip
-        items={[{ k: "letter", v: "H", onRemove: vi.fn() }]}
-        onReset={onReset}
-      />
+      <ActiveFilterStrip items={[{ k: "letter", v: "H", onRemove: vi.fn() }]} onReset={onReset} />
     ));
     fireEvent.click(screen.getByText(/reset all/));
     expect(onReset).toHaveBeenCalledTimes(1);

@@ -39,6 +39,7 @@ vi.mock("~/api/concordanceApi", async (importOriginal) => {
 });
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
+import { must } from "./helpers/must";
 
 const RESPONSE = {
   scope: "author",
@@ -119,9 +120,9 @@ describe("concordance index — reset clears exactly what the strip shows (#387)
     ));
 
     await waitFor(() => expect(document.querySelector(".afs-reset")).not.toBeNull());
-    fireEvent.click(document.querySelector(".afs-reset")!);
+    fireEvent.click(must(document.querySelector(".afs-reset")));
 
-    const patch = onNavigate.mock.calls.at(-1)![0] as Record<string, unknown>;
+    const patch = must(onNavigate.mock.calls.at(-1))[0] as Record<string, unknown>;
     // Every key the strip could have shown a chip for is cleared…
     expect(patch.pos).toBeUndefined();
     expect(patch.q).toBeUndefined();

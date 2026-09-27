@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { romanize, tokenizeGreek, tokenizeWords, containsGreek } from "~/utils/greek";
+import { must } from "./helpers/must";
 
 describe("romanize", () => {
   it("handles common words without breathing", () => {
@@ -65,9 +66,7 @@ describe("tokenizeGreek", () => {
     const tokens = tokenizeGreek("Book 1: λόγος");
     // "Book 1: " is non-Greek; "λόγος" is the only Greek run; offset
     // is its byte position into the source string.
-    expect(tokens.filter((t) => t.word)).toEqual([
-      { word: true, s: "λόγος", offset: 8 },
-    ]);
+    expect(tokens.filter((t) => t.word)).toEqual([{ word: true, s: "λόγος", offset: 8 }]);
   });
 });
 
@@ -135,7 +134,7 @@ describe("tokenizeWords", () => {
     const toks = tokenizeWords(`رَيْبَ ${mark} فِيهِ`);
     const markTok = toks.find((t) => t.s === mark);
     expect(markTok).toBeDefined();
-    expect(markTok!.word).toBe(false);
+    expect(must(markTok).word).toBe(false);
   });
 
   it("types the waqf mark's neighbours as words, from the filed example", () => {
@@ -166,7 +165,11 @@ describe("tokenizeWords", () => {
     // test silently checks the precomposed path and its name lies.
     expect(nfd).not.toBe("créer".normalize("NFC"));
     expect(nfd.length).toBeGreaterThan("créer".normalize("NFC").length);
-    expect(tokenizeWords(nfd).filter((t) => t.word).map((t) => t.s)).toEqual([nfd]);
+    expect(
+      tokenizeWords(nfd)
+        .filter((t) => t.word)
+        .map((t) => t.s),
+    ).toEqual([nfd]);
   });
 
   it("preserves offsets across a dropped-to-punctuation mark run", () => {
