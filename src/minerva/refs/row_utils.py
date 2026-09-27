@@ -48,6 +48,10 @@ _AUTHOR_SHORT: dict[str, str] = {
     "Diogenes of Apollonia": "Diog. Apoll.",
     "Zeno of Elea": "Zeno",
     "Pseudo-Dionysius": "Ps.-Dionys.",
+    # Truncation would render both Luther editions as "Luther Bibe…".
+    "Luther Bibel 1545": "Luther 1545",
+    "Luther Bibel 1912": "Luther 1912",
+    "King James Bible": "King James",
 }
 
 

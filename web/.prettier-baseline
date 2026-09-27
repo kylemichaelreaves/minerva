@@ -64,7 +64,6 @@ src/Network/components/MobileMostCitedCard.tsx
 src/Network/components/MobileTopPairsCard.tsx
 src/Network/components/NetworkCoverage.tsx
 src/Network/components/VerificationPanel.tsx
-src/Network/network.css
 src/Reader/components/Chrome.stories.tsx
 src/Reader/components/Chrome.tsx
 src/Reader/components/ConcordanceTabPanel.tsx
