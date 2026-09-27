@@ -144,24 +144,13 @@
   height: 88px;
   width: auto;
 }
-/* Epigraph shown only when the rose-in-cross variant of the
-   landing-monogram is rendered (see ROSE_LOGO_PROBABILITY in
-   Landing.tsx). Two centred serif-italic lines — Hegel's German
-   rendering of the Latin "Hic Rhodus, hic salta" — sit immediately
-   below the mark, before the composer. */
-.landing-epigraph {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: 14px;
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--ink-mute);
-  letter-spacing: 0.005em;
-  text-align: center;
+/* The Hegel epigraph used to sit as two visible lines under the mark; it
+   now lives in the mark's popover (`.landing-monogram-tooltip-epigraph`).
+   This margin stands in for the space those lines took — 14px margin +
+   2 × 13px × 1.45 line-height + 2px gap ≈ 54px — so the gap from the mark
+   to the composer is what it was (74px with the composer's own 20px). */
+.landing-monogram-wrap {
+  margin-bottom: 54px;
 }
 .landing-monogram-tooltip {
   position: absolute;
@@ -182,6 +171,25 @@
   pointer-events: none;
   transition: opacity 120ms;
   text-align: center;
+}
+/* The epigraph that used to sit beneath the mark (see
+   `.landing-monogram-wrap` above). Set off from the popover's own quotation
+   by a hairline, in the muted italic it had on the page. */
+.landing-monogram-tooltip-epigraph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--rule);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-mute);
+}
+.landing-monogram-tooltip-long .landing-monogram-tooltip-epigraph {
+  align-items: flex-start;
 }
 /* Long-form variant for the rose-in-the-cross alternate logo, which
    shows the larger Hegel passage from the same Preface to the
@@ -555,6 +563,19 @@
   box-shadow: 2px 2px 0 0 color-mix(in oklab, var(--ink) 18%, transparent);
   transform: translate(-22px, calc(-100% - 12px));
   z-index: 6;
+}
+/* Mirror image for authors in the right half (see Atlas.tsx): the box's
+   right edge sits 22px past the anchor instead of its left edge 22px
+   before it, and the arrow moves to the matching corner. */
+/* Two classes so these outrank `.atlas-tooltip` and `.atlas-tooltip::after`
+   whatever their order in the file — with one, the base `::after` below won
+   and the arrow stayed on the left corner, pointing away from the author. */
+.atlas-tooltip.atlas-tooltip-flip {
+  transform: translate(calc(-100% + 22px), calc(-100% - 12px));
+}
+.atlas-tooltip.atlas-tooltip-flip::after {
+  left: auto;
+  right: 16px;
 }
 .atlas-tooltip .nm {
   font-family: var(--serif);
