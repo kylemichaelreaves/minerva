@@ -27,6 +27,7 @@ from ..corpus_extract import (
 )
 from ..corpus_works import CorpusWork
 from ..tei import Chunk
+from .editorial_runs import apply_editorial_runs
 from .split_aquinas import split_aquinas
 from .split_augustine import split_augustine
 from .split_descartes import split_descartes, split_descartes_articles
@@ -214,7 +215,7 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             f"retrying with 'chapter' fallback"
         )
         chunks = list(split_by_chapter(text, work, path))
-    yield from chunks
+    yield from apply_editorial_runs(chunks, work)
 
 
 def parse_dir(
