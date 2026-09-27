@@ -987,9 +987,12 @@ expected_chunks:
   sacy:
     min: 26721
     max: 34580
+  # Rebased 2026-09-27 from 737 to 880 (same -25%/+15% band): #673/#680
+  # (PR #682) keep DK's critical apparatus as 120 `editorial` chunks and
+  # recover fragments the parser missed.
   presocratic:
-    min: 552
-    max: 847
+    min: 660
+    max: 1012
   hebrew_mt:
     min: 19731
     max: 25534
