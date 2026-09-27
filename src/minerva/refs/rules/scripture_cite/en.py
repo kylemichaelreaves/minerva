@@ -170,8 +170,48 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
 }
 
 
+# ── Full book names (#704) ───────────────────────────────────────
+# The dict above keys abbreviations only, so "(Matthew 19:20–22)" and
+# "(Joshua xxiv. 2)" never fired: ~110 cites across Hegel, Hobbes and
+# Kant. Listed by hand from `locations._BCV_BOOKS`, NOT derived from each
+# book's last word — that would add "Solomon", "Songs", "Odes", "Wisdom"
+# and "Dragon", and the census's back-of-book index lines ("110. Solomon
+# 240, 289") are exactly what those would bind.
+_FULL_NAMES_EN: tuple[str, ...] = (
+    "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua",
+    "Judges", "Nehemiah", "Tobit", "Judith", "Esther", "Psalms", "Proverbs",
+    "Ecclesiastes", "Sirach", "Isaiah", "Jeremiah", "Lamentations", "Baruch",
+    "Ezekiel", "Daniel", "Hosea", "Obadiah", "Micah", "Nahum", "Habakkuk",
+    "Zephaniah", "Haggai", "Zechariah", "Malachi", "Matthew", "Romans",
+    "Galatians", "Ephesians", "Philippians", "Colossians", "Philemon",
+    "Hebrews", "Revelation", "Susanna",
+)
+# Numbered books, by how many there are. A bare name ("Timothy 3.2") is
+# emitted at ambiguous confidence against the first, as "Tim" already is.
+_NUMBERED_FULL_NAMES_EN: dict[str, int] = {
+    "Samuel": 2, "Chronicles": 2, "Maccabees": 4, "Esdras": 2, "Corinthians": 2,
+    "Thessalonians": 2, "Timothy": 2, "Peter": 2,
+}
+_ORDINALS: tuple[tuple[str, str], ...] = (("1", "I"), ("2", "II"), ("3", "III"), ("4", "IV"))
+
+
+
+def _full_name_entries() -> dict[tuple[str | None, str], str]:
+    entries: dict[tuple[str | None, str], str] = {(None, n): n for n in _FULL_NAMES_EN}
+    entries[(None, "Revelations")] = "Revelation"
+    for name, count in _NUMBERED_FULL_NAMES_EN.items():
+        for n, (arabic, roman) in enumerate(_ORDINALS[:count], start=1):
+            entries[(arabic, name)] = entries[(roman, name)] = f"{n} {name}"
+        entries[(None, name)] = f"1 {name}"
+    return entries
+
+
+_LEXICON_EN.update(_full_name_entries())
+
+
 _AMBIGUOUS_BARE_EN: frozenset[str] = frozenset(
     {"Cor", "Pet", "Tim", "Thess", "Sam", "Kgs", "Kings", "Chr", "Chron", "Macc", "Joh"}
+    | set(_NUMBERED_FULL_NAMES_EN)
 )
 
 
@@ -184,7 +224,7 @@ _AMBIGUOUS_BARE_EN: frozenset[str] = frozenset(
 # clause numbering in modern editions.
 _CITE_RE_EN = re.compile(
     r"(?:\b(?P<prefix>I{1,3}V?|[1-3])\s*\.?\s*)?"  # optional ordinal
-    r"\b(?P<abbr>[A-Z][a-z]{1,8})\.?"  # English abbrev
+    r"\b(?P<abbr>[A-Z][a-z]{1,12})\.?"  # abbrev or full name (#704)
     r"\s+"
     r"(?P<chap>\d{1,3})"
     r"\s*[:.]\s*"  # colon OR period sep
@@ -224,7 +264,7 @@ class ScriptureCiteRuleEn(BaseScriptureCiteRule):
 # scripture rule before landing; every new hit was read.
 _CITE_RE_EN_ROMAN = re.compile(
     r"(?:\b(?P<prefix>I{1,3}V?|[1-3])\s*\.?\s*)?"  # optional ordinal
-    r"\b(?P<abbr>[A-Z][a-z]{1,8})\.?"  # English abbrev
+    r"\b(?P<abbr>[A-Z][a-z]{1,12})\.?"  # abbrev or full name (#704)
     r"\s+"
     r"(?P<chap>[ivxlc]{1,7}|[IVXLC]{1,7})\."  # Roman chapter, one case
     r"\s*"
