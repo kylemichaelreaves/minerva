@@ -554,14 +554,24 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Chips are <button>s (toggles) in FilterChipGroup and plain <span>s for
+   the display-only Gender row and the skeleton, so the button defaults are
+   reset here rather than split into a second class. */
 .filter-rail .fr-opt {
   padding: 3px 9px;
   border: 1px solid var(--rule);
   border-radius: 12px;
+  background: none;
+  font-family: inherit;
   font-size: 11px;
+  line-height: inherit;
   color: var(--ink-mute);
   cursor: pointer;
   user-select: none;
+}
+.filter-rail .fr-opt:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
 }
 .filter-rail .fr-opt:hover {
   color: var(--ink);
