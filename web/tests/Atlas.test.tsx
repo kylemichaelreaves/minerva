@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { Atlas } from "~/features/Landing/components/Atlas";
 import type { LandingStats } from "~/api/landingApi";
 
@@ -18,9 +18,7 @@ import type { LandingStats } from "~/api/landingApi";
 const FULL: LandingStats = { authors: 48, works: 866, xrefs: 54155 };
 
 function renderAtlas(stats: LandingStats | null) {
-  return render(() => (
-    <Atlas onPickAuthor={vi.fn()} stats={stats} isMobile={() => false} />
-  ));
+  return render(() => <Atlas onPickAuthor={vi.fn()} stats={stats} isMobile={() => false} />);
 }
 
 describe("<Atlas /> corpus-fact caption", () => {
@@ -61,5 +59,29 @@ describe("<Atlas /> corpus-fact caption", () => {
     // The field that IS present must still render its real value.
     expect(cap.textContent).toMatch(/48\s*AUTHORS/);
     expect(cap.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+// The popover is 220px wide and opened rightward from every author, so the
+// ones near the right edge ran it off the page. Past the midpoint it now opens
+// leftward instead (`.atlas-tooltip-flip`, landing.css).
+describe("<Atlas /> author popover", () => {
+  function hoverAuthor(pick: "first" | "last") {
+    const { container } = renderAtlas(FULL);
+    const authors = Array.from(container.querySelectorAll(".atlas-author"));
+    const target = pick === "first" ? authors[0] : authors.at(-1);
+    if (!target) throw new Error("the atlas rendered no authors");
+    fireEvent.mouseEnter(target);
+    return container.querySelector(".atlas-tooltip");
+  }
+
+  it("opens rightward for the earliest author", () => {
+    const tip = hoverAuthor("first");
+    expect(tip).not.toBeNull();
+    expect(tip).not.toHaveClass("atlas-tooltip-flip");
+  });
+
+  it("opens leftward for the latest author, so it stays on the page", () => {
+    expect(hoverAuthor("last")).toHaveClass("atlas-tooltip-flip");
   });
 });

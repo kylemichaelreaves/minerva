@@ -1,5 +1,5 @@
 // Landing — the corpus's frontispiece. Four elements stacked:
-//   1. Π monogram + "Minerva" wordmark + tagline
+//   1. Monogram, whose popover carries the Hegel epigraph
 //   2. Composer (Chat entry — the primary affordance)
 //   3. Mode entry row — explicit doors to Read / Refs / Network
 //   4. Atlas — chronological strip of every author in the corpus
@@ -121,6 +121,15 @@ export default function Landing(props: LandingProps) {
                   <>
                     <span class="t1">What is rational is actual,</span>
                     <span class="t2">and what is actual is rational.</span>
+                    <span class="landing-monogram-tooltip-epigraph">
+                      <span lang="de">
+                        Die Eule der Minerva beginnt erst mit der einbrechenden Dämmerung ihren
+                        Flug.
+                      </span>
+                      <span>
+                        The owl of Minerva spreads its wings only with the falling of the dusk.
+                      </span>
+                    </span>
                   </>
                 }
               >
@@ -131,27 +140,13 @@ export default function Landing(props: LandingProps) {
                   comprehend, to preserve their subjective freedom not in a particular and
                   contingent situation, but in what has being in and for itself.
                 </span>
+                <span class="landing-monogram-tooltip-epigraph">
+                  <span lang="la">Hic Rhodus, hic salta.</span>
+                  <span lang="de">Hier ist die Rose, hier tanze.</span>
+                </span>
               </Show>
             </div>
           </div>
-          <Show
-            when={useRoseLogo}
-            fallback={
-              <div class="landing-epigraph">
-                <span class="landing-epigraph-line">
-                  Die Eule der Minerva beginnt erst mit der einbrechenden Dämmerung ihren Flug.
-                </span>
-                <span class="landing-epigraph-line">
-                  The owl of Minerva spreads its wings only with the falling of the dusk.
-                </span>
-              </div>
-            }
-          >
-            <div class="landing-epigraph">
-              <span class="landing-epigraph-line">Hic Rhodus, hic salta.</span>
-              <span class="landing-epigraph-line">Hier ist die Rose, hier tanze.</span>
-            </div>
-          </Show>
           <ComposeField
             variant="landing"
             c={c}

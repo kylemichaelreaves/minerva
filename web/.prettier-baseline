@@ -123,7 +123,6 @@ tests/ActiveFilterStrip.test.tsx
 tests/apiClient.test.ts
 tests/apiError.test.ts
 tests/App.test.tsx
-tests/Atlas.test.tsx
 tests/blankComments.test.ts
 tests/chat.test.ts
 tests/ConcordanceIndexCounts.test.tsx
