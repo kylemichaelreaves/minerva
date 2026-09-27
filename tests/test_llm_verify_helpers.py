@@ -66,3 +66,51 @@ def test_format_eta_seconds_minutes_hours():
     assert llm_verify._format_eta(30) == "30s"
     assert "m" in llm_verify._format_eta(120)
     assert "h" in llm_verify._format_eta(7200)
+
+
+def test_excerpt_without_a_span_is_the_head():
+    text = "word " * 200
+    assert llm_verify._excerpt(text, None, None, 400) == llm_verify._truncate(text, 400)
+
+
+def test_excerpt_with_a_span_inside_the_head_is_the_head():
+    text = "word " * 200
+    assert llm_verify._excerpt(text, 10, 20, 400) == llm_verify._truncate(text, 400)
+
+
+def test_excerpt_centres_on_a_span_past_the_head():
+    text = ("a " * 600) + "CITE" + (" b" * 600)
+    start = text.index("CITE")
+    out = llm_verify._excerpt(text, start, start + 4, 400)
+    assert "CITE" in out
+    assert out.startswith("…") and out.endswith("…")
+    assert len(out) <= 402
+    # Roughly centred: context on both sides.
+    before, after = out.split("CITE")
+    assert len(before) > 150 and len(after) > 150
+
+
+def test_excerpt_near_the_end_has_no_trailing_ellipsis():
+    text = ("a " * 600) + "CITE."
+    start = text.index("CITE")
+    out = llm_verify._excerpt(text, start, start + 4, 400)
+    assert out.startswith("…")
+    assert out.endswith("CITE.")
+
+
+def test_excerpt_keeps_a_span_longer_than_the_budget_whole():
+    quote = "q" * 500
+    text = ("a " * 300) + quote + (" b" * 300)
+    start = text.index(quote)
+    out = llm_verify._excerpt(text, start, start + len(quote), 400)
+    assert quote in out
+
+
+def test_excerpt_with_a_span_the_head_trim_would_cut_is_windowed():
+    # The head is cut back to a word boundary, so a cite ending just
+    # under char 400 falls off it — 7 live rows, e.g. "Plato" at 395–400.
+    text = ("a " * 197) + " Plato said" + (" b" * 100)
+    start = text.index("Plato")
+    assert start + 5 <= 400
+    assert "Plato" not in llm_verify._truncate(text, 400)
+    assert "Plato" in llm_verify._excerpt(text, start, start + 5, 400)
