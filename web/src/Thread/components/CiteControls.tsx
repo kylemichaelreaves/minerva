@@ -32,21 +32,20 @@ export function PinButton(props: {
 }) {
   return (
     <Show when={props.onTogglePin && props.citation.chunk_id}>
-      {(() => {
-        const id = props.citation.chunk_id!;
+      {(id) => {
         const isPinned = () =>
-          props.citation.pinned === true || (props.pinnedChunkIds ?? []).includes(id);
+          props.citation.pinned === true || (props.pinnedChunkIds ?? []).includes(id());
         return (
           <button
             class={classnames("cite-pin", isPinned() && "is-pinned")}
-            onClick={() => props.onTogglePin?.(id)}
+            onClick={() => props.onTogglePin?.(id())}
             title={isPinned() ? "Unpin" : "Pin to keep this passage in scope"}
             aria-label={isPinned() ? "Unpin" : "Pin"}
           >
             {isPinned() ? "◆" : "◇"}
           </button>
         );
-      })()}
+      }}
     </Show>
   );
 }

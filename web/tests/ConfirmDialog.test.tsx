@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import ConfirmDialog from "~/components/primitives/ConfirmDialog";
+import { must } from "./helpers/must";
 
 function renderDialog(overrides: Partial<{ open: boolean }> = {}) {
   const onConfirm = vi.fn();
@@ -71,15 +72,15 @@ describe("<ConfirmDialog />", () => {
     renderDialog();
     const hit = document.querySelector(".dialog-scrim-hit");
     expect(hit).not.toBeNull();
-    expect(hit!.tagName).toBe("BUTTON");
+    expect(must(hit).tagName).toBe("BUTTON");
     // Named distinctly from the visible ghost button, so `getByRole("button",
     // { name: "Cancel" })` still resolves to exactly one element.
-    expect(hit!.getAttribute("aria-label")).toBe("Dismiss");
+    expect(must(hit).getAttribute("aria-label")).toBe("Dismiss");
   });
 
   it("clicking the scrim cancels", () => {
     const { onCancel } = renderDialog();
-    const scrim = document.querySelector(".dialog-scrim-hit")!;
+    const scrim = must(document.querySelector(".dialog-scrim-hit"));
     fireEvent.click(scrim);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
@@ -88,7 +89,7 @@ describe("<ConfirmDialog />", () => {
     // Pins the structure the a11y fix depends on: clicking the scrim element
     // does nothing, because the handler is on the button layered over it.
     const { onCancel } = renderDialog();
-    fireEvent.click(document.querySelector(".dialog-scrim")!);
+    fireEvent.click(must(document.querySelector(".dialog-scrim")));
     expect(onCancel).not.toHaveBeenCalled();
   });
 

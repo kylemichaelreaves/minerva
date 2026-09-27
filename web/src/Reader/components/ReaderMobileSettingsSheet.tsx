@@ -27,10 +27,9 @@ export function ReaderMobileSettingsSheet(props: {
     }
   });
 
-  function pickScale(key: (typeof SCALES)[number]["key"]) {
-    setScale(key);
-    const item = SCALES.find((s) => s.key === key)!;
-    localStorage.setItem(STORAGE_KEY, key);
+  function pickScale(item: (typeof SCALES)[number]) {
+    setScale(item.key);
+    localStorage.setItem(STORAGE_KEY, item.key);
     document.documentElement.style.setProperty("--reader-text-size", item.size);
   }
 
@@ -52,7 +51,7 @@ export function ReaderMobileSettingsSheet(props: {
               <button
                 type="button"
                 class={"reader-scale-btn" + (scale() === s.key ? " active" : "")}
-                onClick={() => pickScale(s.key)}
+                onClick={() => pickScale(s)}
               >
                 {s.label}
               </button>

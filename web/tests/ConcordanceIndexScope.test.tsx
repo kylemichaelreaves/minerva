@@ -10,12 +10,33 @@ const fetchLemmaIndex = vi.fn();
 const listWorks = vi.fn();
 
 const WORKS = [
-  { work_id: 1, corpus: "kant", author: "Kant", work: "Kritik der reinen Vernunft",
-    display_title: "Kritik der reinen Vernunft", lang: "deu", chunks: 1560 },
-  { work_id: 2, corpus: "hegel", author: "Hegel", work: "Phänomenologie des Geistes",
-    display_title: "Phänomenologie des Geistes", lang: "deu", chunks: 808 },
-  { work_id: 3, corpus: "plato", author: "Plato", work: "Republic",
-    display_title: "Republic", lang: "grc", chunks: 500 },
+  {
+    work_id: 1,
+    corpus: "kant",
+    author: "Kant",
+    work: "Kritik der reinen Vernunft",
+    display_title: "Kritik der reinen Vernunft",
+    lang: "deu",
+    chunks: 1560,
+  },
+  {
+    work_id: 2,
+    corpus: "hegel",
+    author: "Hegel",
+    work: "Phänomenologie des Geistes",
+    display_title: "Phänomenologie des Geistes",
+    lang: "deu",
+    chunks: 808,
+  },
+  {
+    work_id: 3,
+    corpus: "plato",
+    author: "Plato",
+    work: "Republic",
+    display_title: "Republic",
+    lang: "grc",
+    chunks: 500,
+  },
 ];
 
 vi.mock("~/api/readerApi", () => ({
@@ -31,6 +52,7 @@ vi.mock("~/api/concordanceApi", async (importOriginal) => {
 });
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
+import { must } from "./helpers/must";
 
 const emptyIndex = {
   scope: "work",
@@ -63,12 +85,7 @@ beforeEach(() => {
 describe("ConcordanceIndexPage scope narrowing", () => {
   it("renders a picker prompt and skips the fetch when scope=work has no work", async () => {
     render(() => (
-      <ConcordanceIndexPage
-        lang="deu"
-        scope="work"
-        onNavigate={vi.fn()}
-        onOpenLemma={vi.fn()}
-      />
+      <ConcordanceIndexPage lang="deu" scope="work" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
     ));
     expect(await screen.findByText("Choose a work")).toBeInTheDocument();
     expect(fetchLemmaIndex).not.toHaveBeenCalled();
@@ -76,12 +93,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
 
   it("renders a picker prompt and skips the fetch when scope=author has no author", async () => {
     render(() => (
-      <ConcordanceIndexPage
-        lang="deu"
-        scope="author"
-        onNavigate={vi.fn()}
-        onOpenLemma={vi.fn()}
-      />
+      <ConcordanceIndexPage lang="deu" scope="author" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
     ));
     expect(await screen.findByText("Choose an author")).toBeInTheDocument();
     expect(fetchLemmaIndex).not.toHaveBeenCalled();
@@ -98,7 +110,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
     expect(args.scope).toBe("work");
     expect(args.works).toEqual(["Kritik der reinen Vernunft"]);
     expect(await screen.findByText("Begriff")).toBeInTheDocument();
@@ -115,12 +127,9 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
     expect(args.scope).toBe("work");
-    expect(args.works).toEqual([
-      "Kritik der reinen Vernunft",
-      "Phänomenologie des Geistes",
-    ]);
+    expect(args.works).toEqual(["Kritik der reinen Vernunft", "Phänomenologie des Geistes"]);
   });
 
   it("shows an active-filter chip per selected work", async () => {
@@ -165,7 +174,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
     expect(args.scope).toBe("author");
     expect(args.authors).toEqual(["Kant"]);
   });
@@ -181,7 +190,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = fetchLemmaIndex.mock.calls[0]![0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
     expect(args.scope).toBe("author");
     expect(args.authors).toEqual(["Kant", "Hegel"]);
   });
@@ -208,12 +217,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     // without this the two attributes are uncovered changed lines. `phanomen`
     // exercises the fold: the fixture work is "Phänomenologie des Geistes".
     const { container } = render(() => (
-      <ConcordanceIndexPage
-        lang="deu"
-        scope="work"
-        onNavigate={vi.fn()}
-        onOpenLemma={vi.fn()}
-      />
+      <ConcordanceIndexPage lang="deu" scope="work" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
     ));
     await waitFor(() => expect(listWorks).toHaveBeenCalled());
 
@@ -225,7 +229,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       const group = Array.from(container.querySelectorAll(".fbar .grp")).find(
         (g) => g.querySelector(".lab")?.textContent === label,
       );
-      return group!.querySelector<HTMLElement>(".minerva-select__trigger")!;
+      return must(must(group).querySelector<HTMLElement>(".minerva-select__trigger"));
     };
     await waitFor(() => expect(triggerFor("Work")).not.toBeNull());
     const workTrigger = triggerFor("Work");
@@ -234,18 +238,16 @@ describe("ConcordanceIndexPage scope narrowing", () => {
     // Scoped to the work picker, not `container`-wide: the filterable trigger
     // IS the input, so both pickers own one at all times and a document-order
     // lookup would land on the author picker and silently filter the wrong list.
-    const input = workTrigger.querySelector<HTMLInputElement>(
-      ".minerva-select__filter-input",
-    )!;
+    const input = must(
+      workTrigger.querySelector<HTMLInputElement>(".minerva-select__filter-input"),
+    );
     expect(input).not.toBeNull();
     fireEvent.input(input, { target: { value: "phanomen" } });
 
     // Read the primary span, not the row: work options carry the author as a
     // sublabel, so the row's textContent is "…GeistesHegel".
     const labels = Array.from(
-      container.querySelectorAll(
-        ".minerva-select__option .minerva-select__primary",
-      ),
+      container.querySelectorAll(".minerva-select__option .minerva-select__primary"),
       (el) => el.textContent,
     );
     expect(labels).toEqual(["Phänomenologie des Geistes"]);
@@ -275,12 +277,7 @@ describe("when the works manifest cannot be loaded", () => {
     listWorks.mockRejectedValue(new Error("Failed to fetch"));
 
     render(() => (
-      <ConcordanceIndexPage
-        lang="deu"
-        scope="author"
-        onNavigate={vi.fn()}
-        onOpenLemma={vi.fn()}
-      />
+      <ConcordanceIndexPage lang="deu" scope="author" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
     ));
 
     expect(await screen.findByText("Couldn't load the works list")).toBeInTheDocument();
@@ -289,12 +286,7 @@ describe("when the works manifest cannot be loaded", () => {
 
   it("still prompts for an author when the manifest loads fine", async () => {
     render(() => (
-      <ConcordanceIndexPage
-        lang="deu"
-        scope="author"
-        onNavigate={vi.fn()}
-        onOpenLemma={vi.fn()}
-      />
+      <ConcordanceIndexPage lang="deu" scope="author" onNavigate={vi.fn()} onOpenLemma={vi.fn()} />
     ));
 
     expect(await screen.findByText("Choose an author")).toBeInTheDocument();

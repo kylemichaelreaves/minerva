@@ -75,7 +75,9 @@ export function ReviewCard(props: {
         <textarea
           rows="2"
           value={props.noteDraft}
-          onInput={(e) => { props.onNoteChange(e.currentTarget.value); }}
+          onInput={(e) => {
+            props.onNoteChange(e.currentTarget.value);
+          }}
           placeholder="What did the curator notice? (saved with approve/reject)"
         />
       </label>
@@ -85,7 +87,7 @@ export function ReviewCard(props: {
           class="review-btn review-btn-reject"
           type="button"
           disabled={props.disabled}
-          onClick={props.onReject}
+          onClick={() => props.onReject()}
         >
           Reject
         </button>
@@ -93,7 +95,7 @@ export function ReviewCard(props: {
           class="review-btn review-btn-skip"
           type="button"
           disabled={props.disabled}
-          onClick={props.onSkip}
+          onClick={() => props.onSkip()}
         >
           Skip
         </button>
@@ -101,7 +103,7 @@ export function ReviewCard(props: {
           class="review-btn review-btn-approve"
           type="button"
           disabled={props.disabled}
-          onClick={props.onApprove}
+          onClick={() => props.onApprove()}
         >
           Approve
         </button>

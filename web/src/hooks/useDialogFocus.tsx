@@ -5,8 +5,7 @@
 import { createEffect, onCleanup, type Accessor } from "solid-js";
 import { useSuspendedSubtree } from "~/hooks/suspendedSubtree";
 
-const FOCUSABLE =
-  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 export function useDialogFocus(
   rootRef: () => HTMLElement | undefined,
@@ -35,12 +34,13 @@ export function useDialogFocus(
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
-      const focusables = [
-        ...root.querySelectorAll<HTMLElement>(FOCUSABLE),
-      ].filter((el) => !el.hasAttribute("disabled"));
-      if (focusables.length === 0) return;
-      const first = focusables[0]!;
-      const last = focusables[focusables.length - 1]!;
+      const focusables = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (el) => !el.hasAttribute("disabled"),
+      );
+      const first = focusables.at(0);
+      const last = focusables.at(-1);
+      // Both are undefined together, exactly when the list is empty.
+      if (!first || !last) return;
       const current = document.activeElement;
       if (e.shiftKey) {
         if (current === first || !root.contains(current)) {

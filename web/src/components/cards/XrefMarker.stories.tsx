@@ -63,9 +63,7 @@ const Line: Component<LineProps> = (props) => (
       {props.num}
     </span>
     <span>{props.text}</span>
-    <span style={{ "text-align": "left", "font-family": "var(--r-sans)" }}>
-      {props.marker}
-    </span>
+    <span style={{ "text-align": "left", "font-family": "var(--r-sans)" }}>{props.marker}</span>
   </div>
 );
 
@@ -131,14 +129,30 @@ interface DensityRow {
 }
 const DENSITY: DensityRow[] = [
   { num: "x.6.4", text: "Et quid est hoc? Interrogavi terram et dixit: «Non sum ego». Et quae-" },
-  { num: "x.6.5", text: "cumque in eadem sunt, idem confessa sunt. Interrogavi mare et abys-", count: 1 },
+  {
+    num: "x.6.5",
+    text: "cumque in eadem sunt, idem confessa sunt. Interrogavi mare et abys-",
+    count: 1,
+  },
   { num: "x.6.6", text: "sos et reptilia animarum vivarum, et responderunt: «Non sumus deus" },
-  { num: "x.6.7", text: "tuus; quaere super nos». Interrogavi auras flabiles, et inquit universus", count: 2 },
+  {
+    num: "x.6.7",
+    text: "tuus; quaere super nos». Interrogavi auras flabiles, et inquit universus",
+    count: 2,
+  },
   { num: "x.6.8", text: "aer cum incolis suis: «Fallitur Anaximenes; non sum ego deus»." },
   { num: "x.6.9", text: "Interrogavi caelum, solem, lunam, stellas: «Neque nos sumus deus," },
-  { num: "x.6.10", text: "quem quaeris», inquiunt. Et dixi omnibus his, quae circumstant fores", count: 3 },
+  {
+    num: "x.6.10",
+    text: "quem quaeris», inquiunt. Et dixi omnibus his, quae circumstant fores",
+    count: 3,
+  },
   { num: "x.6.11", text: "carnis meae: «Dicite mihi de deo meo, quod vos non estis: dicite mihi" },
-  { num: "x.6.12", text: "de illo aliquid». Et exclamaverunt voce magna: «Ipse fecit nos». In-", count: 1 },
+  {
+    num: "x.6.12",
+    text: "de illo aliquid». Et exclamaverunt voce magna: «Ipse fecit nos». In-",
+    count: 1,
+  },
   { num: "x.6.13", text: "terrogatio mea, intentio mea, et responsio eorum, species eorum." },
 ];
 
@@ -161,12 +175,8 @@ const StateHarness: Component<StateHarnessProps> = (props) => {
   // overrides on the marker so the visual still reads correctly in a
   // story. The real button's :hover and :focus-visible rules in
   // reader.css drive the live component.
-  const markerClassExtra =
-    props.state === "hover"
-      ? " is-hover"
-      : props.state === "focus"
-        ? " is-focus"
-        : "";
+  const markerClassExtra = () =>
+    props.state === "hover" ? " is-hover" : props.state === "focus" ? " is-focus" : "";
   return (
     <Stage tag={props.state}>
       <Line num={LINES_LATIN[0].num} text={LINES_LATIN[0].text} />
@@ -179,13 +189,9 @@ const StateHarness: Component<StateHarnessProps> = (props) => {
           // visual-only states. Wrapper carries the same className the
           // real button picks up from CSS pseudo-classes.
           props.state === "default" || props.state === "active" ? (
-            <XrefMarker
-              count={1}
-              active={props.state === "active"}
-              onOpen={noop}
-            />
+            <XrefMarker count={1} active={props.state === "active"} onOpen={noop} />
           ) : (
-            <PseudoStateMarker className={markerClassExtra} />
+            <PseudoStateMarker extraClass={markerClassExtra()} />
           )
         }
       />
@@ -198,10 +204,10 @@ const StateHarness: Component<StateHarnessProps> = (props) => {
 // component picks these up via CSS pseudo-classes; here we paint the
 // equivalent state via an explicit className so the story doesn't
 // require simulating a real hover or keyboard-focus interaction.
-const PseudoStateMarker: Component<{ className: string }> = (props) => (
+const PseudoStateMarker: Component<{ extraClass: string }> = (props) => (
   <button
     type="button"
-    class={`xref-pin${props.className}`}
+    class={`xref-pin${props.extraClass}`}
     aria-label="Cross-reference on this passage"
   >
     ▸
@@ -223,11 +229,7 @@ const DensityHarness: Component = () => (
         <Line
           num={row.num}
           text={row.text}
-          marker={
-            row.count ? (
-              <XrefMarker count={row.count} onOpen={noop} />
-            ) : undefined
-          }
+          marker={row.count ? <XrefMarker count={row.count} onOpen={noop} /> : undefined}
         />
       )}
     </For>

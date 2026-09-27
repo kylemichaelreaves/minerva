@@ -24,7 +24,7 @@ export function ScopePill(props: {
         )}
       </For>
       <Show when={props.count !== undefined}>
-        <span class="ct">{props.count!.toLocaleString()} occurrences</span>
+        <span class="ct">{Number(props.count).toLocaleString()} occurrences</span>
       </Show>
     </span>
   );

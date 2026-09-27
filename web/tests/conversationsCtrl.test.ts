@@ -3,14 +3,11 @@ import { createRoot } from "solid-js";
 import { ApiError } from "~/api/client";
 import { useConversations } from "~/features/conversations/conversationsCtrl";
 import type { askMinerva } from "~/features/conversations/conversationsSend";
-import type {
-  listConversations,
-  getConversation,
-  deleteConversation,
-} from "~/api/chatApi";
+import type { listConversations, getConversation, deleteConversation } from "~/api/chatApi";
 import type { Conversation, ConversationDetail } from "~/utils/types";
 import { _resetToastsForTesting, useToasts } from "~/utils/apiError";
 import { createTestRouting, flush } from "./helpers/testRouting";
+import { must } from "./helpers/must";
 
 const askMinervaMock = vi.fn<typeof askMinerva>();
 const listConversationsMock = vi.fn<typeof listConversations>();
@@ -27,8 +24,7 @@ vi.mock("~/api/chatApi", async (importOriginal) => {
     ...actual,
     listConversations: (...args: Parameters<typeof listConversations>) =>
       listConversationsMock(...args),
-    getConversation: (...args: Parameters<typeof getConversation>) =>
-      getConversationMock(...args),
+    getConversation: (...args: Parameters<typeof getConversation>) => getConversationMock(...args),
     deleteConversation: (...args: Parameters<typeof deleteConversation>) =>
       deleteConversationMock(...args),
   };
@@ -76,7 +72,7 @@ describe("useConversations()", () => {
     deleteConversationMock.mockReset();
     listConversationsMock.mockResolvedValue(LIST);
     getConversationMock.mockResolvedValue({
-      ...LIST[0]!,
+      ...must(LIST[0]),
       messages: [],
     } satisfies ConversationDetail);
     deleteConversationMock.mockResolvedValue(undefined);
@@ -107,7 +103,7 @@ describe("useConversations()", () => {
 
   it("hydrates messages when navigating to a conversation", async () => {
     getConversationMock.mockResolvedValue({
-      ...LIST[0]!,
+      ...must(LIST[0]),
       messages: [
         {
           role: "user",
@@ -126,7 +122,7 @@ describe("useConversations()", () => {
       expect(api.messages()).toHaveLength(1);
     });
     expect(api.activeId()).toBe("abc");
-    const first = api.messages()[0]!;
+    const first = must(api.messages()[0]);
     if (first.role === "user") {
       expect(first.text).toBe("Question?");
     }
@@ -142,9 +138,7 @@ describe("useConversations()", () => {
     await vi.waitFor(() => {
       expect(r.navigateSpy).toHaveBeenCalledWith({ kind: "landing" });
     });
-    expect(useToasts()().some((t) => t.message.includes("no longer available"))).toBe(
-      true,
-    );
+    expect(useToasts()().some((t) => t.message.includes("no longer available"))).toBe(true);
     expect(api.messages()).toHaveLength(0);
     dispose();
   });
@@ -250,9 +244,7 @@ describe("useConversations()", () => {
     const { api, dispose } = runConversations(routing);
     await flush();
     api.sendMessage("follow up");
-    expect(api.messages().some((m) => m.role === "user" && m.text === "follow up")).toBe(
-      true,
-    );
+    expect(api.messages().some((m) => m.role === "user" && m.text === "follow up")).toBe(true);
     expect(askMinervaMock).toHaveBeenCalledWith("follow up", expect.any(Object));
     dispose();
   });
@@ -273,7 +265,7 @@ describe("useConversations()", () => {
     const routing = createTestRouting({ kind: "landing" });
     const { api, dispose } = runConversations(routing);
     await waitForHistory(api);
-    const item = api.history().find((h) => h.id === "abc")!;
+    const item = must(api.history().find((h) => h.id === "abc"));
     api.requestDelete(item);
     api.confirmDelete();
     await vi.waitFor(() => {
@@ -288,7 +280,7 @@ describe("useConversations()", () => {
     deleteConversationMock.mockRejectedValue(new Error("fail"));
     const { api, dispose } = runConversations();
     await waitForHistory(api);
-    const item = api.history().find((h) => h.id === "abc")!;
+    const item = must(api.history().find((h) => h.id === "abc"));
     api.requestDelete(item);
     api.confirmDelete();
     await vi.waitFor(() => {

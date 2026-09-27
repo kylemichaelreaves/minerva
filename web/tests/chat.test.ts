@@ -8,11 +8,8 @@ import {
   listConversations,
   parseSseBuffer,
 } from "~/api/chatApi";
-import {
-  getWorkRange,
-  listWorks,
-  translate,
-} from "~/api/readerApi";
+import { getWorkRange, listWorks, translate } from "~/api/readerApi";
+import { must } from "./helpers/must";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -36,7 +33,7 @@ describe("parseSseBuffer()", () => {
     const { events, rest } = parseSseBuffer(raw);
     expect(rest).toBe("");
     expect(events.map((e) => e.name)).toEqual(["meta", "delta", "done"]);
-    expect((JSON.parse(events[1]!.data) as { text: string }).text).toBe("Hi");
+    expect((JSON.parse(must(events[1]).data) as { text: string }).text).toBe("Hi");
   });
 
   it("keeps an incomplete trailing block in rest", () => {
@@ -52,7 +49,7 @@ describe("parseSseBuffer()", () => {
     const { events, rest } = parseSseBuffer(raw);
     expect(rest).toBe("");
     expect(events.map((e) => e.name)).toEqual(["meta", "delta"]);
-    expect((JSON.parse(events[1]!.data) as { text: string }).text).toBe("Hi");
+    expect((JSON.parse(must(events[1]).data) as { text: string }).text).toBe("Hi");
   });
 });
 
@@ -92,13 +89,16 @@ describe("chatStream()", () => {
     const done = vi.fn();
     const error = vi.fn();
 
-    await chatStream({ query: "q" }, { onMeta: meta, onDelta: delta, onDone: done, onError: error });
+    await chatStream(
+      { query: "q" },
+      { onMeta: meta, onDelta: delta, onDone: done, onError: error },
+    );
 
     expect(meta).toHaveBeenCalledTimes(1);
     expect(delta).toHaveBeenCalledTimes(2);
     expect(done).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
-    const doneTurn = done.mock.calls[0]![0] as {
+    const doneTurn = must(done.mock.calls[0])[0] as {
       paragraphs: string[];
       role: string;
     };
@@ -111,24 +111,30 @@ describe("chatStream()", () => {
       errorResponse(502, "Bad Gateway", { error: "LLM backend error" }),
     );
     const error = vi.fn();
-    await chatStream({ query: "q" }, {
-      onMeta: () => undefined,
-      onDelta: () => undefined,
-      onDone: () => undefined,
-      onError: error,
-    });
+    await chatStream(
+      { query: "q" },
+      {
+        onMeta: () => undefined,
+        onDelta: () => undefined,
+        onDone: () => undefined,
+        onError: error,
+      },
+    );
     expect(error).toHaveBeenCalledWith("LLM backend error");
   });
 
   it("rethrows AbortError", async () => {
     fetchMock.mockRejectedValueOnce(Object.assign(new DOMException("aborted", "AbortError")));
     await expect(
-      chatStream({ query: "q" }, {
-        onMeta: () => undefined,
-        onDelta: () => undefined,
-        onDone: () => undefined,
-        onError: () => undefined,
-      }),
+      chatStream(
+        { query: "q" },
+        {
+          onMeta: () => undefined,
+          onDelta: () => undefined,
+          onDone: () => undefined,
+          onError: () => undefined,
+        },
+      ),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 
@@ -141,7 +147,10 @@ describe("chatStream()", () => {
   const doneSse = 'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
 
   function sentBody(): Record<string, unknown> {
-    return JSON.parse(fetchMock.mock.calls[0]![1]!.body as string) as Record<string, unknown>;
+    return JSON.parse(must(must(fetchMock.mock.calls[0])[1]).body as string) as Record<
+      string,
+      unknown
+    >;
   }
 
   it("sends work_id when the turn is work-scoped", async () => {
@@ -162,7 +171,7 @@ describe("chatStream()", () => {
     paragraphs: string[];
     citations: { n: number; src: string }[];
   } {
-    return done.mock.calls[0]![0] as never;
+    return must(done.mock.calls[0])[0] as never;
   }
 
   it("accepts any single-character dominant verbatim; falls back to P on garbage", async () => {
@@ -225,12 +234,9 @@ describe("chatStream()", () => {
     const onMeta = vi.fn();
     const done = vi.fn();
     const error = vi.fn();
-    await chatStream(
-      { query: "q" },
-      { ...noopHandlers, onMeta, onDone: done, onError: error },
-    );
+    await chatStream({ query: "q" }, { ...noopHandlers, onMeta, onDone: done, onError: error });
     expect(error).not.toHaveBeenCalled();
-    expect(onMeta.mock.calls[0]![0]).toMatchObject({ citations: [], abstained: false });
+    expect(must(onMeta.mock.calls[0])[0]).toMatchObject({ citations: [], abstained: false });
     expect(doneTurnOf(done).citations).toEqual([]);
   });
 
@@ -259,7 +265,7 @@ describe("chatStream()", () => {
     const error = vi.fn();
     await chatStream({ query: "q" }, { ...noopHandlers, onError: error });
     expect(error).toHaveBeenCalledTimes(1);
-    const msg = error.mock.calls[0]![0] as string;
+    const msg = must(error.mock.calls[0])[0] as string;
     expect(msg).toMatch(/Network error: Failed to fetch/);
     expect(msg).not.toMatch(/:8000/);
   });
@@ -297,12 +303,11 @@ describe("buildChatBody()", () => {
   });
 
   it("includes `pinned_chunk_ids` only when non-empty", () => {
-    expect(
-      buildChatBody({ query: "q", pinnedChunkIds: ["abc", "def"] }).pinned_chunk_ids,
-    ).toEqual(["abc", "def"]);
-    expect("pinned_chunk_ids" in buildChatBody({ query: "q", pinnedChunkIds: [] })).toBe(
-      false,
-    );
+    expect(buildChatBody({ query: "q", pinnedChunkIds: ["abc", "def"] }).pinned_chunk_ids).toEqual([
+      "abc",
+      "def",
+    ]);
+    expect("pinned_chunk_ids" in buildChatBody({ query: "q", pinnedChunkIds: [] })).toBe(false);
   });
 
   it("forwards conversationId as `conversation_id` and omits when absent", () => {
@@ -378,7 +383,7 @@ describe("chat request plumbing (via chatStream)", () => {
     fetchMock.mockResolvedValueOnce(sseResponse([doneSse]));
     const ac = new AbortController();
     await chatStream({ query: "q", signal: ac.signal }, noopHandlers);
-    const init = fetchMock.mock.calls[0]![1]!;
+    const init = must(must(fetchMock.mock.calls[0])[1]);
     expect(init.signal).toBe(ac.signal);
   });
 
@@ -389,7 +394,7 @@ describe("chat request plumbing (via chatStream)", () => {
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
     const done = vi.fn();
     await chatStream({ query: "What is the divided line?" }, { ...noopHandlers, onDone: done });
-    const turn = done.mock.calls[0]![0] as { conversation_id?: string; title?: string };
+    const turn = must(done.mock.calls[0])[0] as { conversation_id?: string; title?: string };
     expect(turn.conversation_id).toBe("srv-id-1");
     expect(turn.title).toBe("On the divided line");
   });
@@ -423,7 +428,7 @@ describe("listConversations()", () => {
     const out = await listConversations();
     expect(fetchMock).toHaveBeenCalledWith("/api/conversations", { signal: undefined });
     expect(out).toHaveLength(2);
-    expect(out[0]!.id).toBe("a");
+    expect(must(out[0]).id).toBe("a");
   });
 
   it("returns an empty array when the server omits the field", async () => {
@@ -556,7 +561,7 @@ describe("listWorks()", () => {
     const out = await listWorks();
     expect(fetchMock).toHaveBeenCalledWith("/api/works", { signal: undefined });
     expect(out).toHaveLength(1);
-    expect(out[0]!.work).toBe("Republic");
+    expect(must(out[0]).work).toBe("Republic");
   });
 
   it("returns [] when the server omits works", async () => {
@@ -683,9 +688,7 @@ describe("translate()", () => {
       status: 400,
       statusText: "Bad Request",
       text: () =>
-        Promise.resolve(
-          JSON.stringify({ error: 'target_lang must be one of ["de", "en", "fr"]' }),
-        ),
+        Promise.resolve(JSON.stringify({ error: 'target_lang must be one of ["de", "en", "fr"]' })),
     } as unknown as Response);
     await expect(translate("x", "eng")).rejects.toThrow(/target_lang must be one of/);
   });
@@ -711,7 +714,7 @@ describe("translate()", () => {
     );
     const ac = new AbortController();
     await translate("x", "eng", ac.signal);
-    const init = fetchMock.mock.calls[0]![1]!;
+    const init = must(must(fetchMock.mock.calls[0])[1]);
     expect(init.signal).toBe(ac.signal);
   });
 });

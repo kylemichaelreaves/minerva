@@ -12,19 +12,15 @@ interface Props {
 export function MobileFooterLinks(props: Props) {
   return (
     <div class="nw-foot">
-      <button class="nw-foot-link" type="button" onClick={props.onOpenArc}>
+      <button class="nw-foot-link" type="button" onClick={() => props.onOpenArc()}>
         View as timeline <span class="nw-foot-arr">→</span>
         <span class="nw-foot-desc">chronological arc</span>
       </button>
-      <button
-        class="nw-foot-link"
-        type="button"
-        onClick={props.onOpenCoverage}
-      >
+      <button class="nw-foot-link" type="button" onClick={() => props.onOpenCoverage()}>
         Verification coverage <span class="nw-foot-arr">→</span>
         <span class="nw-foot-desc">per-author stacked bars</span>
       </button>
-      <button class="nw-foot-link" type="button" onClick={props.onOpenMore}>
+      <button class="nw-foot-link" type="button" onClick={() => props.onOpenMore()}>
         More views <span class="nw-foot-arr">→</span>
         <span class="nw-foot-desc">scripture heatmap, …</span>
       </button>

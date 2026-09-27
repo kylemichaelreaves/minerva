@@ -16,6 +16,7 @@ import { render, fireEvent } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 import PopoverCard from "~/components/primitives/PopoverCard";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
+import { must } from "./helpers/must";
 
 const ANCHOR = new DOMRect(100, 200, 20, 16);
 
@@ -68,7 +69,7 @@ describe("PopoverCard dismissal", () => {
       </PopoverCard>
     ));
 
-    fireEvent.mouseDown(container.querySelector(".body")!);
+    fireEvent.mouseDown(must(container.querySelector(".body")));
 
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -96,7 +97,7 @@ describe("PopoverCard dismissal", () => {
       </PopoverCard>
     ));
 
-    fireEvent.mouseDown(container.querySelector(".test-anchor")!);
+    fireEvent.mouseDown(must(container.querySelector(".test-anchor")));
 
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -121,7 +122,7 @@ describe("PopoverCard dismissal", () => {
       </PopoverCard>
     ));
 
-    fireEvent.click(container.querySelector(".popover-close")!);
+    fireEvent.click(must(container.querySelector(".popover-close")));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -141,9 +142,7 @@ describe("PopoverCard dismissal", () => {
       </PopoverCard>
     ));
 
-    expect(
-      container.querySelector(".popover-close")?.getAttribute("aria-label"),
-    ).toBe("Close");
+    expect(container.querySelector(".popover-close")?.getAttribute("aria-label")).toBe("Close");
   });
 
   it("registers no outside-click listener while its subtree is suspended", () => {

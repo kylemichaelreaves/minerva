@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
-import {
-  FilterBar,
-  FreqRange,
-  SEARCH_DEBOUNCE_MS,
-} from "~/Concordance/components/FilterBar";
+import { FilterBar, FreqRange, SEARCH_DEBOUNCE_MS } from "~/Concordance/components/FilterBar";
+import { must } from "./helpers/must";
 
 /** FreqRange stacks two native range inputs over a shared track.
  *  These tests exercise the clamping + undefined-edge logic, not the
@@ -15,37 +12,27 @@ describe("<FreqRange />", () => {
       <FreqRange min={100} max={5000} ceil={10000} onChange={vi.fn()} />
     ));
     const edges = container.querySelectorAll(".fbar-range .ed");
-    expect(edges[0]!.textContent).toBe("100");
-    expect(edges[1]!.textContent).toBe("5,000");
+    expect(must(edges[0]).textContent).toBe("100");
+    expect(must(edges[1]).textContent).toBe("5,000");
   });
 
   it("falls back to 1 (lo) and ceil (hi) when bounds are undefined", () => {
     const { container } = render(() => (
-      <FreqRange
-        min={undefined}
-        max={undefined}
-        ceil={10000}
-        onChange={vi.fn()}
-      />
+      <FreqRange min={undefined} max={undefined} ceil={10000} onChange={vi.fn()} />
     ));
     const edges = container.querySelectorAll(".fbar-range .ed");
-    expect(edges[0]!.textContent).toBe("1");
-    expect(edges[1]!.textContent).toBe("10,000");
+    expect(must(edges[0]).textContent).toBe("1");
+    expect(must(edges[1]).textContent).toBe("10,000");
   });
 
   it("releasing the upper knob below the ceiling reports the new max", () => {
     const onChange = vi.fn();
     const { container } = render(() => (
-      <FreqRange
-        min={undefined}
-        max={undefined}
-        ceil={10000}
-        onChange={onChange}
-      />
+      <FreqRange min={undefined} max={undefined} ceil={10000} onChange={onChange} />
     ));
     const thumbs = container.querySelectorAll(".fbar-range .thumb");
     // Two thumbs: index 0 = lower knob, index 1 = upper knob.
-    fireEvent.change(thumbs[1]!, { target: { value: "5000" } });
+    fireEvent.change(must(thumbs[1]), { target: { value: "5000" } });
     expect(onChange).toHaveBeenCalledWith(undefined, 5000);
   });
 
@@ -57,13 +44,13 @@ describe("<FreqRange />", () => {
     const thumbs = container.querySelectorAll(".fbar-range .thumb");
     // Mid-drag `input` events give live visual feedback without a
     // commit (each commit = URL patch + refetch).
-    fireEvent.input(thumbs[1]!, { target: { value: "7000" } });
-    fireEvent.input(thumbs[1]!, { target: { value: "5000" } });
+    fireEvent.input(must(thumbs[1]), { target: { value: "7000" } });
+    fireEvent.input(must(thumbs[1]), { target: { value: "5000" } });
     expect(onChange).not.toHaveBeenCalled();
     const edges = container.querySelectorAll(".fbar-range .ed");
-    expect(edges[1]!.textContent).toBe("5,000");
+    expect(must(edges[1]).textContent).toBe("5,000");
     // Release commits exactly once.
-    fireEvent.change(thumbs[1]!, { target: { value: "5000" } });
+    fireEvent.change(must(thumbs[1]), { target: { value: "5000" } });
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith(undefined, 5000);
   });
@@ -74,7 +61,7 @@ describe("<FreqRange />", () => {
       <FreqRange min={100} max={5000} ceil={10000} onChange={onChange} />
     ));
     const thumbs = container.querySelectorAll(".fbar-range .thumb");
-    fireEvent.change(thumbs[1]!, { target: { value: "10000" } });
+    fireEvent.change(must(thumbs[1]), { target: { value: "10000" } });
     expect(onChange).toHaveBeenCalledWith(100, undefined);
   });
 
@@ -84,7 +71,7 @@ describe("<FreqRange />", () => {
       <FreqRange min={100} max={5000} ceil={10000} onChange={onChange} />
     ));
     const thumbs = container.querySelectorAll(".fbar-range .thumb");
-    fireEvent.change(thumbs[0]!, { target: { value: "1" } });
+    fireEvent.change(must(thumbs[0]), { target: { value: "1" } });
     expect(onChange).toHaveBeenCalledWith(undefined, 5000);
   });
 
@@ -97,7 +84,7 @@ describe("<FreqRange />", () => {
     // User releases the lower knob at 800 — past the upper at 500. The
     // emitted value clamps to the upper bound so the slider can't
     // invert.
-    fireEvent.change(thumbs[0]!, { target: { value: "800" } });
+    fireEvent.change(must(thumbs[0]), { target: { value: "800" } });
     expect(onChange).toHaveBeenCalledWith(500, 500);
   });
 
@@ -107,7 +94,7 @@ describe("<FreqRange />", () => {
       <FreqRange min={500} max={2000} ceil={10000} onChange={onChange} />
     ));
     const thumbs = container.querySelectorAll(".fbar-range .thumb");
-    fireEvent.change(thumbs[1]!, { target: { value: "100" } });
+    fireEvent.change(must(thumbs[1]), { target: { value: "100" } });
     expect(onChange).toHaveBeenCalledWith(500, 500);
   });
 });
@@ -144,7 +131,7 @@ describe("<FilterBar /> search debounce", () => {
   }
 
   function searchInput(container: HTMLElement): HTMLInputElement {
-    return container.querySelector<HTMLInputElement>(".fbar-search input")!;
+    return must(container.querySelector<HTMLInputElement>(".fbar-search input"));
   }
 
   it("keeps the input live but commits only after the debounce window", () => {

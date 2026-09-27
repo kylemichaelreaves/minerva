@@ -23,7 +23,7 @@ function WordToken(props: {
   class: string;
   offset: number;
   title?: string;
-  onClick?: (e: MouseEvent & { currentTarget: HTMLSpanElement }) => void;
+  onClick: (e: MouseEvent & { currentTarget: HTMLSpanElement }) => void;
   dataTermId?: number;
   children: JSX.Element;
 }) {
@@ -33,7 +33,9 @@ function WordToken(props: {
       data-offset={props.offset}
       data-term-id={props.dataTermId}
       title={props.title}
-      onClick={props.onClick}
+      onClick={(e) => {
+        props.onClick(e);
+      }}
     >
       {props.children}
     </span>

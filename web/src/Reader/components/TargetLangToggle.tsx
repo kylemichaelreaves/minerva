@@ -1,4 +1,4 @@
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import type { TargetLang } from "~/utils/types";
 
 export const TARGET_LANGS: TargetLang[] = ["eng", "fra", "deu"];
@@ -30,8 +30,11 @@ export function TargetLangToggle(props: {
 }) {
   const isDisabled = (t: TargetLang) => t === props.disabledLang;
 
-  if (props.variant === "rail") {
-    return (
+  // One return, switching on `variant` reactively (solid/components-return-once).
+  return (
+    <Show
+      when={props.variant !== "rail"}
+      fallback={
       <div class="rail-langrow">
         <span class="label">Target</span>
         <span class="pill">
@@ -56,18 +59,16 @@ export function TargetLangToggle(props: {
           </For>
         </span>
       </div>
-    );
-  }
+      }
+    >
+      {/* The chrome variant, with a visible "Translate" label.
 
-  // The chrome variant, with a visible "Translate" label.
-  //
-  // Without it this control sat immediately after the crumb naming the source
-  // language (`454 chunks · lat`), as a segmented control with one member
-  // active — the idiom for "current choice among alternatives". It was read as
-  // an edition switcher, and pressing it changes no language: it opens the
-  // translate rail. The only statement of intent was the non-visual
-  // `aria-label`. See #257.
-  return (
+          Without it this control sat immediately after the crumb naming the
+          source language (`454 chunks · lat`), as a segmented control with one
+          member active — the idiom for "current choice among alternatives". It
+          was read as an edition switcher, and pressing it changes no language:
+          it opens the translate rail. The only statement of intent was the
+          non-visual `aria-label`. See #257. */}
     <span class="lang-group">
       <span class="lang-label">Translate</span>
       <span class="lang" role="tablist" aria-label="Translation language">
@@ -93,6 +94,7 @@ export function TargetLangToggle(props: {
         </For>
       </span>
     </span>
+    </Show>
   );
 }
 
