@@ -6,8 +6,8 @@ a lexicon, cite regex, and ambiguous-bare set.
 """
 
 from ._base import BaseScriptureCiteRule
-from .de import ScriptureCiteRuleDe
-from .en import ScriptureCiteRuleEn
+from .de import ScriptureCiteRuleDe, ScriptureCiteRuleDeRoman
+from .en import ScriptureCiteRuleEn, ScriptureCiteRuleEnRoman
 from .fr import ScriptureCiteRuleFr, ScriptureCiteRuleFrRoman, default_scripture_rules
 from .lat import (
     FormulaicQuoteRule,
@@ -23,7 +23,9 @@ __all__ = [
     "FormulaicQuoteRule",
     "ScriptureCiteRule",
     "ScriptureCiteRuleDe",
+    "ScriptureCiteRuleDeRoman",
     "ScriptureCiteRuleEn",
+    "ScriptureCiteRuleEnRoman",
     "ScriptureCiteRuleFr",
     "ScriptureCiteRuleFrRoman",
     "ScriptureCiteRuleLatRoman",

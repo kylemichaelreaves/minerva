@@ -25,13 +25,16 @@ ingest.
 from __future__ import annotations
 
 from . import AuthorMentionRule, StrongMentionRule, _figures
-from .scripture_cite import ScriptureCiteRuleEn
+from .scripture_cite import ScriptureCiteRuleEn, ScriptureCiteRuleEnRoman
 
 RULES = (
-    # ── English scripture cites → KJV. Reasonableness of Christianity
-    # is the densest biblical engagement; the Essay scatters cites
-    # throughout the chapters on revelation and faith.
+    # ── English scripture cites → KJV. The corpus holds the Essay and
+    # the Second Treatise (not Reasonableness of Christianity, Locke's
+    # densest biblical text). Both set chapters in Roman ("Gen. xiii.
+    # 5."), which only the sibling rule reads (#703); the Arabic rule
+    # is kept for any later-ingested edition that uses Arabic.
     ScriptureCiteRuleEn(name="locke_scripture_cite_en"),
+    ScriptureCiteRuleEnRoman(name="locke_scripture_cite_en_roman"),
     # Descartes — Locke's central epistemological target in the
     # Essay. The innate-ideas critique in Book I is essentially a
     # reply to Cartesian rationalism.
