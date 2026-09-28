@@ -54,6 +54,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import llm as llm_mod
+from .constants import NOT_HUMAN_CURATED
 
 # Reference-type vocabulary the LLM is allowed to return. Mirrors the
 # CHECK constraint on cross_references.reference_type. Anything outside
@@ -370,6 +371,7 @@ def _eligible_rows_sql(
             "xr.curator_status = 'auto'",
             "xr.source_method NOT LIKE '%llm%'",
         ]
+    clauses.append(NOT_HUMAN_CURATED)
     params: list[Any] = []
     if skip_strong:
         clauses.append("xr.source_method != 'rule_strong'")
@@ -498,7 +500,9 @@ def _apply_verdicts(
                 "UPDATE cross_references "
                 "SET curator_status = 'rejected', "
                 "    source_method = 'rule+embed+llm', "
-                "    curator_note = ? "
+                "    curator_note = ?, "
+                "    curated_by = 'llm', "
+                "    curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
                 "WHERE id = ?",
                 (llm_notes, row["id"]),
             )
@@ -517,7 +521,9 @@ def _apply_verdicts(
             "    confidence = ?, "
             "    reference_type = ?, "
             "    source_method = 'rule+embed+llm', "
-            "    curator_note = ? "
+            "    curator_note = ?, "
+            "    curated_by = 'llm', "
+            "    curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
             "WHERE id = ?",
             (new_conf, llm_type, llm_notes, row["id"]),
         )
