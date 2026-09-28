@@ -222,3 +222,10 @@ def test_refs_build_accepts_unsafe_base_url_flag():
         ["refs", "build", "--strategy", "llm-verify", "--unsafe-llm-base-url-host"]
     )
     assert args.unsafe_llm_base_url_host is True
+
+
+def test_refs_build_rejudge_blind_flag_defaults_off(parser):
+    args = parser.parse_args(["refs", "build", "--strategy", "llm-verify"])
+    assert args.rejudge_blind is False
+    args = parser.parse_args(["refs", "build", "--strategy", "llm-verify", "--rejudge-blind"])
+    assert args.rejudge_blind is True

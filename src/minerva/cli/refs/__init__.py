@@ -231,6 +231,16 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
             "--max-llm-calls budget was exhausted."
         ),
     )
+    pb.add_argument(
+        "--rejudge-blind",
+        action="store_true",
+        help=(
+            "[--strategy llm-verify only] Instead of unjudged rows, re-judge "
+            "the rows llm-verify rejected before #713 without the citation in "
+            "the excerpt it was shown. Always resumes from its own checkpoint, "
+            "so a finished re-judge is a no-op. Snapshot the DB first (#714)."
+        ),
+    )
     # ── embed-verify flags (Phase 3 strategy) ──
     pb.add_argument(
         "--target-author",

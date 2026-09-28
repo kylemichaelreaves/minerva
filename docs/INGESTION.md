@@ -562,6 +562,15 @@ verdict to `source_method='rule+embed+llm'` for kept rows,
 Cost: roughly $0.01–0.05 per LLM call on Sonnet → $5–30 for a
 typical post-ingest run of a single author. Cap via `--max-llm-calls`.
 
+Before #713 the judge saw only the first 400 characters of the source
+chunk, so a cite past that point was judged on its `source_form` alone
+and usually rejected as "not visible in the source excerpt". Those
+rows are excluded from every normal run. `--rejudge-blind` selects
+exactly them — rejected, span-bearing, cite outside the old head — and
+re-judges them with the windowed excerpt; a row it keeps goes back to
+`curator_status='auto'`. It resumes from its own checkpoint, so running
+it twice costs nothing the second time. Snapshot first (#714).
+
 **Verification coverage audit** — periodically check which authors
 have escaped verification:
 

@@ -319,6 +319,7 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
         verbose=args.verbose,
         sleep_between_calls=args.sleep_between_calls,
         resume=getattr(args, "resume", False),
+        rejudge_blind=getattr(args, "rejudge_blind", False),
     )
     print(
         f"\nllm-verify done: "

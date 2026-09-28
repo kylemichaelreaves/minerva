@@ -21,8 +21,9 @@ The LLM response is JSON-only:
 `references=true`   → bump confidence to max(prev, llm_conf),
                       adopt the LLM's reference_type, set
                       ``source_method='rule+embed+llm'``,
-                      keep ``curator_status='auto'`` (curator still
-                      promotes to 'approved' via the review walker).
+                      set ``curator_status='auto'`` (curator still
+                      promotes to 'approved' via the review walker; a
+                      re-judged row arrives 'rejected', #714).
 
 Rows are batched (default 10 per call) to amortize the system-prompt
 overhead. The LLM returns one JSON array per call; we match each
@@ -341,6 +342,7 @@ def _eligible_rows_sql(
     source_work: str | None = None,
     target_author: str | None = None,
     resume_from_id: int | None = None,
+    rejudge_blind: bool = False,
 ) -> tuple[str, list[Any]]:
     """Build the SELECT that pulls Phase-4-eligible rows. The default
     matches the user-confirmed scope: skip the boilerplate-tied
@@ -350,12 +352,24 @@ def _eligible_rows_sql(
     ``resume_from_id`` shifts the lower bound on ``xr.id`` for the
     Phase 6b ``--resume`` checkpoint: skip every row already
     processed by a prior interrupted run.
+
+    ``rejudge_blind`` swaps the unjudged-rows filter for the rows the
+    judge already rejected that carry a span — the superset
+    :func:`_judged_blind` narrows to the ones it rejected without seeing
+    the cite (#714).
     """
 
-    clauses = [
-        "xr.curator_status = 'auto'",
-        "xr.source_method NOT LIKE '%llm%'",
-    ]
+    if rejudge_blind:
+        clauses = [
+            "xr.curator_status = 'rejected'",
+            "xr.source_method = 'rule+embed+llm'",
+            "xr.source_span_start IS NOT NULL",
+        ]
+    else:
+        clauses = [
+            "xr.curator_status = 'auto'",
+            "xr.source_method NOT LIKE '%llm%'",
+        ]
     params: list[Any] = []
     if skip_strong:
         clauses.append("xr.source_method != 'rule_strong'")
@@ -417,6 +431,21 @@ def _eligible_rows_sql(
 
 
 _LLM_VERIFY_CHECKPOINT_KEY = "refs.llm_verify.last_row_id"
+# The re-judge keeps its own checkpoint and always resumes from it. A row
+# it rejects again is still blind by the old head, so without one every
+# re-run would pay for it again; sharing the normal key would make a
+# later ``--resume`` skip unjudged rows below it.
+_REJUDGE_CHECKPOINT_KEY = "refs.llm_verify.rejudge_blind.last_row_id"
+
+# How much of the chunk the judge saw before #713: the head only.
+_PRE_713_EXCERPT_CHARS = 400
+
+
+def _judged_blind(row: dict[str, Any]) -> bool:
+    """True when the pre-#713 head excerpt did not contain the cite."""
+    text = row["source_text"] or ""
+    cite = text[row["source_span_start"] : row["source_span_end"]]
+    return cite not in _truncate(text, _PRE_713_EXCERPT_CHARS)
 
 
 def _apply_verdicts(
@@ -476,13 +505,16 @@ def _apply_verdicts(
             n_rejected += 1
             continue
 
-        # Promote: keep curator_status='auto' (so the curator still
-        # signs off via the review walker), but mark provenance + bump
-        # confidence + adopt the LLM's type if it differs.
+        # Promote: curator_status='auto' (so the curator still signs
+        # off via the review walker), but mark provenance + bump
+        # confidence + adopt the LLM's type if it differs. The status is
+        # written, not left alone, because a re-judged row (#714) arrives
+        # 'rejected'.
         new_conf = max(row["confidence"], llm_conf_f or row["confidence"])
         conn.execute(
             "UPDATE cross_references "
-            "SET confidence = ?, "
+            "SET curator_status = 'auto', "
+            "    confidence = ?, "
             "    reference_type = ?, "
             "    source_method = 'rule+embed+llm', "
             "    curator_note = ? "
@@ -520,10 +552,8 @@ def _report_lost(reason: str, unit: list[dict[str, Any]]) -> None:
     )
 
 
-def _read_checkpoint(conn: sqlite3.Connection) -> int | None:
-    row = conn.execute(
-        "SELECT value FROM meta WHERE key = ?", (_LLM_VERIFY_CHECKPOINT_KEY,)
-    ).fetchone()
+def _read_checkpoint(conn: sqlite3.Connection, key: str = _LLM_VERIFY_CHECKPOINT_KEY) -> int | None:
+    row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     if row is None:
         return None
     try:
@@ -532,11 +562,45 @@ def _read_checkpoint(conn: sqlite3.Connection) -> int | None:
         return None
 
 
-def _write_checkpoint(conn: sqlite3.Connection, row_id: int) -> None:
-    conn.execute(
-        "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
-        (_LLM_VERIFY_CHECKPOINT_KEY, str(row_id)),
+def _write_checkpoint(
+    conn: sqlite3.Connection, row_id: int, key: str = _LLM_VERIFY_CHECKPOINT_KEY
+) -> None:
+    conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)", (key, str(row_id)))
+
+
+def _select_rows(
+    conn: sqlite3.Connection,
+    *,
+    resume: bool,
+    rejudge_blind: bool,
+    verbose: bool,
+    **filters: Any,
+) -> tuple[list[sqlite3.Row], str]:
+    """The rows this run judges, and the checkpoint key it advances.
+
+    ``filters`` are :func:`_eligible_rows_sql`'s scope arguments. A
+    re-judge always resumes, from its own key (see
+    ``_REJUDGE_CHECKPOINT_KEY``).
+    """
+
+    checkpoint_key = _REJUDGE_CHECKPOINT_KEY if rejudge_blind else _LLM_VERIFY_CHECKPOINT_KEY
+    resume_from_id: int | None = None
+    if resume or rejudge_blind:
+        resume_from_id = _read_checkpoint(conn, checkpoint_key)
+        if verbose:
+            print(
+                "  [resume] starting from xr.id > "
+                f"{resume_from_id if resume_from_id is not None else 'none (no checkpoint)'}",
+                flush=True,
+            )
+
+    sql, params = _eligible_rows_sql(
+        **filters, resume_from_id=resume_from_id, rejudge_blind=rejudge_blind
     )
+    rows = list(conn.execute(sql, params))
+    if rejudge_blind:
+        rows = [r for r in rows if _judged_blind(r)]
+    return rows, checkpoint_key
 
 
 def verify_rows_with_llm(
@@ -556,6 +620,7 @@ def verify_rows_with_llm(
     resume: bool = False,
     max_backend_retries: int = 2,
     backend_retry_backoff: float = 2.0,
+    rejudge_blind: bool = False,
 ) -> LLMVerifyStats:
     """Drive the Phase 4 verifier. Batches eligible rows, calls the
     backend per batch, parses verdicts, updates the database. Returns
@@ -587,28 +652,25 @@ def verify_rows_with_llm(
     already-llm-verified-filtered SQL over the whole table. The
     checkpoint is updated after every batch so an interrupted run
     only re-does at most one batch's worth of rows.
+
+    ``rejudge_blind=True`` (#714) re-judges the rows rejected before #713
+    without their cite in the excerpt, instead of the unjudged rows. It
+    always resumes, from its own checkpoint, so a finished re-judge is a
+    no-op rather than a second bill.
     """
 
-    resume_from_id: int | None = None
-    if resume:
-        resume_from_id = _read_checkpoint(conn)
-        if verbose:
-            print(
-                "  [resume] starting from xr.id > "
-                f"{resume_from_id if resume_from_id is not None else 'none (no checkpoint)'}",
-                flush=True,
-            )
-
-    sql, params = _eligible_rows_sql(
+    rows, checkpoint_key = _select_rows(
+        conn,
+        resume=resume,
+        rejudge_blind=rejudge_blind,
+        verbose=verbose,
         skip_short_chunks=skip_short_chunks,
         skip_strong=skip_strong,
         min_confidence=min_confidence,
         source_author=source_author,
         source_work=source_work,
         target_author=target_author,
-        resume_from_id=resume_from_id,
     )
-    rows = list(conn.execute(sql, params))
 
     if not rows:
         return LLMVerifyStats()
@@ -768,7 +830,7 @@ def verify_rows_with_llm(
         # a follow-up `--resume` may skip past, so it must never reach
         # a row an earlier failure left unexamined.
         if first_failed_id is None or batch[-1]["id"] < first_failed_id:
-            _write_checkpoint(conn, batch[-1]["id"])
+            _write_checkpoint(conn, batch[-1]["id"], checkpoint_key)
         conn.commit()
 
         # Tick the progress bar once per batch, however many calls the
