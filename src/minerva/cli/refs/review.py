@@ -223,7 +223,9 @@ def cmd_refs_review(args: argparse.Namespace) -> int:
                 break
             if key == "a":
                 conn.execute(
-                    "UPDATE cross_references SET curator_status='approved' WHERE id = ?",
+                    "UPDATE cross_references SET curator_status='approved', "
+                    "  curated_by = 'human', curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                    "WHERE id = ?",
                     (row["id"],),
                 )
                 conn.commit()
@@ -231,7 +233,9 @@ def cmd_refs_review(args: argparse.Namespace) -> int:
                 print(_accent("→ approved."))
             elif key == "r":
                 conn.execute(
-                    "UPDATE cross_references SET curator_status='rejected' WHERE id = ?",
+                    "UPDATE cross_references SET curator_status='rejected', "
+                    "  curated_by = 'human', curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                    "WHERE id = ?",
                     (row["id"],),
                 )
                 conn.commit()

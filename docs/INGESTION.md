@@ -571,6 +571,14 @@ re-judges them with the windowed excerpt; a row it keeps goes back to
 `curator_status='auto'`. It resumes from its own checkpoint, so running
 it twice costs nothing the second time. Snapshot first (#714).
 
+Every verdict records its author in `curated_by` (`human` | `llm` |
+`embed`) and `curated_at` (#718, migration 0039). The review walker and
+`PATCH /api/references/:id` stamp `human`, and **both verifiers skip a
+row whose `curated_by` is `human`**, in whatever status the person left
+it, `auto` included. Rows that predate 0039 read `NULL` (unknown), which
+is why the one bulk re-judge so far could not rule out overturning a
+curator (#714).
+
 **Verification coverage audit** — periodically check which authors
 have escaped verification:
 

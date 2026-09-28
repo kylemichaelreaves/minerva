@@ -48,6 +48,7 @@ from .. import store
 from . import quote_match
 from . import rules as refs_rules
 from . import schema as refs_schema
+from .constants import NOT_HUMAN_CURATED
 
 # Threshold defaults from the plan. Override via `refs build` flags
 # when the user wants to widen recall (lower threshold) or tighten
@@ -317,6 +318,7 @@ def verify_quoted_references(
         # rows (overwriting the ``+llm`` provenance and re-billing
         # llm-verify). See issue #43.
         "xr.source_method IN ('rule_weak', 'rule_strong')",
+        NOT_HUMAN_CURATED,
     ]
     params: list[object] = []
     if source_author is not None:
@@ -478,7 +480,9 @@ def verify_quoted_references(
                 conn.execute(
                     "UPDATE cross_references "
                     "SET confidence = ?, source_method = 'rule+embed', "
-                    "    curator_note = ? "
+                    "    curator_note = ?, "
+                    "    curated_by = 'embed', "
+                    "    curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
                     "WHERE id = ?",
                     (new_conf, _UNLOCATED_NOTE, xr_id),
                 )
@@ -489,14 +493,18 @@ def verify_quoted_references(
                     "UPDATE cross_references "
                     "SET confidence = ?, "
                     "    source_method = 'rule+embed', "
-                    "    target_chunk_id = ? "
+                    "    target_chunk_id = ?, "
+                    "    curated_by = 'embed', "
+                    "    curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
                     "WHERE id = ?",
                     (new_conf, best_chunk_id, xr_id),
                 )
             else:
                 conn.execute(
                     "UPDATE cross_references "
-                    "SET confidence = ?, source_method = 'rule+embed' "
+                    "SET confidence = ?, source_method = 'rule+embed', "
+                    "    curated_by = 'embed', "
+                    "    curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
                     "WHERE id = ?",
                     (new_conf, xr_id),
                 )
@@ -505,7 +513,9 @@ def verify_quoted_references(
             conn.execute(
                 "UPDATE cross_references "
                 "SET curator_status = 'rejected', "
-                "    source_method = 'rule+embed' "
+                "    source_method = 'rule+embed', "
+                "    curated_by = 'embed', "
+                "    curated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
                 "WHERE id = ?",
                 (xr_id,),
             )
