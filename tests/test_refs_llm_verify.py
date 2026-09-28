@@ -946,3 +946,113 @@ class TestSourceExcerptIsWindowedOnTheSpan:
         assert "the seed" in excerpt and "the leaven" in excerpt
         assert excerpt.startswith("…") and excerpt.endswith("…")
         assert len(excerpt) <= 402
+
+
+# ════════════════════════════════════════════════════════════════════
+# --rejudge-blind: rows rejected before #713 without their cite in view (#714)
+# ════════════════════════════════════════════════════════════════════
+
+
+def _seed_judged_row(
+    conn: sqlite3.Connection,
+    *,
+    chunk_id: str,
+    cite: str,
+    past_head: bool,
+    curator_status: str = "rejected",
+    source_method: str = "rule+embed+llm",
+) -> int:
+    """A row already through llm-verify, its cite either inside the old
+    400-char head or well past it."""
+    pad = "lorem ipsum dolor " * (70 if past_head else 1)
+    text = pad + f"as {cite} says " + ("sit amet " * 100)
+    conn.execute("UPDATE chunks SET text = ? WHERE chunk_id = ?", (text, chunk_id))
+    target = refs_schema.ensure_target(conn, canonical_author="Matthew", canonical_work="Matthew")
+    start = text.index(cite)
+    rid = refs_schema.insert_cross_reference(
+        conn,
+        source_chunk_id=chunk_id,
+        target_id=target.id,
+        reference_type="cites",
+        source_span_start=start,
+        source_span_end=start + len(cite),
+        source_form_snapshot=cite,
+        confidence=0.6,
+        source_method=source_method,
+        curator_status=curator_status,
+        curator_note="Matt 13:3 is not visible in the source excerpt",
+    )
+    conn.commit()
+    return rid
+
+
+class TestRejudgeBlind:
+    def _seed(self, conn: sqlite3.Connection) -> dict[str, int]:
+        return {
+            "blind": _seed_judged_row(conn, chunk_id="rep-509d", cite="Matth. xiii. 3", past_head=True),
+            "seen": _seed_judged_row(conn, chunk_id="rep-510a", cite="Matth. xiii. 4", past_head=False),
+            "kept": _seed_judged_row(
+                conn, chunk_id="rep-514a", cite="Matth. xiii. 5", past_head=True, curator_status="auto"
+            ),
+            "fresh": _seed_judged_row(
+                conn,
+                chunk_id="phaedo-72e",
+                cite="Matth. xiii. 6",
+                past_head=True,
+                curator_status="auto",
+                source_method="rule_weak",
+            ),
+        }
+
+    def test_selects_only_rows_rejected_without_their_cite_in_view(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = self._seed(populated_db)
+        backend = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, max_llm_calls=5, rejudge_blind=True
+        )
+        assert [r["id"] for batch in backend.payloads for r in batch] == [ids["blind"]]
+        assert stats.examined == 1
+
+    def test_a_promoted_rejudge_is_no_longer_rejected(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = self._seed(populated_db)
+        llm_verify.verify_rows_with_llm(
+            populated_db, _CapturingBackend(), max_llm_calls=5, rejudge_blind=True
+        )
+        status, note = populated_db.execute(
+            "SELECT curator_status, curator_note FROM cross_references WHERE id = ?",
+            (ids["blind"],),
+        ).fetchone()
+        assert status == "auto"
+        assert note == "stub note"
+
+    def test_a_finished_rejudge_does_not_run_again(self, populated_db: sqlite3.Connection) -> None:
+        # A row the re-judge rejects again is still "blind" by the old
+        # head, so without a checkpoint every re-run would pay for it.
+        ids = self._seed(populated_db)
+        backend = SequenceStubBackend([_verdict_json(row_id=ids["blind"], references=False)])
+        llm_verify.verify_rows_with_llm(populated_db, backend, max_llm_calls=5, rejudge_blind=True)
+        again = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, again, max_llm_calls=5, rejudge_blind=True
+        )
+        assert again.payloads == []
+        assert stats.examined == 0
+
+    def test_the_rejudge_leaves_the_normal_checkpoint_alone(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        self._seed(populated_db)
+        llm_verify.verify_rows_with_llm(
+            populated_db, _CapturingBackend(), max_llm_calls=5, rejudge_blind=True
+        )
+        assert llm_verify._read_checkpoint(populated_db) is None
+
+    def test_a_normal_run_still_skips_rejected_rows(self, populated_db: sqlite3.Connection) -> None:
+        ids = self._seed(populated_db)
+        backend = _CapturingBackend()
+        llm_verify.verify_rows_with_llm(populated_db, backend, max_llm_calls=5)
+        assert [r["id"] for batch in backend.payloads for r in batch] == [ids["fresh"]]
