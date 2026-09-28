@@ -230,7 +230,9 @@ def _build_user_message(rows: list[dict[str, Any]]) -> str:
             "source_author": r["source_author"],
             "source_work": r["source_work"],
             "source_section": r["source_section"],
-            "source_text": _truncate(r["source_text"], 400),
+            "source_text": _excerpt(
+                r["source_text"], r.get("source_span_start"), r.get("source_span_end"), 400
+            ),
             "source_form": r.get("source_form_snapshot"),
             "target_author": r["target_author"],
             "target_work": r["target_work"],
@@ -256,6 +258,33 @@ def _truncate(text: str | None, n: int) -> str:
     if len(text) <= n:
         return text
     return text[:n].rsplit(" ", 1)[0] + "…"
+
+
+def _excerpt(text: str | None, start: int | None, end: int | None, n: int) -> str:
+    """About ``n`` chars of ``text`` that contain ``[start:end]``.
+
+    The judge needs the words around the citation. A head-only cut hid
+    every cite past char ``n``, and the judge rejected them as "not
+    visible in the source excerpt" — 2,561 of the rule-derived rows
+    rejected before #713. With no span, or a span the head already
+    covers, this is the head. "Covers" is measured on the head as
+    trimmed, not on ``n``: the trim backs off to a word boundary, which
+    drops a cite ending just under ``n``.
+    """
+    head = _truncate(text, n)
+    if text is None or start is None or end is None or end <= len(head.removesuffix("…")):
+        return head
+    margin = max(0, (n - (end - start)) // 2)
+    lo = max(0, start - margin)
+    hi = min(len(text), end + margin)
+    # Snap outward-trimmed edges to word boundaries, never into the span.
+    if lo > 0:
+        space = text.find(" ", lo, start)
+        lo = space + 1 if space != -1 else lo
+    if hi < len(text):
+        space = text.rfind(" ", end, hi)
+        hi = space if space != -1 else hi
+    return ("…" if lo > 0 else "") + text[lo:hi] + ("…" if hi < len(text) else "")
 
 
 # Match the LLM's JSON response. We expect a JSON array but a model
@@ -362,6 +391,7 @@ def _eligible_rows_sql(
     where = " AND ".join(clauses)
     sql = (
         "SELECT xr.id, xr.source_chunk_id, xr.source_form_snapshot, "
+        "       xr.source_span_start, xr.source_span_end, "
         "       xr.quoted_phrase, xr.reference_type, xr.confidence, "
         "       xr.source_method, "
         "       c.text AS source_text, "

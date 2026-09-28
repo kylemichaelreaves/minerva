@@ -886,3 +886,63 @@ class TestVerdictDurability:
         # Committing the verdicts must not advance resume past the row
         # the failed batch never examined.
         assert llm_verify._read_checkpoint(populated_db) is None
+
+
+# ════════════════════════════════════════════════════════════════════
+# The judge sees the citation, wherever it sits in the chunk (#713)
+# ════════════════════════════════════════════════════════════════════
+
+
+class _CapturingBackend(llm.LLMBackend):
+    """Records each user payload and accepts every row."""
+
+    def __init__(self) -> None:
+        self.payloads: list[list[dict[str, object]]] = []
+        self.name = "capture-stub"
+
+    def complete(self, messages: list[llm.Message], *, temperature: float = 0.2) -> str:
+        rows = json.loads(messages[-1].content)
+        self.payloads.append(rows)
+        return _verdicts_json([r["id"] for r in rows])
+
+
+class TestSourceExcerptIsWindowedOnTheSpan:
+    def test_a_cite_past_char_400_reaches_the_judge(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        # The Hobbes shape from #713: the citation sits well past the
+        # first 400 chars, so a head-only excerpt hides it and the judge
+        # rejects it as "not visible in the source excerpt".
+        cite = "Matth. xiii. 3"
+        text = ("lorem ipsum dolor " * 70) + f"the seed, {cite}, and to the leaven " + (
+            "sit amet " * 100
+        )
+        start = text.index(cite)
+        assert start > 1000
+        populated_db.execute("UPDATE chunks SET text = ? WHERE chunk_id = 'rep-509d'", (text,))
+        target = refs_schema.ensure_target(
+            populated_db, canonical_author="Matthew", canonical_work="Matthew"
+        )
+        refs_schema.insert_cross_reference(
+            populated_db,
+            source_chunk_id="rep-509d",
+            target_id=target.id,
+            reference_type="cites",
+            source_span_start=start,
+            source_span_end=start + len(cite),
+            source_form_snapshot=cite,
+            confidence=0.6,
+            source_method="rule_weak",
+            curator_status="auto",
+        )
+        populated_db.commit()
+
+        backend = _CapturingBackend()
+        llm_verify.verify_rows_with_llm(populated_db, backend, max_llm_calls=5)
+
+        [[row]] = backend.payloads
+        excerpt = str(row["source_text"])
+        assert cite in excerpt
+        assert "the seed" in excerpt and "the leaven" in excerpt
+        assert excerpt.startswith("…") and excerpt.endswith("…")
+        assert len(excerpt) <= 402
