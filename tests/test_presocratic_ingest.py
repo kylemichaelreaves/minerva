@@ -9,8 +9,8 @@ Two surfaces:
 
 * **Real-file integration test** — skipped when the OCR file isn't
   available locally. Confirms counts + locator format for Heraclitus
-  using the actual archive.org download in the user's Downloads
-  folder.
+  using the archive.org download at `data/presocratic/` (gitignored, so
+  this skips in CI).
 
 Mirrors the pattern from `tests/test_homer_ingest.py` +
 `tests/test_biblical_parsers.py`.
@@ -245,7 +245,7 @@ _OCR_FILE = Path("data/presocratic/diefragmentederv12diel_hocr_searchtext.txt")
 
 @pytest.mark.skipif(
     not _OCR_FILE.exists(),
-    reason="archive.org Vorsokratiker OCR file not present in ~/Downloads",
+    reason="archive.org Vorsokratiker OCR file not present under data/presocratic/",
 )
 class TestRealFile:
     def test_heraclitus_well_represented(self) -> None:
