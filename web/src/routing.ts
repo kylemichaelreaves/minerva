@@ -196,29 +196,76 @@ const decodeCsv = (raw: string | null): string[] | undefined =>
         .filter(Boolean)
         .map((s) => safeDecode(s) ?? s);
 
+// ─── Parsing ──────────────────────────────────────────────────────────────
+//
+// `readRoute` is a table, not a ladder (#589). The ladder it replaced scored
+// 44 on Sonar's cognitive-complexity metric against a limit of 15, and grew
+// by a branch with every surface. Each surface is now one `RouteRule`: a
+// regex, and a `build` that turns the match into a route.
+//
+// The first rule whose regex matches wins. Today no hash can match two rules:
+// every general shape demands `?` or end-of-hash straight after its literal,
+// so `#/network/arc` cannot fall into `#/network`, nor `#/refs/review` into
+// `#/refs`, nor `#/concordance/<lemma>` into `#/concordance`. The table keeps
+// the specific shape first anyway, so that loosening one of those regexes
+// cannot silently re-route the drilldown. A query string, where a shape has
+// one, is captured by the named group `q` and handed to `build` parsed.
+
+interface RouteRule {
+  re: RegExp;
+  build: (m: RegExpExecArray, qs: URLSearchParams) => Route;
+}
+
+const LANDING: Route = { kind: "landing" };
+
+/** A query parameter, with absence as `undefined` rather than `null`. */
+const opt = (qs: URLSearchParams, key: string): string | undefined => qs.get(key) ?? undefined;
+
+/** A non-negative integer parameter (`term=`, `id=`, `freq_min=`). Anything
+ *  else — a stale bookmark, a hand-edited hash — is dropped rather than
+ *  carried through as NaN. */
+const optDigits = (qs: URLSearchParams, key: string): number | undefined => {
+  const raw = qs.get(key);
+  return raw !== null && /^\d+$/.test(raw) ? Number(raw) : undefined;
+};
+
+/** `min_confidence=`, shared by the network dashboard and its drilldowns. */
+const optConfidence = (qs: URLSearchParams): number | undefined => {
+  const raw = qs.get("min_confidence");
+  return raw !== null && /^[0-9.]+$/.test(raw) ? Number(raw) : undefined;
+};
+
+/** A parameter restricted to a fixed set of values; anything else drops. */
+const optOneOf = <T extends string>(
+  qs: URLSearchParams,
+  key: string,
+  allowed: readonly T[],
+): T | undefined => {
+  const raw = qs.get(key);
+  return (allowed as readonly (string | null)[]).includes(raw) ? (raw as T) : undefined;
+};
+
+const SCOPES = ["corpus", "author", "work"] as const;
+const SORTS = ["freq", "alpha", "pos"] as const;
+
+/** The filter chips the network dashboard and both drilldowns share. */
+const networkFilters = (qs: URLSearchParams) => ({
+  minConfidence: optConfidence(qs),
+  sourceAuthors: decodeCsv(qs.get("source")),
+  corpora: decodeCsv(qs.get("corpus")),
+  sourceMethods: decodeCsv(qs.get("method")),
+});
+
 /** `#/r/<authorSlug>/<titleSlug>` — and every shape that folds into it.
  *
- *  Extracted from `readRoute` rather than written inline (#602). `readRoute`
- *  is already past the cognitive-complexity limit that gates new code (#589),
- *  and the rating applies to lines that MOVE as well as lines that are added,
- *  so growing its reader branch in place would have handed this change
- *  #589's problem. As its own function the parse scores on its own.
- *
- *  Returns `null` when the hash is not a reader hash at all, so the caller can
- *  fall through the ladder; a reader hash that cannot be decoded returns the
- *  landing route, same defensive posture as the rest of `readRoute`. */
-function parseReaderRoute(hash: string): Route | null {
-  const m = /^#\/r\/([^/?]+)(?:\/([^/?]+))?(?:\?(.*))?$/.exec(hash);
-  if (!m) return null;
+ *  Kept as its own named function rather than inlined into the table (#602):
+ *  it is the densest parse, and scores on its own. A reader hash that cannot
+ *  be decoded returns the landing route, same defensive posture as the rest
+ *  of `readRoute`. */
+function buildReaderRoute(m: RegExpExecArray, qs: URLSearchParams): Route {
   const first = safeDecode(m[1] ?? "");
   const second = m[2] === undefined ? undefined : safeDecode(m[2]);
-  if (first === null || second === null) return { kind: "landing" };
-  const qs = new URLSearchParams(m[3]);
-  const termParam = qs.get("term");
-  // Parse `term=<int>` defensively — a bad value (e.g. a stale
-  // bookmark) shouldn't break the reader; it just means no card
-  // opens on first paint.
-  const openTermId = termParam && /^\d+$/.test(termParam) ? Number(termParam) : undefined;
+  if (first === null || second === null) return LANDING;
   // One segment is the title, two are author-then-title, and an OLD bookmark
   // holds the raw title in that same position with the author in `?author=`.
   // `slugify` is idempotent on a slug, so all three fold through one pair of
@@ -230,252 +277,264 @@ function parseReaderRoute(hash: string): Route | null {
     kind: "reader",
     authorSlug: rawAuthor ? slugify(rawAuthor) : undefined,
     workSlug: slugify(second ?? first),
-    sourceLang: qs.get("lang") ?? undefined,
-    focusChunkId: qs.get("focus") ?? undefined,
-    openTermId,
-    syntaxChunkId: qs.get("syntax") ?? undefined,
+    sourceLang: opt(qs, "lang"),
+    focusChunkId: opt(qs, "focus"),
+    // Parsed defensively — a bad value (e.g. a stale bookmark) shouldn't
+    // break the reader; it just means no card opens on first paint.
+    openTermId: optDigits(qs, "term"),
+    syntaxChunkId: opt(qs, "syntax"),
   };
 }
 
-export function readRoute(): Route {
-  const hash = window.location.hash;
-  let m = /^#\/c\/([^/?]+)$/.exec(hash);
-  if (m) {
-    const id = safeDecode(m[1] ?? "");
-    return id === null ? { kind: "landing" } : { kind: "conversation", id };
-  }
-  const readerRoute = parseReaderRoute(hash);
-  if (readerRoute) return readerRoute;
-  // Legacy syntax hash (#237's shape). Rewritten into the reader route with
-  // the syntax modifier — see `syntaxChunkId` above. The chunk goes through as
-  // `focus=` as well because this hash carries no lang: `around=<chunk>` makes
-  // the server resolve work/lang/edition off the chunk row, where defaulting a
-  // lang (as `work_range` does, to "grc") can open a different edition of the
-  // same work. Without a `work=` there is no reader location to resolve and so
-  // no layer to lay the overlay over, which lands on the landing route.
-  m = /^#\/syntax\/([^?]+)(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const qs = new URLSearchParams(m[2]);
-    const rawWork = qs.get("work");
-    const workId = rawWork ? safeDecode(rawWork) : null;
-    const chunkId = safeDecode(m[1] ?? "");
-    if (workId === null || chunkId === null) return { kind: "landing" };
-    return {
-      kind: "reader",
-      workSlug: slugify(workId),
-      focusChunkId: chunkId,
-      syntaxChunkId: chunkId,
-    };
-  }
-  m = /^#\/network\/(arc|coverage)(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const qs = new URLSearchParams(m[2]);
-    const rawConf = qs.get("min_confidence");
-    const minConfidence =
-      rawConf !== null && /^[0-9.]+$/.test(rawConf) ? Number(rawConf) : undefined;
-    const shared = {
-      minConfidence,
-      sourceAuthors: decodeCsv(qs.get("source")),
-      corpora: decodeCsv(qs.get("corpus")),
-      sourceMethods: decodeCsv(qs.get("method")),
-    };
-    return m[1] === "arc"
-      ? { kind: "network-arc", ...shared }
-      : { kind: "network-coverage", ...shared };
-  }
-  m = /^#\/network(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const qs = new URLSearchParams(m[1]);
-    const rawConf = qs.get("min_confidence");
-    const minConfidence =
-      rawConf !== null && /^[0-9.]+$/.test(rawConf) ? Number(rawConf) : undefined;
-    return {
-      kind: "network",
-      minConfidence,
-      includeRejected: qs.get("include_rejected") === "1",
-      sourceAuthors: decodeCsv(qs.get("source")),
-      corpora: decodeCsv(qs.get("corpus")),
-      sourceMethods: decodeCsv(qs.get("method")),
-    };
-  }
-  m = /^#\/metrics(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const qs = new URLSearchParams(m[1]);
-    const rawWindow = qs.get("window");
-    // Reject an unrecognized window rather than carrying it through —
-    // a stale bookmark or a hand-edited hash otherwise reaches the
-    // panel as a value outside `METRIC_WINDOWS`, which is exactly the
-    // "broken page" this guard exists to avoid.
-    const isKnownWindow = (v: string): v is MetricWindow =>
-      (METRIC_WINDOWS as readonly string[]).includes(v);
-    const window = rawWindow !== null && isKnownWindow(rawWindow) ? rawWindow : undefined;
-    return {
-      kind: "metrics",
-      window,
-      label: qs.get("label") ?? undefined,
-    };
-  }
-  m = /^#\/refs\/review(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const qs = new URLSearchParams(m[1]);
-    const idRaw = qs.get("id");
-    return {
-      kind: "refs-review",
-      sourceAuthor: qs.get("source") ?? undefined,
-      referenceType: qs.get("type") ?? undefined,
-      referenceId: idRaw && /^\d+$/.test(idRaw) ? Number(idRaw) : undefined,
-    };
-  }
-  m = /^#\/concordance\/([^?]+)(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const lemma = safeDecode(m[1] ?? "");
-    if (lemma === null) return { kind: "landing" };
-    const qs = new URLSearchParams(m[2]);
-    const scope = qs.get("scope");
-    return {
-      kind: "concordance-lemma",
-      lemma,
-      lang: qs.get("lang") ?? undefined,
-      scope: scope === "corpus" || scope === "author" || scope === "work" ? scope : undefined,
-      scopeAuthors: decodeCsv(qs.get("author")),
-      scopeWorks: decodeCsv(qs.get("work")),
-      caseFilter: qs.get("case") ?? undefined,
-      numberFilter: qs.get("number") ?? undefined,
-      surface: qs.get("surface") ?? undefined,
-    };
-  }
-  m = /^#\/concordance(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    const qs = new URLSearchParams(m[1]);
-    const scope = qs.get("scope");
-    const sort = qs.get("sort");
-    const freqMinRaw = qs.get("freq_min");
-    const freqMaxRaw = qs.get("freq_max");
-    return {
-      kind: "concordance",
-      lang: qs.get("lang") ?? undefined,
-      scope: scope === "corpus" || scope === "author" || scope === "work" ? scope : undefined,
-      scopeAuthors: decodeCsv(qs.get("author")),
-      scopeWorks: decodeCsv(qs.get("work")),
-      letter: qs.get("letter") ?? undefined,
-      sort: sort === "freq" || sort === "alpha" || sort === "pos" ? sort : undefined,
-      pos: qs.get("pos") ?? undefined,
-      freqMin: freqMinRaw && /^\d+$/.test(freqMinRaw) ? Number(freqMinRaw) : undefined,
-      freqMax: freqMaxRaw && /^\d+$/.test(freqMaxRaw) ? Number(freqMaxRaw) : undefined,
-      q: qs.get("q") ?? undefined,
-    };
-  }
-  m = /^#\/refs(?:\?(.*))?$/.exec(hash);
-  if (m) {
-    // URLSearchParams accepts undefined and treats it as an empty
-    // query string, so we don't need an explicit `?? ""` fallback.
-    const qs = new URLSearchParams(m[1]);
-    return {
-      kind: "refs",
-      sourceAuthor: qs.get("source") ?? undefined,
-      targetAuthor: qs.get("target") ?? undefined,
-      targetWork: qs.get("work") ?? undefined,
-      referenceType: qs.get("type") ?? undefined,
-      includeRejected: qs.get("include_rejected") === "1",
-    };
-  }
-  return { kind: "landing" };
+/** Legacy syntax hash (#237's shape). Rewritten into the reader route with
+ *  the syntax modifier — see `syntaxChunkId` above. The chunk goes through as
+ *  `focus=` as well because this hash carries no lang: `around=<chunk>` makes
+ *  the server resolve work/lang/edition off the chunk row, where defaulting a
+ *  lang (as `work_range` does, to "grc") can open a different edition of the
+ *  same work. Without a `work=` there is no reader location to resolve and so
+ *  no layer to lay the overlay over, which lands on the landing route. */
+function buildLegacySyntaxRoute(m: RegExpExecArray, qs: URLSearchParams): Route {
+  const rawWork = qs.get("work");
+  const workId = rawWork ? safeDecode(rawWork) : null;
+  const chunkId = safeDecode(m[1] ?? "");
+  if (workId === null || chunkId === null) return LANDING;
+  return {
+    kind: "reader",
+    workSlug: slugify(workId),
+    focusChunkId: chunkId,
+    syntaxChunkId: chunkId,
+  };
 }
 
-export function routeHash(route: Route): string {
-  if (route.kind === "conversation") return `#/c/${encodeURIComponent(route.id)}`;
-  if (route.kind === "reader") {
-    const params = new URLSearchParams();
-    if (route.sourceLang) params.set("lang", route.sourceLang);
+const isKnownWindow = (v: string | null): v is MetricWindow =>
+  (METRIC_WINDOWS as readonly (string | null)[]).includes(v);
 
-    if (route.focusChunkId) params.set("focus", route.focusChunkId);
-    if (route.openTermId !== undefined) params.set("term", String(route.openTermId));
-    if (route.syntaxChunkId) params.set("syntax", route.syntaxChunkId);
-    const qs = params.toString();
+const ROUTE_RULES: readonly RouteRule[] = [
+  {
+    re: /^#\/c\/([^/?]+)$/,
+    build: (m) => {
+      const id = safeDecode(m[1] ?? "");
+      return id === null ? LANDING : { kind: "conversation", id };
+    },
+  },
+  { re: /^#\/r\/([^/?]+)(?:\/([^/?]+))?(?:\?(?<q>.*))?$/, build: buildReaderRoute },
+  { re: /^#\/syntax\/([^?]+)(?:\?(?<q>.*))?$/, build: buildLegacySyntaxRoute },
+  // Drilldowns BEFORE the bare network route.
+  {
+    re: /^#\/network\/(arc|coverage)(?:\?(?<q>.*))?$/,
+    build: (m, qs) =>
+      m[1] === "arc"
+        ? { kind: "network-arc", ...networkFilters(qs) }
+        : { kind: "network-coverage", ...networkFilters(qs) },
+  },
+  {
+    re: /^#\/network(?:\?(?<q>.*))?$/,
+    build: (_m, qs) => ({
+      kind: "network",
+      ...networkFilters(qs),
+      includeRejected: qs.get("include_rejected") === "1",
+    }),
+  },
+  {
+    re: /^#\/metrics(?:\?(?<q>.*))?$/,
+    build: (_m, qs) => {
+      // Reject an unrecognized window rather than carrying it through —
+      // a stale bookmark or a hand-edited hash otherwise reaches the
+      // panel as a value outside `METRIC_WINDOWS`, which is exactly the
+      // "broken page" this guard exists to avoid.
+      const rawWindow = qs.get("window");
+      return {
+        kind: "metrics",
+        window: isKnownWindow(rawWindow) ? rawWindow : undefined,
+        label: opt(qs, "label"),
+      };
+    },
+  },
+  // Review queue BEFORE the refs browser.
+  {
+    re: /^#\/refs\/review(?:\?(?<q>.*))?$/,
+    build: (_m, qs) => ({
+      kind: "refs-review",
+      sourceAuthor: opt(qs, "source"),
+      referenceType: opt(qs, "type"),
+      referenceId: optDigits(qs, "id"),
+    }),
+  },
+  // Lemma detail BEFORE the leaderboard.
+  {
+    re: /^#\/concordance\/([^?]+)(?:\?(?<q>.*))?$/,
+    build: (m, qs) => {
+      const lemma = safeDecode(m[1] ?? "");
+      if (lemma === null) return LANDING;
+      return {
+        kind: "concordance-lemma",
+        lemma,
+        lang: opt(qs, "lang"),
+        scope: optOneOf(qs, "scope", SCOPES),
+        scopeAuthors: decodeCsv(qs.get("author")),
+        scopeWorks: decodeCsv(qs.get("work")),
+        caseFilter: opt(qs, "case"),
+        numberFilter: opt(qs, "number"),
+        surface: opt(qs, "surface"),
+      };
+    },
+  },
+  {
+    re: /^#\/concordance(?:\?(?<q>.*))?$/,
+    build: (_m, qs) => ({
+      kind: "concordance",
+      lang: opt(qs, "lang"),
+      scope: optOneOf(qs, "scope", SCOPES),
+      scopeAuthors: decodeCsv(qs.get("author")),
+      scopeWorks: decodeCsv(qs.get("work")),
+      letter: opt(qs, "letter"),
+      sort: optOneOf(qs, "sort", SORTS),
+      pos: opt(qs, "pos"),
+      freqMin: optDigits(qs, "freq_min"),
+      freqMax: optDigits(qs, "freq_max"),
+      q: opt(qs, "q"),
+    }),
+  },
+  {
+    re: /^#\/refs(?:\?(?<q>.*))?$/,
+    build: (_m, qs) => ({
+      kind: "refs",
+      sourceAuthor: opt(qs, "source"),
+      targetAuthor: opt(qs, "target"),
+      targetWork: opt(qs, "work"),
+      referenceType: opt(qs, "type"),
+      includeRejected: qs.get("include_rejected") === "1",
+    }),
+  },
+];
+
+export function readRoute(): Route {
+  const hash = window.location.hash;
+  for (const rule of ROUTE_RULES) {
+    const m = rule.re.exec(hash);
+    // URLSearchParams accepts undefined and treats it as an empty query
+    // string, so a hash with no `?` needs no explicit fallback.
+    if (m) return rule.build(m, new URLSearchParams(m.groups?.q));
+  }
+  return LANDING;
+}
+
+// ─── Serializing ──────────────────────────────────────────────────────────
+//
+// The inverse, as a map from kind to serializer (#589) — the if-chain it
+// replaced scored 109. Every serializer lists its parameters as
+// `[key, value]` pairs in a fixed order, and `withQuery` drops the ones whose
+// value is `undefined`; the `q*` helpers encode each guard the old chain
+// spelled out per field (a string is omitted when empty, a number only when
+// absent so `0` survives, a list when empty, a flag when false).
+
+type QueryPair = readonly [string, string | undefined];
+
+const qText = (v: string | undefined): string | undefined => (v === "" ? undefined : v);
+const qNum = (v: number | undefined): string | undefined =>
+  v === undefined ? undefined : String(v);
+const qCsv = (v: string[] | undefined): string | undefined =>
+  v?.length ? encodeCsv(v) : undefined;
+const qFlag = (v: boolean | undefined): string | undefined => (v ? "1" : undefined);
+
+function withQuery(base: string, pairs: readonly QueryPair[]): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of pairs) {
+    if (value !== undefined) params.set(key, value);
+  }
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
+type RouteOf<K extends Route["kind"]> = Extract<Route, { kind: K }>;
+type NetworkFilters = Pick<
+  RouteOf<"network-arc">,
+  "minConfidence" | "sourceAuthors" | "corpora" | "sourceMethods"
+>;
+
+/** The shared network filters as query pairs. Only the dashboard itself
+ *  carries `include_rejected`; the drilldowns pass nothing and the pair
+ *  drops out. It sits between `min_confidence` and the chips because that
+ *  is the parameter order the dashboard has always emitted. */
+const networkPairs = (r: NetworkFilters, includeRejected?: boolean): QueryPair[] => [
+  ["min_confidence", qNum(r.minConfidence)],
+  ["include_rejected", qFlag(includeRejected)],
+  ["source", qCsv(r.sourceAuthors)],
+  ["corpus", qCsv(r.corpora)],
+  ["method", qCsv(r.sourceMethods)],
+];
+
+const SERIALIZERS: { [K in Route["kind"]]: (r: RouteOf<K>) => string } = {
+  landing: () => "#/",
+  conversation: (r) => `#/c/${encodeURIComponent(r.id)}`,
+  reader: (r) =>
     // Slugs are `[a-z0-9-]` by construction, so `encodeURIComponent` is the
-    // identity here; it stays as a guard against a non-slug ever reaching this
-    // path, not because anything needs escaping.
-    const base = route.authorSlug
-      ? `#/r/${encodeURIComponent(route.authorSlug)}/${encodeURIComponent(route.workSlug)}`
-      : `#/r/${encodeURIComponent(route.workSlug)}`;
-    return qs ? `${base}?${qs}` : base;
-  }
-  if (route.kind === "refs") {
-    const params = new URLSearchParams();
-    if (route.sourceAuthor) params.set("source", route.sourceAuthor);
-    if (route.targetAuthor) params.set("target", route.targetAuthor);
-    if (route.targetWork) params.set("work", route.targetWork);
-    if (route.referenceType) params.set("type", route.referenceType);
-    if (route.includeRejected) params.set("include_rejected", "1");
-    const qs = params.toString();
-    return qs ? `#/refs?${qs}` : "#/refs";
-  }
-  if (route.kind === "refs-review") {
-    const params = new URLSearchParams();
-    if (route.sourceAuthor) params.set("source", route.sourceAuthor);
-    if (route.referenceType) params.set("type", route.referenceType);
-    if (route.referenceId !== undefined) params.set("id", String(route.referenceId));
-    const qs = params.toString();
-    return qs ? `#/refs/review?${qs}` : "#/refs/review";
-  }
-  if (route.kind === "network") {
-    const params = new URLSearchParams();
-    if (route.minConfidence !== undefined)
-      params.set("min_confidence", String(route.minConfidence));
-    if (route.includeRejected) params.set("include_rejected", "1");
-    if (route.sourceAuthors?.length) params.set("source", encodeCsv(route.sourceAuthors));
-    if (route.corpora?.length) params.set("corpus", encodeCsv(route.corpora));
-    if (route.sourceMethods?.length) params.set("method", encodeCsv(route.sourceMethods));
-    const qs = params.toString();
-    return qs ? `#/network?${qs}` : "#/network";
-  }
-  if (route.kind === "concordance") {
-    const params = new URLSearchParams();
-    if (route.lang) params.set("lang", route.lang);
-    if (route.scope) params.set("scope", route.scope);
-    if (route.scopeAuthors?.length) params.set("author", encodeCsv(route.scopeAuthors));
-    if (route.scopeWorks?.length) params.set("work", encodeCsv(route.scopeWorks));
-    if (route.letter) params.set("letter", route.letter);
-    if (route.sort) params.set("sort", route.sort);
-    if (route.pos) params.set("pos", route.pos);
-    if (route.freqMin !== undefined) params.set("freq_min", String(route.freqMin));
-    if (route.freqMax !== undefined) params.set("freq_max", String(route.freqMax));
-    if (route.q) params.set("q", route.q);
-    const qs = params.toString();
-    return qs ? `#/concordance?${qs}` : "#/concordance";
-  }
-  if (route.kind === "concordance-lemma") {
-    const params = new URLSearchParams();
-    if (route.lang) params.set("lang", route.lang);
-    if (route.scope) params.set("scope", route.scope);
-    if (route.scopeAuthors?.length) params.set("author", encodeCsv(route.scopeAuthors));
-    if (route.scopeWorks?.length) params.set("work", encodeCsv(route.scopeWorks));
-    if (route.caseFilter) params.set("case", route.caseFilter);
-    if (route.numberFilter) params.set("number", route.numberFilter);
-    if (route.surface) params.set("surface", route.surface);
-    const qs = params.toString();
-    const base = `#/concordance/${encodeURIComponent(route.lemma)}`;
-    return qs ? `${base}?${qs}` : base;
-  }
-  if (route.kind === "metrics") {
-    const params = new URLSearchParams();
-    if (route.window) params.set("window", route.window);
-    if (route.label) params.set("label", route.label);
-    const qs = params.toString();
-    return qs ? `#/metrics?${qs}` : "#/metrics";
-  }
-  if (route.kind === "network-arc" || route.kind === "network-coverage") {
-    const sub = route.kind === "network-arc" ? "arc" : "coverage";
-    const params = new URLSearchParams();
-    if (route.minConfidence !== undefined)
-      params.set("min_confidence", String(route.minConfidence));
-    if (route.sourceAuthors?.length) params.set("source", encodeCsv(route.sourceAuthors));
-    if (route.corpora?.length) params.set("corpus", encodeCsv(route.corpora));
-    if (route.sourceMethods?.length) params.set("method", encodeCsv(route.sourceMethods));
-    const qs = params.toString();
-    return qs ? `#/network/${sub}?${qs}` : `#/network/${sub}`;
-  }
-  return "#/";
+    // identity here; it stays as a guard against a non-slug ever reaching
+    // this path, not because anything needs escaping.
+    withQuery(
+      r.authorSlug
+        ? `#/r/${encodeURIComponent(r.authorSlug)}/${encodeURIComponent(r.workSlug)}`
+        : `#/r/${encodeURIComponent(r.workSlug)}`,
+      [
+        ["lang", qText(r.sourceLang)],
+        ["focus", qText(r.focusChunkId)],
+        ["term", qNum(r.openTermId)],
+        ["syntax", qText(r.syntaxChunkId)],
+      ],
+    ),
+  refs: (r) =>
+    withQuery("#/refs", [
+      ["source", qText(r.sourceAuthor)],
+      ["target", qText(r.targetAuthor)],
+      ["work", qText(r.targetWork)],
+      ["type", qText(r.referenceType)],
+      ["include_rejected", qFlag(r.includeRejected)],
+    ]),
+  "refs-review": (r) =>
+    withQuery("#/refs/review", [
+      ["source", qText(r.sourceAuthor)],
+      ["type", qText(r.referenceType)],
+      ["id", qNum(r.referenceId)],
+    ]),
+  network: (r) => withQuery("#/network", networkPairs(r, r.includeRejected)),
+  "network-arc": (r) => withQuery("#/network/arc", networkPairs(r)),
+  "network-coverage": (r) => withQuery("#/network/coverage", networkPairs(r)),
+  concordance: (r) =>
+    withQuery("#/concordance", [
+      ["lang", qText(r.lang)],
+      ["scope", qText(r.scope)],
+      ["author", qCsv(r.scopeAuthors)],
+      ["work", qCsv(r.scopeWorks)],
+      ["letter", qText(r.letter)],
+      ["sort", qText(r.sort)],
+      ["pos", qText(r.pos)],
+      ["freq_min", qNum(r.freqMin)],
+      ["freq_max", qNum(r.freqMax)],
+      ["q", qText(r.q)],
+    ]),
+  "concordance-lemma": (r) =>
+    withQuery(`#/concordance/${encodeURIComponent(r.lemma)}`, [
+      ["lang", qText(r.lang)],
+      ["scope", qText(r.scope)],
+      ["author", qCsv(r.scopeAuthors)],
+      ["work", qCsv(r.scopeWorks)],
+      ["case", qText(r.caseFilter)],
+      ["number", qText(r.numberFilter)],
+      ["surface", qText(r.surface)],
+    ]),
+  metrics: (r) =>
+    withQuery("#/metrics", [
+      ["window", qText(r.window)],
+      ["label", qText(r.label)],
+    ]),
+};
+
+export function routeHash(route: Route): string {
+  // The map is total over `Route["kind"]`, so the lookup always succeeds;
+  // the cast only tells TS that `route` matches the serializer it selects,
+  // which it cannot correlate through an indexed access on its own.
+  const serialize = SERIALIZERS[route.kind] as (r: Route) => string;
+  return serialize(route);
 }
 
 export interface RoutingApi {
