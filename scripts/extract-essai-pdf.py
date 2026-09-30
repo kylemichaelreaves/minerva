@@ -237,7 +237,7 @@ def is_running_head(line: Line) -> bool:
     if len(tokens) <= 3 and all(_is_head_token(t) for t in tokens):
         # `ARB 19`, `24 ARC`, `PAG ITI`: the glossary's guide word and folio.
         return True
-    body = re.sub(r"^\S*\d\S*\s+|\s+\S*\d\S*$", "", line.text)
+    body = re.sub(r"(?:^\S*\d\S*\s+)|(?:\s+\S*\d\S*$)", "", line.text)
     folded = _fold(body)
     return any(
         SequenceMatcher(None, folded, _fold(t)).ratio() >= _TITLE_MATCH for t in _HEAD_TITLES
