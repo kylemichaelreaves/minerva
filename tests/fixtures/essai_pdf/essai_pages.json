@@ -1,0 +1,4577 @@
+{
+"source": "Essais_sur_la_noblesse_de_France_contena.pdf",
+"pages": {
+"59": {
+"width": 290.6,
+"height": 487.0,
+"lines": [
+{
+"bbox": [
+105.6,
+31.2,
+159.0,
+43.0
+],
+"spans": [
+{
+"text": "de",
+"size": 11.8
+},
+{
+"text": " France",
+"size": 10.6
+},
+{
+"text": ".",
+"size": 7.3
+}
+]
+},
+{
+"bbox": [
+206.8,
+33.5,
+223.1,
+45.6
+],
+"spans": [
+{
+"text": "23",
+"size": 12.1
+}
+]
+},
+{
+"bbox": [
+40.1,
+47.0,
+222.8,
+60.5
+],
+"spans": [
+{
+"text": "la",
+"size": 12.9
+},
+{
+"text": " ſuite",
+"size": 11.8
+},
+{
+"text": " ",
+"size": 12.9
+},
+{
+"text": ",",
+"size": 12.9
+},
+{
+"text": " ",
+"size": 12.5
+},
+{
+"text": "ſuivant",
+"size": 12.5
+},
+{
+"text": " ",
+"size": 12.6
+},
+{
+"text": "l'importance",
+"size": 12.6
+},
+{
+"text": " ",
+"size": 13.2
+},
+{
+"text": "des",
+"size": 13.2
+}
+]
+},
+{
+"bbox": [
+40.7,
+57.1,
+222.9,
+74.0
+],
+"spans": [
+{
+"text": "lieux",
+"size": 11.4
+},
+{
+"text": " &",
+"size": 16.9
+},
+{
+"text": " ſuivant",
+"size": 11.5
+},
+{
+"text": " le",
+"size": 10.9
+},
+{
+"text": " choix",
+"size": 12.1
+},
+{
+"text": " de",
+"size": 13.0
+},
+{
+"text": " ceux",
+"size": 12.4
+},
+{
+"text": " qui",
+"size": 12.0
+}
+]
+},
+{
+"bbox": [
+40.2,
+72.6,
+186.0,
+84.9
+],
+"spans": [
+{
+"text": "étoient",
+"size": 10.6
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "à",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 10.4
+},
+{
+"text": "la",
+"size": 10.4
+},
+{
+"text": " ",
+"size": 10.3
+},
+{
+"text": "tête",
+"size": 10.3
+},
+{
+"text": " des",
+"size": 11.2
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "affaires",
+"size": 9.8
+},
+{
+"text": " .",
+"size": 6.1
+}
+]
+},
+{
+"bbox": [
+53.8,
+88.5,
+221.3,
+102.0
+],
+"spans": [
+{
+"text": "Pour",
+"size": 13.5
+},
+{
+"text": " ",
+"size": 12.9
+},
+{
+"text": "ceux",
+"size": 12.9
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "qu'un",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "âge",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 12.0
+},
+{
+"text": "plus",
+"size": 12.0
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "avan-",
+"size": 12.8
+}
+]
+},
+{
+"bbox": [
+40.4,
+100.9,
+221.6,
+114.1
+],
+"spans": [
+{
+"text": "cé",
+"size": 12.2
+},
+{
+"text": " ,",
+"size": 12.0
+},
+{
+"text": " les",
+"size": 10.7
+},
+{
+"text": " ",
+"size": 11.1
+},
+{
+"text": "ſervices",
+"size": 11.1
+},
+{
+"text": " ",
+"size": 13.2
+},
+{
+"text": "ou",
+"size": 13.2
+},
+{
+"text": " ",
+"size": 10.8
+},
+{
+"text": "les",
+"size": 10.8
+},
+{
+"text": " bleſſures",
+"size": 11.1
+},
+{
+"text": " ren-",
+"size": 11.5
+}
+]
+},
+{
+"bbox": [
+40.4,
+116.0,
+222.5,
+129.6
+],
+"spans": [
+{
+"text": "doient",
+"size": 12.4
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "dignes",
+"size": 12.2
+},
+{
+"text": " du",
+"size": 13.3
+},
+{
+"text": " repos",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 8.6
+},
+{
+"text": ",",
+"size": 8.6
+},
+{
+"text": " on",
+"size": 13.6
+},
+{
+"text": " leur",
+"size": 12.0
+},
+{
+"text": " par-",
+"size": 12.2
+}
+]
+},
+{
+"bbox": [
+40.3,
+130.1,
+222.2,
+143.2
+],
+"spans": [
+{
+"text": "tagea",
+"size": 12.3
+},
+{
+"text": " ",
+"size": 11.3
+},
+{
+"text": "les",
+"size": 11.3
+},
+{
+"text": " ",
+"size": 11.5
+},
+{
+"text": "terres",
+"size": 11.5
+},
+{
+"text": " ",
+"size": 13.0
+},
+{
+"text": "nouvellement",
+"size": 13.0
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "con-",
+"size": 12.8
+}
+]
+},
+{
+"bbox": [
+40.0,
+143.3,
+223.0,
+157.5
+],
+"spans": [
+{
+"text": "quiſes",
+"size": 11.6
+},
+{
+"text": " ,",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 13.3
+},
+{
+"text": "pour",
+"size": 13.3
+},
+{
+"text": " ",
+"size": 11.1
+},
+{
+"text": "les",
+"size": 11.1
+},
+{
+"text": " poſſeder",
+"size": 12.2
+},
+{
+"text": " à",
+"size": 14.2
+},
+{
+"text": " ",
+"size": 11.1
+},
+{
+"text": "titre",
+"size": 11.1
+},
+{
+"text": " de",
+"size": 13.5
+}
+]
+},
+{
+"bbox": [
+39.8,
+157.7,
+222.6,
+170.9
+],
+"spans": [
+{
+"text": "benefice",
+"size": 11.4
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "(",
+"size": 9.7
+},
+{
+"text": " 10",
+"size": 12.5
+},
+{
+"text": ")",
+"size": 9.3
+},
+{
+"text": " ou",
+"size": 13.1
+},
+{
+"text": " de",
+"size": 13.0
+},
+{
+"text": " récompenſe",
+"size": 12.4
+},
+{
+"text": "pen-",
+"size": 12.2
+}
+]
+},
+{
+"bbox": [
+38.7,
+167.7,
+222.6,
+182.5
+],
+"spans": [
+{
+"text": "dant",
+"size": 12.1
+},
+{
+"text": " ",
+"size": 11.1
+},
+{
+"text": "leur",
+"size": 11.1
+},
+{
+"text": " ",
+"size": 11.4
+},
+{
+"text": "vie",
+"size": 11.4
+},
+{
+"text": " ",
+"size": 11.6
+},
+{
+"text": "ſeulement",
+"size": 11.6
+},
+{
+"text": " ",
+"size": 7.6
+},
+{
+"text": ",",
+"size": 7.6
+},
+{
+"text": " ",
+"size": 14.8
+},
+{
+"text": "cOMME",
+"size": 14.8
+}
+]
+},
+{
+"bbox": [
+39.5,
+181.7,
+222.1,
+198.5
+],
+"spans": [
+{
+"text": "UN",
+"size": 15.1
+},
+{
+"text": " ",
+"size": 12.3
+},
+{
+"text": "propre",
+"size": 12.3
+},
+{
+"text": "de",
+"size": 12.5
+},
+{
+"text": " la",
+"size": 10.6
+},
+{
+"text": "Nation",
+"size": 12.7
+},
+{
+"text": "&",
+"size": 16.8
+},
+{
+"text": "noncom-",
+"size": 13.2
+}
+]
+},
+{
+"bbox": [
+39.2,
+196.3,
+221.4,
+210.5
+],
+"spans": [
+{
+"text": "me",
+"size": 14.1
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "un",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "Domaine",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "de",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 10.6
+},
+{
+"text": "la",
+"size": 10.6
+},
+{
+"text": " ",
+"size": 12.5
+},
+{
+"text": "Couronne",
+"size": 12.5
+},
+{
+"text": " ",
+"size": 8.3
+},
+{
+"text": ",",
+"size": 8.3
+}
+]
+},
+{
+"bbox": [
+39.4,
+210.0,
+221.5,
+222.8
+],
+"spans": [
+{
+"text": "ou",
+"size": 12.0
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "comme",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "Fiefs",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 11.6
+},
+{
+"text": "en",
+"size": 11.6
+},
+{
+"text": " relevans",
+"size": 10.7
+},
+{
+"text": ".",
+"size": 6.9
+},
+{
+"text": " ",
+"size": 12.0
+},
+{
+"text": "Ces",
+"size": 12.0
+}
+]
+},
+{
+"bbox": [
+39.1,
+226.1,
+221.2,
+239.8
+],
+"spans": [
+{
+"text": "termes",
+"size": 12.6
+},
+{
+"text": " ",
+"size": 12.1
+},
+{
+"text": "ſont",
+"size": 12.1
+},
+{
+"text": " ",
+"size": 11.8
+},
+{
+"text": "poſterieurs",
+"size": 11.8
+},
+{
+"text": " ",
+"size": 13.6
+},
+{
+"text": "de",
+"size": 13.6
+},
+{
+"text": " pluſieurs",
+"size": 11.7
+}
+]
+},
+{
+"bbox": [
+39.0,
+241.0,
+221.8,
+254.6
+],
+"spans": [
+{
+"text": "fiécles",
+"size": 11.2
+},
+{
+"text": " ",
+"size": 13.2
+},
+{
+"text": "aux",
+"size": 13.2
+},
+{
+"text": " ",
+"size": 12.1
+},
+{
+"text": "uſages",
+"size": 12.1
+},
+{
+"text": " ",
+"size": 13.6
+},
+{
+"text": "de",
+"size": 13.6
+},
+{
+"text": " ",
+"size": 11.5
+},
+{
+"text": "ces",
+"size": 11.5
+},
+{
+"text": " ",
+"size": 12.5
+},
+{
+"text": "premiers",
+"size": 12.5
+}
+]
+},
+{
+"bbox": [
+39.4,
+255.8,
+65.8,
+265.0
+],
+"spans": [
+{
+"text": "tems",
+"size": 9.2
+},
+{
+"text": ".",
+"size": 5.2
+}
+]
+},
+{
+"bbox": [
+51.8,
+268.7,
+222.3,
+283.5
+],
+"spans": [
+{
+"text": "Ceux",
+"size": 14.8
+},
+{
+"text": " enfin",
+"size": 12.4
+},
+{
+"text": " que",
+"size": 13.9
+},
+{
+"text": " ",
+"size": 12.5
+},
+{
+"text": "leur",
+"size": 12.5
+},
+{
+"text": " capacité par-",
+"size": 12.3
+}
+]
+},
+{
+"bbox": [
+39.2,
+282.4,
+221.6,
+297.1
+],
+"spans": [
+{
+"text": "ticuliere",
+"size": 11.6
+},
+{
+"text": " ",
+"size": 12.4
+},
+{
+"text": "rendoit",
+"size": 12.4
+},
+{
+"text": " ",
+"size": 13.2
+},
+{
+"text": "propre",
+"size": 13.2
+},
+{
+"text": " à",
+"size": 14.7
+},
+{
+"text": " ",
+"size": 12.4
+},
+{
+"text": "l'admini-",
+"size": 12.4
+}
+]
+},
+{
+"bbox": [
+39.5,
+298.0,
+222.0,
+312.1
+],
+"spans": [
+{
+"text": "ſtration",
+"size": 11.9
+},
+{
+"text": " de",
+"size": 14.1
+},
+{
+"text": " ",
+"size": 11.7
+},
+{
+"text": "la",
+"size": 11.7
+},
+{
+"text": " Juſtice",
+"size": 12.1
+},
+{
+"text": " ou",
+"size": 13.8
+},
+{
+"text": " au",
+"size": 13.1
+},
+{
+"text": " Gouver-",
+"size": 13.9
+}
+]
+},
+{
+"bbox": [
+141.4,
+307.9,
+162.8,
+322.4
+],
+"spans": [
+{
+"text": "B",
+"size": 14.5
+},
+{
+"text": " 4",
+"size": 13.4
+}
+]
+},
+{
+"bbox": [
+179.0,
+311.6,
+221.0,
+321.7
+],
+"spans": [
+{
+"text": "nement",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 6.2
+},
+{
+"text": ",",
+"size": 6.2
+}
+]
+},
+{
+"bbox": [
+37.9,
+335.6,
+221.3,
+346.1
+],
+"spans": [
+{
+"text": "nous",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "aprend",
+"size": 10.1
+},
+{
+"text": " ci",
+"size": 9.0
+},
+{
+"text": "-",
+"size": 7.6
+},
+{
+"text": "après",
+"size": 9.6
+},
+{
+"text": " que",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "ce",
+"size": 9.9
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "corps",
+"size": 9.9
+},
+{
+"text": "d'armée",
+"size": 10.2
+},
+{
+"text": " ſe",
+"size": 9.3
+}
+]
+},
+{
+"bbox": [
+36.8,
+344.8,
+221.4,
+355.7
+],
+"spans": [
+{
+"text": "diviſa",
+"size": 9.7
+},
+{
+"text": " en",
+"size": 10.4
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "trois",
+"size": 9.4
+},
+{
+"text": " Corps",
+"size": 10.5
+},
+{
+"text": " de",
+"size": 10.5
+},
+{
+"text": " Troupes",
+"size": 10.4
+},
+{
+"text": " ",
+"size": 10.8
+},
+{
+"text": "ou",
+"size": 10.8
+},
+{
+"text": " Camps-",
+"size": 10.9
+}
+]
+},
+{
+"bbox": [
+38.5,
+352.7,
+221.3,
+365.3
+],
+"spans": [
+{
+"text": "volans",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 6.9
+},
+{
+"text": ",",
+"size": 6.9
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "toûjours",
+"size": 9.8
+},
+{
+"text": " ſous",
+"size": 9.5
+},
+{
+"text": "des",
+"size": 9.8
+},
+{
+"text": " tentes",
+"size": 9.1
+},
+{
+"text": " &",
+"size": 12.6
+},
+{
+"text": " fans",
+"size": 9.3
+},
+{
+"text": " ſéjour",
+"size": 9.6
+}
+]
+},
+{
+"bbox": [
+39.1,
+364.8,
+55.4,
+372.5
+],
+"spans": [
+{
+"text": "fixé",
+"size": 7.7
+},
+{
+"text": " .",
+"size": 3.4
+}
+]
+},
+{
+"bbox": [
+46.8,
+374.2,
+105.9,
+385.2
+],
+"spans": [
+{
+"text": "(",
+"size": 9.2
+},
+{
+"text": " 10",
+"size": 11.0
+},
+{
+"text": ")",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 9.1
+},
+{
+"text": "Benefice",
+"size": 9.1
+},
+{
+"text": ".",
+"size": 6.1
+}
+]
+},
+{
+"bbox": [
+114.8,
+374.3,
+221.6,
+385.2
+],
+"spans": [
+{
+"text": "Voyez",
+"size": 10.7
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "la",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 10.9
+},
+{
+"text": "Note",
+"size": 10.9
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "ci-",
+"size": 9.2
+},
+{
+"text": "après",
+"size": 9.6
+},
+{
+"text": " ,",
+"size": 8.0
+}
+]
+},
+{
+"bbox": [
+35.8,
+383.4,
+70.6,
+393.9
+],
+"spans": [
+{
+"text": "page",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "26",
+"size": 10.5
+}
+]
+}
+]
+},
+"60": {
+"width": 287.8,
+"height": 486.5,
+"lines": [
+{
+"bbox": [
+65.0,
+29.9,
+79.6,
+44.7
+],
+"spans": [
+{
+"text": "24",
+"size": 14.8
+}
+]
+},
+{
+"bbox": [
+92.1,
+31.7,
+223.9,
+45.1
+],
+"spans": [
+{
+"text": "Differtation",
+"size": 12.1
+},
+{
+"text": "fur",
+"size": 13.3
+},
+{
+"text": " la",
+"size": 12.1
+},
+{
+"text": " Nobleffe",
+"size": 12.4
+}
+]
+},
+{
+"bbox": [
+64.1,
+43.6,
+248.2,
+58.1
+],
+"spans": [
+{
+"text": "nement",
+"size": 13.5
+},
+{
+"text": " ,",
+"size": 14.0
+},
+{
+"text": " furent",
+"size": 12.3
+},
+{
+"text": " ",
+"size": 13.8
+},
+{
+"text": "ou",
+"size": 13.8
+},
+{
+"text": " ",
+"size": 12.3
+},
+{
+"text": "retenus",
+"size": 12.3
+},
+{
+"text": " ",
+"size": 12.7
+},
+{
+"text": "auprès",
+"size": 12.7
+}
+]
+},
+{
+"bbox": [
+64.3,
+58.3,
+241.8,
+72.6
+],
+"spans": [
+{
+"text": "du",
+"size": 13.7
+},
+{
+"text": " Prince",
+"size": 12.3
+},
+{
+"text": " pour",
+"size": 13.0
+},
+{
+"text": " lui",
+"size": 11.0
+},
+{
+"text": " ſervir",
+"size": 11.5
+},
+{
+"text": " de",
+"size": 13.0
+},
+{
+"text": " Conſeil",
+"size": 12.3
+}
+]
+},
+{
+"bbox": [
+64.4,
+71.8,
+247.5,
+86.1
+],
+"spans": [
+{
+"text": "ou",
+"size": 13.7
+},
+{
+"text": " ",
+"size": 12.3
+},
+{
+"text": "furent",
+"size": 12.3
+},
+{
+"text": " envoyés",
+"size": 13.0
+},
+{
+"text": " dans",
+"size": 12.8
+},
+{
+"text": " la",
+"size": 11.1
+},
+{
+"text": " Cité",
+"size": 12.7
+},
+{
+"text": " (",
+"size": 10.7
+},
+{
+"text": "11",
+"size": 12.8
+},
+{
+"text": " )",
+"size": 11.0
+}
+]
+},
+{
+"bbox": [
+64.3,
+85.2,
+248.3,
+100.9
+],
+"spans": [
+{
+"text": "pour",
+"size": 13.7
+},
+{
+"text": "y",
+"size": 15.2
+},
+{
+"text": " remplir",
+"size": 12.7
+},
+{
+"text": " les",
+"size": 11.4
+},
+{
+"text": " Magiſtratures ſous",
+"size": 12.6
+}
+]
+},
+{
+"bbox": [
+64.7,
+99.6,
+247.9,
+113.2
+],
+"spans": [
+{
+"text": "le",
+"size": 11.4
+},
+{
+"text": " titre",
+"size": 10.7
+},
+{
+"text": "de",
+"size": 13.3
+},
+{
+"text": " Comtes",
+"size": 12.2
+},
+{
+"text": " (",
+"size": 10.3
+},
+{
+"text": " 12",
+"size": 12.6
+},
+{
+"text": ")",
+"size": 11.2
+},
+{
+"text": ".",
+"size": 7.9
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "Les",
+"size": 12.2
+},
+{
+"text": " François",
+"size": 11.8
+}
+]
+},
+{
+"bbox": [
+235.0,
+113.3,
+249.6,
+123.4
+],
+"spans": [
+{
+"text": "ne",
+"size": 10.1
+}
+]
+},
+{
+"bbox": [
+75.8,
+132.8,
+249.9,
+143.5
+],
+"spans": [
+{
+"text": "(",
+"size": 8.0
+},
+{
+"text": " 11",
+"size": 10.5
+},
+{
+"text": " )",
+"size": 6.9
+},
+{
+"text": " ",
+"size": 9.5
+},
+{
+"text": "Cité",
+"size": 9.5
+},
+{
+"text": ".",
+"size": 5.6
+},
+{
+"text": " ",
+"size": 9.5
+},
+{
+"text": "L'explication",
+"size": 9.5
+},
+{
+"text": "de",
+"size": 10.4
+},
+{
+"text": " ce",
+"size": 10.0
+},
+{
+"text": " terme",
+"size": 10.3
+},
+{
+"text": " eſt",
+"size": 8.8
+},
+{
+"text": " in-",
+"size": 9.3
+}
+]
+},
+{
+"bbox": [
+65.0,
+142.9,
+166.3,
+153.4
+],
+"spans": [
+{
+"text": "diquée",
+"size": 9.8
+},
+{
+"text": " ci",
+"size": 8.8
+},
+{
+"text": "-",
+"size": 8.5
+},
+{
+"text": "devant",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "page",
+"size": 9.7
+},
+{
+"text": " 4",
+"size": 10.5
+},
+{
+"text": " .",
+"size": 5.4
+}
+]
+},
+{
+"bbox": [
+75.5,
+150.9,
+250.5,
+162.3
+],
+"spans": [
+{
+"text": "(",
+"size": 10.8
+},
+{
+"text": "12",
+"size": 10.5
+},
+{
+"text": ")",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 10.2
+},
+{
+"text": "Comte",
+"size": 10.2
+},
+{
+"text": " ,",
+"size": 7.3
+},
+{
+"text": " ",
+"size": 10.9
+},
+{
+"text": "du",
+"size": 10.9
+},
+{
+"text": " latin",
+"size": 9.2
+},
+{
+"text": "Comes",
+"size": 10.4
+},
+{
+"text": ".",
+"size": 7.6
+},
+{
+"text": " ",
+"size": 10.3
+},
+{
+"text": "Comes",
+"size": 10.3
+},
+{
+"text": " formé",
+"size": 10.6
+}
+]
+},
+{
+"bbox": [
+65.9,
+160.2,
+250.0,
+172.7
+],
+"spans": [
+{
+"text": "de",
+"size": 9.9
+},
+{
+"text": " cum",
+"size": 10.0
+},
+{
+"text": " avec",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 7.3
+},
+{
+"text": ",",
+"size": 7.3
+},
+{
+"text": " &",
+"size": 12.2
+},
+{
+"text": " d'eo",
+"size": 8.6
+},
+{
+"text": ",",
+"size": 6.9
+},
+{
+"text": " ",
+"size": 8.2
+},
+{
+"text": "es",
+"size": 8.2
+},
+{
+"text": ",",
+"size": 6.9
+},
+{
+"text": " je",
+"size": 9.0
+},
+{
+"text": " vas",
+"size": 9.5
+},
+{
+"text": ",",
+"size": 7.6
+},
+{
+"text": " tu",
+"size": 9.3
+},
+{
+"text": " vas",
+"size": 9.5
+},
+{
+"text": ".",
+"size": 5.8
+},
+{
+"text": " Comte",
+"size": 10.5
+},
+{
+"text": ",",
+"size": 7.9
+}
+]
+},
+{
+"bbox": [
+65.6,
+170.3,
+251.4,
+182.0
+],
+"spans": [
+{
+"text": "qui",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 10.8
+},
+{
+"text": "va",
+"size": 10.8
+},
+{
+"text": " à",
+"size": 11.5
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "la",
+"size": 9.6
+},
+{
+"text": " ",
+"size": 9.0
+},
+{
+"text": "ſuite",
+"size": 9.0
+},
+{
+"text": ".",
+"size": 6.5
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "C'étoit",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "ſous",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 9.1
+},
+{
+"text": "les",
+"size": 9.1
+},
+{
+"text": " derniers",
+"size": 9.7
+}
+]
+},
+{
+"bbox": [
+65.6,
+177.8,
+251.1,
+191.9
+],
+"spans": [
+{
+"text": "Empereurs",
+"size": 10.3
+},
+{
+"text": " ",
+"size": 10.6
+},
+{
+"text": "Romains",
+"size": 10.6
+},
+{
+"text": " ",
+"size": 11.0
+},
+{
+"text": "un",
+"size": 11.0
+},
+{
+"text": " ",
+"size": 9.1
+},
+{
+"text": "titre",
+"size": 9.1
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "d'honneur",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 8.6
+},
+{
+"text": ",",
+"size": 8.6
+},
+{
+"text": " ",
+"size": 13.4
+},
+{
+"text": "&",
+"size": 13.4
+}
+]
+},
+{
+"bbox": [
+66.4,
+188.3,
+251.1,
+201.2
+],
+"spans": [
+{
+"text": "l'on",
+"size": 9.0
+},
+{
+"text": " ",
+"size": 8.7
+},
+{
+"text": "apelloit",
+"size": 8.7
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "de",
+"size": 10.0
+},
+{
+"text": " ce",
+"size": 9.0
+},
+{
+"text": " nom",
+"size": 11.1
+},
+{
+"text": " de",
+"size": 10.0
+},
+{
+"text": " CoMTE",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 8.9
+},
+{
+"text": "certains",
+"size": 8.9
+}
+]
+},
+{
+"bbox": [
+64.5,
+200.6,
+251.9,
+211.5
+],
+"spans": [
+{
+"text": "Officiers",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "qui",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 8.7
+},
+{
+"text": "les",
+"size": 8.7
+},
+{
+"text": " ",
+"size": 9.3
+},
+{
+"text": "ſuivoient",
+"size": 9.3
+},
+{
+"text": ".",
+"size": 7.3
+},
+{
+"text": " ",
+"size": 10.3
+},
+{
+"text": "Sous",
+"size": 10.3
+},
+{
+"text": " ",
+"size": 8.5
+},
+{
+"text": "les",
+"size": 8.5
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "premiers",
+"size": 10.0
+}
+]
+},
+{
+"bbox": [
+65.8,
+209.2,
+252.1,
+220.0
+],
+"spans": [
+{
+"text": "Rois",
+"size": 9.9
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "de",
+"size": 9.6
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "France",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 7.8
+},
+{
+"text": "ils",
+"size": 7.8
+},
+{
+"text": " ",
+"size": 9.0
+},
+{
+"text": "étoient",
+"size": 9.0
+},
+{
+"text": " de",
+"size": 9.8
+},
+{
+"text": " la",
+"size": 8.8
+},
+{
+"text": " ",
+"size": 8.7
+},
+{
+"text": "ſuite",
+"size": 8.7
+},
+{
+"text": "du",
+"size": 10.3
+},
+{
+"text": " Roi",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 8.8
+},
+{
+"text": ",",
+"size": 8.8
+}
+]
+},
+{
+"bbox": [
+65.5,
+217.1,
+250.8,
+230.0
+],
+"spans": [
+{
+"text": "&",
+"size": 12.8
+},
+{
+"text": " le",
+"size": 8.1
+},
+{
+"text": " Comte",
+"size": 9.3
+},
+{
+"text": " ",
+"size": 8.3
+},
+{
+"text": "étoit",
+"size": 8.3
+},
+{
+"text": " ",
+"size": 8.8
+},
+{
+"text": "ordinairement",
+"size": 8.8
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "un",
+"size": 9.4
+},
+{
+"text": " Bailli",
+"size": 8.2
+},
+{
+"text": " ",
+"size": 6.2
+},
+{
+"text": ",",
+"size": 6.2
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "ou",
+"size": 9.4
+}
+]
+},
+{
+"bbox": [
+66.9,
+226.7,
+252.2,
+240.7
+],
+"spans": [
+{
+"text": "Particulier",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "auquel",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "la",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 10.4
+},
+{
+"text": "Nation",
+"size": 10.4
+},
+{
+"text": " avoit",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 9.0
+},
+{
+"text": "baillé",
+"size": 9.0
+},
+{
+"text": " ",
+"size": 13.2
+},
+{
+"text": "&",
+"size": 13.2
+}
+]
+},
+{
+"bbox": [
+66.4,
+239.1,
+251.5,
+250.6
+],
+"spans": [
+{
+"text": "donné",
+"size": 10.4
+},
+{
+"text": " quelques",
+"size": 9.9
+},
+{
+"text": " Terres",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 10.9
+},
+{
+"text": "ou",
+"size": 10.9
+},
+{
+"text": " quelque",
+"size": 10.1
+},
+{
+"text": " Magiſtra-",
+"size": 9.9
+}
+]
+},
+{
+"bbox": [
+67.9,
+246.9,
+252.7,
+259.5
+],
+"spans": [
+{
+"text": "ture",
+"size": 9.3
+},
+{
+"text": ".",
+"size": 5.8
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "Enfuite",
+"size": 9.2
+},
+{
+"text": " ,",
+"size": 6.6
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "&",
+"size": 12.2
+},
+{
+"text": " du",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "tems de",
+"size": 9.6
+},
+{
+"text": " Charles",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 8.5
+},
+{
+"text": "le",
+"size": 8.5
+},
+{
+"text": " Simple",
+"size": 9.3
+}
+]
+},
+{
+"bbox": [
+67.1,
+259.1,
+253.2,
+270.5
+],
+"spans": [
+{
+"text": "que",
+"size": 10.9
+},
+{
+"text": " la",
+"size": 9.3
+},
+{
+"text": " France",
+"size": 9.9
+},
+{
+"text": " fut",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 10.4
+},
+{
+"text": "en",
+"size": 10.4
+},
+{
+"text": " trouble",
+"size": 9.7
+},
+{
+"text": " ,",
+"size": 10.8
+},
+{
+"text": " ces",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 10.7
+},
+{
+"text": "Comtes",
+"size": 10.7
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "ſe",
+"size": 9.6
+}
+]
+},
+{
+"bbox": [
+68.3,
+265.0,
+253.3,
+279.9
+],
+"spans": [
+{
+"text": "firent",
+"size": 9.0
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "Seigneurs",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "abſolus",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 10.7
+},
+{
+"text": "de",
+"size": 10.7
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "leurs",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "Terres",
+"size": 10.1
+},
+{
+"text": " &",
+"size": 14.2
+}
+]
+},
+{
+"bbox": [
+65.3,
+277.9,
+252.8,
+288.8
+],
+"spans": [
+{
+"text": "de",
+"size": 10.7
+},
+{
+"text": " leurs",
+"size": 8.8
+},
+{
+"text": " ",
+"size": 8.9
+},
+{
+"text": "Villes",
+"size": 8.9
+},
+{
+"text": " ",
+"size": 7.9
+},
+{
+"text": ",",
+"size": 7.9
+},
+{
+"text": " ",
+"size": 8.7
+},
+{
+"text": "dit",
+"size": 8.7
+},
+{
+"text": " ",
+"size": 8.9
+},
+{
+"text": "Richelet",
+"size": 8.9
+},
+{
+"text": ".",
+"size": 5.4
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "Dict",
+"size": 9.2
+},
+{
+"text": ".",
+"size": 5.4
+},
+{
+"text": " ",
+"size": 9.1
+},
+{
+"text": "Edition",
+"size": 9.1
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "de",
+"size": 9.9
+}
+]
+},
+{
+"bbox": [
+67.0,
+287.8,
+252.7,
+298.5
+],
+"spans": [
+{
+"text": "Lyon",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "1728.",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "Mais",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 9.3
+},
+{
+"text": "notre",
+"size": 9.3
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "Auteur",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 8.5
+},
+{
+"text": "lui",
+"size": 8.5
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "auroit",
+"size": 9.2
+}
+]
+},
+{
+"bbox": [
+67.4,
+298.2,
+254.4,
+309.9
+],
+"spans": [
+{
+"text": "apris",
+"size": 9.7
+},
+{
+"text": " que",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "ces",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "Comtes",
+"size": 10.5
+},
+{
+"text": " ,",
+"size": 8.9
+},
+{
+"text": " quant",
+"size": 10.1
+},
+{
+"text": " à",
+"size": 10.3
+},
+{
+"text": " leurs",
+"size": 9.2
+},
+{
+"text": " Terres",
+"size": 10.1
+},
+{
+"text": " ,",
+"size": 10.8
+}
+]
+},
+{
+"bbox": [
+68.1,
+308.0,
+253.8,
+318.7
+],
+"spans": [
+{
+"text": "n'étoient",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "pas",
+"size": 9.9
+},
+{
+"text": " moins",
+"size": 10.3
+},
+{
+"text": " abſolus",
+"size": 9.6
+},
+{
+"text": " dès",
+"size": 9.7
+},
+{
+"text": " avant",
+"size": 9.9
+},
+{
+"text": " Charles",
+"size": 10.0
+}
+]
+},
+{
+"bbox": [
+68.4,
+316.2,
+253.7,
+329.1
+],
+"spans": [
+{
+"text": "le",
+"size": 9.6
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "Simple",
+"size": 10.5
+},
+{
+"text": " ,",
+"size": 9.9
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "puiſqu'ils",
+"size": 9.6
+},
+{
+"text": " ne",
+"size": 10.3
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "relevoient",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 10.4
+},
+{
+"text": "pas",
+"size": 10.4
+},
+{
+"text": " même",
+"size": 12.1
+}
+]
+},
+{
+"bbox": [
+67.3,
+325.9,
+98.9,
+336.6
+],
+"spans": [
+{
+"text": "du",
+"size": 10.6
+},
+{
+"text": " Roi",
+"size": 10.0
+}
+]
+},
+{
+"bbox": [
+113.0,
+325.8,
+254.6,
+336.4
+],
+"spans": [
+{
+"text": "tenans",
+"size": 8.7
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "de",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 8.4
+},
+{
+"text": "la",
+"size": 8.4
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "Nation",
+"size": 9.2
+},
+{
+"text": " ",
+"size": 8.4
+},
+{
+"text": "ces",
+"size": 8.4
+},
+{
+"text": " ",
+"size": 8.9
+},
+{
+"text": "Terres",
+"size": 8.9
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "à",
+"size": 10.0
+}
+]
+},
+{
+"bbox": [
+69.5,
+336.2,
+253.9,
+347.9
+],
+"spans": [
+{
+"text": "titres",
+"size": 8.9
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "de",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 9.5
+},
+{
+"text": "Benefice",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "ou",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "récompenfes",
+"size": 9.9
+},
+{
+"text": ".",
+"size": 6.9
+},
+{
+"text": " ",
+"size": 11.0
+},
+{
+"text": "La",
+"size": 11.0
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "re-",
+"size": 9.7
+}
+]
+},
+{
+"bbox": [
+69.0,
+346.6,
+254.4,
+357.7
+],
+"spans": [
+{
+"text": "marque",
+"size": 10.7
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "de",
+"size": 9.9
+},
+{
+"text": " Richelet",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 8.9
+},
+{
+"text": ",",
+"size": 8.9
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "qui",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 9.3
+},
+{
+"text": "vient",
+"size": 9.3
+},
+{
+"text": " enſuite",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "fur",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 9.0
+},
+{
+"text": "le",
+"size": 9.0
+}
+]
+},
+{
+"bbox": [
+70.2,
+355.0,
+248.4,
+365.5
+],
+"spans": [
+{
+"text": "mot",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 9.7
+},
+{
+"text": "de",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "Comte",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "du",
+"size": 10.0
+},
+{
+"text": " ",
+"size": 8.7
+},
+{
+"text": "Palais",
+"size": 8.7
+},
+{
+"text": " ou",
+"size": 9.5
+},
+{
+"text": " Comte",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 8.5
+},
+{
+"text": "Palatin",
+"size": 8.5
+}
+]
+},
+{
+"bbox": [
+70.8,
+363.4,
+255.0,
+376.8
+],
+"spans": [
+{
+"text": "ſe",
+"size": 9.0
+},
+{
+"text": " raproche",
+"size": 9.9
+},
+{
+"text": " plus",
+"size": 9.5
+},
+{
+"text": " de",
+"size": 9.9
+},
+{
+"text": " ",
+"size": 9.0
+},
+{
+"text": "la",
+"size": 9.0
+},
+{
+"text": " verité",
+"size": 9.4
+},
+{
+"text": " &",
+"size": 12.8
+},
+{
+"text": " du",
+"size": 10.7
+},
+{
+"text": " ſentiment",
+"size": 9.6
+},
+{
+"text": "de",
+"size": 10.5
+}
+]
+},
+{
+"bbox": [
+69.4,
+374.6,
+156.0,
+385.3
+],
+"spans": [
+{
+"text": "M.",
+"size": 10.6
+},
+{
+"text": " ",
+"size": 9.3
+},
+{
+"text": "de",
+"size": 9.3
+},
+{
+"text": " Boulainvilliers",
+"size": 8.4
+}
+]
+},
+{
+"bbox": [
+161.2,
+374.7,
+254.5,
+385.0
+],
+"spans": [
+{
+"text": ":",
+"size": 6.2
+},
+{
+"text": " ",
+"size": 8.6
+},
+{
+"text": "\"",
+"size": 8.6
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "Comte",
+"size": 9.2
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "du",
+"size": 9.2
+},
+{
+"text": " ",
+"size": 8.6
+},
+{
+"text": "Palais",
+"size": 8.6
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "ou",
+"size": 9.9
+}
+]
+},
+{
+"bbox": [
+69.9,
+385.7,
+254.4,
+397.4
+],
+"spans": [
+{
+"text": "a",
+"size": 11.0
+},
+{
+"text": " ",
+"size": 10.6
+},
+{
+"text": "Comte",
+"size": 10.6
+},
+{
+"text": " Palatin",
+"size": 10.0
+},
+{
+"text": " étoit",
+"size": 9.5
+},
+{
+"text": " ,",
+"size": 8.3
+},
+{
+"text": " dit",
+"size": 9.4
+},
+{
+"text": "-",
+"size": 9.9
+},
+{
+"text": "il",
+"size": 8.5
+},
+{
+"text": " ,",
+"size": 8.7
+},
+{
+"text": " du",
+"size": 11.1
+},
+{
+"text": " tems",
+"size": 10.4
+},
+{
+"text": " ",
+"size": 10.3
+},
+{
+"text": "de",
+"size": 10.3
+},
+{
+"text": " nos",
+"size": 10.8
+}
+]
+},
+{
+"bbox": [
+103.4,
+332.6,
+107.7,
+337.7
+],
+"spans": [
+{
+"text": "2",
+"size": 5.1
+}
+]
+}
+]
+},
+"61": {
+"width": 299.5,
+"height": 490.6,
+"lines": [
+{
+"bbox": [
+115.4,
+33.7,
+169.2,
+46.1
+],
+"spans": [
+{
+"text": "de",
+"size": 12.4
+},
+{
+"text": " France",
+"size": 11.4
+},
+{
+"text": ".",
+"size": 6.9
+}
+]
+},
+{
+"bbox": [
+221.2,
+36.9,
+236.3,
+49.2
+],
+"spans": [
+{
+"text": "25",
+"size": 12.3
+}
+]
+},
+{
+"bbox": [
+0.5,
+418.7,
+3.1,
+421.0
+],
+"spans": [
+{
+"text": ".",
+"size": 2.3
+}
+]
+},
+{
+"bbox": [
+52.3,
+48.9,
+237.9,
+63.4
+],
+"spans": [
+{
+"text": "ne",
+"size": 14.4
+},
+{
+"text": " ſuivirent",
+"size": 12.3
+},
+{
+"text": " point",
+"size": 12.9
+},
+{
+"text": " ",
+"size": 13.7
+},
+{
+"text": "en",
+"size": 13.7
+},
+{
+"text": " cela",
+"size": 12.2
+},
+{
+"text": " l'exemple",
+"size": 13.0
+}
+]
+},
+{
+"bbox": [
+53.1,
+64.3,
+236.5,
+76.6
+],
+"spans": [
+{
+"text": "des",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 11.6
+},
+{
+"text": "autres",
+"size": 11.6
+},
+{
+"text": " ",
+"size": 12.0
+},
+{
+"text": "Barbares",
+"size": 12.0
+},
+{
+"text": " ",
+"size": 11.6
+},
+{
+"text": "qui",
+"size": 11.6
+},
+{
+"text": " ",
+"size": 11.1
+},
+{
+"text": "aboliſſoient",
+"size": 11.1
+}
+]
+},
+{
+"bbox": [
+53.1,
+73.6,
+236.4,
+92.2
+],
+"spans": [
+{
+"text": "le",
+"size": 12.0
+},
+{
+"text": "nom",
+"size": 15.7
+},
+{
+"text": "&",
+"size": 18.6
+},
+{
+"text": " l'autorité",
+"size": 11.8
+},
+{
+"text": " des",
+"size": 12.8
+},
+{
+"text": " Charges",
+"size": 13.3
+},
+{
+"text": " Ro-",
+"size": 14.4
+}
+]
+},
+{
+"bbox": [
+52.8,
+92.6,
+92.0,
+105.9
+],
+"spans": [
+{
+"text": "maines",
+"size": 13.3
+},
+{
+"text": ".",
+"size": 10.0
+}
+]
+},
+{
+"bbox": [
+102.0,
+93.1,
+237.3,
+105.9
+],
+"spans": [
+{
+"text": "Ils",
+"size": 11.9
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "prétendirent",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 12.0
+},
+{
+"text": "s'aquerir",
+"size": 12.0
+}
+]
+},
+{
+"bbox": [
+54.0,
+106.4,
+237.0,
+119.4
+],
+"spans": [
+{
+"text": "l'eſprit",
+"size": 10.8
+},
+{
+"text": " ",
+"size": 12.7
+},
+{
+"text": "des",
+"size": 12.7
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "peuples",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 13.0
+},
+{
+"text": "en",
+"size": 13.0
+},
+{
+"text": " retenant",
+"size": 12.1
+},
+{
+"text": " ",
+"size": 10.8
+},
+{
+"text": "l'or-",
+"size": 10.8
+}
+]
+},
+{
+"bbox": [
+54.1,
+115.4,
+237.6,
+133.1
+],
+"spans": [
+{
+"text": "dre",
+"size": 12.4
+},
+{
+"text": " ",
+"size": 11.5
+},
+{
+"text": "exterieur",
+"size": 11.5
+},
+{
+"text": " ",
+"size": 12.9
+},
+{
+"text": "de",
+"size": 12.9
+},
+{
+"text": " leur",
+"size": 11.8
+},
+{
+"text": " ",
+"size": 11.7
+},
+{
+"text": "police",
+"size": 11.7
+},
+{
+"text": " &",
+"size": 17.7
+},
+{
+"text": " ",
+"size": 10.6
+},
+{
+"text": "les",
+"size": 10.6
+}
+]
+},
+{
+"bbox": [
+54.4,
+133.1,
+238.8,
+147.3
+],
+"spans": [
+{
+"text": "noms",
+"size": 14.2
+},
+{
+"text": " ",
+"size": 12.6
+},
+{
+"text": "des",
+"size": 12.6
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "Magiſtrats",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 12.1
+},
+{
+"text": "auſquels",
+"size": 12.1
+},
+{
+"text": " ",
+"size": 14.1
+},
+{
+"text": "on",
+"size": 14.1
+}
+]
+},
+{
+"bbox": [
+54.0,
+148.2,
+238.1,
+161.3
+],
+"spans": [
+{
+"text": "étoit",
+"size": 11.8
+},
+{
+"text": " ",
+"size": 13.1
+},
+{
+"text": "accoutumé",
+"size": 13.1
+},
+{
+"text": " ",
+"size": 11.3
+},
+{
+"text": ",",
+"size": 11.3
+},
+{
+"text": " ",
+"size": 12.0
+},
+{
+"text": "ſans",
+"size": 12.0
+},
+{
+"text": " ",
+"size": 12.1
+},
+{
+"text": "rien",
+"size": 12.1
+},
+{
+"text": " perdre",
+"size": 12.7
+}
+]
+},
+{
+"bbox": [
+54.2,
+159.8,
+238.1,
+172.6
+],
+"spans": [
+{
+"text": "néanmoins",
+"size": 11.7
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "du",
+"size": 12.8
+},
+{
+"text": " ",
+"size": 10.9
+},
+{
+"text": "droit",
+"size": 10.9
+},
+{
+"text": " ",
+"size": 11.9
+},
+{
+"text": "de",
+"size": 11.9
+},
+{
+"text": " ",
+"size": 10.6
+},
+{
+"text": "leur",
+"size": 10.6
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "Con-",
+"size": 12.2
+}
+]
+},
+{
+"bbox": [
+54.5,
+176.1,
+238.8,
+188.7
+],
+"spans": [
+{
+"text": "quête",
+"size": 12.1
+},
+{
+"text": " ,",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 10.9
+},
+{
+"text": "puiſqu'ils",
+"size": 10.9
+},
+{
+"text": " ",
+"size": 12.6
+},
+{
+"text": "ne",
+"size": 12.6
+},
+{
+"text": " faifoient",
+"size": 10.9
+},
+{
+"text": " exercer",
+"size": 11.8
+}
+]
+},
+{
+"bbox": [
+54.7,
+190.2,
+238.4,
+203.6
+],
+"spans": [
+{
+"text": "ces",
+"size": 12.2
+},
+{
+"text": " Charges",
+"size": 13.2
+},
+{
+"text": " ",
+"size": 13.4
+},
+{
+"text": "que",
+"size": 13.4
+},
+{
+"text": " par",
+"size": 13.0
+},
+{
+"text": " ",
+"size": 12.7
+},
+{
+"text": "des",
+"size": 12.7
+},
+{
+"text": " Seigneurs",
+"size": 12.5
+}
+]
+},
+{
+"bbox": [
+53.1,
+200.7,
+140.7,
+214.0
+],
+"spans": [
+{
+"text": "de",
+"size": 13.3
+},
+{
+"text": " ",
+"size": 10.4
+},
+{
+"text": "cette",
+"size": 10.4
+},
+{
+"text": " ",
+"size": 11.6
+},
+{
+"text": "Nation",
+"size": 11.6
+},
+{
+"text": ".",
+"size": 6.5
+}
+]
+},
+{
+"bbox": [
+55.0,
+225.9,
+238.8,
+239.1
+],
+"spans": [
+{
+"text": "Distinction",
+"size": 12.6
+},
+{
+"text": " de",
+"size": 13.1
+},
+{
+"text": " ",
+"size": 12.1
+},
+{
+"text": "la",
+"size": 12.1
+},
+{
+"text": " ",
+"size": 12.2
+},
+{
+"text": "Noblesse",
+"size": 12.2
+},
+{
+"text": " ",
+"size": 12.5
+},
+{
+"text": "Françoise",
+"size": 12.5
+}
+]
+},
+{
+"bbox": [
+89.8,
+241.0,
+238.8,
+253.8
+],
+"spans": [
+{
+"text": "Privileges",
+"size": 12.5
+},
+{
+"text": " ",
+"size": 12.8
+},
+{
+"text": "des",
+"size": 12.8
+},
+{
+"text": " ſimples",
+"size": 12.5
+},
+{
+"text": " Parti-",
+"size": 12.8
+}
+]
+},
+{
+"bbox": [
+69.2,
+251.3,
+238.1,
+265.1
+],
+"spans": [
+{
+"text": "culiers",
+"size": 11.1
+},
+{
+"text": " même",
+"size": 13.7
+},
+{
+"text": " ,",
+"size": 10.6
+},
+{
+"text": " ",
+"size": 12.0
+},
+{
+"text": "dès",
+"size": 12.0
+},
+{
+"text": " avant",
+"size": 12.5
+},
+{
+"text": " ",
+"size": 11.9
+},
+{
+"text": "la",
+"size": 11.9
+},
+{
+"text": " Con-",
+"size": 12.3
+}
+]
+},
+{
+"bbox": [
+69.4,
+266.9,
+161.7,
+280.7
+],
+"spans": [
+{
+"text": "quête",
+"size": 12.9
+},
+{
+"text": " de",
+"size": 13.1
+},
+{
+"text": " la",
+"size": 12.6
+},
+{
+"text": " Gaule",
+"size": 13.8
+},
+{
+"text": ".",
+"size": 8.9
+}
+]
+},
+{
+"bbox": [
+69.1,
+283.7,
+238.3,
+299.6
+],
+"spans": [
+{
+"text": "On",
+"size": 15.9
+},
+{
+"text": " ",
+"size": 12.6
+},
+{
+"text": "peut",
+"size": 12.6
+},
+{
+"text": " ",
+"size": 13.0
+},
+{
+"text": "compter",
+"size": 13.0
+},
+{
+"text": " ",
+"size": 12.4
+},
+{
+"text": "preſque",
+"size": 12.4
+},
+{
+"text": " ",
+"size": 11.3
+},
+{
+"text": "certai-",
+"size": 11.3
+}
+]
+},
+{
+"bbox": [
+200.9,
+300.6,
+239.8,
+310.1
+],
+"spans": [
+{
+"text": "nement",
+"size": 9.5
+}
+]
+},
+{
+"bbox": [
+64.8,
+320.2,
+239.3,
+331.5
+],
+"spans": [
+{
+"text": "premiers",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "Rois",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 10.8
+},
+{
+"text": "un",
+"size": 10.8
+},
+{
+"text": " Seigneur",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "qui",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "connoiſſoit",
+"size": 9.4
+}
+]
+},
+{
+"bbox": [
+55.6,
+331.1,
+239.2,
+341.7
+],
+"spans": [
+{
+"text": ">>",
+"size": 9.0
+},
+{
+"text": " des",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "differends",
+"size": 9.2
+},
+{
+"text": " des",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 9.2
+},
+{
+"text": "Particuliers",
+"size": 9.2
+},
+{
+"text": " ",
+"size": 7.3
+},
+{
+"text": ",",
+"size": 7.3
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "à",
+"size": 10.0
+},
+{
+"text": "moins",
+"size": 10.1
+},
+{
+"text": " que",
+"size": 10.4
+}
+]
+},
+{
+"bbox": [
+55.5,
+340.5,
+239.0,
+351.6
+],
+"spans": [
+{
+"text": ",,",
+"size": 9.3
+},
+{
+"text": " ce",
+"size": 10.0
+},
+{
+"text": " ne",
+"size": 10.5
+},
+{
+"text": " fut",
+"size": 9.7
+},
+{
+"text": " une",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 9.1
+},
+{
+"text": "affaire",
+"size": 9.1
+},
+{
+"text": " ",
+"size": 10.4
+},
+{
+"text": "de",
+"size": 10.4
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "grande",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "importan-",
+"size": 10.1
+}
+]
+},
+{
+"bbox": [
+56.0,
+347.5,
+239.9,
+361.7
+],
+"spans": [
+{
+"text": "2",
+"size": 10.2
+},
+{
+"text": ",",
+"size": 9.0
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "ce",
+"size": 9.6
+},
+{
+"text": " ",
+"size": 8.7
+},
+{
+"text": ",",
+"size": 8.7
+},
+{
+"text": " ",
+"size": 13.4
+},
+{
+"text": "&",
+"size": 13.4
+},
+{
+"text": " ",
+"size": 9.5
+},
+{
+"text": "qu'il",
+"size": 9.5
+},
+{
+"text": " ",
+"size": 10.5
+},
+{
+"text": "ne",
+"size": 10.5
+},
+{
+"text": " ",
+"size": 10.0
+},
+{
+"text": "fut",
+"size": 10.0
+},
+{
+"text": " obligé",
+"size": 10.2
+},
+{
+"text": " ",
+"size": 11.1
+},
+{
+"text": "de",
+"size": 11.1
+},
+{
+"text": " ",
+"size": 10.2
+},
+{
+"text": "raporter",
+"size": 10.2
+},
+{
+"text": " ",
+"size": 9.9
+},
+{
+"text": "la",
+"size": 9.9
+}
+]
+},
+{
+"bbox": [
+56.5,
+359.5,
+239.7,
+370.5
+],
+"spans": [
+{
+"text": ",,",
+"size": 8.4
+},
+{
+"text": " choſe",
+"size": 9.8
+},
+{
+"text": " devant",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 8.4
+},
+{
+"text": "le",
+"size": 8.4
+},
+{
+"text": " Roi",
+"size": 10.7
+},
+{
+"text": " ",
+"size": 8.6
+},
+{
+"text": ",",
+"size": 8.6
+},
+{
+"text": " ",
+"size": 9.8
+},
+{
+"text": "qui",
+"size": 9.8
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "alors",
+"size": 9.4
+},
+{
+"text": " ",
+"size": 9.3
+},
+{
+"text": "la",
+"size": 9.3
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "décidoit",
+"size": 9.6
+}
+]
+},
+{
+"bbox": [
+56.5,
+366.4,
+228.1,
+380.7
+],
+"spans": [
+{
+"text": "2",
+"size": 10.8
+},
+{
+"text": ",",
+"size": 10.5
+},
+{
+"text": " ſur",
+"size": 9.6
+},
+{
+"text": " ",
+"size": 8.8
+},
+{
+"text": "le",
+"size": 8.8
+},
+{
+"text": " champ",
+"size": 10.8
+},
+{
+"text": " &",
+"size": 13.6
+},
+{
+"text": " ",
+"size": 10.1
+},
+{
+"text": "en",
+"size": 10.1
+},
+{
+"text": " ",
+"size": 9.6
+},
+{
+"text": "preſence",
+"size": 9.6
+},
+{
+"text": " des",
+"size": 9.7
+},
+{
+"text": " ",
+"size": 9.4
+},
+{
+"text": "Parties",
+"size": 9.4
+},
+{
+"text": ".",
+"size": 5.6
+}
+]
+},
+{
+"bbox": [
+67.0,
+379.8,
+239.7,
+389.6
+],
+"spans": [
+{
+"text": "Voyez",
+"size": 9.8
+},
+{
+"text": "Boullainu",
+"size": 9.2
+},
+{
+"text": ",",
+"size": 6.2
+},
+{
+"text": " ",
+"size": 9.0
+},
+{
+"text": "ancien",
+"size": 9.0
+},
+{
+"text": " Gouvern",
+"size": 9.8
+},
+{
+"text": ".",
+"size": 5.4
+},
+{
+"text": " de",
+"size": 9.3
+},
+{
+"text": " France",
+"size": 9.5
+},
+{
+"text": ".",
+"size": 7.6
+}
+]
+},
+{
+"bbox": [
+54.9,
+387.3,
+74.8,
+398.3
+],
+"spans": [
+{
+"text": "Tom",
+"size": 10.9
+}
+]
+},
+{
+"bbox": [
+292.8,
+62.8,
+296.0,
+67.2
+],
+"spans": [
+{
+"text": "1",
+"size": 4.3
+}
+]
+}
+]
+}
+}
+}

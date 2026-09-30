@@ -75,6 +75,12 @@ class CorpusWork:
     #: is only correct for page-image PDF extractions where one chunk is
     #: roughly one page (#533).
     page_furniture: bool = False
+    #: Reassemble an OCR line dump into paragraphs before splitting
+    #: (`corpus/ocr_reflow.py`, #578): a blank line ends a paragraph only
+    #: after a closed sentence, and running heads, signature marks and
+    #: catchwords are stepped over. The tuple lists the work's running-head
+    #: titles as printed; ``None`` leaves the text as it is. `.txt` only.
+    ocr_reflow: tuple[str, ...] | None = None
     # Front-matter headings to capture under `locator="section"`. The
     # default §-splitter drops everything before the first `§N` marker,
     # which silently loses Hegel's own Preface / Introduction in
