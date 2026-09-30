@@ -84,6 +84,8 @@ const SYNTAX = {
 // `#/r/Das%20Kapital%2C%20Band%20I?lang=deu`.
 const READER_HASH = "#/r/das-kapital-band-i?lang=deu";
 const SYNTAX_OPEN_HASH = `${READER_HASH}&syntax=k-1`;
+// Where an author-less reader URL settles once the range names the author.
+const READER_LANDS_AT = "#/r/marx/das-kapital-band-i?lang=deu";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -213,7 +215,10 @@ describe("the syntax overlay as a layer over the Reader", () => {
     });
     // No `focus=` on the way back: the Reader never left, so there is nothing
     // to scroll to and the `.focused` deep-link animation must not fire.
-    expect(window.location.hash).toBe(READER_HASH);
+    // Waited for, not read once: the hash settles on the two-segment form
+    // when the range lands (#611), which can be after the overlay closes. A
+    // single read here passed only by racing that.
+    await waitFor(() => expect(window.location.hash).toBe(READER_LANDS_AT));
     expect(document.querySelector(".reader")).toBe(reader);
   });
 

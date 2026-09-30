@@ -26,6 +26,7 @@ import { useMobileShell } from "~/components/shell/MobileShellContext";
 import { useEscape } from "~/hooks/useEscape";
 import { useInfiniteScrollSentinel } from "~/hooks/useInfiniteScrollSentinel";
 import { routeHash } from "~/routing";
+import { slugify } from "~/slug";
 import { Chrome } from "~/Reader/components/Chrome";
 import { EditionBar } from "~/Reader/components/EditionBar";
 import { ReaderHead } from "~/Reader/components/ReaderHead";
@@ -67,6 +68,10 @@ interface ReaderProps {
    *  the URL stay in sync. */
   openTermId?: number;
   onOpenTermIdChange?: (id: number | null) => void;
+  /** Called with the loaded range's author slug when the route carried none
+   *  — a citation deep-link's one-segment `#/r/<titleSlug>` — so the caller
+   *  can grow the URL to its canonical two-segment form (#611). */
+  onAuthorResolved?: (authorSlug: string) => void;
   onClose?: () => void;
   /** True while the syntax overlay is layered over this Reader
    *  (`?syntax=<chunk>`). The Reader stays mounted underneath it (#342),
@@ -135,6 +140,17 @@ export default function Reader(props: ReaderProps) {
     () => void loadMore(),
     { root: () => stageRef, rootMargin: "800px 0px" },
   );
+
+  // A one-segment route has no author; the range names it (#611). Only when
+  // the range is the work the slug names: the server resolves a focus link
+  // off `around=` whatever the title segment says, and pairing that work's
+  // author with a title slug it does not own would build a URL that 404s.
+  createEffect(() => {
+    const r = range();
+    if (r === null || props.authorSlug !== undefined) return;
+    if (slugify(r.work) !== props.workSlug) return;
+    props.onAuthorResolved?.(slugify(r.author));
+  });
 
   const railApi = useTranslateRail();
 

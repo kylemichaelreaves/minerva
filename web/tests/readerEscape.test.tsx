@@ -102,6 +102,11 @@ const TERM = {
 // Slug form since #602. This constant used to read
 // `#/r/Das%20Kapital%2C%20Band%20I?lang=deu`.
 const READER_HASH = "#/r/das-kapital-band-i?lang=deu";
+// Where READER_HASH settles once the modifier is gone: the Reader grows an
+// author-less URL to the two-segment form once the range names the author
+// (#611). The modifier-closing assertions below check that the modifier left
+// the location otherwise untouched.
+const READER_LANDS_AT = "#/r/marx/das-kapital-band-i?lang=deu";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
@@ -387,7 +392,7 @@ describe("Escape in the Reader", () => {
       expect(document.querySelector(".termcard")).toBeNull();
     });
     expect(document.querySelector(".reader")).not.toBeNull();
-    expect(window.location.hash).toBe(READER_HASH);
+    expect(window.location.hash).toBe(READER_LANDS_AT);
   });
 
   it("leaves on the press after the term card is closed", async () => {
@@ -422,7 +427,7 @@ describe("Escape in the Reader", () => {
       expect(document.querySelector(".syn")).toBeNull();
     });
     expect(document.querySelector(".reader")).not.toBeNull();
-    expect(window.location.hash).toBe(READER_HASH);
+    expect(window.location.hash).toBe(READER_LANDS_AT);
   });
 
   it("does not fire outside the Reader", async () => {

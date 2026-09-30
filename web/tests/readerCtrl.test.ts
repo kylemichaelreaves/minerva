@@ -143,6 +143,42 @@ describe("useReader()", () => {
     dispose();
   });
 
+  it("growAuthorSlug replaces a one-segment reader route with the two-segment form", () => {
+    const routing = createTestRouting({
+      kind: "reader",
+      workSlug: "republic",
+      sourceLang: "grc",
+      focusChunkId: "r-1",
+      openTermId: 7,
+    });
+    const { api, routing: r, dispose } = runReader(routing);
+    api.growAuthorSlug("plato");
+    expect(r.replaceSpy).toHaveBeenCalledWith({
+      kind: "reader",
+      workSlug: "republic",
+      sourceLang: "grc",
+      authorSlug: "plato",
+      focusChunkId: "r-1",
+      openTermId: 7,
+    });
+    expect(r.navigateSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("growAuthorSlug leaves a route that already names an author, or is not the reader", () => {
+    const routing = createTestRouting({
+      kind: "reader",
+      workSlug: "bibel",
+      authorSlug: "luther-1545",
+    });
+    const { api, routing: r, dispose } = runReader(routing);
+    api.growAuthorSlug("luther-1912");
+    r.setRoute({ kind: "landing" });
+    api.growAuthorSlug("plato");
+    expect(r.replaceSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it("switchMode to chat restores last conversation from localStorage", async () => {
     localStorage.setItem("minerva:last-conversation", "thread-9");
     const routing = createTestRouting({

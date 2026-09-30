@@ -21,7 +21,7 @@ import type { Route } from "~/routing";
 const RANGE = {
   work_id: 781,
   corpus: "marx",
-  authorSlug: "marx",
+  author: "Marx",
   work: "Das Kapital, Band I",
   lang: "deu",
   total: 1,
@@ -144,6 +144,55 @@ describe("useWorkRange reload policy", () => {
     await settle();
 
     setRoute({ ...READER, focusChunkId: "k-9" });
+    await settle();
+
+    expect(getWorkRange).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+
+  // #611: a one-segment URL grows the author segment its range named. That
+  // author is read off the response, so it cannot change which edition loads.
+  it("does not reload when the route grows the author the loaded range named", async () => {
+    const { setRoute, dispose } = mount();
+    await settle();
+
+    setRoute({ ...READER, authorSlug: "marx" });
+    await settle();
+    // And a later modifier on the grown route is still not a change of window.
+    setRoute({ ...READER, authorSlug: "marx", openTermId: 42 });
+    await settle();
+
+    expect(getWorkRange).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("reloads when the route gains an author the range did not name", async () => {
+    const { setRoute, dispose } = mount();
+    await settle();
+
+    setRoute({ ...READER, authorSlug: "engels" });
+    await settle();
+
+    expect(getWorkRange).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+
+  it("reloads when an author arrives before any range has loaded", async () => {
+    const { setRoute, dispose } = mount();
+    // No settle: the first load is still in flight, so nothing has named an
+    // author yet and this one came from somewhere else.
+    setRoute({ ...READER, authorSlug: "marx" });
+    await settle();
+
+    expect(getWorkRange).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+
+  it("reloads when the author changes between two named authors", async () => {
+    const { setRoute, dispose } = mount({ ...READER, authorSlug: "marx" });
+    await settle();
+
+    setRoute({ ...READER, authorSlug: "engels" });
     await settle();
 
     expect(getWorkRange).toHaveBeenCalledTimes(2);

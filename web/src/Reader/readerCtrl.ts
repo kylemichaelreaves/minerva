@@ -81,6 +81,10 @@ export interface ReaderApi {
    *  null clears `?term=…`; writing an id sets it. The Reader's local
    *  open-card signal is driven from this URL state on next paint. */
   setOpenTermId: (id: number | null) => void;
+  /** Grow a one-segment reader URL to `#/r/<authorSlug>/<titleSlug>` in
+   *  place, once the loaded range has named the author (#611). A no-op on a
+   *  route that already carries an author, or is not the reader. */
+  growAuthorSlug: (authorSlug: string) => void;
 }
 
 export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi {
@@ -305,6 +309,17 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     });
   }
 
+  function growAuthorSlug(authorSlug: string) {
+    const r = routing.route();
+    // Only a one-segment reader route grows. A route that already names an
+    // author is left alone, and so is anything that is not the reader — a
+    // retained Reader behind the concordance (#348) reports its range too.
+    if (r.kind !== "reader" || r.authorSlug !== undefined) return;
+    // `replace`, not `navigate`: the one-segment form is the same location
+    // under a less readable name, not a step the back button should revisit.
+    routing.replace({ ...r, authorSlug });
+  }
+
   return {
     readerWork,
     retainedWork,
@@ -317,5 +332,6 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     ensureWorks,
     openWork,
     setOpenTermId,
+    growAuthorSlug,
   };
 }

@@ -36,9 +36,18 @@
 // AbortController is current and discard responses whose controller
 // has been replaced.
 
-import { createEffect, createMemo, createSignal, on, onCleanup, type Accessor } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+  untrack,
+  type Accessor,
+} from "solid-js";
 import { fetchOccurrenceMap, getWorkRange } from "~/api/readerApi";
 import { fetchReferencesMap } from "~/api/refsApi";
+import { slugify } from "~/slug";
 import { errorMessage, isAbortError } from "~/utils/util";
 import type { OccurrenceMap, ReferencesMap, WorkRange } from "~/utils/types";
 
@@ -88,6 +97,26 @@ const PAGE_SIZE = 80;
 // and below without needing to scroll-load. Stays the same as the
 // old default since it's a one-shot fetch.
 const FOCUS_WINDOW = 200;
+
+type WindowKey = Pick<UseWorkRangeProps, "workSlug" | "sourceLang" | "authorSlug" | "focusChunkId">;
+
+/** Whether two route-derived keys name the same window. Equal fields do, and
+ *  so does an author-less key followed by the author the loaded range
+ *  resolved to (#611) — `loaded` is that range, or null mid-load, when no
+ *  author has been resolved and any change of author is a real one. */
+function sameWindow(prev: WindowKey, next: WindowKey, loaded: WorkRange | null): boolean {
+  if (
+    prev.workSlug !== next.workSlug ||
+    prev.sourceLang !== next.sourceLang ||
+    prev.focusChunkId !== next.focusChunkId
+  ) {
+    return false;
+  }
+  if (prev.authorSlug === next.authorSlug) return true;
+  return (
+    prev.authorSlug === undefined && loaded !== null && next.authorSlug === slugify(loaded.author)
+  );
+}
 
 export function useWorkRange(
   props: UseWorkRangeProps,
@@ -332,8 +361,22 @@ export function useWorkRange(
   // ones that leave it alone, like `?term=42` opening a term card or
   // `?syntax=<id>` opening the syntax layer (#342). The reload starts with
   // `setRange(null)`, so the cost was a blanked stage, not just a request.
-  const windowKey = createMemo(() =>
-    JSON.stringify([props.workSlug, props.sourceLang, props.authorSlug, props.focusChunkId]),
+  //
+  // One route change is not a change of window even though a field moves: a
+  // one-segment citation link growing the author segment its own range named
+  // (#611). That author slug is read off the response the loaded edition
+  // produced, so it cannot change which edition loads, and reloading on it
+  // would blank the stage for nothing. `sameWindow` absorbs it; the memo then
+  // keeps the author-less key, so later route changes compare against that.
+  const windowKey = createMemo<WindowKey, undefined>(
+    () => ({
+      workSlug: props.workSlug,
+      sourceLang: props.sourceLang,
+      authorSlug: props.authorSlug,
+      focusChunkId: props.focusChunkId,
+    }),
+    undefined,
+    { equals: (prev, next) => sameWindow(prev, next, untrack(range)) },
   );
 
   createEffect(
