@@ -4165,3 +4165,28 @@ width collapses now), #589 (`routeHash` scored 109 to `readRoute`'s 44),
 (the both-filters path was wrong too: 9,229 promised, 0 returned), #692
 (#699 had moved all six inert branches). Filed along the way: #726, #727,
 #728.
+
+## Batch 13b — ingest text repair (#561 #574 #575 #578 #579 #675 #676 #679 #681 #683)
+
+Owner decisions taken 2026-09-30 before any code: keep DK's doubtful and
+forged fragments, typed (#683); split De Officiis and re-source the
+Academica (#675); attempt the untried approaches for #574 and #579, stopping
+rather than shipping a heuristic that fails its sweep; ingest the Appendix
+ad Leviathan as its own work (#575). #679 was typed-only and #676 skips
+marker notes while still advancing the counter, both at zero churn.
+
+What changed the plan mid-batch:
+
+- **#675's Academica was deferred (#730).** The file the decision said to
+  drop is the corpus's *only* Latin Academica, and it holds no translation.
+  The issue's "the Academica Latin exists" was wrong, and trusting it would
+  have deleted the text.
+- **#574 stopped.** hOCR has no empty gutter: 144 (Leviathan) and 132
+  (De Cive) margin-dropped words reach into the body, and the cut would churn
+  57% and 94% of ids and change locators, which is the #535 failure mode.
+- **#579 and #561 are partial** (`Refs`). 7 of the 11 named PDF run-ons sit in
+  spans with a single surviving space. #561's population went from 159 to 71,
+  and 34 of those are still real run-ons.
+
+The live re-ingest is an operator step outside the PR; its source list and
+expected churn are in the PR body.

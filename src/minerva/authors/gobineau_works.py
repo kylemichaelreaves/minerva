@@ -41,6 +41,8 @@ def _vol(n: int) -> CorpusWork:
         corpus="gobineau",
         author="Gobineau",
         citation_system="paragraph",
+        # Verso and recto running heads of all four volumes (#578).
+        ocr_reflow=("De l'inégalité", "Des races humaines"),
     )
 
 

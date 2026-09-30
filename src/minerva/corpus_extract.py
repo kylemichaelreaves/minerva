@@ -21,6 +21,7 @@ installed; calling an extractor without its dep raises a friendly
 from __future__ import annotations
 
 import re
+import statistics
 from itertools import pairwise
 from pathlib import Path
 
@@ -186,10 +187,17 @@ def extract_ocr_pages(path: Path) -> str:
 # **Measured across all 15 PDFs in the corpus, the guards below matter
 # more than the rule they guard.** The bare "gap above the median" test
 # fired 296 times and was wrong nearly every time; with the guards it
-# fires 20 times and is right every time, touching only the two PDFs
+# fires 23 times and is right every time, touching only the two PDFs
 # #561 names. The four false-positive families it had to learn are
-# documented on `_split_on_char_gaps`. Anyone loosening a guard should
-# re-run that sweep rather than sample a page.
+# documented on `_split_segment`. The partial-damage path added for #579
+# repairs 26 more spans, all correct, in the same two PDFs. Anyone
+# loosening a guard should re-run that sweep rather than sample a page:
+#
+#     for every data/**/*.pdf, every page, every get_text("rawdict") span:
+#         triples = [(c["c"], c["bbox"][0], c["bbox"][2]) for c in span["chars"]]
+#         print every span where _split_on_char_gaps(triples) is not None
+#
+# and read every line it prints.
 
 #: Width of the empty band that must separate word gaps from letter gaps.
 #: The test is a real *valley*, not "above the median": the smallest gap
@@ -218,6 +226,43 @@ _VOWEL_RE = re.compile(r"[aeiouyàâäéèêëîïôöùûüAEIOUYÀÂÄÉÈÊË
 #: these PDFs are set in (English, German, French).
 _STANDALONE_LETTER_WORDS = frozenset("aAiIoOyY")
 
+#: Partial damage (#579). A span that kept some of its spaces carries its
+#: own measured word gap: the distance across each surviving space, for
+#: this exact font and size. A lost space leaves a gap of the same width.
+#: These four numbers are what the full 15-PDF sweep settled on; each
+#: comment says what moving it did.
+#:
+#: Fewer measured spaces than this and there is nothing to check the
+#: measurement against. At 1 the sweep gained seven correct repairs and
+#: one wrong one (`Opus p ostumum`).
+_PARTIAL_MIN_SPACES = 2
+
+#: The measured gaps must agree: median absolute deviation at most this
+#: fraction of the median. This is the guard that matters. A scanned text
+#: layer whose glyph positions wander (the *History of Philosophy* notes,
+#: `thi ngs, goo ds`) measures word gaps from 1.0 to 3.4pt, and without
+#: this test the first sweep made 39 new repairs of which 18 were wrong
+#: (`ndi vi du als`, `A nimals`, `a bstract`). The healthy Inwood and
+#: *Science of Logic* spans agree to within 2%; loosening this to 0.1
+#: already lets one wandering span back in.
+_PARTIAL_MAX_SPREAD = 0.05
+
+#: A lost space is a gap within this fraction of the measured word gap.
+_PARTIAL_BREAK_BAND = 0.15
+
+#: Every other gap in the segment must sit below this fraction of the
+#: word gap. A gap between the two is ambiguous, and the segment is left
+#: alone rather than guessed at.
+_PARTIAL_MAX_LETTER_GAP = 0.3
+
+#: A segment shorter than this cannot hold two words worth splitting.
+_PARTIAL_MIN_SEGMENT = 4
+
+#: A lost space may follow one of these and precede a letter
+#: (`quanta,but`). Never the other way round — a gap *before*
+#: punctuation is the `thing-in-itself );` family, not a lost space.
+_PARTIAL_LEFT_PUNCT = frozenset(",.;:?!")
+
 
 def _split_on_char_gaps(
     chars: list[tuple[str, float, float]],
@@ -228,25 +273,129 @@ def _split_on_char_gaps(
     spaced text, or None when the span is not damaged — the common case,
     which must stay cheap.
 
-    **A span carrying any space at all is declined, and that costs real
-    repairs.** Damage can be partial — ``–Itwillnotbewithoutinterest
-    toexaminethisconstruction`` is one span with a real space in the
-    middle and a lost one either side — and about 13 genuine runs are
-    left unrepaired by this rule. Tracked separately rather than fixed
-    here, because judging each space-delimited segment on its own was
-    tried and is much worse: it takes the corpus-wide count from 23
+    Two paths, because the two shapes need different evidence:
+
+    * **A span with no space at all** has only its own gaps to go on, and
+      is judged on whether they fall into two clusters — see
+      `_split_segment`.
+    * **A span that kept some spaces** (``–Itwillnotbewithoutinterest
+      toexaminethisconstruction``) is judged against the width of those
+      spaces — see `_split_partial` (#579).
+
+    **Do not judge a spaced span's segments the way a space-free span is
+    judged.** That was tried: it takes the corpus-wide count from 23
     repairs to **284**, and the additions split ordinary words —
-    ``tr ansmitted``, ``Hoff meister``, ``j uxtapositions``,
-    ``o bjectionable``. An eleven-character word has ten gaps, one kern
-    pair is enough to look bimodal across so few, and the surrounding
-    spaces that would have revealed the span as healthy are exactly what
-    segmenting throws away. The whole-span space test is doing most of
-    the work of this function.
+    ``tr ansmitted``, ``Hoff meister``, ``j uxtapositions``. An
+    eleven-character word has ten gaps, and one kern pair is enough to
+    look bimodal across so few. The surviving spaces are what tell a
+    lost space from a kern pair, which is why the second path calibrates
+    on them instead of discarding them.
     """
 
-    if any(c.isspace() for c, _, _ in chars):
+    if len(chars) < _SPACE_MIN_CHARS:
         return None
+    if any(c.isspace() for c, _, _ in chars):
+        return _split_partial(chars)
     return _split_segment(chars)
+
+
+def _measured_word_gaps(chars: list[tuple[str, float, float]]) -> list[float]:
+    """The distance across each run of real space glyphs, from the last
+    glyph before it to the first glyph after it."""
+
+    out: list[float] = []
+    i = 0
+    while i < len(chars):
+        if not chars[i][0].isspace():
+            i += 1
+            continue
+        j = i
+        while j < len(chars) and chars[j][0].isspace():
+            j += 1
+        if i > 0 and j < len(chars):
+            out.append(chars[j][1] - chars[i - 1][2])
+        i = j
+    return out
+
+
+def _span_word_gap(chars: list[tuple[str, float, float]]) -> float | None:
+    """The span's own word gap, or None when its spaces do not agree on
+    one. See `_PARTIAL_MAX_SPREAD` for why agreement is the whole test."""
+
+    measured = _measured_word_gaps(chars)
+    if len(measured) < _PARTIAL_MIN_SPACES:
+        return None
+    word_gap = statistics.median(measured)
+    if word_gap < _SPACE_GAP_MIN:
+        return None
+    spread = statistics.median(abs(m - word_gap) for m in measured)
+    if spread > _PARTIAL_MAX_SPREAD * word_gap:
+        return None
+    return word_gap
+
+
+def _split_partial(chars: list[tuple[str, float, float]]) -> str | None:
+    """A span that kept some spaces → its fully spaced form, or None.
+
+    Each space-free segment is split where its gap matches the span's
+    measured word gap, and left alone otherwise.
+    """
+
+    if any(ord(c) in _PUA for c, _, _ in chars):
+        return None
+    word_gap = _span_word_gap(chars)
+    if word_gap is None:
+        return None
+    out: list[str] = []
+    segment: list[tuple[str, float, float]] = []
+    changed = False
+    for glyph in [*chars, (" ", 0.0, 0.0)]:
+        if not glyph[0].isspace():
+            segment.append(glyph)
+            continue
+        if segment:
+            fixed = _split_calibrated_segment(segment, word_gap)
+            changed = changed or fixed is not None
+            out.append(fixed if fixed is not None else "".join(c for c, _, _ in segment))
+            segment = []
+        out.append(glyph[0])
+    return "".join(out[:-1]) if changed else None
+
+
+def _split_calibrated_segment(
+    segment: list[tuple[str, float, float]], word_gap: float
+) -> str | None:
+    """One space-free segment of a spaced span, split at the gaps that
+    match ``word_gap`` — or None if it has none, or any it cannot place."""
+
+    if len(segment) < _PARTIAL_MIN_SEGMENT:
+        return None
+    gaps = [nxt[1] - cur[2] for cur, nxt in pairwise(segment)]
+    breaks = {i for i, g in enumerate(gaps) if abs(g / word_gap - 1) <= _PARTIAL_BREAK_BAND}
+    if not breaks:
+        return None
+    if any(g > _PARTIAL_MAX_LETTER_GAP * word_gap for i, g in enumerate(gaps) if i not in breaks):
+        return None
+    if not all(_is_lost_space_pair(segment[i][0], segment[i + 1][0]) for i in breaks):
+        return None
+    if _is_banner(segment):
+        return None
+    return _spaced_if_words(segment, breaks)
+
+
+def _is_lost_space_pair(left: str, right: str) -> bool:
+    return right.isalpha() and (left.isalpha() or left in _PARTIAL_LEFT_PUNCT)
+
+
+def _is_banner(chars: list[tuple[str, float, float]]) -> bool:
+    """Letter-spaced headings are the other shape with wide gaps, and
+    `_fuse_kerned_words` below already exists to *close* them — this
+    pass must not fight it. Prose that lost its spaces is mixed case; a
+    banner is not. Same 0.85 ratio `_fuse_kerned_words` uses, for the
+    same phenomenon."""
+
+    letters = [c for c, _, _ in chars if c.isalpha()]
+    return bool(letters) and sum(c.isupper() for c in letters) / len(letters) >= 0.85
 
 
 def _split_segment(
@@ -269,15 +418,13 @@ def _split_segment(
       which is not a lost word space at all.
     """
 
-    if len(chars) < _SPACE_MIN_CHARS:
-        return None
+    # `_split_on_char_gaps` has already refused anything shorter than
+    # `_SPACE_MIN_CHARS`, so there are always enough gaps to read.
     if all(x1 - x0 <= 0 for _, x0, x1 in chars):
         return None
     if any(ord(c) in _PUA for c, _, _ in chars):
         return None
     gaps = [nxt[1] - cur[2] for cur, nxt in pairwise(chars)]
-    if len(gaps) < _SPACE_MIN_CHARS - 1:
-        return None
 
     # Find the widest empty band in the sorted gaps. A span with lost
     # spaces is bimodal — a tight cluster inside words, a tight cluster
@@ -298,16 +445,17 @@ def _split_segment(
     if not any(chars[i][0].isalpha() and chars[i + 1][0].isalpha() for i in breaks):
         return None
 
-    # Letter-spaced headings are the other shape with wide gaps, and
-    # `_fuse_kerned_words` below already exists to *close* them — this
-    # pass must not fight it. Uniform spacing usually fails the valley
-    # test, but not always: `TRANSLATIONS` has one tight pair (`AT`) and
-    # so reads as bimodal, and came out `T R A N S L AT I O N S`. Prose
-    # that lost its spaces is mixed case; a banner is not. Same 0.85
-    # ratio `_fuse_kerned_words` uses, for the same phenomenon.
-    letters = [c for c, _, _ in chars if c.isalpha()]
-    if letters and sum(c.isupper() for c in letters) / len(letters) >= 0.85:
+    # `_is_banner`: letter-spaced headings usually fail the valley test,
+    # but not always — `TRANSLATIONS` has one tight pair (`AT`) and so
+    # reads as bimodal, and came out `T R A N S L AT I O N S`.
+    if _is_banner(chars):
         return None
+    return _spaced_if_words(chars, breaks)
+
+
+def _spaced_if_words(chars: list[tuple[str, float, float]], breaks: set[int]) -> str | None:
+    """Insert a space after each index in ``breaks`` — unless a resulting
+    part does not look like a word, in which case the cut was wrong."""
 
     out: list[str] = []
     for i, (c, _, _) in enumerate(chars):
@@ -352,8 +500,12 @@ def _page_space_repairs(page) -> dict[str, str]:
     Keyed on the run-on string itself rather than on position, so the
     repair can be applied to the lines the existing word-based
     extraction produces without restructuring it. The keys are 12+
-    characters with no spaces, so a plain substring replacement cannot
-    collide with ordinary text.
+    characters and each contains a run with a lost space, so a plain
+    substring replacement cannot collide with ordinary text.
+
+    A partially damaged span (#579) is keyed with its edge whitespace
+    stripped: a span can begin or end on a space, which the word-based
+    line does not reproduce, and the key must still be found in it.
     """
 
     repairs: dict[str, str] = {}
@@ -361,16 +513,13 @@ def _page_space_repairs(page) -> dict[str, str]:
         for line in block.get("lines", []):
             for span in line.get("spans", []):
                 chars = span.get("chars") or []
-                triples = [
-                    (c["c"], float(c["bbox"][0]), float(c["bbox"][2]))
-                    for c in chars
-                ]
+                triples = [(c["c"], float(c["bbox"][0]), float(c["bbox"][2])) for c in chars]
                 fixed = _split_on_char_gaps(triples)
                 if fixed is None:
                     continue
-                original = "".join(c for c, _, _ in triples)
-                if fixed != original:
-                    repairs[original] = fixed
+                # Never equal to the original: both paths return None
+                # unless they inserted at least one space.
+                repairs["".join(c for c, _, _ in triples).strip()] = fixed.strip()
     return repairs
 
 

@@ -6,14 +6,16 @@ Marcus Aurelius English is handled by ``download_marcus_aurelius.py``
 alongside its Greek source.
 
 Cicero English coverage (PG IDs verified at execution-time):
-  * PG 47001 — Walter Miller bilingual De Officiis (we use English half).
+  * PG 47001 — Walter Miller bilingual De Officiis (the ingest keeps the
+               English and drops the Latin: `corpus/facing_text.py`).
   * PG 54161 — Featherstonhaugh, The Republic of Cicero (De Re Publica).
   * PG 14988 — Yonge, Tusculan Disputations standalone.
   * PG 29247 — Yonge, Academic Questions + De Finibus + Tusculans.
   * PG 2808  — Shuckburgh, Treatises on Friendship and Old Age
                (De Amicitia + De Senectute).
   * PG 9776  — E. Jones, Brutus + Orator.
-  * PG 14970 — Anonymous bilingual Academica (we use English half).
+  * PG 14970 — James S. Reid's edition of the Academica (1874): Latin
+               text plus English commentary, NOT a translation (#675).
 
 Lucretius English: PG 785 Leonard 1916 (alternate to Perseus
 Munro — kept as redundant safety net).

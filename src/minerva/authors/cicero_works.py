@@ -84,8 +84,10 @@ _LATIN: tuple[CorpusWork, ...] = (
         corpus="cicero", author="Cicero",
     ),
     # Academica Latin omitted — fragmentary in manuscript tradition;
-    # la.wikisource has no transcription. English Academica still
-    # ships via PG 14970 (bilingual; we use the English half).
+    # la.wikisource has no transcription. The only Academica Latin in the
+    # corpus is inside PG 14970 (`academica_en.txt` below), which is
+    # Reid's edition — Latin text plus English commentary, no translation
+    # (#675). The English Academica is Yonge's, inside PG 29247.
     CorpusWork(
         code="de_finibus_lat",
         title="De Finibus Bonorum et Malorum",
@@ -170,8 +172,10 @@ _LATIN: tuple[CorpusWork, ...] = (
 )
 
 _ENGLISH: tuple[CorpusWork, ...] = (
-    # PG 47001 — Walter Miller, Loeb-style bilingual (1913). We use
-    # the English half; the Latin we already have via la.wikisource.
+    # PG 47001 — Walter Miller, Loeb-style bilingual (1913). The file is
+    # the whole facing-page edition, Latin and English alternating by
+    # chapter; `facing_text` keeps the English, drops the Latin (we have
+    # it via la.wikisource) and types the apparatus (#675).
     CorpusWork(
         code="de_officiis_en",
         title="De Officiis",
@@ -180,6 +184,7 @@ _ENGLISH: tuple[CorpusWork, ...] = (
         filenames=("de_officiis_en.txt",),
         fmt="txt", locator="chapter", lang="eng",
         corpus="cicero", author="Cicero",
+        facing_text=True,
     ),
     # PG 54161 — Featherstonhaugh.
     CorpusWork(
@@ -245,8 +250,10 @@ _ENGLISH: tuple[CorpusWork, ...] = (
         # detection failure — so the split goes at Cicero's speech turns.
         max_paragraph_chars=8000,
     ),
-    # PG 14970 — Academica bilingual English+Latin. We use English
-    # half via this entry; Latin is the la.wikisource version above.
+    # PG 14970 — James S. Reid, *The Academica of Cicero* (1874): Cicero's
+    # Latin text, Reid's English introduction and commentary, and no
+    # English translation. It is ingested whole as English, so this entry
+    # indexes Latin and commentary as Cicero's English (#675).
     CorpusWork(
         code="academica_en",
         title="Academica",

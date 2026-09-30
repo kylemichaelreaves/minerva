@@ -39,6 +39,17 @@ from __future__ import annotations
 
 from ..corpus_works import CorpusWork, make_find_work
 
+#: Running heads of the *Histoire* and the *Lettres*, as printed —
+#: `ocr_reflow` steps over them when it reassembles the OCR lines (#578).
+#: The *Essai* is not reflowed here: `scripts/extract-essai-pdf.py` reads
+#: its furniture off the page and writes finished paragraphs.
+_OCR_HEADS = (
+    "Lettres sur les anciens",
+    "Lettres sur les anciens parlemens",
+    "Parlemens de France",
+    "Mémoires historiques",
+)
+
 WORKS: tuple[CorpusWork, ...] = (
     # ─── Histoire de l'ancien gouvernement de la France ─────────────
     CorpusWork(
@@ -53,17 +64,16 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="boulainvilliers",
         author="Boulainvilliers",
         citation_system="paragraph",
+        ocr_reflow=_OCR_HEADS,
     ),
     # ─── Essai sur la noblesse de France ───────────────────────────
-    # 1732 first edition (Amsterdam, anonymous). Sourced from Gallica
-    # `bd6t5770025p` via the user's manually-fetched EPUB (a modern
-    # re-edition with proper introduction + Chapitre 1 / 2 / 3
-    # divisions). The pipeline's EPUB branch failed on the EPUB's
-    # accented filename (``Tabledesmatières.html``), so we pre-extract
-    # to plain text with ALL-CAPS ``CHAPITRE N`` heading anchors that
-    # the chapter splitter's secondary branch
-    # (``[A-Z][A-Z \\-—:,'.]{6,80}``) latches onto. Extraction
-    # script: ``scripts/extract-essai-noblesse.py`` (one-shot).
+    # 1732 first edition (Amsterdam, anonymous). An EPUB of Gallica
+    # `bd6t5770025p` was tried first and abandoned; the text is extracted
+    # from the Gallica PDF's OCR layer by `scripts/extract-essai-pdf.py`,
+    # which also restores the word spaces that layer's spans omit (#561)
+    # and drops running heads, signatures and catchwords by their
+    # position on the page (#578). An earlier comment here named an
+    # `extract-essai-noblesse.py` that has never existed in the repo.
     CorpusWork(
         code="essai_noblesse_fra",
         title="Essai sur la noblesse de France",
@@ -76,6 +86,8 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="boulainvilliers",
         author="Boulainvilliers",
         citation_system="paragraph",
+        # Paragraphs are assembled at extraction, where the page shows
+        # where its notes begin; a second reflow here would re-merge them.
     ),
     # ─── Lettres sur les anciens parlemens de France ────────────────
     CorpusWork(
@@ -90,6 +102,7 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="boulainvilliers",
         author="Boulainvilliers",
         citation_system="paragraph",
+        ocr_reflow=_OCR_HEADS,
     ),
     # ─── An historical account of the antient parliaments of France
     #     (Dryden the Younger, 1739) — only PD English translation of

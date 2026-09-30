@@ -49,23 +49,34 @@ the one text we want, so each is sliced (see ``_SLICES``):
 
   * Latin Leviathan — IA ``thomhobbesmalme02hobbgoog`` = Opera Latina
     vol. III. Contains Leviathan (Caput I–XLVII) followed by the
-    *Appendix ad Leviathan* and an index. We take the Leviathan only.
-    The appendix is Hobbes's own 1668 addition and is genuinely part
-    of the Latin Leviathan as published — it is left out here to keep
-    parity with what the corpus already had, and is tracked as its own
-    issue rather than smuggled in on a re-source.
+    *Appendix ad Leviathan* and an index. We take the Leviathan only
+    from this scan, because the scan has **no leaves for pp. 510–512**
+    (``_page_numbers.json`` runs leaf 475 = p. 509, leaf 476 = p. 513):
+    they hold the last page of the Leviathan's *Conclusio*, the
+    appendix's title and the opening of its Caput I. The Leviathan slice
+    therefore ends mid-sentence ("Itaque atramentum"); changing its
+    source would re-mint every Leviathan ``chunk_id``, so it stays.
+  * Appendix ad Leviathan (#575) — IA ``operaphilosophic03hobbuoft``,
+    the University of Toronto scan of the same vol. III, which has
+    pp. 510–512. Hobbes's own 1668 addition, ingested as its own work.
+    Vocabulary hit over the parsed chunks, same scorer as above: 84.2%,
+    against 87.0% for the Leviathan from the Google scan — but 83.2% for
+    the Leviathan read from *this* scan, so the gap is the scan, not the
+    text. Its OCR mangles running heads (``APPENDIX AD LEVIATHAN. 5a3``),
+    which ``sources/hobbes_la.py`` handles for this work only.
   * De Cive Latin — IA ``thomhobbesmalmes0002hobb`` = Opera Latina
     vol. II. Contains *De Homine* (Caput I–XV) and then *De Cive*
     (Caput I–XVIII). Slicing is not optional here: De Homine's chapter
     numbers would otherwise be parsed as De Cive's.
 
-Both are the ``_djvu.txt`` derivative, not ``_hocr_searchtext.txt.gz``
+All three are the ``_djvu.txt`` derivative, not ``_hocr_searchtext.txt.gz``
 as before. That is what the numbers above were measured on; the two
 derivatives are different OCR passes and are not interchangeable.
 
 Output:
 
     data/hobbes/raw_lat/leviathan_lat.txt
+    data/hobbes/raw_lat/leviathan_appendix_lat.txt
     data/hobbes/raw_lat/de_cive_lat.txt
 
 Run:
@@ -167,6 +178,16 @@ _SLICES: dict[str, VolumeSlice] = {
         end=r"\s*APPENDIX\s+AD\s+LEVIATHAN",
         expected_lines=19878,
     ),
+    # Vol. III again, from the UofT scan (see the module docstring for
+    # why not the Google one): from the appendix's title page to the end
+    # of the volume, before its index. The anchored pattern needs the bare
+    # title — every running head after it carries a page number, or a
+    # mangled one ("53/", "5a3"), and none precedes it.
+    "leviathan_appendix_lat.txt": VolumeSlice(
+        start=r"\s*APPENDIX\s+AD\s+LEVIATHAN\s*[.,]?\s*$",
+        end=r"\s*[.,]?\s*FINIS\s+VOLUMINIS",
+        expected_lines=2633,
+    ),
     # Vol. II: De Cive opens with a half-title page reading "DE CIVE."
     # after De Homine ends, and closes at "FINIS VOLUMINIS SECUNDI".
     # Occurrence 1 of the half-title is the front-matter index line
@@ -186,6 +207,11 @@ _DOWNLOADS: tuple[tuple[str, str, str], ...] = (
         "Latin Leviathan (Molesworth 1839, Opera Latina vol. III)",
         "thomhobbesmalme02hobbgoog",
         "leviathan_lat.txt",
+    ),
+    (
+        "Appendix ad Leviathan (Molesworth 1839, Opera Latina vol. III, UofT scan)",
+        "operaphilosophic03hobbuoft",
+        "leviathan_appendix_lat.txt",
     ),
     (
         "De Cive (Molesworth 1839, Opera Latina vol. II)",

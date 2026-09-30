@@ -159,7 +159,8 @@ def _verse_work_ids(conn: sqlite3.Connection) -> np.ndarray:
 # them to the responsible translator/editor (NEVER the author), so neither the
 # LLM prompt nor the citation can present a footnote as the philosopher's
 # words. See 2b in docs/block-structure-remediation-plan.md. The same set is
-# kept out of the concordance (#674), so it lives in `block_types`.
+# kept out of the concordance (#674), so it lives in `block_types`. It also
+# holds `spurious`, fragments the editor judges not the author's (#683).
 _APPARATUS_TYPES = APPARATUS_TYPES
 _APPARATUS_LABEL = APPARATUS_LABEL
 
@@ -199,8 +200,9 @@ def _clean_responsible(blob: str | None) -> str | None:
     """Pull a clean translator/editor name from a source-bibliography blob,
     e.g. 'Plato in Twelve Volumes, Vol. 8 translated by W.R.M. Lamb.' →
     'W.R.M. Lamb'. None when no name is recoverable (caller falls back to a
-    bare 'editorial note' label)."""
-    if not blob:
+    bare 'editorial note' label), as for an original-language edition,
+    whose translator field is the placeholder '(Original)'."""
+    if not blob or blob == "(Original)":
         return None
     m = _TRANSLATED_BY_RE.search(blob)
     if m:

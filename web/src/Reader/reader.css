@@ -384,6 +384,25 @@
   margin-bottom: 2px;
 }
 
+/* Doubtful, false and forged fragments (#683) — Diels prints them after
+   the genuine ones under ZWEIFELHAFTES / UNECHTES. Kept in place, because
+   they are what a source says the author wrote, but tagged and set apart
+   like an Objection so they never read as the author's own words. */
+.reader .line[data-block="spurious"] .text {
+  padding-left: 20px;
+  border-left: 2px dashed var(--r-rule);
+  color: var(--r-ink-soft);
+}
+.reader .line[data-block="spurious"] .text::before {
+  content: "doubtful or spurious";
+  display: block;
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--r-ink-mute);
+  margin-bottom: 2px;
+}
+
 /* Editors' apparatus (#534) — an editorial introduction, bibliography or
    front matter. Collapsed by default: it is real scholarship, but it is not
    the author, and rendering it inline is what made the corpus misleading.

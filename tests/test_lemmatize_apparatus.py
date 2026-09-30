@@ -114,7 +114,9 @@ def _body_and_apparatus() -> list[dict]:
 def test_apparatus_types_are_the_set_retrieval_attributes_away_from_the_author():
     from minerva import retrieve
 
-    assert set(APPARATUS_TYPES) == {"note", "editorial", "cast"}
+    # `spurious`: DK's doubtful and forged fragments, attributed to the
+    # author by a source but not his in the editor's judgement (#683).
+    assert set(APPARATUS_TYPES) == {"note", "editorial", "cast", "spurious"}
     assert retrieve._APPARATUS_TYPES is APPARATUS_TYPES
 
 
@@ -197,9 +199,7 @@ def test_a_purge_with_nothing_left_to_lemmatize_still_rebuilds_the_leaderboard(t
     assert _run(db, skip_aggregate=False) == 0
 
     assert _query(db, count_cf) == []
-    assert _query(db, "SELECT lemma FROM lemma_counts WHERE scope_kind = 'corpus'") == [
-        ("virtue",)
-    ]
+    assert _query(db, "SELECT lemma FROM lemma_counts WHERE scope_kind = 'corpus'") == [("virtue",)]
 
 
 def test_a_dry_run_reports_but_does_not_purge(tmp_path):
@@ -239,6 +239,24 @@ def test_a_word_click_inside_apparatus_says_why_there_is_no_lemma(tmp_path):
             word_lookup(conn, {"chunk_id": "body", "offset": "0"})
         with pytest.raises(NotFoundError, match="terms lemmatize"):
             word_lookup(conn, {"chunk_id": "no-such-chunk", "offset": "0"})
+    finally:
+        conn.close()
+
+
+def test_a_word_click_inside_a_spurious_fragment_says_why_there_is_no_lemma(tmp_path):
+    import pytest
+
+    from minerva.errors import NotFoundError
+    from minerva.reader.queries import word_lookup
+
+    db = _seed(tmp_path, [make_chunk(chunk_id="s", ord=0, block_type="spurious", text="cf x")])
+    conn = store.open_db(db)
+    try:
+        with pytest.raises(NotFoundError, match="doubtful or spurious fragment") as exc:
+            word_lookup(conn, {"chunk_id": "s", "offset": "0"})
+        # Neither the translator's nor the editor's words.
+        assert "not the author's own text" in str(exc.value)
+        assert "terms lemmatize" not in str(exc.value)
     finally:
         conn.close()
 

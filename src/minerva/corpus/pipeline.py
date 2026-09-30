@@ -28,6 +28,8 @@ from ..corpus_extract import (
 from ..corpus_works import CorpusWork
 from ..tei import Chunk
 from .editorial_runs import apply_editorial_runs
+from .facing_text import split_facing_text
+from .ocr_reflow import OcrReflow, reflow
 from .split_aquinas import split_aquinas
 from .split_augustine import split_augustine
 from .split_descartes import split_descartes, split_descartes_articles
@@ -38,6 +40,7 @@ from .split_hegel_pr_epub import split_hegel_pr_epub
 from .split_kant import split_by_kant_ab
 from .split_kapital_mew import split_kapital_mew
 from .split_paragraphic import (
+    is_heading_line,
     split_by_chapter,
     split_by_fable,
     split_by_paragraph,
@@ -190,6 +193,8 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         # by `perseus/download_descartes.py` into one work per file.
         # No extraction step needed — the splitter walks the raw text.
         text = path.read_text(encoding="utf-8")
+        if work.ocr_reflow is not None:
+            text = reflow(text, OcrReflow(titles=work.ocr_reflow), is_heading=is_heading_line)
     elif suffix == ".xml":
         # XML files (TEI.2, TEI P5, EpiDoc) are handled by dedicated
         # parsers (``tei.parse_dir`` / ``tei_p5.parse_dir`` / etc.)
@@ -215,6 +220,8 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             f"retrying with 'chapter' fallback"
         )
         chunks = list(split_by_chapter(text, work, path))
+    if work.facing_text:
+        chunks = split_facing_text(chunks, text, work.title)
     yield from apply_editorial_runs(chunks, work)
 
 

@@ -46,8 +46,15 @@ Key heuristics:
   and the next running head. Greek after the German on the same page is
   apparatus (#673); German that resumes at the top of a page, before
   any German opener, continues the last German fragment.
-* **Doubtful / forged fragments**: ``ZWEIFELHAFTE ... FRAGMENTE``
-  block — skipped (not part of canonical B-fragments).
+* **Doubtful / spurious / forged fragments**: the ``ZWEIFELHAFTES``,
+  ``UNECHTES`` and ``GEFÄLSCHTE FRAGMENTE`` sections at the end of a
+  chapter's B-fragments. Kept, but every fragment from the first one
+  after such a heading is typed ``block_type='spurious'``, in both
+  languages, so it is not counted as the author's words (#683).
+* **Latin**: a few fragments survive only in Latin (Parmenides B 18,
+  Heraclitus B 67a, Empedocles B 94). Latin prose in the text column is
+  kept in the Greek edition's chunk, where the lemmatizer's cross-script
+  pass gives it the Latin model (#430).
 
 The DK chapter number we record in ``chunks.section`` is the
 **modern** Kranz 1951 number — universal scholarly citation today
@@ -61,9 +68,28 @@ import re
 import unicodedata
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import NamedTuple
 
 from minerva.authors.presocratic_works import _PHASE_1, find_by_chapter_heading
 from minerva.tei import Chunk, _make_chunk_id, _norm_text
+
+# A fragment's number and letter: (67, "a") is DK B 67a, (67, "") is B 67.
+FragKey = tuple[int, str]
+
+
+class _Raw(NamedTuple):
+    """One fragment opener as the OCR printed it, before the parser has
+    decided which fragment it opens (`_resolve_key`)."""
+
+    num: int
+    # "" plain; "a"/"b" an explicit letter (OCR `°` and `%` are "a");
+    # "digit" a last digit that may be OCR for "a" (`675,` = 67a);
+    # "next" no number at all, the fragment after the last one.
+    mark: str
+    # A comma for the full stop: the number must fit the sequence (#681).
+    checked: bool
+    body: str
+
 
 # Chapter heading: `12. HERAKLEITOS.` — uppercase Latin name, optional
 # trailing junk. The source has many variants:
@@ -104,11 +130,22 @@ _A_LEHRE_RE = re.compile(r"^\s*A\.\s+(LEHRE|ANGEBLICHE\s+FRAGMENTE)\b")
 # `C. IMITATION.` — end of canonical B-fragments inside a chapter.
 _C_IMITATION_RE = re.compile(r"^\s*C\.\s+IMITATION", re.IGNORECASE)
 
-# `ZWEIFELHAFTE ... FRAGMENTE` — doubtful / forged fragments, skipped.
-_DOUBTFUL_RE = re.compile(
-    r"^\s*ZWEIFELHAFTE",
-    re.IGNORECASE,
+# DK's non-canonical sections, after the genuine fragments: doubtful
+# (`ZWEIFELHAFTES.`), false, spurious (`UNECHTES.`) and forged
+# (`GEFÄLSCHTE FRAGMENTE.`), alone or combined (`ZWEIFELHAFTE, FALSCHE UND
+# GEFÄLSCHTE FRAGMENTE.`), in OCR forms (`UNECHTES,.`, `GEFALSCHTES.`).
+# Every fragment from the first one after the heading is typed `spurious`
+# (#683). Capitals only: the words occur in the notes' prose too. The
+# heading may share its line with the fragment it heads (`ZWEIFELHAFTES.
+# 154. Das war …`) or end the line of the one before (`41. Grube.
+# ZWEIFELHAFTE FRAGMENTE.`). Running heads that name the sections
+# (`154—157 ZWEIFELHAFTES UND UNECHTES. 281`) start and end with numbers.
+_NONCANON_WORD = r"(?:ZWEIFELHAFTE|GEF[AÄ]LSCHTE|UNECHTE|FALSCHE)S?"
+_NONCANON_HEADING = (
+    rf"{_NONCANON_WORD}\b(?:,?\s+(?:UND|{_NONCANON_WORD}|FRAGMENTE|SCHRIFTEN)\b)*[,.]*"
 )
+_NONCANON_HEADING_RE = re.compile(rf"^\s*{_NONCANON_HEADING}")
+_TRAILING_NONCANON_RE = re.compile(rf"\s{_NONCANON_HEADING}\s*$")
 
 # Optional leading print-line-number prefix. The 1912 typesetting
 # numbers every 5th line of Greek poetry in the margin; OCR linearizes
@@ -116,8 +153,8 @@ _DOUBTFUL_RE = re.compile(
 #   `25 1. [1—32. 52—57 Karst.] ...` — print line 25, fragment 1
 #   `5 1. [...] ...`                  — print line 5, fragment 1
 # Stripped at classification time so fragment-start regexes see a clean
-# `\d+\.` opener.
-_LINE_NUMBER_PREFIX_RE = re.compile(r"^\s*\d+\s+(?=\d+\.\s)")
+# `\d+\.` opener (or `15 101%.`, an "a" fragment behind its line number).
+_LINE_NUMBER_PREFIX_RE = re.compile(r"^\s*\d+\s+(?=\d+[°%ab]?[.,]\s)")
 
 # Fragment-start opener: `<N>. <rest>` where rest begins with either:
 #   * a `[<cross-ref>]` bracket (Heraclitus / Empedocles / Parmenides
@@ -133,10 +170,39 @@ _LINE_NUMBER_PREFIX_RE = re.compile(r"^\s*\d+\s+(?=\d+\.\s)")
 # present so downstream source-citation extraction sees clean text.
 # Fragment numbers are capped at 3 digits. The largest pre-Socratic
 # B-fragment set in DK is Empedocles with ~150 entries; nothing
-# legitimately exceeds 999. OCR noise like `1262.` (a mangled `126. 2.`)
-# would otherwise be treated as a real opener.
-_FRAG_OPENER_RE = re.compile(r"^\s*(\d{1,3})\.\s+(.*)$")
+# legitimately exceeds 999. A fourth digit is the OCR's reading of an
+# "a" (`1262.` is 126a), as a third can be (`675,` is 67a), and the
+# letter itself comes through as `°`, `%` or `a` (#681). OCR also reads
+# the full stop as a comma, and a comma opener's number is only trusted
+# when it fits the sequence (`_resolve_key`).
+_FRAG_OPENER_RE = re.compile(r"^\s*(\d{1,4})([°%ab]?)([.,])\s+(.*)$")
 _LEADING_CROSSREF_RE = re.compile(r"^\[[^\]]*\]\s*")
+_MAX_FRAG = 999
+_SUFFIX_MARKS = {"°": "a", "%": "a", "a": "a", "b": "b"}
+# How far past the last fragment a comma opener's number may run and
+# still be taken as printed: fragments missing from one language make
+# small gaps, and OCR misreadings (`48` for 43, `94` for 24) large ones.
+_SEQUENCE_SLACK = 3
+
+# A ditto opener that lost its fragment number: `[86] — — iii 14 …`, the
+# old number in brackets, then the source (repeated as dashes). The OCR
+# moved the numbers into a margin column on that page (#681).
+_NUMBERLESS_OPENER_RE = re.compile(r"^\s*\[\d[^\]]*\]\s*(?:[—-]\s*[—-]|[A-Z])")
+
+# A source cited in capitals (`3. OLYMPIODOR. de arte sacra …`, `94,
+# SUETONIUS …`) opens the Greek side even before any Greek script: no
+# German translation in the source opens with a word in capitals.
+_CAPS_SOURCE_RE = re.compile(r"[A-ZÄÖÜ][A-ZÄÖÜ-]{3,}\b")
+
+# A German translation opener starts with a capital, sometimes behind an
+# opening quote (`152. “Der Abend …`).
+_GERMAN_START_RE = re.compile(r"[“„\"‘]?[A-ZÄÖÜ]")
+# A German word, not an abbreviated source (`Ausust. de …`), to open with.
+_GERMAN_WORD_START_RE = re.compile(r"[“„\"‘]?[A-ZÄÖÜ][a-zäöüß]+(?![\w.])")
+# German with a few OCR Greek letters in it (`ὦ. h.` for `d. h.`, `(Ὁ)`
+# for `(?)`) is still German: at most this many, and a quarter of its
+# Latin letters.
+_STRAY_GREEK_MAX = 10
 
 # Crammed-line split (Greek): in Xenophanes (and intermittently
 # elsewhere) the OCR linearizes multiple Greek B-fragments onto ONE
@@ -145,8 +211,9 @@ _LEADING_CROSSREF_RE = re.compile(r"^\[[^\]]*\]\s*")
 # occurrence of whitespace + digits + period + space + opening
 # bracket. The bracket requirement avoids false-splitting on
 # cross-references like `[A 31, 9` (A-fragment refs that have a Latin
-# letter, not digits, before the comma).
-_CRAMMED_FRAG_SPLIT_RE = re.compile(r"\s+(\d{1,3})\.\s+\[")
+# letter, not digits, before the comma). An "a"/"b" fragment may take a
+# comma (`154b, [0]`); a plain number needs its full stop.
+_CRAMMED_FRAG_SPLIT_RE = re.compile(r"\s+(\d{1,3})(?:\.|([°%ab])[.,])\s+\[")
 
 # Crammed-line split (German): the German translation block packs
 # fragments back-to-back on long OCR lines too, e.g.
@@ -155,13 +222,19 @@ _CRAMMED_FRAG_SPLIT_RE = re.compile(r"\s+(\d{1,3})\.\s+\[")
 # integer + dot-OR-comma (OCR sometimes reads `12.` as `12,`) + space
 # + Latin capital + Latin lowercase. The capital-lowercase pair
 # avoids splitting on incidental numbers inside the German prose.
-_CRAMMED_GERMAN_SPLIT_RE = re.compile(r"\s+(\d{1,3})[.,]\s+(?=[A-ZÄÖÜ][a-zäöüß])")
+_CRAMMED_GERMAN_SPLIT_RE = re.compile(r"\s+(\d{1,3})([°%ab]?)[.,]\s+(?=[A-ZÄÖÜ][a-zäöüß])")
 
 
-def _split_crammed_greek(first_num: int, body: str) -> list[tuple[int, str]]:
+def _inner_raw(m: re.Match[str], body: str) -> _Raw:
+    """An opener found inside a line: its number is taken as printed."""
+
+    return _Raw(int(m.group(1)), _SUFFIX_MARKS.get(m.group(2) or "", ""), False, body)
+
+
+def _split_crammed_greek(first: _Raw, body: str) -> list[_Raw]:
     """Split a Greek-fragment line that crams multiple ``N. [...]``
-    openers onto one OCR-linearized text line. Returns
-    ``[(num, body), ...]`` in source order.
+    openers onto one OCR-linearized text line. Returns the openers in
+    source order, ``first`` carrying the text before the first split.
 
     The first fragment's body runs from the start of the input to the
     first inner split position; each subsequent split takes the
@@ -173,22 +246,20 @@ def _split_crammed_greek(first_num: int, body: str) -> list[tuple[int, str]]:
 
     matches = list(_CRAMMED_FRAG_SPLIT_RE.finditer(body))
     if not matches:
-        return [(first_num, _LEADING_CROSSREF_RE.sub("", body))]
+        return [first._replace(body=_LEADING_CROSSREF_RE.sub("", body))]
 
-    out: list[tuple[int, str]] = []
     first_body = body[: matches[0].start()]
-    out.append((first_num, _LEADING_CROSSREF_RE.sub("", first_body)))
+    out = [first._replace(body=_LEADING_CROSSREF_RE.sub("", first_body))]
     for i, m in enumerate(matches):
-        num = int(m.group(1))
         # Body of this inner fragment starts at the `[` we matched
         # and runs until the next split (or end).
         body_start = m.end() - 1  # `m.end()` is one past `[`
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
-        out.append((num, _LEADING_CROSSREF_RE.sub("", body[body_start:body_end])))
+        out.append(_inner_raw(m, _LEADING_CROSSREF_RE.sub("", body[body_start:body_end])))
     return out
 
 
-def _split_crammed_german(first_num: int, body: str) -> list[tuple[int, str]]:
+def _split_crammed_german(first: _Raw, body: str) -> list[_Raw]:
     """German analog of :func:`_split_crammed_greek`. Splits a German
     translation block on interior ``N. <CapitalizedWord>`` markers.
 
@@ -198,16 +269,82 @@ def _split_crammed_german(first_num: int, body: str) -> list[tuple[int, str]]:
 
     matches = list(_CRAMMED_GERMAN_SPLIT_RE.finditer(body))
     if not matches:
-        return [(first_num, body.strip())]
+        return [first._replace(body=body.strip())]
 
-    out: list[tuple[int, str]] = []
-    out.append((first_num, body[: matches[0].start()].strip()))
+    out = [first._replace(body=body[: matches[0].start()].strip())]
     for i, m in enumerate(matches):
-        num = int(m.group(1))
         body_start = m.end()  # past the `N. ` separator
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
-        out.append((num, body[body_start:body_end].strip()))
+        out.append(_inner_raw(m, body[body_start:body_end].strip()))
     return out
+
+
+def _read_number(digits: str, mark: str, comma: bool) -> _Raw | None:
+    """The opener's number as printed, or None if it cannot be one."""
+
+    if mark:
+        return _Raw(int(digits), _SUFFIX_MARKS[mark], False, "") if len(digits) < 4 else None
+    if len(digits) >= 3 and digits[-1] in "25":
+        return _Raw(int(digits), "digit", comma, "")
+    if len(digits) == 4:
+        return None
+    return _Raw(int(digits), "", comma, "")
+
+
+def _in_sequence(num: int, last: FragKey) -> bool:
+    return last[0] < num <= last[0] + _SEQUENCE_SLACK
+
+
+def _is_digit_suffix(num: int, last: FragKey) -> bool:
+    # `675` right after 67 is 67a; `125` right after 124 is 125.
+    return num // 10 == last[0] and not _in_sequence(num, last)
+
+
+def _suffixed(num: int, mark: str, buf: dict[FragKey, list[str]]) -> FragKey:
+    # The OCR prints 126a and 126b both as `126°`, and 154c as `154°`
+    # after `154b,`: an "a" already taken is the next letter free.
+    letter = mark
+    while mark == "a" and (num, letter) in buf:
+        letter = chr(ord(letter) + 1)
+    return (num, letter)
+
+
+def _file_openers(
+    buf: dict[FragKey, list[str]], last: FragKey | None, raws: list[_Raw]
+) -> list[FragKey] | None:
+    """File each opener's text under its fragment, returning the
+    fragments opened. None, filing nothing, when the first opener opens
+    none (`_resolve_key`); one found inside a line always does."""
+
+    keys: list[FragKey] = []
+    for raw in raws:
+        key = _resolve_key(raw, buf, last)
+        if key is None:
+            return None
+        buf.setdefault(key, []).append(raw.body)
+        keys.append(key)
+        last = key
+    return keys
+
+
+def _resolve_key(raw: _Raw, buf: dict[FragKey, list[str]], last: FragKey | None) -> FragKey | None:
+    """The fragment an opener opens, given the language's fragments so
+    far, or None when it opens none and is text after all."""
+
+    if raw.mark == "next":
+        return None if last is None else (last[0] + 1, "")
+    if raw.mark in ("a", "b"):
+        return _suffixed(raw.num, raw.mark, buf)
+    if raw.mark == "digit" and last is not None and _is_digit_suffix(raw.num, last):
+        return _suffixed(raw.num // 10, "a", buf)
+    if raw.num > _MAX_FRAG:
+        return None
+    if not raw.checked or last is None or _in_sequence(raw.num, last):
+        return (raw.num, "")
+    # A misread number (`48,` for 43, between 42 and 44) is the next
+    # fragment, unless that one is already there.
+    nxt = (last[0] + 1, "")
+    return None if nxt in buf else nxt
 
 
 # Apparatus footnote: `N <word>` — integer NOT followed by period.
@@ -295,13 +432,50 @@ def _looks_like_text(line: str) -> bool:
 # Latin quotations in the notes trip the German list through OCR (`sic`
 # read as `sie`, `in` as `im`), so German must also outnumber these.
 _LATIN_FUNCTION_WORD_RE = re.compile(
-    r"\b(?:et|est|sunt|in|ad|ex|de|cum|qui|quae|quod|ut|non|sed|enim|autem|atque)\b"
+    r"\b(?:et|est|sunt|in|ad|ex|de|cum|qui|quae|quod|ut|non|sed|enim|autem|atque"
+    r"|nam|nec|si|aut|vel)\b"
 )
+
+
+def _looks_latin(text: str) -> bool:
+    """Latin prose, as opposed to German or a bare source citation
+    (`Theophr. p. 5. 7. ed. Paris.`, no function word at all)."""
+
+    latin = len(_LATIN_FUNCTION_WORD_RE.findall(text))
+    return latin >= 1 and latin > len(_GERMAN_FUNCTION_WORD_RE.findall(text))
 
 
 def _looks_german(text: str) -> bool:
     german = len(_GERMAN_FUNCTION_WORD_RE.findall(text))
     return german >= 2 and german > len(_LATIN_FUNCTION_WORD_RE.findall(text))
+
+
+def _greek_is_stray(text: str) -> bool:
+    """Whether the Greek letters in a line are too few to make it Greek."""
+
+    greek = len(_GREEK_CHAR_RE.findall(text))
+    return greek <= _STRAY_GREEK_MAX and greek * 4 <= len(_LATIN_LETTER_RE.findall(text))
+
+
+def _is_greek_text(text: str) -> bool:
+    """Greek, as opposed to German that the OCR sprinkled with a Greek
+    letter or two (`ΟἹ, Meerwasser ist …` for `61. Meerwasser …`)."""
+
+    if not _GREEK_CHAR_RE.search(text):
+        return False
+    return not (_greek_is_stray(text) and _looks_german(text))
+
+
+def _is_german_opener_body(body: str) -> bool:
+    """A translation opener, whatever stray Greek letters it carries. An
+    opener's first word is evidence too: German translations of single
+    words (`148. Menschenumgebenden Erdstoff …`) have no function words."""
+
+    if not _GERMAN_START_RE.match(body):
+        return False
+    if not _GREEK_CHAR_RE.search(body):
+        return True
+    return _greek_is_stray(body) and bool(_looks_german(body) or _GERMAN_WORD_START_RE.match(body))
 
 
 # Greek script Unicode ranges. The source citation runs up to the
@@ -418,9 +592,62 @@ def _classify_chrome(line: str) -> str | None:
     return None
 
 
+def _split_noncanon_heading(line: str) -> tuple[str, str] | None:
+    """``(before, after)``: the text sharing a line with a non-canonical
+    section heading, or None if the line has none."""
+
+    m = _NONCANON_HEADING_RE.match(line)
+    if m is not None:
+        return "", line[m.end() :].strip()
+    m = _TRAILING_NONCANON_RE.search(line)
+    if m is not None:
+        return line[: m.start()].strip(), ""
+    return None
+
+
+def _is_chapter_heading(line: str, m: re.Match[str]) -> bool:
+    """A Phase-1 philosopher's name, or an unknown one on a line of its
+    own. An unknown capitalised name with text after it is a source
+    cited in capitals (`3. OLYMPIODOR. de arte sacra …`, Anaximenes B 3),
+    so the line is a fragment opener."""
+
+    if find_by_chapter_heading(None, m.group(1).upper()) is not None:
+        return True
+    return not any(ch.islower() for ch in line[m.end() :])
+
+
+def _classify_opener(candidate: str) -> tuple[str, list[_Raw]] | None:
+    """A `N. …` fragment opener, Greek or German, or None.
+
+    A leading `[<crossref>]` bracket is a reliable signal of a Greek
+    B-fragment opener (old-numbering reference: Bywater, Karsten,
+    Crusius, ...), even when this OCR line carries only the Latin source
+    citation. Otherwise Greek script makes it Greek, unless the line is
+    German with a few OCR Greek letters in it (#681). German openers
+    start with a capital, so `1. p. 96` page refs are neither. Either
+    side may cram several fragments onto one OCR line.
+    """
+
+    m = _FRAG_OPENER_RE.match(candidate)
+    if m is None:
+        return None
+    digits, mark, stop, body = m.groups()
+    first = _read_number(digits, mark, stop == ",")
+    if first is None:
+        return None
+    if body.startswith("[") or _CAPS_SOURCE_RE.match(body):
+        return "frag_greek", _split_crammed_greek(first, body)
+    if _is_german_opener_body(body):
+        return "frag_german", _split_crammed_german(first, body)
+    # A comma opener is taken only with a bracket, a source or as German.
+    if stop == "." and _GREEK_CHAR_RE.search(body):
+        return "frag_greek", _split_crammed_greek(first, body)
+    return None
+
+
 def _classify_line(line: str) -> tuple[str, object]:
     """Classify one line. Returns (kind, payload) where kind is one of:
-    'chapter', 'b_marker', 'a_marker', 'c_marker', 'doubtful',
+    'chapter', 'b_marker', 'a_marker', 'c_marker', 'noncanon',
     'frag_greek', 'frag_german', 'apparatus', 'running_head',
     'page_num', 'page_foot', 'blank', 'heading', 'continuation'.
     """
@@ -440,8 +667,9 @@ def _classify_line(line: str) -> tuple[str, object]:
         return "a_marker", None
     if _C_IMITATION_RE.match(line):
         return "c_marker", None
-    if _DOUBTFUL_RE.match(line):
-        return "doubtful", None
+    heading = _split_noncanon_heading(line)
+    if heading is not None:
+        return "noncanon", heading
 
     # Chapter heading: ALL-UPPERCASE name token (Latin only). Source-
     # citation openers like `1. Pur. de prim.` or `1. Dioc. ix 1—17.`
@@ -451,7 +679,7 @@ def _classify_line(line: str) -> tuple[str, object]:
     # opener so `12. HERAKLEITOS.` isn't misclassified as a
     # German-translation fragment.
     m = _CHAPTER_HEADING_RE.match(line)
-    if m is not None:
+    if m is not None and _is_chapter_heading(line, m):
         name = m.group(1).upper().rstrip(".")
         return "chapter", (None, name)
 
@@ -460,35 +688,12 @@ def _classify_line(line: str) -> tuple[str, object]:
     # `25 1. [1—32. 52—57 Karst.] ...` (Parmenides B 1) hit the
     # apparatus regex and the actual fragment-start is dropped.
     candidate = _LINE_NUMBER_PREFIX_RE.sub("", line)
-
-    m = _FRAG_OPENER_RE.match(candidate)
-    if m is not None:
-        body = m.group(2)
-        first_num = int(m.group(1))
-        # A leading `[<crossref>]` bracket is a reliable signal of a
-        # Greek B-fragment opener (old-numbering reference: Bywater,
-        # Karsten, Crusius, ...). German translation lines never open
-        # with a bracket — they start with German prose directly. So
-        # the bracket presence wins even when no Greek script is on
-        # this particular text line (the Greek body may continue on
-        # the next OCR line; the source citation that fills this line
-        # is all-Latin).
-        has_crossref = body.startswith("[")
-        if _GREEK_CHAR_RE.search(body) or has_crossref:
-            # Crammed-line detection: when OCR packs multiple Greek
-            # fragments onto one text line, return them all as a list.
-            # The parser loop emits each in source order.
-            return "frag_greek", _split_crammed_greek(first_num, body)
-        # No Greek script AND no crossref bracket — German translation
-        # OR an unrecognized line. Require the body to start with a
-        # Latin capital so we don't misclassify e.g. `1. p. 96` page
-        # refs.
-        body_stripped = _LEADING_CROSSREF_RE.sub("", body)
-        if re.match(r"[A-ZÄÖÜ]", body_stripped):
-            # Crammed-line detection for German too — multiple German
-            # fragments can be packed onto one OCR line just like the
-            # Greek side.
-            return "frag_german", _split_crammed_german(first_num, body_stripped)
+    opener = _classify_opener(candidate)
+    if opener is not None:
+        return opener[0], (opener[1], line.strip())
+    if _NUMBERLESS_OPENER_RE.match(line) and _GREEK_CHAR_RE.search(line):
+        raw = _Raw(0, "next", False, _LEADING_CROSSREF_RE.sub("", line.strip()))
+        return "frag_greek", ([raw], line.strip())
 
     if _APPARATUS_RE.match(line):
         return "apparatus", line.strip()
@@ -548,19 +753,19 @@ class _Parser:
         self.source_file = source_file
         self.current_phil: tuple[int, int, str, str] | None = None
         self.mode: str = "outside"  # outside | pre_b | in_b
-        self.block: str = "none"  # none | greek | german | apparatus | doubtful
+        self.block: str = "none"  # none | greek | german | apparatus
         # Two separate "last fragment number" trackers, one per language.
         # The page layout interleaves apparatus + page-break running heads
         # between a fragment's Greek lines and its German translation;
         # routing continuations by the language they look like (Greek
         # script vs Latin/German) is more robust than tracking a single
         # cur_frag. See `_classify_line` + `_on_continuation`.
-        self.last_greek_frag: int | None = None
-        self.last_german_frag: int | None = None
-        self.greek_buf: dict[int, list[str]] = {}
-        self.german_buf: dict[int, list[str]] = {}
+        self.last_greek_frag: FragKey | None = None
+        self.last_german_frag: FragKey | None = None
+        self.greek_buf: dict[FragKey, list[str]] = {}
+        self.german_buf: dict[FragKey, list[str]] = {}
         # Apparatus, keyed by the Greek fragment it follows on the page.
-        self.apparatus_buf: dict[int, list[str]] = {}
+        self.apparatus_buf: dict[FragKey, list[str]] = {}
         # Whether a German opener has been seen since the last page
         # break: until one has, German at the top of a page is the last
         # German fragment carrying on.
@@ -570,6 +775,15 @@ class _Parser:
         # German below them has lost its openers, so none of it may be
         # taken for the last fragment resuming. Cleared by a real opener.
         self.german_openers_lost = False
+        # The chapter's first doubtful/spurious/forged fragment, whether a
+        # section heading is waiting for it, and the fragments opened
+        # since (#683). A fragment is spurious when it is numbered from the
+        # first and was opened after the heading: the German has no heading
+        # of its own, and an OCR misreading earlier in the chapter (`90.`
+        # for Xenophanes B 20) must not take a genuine fragment with it.
+        self.noncanon_from: FragKey | None = None
+        self.noncanon_pending = False
+        self.opened_after_heading: set[FragKey] = set()
 
     def flush_chapter(self) -> Iterator[Chunk]:
         if self.current_phil is None:
@@ -580,12 +794,20 @@ class _Parser:
             self.german_buf,
             self.source_file,
             self.apparatus_buf,
+            self._spurious_keys(),
         )
         self.greek_buf = {}
         self.german_buf = {}
         self.apparatus_buf = {}
         self.last_greek_frag = None
         self.last_german_frag = None
+        self.noncanon_from = None
+        self.noncanon_pending = False
+        self.opened_after_heading = set()
+
+    def _spurious_keys(self) -> set[FragKey]:
+        first = self.noncanon_from
+        return {k for k in self.opened_after_heading if first is not None and k >= first}
 
     def _reset_blocks(self) -> None:
         self.block = "none"
@@ -600,8 +822,8 @@ class _Parser:
             return
         if self.current_phil is None or self.mode == "outside":
             return
-        if kind in ("a_marker", "b_marker", "c_marker", "doubtful"):
-            yield from self._on_marker(kind)
+        if kind in ("a_marker", "b_marker", "c_marker", "noncanon"):
+            yield from self._on_marker(kind, payload)
             return
         if kind == "heading" and _BARE_OPENER_RE.match(line):
             self.german_openers_lost = True
@@ -651,7 +873,7 @@ class _Parser:
         self.mode = "pre_b"
         self._reset_blocks()
 
-    def _on_marker(self, kind: str) -> Iterator[Chunk]:
+    def _on_marker(self, kind: str, payload: object = None) -> Iterator[Chunk]:
         if kind == "a_marker":
             self.mode = "pre_b"
             self._reset_blocks()
@@ -662,16 +884,11 @@ class _Parser:
             # fragment's apparatus and its Greek continuation would
             # erase the `last_greek_frag` we need to resume into.
             #
-            # Exception: when `block == "doubtful"`, we've been
-            # skipping the ZWEIFELHAFTE FRAGMENTE subsection. The
-            # running B-marker that follows it signals we're back in
-            # canonical B-fragments — clear the doubtful flag so
-            # subsequent frag-openers fire.
+            # The non-canonical sections are not a block state: they run
+            # to the end of the chapter, across these running heads.
             if self.mode != "in_b":
                 self.mode = "in_b"
                 self._reset_blocks()
-            elif self.block == "doubtful":
-                self.block = "none"
             else:
                 self._on_page_break()
         elif kind == "c_marker":
@@ -681,31 +898,62 @@ class _Parser:
             self.current_phil = None
             self.mode = "outside"
             self._reset_blocks()
-        else:
-            # ZWEIFELHAFTE FRAGMENTE — skip until next B-marker, C, or
-            # chapter. Just enter a sentinel block; non-frag-start
-            # lines are ignored anyway in `in_b` mode unless we
-            # explicitly accumulate.
-            self.block = "doubtful"
+        elif self.mode == "in_b":
+            # A doubtful/spurious/forged section heading; the testimonia
+            # have headings of their own, which say nothing here.
+            yield from self._on_noncanon(payload)  # type: ignore[arg-type]
 
-    def _on_frag_greek(self, frag_list: list[tuple[int, str]]) -> None:
-        # Payload is a list of (num, body) pairs — one entry for a
-        # normal single-fragment line, multiple when the OCR
-        # crammed several fragments onto one text line.
-        for frag_num, head_text in frag_list:
-            self.greek_buf.setdefault(frag_num, []).append(head_text)
-        # The "current" Greek fragment for continuation routing is
-        # the LAST one in the crammed list — subsequent continuation
-        # lines (page-break Greek tails) belong to that one.
-        self.last_greek_frag = frag_list[-1][0]
+    def _on_noncanon(self, payload: tuple[str, str]) -> Iterator[Chunk]:
+        # The next fragment opened, in either language, is the first of
+        # the section; every one numbered from it is typed spurious.
+        before, after = payload
+        if before:
+            yield from self.feed(before)
+        self.noncanon_pending = True
+        # `UNECHTES. 217`: a margin number, not a page, and not a fragment.
+        if _OPENER_LIKE_START_RE.match(after):
+            yield from self.feed(after)
+
+    def _note_opened(self, keys: list[FragKey]) -> None:
+        if self.noncanon_pending:
+            first = self.noncanon_from
+            self.noncanon_from = keys[0] if first is None else min(first, keys[0])
+            self.noncanon_pending = False
+        if self.noncanon_from is not None:
+            self.opened_after_heading.update(keys)
+
+    def _file_greek(self, raws: list[_Raw]) -> bool:
+        keys = _file_openers(self.greek_buf, self.last_greek_frag, raws)
+        if keys is None:
+            return False
+        # The "current" Greek fragment for continuation routing is the
+        # LAST one on the line: page-break Greek tails belong to it.
+        self.last_greek_frag = keys[-1]
+        self._note_opened(keys)
+        return True
+
+    def _file_german(self, raws: list[_Raw]) -> bool:
+        keys = _file_openers(self.german_buf, self.last_german_frag, raws)
+        if keys is None:
+            return False
+        self.last_german_frag = keys[-1]
+        self._note_opened(keys)
+        return True
+
+    def _on_frag_greek(self, payload: tuple[list[_Raw], str]) -> None:
+        # One opener for a normal line, several when the OCR crammed
+        # fragments onto one text line.
+        raws, line = payload
+        if not self._file_greek(raws):
+            self._on_continuation(line)
+            return
         self.block = "greek"
 
-    def _on_frag_german(self, frag_list: list[tuple[int, str]]) -> None:
-        # Same shape as frag_greek to handle crammed-OCR
-        # multi-fragment lines.
-        for frag_num, head_text in frag_list:
-            self.german_buf.setdefault(frag_num, []).append(head_text)
-        self.last_german_frag = frag_list[-1][0]
+    def _on_frag_german(self, payload: tuple[list[_Raw], str]) -> None:
+        raws, line = payload
+        if not self._file_german(raws):
+            self._on_continuation(line)
+            return
         self.block = "german"
         self.german_opened_on_page = True
         self.german_openers_lost = False
@@ -746,7 +994,14 @@ class _Parser:
             self.apparatus_buf.setdefault(self.last_greek_frag, []).append(text)
 
     def _on_continuation(self, text_payload: str) -> None:
-        has_greek = bool(_GREEK_CHAR_RE.search(text_payload))
+        # Within a page, German with a stray OCR Greek letter is German
+        # (#681). At the top of one nothing says which column resumes, and
+        # a text column can itself be German: Anaxagoras B 20 is Galen by
+        # way of Hebrew, and its next page would join the German of B 19.
+        if self.block == "none":
+            has_greek = bool(_GREEK_CHAR_RE.search(text_payload))
+        else:
+            has_greek = _is_greek_text(text_payload)
         # A `N. [` fragment opener ends any apparatus, so a page break
         # the parser missed cannot swallow the next fragment.
         if has_greek and self._split_crammed_greek_continuation(text_payload):
@@ -787,9 +1042,8 @@ class _Parser:
         # ones get split via the shared helper. Note
         # `first_split.end() - 1` backs up to the `[`.
         rest = text_payload[first_split.end() - 1 :]
-        for frag_num, head_text in _split_crammed_greek(int(first_split.group(1)), rest):
-            self.greek_buf.setdefault(frag_num, []).append(head_text)
-            self.last_greek_frag = frag_num
+        raws = _split_crammed_greek(_inner_raw(first_split, ""), rest)
+        self._file_greek(raws)
         self.block = "greek"
         return True
 
@@ -806,9 +1060,8 @@ class _Parser:
         if prefix.strip() and self.last_german_frag is not None:
             self.german_buf[self.last_german_frag].append(prefix.strip())
         rest = text_payload[first_split.end() :]
-        for frag_num, head_text in _split_crammed_german(int(first_split.group(1)), rest):
-            self.german_buf.setdefault(frag_num, []).append(head_text)
-            self.last_german_frag = frag_num
+        raws = _split_crammed_german(_inner_raw(first_split, ""), rest)
+        self._file_german(raws)
         self.block = "german"
         return True
 
@@ -817,8 +1070,12 @@ class _Parser:
         # rather than by the block-state machine. After the German
         # block + apparatus + page-break running heads, a Greek
         # poem can resume mid-fragment; routing by content lets us
-        # pick that up without an explicit page-break marker.
-        if has_greek and self.last_greek_frag is not None:
+        # pick that up without an explicit page-break marker. Latin
+        # prose in the text column is text too: some fragments survive
+        # only in Latin (Parmenides B 18, #683), and a source's Latin
+        # context belongs with it as its Greek context does.
+        latin = not has_greek and self.block in ("greek", "none") and _looks_latin(text_payload)
+        if (has_greek or latin) and self.last_greek_frag is not None:
             self.greek_buf[self.last_greek_frag].append(text_payload)
             self.block = "greek"
         elif (
@@ -847,19 +1104,24 @@ class _Parser:
 
 def _emit_chapter_chunks(
     philosopher: tuple[int, int, str, str],
-    greek_buf: dict[int, list[str]],
-    german_buf: dict[int, list[str]],
+    greek_buf: dict[FragKey, list[str]],
+    german_buf: dict[FragKey, list[str]],
     source_file: str,
-    apparatus_buf: dict[int, list[str]],
+    apparatus_buf: dict[FragKey, list[str]],
+    spurious: set[FragKey] | frozenset[FragKey] = frozenset(),
 ) -> Iterator[Chunk]:
     _dk_old, dk_mod, _src_name, canonical = philosopher
     work_title = f"Fragments (DK {dk_mod})"
 
     # Emit fragments in numeric order so chunk ord (assigned downstream
-    # by store.insert_chunks) reflects the canonical fragment sequence.
-    frag_nums = sorted(set(greek_buf) | set(german_buf))
-    for n in frag_nums:
-        section = f"{dk_mod} B {n}"
+    # by store.insert_chunks) reflects the canonical fragment sequence;
+    # 67a sorts between 67 and 68.
+    frag_keys = sorted(set(greek_buf) | set(german_buf))
+    for n in frag_keys:
+        section = f"{dk_mod} B {n[0]}{n[1]}"
+        # Not an input to the id, so a fragment typed spurious keeps its
+        # chunk_id, and with it its embedding and lemma state.
+        block_type = "spurious" if n in spurious else None
 
         # ── Greek edition chunk ───────────────────────────────────
         if n in greek_buf:
@@ -890,6 +1152,7 @@ def _emit_chapter_chunks(
                     translator="(Original)",
                     edition_year="1912",
                     citation_system="diels_kranz",
+                    block_type=block_type,
                 )
 
         # ── Critical apparatus, kept but typed editorial ──────────
@@ -924,6 +1187,7 @@ def _emit_chapter_chunks(
                     translator="Hermann Diels",
                     edition_year="1912",
                     citation_system="diels_kranz",
+                    block_type=block_type,
                 )
 
 

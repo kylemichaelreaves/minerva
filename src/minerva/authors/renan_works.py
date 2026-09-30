@@ -45,7 +45,19 @@ def _renan_work(code: str, title: str, year: str, filename: str) -> CorpusWork:
         corpus="renan",
         author="Renan",
         citation_system="paragraph",
+        ocr_reflow=_OCR_HEADS,
     )
+
+
+#: Verso running heads (#578). The recto heads carry the current book's
+#: title, which changes every few chapters; `ocr_reflow` recognises those
+#: by shape — capitals plus a page number — rather than by name.
+_OCR_HEADS = (
+    "Histoire du peuple d'Israël",
+    "Origines du christianisme",
+    "L'Antéchrist",
+    "Vie de Jésus",
+)
 
 
 WORKS: tuple[CorpusWork, ...] = (

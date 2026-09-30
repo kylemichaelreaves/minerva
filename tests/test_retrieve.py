@@ -922,6 +922,38 @@ def test_editorial_apparatus_is_capped_like_notes():
     assert "editorial" in retrieve._CAPPED_TYPES
 
 
+def test_spurious_fragment_is_capped_and_not_cited_as_the_author():
+    """DK's doubtful and forged fragments are kept but are not the
+    author's words (#683): capped like apparatus, and cited as what they
+    are rather than as `Empedocles, Fragments …`."""
+    assert "spurious" in retrieve._CAPPED_TYPES
+    meta = {
+        "author": "Empedocles",
+        "work": "Fragments (DK 31)",
+        "section": "31 B 155",
+        "block_type": "spurious",
+        "translator": "(Original)",
+    }
+    loc = retrieve.format_locator(meta)
+    assert loc == "Fragments (DK 31) 31 B 155 — doubtful or spurious fragment"
+    loc = retrieve.format_locator({**meta, "translator": "Hermann Diels"})
+    assert loc == "Fragments (DK 31) 31 B 155 — doubtful or spurious fragment (Hermann Diels)"
+
+
+def test_apparatus_of_an_original_edition_names_no_translator():
+    # The grc edition's translator field is the placeholder `(Original)`;
+    # it used to print as `editorial apparatus ((Original))`.
+    loc = retrieve.format_locator(
+        {
+            "work": "Fragments (DK 31)",
+            "section": "31 B 98",
+            "block_type": "editorial",
+            "translator": "(Original)",
+        }
+    )
+    assert loc == "Fragments (DK 31) 31 B 98 — editorial apparatus"
+
+
 def test_editorial_locator_names_the_editor_not_the_author():
     loc = retrieve.format_locator(
         {

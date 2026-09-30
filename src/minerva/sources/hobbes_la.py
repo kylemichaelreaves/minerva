@@ -1,6 +1,6 @@
 """Parser for Hobbes's Latin works in Molesworth's 1839 *Opera Latina*.
 
-Two source files, both sliced out of Internet Archive OCR of William
+Three source files, all sliced out of Internet Archive OCR of William
 Molesworth's *Thomae Hobbes Malmesburiensis Opera philosophica quae
 latine scripsit omnia* (London: Bohn, 1839) by
 ``perseus/download_hobbes_la.py``:
@@ -9,6 +9,10 @@ latine scripsit omnia* (London: Bohn, 1839) by
     de materia, forma, & potestate civitatis ecclesiasticae et civilis*.
   * ``de_cive_lat.txt`` — vol. II, Caput I–XVIII of *Elementa
     philosophica de cive*.
+  * ``leviathan_appendix_lat.txt`` — vol. III again, from a second scan,
+    Caput I–III of the *Appendix ad Leviathan* (#575). A dialogue, and
+    OCR'd worse at the running heads; see `_DAMAGED_HEAD_CODES` and
+    `_DIALOGUE_CODES` for the two rules only it uses.
 
 **This replaced a parser for a completely different kind of page.**
 Until 2026-09 the sources were IA scans of the 17th-century printings,
@@ -159,18 +163,51 @@ _ORPHAN_PAGE_BREAK_WINDOW = 6
 _MAX_CHAPTER_BY_CODE: dict[str, int] = {
     "leviathan_lat": 47,
     "de_cive_lat": 18,
+    "leviathan_appendix_lat": 3,
 }
 
 # First publication of each work. Must agree with `CorpusWork.edition_year`
-# in `authors/hobbes_works.py`; the two feed the same editions row.
+# in `authors/hobbes_works.py`; the two feed the same editions row. The
+# appendix was written for, and first printed in, the 1668 Amsterdam
+# Leviathan.
 _EDITION_YEAR_BY_CODE: dict[str, str] = {
     "leviathan_lat": "1668",
     "de_cive_lat": "1642",
+    "leviathan_appendix_lat": "1668",
 }
 
 # Below this a "paragraph" is marginal debris or a stray heading
 # fragment, not a retrieval unit.
 _MIN_CHUNK_CHARS = 80
+
+# ── The Appendix ad Leviathan (#575) ──────────────────────────────
+#
+# Two rules the appendix needs and the other two works do not use.
+#
+# **Damaged running heads.** The appendix is read from a different scan
+# of vol. III than the Leviathan (the Leviathan's scan has no leaves for
+# pp. 510–512, which hold the appendix's title and the opening of its
+# Caput I). That scan's OCR mangles the running head's page number —
+# ``APPENDIX AD LEVIATHAN. 53/``, ``5a3``, ``56?`` — and often its words
+# (``APPKNDIX M) LKVIATTIAX. 529``), so `_RUNNING_HEAD_RE`, which needs
+# clean capitals and digits, lets 10 of them into the text. They are
+# caught by shape instead: short, at least three-quarters capitals, and
+# no lowercase run of three letters, which every body line has.
+#
+# Leviathan and De Cive leak running heads the same way (``DE STATU
+# HOMINUM, ETC. 159``, ``322 DB CIVITATE CHRI8TIANA.``), but stripping
+# them there changes text and so ``chunk_id``s; that is its own change.
+_DAMAGED_HEAD_CODES = frozenset({"leviathan_appendix_lat"})
+_DAMAGED_HEAD_MAX_CHARS = 50
+_DAMAGED_HEAD_MIN_CAPITALS = 10
+_LOWERCASE_RUN_RE = re.compile(r"[a-z]{3,}")
+#
+# **Dialogue turns.** The appendix is a dialogue between ``A.`` and
+# ``B.``, and many turns are one short question — ``A. Quid est secta ?``
+# — which `_MIN_CHUNK_CHARS` would drop, leaving the answer without it.
+# A turn under the floor is carried into the next turn instead.
+_DIALOGUE_CODES = frozenset({"leviathan_appendix_lat"})
+_SPEAKER_TURN_RE = re.compile(r"^[AB][.,]\s")
 
 
 def _roman_to_int(roman: str) -> int | None:
@@ -232,7 +269,19 @@ def _strip_inline_margin(line: str) -> str:
     return _MARGIN_CAP_MARKER_RE.sub("", line.strip())
 
 
-def _classify(line: str, *, max_chap: int) -> _Line:
+def _is_damaged_head(line: str) -> bool:
+    """A running head or chapter title whose OCR damage `_RUNNING_HEAD_RE`
+    cannot absorb. See `_DAMAGED_HEAD_CODES`."""
+
+    s = line.strip()
+    if len(s) > _DAMAGED_HEAD_MAX_CHARS or _LOWERCASE_RUN_RE.search(s):
+        return False
+    letters = [c for c in s if c.isalpha()]
+    capitals = sum(c.isupper() for c in letters)
+    return capitals >= _DAMAGED_HEAD_MIN_CAPITALS and capitals >= 0.75 * len(letters)
+
+
+def _classify(line: str, *, max_chap: int, damaged_heads: bool = False) -> _Line:
     """One raw line → its role. See the module docstring for why each
     shape exists."""
 
@@ -249,7 +298,7 @@ def _classify(line: str, *, max_chap: int) -> _Line:
         return _Line("drop")
     if _PAGE_NUM_RE.match(line) or _SIGNATURE_RE.match(line):
         return _Line("drop")
-    if _RUNNING_HEAD_RE.match(line):
+    if _RUNNING_HEAD_RE.match(line) or (damaged_heads and _is_damaged_head(line)):
         return _Line("drop")
     stripped = _strip_inline_margin(line).strip()
     if not stripped:
@@ -257,7 +306,7 @@ def _classify(line: str, *, max_chap: int) -> _Line:
     return _Line("body", stripped, raw=line.strip())
 
 
-def _drop_margin_orphans(lines: list[_Line]) -> list[_Line]:
+def _drop_margin_orphans(lines: list[_Line], *, keep_turns: bool = False) -> list[_Line]:
     """Blank out short isolated body lines that sit beside a page break.
 
     The marginal gloss column is sometimes OCR'd onto its own line
@@ -272,6 +321,9 @@ def _drop_margin_orphans(lines: list[_Line]) -> list[_Line]:
     so it is always within a handful of lines of the running head we
     dropped. ``momento fere temporis.`` is short and isolated too, and
     is 24 lines from the nearest one.
+
+    With ``keep_turns`` a short dialogue turn (``B. Ita est.``) is never
+    an orphan: a margin gloss does not open with a speaker label.
     """
 
     breaks = [i for i, ln in enumerate(lines) if ln.kind in ("drop", "caput")]
@@ -280,10 +332,7 @@ def _drop_margin_orphans(lines: list[_Line]) -> list[_Line]:
     break_set = set(breaks)
     out = list(lines)
     for i, ln in enumerate(lines):
-        if ln.kind != "body":
-            continue
-        text = str(ln.payload)
-        if len(text) > _ORPHAN_MAX_CHARS:
+        if not _is_orphan_shaped(ln, keep_turns=keep_turns):
             continue
         # Isolated means fenced by blank lines on both sides — the gloss
         # sits alone in the hole the page break left. Asking instead
@@ -301,6 +350,18 @@ def _drop_margin_orphans(lines: list[_Line]) -> list[_Line]:
         if near:
             out[i] = _Line("blank")
     return out
+
+
+def _is_orphan_shaped(ln: _Line, *, keep_turns: bool) -> bool:
+    """A body line short enough to be a stranded gloss — and, in a
+    dialogue, not a speaker turn."""
+
+    if ln.kind != "body":
+        return False
+    text = str(ln.payload)
+    if len(text) > _ORPHAN_MAX_CHARS:
+        return False
+    return not (keep_turns and _SPEAKER_TURN_RE.match(text))
 
 
 def _blank_at(lines: list[_Line], i: int) -> bool:
@@ -377,8 +438,10 @@ def parse_file(
     edition_year = _EDITION_YEAR_BY_CODE.get(work_code, "1839")
 
     raw = path.read_text(encoding="utf-8").split("\n")
-    classified = [_classify(ln, max_chap=max_chap) for ln in raw]
-    classified = _drop_margin_orphans(classified)
+    damaged_heads = work_code in _DAMAGED_HEAD_CODES
+    classified = [_classify(ln, max_chap=max_chap, damaged_heads=damaged_heads) for ln in raw]
+    dialogue = work_code in _DIALOGUE_CODES
+    classified = _drop_margin_orphans(classified, keep_turns=dialogue)
 
     # Split into per-chapter runs. Everything before the first CAPUT is
     # front matter (half-title, dedication) and is dropped with it.
@@ -408,12 +471,7 @@ def parse_file(
 
     for chap, chap_lines in chapters:
         book = f"Cap {chap}"
-        para_no = 0
-        for para in _paragraphs(chap_lines):
-            text = unicodedata.normalize("NFC", _norm_text(para))
-            if len(text) < _MIN_CHUNK_CHARS:
-                continue
-            para_no += 1
+        for para_no, text in enumerate(_chapter_texts(chap_lines, dialogue=dialogue), 1):
             section = f"{book}, ¶{para_no}"
             yield Chunk(
                 chunk_id=_make_chunk_id(
@@ -439,6 +497,33 @@ def parse_file(
                 edition_year=edition_year,
                 citation_system=None,
             )
+
+
+def _chapter_texts(lines: list[_Line], *, dialogue: bool) -> Iterator[str]:
+    """One chapter's paragraphs as chunk texts, the floor applied.
+
+    With ``dialogue``, a speaker turn under the floor is carried into the
+    next paragraph rather than dropped (see `_DIALOGUE_CODES`); a short
+    fragment that is not a turn is dropped as usual, without breaking the
+    carry.
+    """
+
+    carried: list[str] = []
+    for para in _paragraphs(lines):
+        text = unicodedata.normalize("NFC", _norm_text(para))
+        if len(text) < _MIN_CHUNK_CHARS:
+            if dialogue and _SPEAKER_TURN_RE.match(text):
+                carried.append(text)
+            continue
+        if carried:
+            text = " ".join([*carried, text])
+            carried = []
+        yield text
+    # Turns left over at the chapter's end have nothing to join; they
+    # stand on their own if together they clear the floor.
+    tail = " ".join(carried)
+    if len(tail) >= _MIN_CHUNK_CHARS:
+        yield tail
 
 
 def _recover_missing_chapters(

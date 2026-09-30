@@ -75,6 +75,12 @@ class CorpusWork:
     #: is only correct for page-image PDF extractions where one chunk is
     #: roughly one page (#533).
     page_furniture: bool = False
+    #: Reassemble an OCR line dump into paragraphs before splitting
+    #: (`corpus/ocr_reflow.py`, #578): a blank line ends a paragraph only
+    #: after a closed sentence, and running heads, signature marks and
+    #: catchwords are stepped over. The tuple lists the work's running-head
+    #: titles as printed; ``None`` leaves the text as it is. `.txt` only.
+    ocr_reflow: tuple[str, ...] | None = None
     # Front-matter headings to capture under `locator="section"`. The
     # default §-splitter drops everything before the first `§N` marker,
     # which silently loses Hegel's own Preface / Introduction in
@@ -116,6 +122,13 @@ class CorpusWork:
     # and of the first paragraph after it, or ``None`` to run to the end
     # of the work. Matched in order; a run that no longer matches raises.
     editorial_runs: tuple[tuple[str, str | None], ...] = ()
+    # A facing-page edition flattened into alternating original and
+    # translation blocks (Miller's Loeb *De Officiis*, #675). The pass in
+    # `corpus/facing_text.py` drops the original-language chunks and types
+    # footnotes `note` and sidenotes / front and back matter `editorial`,
+    # after ids are fixed, so no kept chunk's id moves. Plain-text only:
+    # it reads the source markup the Gutenberg transcription uses.
+    facing_text: bool = False
 
 
 def filename_index(works: Iterable[CorpusWork]) -> dict[str, CorpusWork]:

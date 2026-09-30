@@ -83,9 +83,7 @@ def _synthetic(text: str, *, gap: float = -0.14, word_gap: float = 1.4) -> list:
 
 class TestSyntheticGeometry:
     def test_round_trip(self) -> None:
-        assert _split_on_char_gaps(_synthetic("alpha beta gamma")) == (
-            "alpha beta gamma"
-        )
+        assert _split_on_char_gaps(_synthetic("alpha beta gamma")) == ("alpha beta gamma")
 
     def test_uniform_gaps_are_one_word(self) -> None:
         assert _split_on_char_gaps(_synthetic("indivisible")) is None
@@ -102,9 +100,7 @@ class TestSyntheticGeometry:
 
     @pytest.mark.parametrize("word_gap", [1.0, 1.4, 2.5, 4.0])
     def test_various_word_gap_widths(self, word_gap: float) -> None:
-        got = _split_on_char_gaps(
-            _synthetic("recovering the spacing", word_gap=word_gap)
-        )
+        got = _split_on_char_gaps(_synthetic("recovering the spacing", word_gap=word_gap))
         assert got == "recovering the spacing"
 
     def test_a_marginally_wider_gap_is_not_a_word_break(self) -> None:
@@ -172,17 +168,29 @@ class TestPageSpaceRepairs:
         from minerva.corpus_extract import _page_space_repairs
 
         page = _StubPage([_synthetic("alpha beta gamma")], [])
-        assert _page_space_repairs(page) == {
-            "alphabetagamma": "alpha beta gamma"
-        }
+        assert _page_space_repairs(page) == {"alphabetagamma": "alpha beta gamma"}
 
     def test_healthy_spans_produce_no_entries(self) -> None:
         from minerva.corpus_extract import _page_space_repairs
 
-        page = _StubPage(
-            [_synthetic("indivisible"), _chars("german_single_word")], []
-        )
+        page = _StubPage([_synthetic("indivisible"), _chars("german_single_word")], [])
         assert _page_space_repairs(page) == {}
+
+    def test_a_partially_damaged_span_is_keyed_without_its_edge_spaces(self) -> None:
+        """The word-based line never reproduces a span's leading or
+        trailing space, so a key that kept one would never be found."""
+
+        from minerva.corpus_extract import _extract_pdf_page_lines, _page_space_repairs
+
+        chars = _spaced(" keeps some but_lost_others ")
+        assert _page_space_repairs(_StubPage([chars], [])) == {
+            "keeps some butlostothers": "keeps some but lost others"
+        }
+        words = [
+            (0.0, 0.0, 10.0, 10.0, t, 0, 0, i)
+            for i, t in enumerate(["keeps", "some", "butlostothers"])
+        ]
+        assert _extract_pdf_page_lines(_StubPage([chars], words)) == ["keeps some but lost others"]
 
     def test_a_page_with_no_blocks(self) -> None:
         from minerva.corpus_extract import _page_space_repairs
@@ -211,9 +219,7 @@ class TestExtractPdfPageLines:
             [_synthetic("alpha beta gamma")],
             self._words(["prefix", "alphabetagamma", "suffix"]),
         )
-        assert _extract_pdf_page_lines(page) == [
-            "prefix alpha beta gamma suffix"
-        ]
+        assert _extract_pdf_page_lines(page) == ["prefix alpha beta gamma suffix"]
 
     def test_untouched_when_nothing_is_damaged(self) -> None:
         from minerva.corpus_extract import _extract_pdf_page_lines
@@ -275,12 +281,16 @@ class TestFalsePositiveFamilies:
         chars = _synthetic("T R A N S L A T I O N S")
         assert _split_on_char_gaps(chars) is None
 
+    def test_an_all_caps_run_is_left_to_the_fuser_even_when_bimodal(self) -> None:
+        """Reaches the banner guard itself: bimodal gaps that the valley
+        test accepts, on a line that is a heading, not prose."""
+
+        assert _split_on_char_gaps(_synthetic("THE GREAT HEADING")) is None
+
     def test_a_lowercase_run_with_wide_gaps_is_still_repaired(self) -> None:
         """The uppercase guard must not swallow ordinary prose."""
 
-        assert _split_on_char_gaps(_synthetic("it is only self")) == (
-            "it is only self"
-        )
+        assert _split_on_char_gaps(_synthetic("it is only self")) == ("it is only self")
 
     def test_private_use_area_runs_are_declined(self) -> None:
         """The Inwood PDF encodes some runs in PUA glyphs carrying no
@@ -331,18 +341,12 @@ class TestFalsePositiveFamilies:
         chars = _synthetic("abcdefghijklmno", gap=1.4)
         assert _split_on_char_gaps(chars) is None
 
-    def test_partial_damage_in_one_span_is_declined(self) -> None:
-        """A known, deliberate limitation. A span can carry some of its
-        spaces and not others, and this declines the whole span, leaving
-        about 13 genuine runs unrepaired.
-
-        Judging each space-delimited segment separately was tried and is
-        much worse — corpus-wide it takes 23 repairs to 284, and the
-        additions split ordinary words (`tr ansmitted`, `Hoff meister`,
-        `j uxtapositions`). An eleven-letter word has ten gaps, one kern
-        pair looks bimodal across so few, and the neighbouring spaces
-        that reveal the span as healthy are what segmenting discards.
-        """
+    def test_a_single_real_space_is_not_a_measurement(self) -> None:
+        """Partial damage is repaired only against a *measured* word gap
+        (see `TestPartialDamage`), and one space is not a measurement —
+        there is nothing to check it against. Allowed to calibrate on a
+        single gap, the full 15-PDF sweep gained seven correct repairs
+        and one wrong one, `Opus p ostumum`, in the Kant KrV index."""
 
         chars = [
             *_synthetic("Itwillnotbewithoutinterest"),
@@ -350,3 +354,118 @@ class TestFalsePositiveFamilies:
             *_synthetic("toexaminethisconstruction"),
         ]
         assert _split_on_char_gaps(chars) is None
+        assert _split_on_char_gaps(_chars("one_word_gap_only")) is None
+
+
+# ════════════════════════════════════════════════════════════════════
+# Partial damage: calibrating on the span's own spaces (#579)
+# ════════════════════════════════════════════════════════════════════
+#
+# A span that keeps some of its spaces and lost others used to be
+# declined whole. Its surviving spaces are a measured word gap for that
+# exact font and size, and a lost space leaves a gap of the same width.
+# Judging each segment against *that* — rather than against a valley
+# found in its own few gaps, which was tried and took the sweep from 23
+# repairs to 284 — repairs 26 more spans across the 15 PDFs, every one
+# correct, and loses none of the 23.
+
+
+def _spaced(text: str, *, word_gap: float = 1.6, letter_gap: float = 0.0) -> list:
+    """Lay `text` out with real space glyphs for ``" "`` and a lost space
+    (the same advance, no glyph) for ``"_"``."""
+
+    out: list[tuple[str, float, float]] = []
+    x = 0.0
+    for i, ch in enumerate(text):
+        if ch == " ":
+            out.append((" ", x, x + word_gap))
+            x += word_gap
+            continue
+        if ch == "_":
+            x += word_gap
+            continue
+        out.append((ch, x, x + 5.0))
+        x += 5.0
+        if i + 1 < len(text) and text[i + 1] not in " _":
+            x += letter_gap
+    return out
+
+
+class TestPartialDamage:
+    def test_the_inwood_span_is_repaired_against_its_own_spaces(self) -> None:
+        assert _split_on_char_gaps(_chars("partial_damage_inwood")) == (
+            "But A is manifest only because B is latent. Hence it is B "
+            "that solicits A and makes A manifest. A is"
+        )
+
+    def test_the_science_of_logic_span_is_repaired(self) -> None:
+        assert _split_on_char_gaps(_chars("partial_damage_logic")) == (
+            "The essentiality that has advanced to immediacy is,"
+        )
+
+    def test_a_lost_space_after_a_comma_is_restored(self) -> None:
+        assert _split_on_char_gaps(_chars("partial_damage_after_comma")) == (
+            "merely a quantum and a circle of quanta, but a series of numerical ratios, and"
+        )
+
+    def test_scattered_word_gaps_are_not_a_measurement(self) -> None:
+        """A scanned text layer whose positions wander — `thi ngs, goo
+        ds` is how the Lectures on the History of Philosophy's notes
+        extract — gives word gaps from 1.0 to 3.4pt. Their median is no
+        calibration at all, and trusting it produced `ndi vi du als`,
+        `b et ter`, `A nimals`, `a bstract`: 18 wrong repairs of 39 in the
+        first sweep, from exactly this family."""
+
+        assert _split_on_char_gaps(_chars("dispersed_word_gaps")) is None
+
+    def test_synthetic_round_trip(self) -> None:
+        assert _split_on_char_gaps(_spaced("keeps some but_lost_others")) == (
+            "keeps some but lost others"
+        )
+
+    def test_a_word_gap_too_narrow_to_be_a_space_is_no_calibration(self) -> None:
+        assert _split_on_char_gaps(_spaced("keeps some but_lost_others", word_gap=0.3)) is None
+
+    def test_a_leading_space_is_carried_through(self) -> None:
+        assert _split_on_char_gaps(_spaced(" keeps some but_lost_others")) == (
+            " keeps some but lost others"
+        )
+
+    def test_a_doubled_space_disagrees_with_a_single_one(self) -> None:
+        """Two space glyphs measure twice the gap of one, so the span has
+        no single word gap and is refused rather than calibrated."""
+
+        assert _split_on_char_gaps(_spaced("keeps  some but_lost_others")) is None
+
+    def test_a_healthy_spaced_span_is_left_alone(self) -> None:
+        assert _split_on_char_gaps(_spaced("nothing at all is lost here")) is None
+        assert _split_on_char_gaps(_chars("healthy_spaced")) is None
+
+    def test_a_gap_well_short_of_the_word_gap_is_not_a_break(self) -> None:
+        """A kern pair is a wide gap, but not one as wide as a space."""
+
+        chars = _spaced("keeps some but_lost_others")
+        c, x0, x1 = chars[-1]
+        # Open the last letter pair to half a word gap: ambiguous, so the
+        # whole segment is refused rather than guessed at.
+        chars[-1] = (c, x0 + 0.8, x1 + 0.8)
+        assert _split_on_char_gaps(chars) is None
+
+    def test_a_break_before_punctuation_is_not_a_lost_space(self) -> None:
+        assert _split_on_char_gaps(_spaced("keeps some thing_)")) is None
+
+    def test_too_short_a_span_is_not_judged(self) -> None:
+        assert _split_on_char_gaps(_spaced("a b c_d")) is None
+
+    def test_private_use_glyphs_decline_a_spaced_span(self) -> None:
+        chars = [
+            (chr(0xF700 + i) if c.isalpha() else c, x0, x1)
+            for i, (c, x0, x1) in enumerate(_spaced("keeps some but_lost_others"))
+        ]
+        assert _split_on_char_gaps(chars) is None
+
+    def test_a_letter_spaced_banner_segment_is_left_to_the_fuser(self) -> None:
+        assert _split_on_char_gaps(_spaced("the heading IN_TRODUCTION here")) is None
+
+    def test_a_vowelless_cut_is_refused(self) -> None:
+        assert _split_on_char_gaps(_spaced("keeps some strng_th here")) is None

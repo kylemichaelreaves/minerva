@@ -59,6 +59,12 @@ _HEADING_RE = re.compile(
 )
 
 
+def is_heading_line(line: str) -> bool:
+    """Whether one line is a heading `split_by_chapter` would split on."""
+
+    return bool(_HEADING_RE.match(line))
+
+
 def _has_letter(text: str) -> bool:
     """At least one Unicode letter anywhere in the text."""
 

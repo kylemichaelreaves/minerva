@@ -1,6 +1,6 @@
 """Per-work configuration for Hobbes ingest.
 
-Six works across two languages:
+Seven ``CorpusWork`` entries, five titles, across two languages:
 
   * ``Leviathan`` — English 1651 (PG #3207) + Latin 1668 (Hobbes's
     self-authored Latin version, distinct text from the English).
@@ -15,6 +15,10 @@ Six works across two languages:
     *The Elements of Law Natural and Politic* (1640 manuscript,
     published 1650). Distinct ``works`` rows; English only (no
     canonical Latin parallel).
+  * ``Appendix ad Leviathan`` — Latin 1668 only: Hobbes's three-chapter
+    addition to the Latin Leviathan (#575), read from a different IA
+    scan of Molesworth vol. III (``operaphilosophic03hobbuoft``) because
+    the Leviathan's scan is missing the appendix's opening pages.
 
 Sources:
 
@@ -79,8 +83,36 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="hobbes",
         author="Hobbes",
         # The e-text's transcriber's notes (14 paragraphs) sit between the
-        # title page and the Godolphin dedication (#705).
-        editorial_runs=(("TRANSCRIBER’S NOTES ON THE E-TEXT", "TO MY MOST HONOR’D FRIEND"),),
+        # title page and the Godolphin dedication (#705). Then the table of
+        # contents (#679): the "OF MAN" part title and 48 chapter-title
+        # lines, up to the Introduction's first paragraph. Only "OF MAN"
+        # was typed by its "Contents…" heading; the rest sat under labels
+        # the heading detector made from wrapped title lines ("Defects",
+        # "And Misery"). Those labels are wrong but feed `chunk_id`, so
+        # they stay: typing alone keeps every id.
+        editorial_runs=(
+            ("TRANSCRIBER’S NOTES ON THE E-TEXT", "TO MY MOST HONOR’D FRIEND"),
+            ("OF MAN", "Nature (the art whereby God"),
+        ),
+    ),
+    # ─── Appendix ad Leviathan ────────────────────────────────────
+    # Hobbes's own three-chapter addition to the 1668 Latin Leviathan (#575):
+    # De symbolo Niceno, De haeresi, De quibusdam objectionibus contra
+    # Leviathan. A separate work, not a book of Leviathan's, because its
+    # chapters are numbered I–III and would collide with Leviathan's own —
+    # the same call the corpus makes for Human Nature / De Corpore Politico.
+    # Latin only: the 1651 English has no counterpart.
+    CorpusWork(
+        code="leviathan_appendix_lat",
+        title="Appendix ad Leviathan",
+        translator="(Original)",
+        edition_year="1668",
+        filenames=("leviathan_appendix_lat.txt",),
+        fmt="txt",
+        locator="hobbes_la",
+        lang="lat",
+        corpus="hobbes",
+        author="Hobbes",
     ),
     # ─── De Cive ──────────────────────────────────────────────────
     CorpusWork(

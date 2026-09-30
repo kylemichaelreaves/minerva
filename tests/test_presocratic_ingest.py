@@ -9,8 +9,8 @@ Two surfaces:
 
 * **Real-file integration test** — skipped when the OCR file isn't
   available locally. Confirms counts + locator format for Heraclitus
-  using the actual archive.org download in the user's Downloads
-  folder.
+  using the archive.org download at `data/presocratic/` (gitignored, so
+  this skips in CI).
 
 Mirrors the pattern from `tests/test_homer_ingest.py` +
 `tests/test_biblical_parsers.py`.
@@ -245,7 +245,7 @@ _OCR_FILE = Path("data/presocratic/diefragmentederv12diel_hocr_searchtext.txt")
 
 @pytest.mark.skipif(
     not _OCR_FILE.exists(),
-    reason="archive.org Vorsokratiker OCR file not present in ~/Downloads",
+    reason="archive.org Vorsokratiker OCR file not present under data/presocratic/",
 )
 class TestRealFile:
     def test_heraclitus_well_represented(self) -> None:
@@ -444,13 +444,15 @@ class TestEmpedoclesExcerpt:
         greek = " ".join(c.text for c in chunks if c.lang == "grc" and c.block_type is None)
         assert verse in greek
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="#681: `99. Das Ohr … (Ὁ) Töne` reads as a Greek opener and "
-        "moves last_greek_frag back to 99, so B 100's resumed verse lands in B 99",
-    )
     def test_b100_verses_land_in_b100(self, chunks) -> None:
+        # #681: `99. Das Ohr … (Ὁ) Töne` read as a Greek opener and moved
+        # the Greek back to 99, so B 100's resumed verse landed in B 99.
         assert "εὖτε μὲν αὐλοῦ" in _body(chunks, "31 B 100", "grc")
+        assert "εὖτε μὲν αὐλοῦ" not in _body(chunks, "31 B 99", "grc")
+
+    def test_german_opener_with_a_stray_greek_letter_is_german(self, chunks) -> None:
+        assert _body(chunks, "31 B 99", "deu").startswith("Das Ohr ist gleichsam")
+        assert "Das Ohr" not in _body(chunks, "31 B 99", "grc")
 
     @pytest.mark.parametrize("section", ["31 B 98", "31 B 99", "31 B 100", "31 B 103"])
     def test_no_apparatus_in_greek(self, chunks, section) -> None:
@@ -526,10 +528,14 @@ class TestLeavingTheApparatus:
         assert "περιχωρήσει" in _body(_parse(tmp_path, src), "31 B 98", "grc")
 
     def test_opener_with_ocr_comma_resumes_the_text(self, tmp_path: Path) -> None:
-        # `80, [62] …` (Heraclitus B 80) is an opener the classifier misses.
+        # `80, [62] …` (Heraclitus B 80): a comma for the full stop. Out of
+        # sequence after 98, it is taken for the next fragment (#681).
         line = "80, [62] Oric. c. Cels. vi 42 Koetschau εἰδέναι δὲ χρὴ τὸν πόλεμον ἐόντα ξυνόν"
-        src = _one_page(_GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, line)
-        assert "πόλεμον ἐόντα" in _body(_parse(tmp_path, src), "31 B 98", "grc")
+        chunks = _parse(
+            tmp_path, _one_page(_GREEK_OPENER, _GERMAN_OPENER, _NUMBERED_APPARATUS, line)
+        )
+        assert "πόλεμον ἐόντα" in _body(chunks, "31 B 99", "grc")
+        assert "πόλεμον" not in _editorial(chunks)
 
     def test_crammed_opener_ends_the_apparatus(self, tmp_path: Path) -> None:
         line = "ἐκπνεῖ Hss. 19 κέρματα 99. [p. 483 K.] Theophr. de sens. 9 κώδων. σάρκινος ὄζος."
@@ -662,3 +668,505 @@ class TestGermanResumingAtPageTop:
             "Leute, die weder zu hören noch zu reden verstehen.",
         )
         assert "Leute" not in _body(_parse(tmp_path, src), "31 B 98", "deu")
+
+
+# ════════════════════════════════════════════════════════════════════
+# Fragment openers the classifier misread (#681)
+# ════════════════════════════════════════════════════════════════════
+
+
+def _heraclitus_page(*lines: str) -> str:
+    return "12. HERAKLEITOS.\nB. FRAGMENTE.\n" + "".join(line + "\n" for line in lines)
+
+
+def _sections(chunks: list, lang: str) -> list[str]:
+    return [c.section for c in chunks if c.lang == lang and c.block_type != "editorial"]
+
+
+class TestGermanOpenersWithStrayGreek:
+    @pytest.mark.parametrize(
+        ("line", "section"),
+        [
+            ("64. Das Weltall aber steuert der Blitz, ὦ. h. er lenkt es.", "22 B 64"),
+            ("25. Denn was man sagen muß, darf man auch zweimal sagen. τ΄", "22 B 25"),
+            ("72. Wie die hohen Bäume und die Fische in der βαϊχῆαύ..", "22 B 72"),
+            # No German function word at all: its first word carries it.
+            ("148. Menschenumgebenden Erdstoff (d. ἡ. Körper).", "22 B 148"),
+            ("22. Wunderbar schwer zu überzeugen (= Plato Parm. 135 ΑἹ.", "22 B 22"),
+        ],
+    )
+    def test_is_german(self, tmp_path: Path, line: str, section: str) -> None:
+        chunks = _parse(tmp_path, _heraclitus_page(line))
+        assert _sections(chunks, "deu") == [section]
+        assert _sections(chunks, "grc") == []
+
+    def test_does_not_move_the_greek_back(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "63. [123] Hippol. ix 10 λέγει δὲ καὶ σαρκὸς ἀνάστασιν ταύτης",
+            "65. [24] — — ὅλων αἴτιον καλεῖ δὲ αὐτὸ χρησμοσύνην καὶ κόρον",
+            "64. Das Weltall aber steuert der Blitz, ὦ. h. er lenkt es.",
+            "259",
+            "ἡ δὲ διακόσμησις κατ᾽ αὐτὸν ἐκπύρωσις",
+        )
+        assert "διακόσμησις" in _body(_parse(tmp_path, src), "22 B 65", "grc")
+
+    def test_latin_citation_with_little_greek_is_still_a_greek_opener(self, tmp_path: Path) -> None:
+        # An abbreviated source, not a German word: the Greek follows.
+        line = "10. Ausust. de οἷν. ἃ, vııı 2 (D. 174) Anaxagorae successit auditor eius"
+        assert _sections(_parse(tmp_path, _heraclitus_page(line)), "grc") == ["22 B 10"]
+
+    def test_quote_before_the_capital_opens_german(self, tmp_path: Path) -> None:
+        chunks = _parse(tmp_path, _heraclitus_page("152. “Der Abend, des Tages Greisenalter."))
+        assert _body(chunks, "22 B 152", "deu").startswith("“Der Abend")
+
+    def test_stray_greek_letter_in_german_continuation_is_german(self, tmp_path: Path) -> None:
+        # `ΟἹ,` is OCR for 61: German, whatever its first two letters.
+        src = _one_page(
+            _GREEK_OPENER, _GERMAN_OPENER, "ΟἹ, Meerwasser ist das reinste und scheußlichste."
+        )
+        chunks = _parse(tmp_path, src)
+        assert "Meerwasser" in _body(chunks, "31 B 98", "deu")
+        assert "Meerwasser" not in _body(chunks, "31 B 98", "grc")
+
+
+class TestCommaOpeners:
+    def test_greek_comma_opener_with_a_bracket(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "79. [97] — — ἀνὴρ νήπιος ἤκουσε πρὸς δαίμονος",
+            "80, [62] Oric. c. Cels. vi 42 εἰδέναι δὲ χρὴ τὸν πόλεμον ἐόντα ξυνόν",
+        )
+        chunks = _parse(tmp_path, src)
+        assert "πόλεμον" in _body(chunks, "22 B 80", "grc")
+        assert "πόλεμον" not in _body(chunks, "22 B 79", "grc")
+
+    def test_german_comma_opener_in_sequence(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "31. Des Feuers Wandlungen: erstens Meer.",
+            "32, Eins, das allein Weise, will nicht und will doch auch.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _body(chunks, "22 B 32", "deu").startswith("Eins, das allein Weise")
+        assert "Eins" not in _body(chunks, "22 B 31", "deu")
+
+    def test_misread_number_out_of_sequence_is_the_next_fragment(self, tmp_path: Path) -> None:
+        # `48,` is OCR for 43: between 42 and 44, never B 48.
+        src = _one_page(
+            "42. Der Mond deckt ihr die Strahlen ab.",
+            "48, Sobald das Sonnenlicht den weiten Kreis des Mondes getroffen.",
+            "44. Das Sonnenlicht strahlt dem Olympos entgegen.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "deu") == ["31 B 42", "31 B 43", "31 B 44"]
+        assert _body(chunks, "31 B 43", "deu").startswith("Sobald")
+
+    def test_out_of_sequence_number_already_taken_is_not_an_opener(self, tmp_path: Path) -> None:
+        src = _one_page(
+            "42. Der Mond deckt ihr die Strahlen ab.",
+            "43. Sobald das Sonnenlicht den Kreis getroffen.",
+            "42. Zweite Lesung.",
+            "48, Und kehrt sofort zurück.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert "31 B 48" not in _sections(chunks, "deu")
+        assert "Und kehrt" in _body(chunks, "31 B 42", "deu")
+
+    def test_comma_opener_needs_a_bracket_a_source_or_german(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "23. [60] — — Δίκης ὄνομα οὐκ ἂν ἤιδεσαν.",
+            "24, Τελχῖνες τούτους οἱ μὲν θαλάσσης παῖδάς φασι",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "grc") == ["22 B 23"]
+        assert "Τελχῖνες" in _body(chunks, "22 B 23", "grc")
+
+    def test_comma_opener_citing_a_source_in_capitals(self, tmp_path: Path) -> None:
+        # `94,` is OCR for 24 (Parmenides B 24, Suetonius).
+        src = _heraclitus_page(
+            "23. [60] — — Δίκης ὄνομα οὐκ ἂν ἤιδεσαν.",
+            "94, SUETONIUS (Miller Mel. 417) Τελχῖνες τούτους οἱ μὲν θαλάσσης",
+        )
+        assert "Τελχῖνες" in _body(_parse(tmp_path, src), "22 B 24", "grc")
+
+
+class TestAFragments:
+    def test_degree_sign_marks_an_a_fragment(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "125. [84] Theophr. de vert. 9 καὶ ὁ κυκεὼν διίσταται κινούμενος.",
+            "125°. [0] Tzetz. ad Aristoph. τυφλὸν δὲ τὸν Πλοῦτον ποιεῖ",
+            "125. Auch der Gerstentrank zersetzt sich. 125°. Möge es euch nie an Reichtum fehlen.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "grc") == ["22 B 125", "22 B 125a"]
+        assert _sections(chunks, "deu") == ["22 B 125", "22 B 125a"]
+        assert "Πλοῦτον" not in _body(chunks, "22 B 125", "grc")
+        assert _body(chunks, "22 B 125a", "deu").startswith("Möge")
+
+    def test_second_a_mark_is_the_b_fragment(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "126. Das Kalte erwärmt sich.",
+            "126°. Nach dem Gesetze der Zeiten aber wird die Siebenzahl gerechnet.",
+            "126°. Stets wächst das eine so, das andere so.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "deu") == ["22 B 126", "22 B 126a", "22 B 126b"]
+
+    @pytest.mark.parametrize(
+        ("opener", "section"),
+        [
+            ("675, [0] Hisdosus ad Chalcid. ita vitalis calor a sole procedens", "22 B 67a"),
+            ("672. [0] Anatol. de decade κατὰ λόγον δὲ ὡρέων συμβάλλεται", "22 B 67a"),
+            ("67a, [0] Plut. c. princip. ὁ μὲν γὰρ εἰς ἀρετὴν", "22 B 67a"),
+            ("67b, [0] — — τίνες οὖν ὕστερον τοῦτ᾽ ἔγνωσαν", "22 B 67b"),
+        ],
+    )
+    def test_ocr_forms_of_the_suffix(self, tmp_path: Path, opener: str, section: str) -> None:
+        src = _heraclitus_page("67. [36] — — ὁ θεὸς ἡμέρη εὐφρόνη, χειμὼν θέρος", opener)
+        assert section in _sections(_parse(tmp_path, src), "grc")
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Not 196a after 126, nor anything else: no opener at all.
+            "1960, [0] Anonym. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
+            "1422. [0] Anonym. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
+            "1262°. [0] Anonym. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
+        ],
+    )
+    def test_digit_suffix_needs_the_base_fragment_just_before(
+        self, tmp_path: Path, line: str
+    ) -> None:
+        src = _heraclitus_page("126. [39] — ad exeg. τὰ ψυχρὰ θέρεται, θερμὸν ψύχεται", line)
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "grc") == ["22 B 126"]
+        assert "εἴρηκεν" in _body(chunks, "22 B 126", "grc")
+
+    def test_three_digit_number_in_sequence_is_not_a_suffix(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "101. [80] Plut. adv. Colot. ἐδιζησάμην ἐμεωυτόν",
+            "102. [61] Porphyr. τῶι μὲν θεῶι καλὰ πάντα",
+        )
+        assert _sections(_parse(tmp_path, src), "grc") == ["22 B 101", "22 B 102"]
+
+    def test_line_number_before_an_a_fragment_is_stripped(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "101. [80] Plut. adv. Colot. ἐδιζησάμην ἐμεωυτόν",
+            "15 101%. [15] Polyb. xii 27 δυεῖν γὰρ ὄντων κατὰ φύσιν ὡσανεί τινων ὀργάνων",
+        )
+        assert "22 B 101a" in _sections(_parse(tmp_path, src), "grc")
+
+    def test_crammed_greek_b_and_c_fragments(self, tmp_path: Path) -> None:
+        # `154°.` after 154a and 154b is 154c.
+        src = _heraclitus_page(
+            "154. [0] Plut. de esu carn. ἢ τοῖς μὲν πρώτοις",
+            "1542, [0] Plut. de esu carn. ii 1 καὶ πέποται ὁ τῆς συνηθείας",
+            "κυκεών, ὥσπερ ὁ τῆς Κίρκης γόους τε 154b, [0] --- — τίνες οὖν ὕστερον τοῦτ᾽ "
+            "ἔγνωσαν 154°. [0] Suidas s. v. αὐτίκα. καὶ παροιμία",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "grc") == ["22 B 154", "22 B 154a", "22 B 154b", "22 B 154c"]
+        assert "τίνες οὖν" in _body(chunks, "22 B 154b", "grc")
+        assert "παροιμία" in _body(chunks, "22 B 154c", "grc")
+
+
+class TestNumberlessOpeners:
+    def test_ditto_openers_take_the_next_numbers(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "18. [7) — — 1117 (u 121, 24) ἐὰν μὴ ἔλπηται, ἀνέλπιστον οὐκ ἐξευρήσει",
+            "[6] Clem. Strom. ii 24 ἀπίστους εἶναί τινας ἐπιστύφων φησιν ἀκοῦσαι",
+            "[86] — — iii 14 (ii 201, 28) γενόμενοι ζώειν ἐθέλουσι μόρους τ᾽ ἔχειν",
+            "[64] — — — 21 (u 205,7) θάνατός ἐστιν ὁκόσα ἐγερθέντες ὁρέομεν",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "grc") == ["22 B 18", "22 B 19", "22 B 20", "22 B 21"]
+        assert "ἐγερθέντες" in _body(chunks, "22 B 21", "grc")
+
+    def test_ditto_opener_before_any_fragment_is_not_numbered(self, tmp_path: Path) -> None:
+        src = _heraclitus_page("[86] — — iii 14 (ii 201, 28) γενόμενοι ζώειν ἐθέλουσι")
+        assert _sections(_parse(tmp_path, src), "grc") == []
+
+
+class TestOpenersCitingAnAuthorInCapitals:
+    def test_unknown_uppercase_name_with_text_after_is_an_opener(self, tmp_path: Path) -> None:
+        # `3. OLYMPIODOR. …` matched the chapter-heading regex and was dropped.
+        src = (
+            "3. ANAXIMENES.\nB. FRAGMENTE.\n"
+            "2. Aet. i 3,4 οἷον ἡ ψυχή, φησίν, ἡ ἡμετέρα ἀὴρ οὖσα συγκρατεῖ ἡμᾶς\n"
+            "3. OLYMPIODOR. de arte sacra c. 25 μίαν δὲ κινουμένην ἄπειρον ἀρχήν\n"
+        )
+        chunks = _parse(tmp_path, src)
+        assert "κινουμένην" in _body(chunks, "13 B 3", "grc")
+        assert "κινουμένην" not in _body(chunks, "13 B 2", "grc")
+
+    def test_bare_unknown_heading_is_still_not_an_opener(self, tmp_path: Path) -> None:
+        src = _one_page(_GERMAN_OPENER, "47. ARCHELAOS.")
+        assert _sections(_parse(tmp_path, src), "deu") == ["31 B 98"]
+
+
+_HERACLITUS_B14_B30 = Path(__file__).parent / "fixtures" / "presocratic_heraclitus_b14_b30.txt"
+
+
+@pytest.fixture(scope="module")
+def heraclitus_b14_b30() -> list:
+    return list(presocratic.parse_file(_HERACLITUS_B14_B30))
+
+
+class TestHeraclitusDittoPage:
+    """Verbatim OCR of pp. 81–84, where B 19–25 lost their numbers."""
+
+    def test_numberless_fragments_are_split_out_of_b18(self, heraclitus_b14_b30) -> None:
+        chunks = heraclitus_b14_b30
+        assert _sections(chunks, "grc") == [f"22 B {n}" for n in range(14, 32)]
+        assert "ἀκοῦσαι οὐκ ἐπιστάμενοι" in _body(chunks, "22 B 19", "grc")
+        assert "μόροι γὰρ μέζονες" in _body(chunks, "22 B 25", "grc")
+        assert "ἀκοῦσαι" not in _body(chunks, "22 B 18", "grc")
+
+    def test_german_comma_opener(self, heraclitus_b14_b30) -> None:
+        assert _body(heraclitus_b14_b30, "22 B 29", "deu").startswith("Eins gibt es")
+
+
+# ════════════════════════════════════════════════════════════════════
+# DK's doubtful, false and forged fragments (#683)
+# ════════════════════════════════════════════════════════════════════
+#
+# Kept, but typed `spurious`: not the author's words, so the lemmatizer,
+# the concordance and retrieval treat them as they treat apparatus.
+
+
+def _fragment(chunks: list, section: str, lang: str):
+    """The one non-editorial chunk for section/lang, of whatever type."""
+
+    (c,) = [
+        c for c in chunks if c.section == section and c.lang == lang and c.block_type != "editorial"
+    ]
+    return c
+
+
+def _types(chunks: list, lang: str) -> dict[str, str | None]:
+    return {
+        c.section: c.block_type for c in chunks if c.lang == lang and c.block_type != "editorial"
+    }
+
+
+_DOUBTFUL_PAGE = (
+    "40. [0] Herodian. π. μον. λέξ. ἡ δὲ πηγὴ σεσέληνε.",
+    "41. [0] Etym. gen. σίλλος ὁ σιλλογράφος.",
+    "{heading}",
+    "42. [0] Herodian. π. μον. λέξεως καί κ᾽ ἐπιθυμήσειε νέος νῆς ἀμφιπόλοιο.",
+    "40. Die Quelle ist ausgetrocknet.",
+    "41. Grube.",
+    "42. Da würde Lust bekommen ein Junger nach einer jungen Magd.",
+)
+
+
+class TestNonCanonicalSections:
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "ZWEIFELHAFTES.",
+            "ZWEIFELHAFTE FRAGMENTE.",
+            "ZWEIFELHAFTE, FALSCHE UND GEFÄLSCHTE FRAGMENTE.",
+            "GEFÄLSCHTE FRAGMENTE.",
+            "GEFÄLSCHTES.",
+            "GEFALSCHTES.",
+            "UNECHTES.",
+            "UNECHTES,.",
+            "FALSCHES.",
+        ],
+    )
+    def test_fragments_after_a_heading_are_spurious(self, tmp_path: Path, heading: str) -> None:
+        src = _heraclitus_page(*(line.format(heading=heading) for line in _DOUBTFUL_PAGE))
+        chunks = _parse(tmp_path, src)
+        expected = {"22 B 40": None, "22 B 41": None, "22 B 42": "spurious"}
+        assert _types(chunks, "grc") == expected
+        # The German carries no heading of its own: the number decides.
+        assert _types(chunks, "deu") == expected
+
+    def test_heading_is_not_text(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(*(line.format(heading="UNECHTES,.") for line in _DOUBTFUL_PAGE))
+        chunks = _parse(tmp_path, src)
+        assert all("UNECHTES" not in c.text for c in chunks)
+
+    def test_heading_with_the_fragment_on_the_same_line(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "153. Baubo = Bauch.",
+            "ZWEIFELHAFTES. 154. Das war damals noch nicht die Zeit.",
+            "UNECHTES. 155. Telauges, berühmter Sproß der Theano. 156. Den Arzt Pausanias.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _types(chunks, "deu") == {
+            "22 B 153": None,
+            "22 B 154": "spurious",
+            "22 B 155": "spurious",
+            "22 B 156": "spurious",
+        }
+        assert _fragment(chunks, "22 B 154", "deu").text == "Das war damals noch nicht die Zeit."
+
+    def test_heading_with_a_greek_opener_on_the_same_line(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "41. [0] Etym. gen. σίλλος ὁ σιλλογράφος.",
+            "ZWEIFELHAFTE FRAGMENTE. 42. HERODIAN. 1. μον. λέξεως καί κ᾽ ἐπιθυμήσειε νέος",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _types(chunks, "grc") == {"22 B 41": None, "22 B 42": "spurious"}
+        assert "ἐπιθυμήσειε" in _fragment(chunks, "22 B 42", "grc").text
+
+    def test_heading_after_the_fragment_on_the_same_line(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "41. Grube. ZWEIFELHAFTE FRAGMENTE.",
+            "42. Da würde Lust bekommen ein Junger nach einer jungen Magd.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _types(chunks, "deu") == {"22 B 41": None, "22 B 42": "spurious"}
+        assert _fragment(chunks, "22 B 41", "deu").text == "Grube."
+
+    def test_a_margin_number_after_the_heading_is_nothing(self, tmp_path: Path) -> None:
+        # `217` is Karsten's verse count, not a page: the German resumes.
+        src = _heraclitus_page(
+            "153. [0] Hesych. βαυβώ τιθήνη Δήμητρος.",
+            "153. Baubo = Bauch.",
+            "UNECHTES. 217",
+            "und so heißt es auch bei den anderen.",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _fragment(chunks, "22 B 153", "deu").text.endswith("den anderen.")
+
+    def test_running_head_does_not_end_the_section(self, tmp_path: Path) -> None:
+        # The old `doubtful` state was cleared by the next page's running
+        # head, a B-marker, so it never reached past a page.
+        src = _heraclitus_page(
+            "19. [0] Simpl. cael. 558, 8 οὕτω τοι κατὰ δόξαν ἔφυ τάδε",
+            "ZWEIFELHAFTES.",
+            "20. [0] Hippol. Ref. v 8 αὐτὰρ ὑπ᾽ αὐτήν ἐστιν ἀταρπιτὸς ὀκρυόεσσα",
+            "B. FR. 18—19. ZWEIFELH. 20. UNECHTES. 21—25. 19. ZENON. 165",
+            "21. [0] Aet. ii 30, 4 περὶ ἐμφάσεως σελήνης ψευδοφανῆ τὸν ἀστέρα καλεῖ",
+        )
+        types = _types(_parse(tmp_path, src), "grc")
+        assert types == {"22 B 19": None, "22 B 20": "spurious", "22 B 21": "spurious"}
+
+    def test_next_chapter_is_canonical_again(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "ZWEIFELHAFTES.",
+            "20. [0] Hippol. Ref. v 8 αὐτὰρ ὑπ᾽ αὐτήν ἐστιν ἀταρπιτὸς ὀκρυόεσσα",
+            "18. PARMENIDES.",
+            "B. FRAGMENTE.",
+            "20. [0] Hippol. Ref. v 8 αὐτὰρ ὑπ᾽ αὐτήν ἐστιν ἀταρπιτὸς ὀκρυόεσσα",
+        )
+        chunks = _parse(tmp_path, src)
+        assert _fragment(chunks, "22 B 20", "grc").block_type == "spurious"
+        assert _fragment(chunks, "28 B 20", "grc").block_type is None
+
+    def test_misnumbered_fragment_before_the_heading_stays_canonical(self, tmp_path: Path) -> None:
+        # `90.` is OCR for Xenophanes B 20: a number past the section's
+        # first, but printed before its heading.
+        src = _heraclitus_page(
+            "90. [82 K.] — ii 111 ὡς δὲ Ξ. ὁ Κολοφώνιος ἀκηκοέναι φησί",
+            "41. [0] Etym. gen. σίλλος ὁ σιλλογράφος.",
+            "ZWEIFELHAFTES.",
+            "42. [0] Herodian. π. μον. λέξεως καί κ᾽ ἐπιθυμήσειε νέος νῆς ἀμφιπόλοιο.",
+        )
+        types = _types(_parse(tmp_path, src), "grc")
+        assert types == {"22 B 41": None, "22 B 42": "spurious", "22 B 90": None}
+
+    def test_heading_before_the_fragments_is_ignored(self, tmp_path: Path) -> None:
+        # Anaximander's testimonia have a ZWEIFELHAFTES of their own.
+        src = "12. HERAKLEITOS.\nA. LEHRE.\nZWEIFELHAFTES.\nB. FRAGMENTE.\n" + (
+            "1. [2] Sext. vii 132 τοῦ δὲ λόγου τοῦδ᾽ ἐόντος ἀεὶ ἀξύνετοι.\n"
+        )
+        assert _types(_parse(tmp_path, src), "grc") == {"22 B 1": None}
+
+    def test_typing_leaves_the_chunk_id_alone(self, tmp_path: Path) -> None:
+        # Typed in place, so embeddings and lemma state survive a re-ingest.
+        plain = _parse(tmp_path, _heraclitus_page(*_DOUBTFUL_PAGE[:2], *_DOUBTFUL_PAGE[3:]))
+        typed = _parse(
+            tmp_path, _heraclitus_page(*(x.format(heading="UNECHTES.") for x in _DOUBTFUL_PAGE))
+        )
+        assert [c.chunk_id for c in plain] == [c.chunk_id for c in typed]
+        assert {c.block_type for c in typed} == {None, "spurious"}
+
+
+class TestLatinFragments:
+    def test_latin_text_in_the_greek_column_is_kept(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "18. [0] Cael. Aurel. Morb. chron. iv 9 Parmenides libris quos de natura",
+            "femina virque simul Veneris cum germina miscent,",
+            "nam si virtutes permixto semine pugnent",
+            "18. Denn wenn Mann und Frau der Liebe Keime mischen.",
+        )
+        chunks = _parse(tmp_path, src)
+        grc = _body(chunks, "22 B 18", "grc")
+        assert "femina virque simul" in grc
+        assert "nam si virtutes" in grc
+        assert "femina" not in _body(chunks, "22 B 18", "deu")
+
+    def test_a_source_citation_is_still_not_text(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "18. [0] Theophr. de sens. 9 κώδων. σάρκινος ὄζος.", "Theophr. p. 5. 7. ed. Paris. 1836"
+        )
+        assert "Paris" not in _body(_parse(tmp_path, src), "22 B 18", "grc")
+
+    def test_german_is_not_taken_for_latin(self, tmp_path: Path) -> None:
+        src = _heraclitus_page(
+            "18. [0] Theophr. de sens. 9 κώδων. σάρκινος ὄζος.",
+            "259",
+            "ἀλλ᾽ ἄγε μύθων κλῦθι",
+            "und es ist nicht so, wie die Menschen in der Stadt meinen.",
+        )
+        assert "Menschen" not in _body(_parse(tmp_path, src), "22 B 18", "grc")
+
+
+_PARMENIDES_B13_B25 = Path(__file__).parent / "fixtures" / "presocratic_parmenides_b13_b25.txt"
+_HERACLITUS_B125_B139 = Path(__file__).parent / "fixtures" / "presocratic_heraclitus_b125_b139.txt"
+
+
+@pytest.fixture(scope="module")
+def parmenides_b13_b25() -> list:
+    return list(presocratic.parse_file(_PARMENIDES_B13_B25))
+
+
+@pytest.fixture(scope="module")
+def heraclitus_b125_b139() -> list:
+    return list(presocratic.parse_file(_HERACLITUS_B125_B139))
+
+
+class TestParmenidesExcerpt:
+    """Verbatim OCR of pp. 162–165: B 18 in Latin, B 20 doubtful, 21–25
+    spurious."""
+
+    def test_doubtful_and_spurious_are_typed(self, parmenides_b13_b25) -> None:
+        for lang in ("grc", "deu"):
+            types = _types(parmenides_b13_b25, lang)
+            assert {s for s, t in types.items() if t == "spurious"} == {
+                f"28 B {n}" for n in range(20, 26)
+            } & set(types), lang
+            assert types["28 B 19"] is None
+
+    def test_b18_latin_verse_is_in_the_greek_edition(self, parmenides_b13_b25) -> None:
+        grc = _body(parmenides_b13_b25, "28 B 18", "grc")
+        assert "femina virque simul Veneris cum germina miscent" in grc
+        assert "nam si virtutes permixto semine pugnent" in grc
+
+    def test_german_of_the_doubtful_b22(self, parmenides_b13_b25) -> None:
+        c = _fragment(parmenides_b13_b25, "28 B 22", "deu")
+        assert c.text.startswith("Wunderbar schwer zu überzeugen")
+        assert c.block_type == "spurious"
+
+
+class TestHeraclitusDoubtfulExcerpt:
+    """Verbatim OCR of pp. 102–105: B 126a–139."""
+
+    def test_canonical_up_to_126(self, heraclitus_b125_b139) -> None:
+        types = _types(heraclitus_b125_b139, "grc")
+        assert types["22 B 125"] is None
+        assert types["22 B 125a"] is None
+        assert types["22 B 126"] is None
+
+    def test_spurious_from_126a(self, heraclitus_b125_b139) -> None:
+        for lang in ("grc", "deu"):
+            types = _types(heraclitus_b125_b139, lang)
+            spurious = sorted(s for s, t in types.items() if t == "spurious")
+            assert "22 B 126a" in spurious, lang
+            assert "22 B 137" in spurious, lang
+            assert all(t == "spurious" for s, t in types.items() if s >= "22 B 127"), lang
+
+    def test_german_126b(self, heraclitus_b125_b139) -> None:
+        assert _fragment(heraclitus_b125_b139, "22 B 126b", "deu").text.startswith("Stets")
