@@ -118,6 +118,15 @@ describe("<ConcordanceLemmaDetail /> — empty results with filters", () => {
     expect(onNavigate).toHaveBeenLastCalledWith({ caseFilter: undefined });
   });
 
+  it("renders each drop control as a keyboard-reachable button (#726)", async () => {
+    fetchLemmaDetail.mockResolvedValue(detail({ drop_counts: { Number: 7, Case: 3 } }));
+    renderDetail({ caseFilter: "Gen", numberFilter: "Plur" });
+
+    const dropNumber = await screen.findByRole("button", { name: "Drop Number · 7 hits" });
+    expect(dropNumber).toHaveAttribute("type", "button");
+    expect(screen.getByRole("button", { name: "Drop Case · 3 hits" })).toBeInTheDocument();
+  });
+
   it("quotes the server's count for Drop Number, not the case facet's sum (#691)", async () => {
     // A verb: its case facet holds only the participles, so the facet's sum
     // (1,234 here) is far below what dropping Number returns.

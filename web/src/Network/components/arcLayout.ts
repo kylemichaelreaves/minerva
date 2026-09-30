@@ -54,7 +54,7 @@ export function placeAuthors(
     return { a, year, dated: false };
   });
   return placed
-    .sort((p, q) => p.year - q.year || p.a.ord - q.a.ord)
+    .toSorted((p, q) => p.year - q.year || p.a.ord - q.a.ord)
     .map(({ a, year, dated: isDated }) => ({
       name: a.name,
       short: a.short,

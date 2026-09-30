@@ -442,8 +442,6 @@
   padding: 4px 2px 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   flex: 0 0 auto;
-}
-.net-matrix-legend {
   gap: 12px;
   flex-wrap: wrap;
 }

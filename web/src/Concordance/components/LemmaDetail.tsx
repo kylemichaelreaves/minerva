@@ -433,14 +433,15 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
   return { data, loading, error, cursor, setCursor, morph };
 }
 
-/** One empty-state "Drop <filter> · N hits" link. `hits` is omitted
+/** One empty-state "Drop <filter> · N hits" control — a real button, styled
+ *  as its sibling links, so it is keyboard-reachable (#726). `hits` is omitted
  *  from the label when the server sent no count for that filter. */
 function DropFilterLink(props: { label: string; hits: number | undefined; onClick: () => void }) {
   return (
-    <a onClick={() => props.onClick()}>
+    <button type="button" class="broaden-link" onClick={() => props.onClick()}>
       Drop {props.label}
       {props.hits !== undefined ? ` · ${props.hits.toLocaleString()} hits` : ""}
-    </a>
+    </button>
   );
 }
 
