@@ -37,10 +37,11 @@ export function useTranslateRail(): TranslateRailApi {
     const controller = new AbortController();
     inflightController = controller;
     setRail({ kind: "loading", source, ref });
+    const lang = target();
     try {
-      const response = await translate(source, target(), controller.signal);
+      const response = await translate(source, lang, controller.signal);
       if (inflightController === controller) {
-        setRail({ kind: "ready", source, ref, response });
+        setRail({ kind: "ready", source, ref, lang, response });
       }
     } catch (err) {
       if (isAbortError(err)) return;

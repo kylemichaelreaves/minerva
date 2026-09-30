@@ -11,6 +11,7 @@ import type { RailState } from "~/Reader/types";
 
 const RAIL_READY: RailState = {
   kind: "ready",
+  lang: "eng",
   source: "Der Geist",
   ref: "¶1",
   response: {

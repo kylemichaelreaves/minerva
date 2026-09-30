@@ -3,6 +3,7 @@
 // import without a cycle through the orchestrator.
 
 import type { TranslationResponse, WordLookup } from "~/api/types/reader";
+import type { TargetLang } from "~/utils/types";
 
 /** Side-loaded word lookup. Decoupled from `RailState` because it
  *  comes from a different endpoint than translate and resolves at a
@@ -21,7 +22,15 @@ export type RailState =
   | { kind: "idle" }
   | { kind: "awaiting" }
   | { kind: "loading"; source: string; ref: string }
-  | { kind: "ready"; source: string; ref: string; response: TranslationResponse }
+  | {
+      kind: "ready";
+      source: string;
+      ref: string;
+      /** Target the response was produced for — not the current target,
+       *  which can change while this response is still displayed (#690). */
+      lang: TargetLang;
+      response: TranslationResponse;
+    }
   | { kind: "error"; source: string; ref: string; message: string };
 
 /** Open-term-card state owned by the Reader. */
