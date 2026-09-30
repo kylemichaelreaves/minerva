@@ -10,6 +10,13 @@
 // `el` is an accessor (not a raw element) because Solid `ref`
 // variables are assigned during render — by the time onMount runs the
 // accessor returns the real node.
+//
+// A 0×0 client box is not a size. It is what every pre-layout paint,
+// every `display:none` ancestor and every headless render reports, and
+// accepting it collapsed each consumer to a zero-width SVG, discarding
+// the very fallback it exists for (#585). So a box with either
+// dimension at zero is "no measurement": the signal keeps the last good
+// size, or `initial` if there has not been one.
 
 import { createSignal, onCleanup, onMount } from "solid-js";
 
@@ -23,20 +30,23 @@ export function useElementSize(
   initial: ElementSize,
 ): () => ElementSize {
   const [size, setSize] = createSignal<ElementSize>(initial);
+  const measure = (n: HTMLElement | undefined) => {
+    if (n && n.clientWidth > 0 && n.clientHeight > 0) {
+      setSize({ w: n.clientWidth, h: n.clientHeight });
+    }
+  };
 
   onMount(() => {
     const node = el();
     if (!node) return;
     const ro = new ResizeObserver(() => {
-      const n = el();
-      if (!n) return;
-      setSize({ w: n.clientWidth, h: n.clientHeight });
+      measure(el());
     });
     ro.observe(node);
     onCleanup(() => {
       ro.disconnect();
     });
-    setSize({ w: node.clientWidth, h: node.clientHeight });
+    measure(node);
   });
 
   return size;
