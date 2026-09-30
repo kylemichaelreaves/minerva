@@ -79,8 +79,17 @@ WORKS: tuple[CorpusWork, ...] = (
         corpus="hobbes",
         author="Hobbes",
         # The e-text's transcriber's notes (14 paragraphs) sit between the
-        # title page and the Godolphin dedication (#705).
-        editorial_runs=(("TRANSCRIBER’S NOTES ON THE E-TEXT", "TO MY MOST HONOR’D FRIEND"),),
+        # title page and the Godolphin dedication (#705). Then the table of
+        # contents (#679): the "OF MAN" part title and 48 chapter-title
+        # lines, up to the Introduction's first paragraph. Only "OF MAN"
+        # was typed by its "Contents…" heading; the rest sat under labels
+        # the heading detector made from wrapped title lines ("Defects",
+        # "And Misery"). Those labels are wrong but feed `chunk_id`, so
+        # they stay: typing alone keeps every id.
+        editorial_runs=(
+            ("TRANSCRIBER’S NOTES ON THE E-TEXT", "TO MY MOST HONOR’D FRIEND"),
+            ("OF MAN", "Nature (the art whereby God"),
+        ),
     ),
     # ─── De Cive ──────────────────────────────────────────────────
     CorpusWork(

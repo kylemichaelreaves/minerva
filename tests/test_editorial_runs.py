@@ -161,3 +161,49 @@ def test_the_four_works_declare_their_runs(module: str, code: str) -> None:
     works = importlib.import_module(f"minerva.authors.{module}").WORKS
     (work,) = [w for w in works if w.code == code]
     assert work.editorial_runs
+
+
+_LEVIATHAN_CONTENTS = Path(__file__).parent / "fixtures" / "hobbes_eng" / "leviathan_contents.txt"
+
+
+class TestLeviathanContents:
+    """#679: the English Leviathan's table of contents — the "OF MAN" part
+    title and 48 chapter-title lines — was indexed as Hobbes's text, under
+    section labels made from wrapped title lines (``Defects``, ``And
+    Misery``). The fixture is the real file's front matter, trimmed,
+    through the start of the Introduction."""
+
+    @staticmethod
+    def _work() -> CorpusWork:
+        from minerva.authors.hobbes_works import WORKS
+
+        (work,) = [w for w in WORKS if w.code == "leviathan_eng"]
+        return work
+
+    def test_every_contents_line_is_editorial_and_the_introduction_is_not(self) -> None:
+        chunks = list(parse_file(_LEVIATHAN_CONTENTS, self._work()))
+        texts = [c.text for c in chunks]
+        first = texts.index("OF MAN")
+        intro = next(i for i, t in enumerate(texts) if t.startswith("Nature (the art"))
+        contents = chunks[first:intro]
+        assert len(contents) == 49  # the "OF MAN" part title + 48 chapter titles
+        assert contents[-1].text == "48. A REVIEW AND CONCLUSION"
+        assert {c.block_type for c in contents} == {"editorial"}
+        assert {c.block_type for c in chunks[intro:]} == {None}
+        # The dedication before it stays the author's.
+        assert chunks[first - 1].block_type is None
+
+    def test_typing_the_contents_changes_no_chunk_id(self) -> None:
+        """Typing-only, the Kant Anmerkungen precedent: nothing but
+        ``block_type`` may differ from a parse without the run."""
+
+        work = self._work()
+        without = dataclasses.replace(work, editorial_runs=work.editorial_runs[:1])
+        before = list(parse_file(_LEVIATHAN_CONTENTS, without))
+        after = list(parse_file(_LEVIATHAN_CONTENTS, work))
+        assert [dataclasses.replace(c, block_type=None) for c in after] == [
+            dataclasses.replace(c, block_type=None) for c in before
+        ]
+        # "OF MAN" was already editorial by its "Contents…" heading.
+        changed = sum(a.block_type != b.block_type for a, b in zip(after, before, strict=True))
+        assert changed == 48
