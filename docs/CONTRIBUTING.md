@@ -70,7 +70,13 @@ minutes before you push. Three layers, in order of how often each fires:
 3. **CI — every push / PR.** [`.github/workflows/check.yml`](../.github/workflows/check.yml)
    mirrors `make check` (ruff + eslint + tsc + pytest + vitest unit, plus
    the e2e and Playwright browser suites — `web · e2e` is a required check).
-   PRs can't merge red.
+   PRs can't merge red. On a PR, only the suites the diff can reach run:
+   docs-only runs none, Python-only skips `web`, TypeScript-only skips
+   `python`, and Sonar always scans. Pushes to `main` run everything (#723).
+   The classification is [`scripts/ci_scope.py`](../scripts/ci_scope.py).
+   **If you add a gate or test that reads the other stack's files, add those
+   paths to its `_CROSS_STACK`.** Otherwise a PR that changes only them
+   skips the gate, and the miss first shows up on `main`.
 
 If you're adding a new lint rule, also add it to the existing layer that
 enforces it. Don't add a rule that only fires in CI — that's where lint
