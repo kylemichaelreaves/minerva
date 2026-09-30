@@ -47,10 +47,12 @@ export function useWordHoverTranslations(
 
   createEffect(() => {
     const r = props.rail();
-    const lang = props.target();
     if (r.kind !== "ready" || pending === null) return;
     if (r.source !== pending.source) return;
-    const key = cacheKey(pending.chunkId, pending.offset, lang);
+    // Key on the language the response was produced for, not the current
+    // target: setTargetLang flips the target while the old response is
+    // still on the rail (#690).
+    const key = cacheKey(pending.chunkId, pending.offset, r.lang);
     setTranslations((prev) => {
       const next = { ...prev, [key]: r.response.translated_text };
       const entries = Object.entries(next);

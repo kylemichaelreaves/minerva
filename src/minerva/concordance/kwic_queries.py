@@ -234,11 +234,13 @@ def lemma_detail(conn: sqlite3.Connection, query: dict[str, str]) -> dict[str, A
         lemma_match_sql,
         _filter_sql("g", pos, surface, morph_filters)[0],
         extra_params,
+        drop_filters=_drop_filters(pos, surface, morph_filters),
     )
     if total == 0:
         # Empty result — the breakdowns above describe the *unfiltered*
-        # scope, so the empty-state UI can still suggest broadening
-        # moves (the wireframe's F6 "Drop Number — 3 hits" affordance).
+        # scope, so the empty-state UI can still show the facet rail, and
+        # `drop_counts` carries the hit count of each "Drop Number — 3
+        # hits" link (the wireframe's F6 affordance; #691).
         return {
             "lemma": lemma,
             "lang": lang,
@@ -351,6 +353,20 @@ def _filter_sql(
     return sql, params
 
 
+def _drop_filters(
+    pos: str | None, surface: str | None, morph_filters: dict[str, str]
+) -> dict[str, tuple[str, list[Any]]]:
+    """For each requested morph feature, the group filter with that one
+    feature removed and every other filter (pos, surface, the remaining
+    features) kept: what the empty state's "Drop <key>" link would return
+    (#691)."""
+
+    return {
+        key: _filter_sql("g", pos, surface, {k: v for k, v in morph_filters.items() if k != key})
+        for key in morph_filters
+    }
+
+
 def _lemma_aggregates(
     conn: sqlite3.Connection,
     lemma: str,
@@ -360,6 +376,8 @@ def _lemma_aggregates(
     lemma_match_sql: str,
     group_filter_sql: str,
     filter_params: list[Any],
+    *,
+    drop_filters: dict[str, tuple[str, list[Any]]] | None = None,
 ) -> tuple[dict[str, Any], int, list[sqlite3.Row]]:
     """One grouped pass over a lemma's rows → (breakdowns, total, groups).
 
@@ -369,9 +387,10 @@ def _lemma_aggregates(
     #657).
 
     Returns the pos/case/number/gender/surface/work breakdowns under the
-    **unfiltered** scope — they drive the filter rail's facet counts and
-    the F6 empty-state's "drop filter X for N hits" suggestions — and the
-    total under the **filtered** one.
+    **unfiltered** scope — they drive the filter rail's facet counts — and
+    the total under the **filtered** one. They do *not* give the F6
+    empty-state's "drop filter X for N hits" counts; ``drop_counts`` does
+    (below).
 
     Those two scopes are why this is not simply ``SUM(n)``. The group key
     is ``(pos, surface_form, feats, work)``, and ``pos`` / ``surface`` /
@@ -390,6 +409,15 @@ def _lemma_aggregates(
     language yields thousands of groups (16,075 for `der`/deu, 16,604 for
     grc `ὁ`, measured 2026-09-25), over far fewer distinct `feats` strings
     (143 and 159), which is why the fold parses each string once.
+
+    ``drop_filters`` (from `_drop_filters`) adds one more per-group column
+    for each requested morph feature, summed into ``drop_counts``: the
+    total with that feature's filter removed. The empty state's "Drop
+    Number · N hits" used to rebuild N from `case_breakdown`, which counts
+    only cased tokens and ignores the surface filter; for `dico`/lat under
+    Number=Dual it promised 23,604 hits and the click returned 72,738
+    (#691). A breakdown cannot supply this number, because it is the
+    *unfiltered* scope and only covers tokens that carry the feature.
     """
 
     # The `CASE` sits in the SELECT list, which precedes the WHERE in the
@@ -401,6 +429,12 @@ def _lemma_aggregates(
     if group_filter_sql:
         filtered_col = f", CASE WHEN 1=1{group_filter_sql} THEN g.n ELSE 0 END AS n_filtered"
         lead_params = list(filter_params)
+    # Aliased by position, not by feature key, so no request text reaches
+    # the SQL as an identifier.
+    drops = list((drop_filters or {}).items())
+    for i, (_key, (drop_sql, drop_params)) in enumerate(drops):
+        filtered_col += f", CASE WHEN 1=1{drop_sql} THEN g.n ELSE 0 END AS n_drop_{i}"
+        lead_params.extend(drop_params)
 
     # Grouped on the lemma row's own `work_id`, then joined to `works` once
     # per group for the title. Every grouped column is in
@@ -428,6 +462,9 @@ def _lemma_aggregates(
     ).fetchall()
 
     breakdowns = _fold_breakdowns(rows)
+    breakdowns["drop_counts"] = {
+        key: sum(int(r[f"n_drop_{i}"]) for r in rows) for i, (key, _) in enumerate(drops)
+    }
     total = sum(_matches(r, filtered=bool(group_filter_sql)) for r in rows)
     return breakdowns, total, rows
 

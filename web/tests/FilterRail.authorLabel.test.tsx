@@ -19,6 +19,7 @@ const DATA: LemmaDetailResponse = {
   gender_breakdown: [],
   surface_breakdown: [],
   work_breakdown: [],
+  drop_counts: {},
   rows: [],
   next_offset: null,
 };

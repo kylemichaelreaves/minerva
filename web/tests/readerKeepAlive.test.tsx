@@ -55,6 +55,9 @@ const RANGE = {
 };
 
 const READER_HASH = "#/r/Das%20Kapital%2C%20Band%20I?lang=deu";
+// Where READER_HASH lands: the Reader grows an author-less URL to the
+// two-segment form once the range names the author (#611).
+const READER_LANDS_AT = "#/r/marx/das-kapital-band-i?lang=deu";
 const LEMMA_HASH = "#/concordance/Ware";
 const INDEX_HASH = "#/concordance?lang=deu";
 
@@ -112,11 +115,12 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
   }
 
   /** Navigate and let the route settle, so a slow teardown cannot pass a
-   *  case by not having finished yet. */
-  async function goAndSettle(hash: string): Promise<void> {
+   *  case by not having finished yet. `landsAt` is the hash the route
+   *  settles on, when that is not the one navigated to. */
+  async function goAndSettle(hash: string, landsAt: string = hash): Promise<void> {
     go(hash);
     await waitFor(() => {
-      expect(window.location.hash).toBe(hash);
+      expect(window.location.hash).toBe(landsAt);
     });
     await Promise.resolve();
     await Promise.resolve();
@@ -147,7 +151,7 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
     const firstLine = document.querySelector(".line");
 
     await goAndSettle(LEMMA_HASH);
-    await goAndSettle(READER_HASH);
+    await goAndSettle(READER_HASH, READER_LANDS_AT);
 
     // If `loadWork` ran its `setRange(null)` at either step, this is a
     // different object — the whole point of keeping the Reader mounted.
@@ -173,7 +177,7 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
     await mountReader();
 
     await goAndSettle(LEMMA_HASH);
-    await goAndSettle(READER_HASH);
+    await goAndSettle(READER_HASH, READER_LANDS_AT);
 
     expect(must(keepAlive()).hasAttribute("hidden")).toBe(false);
     expect(must(keepAlive()).hasAttribute("inert")).toBe(false);

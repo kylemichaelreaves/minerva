@@ -162,3 +162,57 @@ def test_the_breakdowns_parse_each_feats_string_once(
         "Sing": 3 * _CHUNKS, "Plur": _CHUNKS
     }
     assert {b["value"]: b["count"] for b in out["gender_breakdown"]} == {"Masc": 2 * _CHUNKS}
+
+
+@pytest.mark.parametrize(
+    ("filters", "want"),
+    [
+        # A Number the lemma never carries: the "Drop Number" link must promise
+        # every occurrence, including the tokens with no Case (and no feats at
+        # all) that a sum over `case_breakdown` leaves out (#691).
+        ({"morph": "Number=Dual"}, {"Number": "1=1"}),
+        ({"morph": "Case=Voc"}, {"Case": "1=1"}),
+        # The other request filters stay applied.
+        ({"morph": "Number=Dual", "surface": "der"}, {"Number": "surface_form = 'der'"}),
+        ({"morph": "Number=Dual", "pos": "PRON"}, {"Number": "pos = 'PRON'"}),
+        # Both morph filters: each link drops exactly one of them.
+        ({"morph": "Case=Gen,Number=Dual"},
+         {"Number": "feats LIKE '%Case=Gen%'", "Case": "feats LIKE '%Number=Dual%'"}),
+        ({"morph": "Case=Gen,Number=Sing", "surface": "der"},
+         {"Number": "feats LIKE '%Case=Gen%' AND surface_form = 'der'",
+          "Case": "feats LIKE '%Number=Sing%' AND surface_form = 'der'"}),
+        ({}, {}),
+        ({"surface": "nie"}, {}),
+    ],
+)
+def test_drop_counts_are_the_total_with_that_one_morph_filter_removed(
+    conn: sqlite3.Connection, filters: dict[str, str], want: dict[str, str]
+) -> None:
+    expected = {
+        key: conn.execute(f"SELECT COUNT(*) FROM chunk_lemmas WHERE {where}").fetchone()[0]
+        for key, where in want.items()
+    }
+    out = concordance_queries.lemma_detail(conn, {"lemma": "der", "lang": "deu", **filters})
+    assert out["drop_counts"] == expected
+    # Each promise is what the request actually returns once that filter is gone.
+    for key, count in expected.items():
+        kept = ",".join(p for p in filters["morph"].split(",") if not p.startswith(f"{key}="))
+        after = {k: v for k, v in filters.items() if k != "morph"}
+        if kept:
+            after["morph"] = kept
+        again = concordance_queries.lemma_detail(conn, {"lemma": "der", "lang": "deu", **after})
+        assert again["total"] == count
+
+
+def test_the_old_client_reconstruction_undercounts_a_number_only_drop(
+    conn: sqlite3.Connection,
+) -> None:
+    """What the empty state used to show for "Drop Number": the case facet's
+    sum, which counts only cased tokens (#691)."""
+
+    out = concordance_queries.lemma_detail(
+        conn, {"lemma": "der", "lang": "deu", "morph": "Number=Dual"}
+    )
+    assert out["total"] == 0
+    assert sum(b["count"] for b in out["case_breakdown"]) == 4 * _CHUNKS
+    assert out["drop_counts"] == {"Number": len(_TOKENS) * _CHUNKS}

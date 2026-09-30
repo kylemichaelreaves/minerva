@@ -94,3 +94,43 @@ describe("<ArcPanel /> geometry", () => {
     expect(container.querySelector(".net-arc-detail")?.textContent).toContain("Plato · 380 BC");
   });
 });
+
+describe("<ArcPanel /> on resize", () => {
+  it("moves labels and arcs in place, keeping a focused label focused", () => {
+    let tick: () => void = () => undefined;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: () => void) {
+          tick = cb;
+        }
+        observe() {
+          /* ticks are fired by hand below */
+        }
+        disconnect() {
+          /* nothing to release */
+        }
+      },
+    );
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(700);
+    try {
+      const { container } = mount();
+      const label = screen.getByRole("button", { name: "Aristotle: show citations" });
+      const arc = must(arcPaths(container)[0], "arc path");
+      const d = arc.getAttribute("d");
+      label.focus();
+      const before = tickX(container).get("Ar") ?? Infinity;
+
+      width.mockReturnValue(1100);
+      tick();
+
+      expect(tickX(container).get("Ar")).toBeGreaterThan(before);
+      expect(screen.getByRole("button", { name: "Aristotle: show citations" })).toBe(label);
+      expect(document.activeElement).toBe(label);
+      expect(arcPaths(container)[0]).toBe(arc);
+      expect(arc.getAttribute("d")).not.toBe(d);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

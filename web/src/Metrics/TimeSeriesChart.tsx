@@ -97,14 +97,20 @@ export function TimeSeriesChart(props: {
 
   const width = () => size().w;
   // Width is measured, height is NOT — and the asymmetry is the whole point.
-  // `.mchart-svg-wrap` is `width: 100%`, so its width is fixed by its parent
-  // and observing it is stable. Its height is content-driven, and its only
-  // content is this SVG. Feeding a measured height back into the thing being
-  // measured is an unbounded ResizeObserver loop: it was seen growing +480px
-  // per frame in Chrome, past 220,000px. The Network panels observe elements
-  // that are `height: 100%` inside a sized parent, which is why the same hook
-  // is safe there. If this chart ever needs a responsive height, give the wrap
-  // a definite height in CSS first — do not measure a content-sized box.
+  // The observed element is `.mchart`, the outer `ref={wrapEl}` below — not
+  // the inner `.mchart-svg-wrap`. `.mchart` is a block-level flex column, so
+  // its width is fixed by its parent and observing it is stable. Its height
+  // is content-driven: the legend plus `.mchart-svg-wrap`, whose only content
+  // is this SVG — so the SVG's height is part of what gets measured. Feeding
+  // a measured height back into the thing being measured is an unbounded
+  // ResizeObserver loop: it was seen growing +480px per frame in Chrome, past
+  // 220,000px. The Network panels observe `flex: 1 1 auto; min-height: 0`
+  // children of a `height: 100%` column, whose height the container sets
+  // rather than their content, which is why the same hook is safe there. If
+  // this chart ever needs a responsive height, give the observed box a
+  // definite height in CSS first — do not measure a content-sized box, and do
+  // not move the ref inward to `.mchart-svg-wrap`: its height is
+  // content-driven too (#599).
   const height = () => props.height ?? DEFAULT_HEIGHT;
 
   const plotX0 = PAD_L;

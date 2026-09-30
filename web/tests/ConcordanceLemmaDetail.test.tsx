@@ -54,6 +54,7 @@ const detail = (lemma: string, surface: string) => ({
   gender_breakdown: [],
   surface_breakdown: [],
   work_breakdown: [],
+  drop_counts: {},
   rows: [row(surface)],
   next_offset: null,
 });
@@ -136,6 +137,39 @@ describe("<ConcordanceLemmaDetail />", () => {
 
     expect(await screen.findByText("Couldn't load occurrences")).toBeInTheDocument();
     expect(screen.getByText("upstream exploded")).toBeInTheDocument();
+  });
+
+  it("leaves Enter on a focused filter chip to the chip, not the KWIC cursor (#702)", async () => {
+    fetchLemmaDetail.mockResolvedValue({
+      ...detail("Begriff", "Begriffe"),
+      case_breakdown: [{ value: "Acc", count: 1 }],
+    });
+    const onOpenChunk = vi.fn();
+    render(() => (
+      <ConcordanceLemmaDetail
+        lemma="Begriff"
+        lang="deu"
+        scope="corpus"
+        onNavigate={vi.fn()}
+        onBackToIndex={vi.fn()}
+        onOpenChunk={onOpenChunk}
+      />
+    ));
+    const chip = await screen.findByRole("button", { name: "Akk" });
+    chip.focus();
+    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    chip.dispatchEvent(enter);
+    // Not preventDefault-ed, so the browser's own Enter→click activation
+    // runs; and the current KWIC hit is not opened in the Reader.
+    expect(enter.defaultPrevented).toBe(false);
+    expect(onOpenChunk).not.toHaveBeenCalled();
+
+    // Enter with nothing focused still opens the current hit.
+    chip.blur();
+    document.body.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+    );
+    expect(onOpenChunk).toHaveBeenCalledWith("Kritik der reinen Vernunft", "c-Begriffe");
   });
 
   it("routes a missing lemma cache to its own explainer", async () => {

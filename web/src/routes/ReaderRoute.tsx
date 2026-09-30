@@ -84,6 +84,7 @@ export function ReaderRoute(props: RouteContextProps) {
           focusChunkId={w().focusChunkId}
           openTermId={w().openTermId}
           onOpenTermIdChange={props.reader.setOpenTermId}
+          onAuthorResolved={props.reader.growAuthorSlug}
           syntaxOpen={syntaxOpen()}
           suspended={props.reader.mode() !== "reader"}
           onExit={() => {

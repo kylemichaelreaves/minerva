@@ -22,11 +22,12 @@ function setup() {
   const view = render(() => (
     <MatrixPanel authors={authors} cells={cells} onOpenPair={onOpenPair} />
   ));
-  // Cells render in `cells` order.
-  const cell = (i: number): SVGRectElement => {
-    const r = view.container.querySelectorAll<SVGRectElement>("rect.net-cell")[i];
-    if (!r) throw new Error(`no cell ${i}`);
-    return r;
+  // Cells render in grid order (rows, then columns), so find one by the
+  // pair it names — `i` indexes `cells`, the props order.
+  const cell = (i: number): HTMLElement => {
+    const c = cells[i];
+    const name = `${authors[c?.r ?? -1]?.name} → ${authors[c?.c ?? -1]?.name}`;
+    return screen.getByRole("gridcell", { name: new RegExp(`^${name}:`) });
   };
   return { ...view, onOpenPair, cell };
 }
@@ -97,7 +98,7 @@ describe("<MatrixPanel />", () => {
     const { container, cell } = setup();
     const tipLeft = () =>
       Number.parseFloat(container.querySelector<HTMLElement>(".net-tooltip")?.style.left ?? "");
-    const rectX = (r: SVGRectElement) => Number(r.getAttribute("x"));
+    const rectX = (r: Element) => Number(r.getAttribute("x"));
 
     const toLastCol = cell(0); // Aquinas → Augustine
     const toFirstCol = cell(2); // Aquinas → Plato
@@ -113,5 +114,77 @@ describe("<MatrixPanel />", () => {
     const { onOpenPair, cell } = setup();
     fireEvent.click(cell(1));
     expect(onOpenPair).toHaveBeenCalledWith("Aquinas", "Vulgate");
+  });
+
+  // #696: the cells were mouse-only — plain <rect>s with an onClick and no
+  // tabindex, so the drill-down and the share tooltip were unreachable by
+  // keyboard, and the `.net-cell:focus` rule could never match.
+  describe("keyboard grid", () => {
+    // Grid for these fixtures (rows Augustine, Aquinas; cols Plato,
+    // Vulgate, Augustine):
+    //   Augustine:   .       Vulgate  .
+    //   Aquinas:     Plato   Vulgate  Augustine
+    const tabbable = (container: HTMLElement) =>
+      [...container.querySelectorAll('[role="gridcell"]')].filter(
+        (el) => el.getAttribute("tabindex") === "0",
+      );
+
+    it("is a labelled grid with exactly one cell in the tab order", () => {
+      const { container, cell } = setup();
+      const grid = screen.getByRole("grid");
+      expect(grid.getAttribute("aria-label")).toMatch(/citation matrix/i);
+      expect(grid.getAttribute("aria-rowcount")).toBe("2");
+      expect(grid.getAttribute("aria-colcount")).toBe("3");
+      expect(screen.getAllByRole("row").map((r) => r.getAttribute("aria-rowindex"))).toEqual([
+        "1",
+        "2",
+      ]);
+      expect(screen.getAllByRole("gridcell")).toHaveLength(4);
+      // The top-left cell holds the tab stop; every other cell is -1.
+      expect(tabbable(container)).toEqual([cell(3)]);
+      expect(cell(3).getAttribute("aria-colindex")).toBe("2");
+      expect(cell(0).getAttribute("tabindex")).toBe("-1");
+    });
+
+    it("moves focus with the arrow keys and carries the tab stop along", () => {
+      const { container, cell } = setup();
+      cell(3).focus(); // Augustine → Vulgate
+      fireEvent.keyDown(cell(3), { key: "ArrowDown" });
+      expect(document.activeElement).toBe(cell(1)); // Aquinas → Vulgate
+      fireEvent.keyDown(cell(1), { key: "ArrowLeft" });
+      expect(document.activeElement).toBe(cell(2)); // Aquinas → Plato
+      fireEvent.keyDown(cell(2), { key: "End" });
+      expect(document.activeElement).toBe(cell(0)); // Aquinas → Augustine
+      expect(tabbable(container)).toEqual([cell(0)]);
+    });
+
+    it("keeps focus in place at an edge, and ignores keys it does not handle", () => {
+      const { container, cell } = setup();
+      cell(3).focus();
+      const up = fireEvent.keyDown(cell(3), { key: "ArrowUp" });
+      expect(up).toBe(false); // handled: the page must not scroll
+      expect(document.activeElement).toBe(cell(3));
+      const tab = fireEvent.keyDown(cell(3), { key: "Tab" });
+      expect(tab).toBe(true); // not ours: Tab still leaves the grid
+      expect(tabbable(container)).toEqual([cell(3)]);
+    });
+
+    it("opens the focused pair on Enter or Space", () => {
+      const { onOpenPair, cell } = setup();
+      fireEvent.keyDown(cell(1), { key: "Enter" });
+      expect(onOpenPair).toHaveBeenLastCalledWith("Aquinas", "Vulgate");
+      fireEvent.keyDown(cell(2), { key: " " });
+      expect(onOpenPair).toHaveBeenLastCalledWith("Aquinas", "Plato");
+    });
+
+    it("shows the hover tooltip and crosshair on focus, and hides them on blur", () => {
+      const { container, cell } = setup();
+      fireEvent.focus(cell(1));
+      expect(container.querySelector(".net-tooltip")?.textContent).toContain("300 xrefs");
+      expect(container.querySelector(".net-matrix-crosshair")).toBeTruthy();
+      fireEvent.blur(cell(1));
+      expect(container.querySelector(".net-tooltip")).toBeNull();
+      expect(container.querySelector(".net-matrix-crosshair")).toBeNull();
+    });
   });
 });

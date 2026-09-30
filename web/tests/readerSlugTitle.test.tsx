@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } from "vitest";
 import { render, waitFor } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
+import App from "~/App";
 import Reader from "~/Reader";
+import { invalidateReads } from "~/api/readCache";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
+import { _resetToastsForTesting } from "~/utils/apiError";
 
 /** The route carries slugs; the TITLE arrives with the data (#602).
  *
@@ -81,5 +84,86 @@ describe("the saved-highlight key stays title-based", () => {
     const { container } = renderReader(() => <Reader workSlug="republic" sourceLang="grc" />);
     await waitFor(() => expect(container.querySelector(".gw")).not.toBeNull());
     expect(container.querySelector(".pin-hl.saved")).toBeNull();
+  });
+});
+
+/** A one-segment citation link grows its author segment once the range names
+ *  the author (#611), and growing it is not a change of window.
+ *
+ *  `authorSlug` is one of the fields `useWorkRange`'s window memo is keyed on
+ *  (#347), so a naive `replace()` re-keyed the window: `loadWork` ran its
+ *  `setRange(null)` and the stage blanked and refetched. The fetch count is a
+ *  sound witness here where it is not in readerSyntaxLayer: the grown route
+ *  asks for `/api/works/plato/republic`, a different cache key from
+ *  `/api/works/republic`, so a reload cannot be served out of the read cache
+ *  without touching `fetch`. Node identity backs it up. */
+describe("a one-segment reader URL", () => {
+  const urlOf = (input: RequestInfo | URL): string =>
+    typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const rangeUrls = (): string[] =>
+    fetchMock.mock.calls
+      .map(([input]) => urlOf(input))
+      .filter((u) => /\/api\/works\/[^?]*republic/.test(u));
+
+  beforeEach(() => {
+    localStorage.clear();
+    _resetToastsForTesting();
+    invalidateReads();
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("occurrence_map") || url.includes("references_map")) {
+        return Promise.resolve(okResponse({ work_id: 999, lang: "grc", by_chunk: {} }));
+      }
+      if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
+      if (url.includes("/api/works")) return Promise.resolve(okResponse({ works: [] }));
+      if (url.includes("/api/conversations")) {
+        return Promise.resolve(okResponse({ conversations: [] }));
+      }
+      return Promise.resolve(okResponse({}));
+    });
+  });
+  afterEach(() => {
+    window.history.replaceState(null, "", "#");
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("grows to #/r/<authorSlug>/<titleSlug> in place once the range names the author", async () => {
+    window.history.replaceState(null, "", "#/r/republic?lang=grc&focus=r-1");
+    const historyLength = window.history.length;
+    render(() => <App />);
+
+    await waitFor(() => expect(window.location.hash).toBe("#/r/plato/republic?lang=grc&focus=r-1"));
+    // `replace`, not `push`: the back button must not step through the
+    // one-segment form.
+    expect(window.history.length).toBe(historyLength);
+
+    const line = document.querySelector(".line");
+    expect(line).not.toBeNull();
+    // Let any reload the grown route triggered run to completion.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.querySelector(".line")).toBe(line);
+    expect(rangeUrls()).toEqual(["/api/works/republic?lang=grc&limit=200&around=r-1"]);
+  });
+
+  it("does not pair the range's author with a title slug the range is not", async () => {
+    // A focus link resolves off `around=` whatever the title segment says, so
+    // the range can be a different work from the one the slug names. Growing
+    // that into `plato/politeia` would build a URL that resolves nothing.
+    window.history.replaceState(null, "", "#/r/politeia?lang=grc&focus=r-1");
+    render(() => <App />);
+    await waitFor(() => expect(document.querySelector(".line")).not.toBeNull());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(window.location.hash).toBe("#/r/politeia?lang=grc&focus=r-1");
+  });
+
+  it("leaves a two-segment URL alone", async () => {
+    window.history.replaceState(null, "", "#/r/plato/republic?lang=grc");
+    render(() => <App />);
+    await waitFor(() => expect(document.querySelector(".line")).not.toBeNull());
+    expect(window.location.hash).toBe("#/r/plato/republic?lang=grc");
+    expect(rangeUrls()).toHaveLength(1);
   });
 });

@@ -245,29 +245,22 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                 {d().scope_label || "this scope"}.
               </div>
               <div class="broaden">
+                {/* The server counts what each link returns (#691): no
+                    facet can, since the facets describe the unfiltered
+                    scope and only the tokens that carry the feature. */}
                 <Show when={props.numberFilter}>
-                  {(() => {
-                    const drop = props.caseFilter
-                      ? d().case_breakdown.find((b) => b.value === props.caseFilter)?.count
-                      : d().case_breakdown.reduce((s, b) => s + b.count, 0);
-                    return (
-                      <a onClick={() => props.onNavigate({ numberFilter: undefined })}>
-                        Drop Number{drop !== undefined ? ` · ${drop.toLocaleString()} hits` : ""}
-                      </a>
-                    );
-                  })()}
+                  <DropFilterLink
+                    label="Number"
+                    hits={d().drop_counts.Number}
+                    onClick={() => props.onNavigate({ numberFilter: undefined })}
+                  />
                 </Show>
                 <Show when={props.caseFilter}>
-                  {(() => {
-                    const drop = props.numberFilter
-                      ? d().number_breakdown.find((b) => b.value === props.numberFilter)?.count
-                      : d().case_breakdown.reduce((s, b) => s + b.count, 0);
-                    return (
-                      <a onClick={() => props.onNavigate({ caseFilter: undefined })}>
-                        Drop Case{drop !== undefined ? ` · ${drop.toLocaleString()} hits` : ""}
-                      </a>
-                    );
-                  })()}
+                  <DropFilterLink
+                    label="Case"
+                    hits={d().drop_counts.Case}
+                    onClick={() => props.onNavigate({ caseFilter: undefined })}
+                  />
                 </Show>
                 <Show when={props.surface}>
                   <a onClick={() => props.onNavigate({ surface: undefined })}>Drop Surface form</a>
@@ -438,6 +431,18 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
   });
 
   return { data, loading, error, cursor, setCursor, morph };
+}
+
+/** One empty-state "Drop <filter> · N hits" control — a real button, styled
+ *  as its sibling links, so it is keyboard-reachable (#726). `hits` is omitted
+ *  from the label when the server sent no count for that filter. */
+function DropFilterLink(props: { label: string; hits: number | undefined; onClick: () => void }) {
+  return (
+    <button type="button" class="broaden-link" onClick={() => props.onClick()}>
+      Drop {props.label}
+      {props.hits !== undefined ? ` · ${props.hits.toLocaleString()} hits` : ""}
+    </button>
+  );
 }
 
 /** Keep the KWIC cursor row visible as j/k navigation moves it. */

@@ -11,6 +11,7 @@ import { must } from "./helpers/must";
 
 const RAIL_READY: RailState = {
   kind: "ready",
+  lang: "eng",
   source: "Der Geist",
   ref: "¶1",
   response: {
@@ -64,6 +65,7 @@ describe("<RailContent /> tabs", () => {
     // loading → ready is the SAME lookup — no auto-flip.
     setWordInfo({
       kind: "ready",
+      lang: "eng",
       info: { lemma: "Geist", samples: [], total_samples: 0 } as never,
       loadingMore: false,
     });

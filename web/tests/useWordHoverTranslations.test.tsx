@@ -21,6 +21,7 @@ function setup() {
     api.registerWordClick(chunkId, offset, source);
     setRail({
       kind: "ready",
+      lang: "eng",
       source,
       ref: chunkId,
       response: { translated_text: text, literal_text: text, model: "m", cached: false },
@@ -44,6 +45,7 @@ describe("useWordHoverTranslations", () => {
     api.registerWordClick("c1", 0, "arma");
     setRail({
       kind: "ready",
+      lang: "eng",
       source: "a whole passage",
       ref: "c1",
       response: { translated_text: "x", literal_text: "x", model: "m", cached: false },
@@ -52,6 +54,7 @@ describe("useWordHoverTranslations", () => {
     api.clearPending();
     setRail({
       kind: "ready",
+      lang: "eng",
       source: "arma",
       ref: "c1",
       response: { translated_text: "arms", literal_text: "arms", model: "m", cached: false },

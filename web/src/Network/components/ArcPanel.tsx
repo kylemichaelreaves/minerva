@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Index, Show, createMemo, createSignal } from "solid-js";
 import type { AuthorPair, MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { useElementSize } from "~/hooks/useElementSize";
@@ -11,37 +11,36 @@ import {
   logWeight,
   pairsFromCells,
   placeAuthors,
+  placeOnAxis,
+  resolvePairs,
   taperPath,
-  timeScale,
   type ArcAuthor,
+  type ArcEnds,
 } from "~/Network/components/arcLayout";
 
 export interface SelectArcPairsOpts {
-  validNames?: Set<string>;
   hideIntraScrip?: boolean;
   cap?: number;
 }
 
-/** Union volumetric top pairs with per-author top pairs, dedupe by src/tgt. */
-export function selectArcPairs(
+/** Union volumetric top pairs with per-author top pairs, dedupe by
+ *  src/tgt, and keep only the pairs whose two ends `ends` knows — each
+ *  returned with those ends resolved, so the caller needs no second
+ *  lookup that could miss (#692). The cap counts kept pairs only. */
+export function selectArcPairs<T>(
   primary: AuthorPair[],
   supplemental: AuthorPair[],
+  ends: ReadonlyMap<string, T>,
   opts: SelectArcPairsOpts = {},
-): AuthorPair[] {
+): ArcEnds<T>[] {
   const seen = new Set<string>();
-  const out: AuthorPair[] = [];
-  for (const p of [...primary, ...supplemental]) {
+  const unique = [...primary, ...supplemental].filter((p) => {
     const key = `${p.src}\x00${p.tgt}`;
-    if (seen.has(key)) continue;
-    if (opts.validNames) {
-      if (!opts.validNames.has(p.src) || !opts.validNames.has(p.tgt)) continue;
-    }
-    if (opts.hideIntraScrip && p.intra_scrip) continue;
+    if (seen.has(key) || (opts.hideIntraScrip && p.intra_scrip)) return false;
     seen.add(key);
-    out.push(p);
-    if (opts.cap !== undefined && out.length >= opts.cap) break;
-  }
-  return out;
+    return true;
+  });
+  return resolvePairs(unique, ends).slice(0, opts.cap);
 }
 
 // Map author name → year (negative = BCE). The NetworkAuthor shape
@@ -49,7 +48,7 @@ export function selectArcPairs(
 // not a date. Years come from ATLAS_AUTHORS (the table the landing
 // chronology strip uses); authors missing from it are interpolated by
 // `placeAuthors`.
-const YEAR_BY_NAME: ReadonlyMap<string, number> = new Map(
+export const YEAR_BY_NAME: ReadonlyMap<string, number> = new Map(
   ATLAS_AUTHORS.map((a) => [a.name, a.year]),
 );
 
@@ -68,10 +67,12 @@ function restingPairs(
     topPairsPerAuthor: AuthorPair[];
   },
   hideIntra: boolean,
-  validNames: Set<string>,
+  placed: ReadonlyMap<string, ArcAuthor>,
 ): AuthorPair[] {
-  if (!hideIntra) return selectArcPairs(src.topPairsAll, [], { validNames });
-  return selectArcPairs(src.topPairsNonScrip, src.topPairsPerAuthor, { validNames });
+  const picked = hideIntra
+    ? selectArcPairs(src.topPairsNonScrip, src.topPairsPerAuthor, placed)
+    : selectArcPairs(src.topPairsAll, [], placed);
+  return picked.map((e) => e.pair);
 }
 
 /** Arcs to draw, lightest first so the heaviest paint on top: every pair
@@ -100,8 +101,9 @@ function arcOpacity(
   return (focus ? 0.35 : 0.12) + 0.6 * weight;
 }
 
-const pairSpan = (xOf: ReadonlyMap<string, number>, p: AuthorPair) =>
-  Math.abs((xOf.get(p.src) ?? 0) - (xOf.get(p.tgt) ?? 0));
+/** An arc with both ends placed on the axis, as pixel x. */
+type PlacedArc = ArcEnds<number>;
+const arcSpan = (a: PlacedArc) => Math.abs(a.src - a.tgt);
 
 export function ArcPanel(props: {
   authors: NetworkAuthor[];
@@ -134,7 +136,7 @@ export function ArcPanel(props: {
 
   const allPairs = createMemo(() => pairsFromCells(props.authors, props.matrixCells, hideIntra()));
   // The resting set: volume-ranked top pairs plus each author's top 3.
-  const restPairs = createMemo(() => restingPairs(props, hideIntra(), new Set(byName().keys())));
+  const restPairs = createMemo(() => restingPairs(props, hideIntra(), byName()));
   const drawn = createMemo(() => drawnPairs(active(), allPairs(), restPairs()));
   const context = createMemo(() => {
     const f = active();
@@ -142,30 +144,36 @@ export function ArcPanel(props: {
   });
   const linked = createMemo(() => new Set(drawn().flatMap((p) => [p.src, p.tgt])));
 
+  // Every author carries its own x, and arcs are placed by resolving
+  // their ends against that same axis — so neither a label nor an arc can
+  // look up a position that isn't there (#692).
   const geo = createMemo(() => {
     const { w, h } = size();
-    const years = placed().map((a) => a.year);
-    const xs = timeScale(years, PAD_X, Math.max(0, w - 2 * PAD_X));
-    const xOf = new Map(placed().map((a, i) => [a.name, xs[i] ?? 0]));
-    const everyPair = [...allPairs(), ...restPairs()];
+    const axis = placeOnAxis(placed(), PAD_X, Math.max(0, w - 2 * PAD_X));
+    const years = axis.map((a) => a.year);
+    const xs = axis.map((a) => a.x);
+    const xOf = new Map(axis.map((a) => [a.name, a.x]));
+    const everyArc = resolvePairs([...allPairs(), ...restPairs()], xOf);
     return {
       w,
       h,
-      xs,
+      axis,
       xOf,
       breaks: axisBreaks(years, xs),
-      eras: eraSpans(placed(), xs),
-      maxN: Math.max(1, ...everyPair.map((p) => p.n)),
-      maxSpan: Math.max(1, ...everyPair.map((p) => pairSpan(xOf, p))),
+      eras: eraSpans(axis, xs),
+      maxN: Math.max(1, ...everyArc.map((a) => a.pair.n)),
+      maxSpan: Math.max(1, ...everyArc.map(arcSpan)),
       maxDip: Math.max(0, h - BASE_Y - 14),
     };
   });
+  const drawnArcs = createMemo(() => resolvePairs(drawn(), geo().xOf));
+  const contextArcs = createMemo(() => resolvePairs(context(), geo().xOf));
 
   const weight = (p: AuthorPair) => logWeight(p.n, geo().maxN);
-  function arcD(p: AuthorPair) {
+  function arcD(a: PlacedArc) {
     const g = geo();
-    const dip = g.maxDip * Math.pow(pairSpan(g.xOf, p) / g.maxSpan, 0.75);
-    return taperPath(g.xOf.get(p.src) ?? 0, g.xOf.get(p.tgt) ?? 0, BASE_Y, dip, 1 + weight(p) * 6);
+    const dip = g.maxDip * Math.pow(arcSpan(a) / g.maxSpan, 0.75);
+    return taperPath(a.src, a.tgt, BASE_Y, dip, 1 + weight(a.pair) * 6);
   }
   function toggleFocus(name: string) {
     setFocus((f) => (f === name ? null : name));
@@ -206,39 +214,46 @@ export function ArcPanel(props: {
                 stroke-width={0.8}
               />
               <For each={geo().breaks}>{(x) => <AxisBreak x={x} />}</For>
+              {/* `Index`, not `For`: the arc and label objects are rebuilt on
+                  every resize, and keying by position keeps their DOM nodes
+                  (and a focused label's focus) in place. */}
               <g class="net-arc-context">
-                <For each={context()}>{(p) => <path d={arcD(p)} />}</For>
+                <Index each={contextArcs()}>{(a) => <path d={arcD(a())} />}</Index>
               </g>
-              <For each={drawn()}>
-                {(p) => (
+              <Index each={drawnArcs()}>
+                {(a) => (
                   <path
                     class="net-arc"
-                    d={arcD(p)}
-                    fill={arcFill(p, active())}
-                    fill-opacity={arcOpacity(p, active(), hovered()?.pair, weight(p))}
-                    onClick={() => props.onOpenPair(p.src, p.tgt)}
+                    d={arcD(a())}
+                    fill={arcFill(a().pair, active())}
+                    fill-opacity={arcOpacity(a().pair, active(), hovered()?.pair, weight(a().pair))}
+                    onClick={() => props.onOpenPair(a().pair.src, a().pair.tgt)}
                     onMouseMove={(e) => {
                       if (!stageEl) return;
                       const rect = stageEl.getBoundingClientRect();
-                      setHovered({ pair: p, x: e.clientX - rect.left, y: e.clientY - rect.top });
+                      setHovered({
+                        pair: a().pair,
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top,
+                      });
                     }}
                     onMouseLeave={() => setHovered(null)}
                   />
                 )}
-              </For>
-              <For each={placed()}>
-                {(a, i) => (
+              </Index>
+              <Index each={geo().axis}>
+                {(a) => (
                   <AuthorLabel
-                    author={a}
-                    x={geo().xs[i()] ?? 0}
+                    author={a()}
+                    x={a().x}
                     active={active()}
-                    pinned={focus() === a.name}
-                    linked={linked().has(a.name)}
+                    pinned={focus() === a().name}
+                    linked={linked().has(a().name)}
                     onPreview={setPreview}
                     onToggle={toggleFocus}
                   />
                 )}
-              </For>
+              </Index>
             </svg>
             <Show when={hovered()}>
               {(h) => <ArcTooltip hover={h()} byName={byName()} width={geo().w} />}

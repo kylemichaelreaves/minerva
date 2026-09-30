@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@solidjs/testing-library";
+import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { MatrixPanel } from "~/Network/components/MatrixPanel";
@@ -114,7 +114,7 @@ describe("<MatrixPanel />", () => {
 
   it("shows a tooltip for the hovered cell, hides it on leave, and opens the pair on click", () => {
     const { container, onOpenPair } = mount();
-    const rect = must(container.querySelector(".net-cell"), ".net-cell");
+    const rect = screen.getByRole("gridcell", { name: /^Aristotle → Plato:/ });
 
     expect(container.querySelector(".net-tooltip")).toBeNull();
     fireEvent.mouseEnter(rect);

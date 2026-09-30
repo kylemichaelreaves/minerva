@@ -210,16 +210,29 @@ pair, so both slugify locally.
   path segment. Once the response supplies the canonical author, the Reader
   `replace()`s up to the two-segment form and the link self-heals.
 
-  > **Not implemented, 2026-09-18.** The `replace()` writes the route signal,
-  > which changes `useWorkRange`'s `windowKey` memo (#347), which reloads the
-  > window and blanks the stage — the exact failure that memo exists to
-  > prevent. Measured: it turned four assertions red across
-  > `readerSyntaxLayer` and `readerEscape` ("does not tear down the rendered
-  > chunks when the overlay opens"). Resolving it means deciding whether an
-  > `authorSlug` derived FROM the loaded range counts as a change of window
-  > identity, which is a change to #347's mechanism and larger than this PR.
-  > The one-segment form resolves correctly either way; it simply stays one
-  > segment. Filed separately.
+  > **Deferred from #602, shipped in #611.** A bare `replace()` writes the
+  > route signal, which changed `useWorkRange`'s `windowKey` memo (#347),
+  > which reloaded the window and blanked the stage — the exact failure that
+  > memo exists to prevent. Measured on the naive wiring: four assertions
+  > went red across **three** files, not two — `readerSyntaxLayer` ("does not
+  > tear down the rendered chunks when the overlay opens"), `readerKeepAlive`
+  > ("… on the way out or back"), and two in `readerEscape`. The two
+  > `readerEscape` ones were never the reload: they assert the hash is still
+  > the one-segment form after a modifier closes, so they fail under *any*
+  > fix that grows the URL and were updated to the canonical form.
+  >
+  > What shipped is the issue's shape (1). The Reader calls
+  > `onAuthorResolved(slugify(range.author))` when the route has no author
+  > **and** `slugify(range.work)` is the route's title slug — a focus link
+  > resolves off `around=` whatever the title says, and pairing another
+  > work's author with that slug would build a URL that 404s. `readerCtrl`'s
+  > `growAuthorSlug` then `replace()`s. `windowKey` is now an object memo
+  > whose `equals` (`sameWindow`) treats an author-less key followed by the
+  > author the loaded range named as the same window; the range is read
+  > untracked, so it does not become a dependency of the memo that gates
+  > loading it. Any other author change — a different author, or one arriving
+  > before a range has loaded — still reloads. Acceptance:
+  > `web/tests/readerSlugTitle.test.tsx` ("a one-segment reader URL").
 
 ### Keeping the two slugifiers honest
 

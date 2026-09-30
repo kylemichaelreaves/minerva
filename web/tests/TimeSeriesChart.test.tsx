@@ -16,13 +16,12 @@ const point = (t: number, p50: number, p95: number): MetricsSeriesPoint => ({
 });
 
 /**
- * `useElementSize` (web/src/hooks/useElementSize.tsx) reads
- * `node.clientWidth`/`clientHeight` in `onMount` and overwrites its
- * `initial` fallback even when jsdom reports `0` — tracked separately
- * as #585, not fixed here (it's shared with three Network panels).
- * Geometry assertions need a real measured size, so stub the
- * prototype getters for the duration of one render and restore them
- * in `finally` so a stub can't leak into another test.
+ * jsdom reports every element as 0×0, which `useElementSize`
+ * (web/src/hooks/useElementSize.tsx) treats as "not laid out yet" and
+ * answers with its fallback (#585). Geometry assertions at any other
+ * size need a real measured box, so stub the prototype getters for the
+ * duration of one render and restore them in `finally` so a stub can't
+ * leak into another test.
  *
  * jsdom defines `clientWidth`/`clientHeight` as accessors on
  * `Element.prototype`, not `HTMLElement.prototype` — stub and restore
@@ -90,6 +89,23 @@ describe("TimeSeriesChart", () => {
     const p50Pairs = parsePolylinePoints(polylines[0]?.getAttribute("points") ?? "");
     const distinctXs = new Set(p50Pairs.map(([x]) => x));
     expect(distinctXs.size).toBeGreaterThan(1);
+  });
+
+  // No size stub: the element measures 0×0, as it does before layout, under
+  // a display:none ancestor, or headless. That is not a size, so the chart
+  // must draw at its fallback width — not collapse every point onto x=40
+  // with a zero-width viewBox, which is what it did while #585 was open and
+  // which no NaN check could see.
+  it("draws at its fallback width when the element has not been laid out", () => {
+    const points = [point(0, 10, 40), point(300, 12, 50), point(600, 11, 45)];
+    const { container } = render(() => <TimeSeriesChart points={points} />);
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("width")).toBe("640");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 640 220");
+    const xs = parsePolylinePoints(
+      container.querySelector("polyline")?.getAttribute("points") ?? "",
+    ).map(([x]) => x);
+    expect(xs).toEqual([40, 325, 610]);
   });
 
   it("survives a single point without dividing by a zero span, placing it inside the plot", () => {
@@ -189,14 +205,15 @@ describe("TimeSeriesChart", () => {
   });
 
   // Regression: the chart used to take its height from `useElementSize` on
-  // `.mchart-svg-wrap` — the very element the SVG renders into. That wrap is
-  // `width: 100%` with no height, so its height is content-driven, and the
-  // only content is the SVG being sized. Each ResizeObserver tick therefore
-  // grew the SVG by the layout delta, without bound: measured live in Chrome
-  // at 164220px, then 220348 → 220828 → 221308 → 221788, +480px per frame.
+  // the element it renders into. The observed element is `.mchart` (the
+  // outer `ref`, not `.mchart-svg-wrap` — #599), whose height is
+  // content-driven: the legend plus the SVG being sized. Each ResizeObserver
+  // tick therefore grew the SVG by the layout delta, without bound: measured
+  // live in Chrome at 164220px, then 220348 → 220828 → 221308 → 221788,
+  // +480px per frame.
   //
-  // jsdom cannot reproduce the loop (clientHeight is always 0 here — see
-  // #585), and stubbing the size to a constant is exactly the condition
+  // jsdom cannot reproduce the loop (it has no layout, and reports 0×0,
+  // which the hook ignores — #585), and stubbing the size to a constant is exactly the condition
   // under which the bug cannot appear. So assert the invariant instead:
   // height must never be read from the observed element.
   it("does not take its height from the element it renders into", () => {

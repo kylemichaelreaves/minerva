@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import { useElementSize } from "~/hooks/useElementSize";
@@ -8,8 +8,13 @@ import {
   buildAxes,
   cellValue,
   bandLabel,
+  gridRows,
+  moveInGrid,
   pct,
+  placeCells,
   stepFor,
+  type GridCell,
+  type GridMove,
   type MatrixAxes,
   type MatrixMode,
 } from "~/Network/components/matrixLayout";
@@ -21,6 +26,18 @@ const MODES: { id: MatrixMode; label: string }[] = [
 ];
 
 const PAD = { l: 112, t: 104, r: 6, b: 6 };
+
+/** Keys that move focus between cells. */
+const KEY_MOVES: Partial<Record<string, GridMove>> = {
+  ArrowRight: "right",
+  ArrowLeft: "left",
+  ArrowUp: "up",
+  ArrowDown: "down",
+  Home: "home",
+  End: "end",
+};
+
+const cellKey = (g: GridCell) => `${g.cell.r}:${g.cell.c}`;
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 interface Geometry {
@@ -43,6 +60,28 @@ export function MatrixPanel(props: {
   const [mode, setMode] = createSignal<MatrixMode>("n");
 
   const axes = createMemo(() => buildAxes(props.authors, props.cells));
+  const placed = createMemo(() => placeCells(props.cells, axes(), props.authors));
+
+  // Roving tabindex (#696): the grid is one tab stop. `current` is the cell
+  // that last had focus, so tabbing back returns to it; until one has, the
+  // top-left cell holds the stop. `pending` is a cell an arrow key has
+  // asked to focus — its rect focuses itself once it sees it.
+  const [current, setCurrent] = createSignal<string | null>(null);
+  const [pending, setPending] = createSignal<string | null>(null);
+  const tabStop = createMemo(() => placed().find((g) => cellKey(g) === current()) ?? placed()[0]);
+  const open = (g: GridCell) => props.onOpenPair(g.src.name, g.tgt.name);
+  function onCellKey(e: KeyboardEvent, g: GridCell) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      open(g);
+      return;
+    }
+    const move = KEY_MOVES[e.key];
+    if (!move) return;
+    e.preventDefault();
+    const next = moveInGrid(placed(), g, move);
+    if (next !== g) setPending(cellKey(next));
+  }
 
   // Cells are rectangles sized to width and height separately, so the
   // grid fills the panel instead of letterboxing to a square.
@@ -151,27 +190,38 @@ export function MatrixPanel(props: {
                   );
                 }}
               </For>
-              <For each={props.cells}>
-                {(c) => (
-                  <rect
-                    class="net-cell"
-                    x={PAD.l + (axes().colPos.get(c.c) ?? 0) * geo().cw + 0.5}
-                    y={PAD.t + (axes().rowPos.get(c.r) ?? 0) * geo().ch + 0.5}
-                    width={Math.max(0, geo().cw - 1)}
-                    height={Math.max(0, geo().ch - 1)}
-                    fill={`var(--net-step-${stepFor(cellValue(c, mode(), axes()), mode())})`}
-                    onMouseEnter={() => setHover(c)}
-                    onMouseLeave={() => setHover(null)}
-                    onClick={() =>
-                      props.onOpenPair(author(c.r)?.name ?? "", author(c.c)?.name ?? "")
-                    }
-                  >
-                    <title>
-                      {author(c.r)?.name} → {author(c.c)?.name}: {c.n.toLocaleString()}
-                    </title>
-                  </rect>
-                )}
-              </For>
+              <g
+                role="grid"
+                aria-label="Citation matrix: each row cites each column"
+                aria-rowcount={axes().rows.length}
+                aria-colcount={axes().cols.length}
+              >
+                <For each={gridRows(placed())}>
+                  {(row) => (
+                    <g role="row" aria-rowindex={row.pos + 1}>
+                      <For each={row.cells}>
+                        {(g) => (
+                          <MatrixCellRect
+                            g={g}
+                            geo={geo()}
+                            fill={`var(--net-step-${stepFor(cellValue(g.cell, mode(), axes()), mode())})`}
+                            tabbable={tabStop() === g}
+                            focusNow={pending() === cellKey(g)}
+                            onHover={setHover}
+                            onFocus={() => {
+                              setCurrent(cellKey(g));
+                              setPending(null);
+                              setHover(g.cell);
+                            }}
+                            onKeyDown={(e) => onCellKey(e, g)}
+                            onOpen={() => open(g)}
+                          />
+                        )}
+                      </For>
+                    </g>
+                  )}
+                </For>
+              </g>
             </svg>
             <Show when={hover()}>
               {(c) => (
@@ -188,6 +238,53 @@ export function MatrixPanel(props: {
         </div>
       </div>
     </section>
+  );
+}
+
+/** One matrix cell: a gridcell in the roving-tabindex grid. Focus shows
+ *  the same tooltip and crosshair as hover (via `onHover`). */
+function MatrixCellRect(props: {
+  g: GridCell;
+  geo: Geometry;
+  fill: string;
+  tabbable: boolean;
+  /** An arrow key moved here: take focus. */
+  focusNow: boolean;
+  onHover: (cell: MatrixCell | null) => void;
+  onFocus: () => void;
+  onKeyDown: (e: KeyboardEvent) => void;
+  onOpen: () => void;
+}) {
+  const label = () =>
+    `${props.g.src.name} → ${props.g.tgt.name}: ${props.g.cell.n.toLocaleString()} xrefs`;
+  return (
+    <rect
+      ref={(el) => {
+        createEffect(() => {
+          if (props.focusNow) el.focus();
+        });
+      }}
+      class="net-cell"
+      role="gridcell"
+      aria-colindex={props.g.col + 1}
+      aria-label={label()}
+      tabindex={props.tabbable ? 0 : -1}
+      x={PAD.l + props.g.col * props.geo.cw + 0.5}
+      y={PAD.t + props.g.row * props.geo.ch + 0.5}
+      width={Math.max(0, props.geo.cw - 1)}
+      height={Math.max(0, props.geo.ch - 1)}
+      fill={props.fill}
+      onMouseEnter={() => props.onHover(props.g.cell)}
+      onMouseLeave={() => props.onHover(null)}
+      onFocus={() => props.onFocus()}
+      onBlur={() => props.onHover(null)}
+      onKeyDown={(e) => props.onKeyDown(e)}
+      onClick={() => props.onOpen()}
+    >
+      <title>
+        {props.g.src.name} → {props.g.tgt.name}: {props.g.cell.n.toLocaleString()}
+      </title>
+    </rect>
   );
 }
 

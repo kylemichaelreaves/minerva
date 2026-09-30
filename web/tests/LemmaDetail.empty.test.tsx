@@ -1,8 +1,10 @@
 // The lemma-detail surfaces a reader reaches with filters applied: the
 // empty-results "broaden" links, and the mobile filter button + sheet.
 //
-// The broaden links quote how many hits dropping a filter would bring back,
-// drawn from the facet breakdowns the server returns alongside an empty page.
+// The broaden links quote how many hits dropping a filter would bring back.
+// The server counts that (`drop_counts`, #691); the client used to rebuild it
+// from the facet breakdowns, which describe the unfiltered scope and only the
+// tokens carrying the feature, and so undercounted every uncased lemma.
 // Clicking one must clear exactly that filter and leave the others alone.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +64,7 @@ function detail(overrides: Record<string, unknown> = {}) {
     gender_breakdown: [],
     surface_breakdown: [],
     work_breakdown: [],
+    drop_counts: {},
     rows: [],
     next_offset: null,
     ...overrides,
@@ -97,14 +100,14 @@ beforeEach(() => {
 });
 
 describe("<ConcordanceLemmaDetail /> — empty results with filters", () => {
-  it("quotes cross-filtered counts when both Case and Number are set", async () => {
-    fetchLemmaDetail.mockResolvedValue(detail());
+  it("quotes the server's per-filter drop counts when both Case and Number are set", async () => {
+    // Deliberately unlike the facet buckets (Gen 34, Plur 5): with a surface
+    // filter active the facets say nothing about what a drop returns.
+    fetchLemmaDetail.mockResolvedValue(detail({ drop_counts: { Number: 7, Case: 3 } }));
     const { onNavigate } = renderDetail({ caseFilter: "Gen", numberFilter: "Plur" });
 
-    // Dropping Number keeps Case=Gen → the Gen bucket of case_breakdown.
-    const dropNumber = await screen.findByText("Drop Number · 34 hits");
-    // Dropping Case keeps Number=Plur → the Plur bucket of number_breakdown.
-    const dropCase = screen.getByText("Drop Case · 5 hits");
+    const dropNumber = await screen.findByText("Drop Number · 7 hits");
+    const dropCase = screen.getByText("Drop Case · 3 hits");
 
     expect(screen.getByText("No occurrences with these filters")).toBeInTheDocument();
     expect(requestedMorph()).toEqual({ Case: "Gen", Number: "Plur" });
@@ -115,33 +118,43 @@ describe("<ConcordanceLemmaDetail /> — empty results with filters", () => {
     expect(onNavigate).toHaveBeenLastCalledWith({ caseFilter: undefined });
   });
 
-  it("sums the case breakdown for Drop Number when no Case filter is set", async () => {
-    fetchLemmaDetail.mockResolvedValue(detail());
-    renderDetail({ numberFilter: "Plur" });
+  it("renders each drop control as a keyboard-reachable button (#726)", async () => {
+    fetchLemmaDetail.mockResolvedValue(detail({ drop_counts: { Number: 7, Case: 3 } }));
+    renderDetail({ caseFilter: "Gen", numberFilter: "Plur" });
 
-    expect(await screen.findByText(`Drop Number · ${(1234).toLocaleString()} hits`)).toBeTruthy();
-    expect(screen.queryByText(/Drop Case/)).toBeNull();
-    expect(requestedMorph()).toEqual({ Number: "Plur" });
+    const dropNumber = await screen.findByRole("button", { name: "Drop Number · 7 hits" });
+    expect(dropNumber).toHaveAttribute("type", "button");
+    expect(screen.getByRole("button", { name: "Drop Case · 3 hits" })).toBeInTheDocument();
   });
 
-  it("sums the case breakdown for Drop Case when no Number filter is set", async () => {
-    fetchLemmaDetail.mockResolvedValue(detail());
-    const { onNavigate } = renderDetail({ caseFilter: "Gen" });
+  it("quotes the server's count for Drop Number, not the case facet's sum (#691)", async () => {
+    // A verb: its case facet holds only the participles, so the facet's sum
+    // (1,234 here) is far below what dropping Number returns.
+    fetchLemmaDetail.mockResolvedValue(detail({ drop_counts: { Number: 72738 } }));
+    renderDetail({ numberFilter: "Dual" });
 
-    const link = await screen.findByText(`Drop Case · ${(1234).toLocaleString()} hits`);
+    expect(await screen.findByText(`Drop Number · ${(72738).toLocaleString()} hits`)).toBeTruthy();
+    expect(screen.queryByText(/Drop Case/)).toBeNull();
+    expect(requestedMorph()).toEqual({ Number: "Dual" });
+  });
+
+  it("quotes the server's count for Drop Case", async () => {
+    fetchLemmaDetail.mockResolvedValue(detail({ drop_counts: { Case: 1896 } }));
+    const { onNavigate } = renderDetail({ caseFilter: "Voc" });
+
+    const link = await screen.findByText(`Drop Case · ${(1896).toLocaleString()} hits`);
     expect(screen.queryByText(/Drop Number/)).toBeNull();
-    expect(requestedMorph()).toEqual({ Case: "Gen" });
+    expect(requestedMorph()).toEqual({ Case: "Voc" });
 
     fireEvent.click(link);
     expect(onNavigate).toHaveBeenCalledWith({ caseFilter: undefined });
   });
 
-  it("omits the hit count when the kept filter has no bucket in the breakdown", async () => {
+  it("omits the hit count when the server sent none for that filter", async () => {
     fetchLemmaDetail.mockResolvedValue(detail());
     renderDetail({ caseFilter: "Dat", numberFilter: "Dual" });
 
-    // `.find` returns undefined for an absent bucket; the link must not
-    // print "undefined hits".
+    // The link must not print "undefined hits".
     expect(await screen.findByText("Drop Number")).toBeInTheDocument();
     expect(screen.getByText("Drop Case")).toBeInTheDocument();
   });

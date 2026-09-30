@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchNetworkSummary, type AuthorPair } from "~/api/networkApi";
-import { selectArcPairs } from "~/Network/components/ArcPanel";
 import { NetworkArc } from "~/Network/components/NetworkArc";
 import { makeNetworkSummary } from "./helpers/networkSummary";
 
@@ -9,12 +8,6 @@ vi.mock("~/api/networkApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/api/networkApi")>()),
   fetchNetworkSummary: vi.fn(),
 }));
-// Pass-through spy, so one test can bypass the name filter and reach the
-// render-side guard that drops a pair with no known year.
-vi.mock("~/Network/components/ArcPanel", async (importOriginal) => {
-  const real = await importOriginal<typeof import("~/Network/components/ArcPanel")>();
-  return { ...real, selectArcPairs: vi.fn(real.selectArcPairs) };
-});
 const fetchMock = vi.mocked(fetchNetworkSummary);
 
 const pair = (src: string, tgt: string, n: number): AuthorPair => ({
@@ -70,8 +63,11 @@ describe("<NetworkArc />", () => {
     expect(container.querySelector(".net-tooltip .count")?.textContent).toBe("3 references");
   });
 
-  it("drops a pair whose endpoint has no year even if the selector lets it through", async () => {
-    vi.mocked(selectArcPairs).mockImplementationOnce((primary) => primary);
+  // #692: this used to mock selectArcPairs to skip its name filter, the only
+  // way to reach a null-year guard in the render. The filter now resolves
+  // the years itself, so there is no guard to reach; an unknown endpoint on
+  // either side is dropped by the real selector.
+  it("drops a pair with an unknown endpoint on either side; ink-mute when citing forward", async () => {
     fetchMock.mockResolvedValueOnce(
       makeNetworkSummary({
         xrefs: 7,
