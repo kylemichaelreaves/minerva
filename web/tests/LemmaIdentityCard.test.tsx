@@ -24,6 +24,7 @@ function makeDetail(
     gender_breakdown: [{ value: "Masc", count: 1247 }],
     surface_breakdown: [],
     work_breakdown: [],
+    drop_counts: {},
     rows: [],
     next_offset: null,
     ...overrides,

@@ -93,6 +93,11 @@ export interface LemmaDetailResponse {
   gender_breakdown: BreakdownBucket[];
   surface_breakdown: BreakdownBucket[];
   work_breakdown: BreakdownBucket[];
+  /** Per requested morph feature (`Case`, `Number`, …): the total this
+   *  request would return with that one feature's filter removed and
+   *  every other filter kept. What the empty state's "Drop X · N hits"
+   *  links promise; no breakdown can supply it (#691). */
+  drop_counts: Record<string, number>;
   rows: KwicRow[];
   next_offset: number | null;
 }

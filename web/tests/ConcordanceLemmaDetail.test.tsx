@@ -54,6 +54,7 @@ const detail = (lemma: string, surface: string) => ({
   gender_breakdown: [],
   surface_breakdown: [],
   work_breakdown: [],
+  drop_counts: {},
   rows: [row(surface)],
   next_offset: null,
 });
