@@ -205,14 +205,15 @@ describe("TimeSeriesChart", () => {
   });
 
   // Regression: the chart used to take its height from `useElementSize` on
-  // `.mchart-svg-wrap` — the very element the SVG renders into. That wrap is
-  // `width: 100%` with no height, so its height is content-driven, and the
-  // only content is the SVG being sized. Each ResizeObserver tick therefore
-  // grew the SVG by the layout delta, without bound: measured live in Chrome
-  // at 164220px, then 220348 → 220828 → 221308 → 221788, +480px per frame.
+  // the element it renders into. The observed element is `.mchart` (the
+  // outer `ref`, not `.mchart-svg-wrap` — #599), whose height is
+  // content-driven: the legend plus the SVG being sized. Each ResizeObserver
+  // tick therefore grew the SVG by the layout delta, without bound: measured
+  // live in Chrome at 164220px, then 220348 → 220828 → 221308 → 221788,
+  // +480px per frame.
   //
-  // jsdom cannot reproduce the loop (clientHeight is always 0 here — see
-  // #585), and stubbing the size to a constant is exactly the condition
+  // jsdom cannot reproduce the loop (it has no layout, and reports 0×0,
+  // which the hook ignores — #585), and stubbing the size to a constant is exactly the condition
   // under which the bug cannot appear. So assert the invariant instead:
   // height must never be read from the observed element.
   it("does not take its height from the element it renders into", () => {
