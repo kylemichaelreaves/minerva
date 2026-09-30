@@ -135,8 +135,12 @@ test.describe("readable work URLs (#602)", () => {
     await reader.goto(first.work, first.lang);
 
     // `useRouting` canonicalises the hash on first load via replaceState, so
-    // the old URL both resolves AND stops being the one the user copies.
-    await expect(page).toHaveURL(new RegExp(`#/r/${slugify(first.work)}\\?`));
+    // the old URL both resolves AND stops being the one the user copies — and
+    // once the range names the author, the Reader grows it to the two-segment
+    // canonical form in place (#611).
+    await expect(page).toHaveURL(
+      new RegExp(`#/r/${slugify(first.author)}/${slugify(first.work)}\\?`),
+    );
     await expect(reader.line().first()).toBeVisible();
   });
 });
