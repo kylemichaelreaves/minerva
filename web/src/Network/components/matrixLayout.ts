@@ -144,3 +144,86 @@ export function bandLabel(corpus: CorpusBucket, length: number): string {
 export function pct(n: number, total: number | undefined): string {
   return `${((n / (total ?? n)) * 100).toFixed(1)}%`;
 }
+
+/** A cell with its display position on each axis, and the two authors it
+ *  names. The matrix is a keyboard grid (#696): this is what its roving
+ *  tabindex walks. */
+export interface GridCell {
+  cell: MatrixCell;
+  src: NetworkAuthor;
+  tgt: NetworkAuthor;
+  /** Row position, 0 = top. */
+  row: number;
+  /** Column position, 0 = left. */
+  col: number;
+}
+
+/** Each cell placed on `axes`, in display order: rows top to bottom, then
+ *  columns left to right. A cell that cannot be placed on the axes or
+ *  named from `authors` is left out, not drawn at position 0. */
+export function placeCells(
+  cells: MatrixCell[],
+  axes: MatrixAxes,
+  authors: NetworkAuthor[],
+): GridCell[] {
+  return cells
+    .flatMap((cell) => {
+      const src = authors[cell.r];
+      const tgt = authors[cell.c];
+      const row = axes.rowPos.get(cell.r);
+      const col = axes.colPos.get(cell.c);
+      if (!src || !tgt || row === undefined || col === undefined) return [];
+      return [{ cell, src, tgt, row, col }];
+    })
+    .sort((a, b) => a.row - b.row || a.col - b.col);
+}
+
+/** Placed cells (in `placeCells` order) grouped into display rows. */
+export function gridRows(placed: GridCell[]): { pos: number; cells: GridCell[] }[] {
+  const rows: { pos: number; cells: GridCell[] }[] = [];
+  let current: GridCell[] = [];
+  let pos = -1;
+  for (const g of placed) {
+    if (g.row !== pos) {
+      pos = g.row;
+      current = [];
+      rows.push({ pos, cells: current });
+    }
+    current.push(g);
+  }
+  return rows;
+}
+
+export type GridMove = "left" | "right" | "up" | "down" | "home" | "end";
+
+type Rank = readonly [number, number, number];
+
+/** How each move ranks a candidate against the focused cell: `null` for a
+ *  cell the move cannot reach, otherwise lower is nearer. The grid is
+ *  sparse, so the cell straight below is often missing: a vertical move
+ *  goes to the nearest row that has any cell, then its nearest column,
+ *  then the leftmost of two equally near. */
+const MOVES: Record<GridMove, (c: GridCell, from: GridCell) => Rank | null> = {
+  right: (c, f) => (c.row === f.row && c.col > f.col ? [c.col, 0, 0] : null),
+  left: (c, f) => (c.row === f.row && c.col < f.col ? [-c.col, 0, 0] : null),
+  home: (c, f) => (c.row === f.row ? [c.col, 0, 0] : null),
+  end: (c, f) => (c.row === f.row ? [-c.col, 0, 0] : null),
+  down: (c, f) => (c.row > f.row ? [c.row, Math.abs(c.col - f.col), c.col] : null),
+  up: (c, f) => (c.row < f.row ? [-c.row, Math.abs(c.col - f.col), c.col] : null),
+};
+
+const nearer = (a: Rank, b: Rank) => (a[0] - b[0] || a[1] - b[1] || a[2] - b[2]) < 0;
+
+/** The cell `move` lands on from `from`, or `from` itself at an edge. */
+export function moveInGrid(cells: readonly GridCell[], from: GridCell, move: GridMove): GridCell {
+  let best = from;
+  let bestRank: Rank | null = null;
+  for (const c of cells) {
+    const rank = MOVES[move](c, from);
+    if (rank && (bestRank === null || nearer(rank, bestRank))) {
+      best = c;
+      bestRank = rank;
+    }
+  }
+  return best;
+}

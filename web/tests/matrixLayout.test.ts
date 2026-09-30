@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
-import { buildAxes, cellValue, bandLabel, pct, stepFor } from "~/Network/components/matrixLayout";
+import {
+  buildAxes,
+  cellValue,
+  bandLabel,
+  gridRows,
+  moveInGrid,
+  pct,
+  placeCells,
+  stepFor,
+  type GridCell,
+  type GridMove,
+} from "~/Network/components/matrixLayout";
 
 function nth<T>(xs: T[], i: number): T {
   const x = xs[i];
@@ -127,5 +138,114 @@ describe("pct", () => {
   it("formats a share to one decimal", () => {
     expect(pct(300, 1000)).toBe("30.0%");
     expect(pct(5, undefined)).toBe("100.0%");
+  });
+});
+
+// #696: the matrix is a keyboard grid. These pin the model the panel's
+// roving tabindex walks; the panel's own suite drives it with keys.
+describe("placeCells", () => {
+  const axes = buildAxes(authors, cells);
+
+  it("puts each cell at its display row and column, top-left first", () => {
+    const placed = placeCells(cells, axes, authors);
+    expect(placed.map((g) => [g.src.name, g.tgt.name, g.row, g.col])).toEqual([
+      ["Plato", "Homer", 0, 0],
+      ["Augustine", "Vulgate", 1, 2],
+      ["Aquinas", "Plato", 2, 1],
+      ["Aquinas", "Vulgate", 2, 2],
+      ["Aquinas", "Augustine", 2, 3],
+      ["Nietzsche", "Plato", 3, 1],
+    ]);
+    expect(placed[0]?.cell).toBe(cells[0]);
+  });
+
+  it("leaves out a cell it cannot place on the axes or name from the authors", () => {
+    const offAxes: MatrixCell[] = [
+      { r: 5, c: 0, n: 1 }, // Boulainvilliers is on no row
+      { r: 1, c: 5, n: 1 }, // …and on no column
+    ];
+    expect(placeCells(offAxes, axes, authors)).toEqual([]);
+    // Axes built from cells that name authors the list does not have.
+    const ghosts: MatrixCell[] = [
+      { r: 99, c: 0, n: 1 },
+      { r: 1, c: 99, n: 1 },
+    ];
+    expect(placeCells(ghosts, buildAxes(authors, ghosts), authors)).toEqual([]);
+  });
+});
+
+describe("gridRows", () => {
+  it("groups placed cells into their display rows", () => {
+    const rows = gridRows(placeCells(cells, buildAxes(authors, cells), authors));
+    expect(rows.map((r) => [r.pos, r.cells.map((g) => g.col)])).toEqual([
+      [0, [0]],
+      [1, [2]],
+      [2, [1, 2, 3]],
+      [3, [1]],
+    ]);
+  });
+
+  it("has no rows for no cells", () => {
+    expect(gridRows([])).toEqual([]);
+  });
+});
+
+describe("moveInGrid", () => {
+  const who = { name: "X", short: "X", ord: 0, corpus: "class" } as const;
+  const at = (row: number, col: number): GridCell => ({
+    cell: { r: row, c: col, n: 1 },
+    src: who,
+    tgt: who,
+    row,
+    col,
+  });
+  // A sparse grid, as the real one is:
+  //   row 0:  .  A  .  .
+  //   row 1:  B  .  .  C
+  //   row 2:  .  D  E  F
+  const [A, B, C, D, E, F] = [at(0, 1), at(1, 0), at(1, 3), at(2, 1), at(2, 2), at(2, 3)];
+  const grid = [A, B, C, D, E, F];
+  const move = (from: GridCell, m: GridMove) => moveInGrid(grid, from, m);
+
+  it("steps right and left to the next cell in the row, skipping gaps", () => {
+    expect(move(B, "right")).toBe(C);
+    expect(move(C, "left")).toBe(B);
+    expect(move(D, "right")).toBe(E);
+    expect(move(F, "left")).toBe(E);
+  });
+
+  it("stays put at the end of a row", () => {
+    expect(move(C, "right")).toBe(C);
+    expect(move(B, "left")).toBe(B);
+    expect(move(A, "right")).toBe(A);
+  });
+
+  it("goes to the row's first and last cell on Home and End", () => {
+    expect(move(F, "home")).toBe(D);
+    expect(move(D, "end")).toBe(F);
+    expect(move(A, "home")).toBe(A);
+  });
+
+  it("moves vertically to the nearest row that has a cell, then the nearest column", () => {
+    expect(move(A, "down")).toBe(B); // row 1: B and C are 1 and 2 columns off
+    expect(move(B, "down")).toBe(D); // row 2: D is nearest column 0
+    expect(move(C, "down")).toBe(F); // same column
+    expect(move(F, "up")).toBe(C);
+    expect(move(E, "up")).toBe(C); // B is two columns off, C one
+    expect(move(D, "up")).toBe(B); // B and C: B is nearer
+  });
+
+  it("breaks a tie between equally near columns towards the left", () => {
+    // From column 2, the next row's cells at columns 1 and 3 are equally
+    // near; the left one wins, whichever order the cells arrive in.
+    const tie = [at(0, 2), at(1, 1), at(1, 3)];
+    const [from, left, right] = tie as [GridCell, GridCell, GridCell];
+    expect(moveInGrid(tie, from, "down")).toBe(left);
+    expect(moveInGrid([from, right, left], from, "down")).toBe(left);
+  });
+
+  it("stays put at the top and bottom", () => {
+    expect(move(A, "up")).toBe(A);
+    expect(move(E, "down")).toBe(E);
   });
 });
