@@ -68,14 +68,32 @@ export function placeAuthors(
  *  compressed to this and marked with a break. */
 export const GAP_CAP = 90;
 
-/** Pixel x for each author (in `placeAuthors` order) on a piecewise year
- *  scale: every gap is `min(gap, GAP_CAP) * k` px but never under a
+/** Differences between consecutive years. */
+function yearGaps(years: readonly number[]): number[] {
+  const gaps: number[] = [];
+  let prev: number | null = null;
+  for (const y of years) {
+    if (prev !== null) gaps.push(y - prev);
+    prev = y;
+  }
+  return gaps;
+}
+
+/** Each item (in `placeAuthors` order) with its pixel x on a piecewise
+ *  year scale: every gap is `min(gap, GAP_CAP) * k` px but never under a
  *  minimum spacing, with `k` solved so the whole axis fills `innerW`.
  *  The minimum spacing shrinks on narrow panels so some width is left
- *  for the years themselves. */
-export function timeScale(years: number[], padL: number, innerW: number): number[] {
-  const gaps = years.slice(1).map((y, i) => y - (years[i] ?? y));
-  if (gaps.length === 0) return years.map(() => padL + innerW / 2);
+ *  for the years themselves.
+ *
+ *  The x rides on the item rather than in a parallel array, so a caller
+ *  never zips positions back onto authors by index (#692). */
+export function placeOnAxis<T extends { year: number }>(
+  items: readonly T[],
+  padL: number,
+  innerW: number,
+): (T & { x: number })[] {
+  const gaps = yearGaps(items.map((a) => a.year));
+  if (gaps.length === 0) return items.map((a) => ({ ...a, x: padL + innerW / 2 }));
   const even = innerW / gaps.length;
   // 11 px keeps rotated labels apart; below that even spacing wins, so
   // the axis still fits (labels crowd rather than overflow).
@@ -89,9 +107,22 @@ export function timeScale(years: number[], padL: number, innerW: number): number
     if (total(mid) > innerW) hi = mid;
     else lo = mid;
   }
-  const xs = [padL];
-  gaps.forEach((g, i) => xs.push((xs[i] ?? padL) + step(g, lo)));
-  return xs;
+  let x = padL;
+  let prev: number | null = null;
+  return items.map((a) => {
+    if (prev !== null) x += step(a.year - prev, lo);
+    prev = a.year;
+    return { ...a, x };
+  });
+}
+
+/** Pixel x for each year, as `placeOnAxis` would place it. */
+export function timeScale(years: number[], padL: number, innerW: number): number[] {
+  return placeOnAxis(
+    years.map((year) => ({ year })),
+    padL,
+    innerW,
+  ).map((p) => p.x);
 }
 
 /** Midpoints of the gaps long enough to be compressed. */
@@ -140,6 +171,28 @@ export function eraLabel(name: string, width: number): string {
   if (width > 80) return name.toUpperCase();
   if (width > 34) return (name.split(" ")[0] ?? name).slice(0, 5).toUpperCase();
   return "";
+}
+
+/** A pair with both of its ends looked up — in a year table, or on the
+ *  axis. */
+export interface ArcEnds<T> {
+  pair: AuthorPair;
+  src: T;
+  tgt: T;
+}
+
+/** The pairs whose two ends `ends` knows, each with those ends resolved.
+ *  Filtering and lookup are one step, so a caller never holds a pair it
+ *  then fails to place, and needs no fallback for a miss (#692). */
+export function resolvePairs<T>(
+  pairs: readonly AuthorPair[],
+  ends: ReadonlyMap<string, T>,
+): ArcEnds<T>[] {
+  return pairs.flatMap((pair) => {
+    const src = ends.get(pair.src);
+    const tgt = ends.get(pair.tgt);
+    return src === undefined || tgt === undefined ? [] : [{ pair, src, tgt }];
+  });
 }
 
 /** Every in-matrix author pair, heaviest first. */

@@ -10,6 +10,8 @@ import {
   logWeight,
   pairsFromCells,
   placeAuthors,
+  placeOnAxis,
+  resolvePairs,
   taperPath,
   timeScale,
   type ArcAuthor,
@@ -114,6 +116,50 @@ describe("timeScale", () => {
 
   it("centres a lone author", () => {
     expect(timeScale([100], 20, 600)).toEqual([320]);
+  });
+
+  it("places nobody when there is nobody", () => {
+    expect(timeScale([], 20, 600)).toEqual([]);
+  });
+});
+
+describe("placeOnAxis", () => {
+  // #692: the x rides on the item it belongs to, so a caller never zips a
+  // parallel `xs` array back onto its authors by index — the `xs[i] ?? 0`
+  // that zip needed could not fire, and nobody had seen it work.
+  it("carries each item through with its timeScale x attached", () => {
+    const items = [
+      { name: "Homer", year: -800 },
+      { name: "Plato", year: -380 },
+      { name: "Kant", year: 1780 },
+    ];
+    const placed = placeOnAxis(items, 20, 600);
+    expect(placed.map((p) => p.name)).toEqual(["Homer", "Plato", "Kant"]);
+    expect(placed.map((p) => p.x)).toEqual(
+      timeScale(
+        items.map((i) => i.year),
+        20,
+        600,
+      ),
+    );
+    expect(placed[0]?.x).toBe(20);
+    expect(placed.at(-1)?.x).toBeCloseTo(620, 3);
+  });
+});
+
+describe("resolvePairs", () => {
+  const ends = new Map([
+    ["A", 1],
+    ["B", 2],
+  ]);
+  const p = (src: string, tgt: string) => ({ src, tgt, n: 1, intra_scrip: false });
+
+  it("keeps a pair with both ends known, and resolves them", () => {
+    expect(resolvePairs([p("A", "B")], ends)).toEqual([{ pair: p("A", "B"), src: 1, tgt: 2 }]);
+  });
+
+  it("drops a pair when either end is unknown", () => {
+    expect(resolvePairs([p("Z", "B"), p("A", "Z")], ends)).toEqual([]);
   });
 });
 

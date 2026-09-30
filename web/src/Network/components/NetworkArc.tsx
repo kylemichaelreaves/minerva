@@ -18,7 +18,7 @@ import type { AuthorPair, NetworkSummary } from "~/api/networkApi";
 import { YEAR_TICKS, formatYear } from "~/utils/atlasGeometry";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { NetworkDrilldownShell } from "~/Network/components/NetworkDrilldownShell";
-import { selectArcPairs } from "~/Network/components/ArcPanel";
+import { YEAR_BY_NAME, selectArcPairs } from "~/Network/components/ArcPanel";
 
 interface Props {
   minConfidence?: number;
@@ -62,11 +62,6 @@ const MAX_ARCS = 30;
 function makeYOf(yMin: number, yMax: number): (year: number) => number {
   const span = yMax - yMin || 1;
   return (year) => Y_TOP + ((year - yMin) * (Y_BOT - Y_TOP)) / span;
-}
-
-function yearOf(name: string): number | null {
-  const a = ATLAS_AUTHORS.find((x) => x.name === name);
-  return a ? a.year : null;
 }
 
 /** Greedy label de-overlap going downward. If a label's natural y is
@@ -175,27 +170,21 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
   const yOf = (year: number) => layout().yOf(year);
   const tickLabels = createMemo(() => tickLabelsToDraw(YEAR_TICKS, layout().labels, layout().yOf));
 
-  // Filter the API's top pairs to only those with both endpoints in
-  // our year table. Union the volumetric ``all`` slice with the
-  // backend's ``per_author_top`` (each source author's top 3
-  // outgoing non-intra-scrip pairs) so canonical-lineage edges like
+  // Keep only the API's top pairs with both endpoints in the year
+  // table, each resolved to those two years — the selector's filter and
+  // lookup are one step, so there is no second lookup to guard (#692).
+  // Union the volumetric ``all`` slice with the backend's
+  // ``per_author_top`` (each source author's top 3 outgoing
+  // non-intra-scrip pairs) so canonical-lineage edges like
   // Hegel→Heraclitus / Nietzsche→Heraclitus survive even when their
   // volume sits below the volumetric MAX_ARCS cutoff.
-  const validNames = () =>
-    new Set(ATLAS_AUTHORS.map((a) => a.name).filter((n) => yearOf(n) !== null));
-
-  // Each arc carries both endpoint years so the render below never
-  // re-looks them up. ``validNames`` already guarantees both are in the
-  // year table; the guard only narrows the type.
   const arcs = () =>
-    selectArcPairs(props.summary.top_pairs.all, props.summary.top_pairs.per_author_top, {
-      validNames: validNames(),
-      cap: MAX_ARCS,
-    }).flatMap((p) => {
-      const srcYear = yearOf(p.src);
-      const tgtYear = yearOf(p.tgt);
-      return srcYear === null || tgtYear === null ? [] : [{ p, srcYear, tgtYear }];
-    });
+    selectArcPairs(
+      props.summary.top_pairs.all,
+      props.summary.top_pairs.per_author_top,
+      YEAR_BY_NAME,
+      { cap: MAX_ARCS },
+    );
 
   return (
     <div class="net-arc-svg-wrap">
@@ -265,7 +254,7 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
           }}
         </For>
         <For each={arcs()}>
-          {({ p, srcYear, tgtYear }) => {
+          {({ pair: p, src: srcYear, tgt: tgtYear }) => {
             const ys = yOf(srcYear);
             const yt = yOf(tgtYear);
             const yA = Math.min(ys, yt);
