@@ -702,6 +702,146 @@ class TestFixtureEndToEnd:
         assert max(int(c.book.split()[1]) for c in chunks) == 5
 
 
+# ════════════════════════════════════════════════════════════════════
+# The Appendix ad Leviathan (#575)
+# ════════════════════════════════════════════════════════════════════
+
+_APPENDIX_FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "hobbes_la" / "appendix_sample.txt"
+
+
+@pytest.fixture(scope="module")
+def appendix_chunks() -> list:
+    return list(
+        parse_file(
+            _APPENDIX_FIXTURE,
+            work_title="Appendix ad Leviathan",
+            work_code="leviathan_appendix_lat",
+        )
+    )
+
+
+class TestDamagedRunningHeads:
+    """The appendix comes from a second scan of vol. III (the first one
+    lacks pp. 510–512), whose OCR mangles the page number of the running
+    head — ``53/``, ``5a3``, ``56?`` — and often the words too. The shape
+    rule catches what `_RUNNING_HEAD_RE`'s clean-digit page number cannot."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "APPENDIX  AD  LEVIATHAN.  53/ ",
+            "APPENDIX  AD  LEVIATHAN.  5a3 ",
+            "55G  APPENDIX  AD  LEVIATHAN. ",
+            "APPKNDIX    M)    LKVIATTIAX.  529 ",
+            "APPEM)1\\    Ai)    II   \\MTH\\V.  5'39 ",
+            "APPFNmx     \\n    I.KVTATHAN.  549 ",
+            "API'EM)IX  AU   LEVIATHAN.  56? ",
+            # The chapter title, over `_RUNNING_HEAD_RE`'s 44-char cap.
+            "DE  QUIBUSDAM  OBJECTIONIBUS  CONTRA  LEVIATHAN. ",
+        ],
+    )
+    def test_is_dropped_when_enabled(self, line: str) -> None:
+        assert _classify(line, max_chap=3, damaged_heads=True).kind == "drop"
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Mixed-case body: a lowercase run of three or more letters.
+            "B.  Ita  est.  Sed  in  his  quae  protulisti  nihil",
+            # Too few capitals: a margin marker's worth.
+            "CAP.  XLVii.  A.",
+            # All caps but long: over the 50-character running-head width.
+            "DE  QUIBUSDAM  OBJECTIONIBUS  CONTRA  LEVIATHAN  ET  ALIA  MULTA.",
+            # Under 75% capitals, though no lowercase run reaches three.
+            "Ab  Cd  Ef  KLMNOPQRST  uv  wx",
+        ],
+    )
+    def test_body_lines_are_not_heads(self, line: str) -> None:
+        assert _classify(line, max_chap=3, damaged_heads=True).kind == "body"
+
+    def test_is_off_by_default(self) -> None:
+        """Leviathan and De Cive do not use it: their leaked heads are a
+        separate, id-churning fix."""
+
+        assert _classify("APPENDIX  AD  LEVIATHAN.  53/ ", max_chap=3).kind == "body"
+
+
+class TestAppendixEndToEnd:
+    def test_three_chapters(self, appendix_chunks: list) -> None:
+        assert [c.section for c in appendix_chunks] == [
+            "Cap 1, ¶1",
+            "Cap 1, ¶2",
+            "Cap 1, ¶3",
+            "Cap 2, ¶1",
+            "Cap 2, ¶2",
+            "Cap 3, ¶1",
+        ]
+
+    def test_short_speaker_turns_join_the_next_turn(self, appendix_chunks: list) -> None:
+        """Under the 80-char floor a dialogue question would be dropped and
+        its answer left without it. It is carried into the next turn."""
+
+        by_section = {c.section: c.text for c in appendix_chunks}
+        assert by_section["Cap 1, ¶3"].startswith(
+            "A. Quid est corpns, quid incorporeum, quid spiritus ? B. Nescio."
+        )
+        assert by_section["Cap 2, ¶1"].startswith(
+            "A. QuiD est hieresis ? B. Vox Graeca est, significans cujuscunque "
+            "sectae dogma. A. Quid est secta ? B. Secta est numerus"
+        )
+        assert by_section["Cap 2, ¶2"].startswith("B. Ita est. A. Quo judice")
+
+    def test_a_short_line_that_is_not_a_turn_is_still_dropped(self, appendix_chunks: list) -> None:
+        joined = " ".join(c.text for c in appendix_chunks)
+        assert "HiERRSI" not in joined  # Caput II's OCR-damaged title
+
+    def test_damaged_heads_are_gone_and_the_word_they_split_rejoins(
+        self, appendix_chunks: list
+    ) -> None:
+        joined = " ".join(c.text for c in appendix_chunks)
+        assert "APPENDIX" not in joined
+        assert "QUIBUSDAM" not in joined
+        assert "exercerent Papae" in joined
+
+    def test_metadata(self, appendix_chunks: list) -> None:
+        c = appendix_chunks[0]
+        assert (c.work, c.lang, c.edition_year) == ("Appendix ad Leviathan", "lat", "1668")
+
+    def test_turns_are_not_merged_in_the_other_works(self) -> None:
+        chunks = list(
+            parse_file(_APPENDIX_FIXTURE, work_title="Leviathan", work_code="leviathan_lat")
+        )
+        assert not any(c.text.startswith("A. Quid est corpns") for c in chunks)
+
+    def test_find_work_registers_the_appendix(self) -> None:
+        from minerva.authors.hobbes_works import find_work
+
+        cw = find_work("leviathan_appendix_lat.txt")
+        assert cw is not None
+        assert (cw.code, cw.title, cw.lang, cw.locator) == (
+            "leviathan_appendix_lat",
+            "Appendix ad Leviathan",
+            "lat",
+            "hobbes_la",
+        )
+
+    def test_a_trailing_turn_with_nothing_after_it_is_kept_if_long_enough(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "leviathan_appendix_lat.txt"
+        path.write_text(
+            "CAPUT  I.\n\nA.  Quid  est  secta  ?\n\n"
+            "B.  Secta  est  numerus  hominum  sequentium  eundem  in  scientiis  magistrum.\n",
+            encoding="utf-8",
+        )
+        chunks = list(
+            parse_file(path, work_title="Appendix ad Leviathan", work_code="leviathan_appendix_lat")
+        )
+        assert [c.text for c in chunks] == [
+            "A. Quid est secta ? B. Secta est numerus hominum sequentium eundem in scientiis magistrum."
+        ]
+
+
 class TestParseDir:
     def test_skips_unknown_filenames(self, tmp_path, capsys) -> None:
         (tmp_path / "not_a_hobbes_work.txt").write_text("CAPUT I.\n\nverba.\n")

@@ -48,3 +48,18 @@ It is hand-written, not generated, so nothing regenerates it. If the
 parser gains a rule, add the line shape that rule exists for and a row
 above saying what breaks without it. Keep it short: the point is that
 every rule has a cheap, CI-visible witness, not corpus coverage.
+
+# `appendix_sample.txt`
+
+Real lines from the *Appendix ad Leviathan* (#575), trimmed: the UofT scan
+of vol. III, after `scripts/clean-hobbes-latin.py`. It exists for the two
+rules only that work uses.
+
+| shape | in the fixture | what would break without it |
+|---|---|---|
+| running head with an OCR-mangled page number | `APPENDIX  AD  LEVIATHAN.  53/`, `…  5a3` | the head lands mid-paragraph |
+| …splitting a hyphenated word | `exerce-` / head / `rent` | `exerce- APPENDIX … rent` |
+| chapter title over `_RUNNING_HEAD_RE`'s width | `DE  QUIBUSDAM  OBJECTIONIBUS  CONTRA  LEVIATHAN.` | nothing today (the floor drops it), but it is the rule's widest real hit |
+| short dialogue turns | `A.  Quid  est  secta  ?`, `B.  Ita  est.` | dropped by the 80-char floor, leaving answers without questions |
+| …isolated beside a page break | `A.  Quid  est  secta  ?` before `540  APPENDIX …` | blanked as a margin orphan before the floor is even reached |
+| short non-turn line | `DB  HiERRSI.` | must still be dropped, and must not break the carry |

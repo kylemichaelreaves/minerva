@@ -5,7 +5,12 @@ Runs between ``perseus/download_hobbes_la.py`` and ``minerva ingest``,
 in place and idempotently, over::
 
     data/hobbes/raw_lat/leviathan_lat.txt
+    data/hobbes/raw_lat/leviathan_appendix_lat.txt
     data/hobbes/raw_lat/de_cive_lat.txt
+
+(every ``*.txt`` there — the appendix, added by #575, needs no rule of its
+own: its scan resolves the ligatures the same ways, 209 words repaired and
+127 caret tokens stripped on 2026-09-30)
 
 **This script used to be about something else.** Before #535 the
 sources were Internet Archive scans of the 1668 and 1704 printings,
