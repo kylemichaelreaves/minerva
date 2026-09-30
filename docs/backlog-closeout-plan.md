@@ -4124,3 +4124,44 @@ What is *not* by design is a wrong `## Measured`, and two of the three had one:
 along) and "four files unformatted" (152). Both came from reading a truncated
 command output as a complete one. That is what the required population slot in
 `references/filing-findings.md` exists for.
+
+## Batch 13 — regrouping the open backlog (2026-09-29)
+
+58 issues were open on 2026-09-29. Grouped by the code they touch and by
+what verifying them costs — a batch is something one PR can close without
+waiting on another batch's re-ingest window or on an owner decision.
+
+| batch | issues | n | needs |
+|---|---|---:|---|
+| **13a Frontend correctness & a11y** | #510 #585 #589 #599 #611 #690 #691 #692 #696 #702 | 10 | nothing outside `web/` except #691's count |
+| 13b Ingest text repair | #561 #574 #575 #578 #579 #675 #676 #679 #681 #683 | 10 | a re-ingest window per corpus (Hobbes: 574/575/679; Diels: 681/683; OCR spacing: 561/578/579; bilingual/notes: 675/676) |
+| 13c Audit-2026-07 residue | #498 #499 #500 #501 #502 #504 #505 | 7 | none; tech-debt |
+| 13d Refs pipeline correctness | #518 #523 #572 #710 #715 #720 | 6 | `refs build` + verify on the live DB |
+| 13e Ingest invariants | #536 #542 #554 #648 #707 | 5 | re-chunk churn measurement |
+| 13f Dev tooling & test infra | #136 #605 #663 #664 #722 | 5 | none |
+| 13g Scripture-cite rules | #519 #576 #577 #719 | 4 | `refs build` + verify |
+| 13h Perf / observability | #548 #628 #651 | 3 | benchmarks (interleaved) |
+| 13i Author metadata (era, year) | #695 #698 | 2 | **editorial decision**: era boundaries, six floruit dates |
+| 13j Refs rule coverage | #521 #522 | 2 | rule design |
+| Owner / blocked | #299 #333 #463 #526 | 4 | a decision, or a merge to measure |
+
+13a and 13b tie on count; 13a went first because it needs no destructive
+operation and no paid verify pass, so it can run to merge unattended. #695
+and #698 are frontend-labelled but were held out of 13a: each needs an
+editorial call before any code is right.
+
+### 13a outcome
+
+Nine of the ten shipped in one PR. #510 was held: its premise does not
+reproduce — Concordance moved to `useAbortableFetch` in #244, a month
+before the issue was filed, and the `_retry` key it names is the retry
+trigger *inside* that hook's args, so "delete `retryKey`" would break three
+retry controls. What remains is a choice (add `refetch()` to the shared
+hook, or accept the args key and close it as done), recorded on the issue.
+
+Five of the nine carried a correction, each posted on its issue: #585 (only
+width collapses now), #589 (`routeHash` scored 109 to `readRoute`'s 44),
+#611 (two of the four red tests asserted the old URL, not a reload), #691
+(the both-filters path was wrong too: 9,229 promised, 0 returned), #692
+(#699 had moved all six inert branches). Filed along the way: #726, #727,
+#728.
