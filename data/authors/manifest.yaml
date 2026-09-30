@@ -1013,15 +1013,19 @@ expected_chunks:
   origen:
     min: 1185
     max: 1818
+  # Re-centred 2026-09-30 after #578's OCR paragraph reflow: the old bands
+  # were sized for line-level chunks (lettres_parlemens median 39 chars).
+  # Measured after the re-ingest: 7,058 -> 2,344, 7,678 -> 3,469,
+  # 19,721 -> 12,067. Same [0.85x, 1.10x] formula as before.
   boulainvilliers:
-    min: 5999
-    max: 7763
+    min: 1992
+    max: 2578
   gobineau:
-    min: 6526
-    max: 8445
+    min: 2949
+    max: 3816
   renan:
-    min: 16762
-    max: 21693
+    min: 10257
+    max: 13274
 
 # Chunk-granularity gate (#176). Thresholds plus the hand-reviewed baseline
 # of work/lang pairs that already exceed them.
