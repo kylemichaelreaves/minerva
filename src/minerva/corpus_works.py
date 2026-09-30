@@ -122,6 +122,13 @@ class CorpusWork:
     # and of the first paragraph after it, or ``None`` to run to the end
     # of the work. Matched in order; a run that no longer matches raises.
     editorial_runs: tuple[tuple[str, str | None], ...] = ()
+    # A facing-page edition flattened into alternating original and
+    # translation blocks (Miller's Loeb *De Officiis*, #675). The pass in
+    # `corpus/facing_text.py` drops the original-language chunks and types
+    # footnotes `note` and sidenotes / front and back matter `editorial`,
+    # after ids are fixed, so no kept chunk's id moves. Plain-text only:
+    # it reads the source markup the Gutenberg transcription uses.
+    facing_text: bool = False
 
 
 def filename_index(works: Iterable[CorpusWork]) -> dict[str, CorpusWork]:
