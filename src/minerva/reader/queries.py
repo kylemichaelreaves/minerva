@@ -496,8 +496,8 @@ def _no_lemma_error(conn: sqlite3.Connection, chunk_id: str) -> NotFoundError:
     label = APPARATUS_LABEL.get(row["block_type"]) if row else None
     if label:
         return NotFoundError(
-            f"no word lookup in apparatus ({label}): it is the translator's "
-            "or editor's text, which is not lemmatized."
+            f"no word lookup in apparatus ({label}): it is not the author's "
+            "own text, so it is not lemmatized."
         )
     return NotFoundError(
         "no lemma cache entry at that (chunk_id, offset). Run "

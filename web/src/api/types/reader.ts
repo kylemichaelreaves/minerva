@@ -30,7 +30,12 @@ export type BlockType =
   // Editors' / translators' apparatus hosted in the work — an editorial
   // introduction, bibliography, or front matter. Capped in retrieval
   // (retrieve.py `_APPARATUS_TYPES`) and collapsed in the Reader.
-  | "editorial";
+  | "editorial"
+  // A fragment a source attributes to the author that the editor judges
+  // doubtful, false or forged (Diels's ZWEIFELHAFTE / UNECHTE sections).
+  // Shown in place, set apart; in `block_types.APPARATUS_TYPES`, so it is
+  // capped in retrieval and never lemmatized (#683).
+  | "spurious";
 
 export interface SourceChunk {
   chunk_id: string;
