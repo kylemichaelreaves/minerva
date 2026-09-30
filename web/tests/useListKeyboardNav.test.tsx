@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import {
+  isActivatableTarget,
   isEditableTarget,
   useListKeyboardNav,
   type ListKeyboardNavOpts,
@@ -82,6 +83,43 @@ describe("useListKeyboardNav()", () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
+  it("leaves Enter to activatable controls (#702), but still navigates from them", () => {
+    const onSelect = vi.fn();
+    const { onNext, container } = setup({ onSelect });
+    const make = (html: string): HTMLElement => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html;
+      container.appendChild(wrap);
+      const el = wrap.querySelector<HTMLElement>("[data-t]");
+      if (!el) throw new Error("fixture has no [data-t]");
+      return el;
+    };
+    const chip = make('<button data-t type="button">chip</button>');
+    const controls = [
+      chip,
+      make('<a data-t href="#/x">link</a>'),
+      make('<div data-t role="button" tabindex="0">r</div>'),
+      make('<span data-t role="link" tabindex="0">r</span>'),
+      make('<li data-t role="option">o</li>'),
+      make("<details><summary data-t>s</summary></details>"),
+      // A child of a button (icon span) is still inside the control.
+      make('<button type="button"><span data-t>icon</span></button>'),
+    ];
+    for (const el of controls) {
+      const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+      el.dispatchEvent(enter);
+      expect(enter.defaultPrevented, el.outerHTML).toBe(false);
+    }
+    expect(onSelect).not.toHaveBeenCalled();
+    // Arrow/j navigation from a focused chip keeps working.
+    fireEvent.keyDown(chip, { key: "j" });
+    expect(onNext).toHaveBeenCalledTimes(1);
+    // A plain anchor with no href is not a link; Enter still selects.
+    const bare = make("<a data-t>back</a>");
+    fireEvent.keyDown(bare, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
   it("is fully muted while `enabled` returns false (modal/sheet open)", () => {
     const onEscape = vi.fn();
     const { onNext } = setup({ enabled: () => false, onEscape });
@@ -116,6 +154,15 @@ describe("useListKeyboardNav()", () => {
     unmount();
     fireEvent.keyDown(document.body, { key: "j" });
     expect(onNext).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("isActivatableTarget()", () => {
+  it("is false for non-elements and plain containers", () => {
+    expect(isActivatableTarget(null)).toBe(false);
+    expect(isActivatableTarget(window)).toBe(false);
+    expect(isActivatableTarget(document.createElement("div"))).toBe(false);
+    expect(isActivatableTarget(document.createElement("button"))).toBe(true);
   });
 });
 
