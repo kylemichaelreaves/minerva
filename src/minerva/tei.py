@@ -133,6 +133,15 @@ def _detect_lang(file_stem: str, root: ET.Element) -> str:
     return "eng"
 
 
+#: A footnote marker standing alone as a note's whole text: a number, or a
+#: line number with a note number (the Iliad's "153.1"). No trailing period —
+#: Rackham's Aristotle writes cross-reference notes as "2.7.2.", which are
+#: citations and are kept. Swept over every note the TEI sources emit
+#: (#676): this matches the 336 Loeb Homer markers and nothing else, where
+#: digits-and-dots alone also took 25 of those citations.
+_FOOTNOTE_MARKER_RE = re.compile(r"\d+(?:\.\d+)*\Z")
+
+
 def _make_chunk_id(*parts: str) -> str:
     blob = "|".join(p or "" for p in parts).encode("utf-8")
     return hashlib.blake2b(blob, digest_size=10).hexdigest()
@@ -538,6 +547,12 @@ class _ChunkBuilder:
     def _emit_aux(self, pending: list[str], block_type: str) -> None:
         meta = self.meta_common
         for text in pending:
+            if block_type == "note" and _FOOTNOTE_MARKER_RE.match(text):
+                # A marker with no note body: all 336 of Perseus's Loeb Homer
+                # notes (#676). Skipped, but the sequence number is still
+                # spent, so every real note after it keeps its chunk_id.
+                self._aux_seq += 1
+                continue
             chunk_id = _make_chunk_id(
                 meta["source_file"],
                 meta["work"],

@@ -131,6 +131,45 @@ More real text.
     assert note.text == "The footnote text."
 
 
+_MARKER_NOTES_XML = """<?xml version="1.0"?>
+<TEI.2><teiHeader><fileDesc><titleStmt><title>Test</title></titleStmt></fileDesc></teiHeader>
+<text><body><div1 type="book" n="1">
+<milestone unit="section" n="1a"/>
+Sing, goddess, the wrath.<note resp="Loeb" anchored="yes">{marker}</note>
+Real text.<note resp="Rackham" anchored="yes">2.7.2.</note>
+<milestone unit="section" n="1b"/>
+More text.<note>A real footnote.</note>
+</div1></body></text></TEI.2>
+"""
+
+
+def _notes(tmp_path: Path, marker: str) -> list[tei.Chunk]:
+    path = _write_xml(tmp_path, "test_en.xml", _MARKER_NOTES_XML.format(marker=marker))
+    return [c for c in tei.parse_file(path, corpus="homer", author="Homer") if c.block_type]
+
+
+def test_marker_only_note_is_not_emitted(tmp_path: Path):
+    # Perseus's Loeb Homer keeps the footnote markers and none of the note
+    # bodies, so a <note> reading "1" or "153.1" is not a note (#676).
+    for marker in ("1", "153.1"):
+        assert "2.7.2." in [c.text for c in _notes(tmp_path, marker)]
+        assert marker not in [c.text for c in _notes(tmp_path, marker)]
+
+
+def test_cross_reference_note_is_kept(tmp_path: Path):
+    # Rackham's "We have already seen[2.7.2.]" is a citation, not a marker:
+    # sentence-final period and all. Digits-and-dots alone would drop it.
+    assert [c.text for c in _notes(tmp_path, "1")] == ["2.7.2.", "A real footnote."]
+
+
+def test_skipped_marker_keeps_later_note_ids(tmp_path: Path):
+    # The skipped marker still consumes its sequence number, so every note
+    # after it keeps the chunk_id it had when the marker was emitted.
+    with_marker = _notes(tmp_path, "1")
+    with_prose = _notes(tmp_path, "a gloss")
+    assert [c.chunk_id for c in with_marker] == [c.chunk_id for c in with_prose[1:]]
+
+
 def test_work_title_excludes_note_gloss(tmp_path: Path):
     # A glossing <note> inside the <head> must not be swallowed into the work
     # title (regression: Plato's Epinomis / Epictetus' Fragments titles had a
