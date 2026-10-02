@@ -56,6 +56,14 @@ from typing import Any
 from .. import llm as llm_mod
 from .constants import NOT_HUMAN_CURATED
 
+# `output_config.effort` for the judge when --llm-effort is not given.
+# Measured on Sonnet 5.5 (#744, 30 batches of 10): the judge spent zero
+# thinking tokens at every level, and `low` agreed with `high` on 94.8%
+# of verdicts against 94.4% for `high` re-run against itself. `low` costs
+# nothing in quality and trims output ~8%; pinning it also stops the
+# route from following whatever the API default becomes.
+LLM_VERIFY_DEFAULT_EFFORT = "low"
+
 # Reference-type vocabulary the LLM is allowed to return. Mirrors the
 # CHECK constraint on cross_references.reference_type. Anything outside
 # this set is coerced to the row's existing type to keep the schema

@@ -658,17 +658,23 @@ scripts/snapshot-db.sh pre-<author>-refs
 - llm-verify is idempotent (skips rows whose `source_method` already
   contains `llm`), so only the new auto rows hit the LLM.
 
-Cost guide at Sonnet 4.6 pricing (~$3/M input, $15/M output, prompt
-caching on the system message). The default is now Sonnet 5.5 ($2/M
-input, $10/M output), but it thinks adaptively by default and those
-thinking tokens bill as output, so the table has not been re-measured
-and should not be scaled down by the price ratio alone:
+- llm-verify sends `output_config.effort: low` unless `--llm-effort`
+  says otherwise. On Sonnet 5.5 the judge spends no thinking tokens at
+  any effort, and `low` agrees with `high` as often as `high` agrees
+  with itself (#744).
+
+Cost guide, measured on Sonnet 5.5 ($2/M input, $10/M output) in #744:
+**about $0.0015 per row** at `--batch-size 10`. A 10-row call averaged
+3,858 uncached + 611 cache-read input tokens and 670 output tokens at
+`low`, so input is about half the bill. `high` adds about 3%. The ranges
+below are that per-row figure times the row count; they are not separate
+measurements:
 
 | Author character | Approx new auto rows | LLM cost |
 |---|---|---|
-| Moderate Greek author (1 major work) | 500–1,500 | $2–5 |
-| Heavy philosopher (Nietzsche) | 3,000–5,000 | $8–15 |
-| Biblical corpus (LXX + Vulgate + NT) | 8,000–15,000 | $25–45 |
+| Moderate Greek author (1 major work) | 500–1,500 | $0.75–2.25 |
+| Heavy philosopher (Nietzsche) | 3,000–5,000 | $4.50–7.50 |
+| Biblical corpus (LXX + Vulgate + NT) | 8,000–15,000 | $12–23 |
 
 ## 13. Verify
 

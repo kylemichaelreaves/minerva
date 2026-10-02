@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import argparse
 
+from ... import llm as llm_mod
+from ...refs.llm_verify import LLM_VERIFY_DEFAULT_EFFORT
 from .add import cmd_refs_add
 from .build import cmd_refs_build
 from .list_cmd import cmd_refs_list
@@ -309,6 +311,16 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
     pb.add_argument(
         "--llm-model",
         help="Model name (default: claude-sonnet-5-5 for anthropic; gpt-4o-mini for openai; llama3.1 for ollama).",
+    )
+    pb.add_argument(
+        "--llm-effort",
+        choices=llm_mod.EFFORT_LEVELS,
+        default=None,
+        help=(
+            "Anthropic output_config.effort for llm-verify "
+            f"(default: {LLM_VERIFY_DEFAULT_EFFORT}, chosen by the #744 sweep). "
+            "Ignored by the other backends."
+        ),
     )
     pb.add_argument(
         "--llm-base-url",

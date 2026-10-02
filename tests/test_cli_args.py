@@ -229,3 +229,32 @@ def test_refs_build_rejudge_blind_flag_defaults_off(parser):
     assert args.rejudge_blind is False
     args = parser.parse_args(["refs", "build", "--strategy", "llm-verify", "--rejudge-blind"])
     assert args.rejudge_blind is True
+
+
+def test_refs_build_llm_effort_flag(parser):
+    args = parser.parse_args(["refs", "build", "--strategy", "llm-verify"])
+    assert args.llm_effort is None
+    args = parser.parse_args(["refs", "build", "--strategy", "llm-verify", "--llm-effort", "high"])
+    assert args.llm_effort == "high"
+
+
+@pytest.mark.parametrize(("flag", "expected"), [([], "low"), (["--llm-effort", "high"], "high")])
+def test_refs_llm_verify_passes_effort_to_the_backend(tmp_path, monkeypatch, flag, expected):
+    """llm-verify pins `low` unless told otherwise: across a 300-row sweep
+    it agreed with `high` as often as `high` agreed with itself (#744)."""
+    from minerva import llm as llm_mod
+    from minerva.cli.refs.build import _build_llm_verify
+
+    seen = {}
+
+    def fake_make_backend(kind, **kw):
+        seen.update(kw)
+        raise llm_mod.LLMError("stop here")
+
+    monkeypatch.setattr(llm_mod, "make_backend", fake_make_backend)
+    args = build_parser().parse_args(
+        ["refs", "build", "--strategy", "llm-verify", "--db", str(tmp_path / "x.db"), *flag]
+    )
+    assert _build_llm_verify(args) == 2
+    assert seen["effort"] == expected
+    assert not (tmp_path / "x.db").exists()
