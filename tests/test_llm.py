@@ -19,6 +19,7 @@ from minerva.llm import (
     _iter_ndjson_lines,
     _iter_sse_data_lines,
     _redact,
+    make_backend,
 )
 
 
@@ -405,3 +406,29 @@ def test_anthropic_refusal_raises_with_category(monkeypatch):
     _capture_anthropic_body(monkeypatch, backend, payload)
     with pytest.raises(LLMError, match=r"declined.*cyber"):
         backend.complete([Message("user", "q")])
+
+
+def test_anthropic_effort_is_sent_as_output_config(monkeypatch):
+    # #744: effort is the only depth control on Sonnet 5.5, and the API
+    # default is `high` — omitting it is not "no thinking".
+    backend = AnthropicBackend(api_key="sk-ant", base_url="https://api.example.com/v1", effort="low")
+    sent = _capture_anthropic_body(monkeypatch, backend, _OK)
+    backend.complete([Message("user", "q")])
+    assert sent["output_config"] == {"effort": "low"}
+
+
+def test_anthropic_without_effort_leaves_the_api_default(monkeypatch):
+    backend = AnthropicBackend(api_key="sk-ant", base_url="https://api.example.com/v1")
+    sent = _capture_anthropic_body(monkeypatch, backend, _OK)
+    backend.complete([Message("user", "q")])
+    assert "output_config" not in sent
+
+
+def test_anthropic_rejects_an_unknown_effort():
+    with pytest.raises(LLMError, match="effort"):
+        AnthropicBackend(api_key="sk-ant", effort="lowest")
+
+
+def test_make_backend_passes_effort_to_anthropic(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+    assert make_backend("anthropic", effort="medium").effort == "medium"

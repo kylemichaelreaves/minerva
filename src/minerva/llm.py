@@ -301,6 +301,11 @@ def _accepts_temperature(model: str) -> bool:
     return not model.startswith(_NO_SAMPLING_PARAM_MODELS)
 
 
+# Values for the Messages API's `output_config.effort`. On Sonnet 5.5 it
+# is the only control on thinking depth; leaving it unset means `high`.
+EFFORT_LEVELS: tuple[str, ...] = ("low", "medium", "high", "xhigh", "max")
+
+
 class AnthropicBackend(LLMBackend):
     name = "anthropic"
 
@@ -316,7 +321,11 @@ class AnthropicBackend(LLMBackend):
         max_tokens: int = 16000,
         timeout: float = 60.0,
         enable_prompt_cache: bool | None = None,
+        effort: str | None = None,
     ) -> None:
+        if effort is not None and effort not in EFFORT_LEVELS:
+            raise LLMError(f"Unknown Anthropic effort {effort!r}; expected one of {EFFORT_LEVELS}")
+        self.effort = effort
         self.model = model
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
@@ -371,6 +380,8 @@ class AnthropicBackend(LLMBackend):
         }
         if _accepts_temperature(self.model):
             body_dict["temperature"] = temperature
+        if self.effort is not None:
+            body_dict["output_config"] = {"effort": self.effort}
         if stream:
             body_dict["stream"] = True
         if system_parts:
@@ -589,7 +600,10 @@ def make_backend(
     *,
     model: str | None = None,
     base_url: str | None = None,
+    effort: str | None = None,
 ) -> LLMBackend:
+    """``effort`` reaches the Anthropic backend only; the others have no
+    equivalent setting and ignore it."""
     kind = (kind or "none").lower()
     if kind == "none":
         return NullBackend()
@@ -602,6 +616,7 @@ def make_backend(
         return AnthropicBackend(
             model=model or DEFAULT_ANTHROPIC_MODEL,
             base_url=base_url or "https://api.anthropic.com/v1",
+            effort=effort,
         )
     if kind == "ollama":
         return OllamaBackend(

@@ -280,14 +280,12 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
         )
     )
 
-    conn = _open(args)
-    conn.execute("PRAGMA foreign_keys = ON")
-
     try:
         backend = llm_mod.make_backend(
             args.llm_backend,
             model=args.llm_model,
             base_url=args.llm_base_url,
+            effort=args.llm_effort or refs_llm_verify.LLM_VERIFY_DEFAULT_EFFORT,
         )
     except llm_mod.LLMError as exc:
         print(f"LLM backend init failed: {exc}", file=sys.stderr)
@@ -298,6 +296,10 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+
+    # Opened after the backend so a bad backend never touches the DB.
+    conn = _open(args)
+    conn.execute("PRAGMA foreign_keys = ON")
 
     print(
         f"PASS C — LLM verify "
