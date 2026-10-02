@@ -308,7 +308,7 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
     )
     pb.add_argument(
         "--llm-model",
-        help="Model name (default: claude-sonnet-4-6 for anthropic; gpt-4o-mini for openai; llama3.1 for ollama).",
+        help="Model name (default: claude-sonnet-5-5 for anthropic; gpt-4o-mini for openai; llama3.1 for ollama).",
     )
     pb.add_argument(
         "--llm-base-url",

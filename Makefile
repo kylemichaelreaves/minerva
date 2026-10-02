@@ -10,7 +10,7 @@ PYTEST := .venv/bin/pytest
 POIETES := .venv/bin/minerva
 RUFF := .venv/bin/ruff
 
-# Override on the command line, e.g. `make run LLM=anthropic LLM_MODEL=claude-sonnet-4-6`.
+# Override on the command line, e.g. `make run LLM=anthropic LLM_MODEL=claude-sonnet-5-5`.
 LLM ?= none
 LLM_MODEL ?=
 PORT ?= 8000
@@ -37,7 +37,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
 help:
 	@echo "Targets:"
 	@echo "  make run          Start backend (:$(PORT)) + Vite dev (:5173). Ctrl-C stops both."
-	@echo "                    Override the model: make run LLM=anthropic LLM_MODEL=claude-sonnet-4-6"
+	@echo "                    Override the model: make run LLM=anthropic LLM_MODEL=claude-sonnet-5-5"
 	@echo "  make run-host     Same as run, but Vite binds to 0.0.0.0 so a phone on the same"
 	@echo "                    LAN can hit the dev server. Backend stays on loopback — Vite's"
 	@echo "                    proxy bridges /api, so no CORS or auth changes needed."

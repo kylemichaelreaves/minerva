@@ -281,16 +281,39 @@ class OpenAIBackend(LLMBackend):
                 resp.close()
 
 
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5"
+
+# Models that reject a non-default `temperature` / `top_p` / `top_k` with a
+# 400. Callers still pass a temperature (it matters for OpenAI/Ollama); the
+# Anthropic body drops it for these. Prefix match, so dated or point
+# releases in the same line are covered.
+_NO_SAMPLING_PARAM_MODELS: tuple[str, ...] = (
+    "claude-sonnet-5",
+    "claude-opus-5",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-fable",
+    "claude-mythos",
+)
+
+
+def _accepts_temperature(model: str) -> bool:
+    return not model.startswith(_NO_SAMPLING_PARAM_MODELS)
+
+
 class AnthropicBackend(LLMBackend):
     name = "anthropic"
 
     def __init__(
         self,
         *,
-        model: str = "claude-sonnet-4-6",
+        model: str = DEFAULT_ANTHROPIC_MODEL,
         api_key: str | None = None,
         base_url: str = "https://api.anthropic.com/v1",
-        max_tokens: int = 4096,
+        # Adaptive thinking is on by default from Sonnet 5 onward and its
+        # tokens count toward max_tokens even though no thinking text is
+        # returned, so 4096 could be spent before the reply starts.
+        max_tokens: int = 16000,
         timeout: float = 60.0,
         enable_prompt_cache: bool | None = None,
     ) -> None:
@@ -344,18 +367,19 @@ class AnthropicBackend(LLMBackend):
         body_dict: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "temperature": temperature,
             "messages": chat,
         }
+        if _accepts_temperature(self.model):
+            body_dict["temperature"] = temperature
         if stream:
             body_dict["stream"] = True
         if system_parts:
             joined_system = "\n\n".join(system_parts)
             if self.enable_prompt_cache:
                 # Mark the system block ephemeral. Only engages caching
-                # when the system itself is ≥1024 tokens (Sonnet/Opus
-                # minimum); below that the directive is silently ignored
-                # by the API.
+                # above the model's minimum cacheable prefix (512 tokens
+                # on Sonnet 5.5, 1024 on Sonnet 4.6); below that the
+                # directive is silently ignored by the API.
                 body_dict["system"] = [
                     {
                         "type": "text",
@@ -370,7 +394,7 @@ class AnthropicBackend(LLMBackend):
         # (chat[-2] when chat[-1] is the new user turn) as a cache
         # breakpoint. The prefix system+all-prior-turns gets cached, so
         # the next turn in the same conversation reads it back. A short
-        # conversation may not cross the 1024-token floor; once it
+        # conversation may not cross the cacheable floor; once it
         # does, every subsequent turn pays the cheap read cost.
         if self.enable_prompt_cache and len(chat) >= 2:
             target = chat[-2]
@@ -425,6 +449,9 @@ class AnthropicBackend(LLMBackend):
         # can read backend.last_usage to log cache_read_input_tokens /
         # cache_creation_input_tokens after each non-streaming call.
         self.last_usage = payload.get("usage") if isinstance(payload, dict) else None
+        if payload.get("stop_reason") == "refusal":
+            details = payload.get("stop_details") or {}
+            raise LLMError(f"Anthropic declined the request (category: {details.get('category')!r})")
         if not joined:
             raise LLMError(f"Anthropic returned no text content: {payload!r}")
         return joined
@@ -573,7 +600,7 @@ def make_backend(
         )
     if kind == "anthropic":
         return AnthropicBackend(
-            model=model or "claude-sonnet-4-6",
+            model=model or DEFAULT_ANTHROPIC_MODEL,
             base_url=base_url or "https://api.anthropic.com/v1",
         )
     if kind == "ollama":

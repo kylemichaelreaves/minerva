@@ -15,7 +15,7 @@ export ANTHROPIC_API_KEY=sk-ant-api03-replace-me
 
 # Default LLM + model so `make run` doesn't need flags. Optional.
 # export LLM=anthropic
-# export LLM_MODEL=claude-sonnet-4-6
+# export LLM_MODEL=claude-sonnet-5-5
 
 # This repo lives at github.com/kylemichaelreaves/minerva — pin the gh CLI
 # to the personal account *for this directory only*. GH_TOKEN takes
