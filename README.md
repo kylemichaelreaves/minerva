@@ -145,7 +145,7 @@ python3 perseus/download_kant_de.py     # ~45 min: KrV, KpV, KU, GMS, …
 
 # 7. With Anthropic, OpenAI, or local Ollama
 export ANTHROPIC_API_KEY=sk-ant-...
-.venv/bin/minerva ask --llm anthropic --llm-model claude-sonnet-4-6 \
+.venv/bin/minerva ask --llm anthropic --llm-model claude-sonnet-5-5 \
     "Compare Aristotle on friendship with Hegel's account of recognition."
 
 # 8. Run the locate-the-passage eval (Plato gold set)

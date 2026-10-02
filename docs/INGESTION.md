@@ -551,7 +551,7 @@ Cost: zero API calls. Wall time: 1-5 min on the standard machine.
 
 ```bash
 uv run minerva refs build --strategy llm-verify \
-    --llm-backend anthropic --llm-model claude-sonnet-4-6 \
+    --llm-backend anthropic --llm-model claude-sonnet-5-5 \
     --max-llm-calls 700  # bump if many candidates
 ```
 
@@ -647,7 +647,7 @@ scripts/snapshot-db.sh pre-<author>-refs
 .venv/bin/minerva refs build --strategy rules --source-author <NewAuthor>
 .venv/bin/minerva refs build --strategy embed-verify
 .venv/bin/minerva refs build --strategy llm-verify \
-    --llm-backend anthropic --llm-model claude-sonnet-4-6 \
+    --llm-backend anthropic --llm-model claude-sonnet-5-5 \
     --batch-size 20 --max-llm-calls 500
 ```
 
@@ -659,7 +659,10 @@ scripts/snapshot-db.sh pre-<author>-refs
   contains `llm`), so only the new auto rows hit the LLM.
 
 Cost guide at Sonnet 4.6 pricing (~$3/M input, $15/M output, prompt
-caching on the system message):
+caching on the system message). The default is now Sonnet 5.5 ($2/M
+input, $10/M output), but it thinks adaptively by default and those
+thinking tokens bill as output, so the table has not been re-measured
+and should not be scaled down by the price ratio alone:
 
 | Author character | Approx new auto rows | LLM cost |
 |---|---|---|

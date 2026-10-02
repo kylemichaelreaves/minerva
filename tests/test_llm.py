@@ -355,3 +355,53 @@ def test_anthropic_stream_complete_yields_text_deltas(monkeypatch):
     )
     out = list(backend.stream_complete([Message("user", "q")]))
     assert out == ["Hi", "!"]
+
+
+def _capture_anthropic_body(monkeypatch, backend, payload):
+    sent: dict = {}
+
+    class FakeResp:
+        def read(self):
+            return json.dumps(payload).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        sent.update(json.loads(req.data.decode("utf-8")))
+        return FakeResp()
+
+    monkeypatch.setattr("minerva.llm.urllib.request.urlopen", fake_urlopen)
+    return sent
+
+
+_OK = {"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn"}
+
+
+def test_anthropic_default_model_omits_temperature(monkeypatch):
+    # Sonnet 5.5 400s on any non-default temperature; callers still pass one.
+    backend = AnthropicBackend(api_key="sk-ant", base_url="https://api.example.com/v1")
+    sent = _capture_anthropic_body(monkeypatch, backend, _OK)
+    assert backend.complete([Message("user", "q")], temperature=0.1) == "ok"
+    assert sent["model"] == "claude-sonnet-5-5"
+    assert "temperature" not in sent
+
+
+def test_anthropic_older_model_still_sends_temperature(monkeypatch):
+    backend = AnthropicBackend(
+        api_key="sk-ant", base_url="https://api.example.com/v1", model="claude-sonnet-4-6"
+    )
+    sent = _capture_anthropic_body(monkeypatch, backend, _OK)
+    backend.complete([Message("user", "q")], temperature=0.1)
+    assert sent["temperature"] == 0.1
+
+
+def test_anthropic_refusal_raises_with_category(monkeypatch):
+    backend = AnthropicBackend(api_key="sk-ant", base_url="https://api.example.com/v1")
+    payload = {"content": [], "stop_reason": "refusal", "stop_details": {"category": "cyber"}}
+    _capture_anthropic_body(monkeypatch, backend, payload)
+    with pytest.raises(LLMError, match=r"declined.*cyber"):
+        backend.complete([Message("user", "q")])
