@@ -37,12 +37,20 @@
 #     the test suite touches them — `tests/` mocks any code path that
 #     would call into the lemmatizer. Skip the install to keep
 #     cold-cache CI runs reasonable.
+#   * The `[embed]` extra (sentence-transformers → torch). On Linux, PyPI's
+#     torch wheel depends on the CUDA stack, so installing it downloaded
+#     ~2 GB of `nvidia-*` wheels on every `python` run — setup-uv prunes
+#     pre-built wheels from its cache, so none of it was ever reused. No
+#     test imports it: `minerva.embed` imports sentence-transformers lazily
+#     inside the model loader, and the suite stubs the model. Measured
+#     before dropping it: 3436 passed, 3 skipped, with and without.
 #
 # This list used to also claim `[hegel]` was excluded, "installed only
 # when the test suite imports them". It never was: the install line has
 # carried `hegel` since the initial commit (c30a217), in the same commit
-# that wrote the comment saying it didn't. `[hegel]` and `[embed]` are
-# both installed, deliberately — the suite imports the parsers.
+# that wrote the comment saying it didn't. `[hegel]` is installed,
+# deliberately — the suite imports the parsers. (`[embed]` was installed
+# too, under the same justification, which was never true of it.)
 #
 # Actions are pinned to commit SHAs, not tags: `@v7` is mutable and a
 # compromised action repo can move it. Dependabot's `github-actions`
@@ -59,10 +67,9 @@ on:
 # Least privilege for GITHUB_TOKEN. Without this every job inherits the
 # repository default, which for a repo created before the default changed
 # is write-all — a token that can push to main, handed to three jobs that
-# only read code. The install surface is the reason it matters: `uv pip
-# install -e '.[dev,hegel,embed]'` pulls the torch stack and `npm ci` runs
-# lifecycle scripts across the web tree, all with that token in the
-# environment. Jobs needing more declare it themselves (see `sonar`).
+# only read code. The install surface is the reason it matters: `uv sync`
+# pulls a few dozen PyPI packages and `npm ci` runs lifecycle scripts
+# across the web tree, all with that token in the environment. Jobs needing more declare it themselves (see `sonar`).
 permissions:
   contents: read
 
@@ -143,7 +150,7 @@ jobs:
         # Only --locked keeps lock and pyproject in sync by construction,
         # which is the whole point. Verified both behaviours against a
         # deliberately stale lock before choosing.
-        run: uv sync -p 3.13 --locked --extra dev --extra hegel --extra embed
+        run: uv sync -p 3.13 --locked --extra dev --extra hegel
 
       - name: Lint (ruff)
         # --no-sync: run in the env the install step built. Without it,
@@ -224,7 +231,11 @@ jobs:
         # vitest across cores by default). Worth having regardless: it
         # makes a red `python` job fail faster, and removes the risk of
         # this job becoming the long pole as the backend suite grows.
-        run: uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml -n auto
+        #
+        # `--durations=20` lists the slowest tests in the log. Nothing here
+        # surfaced them before, and the five live-server fixtures had each
+        # been sleeping 0.5s per test in `shutdown()` — ~24s of a serial run.
+        run: uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml -n auto --durations=20
 
       - name: Upload coverage report
         if: always()
@@ -282,7 +293,14 @@ jobs:
         # + json-summary reports (see vite.config.ts). lcov is the
         # format Codecov / Coveralls consume; json-summary is small
         # enough to read directly from CI logs.
-        run: npm run test:coverage
+        #
+        # --maxWorkers=2: vitest's default is availableParallelism() - 1,
+        # which on this repo's 2-vCPU private runner is a single worker, so
+        # the step used half the machine. Set here, not in vite.config.ts,
+        # so local runs keep every core. Locally, one worker → two took the
+        # suite from 42.5s to 15.6s (with the vmThreads pool, which only
+        # pays off with more than one worker).
+        run: npm run test:coverage -- --maxWorkers=2
 
       - name: Upload coverage report
         if: always()
@@ -347,13 +365,22 @@ jobs:
           source ../.venv/bin/activate
           npm run test:e2e
 
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          # Keyed on the resolved package version, not on a tag: the browser
-          # binary is bound to it, so a bump must miss the cache.
-          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+          # Keyed on the installed @playwright/test version: the browser
+          # binary is bound to it, so a bump must miss the cache, and nothing
+          # else should. This used to be keyed on the whole package-lock.json
+          # hash while this comment claimed the version, so every unrelated
+          # npm bump missed, re-downloaded the browser, and saved one more
+          # 271 MB entry — a dozen of them held ~3 GB of the repo's 10 GB
+          # cache quota at once.
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
       - name: Install Chromium
         # --with-deps installs the system libraries Chromium needs; it is
@@ -451,8 +478,21 @@ jobs:
           name: web-coverage
           path: web/coverage
 
+      - name: Cache Sonar JRE and analyzers
+        # The scanner provisions a JRE and downloads its language analyzers
+        # into ~/.sonar/cache on every run — ~8s and ~5s of each scan, on the
+        # critical path after `python`. The scanner checks each file's hash
+        # and fetches only what it lacks, so a stale entry costs a download,
+        # never a wrong analysis. Keyed on this workflow file so a Dependabot
+        # bump of the scan action's pin saves a fresh entry.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.sonar/cache
+          key: sonar-${{ runner.os }}-${{ hashFiles('.github/workflows/check.yml') }}
+          restore-keys: sonar-${{ runner.os }}-
+
       - name: SonarQube scan
         # Config lives in sonar-project.properties at the repo root.
-        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
