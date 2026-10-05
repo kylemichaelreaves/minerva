@@ -26,6 +26,17 @@ export default defineConfig({
     // touch no DOM at all say `// @vitest-environment node` and skip building
     // one. tests/setup.ts keeps happy-dom's fetch off the network.
     environment: "happy-dom",
+    // vmThreads builds each worker's environment once and runs every file
+    // in a fresh VM context, so files stay isolated without paying for a
+    // new happy-dom per file: vitest reported "happy-dom was created 157
+    // times · 35.49s total, 35% of tracked time" on CI. The gain needs two
+    // workers: at --maxWorkers=2, 22.4s → 15.6s, all 1589 tests passing,
+    // coverage identical file by file; at one worker it is a wash (42.5s vs
+    // 43.6s). vitest defaults to availableParallelism() - 1 workers, i.e.
+    // ONE on CI's 2-vCPU runner, so check.yml passes --maxWorkers=2.
+    // `isolate: false`, the other fix vitest suggests, is not safe here —
+    // 37 and 46 tests failed on two runs, so files leak state into each other.
+    pool: "vmThreads",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     // Playwright specs are `*.spec.ts`, which vitest's default glob collects

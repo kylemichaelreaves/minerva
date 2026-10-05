@@ -45,7 +45,9 @@ def running(deps: Any) -> Iterator[str]:
     """Serve *deps* on an ephemeral port for the duration of the block."""
 
     srv = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(deps))
-    thread = threading.Thread(target=srv.serve_forever, daemon=True)
+    # shutdown() blocks until serve_forever next polls; the 0.5s default
+    # made every test using this fixture cost half a second of sleep.
+    thread = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
     try:
         yield f"http://127.0.0.1:{srv.server_address[1]}"
