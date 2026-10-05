@@ -235,7 +235,19 @@ jobs:
         # `--durations=20` lists the slowest tests in the log. Nothing here
         # surfaced them before, and the five live-server fixtures had each
         # been sleeping 0.5s per test in `shutdown()` — ~24s of a serial run.
-        run: uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml -n auto --durations=20
+        #
+        # TMPDIR on tmpfs (#757): the suite opens 1,366+ fresh SQLite files,
+        # and each `store.open_db` replays the migration chain — 50 commits,
+        # each a real fsync in `journal_mode=delete`, `synchronous=FULL`. On
+        # this runner's disk a fresh open took 95–377ms median (max 3.3s);
+        # on /dev/shm 27–51ms, the same as the disk with sync turned off.
+        # Whole step, four parallel runs: 134s/100s on disk, 68s/87s on
+        # tmpfs. macOS fsync doesn't flush, which is why none of this shows
+        # locally. `mkdir` first: `tempfile` silently falls back to /tmp
+        # when TMPDIR doesn't exist, and this would quietly stop working.
+        run: |
+          mkdir -p /dev/shm/pytest
+          TMPDIR=/dev/shm/pytest uv run --no-sync pytest tests/ -q --cov --cov-report=term --cov-report=xml -n auto --durations=20
 
       - name: Upload coverage report
         if: always()
