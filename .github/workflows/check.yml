@@ -293,7 +293,14 @@ jobs:
         # + json-summary reports (see vite.config.ts). lcov is the
         # format Codecov / Coveralls consume; json-summary is small
         # enough to read directly from CI logs.
-        run: npm run test:coverage
+        #
+        # --maxWorkers=2: vitest's default is availableParallelism() - 1,
+        # which on this repo's 2-vCPU private runner is a single worker, so
+        # the step used half the machine. Set here, not in vite.config.ts,
+        # so local runs keep every core. Locally, one worker → two took the
+        # suite from 42.5s to 15.6s (with the vmThreads pool, which only
+        # pays off with more than one worker).
+        run: npm run test:coverage -- --maxWorkers=2
 
       - name: Upload coverage report
         if: always()
