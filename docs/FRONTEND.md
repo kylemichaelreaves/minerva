@@ -129,10 +129,22 @@ For URL-bound filters, accept `undefined` patches and route them through
 
 The project's pattern (not a strict WCAG ramp, but consistent):
 
-- Clickable `<span>` / `<div>` carry `role="link"` or `role="button"` — see
-  `Concordance/components/LbRow.tsx`.
-- Real `<button type="button">` is used for actions that submit, close, or
-  open a sheet — see `src/components/shell/MobileSheet.tsx`.
+- **Anything clickable is reachable by keyboard.** An action is a
+  `<button type="button">` and navigation is an `<a href>` (e.g.
+  `Concordance/components/LbRow.tsx`). Where neither fits, as with an SVG
+  `<g>`/`<path>` or a table row, use `role="button"`, `tabindex="0"` and
+  `onKeyDown={onActivateKey(fn)}` (`src/utils/activateKey.ts`). A `role`
+  without `tabindex` and a key handler is not enough: it announces a control
+  that Tab cannot reach.
+- The lint rule `minerva/no-mouse-only-click` (`web/eslint.mouseOnly.js`, #773)
+  fails `onClick` on any other intrinsic element. Where a site is mouse-only on
+  purpose, because the same action has a keyboard path elsewhere or the click
+  only dismisses something, it carries
+  `// eslint-disable-next-line minerva/no-mouse-only-click -- <that path>`.
+- The focus ring is global: `styles.css` gives every `button`, `input`,
+  `textarea`, `select` and `[tabindex]` a `:focus-visible` outline at zero
+  specificity (#774). Don't add one per component. Suppress it only where the
+  component paints its own focus state.
 - Dialog-role containers carry `aria-label`.
 - Keyboard nav: every page-level shortcut lives in the owning SFC (e.g.
   `LemmaDetail.tsx`) with cleanup via `onCleanup`. Don't sprinkle ad-hoc

@@ -10,10 +10,7 @@
 // top-nav entry is what they reach for the corpus-wide view.
 
 import { For, Show, createResource } from "solid-js";
-import {
-  fetchLemmaIndex,
-  type LemmaIndexRow,
-} from "~/api/concordanceApi";
+import { fetchLemmaIndex, type LemmaIndexRow } from "~/api/concordanceApi";
 
 interface Props {
   workTitle: string | null;
@@ -62,23 +59,19 @@ export function ConcordanceTabPanel(props: Props) {
 
   return (
     <div class="rail-concord">
-      <Show when={props.workTitle} fallback={
-        <div class="rail-concord-empty">
-          Open a work to see its top lemmas.
-        </div>
-      }>
+      <Show
+        when={props.workTitle}
+        fallback={<div class="rail-concord-empty">Open a work to see its top lemmas.</div>}
+      >
         <button
           class="rail-concord-cta"
           onClick={() => props.onOpenWorkScope()}
           disabled={!props.workTitle}
         >
-          Full concordance for this work{" "}
-          <span class="rail-concord-arr">→</span>
+          Full concordance for this work <span class="rail-concord-arr">→</span>
         </button>
 
-        <div class="rail-concord-head">
-          Top lemmas · this work
-        </div>
+        <div class="rail-concord-head">Top lemmas · this work</div>
 
         <Show when={data.loading}>
           <div class="rail-concord-loading">Loading lemma index…</div>
@@ -86,8 +79,7 @@ export function ConcordanceTabPanel(props: Props) {
 
         <Show when={!!data.error}>
           <div class="rail-concord-empty">
-            Lemma index unavailable. Has{" "}
-            <code>minerva terms lemmatize --lang {props.lang}</code>{" "}
+            Lemma index unavailable. Has <code>minerva terms lemmatize --lang {props.lang}</code>{" "}
             been run for this edition?
           </div>
         </Show>
@@ -96,15 +88,16 @@ export function ConcordanceTabPanel(props: Props) {
           <ul class="rail-concord-list">
             <For each={rows()}>
               {(row: LemmaIndexRow) => (
-                <li
-                  class="rail-concord-row"
-                  onClick={() => props.onOpenLemma(row.lemma)}
-                >
-                  <span class="rail-concord-lem">{row.lemma}</span>
-                  <span class="rail-concord-pos">{row.pos.toLowerCase()}</span>
-                  <span class="rail-concord-ct">
-                    {row.count.toLocaleString()}
-                  </span>
+                <li>
+                  <button
+                    type="button"
+                    class="rail-concord-row"
+                    onClick={() => props.onOpenLemma(row.lemma)}
+                  >
+                    <span class="rail-concord-lem">{row.lemma}</span>
+                    <span class="rail-concord-pos">{row.pos.toLowerCase()}</span>
+                    <span class="rail-concord-ct">{row.count.toLocaleString()}</span>
+                  </button>
                 </li>
               )}
             </For>
@@ -116,9 +109,7 @@ export function ConcordanceTabPanel(props: Props) {
             and the error branch above is what should speak for it. */}
         {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
         <Show when={loaded() && (loaded()?.rows?.length ?? 0) === 0 && !data.loading}>
-          <div class="rail-concord-empty">
-            No content lemmas in this work.
-          </div>
+          <div class="rail-concord-empty">No content lemmas in this work.</div>
         </Show>
       </Show>
     </div>

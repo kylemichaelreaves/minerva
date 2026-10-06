@@ -158,8 +158,10 @@ export function FilterRail(props: {
           <span>Scope</span>
         </div>
         <div class="fr-scope">
-          <span
+          <button
+            type="button"
             class={"seg" + (props.scope === "corpus" ? " on" : "")}
+            aria-pressed={props.scope === "corpus"}
             onClick={() => {
               if (props.scope !== "corpus") {
                 props.onSetScope({
@@ -171,9 +173,11 @@ export function FilterRail(props: {
             }}
           >
             Corpus
-          </span>
-          <span
+          </button>
+          <button
+            type="button"
             class={"seg" + (props.scope === "author" ? " on" : "")}
+            aria-pressed={props.scope === "author"}
             onClick={() => {
               // Only navigable when we already have an author to scope
               // to — the work-list click below sets one, as does the
@@ -186,9 +190,11 @@ export function FilterRail(props: {
             }}
           >
             {authorLabel()}
-          </span>
-          <span
+          </button>
+          <button
+            type="button"
             class={"seg" + (props.scope === "work" ? " on" : "")}
+            aria-pressed={props.scope === "work"}
             onClick={() => {
               if (props.scope !== "work" && selectedWorks().size > 0) {
                 props.onSetScope({ scope: "work" });
@@ -200,7 +206,7 @@ export function FilterRail(props: {
               : selectedWorks().size === 1
                 ? abbrevWork(soleWork())
                 : `${selectedWorks().size} works`}
-          </span>
+          </button>
         </div>
       </div>
 
@@ -210,9 +216,9 @@ export function FilterRail(props: {
             <span>
               {appliedPills().length} filter{appliedPills().length === 1 ? "" : "s"} applied
             </span>
-            <span class="reset" onClick={() => props.onResetAll()}>
+            <button type="button" class="reset" onClick={() => props.onResetAll()}>
               ↺ reset
-            </span>
+            </button>
           </div>
           <div class="pills">
             <For each={appliedPills()}>
@@ -220,15 +226,17 @@ export function FilterRail(props: {
                 <span class="pill">
                   <span class="k">{p.k}</span>
                   <span class={"v" + (p.italic ? " italic" : "")}>{p.v}</span>
-                  <span
+                  <button
+                    type="button"
                     class="x"
+                    aria-label={`Remove ${p.k}: ${p.v}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       p.onRemove();
                     }}
                   >
                     ×
-                  </span>
+                  </button>
                 </span>
               )}
             </For>
@@ -269,21 +277,23 @@ export function FilterRail(props: {
           </Show>
           <For each={visibleWorks()}>
             {(b) => (
-              <div
+              <button
+                type="button"
                 class={"fr-check" + (selectedWorks().has(b.value) ? " on" : "")}
+                aria-pressed={selectedWorks().has(b.value)}
                 onClick={() => props.onToggleWork(b.value)}
                 title={b.value}
               >
                 <span class="box" />
                 <span>{abbrevWork(b.value)}</span>
                 <span class="ct">{b.count.toLocaleString()}</span>
-              </div>
+              </button>
             )}
           </For>
           <Show when={!workExpanded() && !workSearch() && workOverflow() > 0}>
-            <span class="fr-more" onClick={() => setWorkExpanded(true)}>
+            <button type="button" class="fr-more" onClick={() => setWorkExpanded(true)}>
               + {workOverflow()} more work{workOverflow() === 1 ? "" : "s"} ▾
-            </span>
+            </button>
           </Show>
         </div>
       </Show>
@@ -368,9 +378,9 @@ export function FilterRail(props: {
           onToggle={props.onSetSurface}
         >
           <Show when={!surfaceExpanded() && surfaceOverflow() > 0}>
-            <span class="fr-more" onClick={() => setSurfaceExpanded(true)}>
+            <button type="button" class="fr-more" onClick={() => setSurfaceExpanded(true)}>
               + {surfaceOverflow()} more form{surfaceOverflow() === 1 ? "" : "s"} ▾
-            </span>
+            </button>
           </Show>
         </FilterChipGroup>
       </Show>

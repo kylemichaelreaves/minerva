@@ -7,6 +7,7 @@ import solid from "eslint-plugin-solid/configs/typescript";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import { minervaPlugin } from "./eslint.mouseOnly.js";
 
 export default tseslint.config(
   {
@@ -16,6 +17,10 @@ export default tseslint.config(
       "node_modules/**",
       "vite.config.ts.*",
       "eslint.config.js",
+      // Imported by this config and outside tsconfig, so like this file it
+      // cannot be type-check linted. tests/mouseOnlyControls.test.ts covers it.
+      "eslint.mouseOnly.js",
+      "eslint.mouseOnly.d.ts",
     ],
   },
   js.configs.recommended,
@@ -73,10 +78,7 @@ export default tseslint.config(
       // genuinely confusing case (`const x = (() => sideEffect())()`,
       // which makes `x` undefined) — non-arrow void returns still trip
       // it, so the footgun is preserved.
-      "@typescript-eslint/no-confusing-void-expression": [
-        "error",
-        { ignoreArrowShorthand: true },
-      ],
+      "@typescript-eslint/no-confusing-void-expression": ["error", { ignoreArrowShorthand: true }],
       // Playwright's fixture-override signature is `({}, use) => {}` —
       // the empty pattern is the destructured-fixtures parameter, required
       // by the shape even when an override needs none of them. This option
@@ -110,6 +112,17 @@ export default tseslint.config(
             "Use SFC .tsx colocation — do not add hooks/*.ts or utils/*.ts under feature surfaces (see docs/FRONTEND.md).",
         },
       ],
+    },
+  },
+  // Mouse-only controls (#773): see eslint.mouseOnly.js for the selector and
+  // for how a deliberate exception is written. Stories are left out, as they
+  // were from the sweep that counted the population.
+  {
+    files: ["src/**/*.tsx"],
+    ignores: ["src/**/*.stories.tsx"],
+    plugins: { minerva: minervaPlugin },
+    rules: {
+      "minerva/no-mouse-only-click": "error",
     },
   },
   // Prettier config disables ESLint rules that would conflict with

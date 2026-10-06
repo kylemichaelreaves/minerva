@@ -33,6 +33,7 @@ function WordToken(props: {
       data-offset={props.offset}
       data-term-id={props.dataTermId}
       title={props.title}
+      // eslint-disable-next-line minerva/no-mouse-only-click -- one tab stop per word is unusable; needs a roving-tabindex design (#785)
       onClick={(e) => {
         props.onClick(e);
       }}
@@ -56,12 +57,7 @@ export function WordRun(props: {
   pinned: PinnedHighlight[];
   chunkId: string;
   onTermClick: (termId: number, anchor: DOMRect, direction?: "ltr" | "rtl") => void;
-  onWordClick: (
-    word: string,
-    chunkId: string,
-    offset: number,
-    lineEl: Element | null,
-  ) => void;
+  onWordClick: (word: string, chunkId: string, offset: number, lineEl: Element | null) => void;
   onPinnedClick?: (chunkId: string, start: number, end: number) => void;
   /** Shift-click on a saved underline removes it. The handler signs
    *  off persisted state so the marker stays gone after reload. */
@@ -136,9 +132,7 @@ export function WordRun(props: {
           if (!p?.saved) return undefined;
           return "Saved translation — click to reopen, ⇧-click to remove";
         };
-        const handleClick = (
-          e: MouseEvent & { currentTarget: HTMLSpanElement },
-        ) => {
+        const handleClick = (e: MouseEvent & { currentTarget: HTMLSpanElement }) => {
           const p = pin();
           if (p?.saved) {
             onPinnedClickInner(e, p);
@@ -199,11 +193,7 @@ export function WordRun(props: {
                 onClick={(e) => {
                   e.stopPropagation();
                   const rect = e.currentTarget.getBoundingClientRect();
-                  props.onTermClick(
-                    occ().term_id,
-                    rect,
-                    detectAnchorDirection(e.currentTarget),
-                  );
+                  props.onTermClick(occ().term_id, rect, detectAnchorDirection(e.currentTarget));
                 }}
               >
                 {t.s}

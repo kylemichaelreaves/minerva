@@ -195,10 +195,7 @@ export function FreqRange(props: {
     <span class="fbar-range">
       <span class="ed">{lo().toLocaleString()}</span>
       <span class="track">
-        <span
-          class="fill"
-          style={{ left: `${loPct()}%`, right: `${100 - hiPct()}%` }}
-        />
+        <span class="fill" style={{ left: `${loPct()}%`, right: `${100 - hiPct()}%` }} />
         <input
           ref={loEl}
           class="thumb"
@@ -307,9 +304,14 @@ export function FilterBar(props: FilterBarProps) {
                     <span class="v" title={a}>
                       {a}
                     </span>
-                    <span class="x" onClick={() => props.onPickAuthor(a)}>
+                    <button
+                      type="button"
+                      class="x"
+                      aria-label={`Remove ${a} from the scope`}
+                      onClick={() => props.onPickAuthor(a)}
+                    >
                       ×
-                    </span>
+                    </button>
                   </span>
                 )}
               </For>
@@ -345,9 +347,14 @@ export function FilterBar(props: FilterBarProps) {
                     <span class="v" title={w}>
                       {w}
                     </span>
-                    <span class="x" onClick={() => props.onPickWork(w)}>
+                    <button
+                      type="button"
+                      class="x"
+                      aria-label={`Remove ${w} from the scope`}
+                      onClick={() => props.onPickWork(w)}
+                    >
                       ×
-                    </span>
+                    </button>
                   </span>
                 )}
               </For>

@@ -72,7 +72,9 @@
      tabs through scope levels (or the ⌘↑ shortcut fires). 180 ms is
      fast enough to feel snappy on click but slow enough to read as
      intentional. */
-  transition: background-color 180ms ease, color 180ms ease;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 .scope-pill .crumb:hover {
   color: var(--ink);
@@ -372,18 +374,13 @@
   border-bottom: 1px dashed var(--rule);
 }
 /* Controls that are <button>s for the keyboard (#726) but keep the look
-   they had as <span>/<a onClick>. styles.css already strips the UA button
-   chrome; what it also strips is the focus outline (`outline: 0` on every
-   button), so a control made focusable here would be focusable invisibly.
-   Single-class, so `.az-rail .l`, `.conc-mob-sheet-foot .done` etc. still
-   outrank it. */
+   they had as <span>/<a onClick>. styles.css strips the UA button chrome and,
+   since #774, paints the keyboard focus ring for every control, so this rule
+   no longer needs one of its own. Single-class, so `.az-rail .l`,
+   `.conc-mob-sheet-foot .done` etc. still outrank it. */
 .conc-btn {
   text-align: inherit;
   cursor: pointer;
-}
-.conc-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .conc-btn.conc-link {
   color: var(--accent);
@@ -608,6 +605,9 @@
   cursor: not-allowed;
 }
 .filter-rail .fr-check {
+  /* A <button> since #773: stretch and left-align, as the <div> did. */
+  width: 100%;
+  text-align: left;
   display: grid;
   grid-template-columns: 14px 1fr 44px;
   gap: 8px;
@@ -703,7 +703,8 @@
   line-height: 1.45;
   cursor: pointer;
 }
-.kwic-row:hover, .kwic-row.cur {
+.kwic-row:hover,
+.kwic-row.cur {
   background: var(--paper-soft);
 }
 .kwic-row.cur {
@@ -860,8 +861,12 @@
   animation: skel-pulse 1.4s ease-in-out infinite;
 }
 @keyframes skel-pulse {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Empty-state .broaden links: comma-separated suggestions list. */
@@ -1243,7 +1248,8 @@
     grid-row: 2;
     margin-top: 2px;
   }
-  .lb-row .spark, .lb-row .gloss {
+  .lb-row .spark,
+  .lb-row .gloss {
     display: none;
   }
   .lb-row .ct {
@@ -1270,13 +1276,16 @@
   .kwic-row .loc {
     text-align: left;
   }
-  .kwic-row .left, .kwic-row .right {
+  .kwic-row .left,
+  .kwic-row .right {
     white-space: normal;
     text-align: left;
     color: var(--ink);
     font-size: 13px;
   }
-  .kwic-row .left::after { content: ""; }
+  .kwic-row .left::after {
+    content: "";
+  }
   .kwic-row .match {
     background: var(--accent-soft, rgba(123, 46, 42, 0.08));
     color: var(--accent);

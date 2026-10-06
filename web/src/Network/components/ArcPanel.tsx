@@ -224,6 +224,7 @@ export function ArcPanel(props: {
                     d={arcD(a())}
                     fill={arcFill(a().pair, active())}
                     fill-opacity={arcOpacity(a().pair, active(), hovered()?.pair, weight(a().pair))}
+                    // eslint-disable-next-line minerva/no-mouse-only-click -- keyboard path is MatrixPanel's grid on the same page, whose cells open the same pair
                     onClick={() => props.onOpenPair(a().pair.src, a().pair.tgt)}
                     onMouseMove={(e) => {
                       if (!stageEl) return;

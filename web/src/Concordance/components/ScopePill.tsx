@@ -14,12 +14,18 @@ export function ScopePill(props: {
             <Show when={i() > 0 && !s.cur}>
               <span class="arr">‹</span>
             </Show>
-            <span
-              class={"crumb" + (s.cur ? " cur" : "")}
-              onClick={() => !s.cur && props.onPick(s.scope)}
+            <Show
+              when={!s.cur}
+              fallback={
+                <span class="crumb cur" aria-current="location">
+                  {s.label}
+                </span>
+              }
             >
-              {s.label}
-            </span>
+              <button type="button" class="crumb" onClick={() => props.onPick(s.scope)}>
+                {s.label}
+              </button>
+            </Show>
           </>
         )}
       </For>

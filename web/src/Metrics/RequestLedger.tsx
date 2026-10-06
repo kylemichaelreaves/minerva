@@ -8,6 +8,7 @@ import {
 } from "../api/metricsApi";
 import { cpuVerdict } from "./cpu";
 import { firstLoad, refreshing } from "~/Metrics/resourceState";
+import { onActivateKey } from "~/utils/activateKey";
 
 /** One row per request, from `request_spans` (#619).
  *
@@ -179,7 +180,9 @@ export function RequestLedger(props: { window: MetricWindow }) {
                 <For each={list()}>
                   {(r) => (
                     <tr
+                      tabindex="0"
                       onClick={() => setSelected(r.id)}
+                      onKeyDown={onActivateKey(() => setSelected(r.id))}
                       aria-selected={selected() === r.id}
                       classList={{ sel: selected() === r.id }}
                     >

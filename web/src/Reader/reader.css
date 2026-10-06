@@ -879,6 +879,9 @@
   padding: 0;
 }
 .reader .rail-concord-row {
+  /* A <button> since #773: full width and left-aligned, as the <li> was. */
+  width: 100%;
+  text-align: left;
   display: grid;
   grid-template-columns: 1fr 60px 50px;
   align-items: baseline;

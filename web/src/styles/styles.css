@@ -163,9 +163,20 @@ select {
   color: inherit;
   background: transparent;
   border: 0;
-  outline: 0;
   margin: 0;
   padding: 0;
+}
+
+/* One keyboard focus ring for every control. The reset above used to set
+   `outline: 0`, which predates `:focus-visible` and removed the keyboard ring
+   along with the mouse one, so each component that wanted a ring added its own
+   rule and the rest showed nothing (#774). `:focus-visible` already leaves
+   mouse clicks alone, which was the reset's purpose; `:where()` keeps the
+   specificity at zero, so every component rule, including the ones that
+   suppress the ring on purpose, still wins. */
+:where(button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button {

@@ -4275,3 +4275,33 @@ Filed along the way. No active plan covers these beyond this note:
 - **#781:** `_zeno.py`'s page cap and prefix filter.
 - **#782:** the `handlers/citations.py` shim and its vacuous test.
 - **#783:** `download_ancient_pg.py` never checks the language.
+
+## Batch 13k — 13a/13f's frontend follow-ups (#773 #774 #775)
+
+The three frontend issues 13f filed, which no batch row covered. None needs a
+DB step, so it ran to merge like 13a. Two owner decisions taken 2026-10-06
+after phase 1:
+
+- **#773: 18 fixed, 4 exempt, 1 re-filed.** The issue left "which of the 23
+  have a keyboard path elsewhere" unmeasured. Reading each site settled it.
+  KwicRow has LemmaDetail's j/k + Enter; ArcPanel's arcs have MatrixPanel's
+  grid on the same page; NetworkArc's backdrop and tooltip only dismiss.
+  `WordRun.tsx` is the Reader's per-word span, where a button per word would put
+  one tab stop per word on the page, so it was excluded and filed as #785.
+  Corrected on #773.
+- **#773's lint gate: yes.** The rule is `minerva/no-mouse-only-click`
+  (`web/eslint.mouseOnly.js`), a local plugin rule rather than a
+  `no-restricted-syntax` entry. That key already carries the SFC-migration
+  guard, and flat config lets a later block replace an earlier block's options
+  for the same key, so sharing it would have let either rule silently switch
+  the other off. `eslintConfig.test.ts` caught this on the first `make check`.
+  Exemptions are inline disables that name the keyboard path, not a baseline
+  file.
+
+#774 and #775 landed as filed: the global `:where(…):focus-visible` ring, and
+the setup file's `unhandledRejection` listener removed `afterAll` (8 warnings
+per local run → 0; 0 under `threads`/`forks`, so `vmThreads` was the cause, as
+the issue guessed).
+
+Filed along the way: **#785** (WordRun). No active plan covers it beyond this
+note.
