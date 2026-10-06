@@ -3,7 +3,8 @@
 # the gate CI enforces. The suites:
 #
 #   * python — lint + pytest with coverage
-#   * web — lint + typecheck + vitest with coverage
+#   * web-lint — eslint + tsc + prettier baseline + test-location check
+#   * web — vitest with coverage
 #   * web-e2e — spawns `minerva serve --llm none` against a throwaway
 #     index built from `tests/fixtures/corpus.jsonl` and stitches
 #     Vitest against it. The fixture is committed, so every assertion
@@ -12,8 +13,8 @@
 #     data-dependent test skipped itself in CI (#133).
 #
 # On a PR, a `changes` job runs first and skips the suites the diff can't
-# break: docs-only runs none, Python-only skips `web`, TypeScript-only skips
-# `python`. `sonar` always scans (#723). See the `changes` job below.
+# break: docs-only runs none, Python-only skips both web jobs, TypeScript-only
+# skips `python`. `sonar` always scans (#723). See the `changes` job below.
 #
 # Coverage is gated, but not here: SonarCloud's required new-code gate
 # (#158) blocks the merge, and `make check`'s `check-diff-coverage` (#255)
@@ -257,8 +258,13 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
-  web:
-    name: web · lint · typecheck · vitest
+  # The web static checks and the web tests are two jobs, not one (#766).
+  # Run in series they made one 147s job — ~51s of eslint/tsc/prettier, then
+  # 72s of vitest — and that job was the critical path once `python` dropped
+  # to 108s (#757). In parallel, each pays its own ~18s of checkout and
+  # `npm ci`, and the longer of the two sets the pace.
+  web-lint:
+    name: web · lint · typecheck
     runs-on: ubuntu-latest
     needs: changes
     # Fail safe, as in `python`.
@@ -299,6 +305,31 @@ jobs:
         # `python`, because it guards web/src, and a web-only PR skips
         # `python` (#723). Stdlib-only, so the runner's python3 serves.
         run: python3 ../scripts/check_test_location.py
+
+  # Keeps the job id `web`: `sonar` needs it by that name and downloads its
+  # `web-coverage` artifact. `web-lint` produces no coverage, so Sonar does
+  # not wait for it.
+  web:
+    name: web · vitest
+    runs-on: ubuntu-latest
+    needs: changes
+    # Fail safe, as in `python`.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.web == 'true') }}
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Tests (vitest, unit + component, with coverage)
         # `test:coverage` excludes tests/e2e/** and emits text + lcov

@@ -3,7 +3,8 @@
 
 Reads changed paths on stdin, one per line, and prints `python=<bool>` and
 `web=<bool>` in `$GITHUB_OUTPUT` form. The workflow gates the `python` job on
-the first, the `web` job on the second, and `web · e2e` on either.
+the first, the `web` and `web-lint` jobs on the second, and `web · e2e` on
+either.
 
 This is not a workflow-level `paths:` filter, deliberately. A workflow that
 never starts leaves its required checks unreported, and the PR can't merge. A
