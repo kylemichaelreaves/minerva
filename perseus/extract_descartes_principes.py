@@ -14,12 +14,11 @@ the d'Albert / duc de Luynes 1647 French translation — the
 canonical edition Descartes himself supervised.
 
 * archive.org item: ``uvresdedescartes09desc``
-* Section boundaries (located 2026-06-01):
-  - PREMIERE PARTIE: line 14002 — kept out (already in `principes_pars1.txt`)
-  - SECONDE PARTIE:  line 15777 — start of our extract
-  - TROISIESME:      line 17679
-  - QUATRIESME:      line 22418
-  - TABLE (end):     line 28781
+* Section boundaries, found by heading rather than by line number (#499):
+  - SECONDE PARTIE — the first one in the file starts our extract
+    (PREMIERE PARTIE is already in `principes_pars1.txt`)
+  - TABLE DES PRINCIPES — the first one after it ends the extract
+  In the 2026-06-01 and 2026-10-06 OCR these sit at lines 15777 and 28781.
 
 The OCR retains the 17th-c long-s rendered as ``f``:
 ``fubftance``, ``confifte``, ``fcauoir``. We apply the
@@ -42,10 +41,10 @@ OUT_PATH = REPO_ROOT / "data" / "descartes" / "raw_fr" / "principes_pars2to4.txt
 SOURCE_URL = "https://archive.org/download/uvresdedescartes09desc/uvresdedescartes09desc_djvu.txt"
 UA = "minerva-corpus-fetch/1.0 (+personal research; PD source)"
 
-# Boundary line numbers in the 2026-06-01 OCR dump. Re-probe if
-# archive.org regenerates the OCR.
-PART_II_START = 15777
-TABLE_START = 28781
+# Boundary headings. archive.org regenerates OCR, so the extract is anchored
+# on these rather than on line numbers, and a missing one raises (#499).
+_PART_II_RE = re.compile(r"^\s*SECONDE\s+PARTIE\b")
+_TABLE_RE = re.compile(r"^\s*TABLE\s+DES\s+PRINCIPES\b")
 
 # Reuse the Boulainvilliers OCR-cleanup pipeline for the long-s
 # repair + ligature decomposition + line normalization.
@@ -85,6 +84,26 @@ _PARTIE_HEADER = re.compile(
 )
 
 
+def _first_match(lines: list[str], pattern: re.Pattern[str], start: int, name: str) -> int:
+    for i in range(start, len(lines)):
+        if pattern.match(lines[i]):
+            return i
+    raise RuntimeError(
+        f"{name} heading not found in the Adam-Tannery OCR; archive.org may "
+        f"have regenerated it. Re-probe {SOURCE_URL}"
+    )
+
+
+def _slice_parts(raw: str) -> str:
+    """Parts II-IV: from the first SECONDE PARTIE up to the TABLE DES
+    PRINCIPES that follows it (the table repeats the part headings)."""
+
+    lines = raw.splitlines()
+    start = _first_match(lines, _PART_II_RE, 0, "SECONDE PARTIE")
+    end = _first_match(lines, _TABLE_RE, start + 1, "TABLE DES PRINCIPES")
+    return "\n".join(lines[start:end])
+
+
 def _extract(raw: str) -> str:
     """Pull Parts II-IV from the Adam-Tannery Vol IX OCR.
 
@@ -93,8 +112,7 @@ def _extract(raw: str) -> str:
     pass + ligature normalize + running-head strip.
     """
 
-    lines = raw.splitlines()
-    body = "\n".join(lines[PART_II_START - 1 : TABLE_START - 1])
+    body = _slice_parts(raw)
 
     # Normalize ligatures + hyphenation join FIRST so the f→s pass
     # sees clean tokens.

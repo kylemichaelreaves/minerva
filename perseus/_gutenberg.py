@@ -50,7 +50,15 @@ def verify_language(raw: str, expected: str) -> None:
     """Raise if Gutenberg's ``Language:`` header doesn't match *expected*."""
 
     m = re.search(r"^Language:\s*(.+)$", raw[:4000], re.MULTILINE)
-    if m and m.group(1).strip().lower() != expected.lower():
+    # A missing header fails too: a wrong PG ID is likeliest to show up as an
+    # artefact that is not the shape we expected at all (#499). Every PG id
+    # this repo fetches carries the header within its first ~760 bytes.
+    if m is None:
+        raise RuntimeError(
+            f"Gutenberg download has no Language: header in its first 4000 "
+            f"chars; expected {expected!r}. Wrong PG ID, or not a PG text?"
+        )
+    if m.group(1).strip().lower() != expected.lower():
         raise RuntimeError(
             f"Gutenberg header says Language: {m.group(1).strip()!r}; "
             f"expected {expected!r}. Wrong PG ID?"
