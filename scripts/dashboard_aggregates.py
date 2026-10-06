@@ -16,6 +16,13 @@ cross-references dashboard might want to chart:
 Filter shape matches the default /api/references visibility:
   curator_status IN ('approved','manual')
   OR (curator_status='auto' AND confidence>=0.8)
+
+Requires a populated ``data/index.sqlite``. Regenerate the committed
+``docs/dashboard_aggregates.json`` after cross-reference work::
+
+    uv run python scripts/dashboard_aggregates.py > docs/dashboard_aggregates.json
+
+Role: workflow
 """
 
 from __future__ import annotations

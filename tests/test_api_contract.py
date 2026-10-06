@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from conftest import StubBackend, make_deps
 
-from minerva import server
 from minerva.http.handlers import (
+    _handle_chat,
     _handle_chunk_context,
     _handle_chunk_syntax,
     _handle_concordance_index,
@@ -24,7 +24,6 @@ from minerva.http.handlers import (
     _handle_references_sources,
     _handle_review_queue,
     _handle_syntax_correction_create,
-    _handle_terms_list,
     _handle_word_lookup,
     _handle_work_range,
     _handle_works_list,
@@ -45,7 +44,7 @@ def _assert_has_keys(body: dict, keys: list[str]) -> None:
 
 def test_chat_response_contract(populated_db):
     deps = make_deps(populated_db, StubBackend(reply="ok [1]."))
-    body = server._handle_chat(deps, {"query": "divided line", "history": []})
+    body = _handle_chat(deps, {"query": "divided line", "history": []})
     _assert_has_keys(body, _load_keys("chat_response.keys.json"))
     assert isinstance(body["citations"], list)
     assert isinstance(body["paragraphs"], list)
@@ -88,13 +87,6 @@ def test_refs_review_contract(populated_db):
     body = _handle_review_queue(deps, {"limit": "5"})
     _assert_has_keys(body, _load_keys("refs_review.keys.json"))
     assert isinstance(body["references"], list)
-
-
-def test_terms_list_contract(populated_db):
-    deps = make_deps(populated_db, StubBackend())
-    body = _handle_terms_list(deps, {})
-    _assert_has_keys(body, _load_keys("terms_list.keys.json"))
-    assert isinstance(body["terms"], list)
 
 
 def test_concordance_index_contract(populated_db):

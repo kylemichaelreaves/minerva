@@ -188,6 +188,7 @@ def fetch_parallel(
     encoding: str = "utf-8",
     timeout: float = 30,
     retries: int = 8,
+    fetch: Callable[[str], str] | None = None,
 ) -> list[tuple[str, str | Exception]]:
     """Thread-pool fetch over ``urls``. Returns ``[(url, html | exc),
     ...]`` in INPUT order — callers can zip the result against the
@@ -195,7 +196,13 @@ def fetch_parallel(
 
     Errors are returned, not raised, so one bad URL out of many
     doesn't kill the batch. The caller decides whether to retry,
-    log, or surface to the user.
+    log, or surface to the user — and must re-raise what it did not
+    expect, since every ``Exception`` lands here, bugs included.
+
+    ``fetch`` replaces the default :func:`fetch_with_retry` call (and
+    with it ``encoding`` / ``timeout`` / ``retries``) — the seam
+    ``_zeno.crawl`` uses to run its parallel path over an injected
+    fetcher.
     """
 
     url_list = list(urls)
@@ -206,12 +213,15 @@ def fetch_parallel(
             host = urllib.parse.urlsplit(url).netloc
             limiter.acquire(host)
         try:
-            html = fetch_with_retry(
-                url,
-                timeout=timeout,
-                retries=retries,
-                encoding=encoding,
-            )
+            if fetch is not None:
+                html = fetch(url)
+            else:
+                html = fetch_with_retry(
+                    url,
+                    timeout=timeout,
+                    retries=retries,
+                    encoding=encoding,
+                )
             results[idx] = (url, html)
         except Exception as exc:
             results[idx] = (url, exc)

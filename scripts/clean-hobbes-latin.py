@@ -53,6 +53,8 @@ coming apart under OCR.
 Run:
 
     uv run python scripts/clean-hobbes-latin.py
+
+Role: workflow
 """
 
 from __future__ import annotations

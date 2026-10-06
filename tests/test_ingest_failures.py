@@ -40,6 +40,8 @@ def _chunk(chunk_id: str = "ok-1", text: str = "some text") -> tei.Chunk:
 
 def _work(*, filenames: tuple[str, ...], locator: str) -> CorpusWork:
     return CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="bad",
         title="Broken Work",
         translator="Nobody",

@@ -22,13 +22,9 @@
 # To unpin: `.venv/bin/ruff format <path>`, delete its line, `make check`.
 
 perseus/download_augustine.py
-perseus/download_hegel_de.py
-perseus/download_kant_de.py
 perseus/download_kjv_en.py
 perseus/download_luther_1545_de.py
 perseus/download_luther_1912_de.py
-perseus/download_marx_zeno.py
-perseus/download_nietzsche_de.py
 perseus/download_perseus_epictetus.py
 perseus/download_perseus_lucretius.py
 perseus/download_sacy_fr.py

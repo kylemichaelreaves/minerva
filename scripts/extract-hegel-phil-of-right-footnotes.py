@@ -30,6 +30,8 @@ branch, so each ``§ N NOTES`` heading becomes its own chunk.
 The body of Phil of Right (the ``pr`` CorpusWork) remains unmodified
 — it keeps bare-number markers exactly where the Cambridge typesetter
 placed them, so the printed-page reading experience is preserved.
+
+Role: oneoff
 """
 
 from __future__ import annotations

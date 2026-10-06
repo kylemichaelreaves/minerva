@@ -217,8 +217,8 @@ def test_default_fetch_pool_still_finds_primary_text_past_a_dominant_apparatus_s
     def sig(cid: str, n: int) -> dict:
         return {
             "chunk_id": cid,
-            "corpus": "author",
-            "author": "Author",
+            "corpus": "locke",
+            "author": "Locke",
             "work": "Test Work",
             "lang": "eng",
             "section": f"sig{n}",
@@ -235,8 +235,8 @@ def test_default_fetch_pool_still_finds_primary_text_past_a_dominant_apparatus_s
     def body(cid: str, n: int) -> dict:
         return {
             "chunk_id": cid,
-            "corpus": "author",
-            "author": "Author",
+            "corpus": "locke",
+            "author": "Locke",
             "work": "Test Work",
             "lang": "eng",
             "section": f"body{n}",
@@ -436,8 +436,8 @@ def _seed_reservation_db(tmp_path: Path):
     def ch(cid: str, text: str) -> dict:
         return {
             "chunk_id": cid,
-            "corpus": "test",
-            "author": "Test",
+            "corpus": "hume",
+            "author": "Hume",
             "work": "Work",
             "lang": "eng",
             "source_file": "f.txt",
@@ -535,7 +535,7 @@ def test_filtered_vector_search_filters_still_apply(tmp_path: Path):
     # Non-matching lang excludes everything.
     assert retrieve._vector_search(conn, qv, top_k=3, lang="deu", corpus=None, speaker=None) == {}
     # Matching lang + corpus returns the full set.
-    hits = retrieve._vector_search(conn, qv, top_k=3, lang="eng", corpus="test", speaker=None)
+    hits = retrieve._vector_search(conn, qv, top_k=3, lang="eng", corpus="hume", speaker=None)
     assert set(hits) == {"a", "b", "c"}
     # min_chunk_chars excludes nothing here (all chunks are > 10 chars).
     hits = retrieve._vector_search(
@@ -688,8 +688,8 @@ def _seed_apparatus_reservation_db(tmp_path: Path):
     def ch(cid: str, text: str, block_type: str | None = None) -> dict:
         row = {
             "chunk_id": cid,
-            "corpus": "test",
-            "author": "Test",
+            "corpus": "hume",
+            "author": "Hume",
             "work": "Work",
             "lang": "eng",
             "source_file": "f.txt",
@@ -769,7 +769,7 @@ def _seed_verse_db(tmp_path: Path):
     `citation_system_override` when the works row is created), so the two
     works differ in exactly the field the exemption reads. The German verse
     lands as a `translations` row rather than an `editions` one — corpus
-    `test` has original_language `eng`, and `_resolve_work_refs` classifies
+    `hume` has original_language `eng`, and `_resolve_work_refs` classifies
     on `lang == works.original_language` — which is what makes the
     translation half of `_min_chars_filter` load-bearing here.
     """
@@ -777,7 +777,7 @@ def _seed_verse_db(tmp_path: Path):
     def ch(cid: str, work: str, lang: str, text: str, citation_system: str) -> dict:
         return {
             "chunk_id": cid,
-            "corpus": "test",
+            "corpus": "hume",
             "author": "Scripture" if citation_system == "bcv" else "Prose",
             "work": work,
             "lang": lang,

@@ -183,7 +183,9 @@ _AMBIGUOUS_BARE_DE: frozenset[str] = frozenset(
 # plus whitespace-only separation; the period form would otherwise
 # collide with chunk-final punctuation in some authors but the
 # ``\d{1,3}\s*[.,]\s*\d{1,3}`` shape only matches when followed by
-# more digits — see test in scripts/survey_unmatched_scripture_cites.
+# more digits — both halves are pinned in tests/test_scripture_cite_base.py
+# (TestDePinned::test_period_separator_and_prefix and
+# ::test_period_form_needs_a_verse_after_the_chapter).
 _CITE_RE_DE = re.compile(
     r"(?:\b(?P<prefix>I{1,3}V?|[1-5])\.?\s*)?"  # optional ordinal (incl. 4/5 Mose)
     r"\b(?P<abbr>[A-ZÄÖÜ][A-Za-zäöüß]{1,8})\.?"  # German abbrev

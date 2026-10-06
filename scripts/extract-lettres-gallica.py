@@ -22,6 +22,8 @@ prose. We:
 Output: replaces ``data/boulainvilliers/lettres_parlemens_fra.txt``
 with the Gallica-sourced version. The archive.org source we used
 earlier is discarded — its OCR was unrecoverable.
+
+Role: oneoff
 """
 
 from __future__ import annotations

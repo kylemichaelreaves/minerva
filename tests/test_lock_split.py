@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from conftest import make_deps
 
-from minerva import llm, server
+from minerva import llm
+from minerva.http.handlers import _handle_chat, _handle_translate
 
 
 class _LockProbingBackend(llm.LLMBackend):
@@ -49,7 +50,7 @@ def test_chat_llm_call_holds_no_lock(populated_db):
     backend = _LockProbingBackend(holder, reply="ok [1].")
     deps = make_deps(populated_db, backend)
     holder[0] = deps
-    server._handle_chat(deps, {"query": "divided line"})
+    _handle_chat(deps, {"query": "divided line"})
     # None of the per-resource locks should be held while the LLM call
     # is in flight. (The audit's concern: holding the lock across the
     # network round-trip blocks every sibling request.)
@@ -65,7 +66,7 @@ def test_translate_llm_call_holds_no_lock(populated_db, translations_conn):
     backend = _LockProbingBackend(holder, reply="Sing, goddess")
     deps = make_deps(populated_db, backend, translations_conn=translations_conn)
     holder[0] = deps
-    server._handle_translate(
+    _handle_translate(
         deps,
         {
             "source_text": "Μῆνιν ἄειδε θεὰ",
@@ -97,7 +98,7 @@ def test_translate_doesnt_touch_corpus_or_conv_locks(populated_db, translations_
     # only briefly around the cache lookup / insert (not during the
     # LLM call itself).
     with deps.corpus_lock, deps.conv_lock:
-        body = server._handle_translate(
+        body = _handle_translate(
             deps,
             {
                 "source_text": "Μῆνιν ἄειδε θεὰ",

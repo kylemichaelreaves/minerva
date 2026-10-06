@@ -22,6 +22,8 @@ shows 0 long_s_misread chunks in Renan — running f→s would only
 invite false positives like ``effet`` → ``esset``).
 
 Idempotent.
+
+Role: oneoff
 """
 
 from __future__ import annotations

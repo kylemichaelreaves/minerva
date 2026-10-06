@@ -53,6 +53,8 @@ for another reason on a chunk nobody edited, in which case
 have skipped it forever — measured on Aristotle, where a normal build
 reported "0 chunks scanned" while `--rescan-all` recovered 58 rows the
 skip cache had been silently withholding (#459).
+
+Role: workflow
 """
 
 from __future__ import annotations

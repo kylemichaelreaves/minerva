@@ -515,6 +515,8 @@ Note: shortlist #5 now enforced at the registry layer too —
   `aquinas_cite_survey.md`, stale `corpus-quality-audit.md` + `dashboard_aggregates.json`.
 
   > **Split** (#481, 2026-09-03): the plan's stale `IN PROGRESS` header is corrected in #481's PR. The four archivable docs are **live** → #505 — and `CODE_AUDIT_2026-06-10.md` must be triaged before it is archived, not after.
+
+  > **Archived** (#505, 2026-10-06): `CODE_AUDIT_2026-06-10.md` (triaged 2026-09-03, PR #506), `orthography-normalization-plan.md` and `aquinas_cite_survey.md` now live in `docs/archive/`. `corpus-quality-audit.md` was **not** archived and this bullet was wrong to call it archivable: it is the default `--out` of `scripts/corpus-quality-audit.py:575`, so an archived copy would go stale the next time the script ran and a fresh one would reappear in `docs/`.
 - `ARCHITECTURE.md:70` still calls `server.py` the stdlib server.
 
   > **Live** (#481) → #504; the doc line is corrected in #481's PR. Note the audit's own pointer was stale: it is `ARCHITECTURE.md:125`, not `:70`.

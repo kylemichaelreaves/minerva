@@ -39,6 +39,8 @@ the two codegen-owned files whose reformatting breaks `make check` (#486).
 Python gate; the residue grew from 90 files to 143 while it was believed
 covered. Run with no arguments for both, or name one (`prettier`, `ruff`) —
 CI runs each in the job that installs its formatter.
+
+Role: workflow
 """
 
 from __future__ import annotations

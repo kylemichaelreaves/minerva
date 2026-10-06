@@ -5,11 +5,11 @@ from __future__ import annotations
 from conftest import StubBackend
 from conftest import make_deps as _make_deps
 
-from minerva import server
+from minerva.http.handlers import _handle_chat, _handle_chat_stream
 
 
 def _collect_stream(deps, payload):
-    return list(server._handle_chat_stream(deps, {**payload, "stream": True}))
+    return list(_handle_chat_stream(deps, {**payload, "stream": True}))
 
 
 def test_handle_chat_stream_emits_meta_delta_done(populated_db, conversations_conn):
@@ -90,7 +90,7 @@ def test_handle_chat_stream_persists_same_as_blocking(populated_db, conversation
     reply = "Same reply [1].\n\nSecond paragraph [1]."
 
     blocking_backend = StubBackend(reply=reply)
-    blocking = server._handle_chat(
+    blocking = _handle_chat(
         _make_deps(populated_db, blocking_backend, conversations_conn=conversations_conn),
         {"query": query},
     )
@@ -138,7 +138,7 @@ def test_handle_chat_stream_keeps_turn_on_client_disconnect(populated_db, conver
     """Closing the SSE generator after persist must keep user + assistant rows."""
     backend = StubBackend(reply="Hello world [1].")
     deps = _make_deps(populated_db, backend, conversations_conn=conversations_conn)
-    gen = server._handle_chat_stream(deps, {"query": "What is justice?"})
+    gen = _handle_chat_stream(deps, {"query": "What is justice?"})
     next(gen)  # meta
     while (
         conversations_conn.execute(
@@ -171,12 +171,10 @@ def test_handle_chat_stream_validation_errors_raise_before_first_event(
 
     # Missing query → BadRequest at call time, not at iteration time.
     with pytest.raises(_HTTPError) as info:
-        server._handle_chat_stream(deps, {"stream": True})
+        _handle_chat_stream(deps, {"stream": True})
     assert info.value.status == 400
 
     # Well-formed but unknown conversation id → NotFound at call time.
     with pytest.raises(_HTTPError) as info:
-        server._handle_chat_stream(
-            deps, {"stream": True, "query": "hi", "conversation_id": "missing-cid"}
-        )
+        _handle_chat_stream(deps, {"stream": True, "query": "hi", "conversation_id": "missing-cid"})
     assert info.value.status == 404

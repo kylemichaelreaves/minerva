@@ -64,7 +64,7 @@ def _exit_on_sigterm(_signum: int, _frame: object) -> None:
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    from .. import server as _server
+    from ..http import serve as http_serve
 
     running = serve_lock.find_running_server(args.db)
     if running:
@@ -108,7 +108,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     serve_lock.write_serve_lock(args.db, host=args.host, port=args.port)
     previous_sigterm = signal.signal(signal.SIGTERM, _exit_on_sigterm)
     try:
-        _server.serve(
+        http_serve.serve(
             host=args.host,
             port=args.port,
             static_dir=args.static,

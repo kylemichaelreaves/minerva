@@ -24,12 +24,12 @@ PORT ?= 8000
 MINERVA_LANG ?= any
 LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
 
-.PHONY: help test test-unit test-e2e test-browser test-watch test-py test-all typecheck audit \
+.PHONY: help test test-web post-ingest test-unit test-e2e test-browser test-watch test-py test-all typecheck audit \
         coverage coverage-py coverage-web \
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
         check-pr-link check-pr-citations check-diff-coverage check-coverage-exclusions \
-        check-format-baseline check-test-location \
+        check-format-baseline check-test-location generate-scripts-index check-scripts-index \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -44,13 +44,14 @@ help:
 	@echo "  make start        Build the SolidJS bundle and serve it + the API on :$(PORT)"
 	@echo "  make dev          Vite dev server only (no Python backend)"
 	@echo "  make build        Build the production SolidJS bundle into web/dist"
-	@echo "  make test         Run the full frontend test suite (unit + components + e2e)"
+	@echo "  make test         Backend pytest + the full frontend suite"
+	@echo "  make test-web     Frontend suite only (unit + components + e2e)"
 	@echo "  make test-unit    Fast loop: unit + component tests only (no Python)"
 	@echo "  make test-e2e     Integration tests that spawn 'minerva serve --llm none'"
 	@echo "  make test-browser Browser tests (Playwright, Chromium) against the built bundle"
 	@echo "  make test-watch   Vitest in watch mode"
 	@echo "  make test-py      Python backend tests (pytest)"
-	@echo "  make test-all     Backend pytest + frontend vitest"
+	@echo "  make test-all     Same as make test (kept for muscle memory)"
 	@echo "  make typecheck    tsc --noEmit on web/"
 	@echo "  make lint         ruff check (Python) + eslint (TypeScript)"
 	@echo "  make lint-py      Python lint only (ruff check)"
@@ -62,12 +63,19 @@ help:
 	@echo "  make ingest       Parse raw corpus sources into data/chunks.jsonl"
 	@echo "  make reindex      Rebuild data/index.sqlite from the existing chunks.jsonl"
 	@echo "  make reingest     Re-parse + re-index in one shot (after parser changes)"
+	@echo "  make post-ingest  After an ingest: embed, lemmatize, refs rules + embed-verify,"
+	@echo "                    generate-authors. llm-verify is paid, so only with LLM_CALLS=N."
+	@echo "                    AUTHOR=X scopes the rules pass (and llm-verify) to one author."
 	@echo "  make embed        Compute / refresh sentence-transformer embeddings (all languages)"
 	@echo "  make embed-eng    Embed English chunks only (faster for English-only experiments)"
 	@echo "  make stats        Print index statistics"
 	@echo "  make audit        Check whole-corpus invariants against the live index"
 
-test:
+# `test` used to be the frontend suite alone, so running it before a push
+# skipped every backend test with a green result (#502).
+test: test-py test-web
+
+test-web:
 	$(NPM) test
 
 test-unit:
@@ -111,7 +119,7 @@ dev:
 test-py:
 	$(PYTEST)
 
-test-all: test-py test
+test-all: test
 
 # Coverage targets — emit reports without enforcing a threshold. The
 # CI workflow uses the same flags; running locally with `make
@@ -183,6 +191,17 @@ check-coverage-exclusions:
 check-test-location:
 	$(PYTHON) scripts/check_test_location.py
 
+# docs/SCRIPTS.md is generated from each script's own docstring (Python) or
+# leading comment block (shell), and every script declares `Role: workflow`
+# or `Role: oneoff` there (#505). The hand-written index it replaced named 4
+# of 43 scripts and read as complete. The check fails on a stale index and on
+# a script with no docstring or no role, so a new script cannot land unlisted.
+generate-scripts-index:
+	$(PYTHON) scripts/generate_scripts_index.py --write
+
+check-scripts-index:
+	$(PYTHON) scripts/generate_scripts_index.py --check
+
 # Verify a PR's closing links actually registered (#321). Deliberately NOT part
 # of `make check` — it needs a PR that already exists.
 #
@@ -225,7 +244,7 @@ check-diff-coverage:
 check-format-baseline:
 	$(PYTHON) scripts/check_format_baseline.py
 
-check: lint typecheck test-py-cov test-unit-cov test-e2e test-browser check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location
+check: lint typecheck test-py-cov test-unit-cov test-e2e test-browser check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location check-scripts-index
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.
@@ -313,6 +332,29 @@ reingest-only:
 # Default embed covers every language (non-English authors need vectors
 # in their source language for retrieval to find them). `embed-eng` is
 # the narrower English-only shortcut for English-primary experiments.
+# The post-ingest sequence docs/INGESTION.md §12 documents, as one target
+# (#502). Every step is incremental, so a re-run only pays for what changed.
+# llm-verify costs money per row and runs only with an explicit budget:
+#   make post-ingest AUTHOR=Kant LLM_CALLS=500
+LEMMA_LANGS := ara deu eng fra grc heb lat
+POST_INGEST_SCOPE = $(if $(AUTHOR),--source-author "$(AUTHOR)")
+
+post-ingest:
+	$(call snapshot_db,pre-post-ingest)
+	$(POIETES) embed --lang any
+	for lang in $(LEMMA_LANGS); do $(POIETES) terms lemmatize --lang $$lang --skip-aggregate || exit 1; done
+	$(POIETES) terms aggregate-lemmas
+	$(POIETES) refs build --strategy rules $(POST_INGEST_SCOPE)
+	$(POIETES) refs build --strategy embed-verify
+ifdef LLM_CALLS
+	$(POIETES) refs build --strategy llm-verify $(POST_INGEST_SCOPE) \
+		--llm-backend anthropic --llm-model claude-sonnet-5-5 \
+		--batch-size 20 --max-llm-calls $(LLM_CALLS)
+else
+	@echo "Skipping llm-verify (paid). Re-run with LLM_CALLS=<budget> to verify."
+endif
+	$(MAKE) generate-authors
+
 embed:
 	$(POIETES) embed --lang any
 

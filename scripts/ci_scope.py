@@ -21,6 +21,8 @@ minutes. Wrongly skipping one lets a PR merge without a check it needed. So:
   When you add a gate or test that reads across, add its paths here.
   Pushes to `main` run everything, so a cross-read missing from this list
   fails on `main` rather than never.
+
+Role: workflow
 """
 
 from __future__ import annotations
@@ -32,12 +34,16 @@ from fnmatch import fnmatch
 #: because there it may be fixture input.
 _DOCS = ("*.md", "LICENSE")
 _TEST_TREES = ("tests/", "web/tests/")
+#: Markdown a python-job gate generates and diffs, so it is not just prose.
+#: `scripts/generate_scripts_index.py --check` owns docs/SCRIPTS.md (#505).
+_GENERATED_DOCS = ("docs/SCRIPTS.md",)
 
 _PYTHON = (
     "src/*",
     "tests/*",
     "scripts/*",
     "perseus/*",
+    *_GENERATED_DOCS,
     "pyproject.toml",
     "uv.lock",
     ".python-version",
@@ -67,7 +73,9 @@ def _matches(path: str, patterns: tuple[str, ...]) -> bool:
 
 
 def _is_docs(path: str) -> bool:
-    return _matches(path, _DOCS) and not path.startswith(_TEST_TREES)
+    return (
+        _matches(path, _DOCS) and not path.startswith(_TEST_TREES) and path not in _GENERATED_DOCS
+    )
 
 
 def scope(paths: list[str]) -> dict[str, bool]:

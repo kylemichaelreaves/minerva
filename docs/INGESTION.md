@@ -98,11 +98,17 @@ def fetch(url):
 
 The shared module exports `USER_AGENT`, `fetch_with_retry`,
 `RateLimiter` (per-host token bucket), and `fetch_parallel`
-(threaded). For BFS-style crawlers (Kant, Hegel), a `--jobs N` flag
-that batches each BFS level through `fetch_parallel(... limiter=
-RateLimiter(min_interval=delay))` gives a real speedup without
-exceeding the source's good-graces rate. Cap at 2-3 jobs for
-zeno.org; archive.org / Gallica tolerate more.
+(threaded). For zeno.org, don't write a crawler at all: `perseus/_zeno.py`
+holds the BFS walk the Hegel, Kant, Schiller, Marx and Nietzsche scripts
+share, and a new zeno author is a `WORKS` list of `ZenoWork(filename,
+root_path)` plus a `main()` that calls `add_crawl_args` and `main_for`.
+A page that still fails after the retry helper's backoff fails the run
+(exit 1, failed paths listed, the work's file withheld) unless
+`--allow-partial` is passed — the per-script copies it replaced each
+dropped the failed page's whole subtree and exited 0 (#501). Its
+`--jobs N` takes N queued paths at a time (not a whole BFS level)
+through `fetch_parallel(... limiter=RateLimiter(min_interval=delay))`.
+Cap at 2-3 jobs for zeno.org; archive.org / Gallica tolerate more.
 
 ## 2. Citation system (migration if novel)
 
@@ -640,6 +646,11 @@ shadow-address rebind in `store.py`, but manual YAML rows are
 authoritative source-of-truth in git).
 
 ## 12. Run the detection pipeline
+
+`make post-ingest AUTHOR=<NewAuthor> LLM_CALLS=500` runs this whole section,
+plus the embed and lemmatize passes before it and `make generate-authors`
+after. Without `LLM_CALLS` it stops short of the paid llm-verify step and
+says so. The steps it runs, by hand:
 
 ```sh
 scripts/snapshot-db.sh pre-<author>-refs

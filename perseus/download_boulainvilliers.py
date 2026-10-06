@@ -18,10 +18,10 @@ What this script ships:
 
 * ``data/boulainvilliers/histoire_anc_gouv_fra.txt`` — the historical
   essays portion. The full 3.1 MB archive.org file is the entire
-  Etat de la France; we drop the Google Books boilerplate header
-  and the trailing administrative bulk (intendant reports per
-  province) to keep the corpus focused on the philosophically-
-  relevant material.
+  Etat de la France; the cut drops the trailing administrative bulk
+  (intendant reports per province). It was meant to drop the front
+  matter too, and does not: it starts inside the subscriber list and
+  ends mid-sentence (see ``_Cut``).
 * ``data/boulainvilliers/lettres_parlemens_fra.txt`` — the fourteen
   letters from the 1753 standalone edition. The all-caps
   ``PREMIERE LETTRE.`` / ``SECONDE LETTRE.`` headings hit the
@@ -44,6 +44,7 @@ What this script does NOT ship:
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from _download import fetch_with_retry
@@ -56,19 +57,64 @@ def _archive_djvu(item: str) -> str:
     return f"https://archive.org/download/{item}/{item}_djvu.txt"
 
 
-# Histoire — archive.org item + line range. The first ~150 lines are
-# Google Books boilerplate + the cover/title page; the administrative
-# bulk (intendant reports per province) starts after line ~14000.
-# The Frankish-conquest material dominates lines ~150-14000.
-HISTOIRE_ITEM = "etatdelafranceda01boul"
-HISTOIRE_HEADER_LINES = 150
-HISTOIRE_END = 14000
+@dataclass(frozen=True)
+class _Cut:
+    """One archive.org item, sliced at fixed line numbers that are checked.
 
-# Lettres — archive.org item; we use the whole file minus the Google
-# Books boilerplate header. The 14 letters span both volumes (TOME
-# PREMIER + TOME SECOND, joined in this djvu.txt at line ~9360).
-LETTRES_ITEM = "lettressurlesan00boulgoog"
-LETTRES_HEADER_LINES = 60
+    archive.org regenerates OCR, and a regenerated file moves an absolute
+    line cut with no error (#499). So each cut carries *fingerprints*: text
+    that today's OCR has at known lines on either side of the cut, compared
+    whitespace-folded. If any is missing the OCR has changed, and the script
+    raises rather than slice a file it was not written against.
+
+    The fingerprints pin the cut that produced the ingested files, which is
+    not the cut those files should have. HISTOIRE's start lands inside the
+    1727 edition's subscriber list and its end mid-sentence; LETTRES's start
+    lands inside Google Books' usage notice. Both reached the index as body
+    text (#779). Moving a bound changes ingested text and chunk ids, so it
+    belongs with that re-ingest, not with this guard.
+    """
+
+    item: str
+    start: int
+    end: int | None
+    fingerprints: tuple[tuple[int, str], ...]
+
+
+# The historical essays. The administrative bulk (intendant reports per
+# province) follows the cut at `end`.
+HISTOIRE = _Cut(
+    item="etatdelafranceda01boul",
+    start=150,
+    end=14000,
+    fingerprints=(
+        (156, "His Grâce the Duke of Bridgwater."),
+        (13999, "gneur qui s'y fut préfenté, quoiqu'il y ait à douter fi cet Emploi"),
+    ),
+)
+
+# The 14 letters span both volumes (TOME PREMIER + TOME SECOND, joined in
+# this djvu.txt at line ~9360); everything after `start` is kept.
+LETTRES = _Cut(
+    item="lettressurlesan00boulgoog",
+    start=60,
+    end=None,
+    fingerprints=(
+        (58, "Consignes d'utilisation"),
+        (60, "Google est fier de travailler en partenariat"),
+    ),
+)
+
+
+def _check_cut(lines: list[str], cut: _Cut) -> None:
+    for index, text in cut.fingerprints:
+        got = " ".join(lines[index].split()) if index < len(lines) else ""
+        if text not in got:
+            raise RuntimeError(
+                f"{cut.item}: line {index + 1} no longer reads {text!r} "
+                f"(got {got[:80]!r}). archive.org has regenerated the OCR; "
+                f"re-probe the cut before re-running."
+            )
 
 
 def _fetch(url: str) -> str:
@@ -83,16 +129,18 @@ def _fetch(url: str) -> str:
     )
 
 
-def _clean(raw: str, *, start: int, end: int | None = None) -> str:
-    """Drop Google Books boilerplate + trim to the configured line
-    range. Light text-level cleanup (collapse run-of-spaces and
+def _clean(raw: str, cut: _Cut) -> str:
+    """Trim to the cut's line range and drop the "Digitized by Google"
+    page footers (the cut does NOT remove the front boilerplate; see
+    `_Cut`). Light text-level cleanup (collapse run-of-spaces and
     repeated blank lines) so the chapter splitter sees a usable
     paragraph structure."""
 
     import re
 
     lines = raw.splitlines()
-    body = lines[start:end] if end is not None else lines[start:]
+    _check_cut(lines, cut)
+    body = lines[cut.start : cut.end]
     text = "\n".join(body)
     # Drop recurring page footers that punctuate the OCR.
     text = re.sub(r"(?i)\bDigitized by Google\b", "", text)
@@ -110,18 +158,12 @@ def _clean(raw: str, *, start: int, end: int | None = None) -> str:
     return text
 
 
-def _fetch_and_clean(
-    item: str,
-    out_path: Path,
-    *,
-    start: int,
-    end: int | None,
-) -> None:
-    url = _archive_djvu(item)
+def _fetch_and_clean(cut: _Cut, out_path: Path) -> None:
+    url = _archive_djvu(cut.item)
     print(f"Fetching {url} ...", file=sys.stderr)
     raw = _fetch(url)
     print(f"  raw size: {len(raw):,} chars", file=sys.stderr)
-    cleaned = _clean(raw, start=start, end=end)
+    cleaned = _clean(raw, cut)
     print(f"  after cleanup: {len(cleaned):,} chars", file=sys.stderr)
     out_path.write_text(cleaned, encoding="utf-8")
     print(f"Wrote {out_path}", file=sys.stderr)
@@ -130,18 +172,8 @@ def _fetch_and_clean(
 def main() -> int:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    _fetch_and_clean(
-        HISTOIRE_ITEM,
-        DATA_DIR / "histoire_anc_gouv_fra.txt",
-        start=HISTOIRE_HEADER_LINES,
-        end=HISTOIRE_END,
-    )
-    _fetch_and_clean(
-        LETTRES_ITEM,
-        DATA_DIR / "lettres_parlemens_fra.txt",
-        start=LETTRES_HEADER_LINES,
-        end=None,
-    )
+    _fetch_and_clean(HISTOIRE, DATA_DIR / "histoire_anc_gouv_fra.txt")
+    _fetch_and_clean(LETTRES, DATA_DIR / "lettres_parlemens_fra.txt")
     return 0
 
 

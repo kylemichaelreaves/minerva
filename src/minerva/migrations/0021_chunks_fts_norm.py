@@ -11,7 +11,7 @@ case + umlauts on both index and query, but not letter sequences like
 missed our modernized *Mißratenen*. Canonicalizing both sides to one
 form bridges it — symmetrically, so a modern query also finds a
 historical index (e.g. Luther 1545). See
-``docs/orthography-normalization-plan.md``.
+``docs/archive/orthography-normalization-plan.md``.
 
 Idempotent: a fresh DB already has the column, table, and updated
 triggers from ``store/schema.py``; this migration only upgrades

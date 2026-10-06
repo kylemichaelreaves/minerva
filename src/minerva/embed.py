@@ -14,7 +14,17 @@ from collections.abc import Iterable, Iterator
 
 import numpy as np
 
-DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# `name@revision`. Hugging Face resolves a bare name to whatever `main` is
+# today, so an upstream push would silently encode new chunks into a
+# different vector space from the stored ones (#500). The whole string is
+# also the key `embeddings.model` stores and the incremental embed compares
+# against, so bumping the pin re-encodes instead of mixing spaces. The
+# revision is the snapshot that produced the 412,105 vectors in the index
+# when the pin landed (2026-10-06); migration 0040 relabelled them with it.
+DEFAULT_MODEL = (
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    "@e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
+)
 
 
 class EmbeddingsUnavailable(RuntimeError):
@@ -32,7 +42,8 @@ class Embedder:
                 "lexical (BM25) search still works without it."
             ) from exc
         self.model_name = model_name
-        self._model = SentenceTransformer(model_name)
+        name, _, revision = model_name.partition("@")
+        self._model = SentenceTransformer(name, revision=revision or None)
         self.dim = int(self._model.get_sentence_embedding_dimension())
 
     def encode(

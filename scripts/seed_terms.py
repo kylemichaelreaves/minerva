@@ -3,15 +3,18 @@ hand-curated Aristotle seed set.
 
 History: this script used to carry the full TERMS / WORK_TARGETS data
 inline. That data has been ported to ``data/glossary/aristotle.grc.yaml``
-and the script is kept as an entry point for muscle memory + CI
-regression coverage — re-running it against an already-seeded DB
-should be a no-op.
+and the script is kept as an entry point for muscle memory —
+re-running it against an already-seeded DB should be a no-op. (This
+docstring used to add "CI regression coverage" to that list; no test,
+workflow or Makefile target runs the script, #505.)
 
 For new term work, write a YAML spec under ``data/glossary/`` and
 invoke ``uv run minerva terms import path/to/spec.yaml`` directly.
 This script will also seed any additional ``data/glossary/*.yaml``
 files automatically, so a curator who drops a new spec into the
 directory doesn't have to remember a flag.
+
+Role: workflow
 """
 
 from __future__ import annotations

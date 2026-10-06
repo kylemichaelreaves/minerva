@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate corpus_registry, author_ordering, and atlasData from manifest.yaml."""
+"""Generate corpus_registry, author_ordering, atlasData and dominantPhil from manifest.yaml.
+
+Role: workflow
+"""
 
 from __future__ import annotations
 

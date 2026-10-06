@@ -5,7 +5,7 @@ Provides:
 - `db_path` / `populated_db` — in-temp-dir SQLite store
 - `StubBackend` — fake `llm.LLMBackend` that captures messages
 - `make_hit` — build a `retrieve.Hit` with sane defaults
-- `make_deps` — assemble a `server.ServerDeps` for handler tests
+- `make_deps` — assemble a `ServerDeps` for handler tests
 - `deps_with_rewrite` — `make_deps` with `force_rewrite=True`
 """
 
@@ -22,7 +22,8 @@ from typing import Any
 
 import pytest
 
-from minerva import conversations, llm, retrieve, server, store, translations
+from minerva import conversations, llm, retrieve, store, translations
+from minerva.http.server_core import ServerDeps
 
 
 def make_chunk(**overrides: Any) -> dict[str, Any]:
@@ -377,7 +378,7 @@ def _trans_conn() -> sqlite3.Connection:
 
 
 @pytest.fixture
-def deps_with_rewrite(populated_db: sqlite3.Connection) -> server.ServerDeps:
+def deps_with_rewrite(populated_db: sqlite3.Connection) -> ServerDeps:
     """ServerDeps with production-like auto-rewrite enabled."""
     return make_deps(populated_db, StubBackend(), force_rewrite=True)
 
@@ -392,7 +393,7 @@ def make_deps(
     conversations_conn: sqlite3.Connection | None = None,
     translations_conn: sqlite3.Connection | None = None,
     concept_cache_conn: sqlite3.Connection | None = None,
-) -> server.ServerDeps:
+) -> ServerDeps:
     """Build a `ServerDeps` for handler-level tests. Each call gets a
     fresh conversations + translations DB unless caller supplies one.
 
@@ -406,7 +407,7 @@ def make_deps(
     test exercises the cache path.
     """
 
-    return server.ServerDeps(
+    return ServerDeps(
         conn=populated_db,
         conversations_conn=conversations_conn or _conv_conn(),
         translations_conn=translations_conn or _trans_conn(),

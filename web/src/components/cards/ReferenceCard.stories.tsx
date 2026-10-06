@@ -10,9 +10,9 @@
 // side-by-side comparison.
 //
 // No fetch interception — ReferenceCard is fully prop-driven. The
-// mocked `Reference` objects below match the shape returned by
-// `/api/chunks/:id/references` so swapping in real API data later is
-// a one-line change.
+// mocked `Reference` objects below match the `top` rows returned by
+// `/api/works/:id/references_map`, which is where the reader gets the
+// one it passes in.
 
 import type { Component } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";

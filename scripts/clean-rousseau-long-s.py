@@ -19,6 +19,8 @@ Other Rousseau files (Émile, Contrat Social, Émigré, ...) had no
 the affected file to avoid noisy diffs.
 
 Idempotent.
+
+Role: oneoff
 """
 
 from __future__ import annotations

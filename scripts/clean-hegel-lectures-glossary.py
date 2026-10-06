@@ -44,6 +44,8 @@ Usage:
     python scripts/clean-hegel-lectures-glossary.py --db path/to/index.sqlite
 
 Always snapshot first: ``scripts/snapshot-db.sh <reason>``.
+
+Role: oneoff
 """
 
 from __future__ import annotations

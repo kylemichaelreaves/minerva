@@ -26,8 +26,9 @@
 //     card's is error-state only, so the two cards match there too.
 //
 // The component is fully prop-driven — no internal fetch. The reader
-// fetches `/api/chunks/:id/references` once per row, then passes the
-// matching `Reference` object in. Preview text (the target chunk's
+// fetches `/api/works/:id/references_map` once per window
+// (`fetchReferencesMap`), and `useXrefCard` passes the first of the
+// clicked chunk's `top` references in. Preview text (the target chunk's
 // body, when in-corpus) is similarly passed in by the caller via the
 // optional `previewText` prop; an undefined `previewText` collapses
 // the preview block.

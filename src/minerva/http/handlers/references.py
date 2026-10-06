@@ -10,15 +10,6 @@ from ._locks import with_corpus_lock
 
 
 @with_corpus_lock
-def _handle_chunk_references(
-    deps: ServerDeps,
-    chunk_id: str,
-    query: dict[str, str],
-) -> dict[str, Any]:
-    return refs_queries.chunk_references(deps.conn, chunk_id, query)
-
-
-@with_corpus_lock
 def _handle_work_references_map(
     deps: ServerDeps,
     work_id: int,

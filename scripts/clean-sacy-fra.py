@@ -41,6 +41,8 @@ them:
 Run:
 
     uv run python scripts/clean-sacy-fra.py
+
+Role: workflow
 """
 
 from __future__ import annotations

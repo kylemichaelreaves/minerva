@@ -24,6 +24,8 @@ that are predominantly non-letter characters (image-glyph soup).
 
 Re-runnable: keeps idempotent properties — running twice gives the
 same output as running once. Safe to call after a fetcher refresh.
+
+Role: oneoff
 """
 
 from __future__ import annotations

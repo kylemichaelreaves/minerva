@@ -125,9 +125,13 @@ Corpus metadata (slugs, languages, citation systems, chat keywords) is defined i
 Stdlib server in [`src/minerva/http/`](../src/minerva/http/) — transport in
 [`serve.py`](../src/minerva/http/serve.py), routing in
 [`router.py`](../src/minerva/http/router.py), per-route handlers under
-[`handlers/`](../src/minerva/http/handlers/). Run via `minerva serve`.
-[`src/minerva/server.py`](../src/minerva/server.py) is a re-export shim over that
-package, kept for the import paths a few tests still use; it is not the server (#504).
+[`handlers/`](../src/minerva/http/handlers/). Run via `minerva serve`
+([`cli/serve_cmd.py`](../src/minerva/cli/serve_cmd.py)).
+
+The tables list every route the SPA calls. Five GETs with no SPA caller were
+deleted in #504 — the terms list, terms by chunk, a work's term occurrences, a
+translation's renderings, and a chunk's references; the terms list is still
+available to operators as `minerva terms list`.
 
 ### Chat and conversations
 
@@ -152,13 +156,9 @@ package, kept for the import paths a few tests still use; it is not the server (
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/terms` | Term list (filtered) |
 | `GET` | `/api/terms/:id` | One term |
-| `GET` | `/api/terms/by_chunk/:chunk_id` | Terms in chunk |
-| `GET` | `/api/works/:id/term_occurrences` | Occurrences for a work |
 | `GET` | `/api/works/:id/occurrence_map` | Occurrence map |
 | `GET` | `/api/works/:id/lemma_highlights` | Lemma highlight ranges |
-| `GET` | `/api/translations/:id/renderings` | Translation renderings |
 
 ### Syntax
 
@@ -184,7 +184,6 @@ a paste from reaching storage.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/chunks/:id/references` | Outgoing + incoming for Reader gutter |
 | `GET` | `/api/works/:id/references_map` | Windowed map for gutter markers |
 | `GET` | `/api/references` | Corpus-wide list (`/refs` UI) |
 | `GET` | `/api/references/sources` | Source author facet |

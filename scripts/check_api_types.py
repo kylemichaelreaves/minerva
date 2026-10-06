@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Verify API contract fixture keys exist on TS wire types (api/types/*.ts)."""
+"""Verify API contract fixture keys exist on TS wire types (api/types/*.ts).
+
+Role: workflow
+"""
 
 from __future__ import annotations
 
@@ -36,9 +39,7 @@ FIXTURE_TYPES: dict[str, tuple[Path, str]] = {
 
 # Fixtures with no TS interface to check against, and why. An entry here is a
 # deliberate exemption; anything else unmapped is an error (see `main`).
-UNTYPED_FIXTURES: dict[str, str] = {
-    "terms_list": "no exported response interface — the terms list is consumed inline",
-}
+UNTYPED_FIXTURES: dict[str, str] = {}
 
 
 def _interface_fields(path: Path, name: str) -> set[str]:

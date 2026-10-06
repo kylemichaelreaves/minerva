@@ -31,6 +31,8 @@ generated (#176).
 
 Usage:
     scripts/check_pr_citations.py     # or: make check-pr-citations
+
+Role: workflow
 """
 
 from __future__ import annotations

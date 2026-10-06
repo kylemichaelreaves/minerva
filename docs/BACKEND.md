@@ -36,8 +36,9 @@ For architecture (route tables, DB layout, ChatContext), see
   everywhere else.
 - **HTTP handlers** live in `src/minerva/http/handlers/` — thin wrappers that
   unpack the request, call the domain function, return JSON. No business logic
-  in handlers. Transport (`ChatHandler`, static SPA) is in `http/serve.py`;
-  `server.py` is the `minerva serve` entry and test-facing re-exports.
+  in handlers. Transport (`ChatHandler`, static SPA, `serve()`) is in
+  `http/serve.py`, routing in `http/router.py`; `minerva serve` enters through
+  `cli/serve_cmd.py`. Tests import from `minerva.http.*` directly.
 
 ## SQL and the store
 

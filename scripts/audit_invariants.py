@@ -34,6 +34,8 @@ not be confused with a clean result.
 
 This is an operator script, not a CI gate: it needs `data/index.sqlite`,
 which is gitignored and absent in CI. ``scripts/**`` is coverage-excluded.
+
+Role: workflow
 """
 
 from __future__ import annotations

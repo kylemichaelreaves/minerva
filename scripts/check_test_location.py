@@ -25,6 +25,8 @@ failure: a colocated duplicate is invisible from beside the component.
 `Lines.test.tsx` under `web/src`, and both the implementer and the
 reviewer reported that no such file existed — each had looked only in
 one place.
+
+Role: workflow
 """
 
 from __future__ import annotations
