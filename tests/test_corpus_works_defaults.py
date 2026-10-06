@@ -18,8 +18,7 @@ from minerva.corpus_works import CorpusWork, make_find_work
 from minerva.migrations import runtime_helpers
 from minerva.store.chunks import _resolve_work_refs
 
-
-_BASE = dict(code="w", translator="", edition_year="", fmt="txt", locator="paragraph")
+_BASE = {"code": "w", "translator": "", "edition_year": "", "fmt": "txt", "locator": "paragraph"}
 
 
 def _work(title: str, *filenames: str) -> CorpusWork:
