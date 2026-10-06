@@ -109,7 +109,8 @@ describe("<MatrixPanel />", () => {
 
     const label = (name: string, axis: "row" | "col") =>
       [...container.querySelectorAll("text")].find(
-        (t) => t.textContent === name && (t.getAttribute("transform") !== null) === (axis === "col"),
+        (t) =>
+          t.textContent === name && (t.getAttribute("transform") !== null) === (axis === "col"),
       );
     const cellMidY = n(target, "y") - 0.5 + n(rowBar, "height") / 2;
     const cellMidX = n(target, "x") - 0.5 + n(colBar, "width") / 2;

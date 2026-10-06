@@ -151,9 +151,7 @@ export function MatrixPanel(props: {
                 height={geo().gridH}
                 fill="var(--net-matrix-field)"
               />
-              <Show when={hover()}>
-                {(g) => <Crosshair g={g()} geo={geo()} />}
-              </Show>
+              <Show when={hover()}>{(g) => <Crosshair g={g()} geo={geo()} />}</Show>
               <Bands axes={axes()} geo={geo()} />
               <For each={axes().rows}>
                 {(i, pos) => (
@@ -222,9 +220,7 @@ export function MatrixPanel(props: {
                 </For>
               </g>
             </svg>
-            <Show when={hover()}>
-              {(g) => <MatrixTooltip g={g()} axes={axes()} geo={geo()} />}
-            </Show>
+            <Show when={hover()}>{(g) => <MatrixTooltip g={g()} axes={axes()} geo={geo()} />}</Show>
           </div>
           <div class="net-matrix-strip">
             <span class="label">drill-down</span>
