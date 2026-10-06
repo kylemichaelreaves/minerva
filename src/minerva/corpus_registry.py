@@ -606,13 +606,34 @@ def entry_for(corpus: str) -> CorpusEntry | None:
     return _BY_ID.get(corpus)
 
 
-def citation_system_for_corpus(corpus: str) -> str:
+class UnknownCorpusError(KeyError):
+    """A corpus id with no ``CORPORA`` entry, where a caller asked to fail."""
+
+
+def _lookup(corpus: str, *, strict: bool) -> CorpusEntry | None:
     e = _BY_ID.get(corpus)
+    if e is None and strict:
+        raise UnknownCorpusError(f"unregistered corpus id {corpus!r}")
+    return e
+
+
+def citation_system_for_corpus(corpus: str, *, strict: bool = False) -> str:
+    """The corpus's citation system; ``paragraph`` for an unknown id.
+
+    ``strict=True`` raises on an unknown id instead. The ingest write path
+    uses it: there, a typo'd corpus id would otherwise become a
+    paragraph-cited English corpus with nothing downstream noticing (#498).
+    The permissive default stays for migrations, which replay against
+    databases that may hold a corpus since renamed or removed.
+    """
+    e = _lookup(corpus, strict=strict)
     return e.citation_system if e else "paragraph"
 
 
-def original_language_for_corpus(corpus: str) -> str:
-    e = _BY_ID.get(corpus)
+def original_language_for_corpus(corpus: str, *, strict: bool = False) -> str:
+    """The corpus's original language; ``eng`` for an unknown id unless
+    ``strict`` (see ``citation_system_for_corpus``)."""
+    e = _lookup(corpus, strict=strict)
     return e.original_lang if e else "eng"
 
 

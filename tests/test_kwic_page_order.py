@@ -45,6 +45,10 @@ _WORKS = [
 ]
 
 
+# Registered corpus ids: the ingest write path rejects an unknown one (#498).
+_CORPUS = {"Hegel": "hegel", "Plato": "plato", "Luther Bibel 1912": "luther_1912"}
+
+
 def _build(tmp_path: Path, rows_per_chunk: int = 2) -> sqlite3.Connection:
     """One German chunk per (work, i), each carrying `rows_per_chunk` tokens
     of lemma `der`: token 0 is DET, token 1 is PRON (Case=Gen)."""
@@ -52,7 +56,7 @@ def _build(tmp_path: Path, rows_per_chunk: int = 2) -> sqlite3.Connection:
     chunks = [
         make_chunk(
             chunk_id=f"{work}-{i}",
-            corpus=author.split()[0].lower(),
+            corpus=_CORPUS[author],
             author=author,
             work=work,
             lang="deu",

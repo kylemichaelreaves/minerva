@@ -72,12 +72,17 @@ def _resolve_work_refs(
         (author, work),
     ).fetchone()
     if work_row is None:
+        # strict: an unregistered corpus id is a typo here, not a corpus
+        # that defaults to paragraph-cited English (#498).
         original_language = original_language_for_corpus(
             corpus,
             translator=translator,
             this_lang=lang,
+            strict=True,
         )
-        citation_system = citation_system_override or citation_system_for_corpus(corpus)
+        citation_system = citation_system_override or citation_system_for_corpus(
+            corpus, strict=True
+        )
         cur = conn.execute(
             "INSERT INTO works (author, title, original_language, citation_system) "
             "VALUES (?, ?, ?, ?)",

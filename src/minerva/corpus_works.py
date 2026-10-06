@@ -22,6 +22,11 @@ class CorpusWork:
     filenames: tuple[str, ...]  # any of these in the corpus directory matches
     fmt: str  # "pdf" | "epub" | "html" (informational; dispatch is by extension)
     locator: str  # "section" | "paragraph" | "chapter" | "fable"
+    # Corpus + author for the chunk. Required: they used to default to
+    # Hegel, so a work row that forgot either was silently filed under him
+    # (#498).
+    corpus: str
+    author: str
     # Hard cap for `paragraph` / `section` locators: any detected number
     # above this is rejected as a spurious match against page numbers or
     # footnote ordinals. None disables the cap.
@@ -56,9 +61,6 @@ class CorpusWork:
     # ISO 639-3 language code stored on every chunk (default English;
     # override for German/Greek/etc. originals).
     lang: str = "eng"
-    # Corpus + author for the chunk; override for non-Hegel works.
-    corpus: str = "hegel"
-    author: str = "Hegel"
     # Per-work heading overrides. Chapter labels (after the standard
     # heading normalization) matching any of these are dropped, even
     # if the global editorial-heading filter would keep them. Match is
@@ -132,7 +134,16 @@ class CorpusWork:
 
 
 def filename_index(works: Iterable[CorpusWork]) -> dict[str, CorpusWork]:
-    """Map each work's ``filenames`` entry to the work row."""
+    """Map each work's ``filenames`` entry to the work row.
+
+    A filename claimed by more than one work resolves to the **last** one
+    declared. That is a supported declaration, not a collision: one Gregor
+    PDF holds twelve Kant works and one Diels OCR text twenty-four
+    Presocratics, and those modules resolve the full set through
+    ``find_works`` (or by chapter heading). The singular lookup only has to
+    be deterministic, and ``make_find_work``'s two branches must agree on it
+    (#498).
+    """
 
     out: dict[str, CorpusWork] = {}
     for w in works:
@@ -150,13 +161,10 @@ def make_find_work(
 
     works_tuple = tuple(works)
     if case_insensitive:
+        by_lower = {fn.lower(): w for fn, w in filename_index(works_tuple).items()}
 
         def find_work(filename: str) -> CorpusWork | None:
-            lower = filename.lower()
-            for w in works_tuple:
-                if any(c.lower() == lower for c in w.filenames):
-                    return w
-            return None
+            return by_lower.get(filename.lower())
 
         return find_work
 

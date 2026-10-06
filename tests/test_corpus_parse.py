@@ -46,6 +46,8 @@ def test_detect_page_chrome_ignores_long_lines():
 
 def _make_work(locator: str, code: str = "x") -> corpus_works.CorpusWork:
     return corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code=code,
         title="Test CorpusWork",
         translator="T",
@@ -162,6 +164,8 @@ def test_split_by_paragraph_returns_nothing_when_no_markers(tmp_path: Path):
 def test_split_by_paragraph_honors_max_section_cap(tmp_path: Path):
     """Numbers above max_section are rejected as spurious (page numbers etc.)."""
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test",
         translator="T",
@@ -178,6 +182,8 @@ def test_split_by_paragraph_honors_max_section_cap(tmp_path: Path):
 
 def test_split_by_section_honors_max_section_cap(tmp_path: Path):
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test",
         translator="T",
@@ -197,6 +203,8 @@ def test_split_by_section_honors_min_section_floor(tmp_path: Path):
     floor as well as a ceiling, since OCR noise can hit low-numbered §-shapes
     in front matter or at page boundaries."""
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test",
         translator="T",
@@ -311,6 +319,8 @@ def test_split_by_chapter_honors_per_work_skip_headings(tmp_path: Path):
     own prefaces in PhG, PR, etc., so "Preface" can't be globally banned).
     Before #534 the matched body was dropped outright."""
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test CorpusWork",
         translator="T",
@@ -351,6 +361,8 @@ def test_page_furniture_is_separated_for_works_that_opt_in(tmp_path):
     )
     # `_make_work` does not take `page_furniture`; build the work directly.
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="lwh",
         title="Lectures",
         translator="T",
@@ -377,6 +389,8 @@ def test_page_furniture_strips_running_head_with_no_trailing_notes(tmp_path: Pat
     block at all — the common case, and the one that exercises the
     `if note_text:` branch's False side inside the opt-in pass."""
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="lwh",
         title="Lectures",
         translator="T",
@@ -402,6 +416,8 @@ def test_page_furniture_note_split_preserves_editorial_block_type(tmp_path: Path
     (#533 review finding 1). A note split from a non-editorial chunk
     still gets plain `block_type='note'`."""
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="lwh",
         title="Lectures",
         translator="T",
@@ -553,6 +569,8 @@ def test_emit_chunk_id_is_stable(tmp_path: Path):
 def test_emit_propagates_work_lang_to_chunk(tmp_path: Path):
     """German originals declare lang='deu'; emitted chunks must carry it."""
     work_de = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x_de",
         title="Test",
         translator="(Original)",
@@ -577,6 +595,8 @@ def test_emit_chunk_id_changes_when_lang_changes(tmp_path: Path):
     a German §1 would silently overwrite the English §1 in the store."""
     work_en = _make_work("section")
     work_de = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x_de",
         title="Test CorpusWork",
         translator="T",
@@ -682,6 +702,8 @@ def test_split_zeno_pages_emits_clean_chapter_labels(tmp_path: Path):
     p = tmp_path / "test.html"
     p.write_text(html, encoding="utf-8")
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="t_de",
         title="Test Werk",
         translator="(Original)",
@@ -1035,6 +1057,8 @@ def test_dropping_junk_paragraph_does_not_renumber_survivors(tmp_path: Path):
 
 def _capped_work(cap: int) -> corpus_works.CorpusWork:
     return corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test CorpusWork",
         translator="T",
@@ -1293,6 +1317,8 @@ def test_out_of_order_markers_are_kept_when_the_first_section_never_appears(tmp_
 
 def _front_matter_work() -> corpus_works.CorpusWork:
     return corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test CorpusWork",
         translator="T",
@@ -1539,6 +1565,8 @@ def test_block_type_precedence_heading_tag_over_work_default(tmp_path: Path):
         default rather than being clobbered by it.
     """
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="x",
         title="Test CorpusWork",
         translator="T",
@@ -1599,6 +1627,8 @@ def test_split_by_kant_ab_tags_editorial_material_instead_of_unattributing_it(
         "The translator explains the Cambridge edition's conventions here.\n"
     )
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="kx",
         title="Test Kant",
         translator="T",
@@ -1636,6 +1666,8 @@ def test_split_zeno_pages_tags_an_editorial_page_instead_of_dropping_it(
     p = tmp_path / "test.html"
     p.write_text(html, encoding="utf-8")
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="t_de",
         title="Test Werk",
         translator="(Original)",
@@ -1673,6 +1705,8 @@ def test_a_note_rejected_by_emit_stays_in_the_body_instead_of_vanishing(tmp_path
     )
     body = "Hegel writes at length on the Greek world and its religion.3 And so it stands."
     work = corpus_works.CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="h_en",
         title="Test Hegel",
         translator="T",

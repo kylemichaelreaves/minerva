@@ -34,6 +34,8 @@ Zusätze.
 
 def _work() -> CorpusWork:
     return CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="pr_de",
         title="Grundlinien der Philosophie des Rechts",
         translator="(Original)",

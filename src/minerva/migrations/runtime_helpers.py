@@ -21,8 +21,8 @@ _CITATION_SYSTEM_BY_CORPUS = {e.id: e.citation_system for e in corpus_registry.C
 _YEAR_RE = re.compile(r"\d{4}")
 
 
-def citation_system_for_corpus(corpus: str) -> str:
-    return corpus_registry.citation_system_for_corpus(corpus)
+def citation_system_for_corpus(corpus: str, *, strict: bool = False) -> str:
+    return corpus_registry.citation_system_for_corpus(corpus, strict=strict)
 
 
 def original_language_for_corpus(
@@ -30,6 +30,7 @@ def original_language_for_corpus(
     *,
     translator: str | None,
     this_lang: str,
+    strict: bool = False,
 ) -> str:
     """Decide the original_language for a new Work record being created
     for the FIRST time at runtime (we only have one chunk's worth of
@@ -55,8 +56,10 @@ def original_language_for_corpus(
     """
 
     if translator == "(Original)":
+        if strict:
+            corpus_registry.original_language_for_corpus(corpus, strict=True)
         return this_lang
-    return corpus_registry.original_language_for_corpus(corpus)
+    return corpus_registry.original_language_for_corpus(corpus, strict=strict)
 
 
 def parse_year(raw: str | None) -> int | None:

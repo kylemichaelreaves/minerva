@@ -52,6 +52,8 @@ def _make_epub(tmp: Path) -> Path:
 
 def _work() -> CorpusWork:
     return CorpusWork(
+        corpus="hegel",
+        author="Hegel",
         code="pr",
         title="Elements of the Philosophy of Right",
         translator="Wood / Nisbet",
