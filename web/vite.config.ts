@@ -57,6 +57,13 @@ export default defineConfig({
         "src/**/*.stories.{ts,tsx}",
         "src/main.tsx", // bootstrap entry
         "tests/**",
+        // Files Sonar never indexes, so their lcov records can't resolve and
+        // every scan warned "Could not resolve 3 file paths" (#763): a
+        // type-only declaration file (nothing to cover), and the two
+        // codegen'd files listed in sonar-project.properties' exclusions.
+        "src/**/*.d.ts",
+        "src/data/atlasData.ts",
+        "src/utils/dominantPhil.ts",
       ],
       thresholds: {
         // Baseline from the orchestration-layer test pass (Jun 2026).
