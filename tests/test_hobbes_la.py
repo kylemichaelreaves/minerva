@@ -51,9 +51,7 @@ _HAS_DE_CIVE = _DE_CIVE_LAT.is_file()
 
 @pytest.fixture(scope="module")
 def sample_chunks() -> list:
-    return list(
-        parse_file(_FIXTURE, work_title="Leviathan", work_code="leviathan_lat")
-    )
+    return list(parse_file(_FIXTURE, work_title="Leviathan", work_code="leviathan_lat"))
 
 
 @pytest.fixture(scope="module")
@@ -125,9 +123,7 @@ class TestMarginMarkerStripping:
             ),
         ],
     )
-    def test_margin_marker_is_stripped_at_line_edges(
-        self, line: str, expected: str
-    ) -> None:
+    def test_margin_marker_is_stripped_at_line_edges(self, line: str, expected: str) -> None:
         assert _strip_inline_margin(line) == expected
 
     @pytest.mark.parametrize(
@@ -151,9 +147,7 @@ class TestMarginMarkerStripping:
         assert _strip_inline_margin(line) == line.strip()
 
     @pytest.mark.skipif(not _HAS_LEVIATHAN, reason="Latin Leviathan not present")
-    def test_scripture_chapter_citations_survive_into_chunks(
-        self, leviathan_chunks: list
-    ) -> None:
+    def test_scripture_chapter_citations_survive_into_chunks(self, leviathan_chunks: list) -> None:
         """End-to-end: the citations above reach the chunks."""
 
         joined = " ".join(c.text for c in leviathan_chunks)
@@ -272,14 +266,10 @@ class TestParagraphAssembly:
         assert _join_body(["acci-", "dentis in corpore"]) == "accidentis in corpore"
 
     def test_untrailing_lines_join_with_space(self) -> None:
-        assert _join_body(["alias ab aliis", "dependentes"]) == (
-            "alias ab aliis dependentes"
-        )
+        assert _join_body(["alias ab aliis", "dependentes"]) == ("alias ab aliis dependentes")
 
     def test_final_paragraph_is_emitted_without_trailing_blank(self) -> None:
-        assert list(_paragraphs([_Line("body", "ultima sententia")])) == [
-            "ultima sententia"
-        ]
+        assert list(_paragraphs([_Line("body", "ultima sententia")])) == ["ultima sententia"]
 
     def test_drop_lines_alone_never_emit_a_paragraph(self) -> None:
         assert list(_paragraphs([_Line("drop"), _Line("blank")])) == []
@@ -360,9 +350,7 @@ class TestMarginTurnover:
         return out
 
     def test_turnover_returns_the_preceding_page_break(self) -> None:
-        lines = self._run(
-            ["cap. xxxiv. textus", None, "cap. xxxv. textus", "cap. xxxv. textus"]
-        )
+        lines = self._run(["cap. xxxiv. textus", None, "cap. xxxv. textus", "cap. xxxv. textus"])
         # The page break at index 1 is where chapter XXXV began.
         assert _find_margin_turnover(lines, target_chap=35) == 1
 
@@ -427,22 +415,16 @@ class TestRomanToInt:
 class TestLeviathanChapters:
     def test_all_47_chapters_present(self, leviathan_chunks: list) -> None:
         chapters = {int(c.book.split()[1]) for c in leviathan_chunks}
-        assert chapters == set(range(1, 48)), (
-            f"missing: {sorted(set(range(1, 48)) - chapters)}"
-        )
+        assert chapters == set(range(1, 48)), f"missing: {sorted(set(range(1, 48)) - chapters)}"
 
-    def test_chapter_35_recovered_from_the_margin(
-        self, leviathan_chunks: list
-    ) -> None:
+    def test_chapter_35_recovered_from_the_margin(self, leviathan_chunks: list) -> None:
         """Caput XXXV has neither a heading nor a title line in the
         scan; it exists only because the marginal marker turns over.
         Check it is genuinely XXXV — *De significatione in scripturis
         regni Dei, sancti, sacri, et sacramenti* — and not a slice of
         XXXIV wearing the number."""
 
-        text = " ".join(
-            c.text for c in leviathan_chunks if c.book == "Cap 35"
-        ).lower()
+        text = " ".join(c.text for c in leviathan_chunks if c.book == "Cap 35").lower()
         assert text, "Cap 35 absent"
         assert "sanctum" in text
         assert "sacramentum" in text
@@ -451,13 +433,9 @@ class TestLeviathanChapters:
 class TestDeCiveChapters:
     def test_all_18_chapters_present(self, de_cive_chunks: list) -> None:
         chapters = {int(c.book.split()[1]) for c in de_cive_chunks}
-        assert chapters == set(range(1, 19)), (
-            f"missing: {sorted(set(range(1, 19)) - chapters)}"
-        )
+        assert chapters == set(range(1, 19)), f"missing: {sorted(set(range(1, 19)) - chapters)}"
 
-    def test_chapter_14_survives_its_stray_period(
-        self, de_cive_chunks: list
-    ) -> None:
+    def test_chapter_14_survives_its_stray_period(self, de_cive_chunks: list) -> None:
         c14 = [c for c in de_cive_chunks if c.book == "Cap 14"]
         assert c14, "Cap 14 absent — 'CAPUT. XIV.' heading not matched"
         assert sum(len(c.text) for c in c14) > 2000
@@ -483,9 +461,7 @@ class TestChunkGranularity:
         chunks = request.getfixturevalue(fixture_name)
         assert len(chunks) >= min_chunks
 
-    @pytest.mark.parametrize(
-        "fixture_name", ["leviathan_chunks", "de_cive_chunks"]
-    )
+    @pytest.mark.parametrize("fixture_name", ["leviathan_chunks", "de_cive_chunks"])
     def test_no_chapter_sized_chunks(
         self, fixture_name: str, request: pytest.FixtureRequest
     ) -> None:
@@ -496,9 +472,7 @@ class TestChunkGranularity:
             f"Hobbes files cap paragraphs at 8000"
         )
 
-    @pytest.mark.parametrize(
-        "fixture_name", ["leviathan_chunks", "de_cive_chunks"]
-    )
+    @pytest.mark.parametrize("fixture_name", ["leviathan_chunks", "de_cive_chunks"])
     def test_section_and_book_follow_the_english_hobbes_shape(
         self, fixture_name: str, request: pytest.FixtureRequest
     ) -> None:
@@ -510,9 +484,7 @@ class TestChunkGranularity:
             assert c.book is not None and c.book.startswith("Cap ")
             assert c.section == f"{c.book}, ¶{c.section.split('¶')[1]}"
 
-    @pytest.mark.parametrize(
-        "fixture_name", ["leviathan_chunks", "de_cive_chunks"]
-    )
+    @pytest.mark.parametrize("fixture_name", ["leviathan_chunks", "de_cive_chunks"])
     def test_paragraph_numbers_restart_each_chapter(
         self, fixture_name: str, request: pytest.FixtureRequest
     ) -> None:
@@ -522,12 +494,8 @@ class TestChunkGranularity:
             firsts.setdefault(c.book, c.section)
         assert all(s.endswith(", ¶1") for s in firsts.values())
 
-    @pytest.mark.parametrize(
-        "fixture_name", ["leviathan_chunks", "de_cive_chunks"]
-    )
-    def test_chunk_ids_are_unique(
-        self, fixture_name: str, request: pytest.FixtureRequest
-    ) -> None:
+    @pytest.mark.parametrize("fixture_name", ["leviathan_chunks", "de_cive_chunks"])
+    def test_chunk_ids_are_unique(self, fixture_name: str, request: pytest.FixtureRequest) -> None:
         chunks = request.getfixturevalue(fixture_name)
         ids = [c.chunk_id for c in chunks]
         assert len(set(ids)) == len(ids)
@@ -539,9 +507,7 @@ class TestChunkGranularity:
 
 
 class TestOcrDefectsCleared:
-    @pytest.mark.parametrize(
-        "fixture_name", ["leviathan_chunks", "de_cive_chunks"]
-    )
+    @pytest.mark.parametrize("fixture_name", ["leviathan_chunks", "de_cive_chunks"])
     def test_page_chrome_all_but_gone_from_chunk_text(
         self, fixture_name: str, request: pytest.FixtureRequest
     ) -> None:
@@ -568,9 +534,7 @@ class TestOcrDefectsCleared:
         for token in ("triwmph", "Cbrifti", "Damel", "$eniet", "Dabid"):
             assert token not in joined
 
-    @pytest.mark.parametrize(
-        "fixture_name", ["leviathan_chunks", "de_cive_chunks"]
-    )
+    @pytest.mark.parametrize("fixture_name", ["leviathan_chunks", "de_cive_chunks"])
     def test_run_together_tokens_all_but_gone(
         self, fixture_name: str, request: pytest.FixtureRequest
     ) -> None:
@@ -598,9 +562,7 @@ class TestOcrDefectsCleared:
 
 
 class TestFixtureEndToEnd:
-    def test_chapter_numbers_and_paragraph_locators(
-        self, sample_chunks: list
-    ) -> None:
+    def test_chapter_numbers_and_paragraph_locators(self, sample_chunks: list) -> None:
         assert [c.section for c in sample_chunks] == [
             "Cap 1, ¶1",
             "Cap 1, ¶2",
@@ -613,9 +575,7 @@ class TestFixtureEndToEnd:
             "Cap 5, ¶1",
         ]
 
-    def test_chapter_4_is_recovered_from_the_margin(
-        self, sample_chunks: list
-    ) -> None:
+    def test_chapter_4_is_recovered_from_the_margin(self, sample_chunks: list) -> None:
         """The fixture has no ``CAPUT IV.`` line — only two ``cap. iv.``
         marginal markers, exactly as the real Leviathan's Caput XXXV."""
 
@@ -625,15 +585,11 @@ class TestFixtureEndToEnd:
         assert len(cap4) == 2
         assert "Rerum nomina imponuntur" in cap4[0].text
 
-    def test_chapter_5_survives_its_stray_period(
-        self, sample_chunks: list
-    ) -> None:
+    def test_chapter_5_survives_its_stray_period(self, sample_chunks: list) -> None:
         assert "CAPUT.  V." in _FIXTURE.read_text(encoding="utf-8")
         assert any(c.book == "Cap 5" for c in sample_chunks)
 
-    def test_page_chrome_and_orphan_glosses_are_gone(
-        self, sample_chunks: list
-    ) -> None:
+    def test_page_chrome_and_orphan_glosses_are_gone(self, sample_chunks: list) -> None:
         joined = " ".join(c.text for c in sample_chunks)
         for gone in (
             "DE HOMINE",  # running head
@@ -643,9 +599,7 @@ class TestFixtureEndToEnd:
         ):
             assert gone not in joined, f"{gone!r} leaked into chunk text"
 
-    def test_margin_markers_are_stripped_but_citations_are_not(
-        self, sample_chunks: list
-    ) -> None:
+    def test_margin_markers_are_stripped_but_citations_are_not(self, sample_chunks: list) -> None:
         """Both halves of the rule, on one fixture: the run-in ``cap. i.``
         at a line's head is gone, and ``(cap. i. et ii.)`` mid-sentence
         is intact."""
@@ -657,9 +611,7 @@ class TestFixtureEndToEnd:
         assert "Deut. xxv. 4" in by_section["Cap 4, ¶1"]
         assert "Prov. ix. 10" in by_section["Cap 5, ¶1"]
 
-    def test_hyphenated_words_rejoin_across_the_line_break(
-        self, sample_chunks: list
-    ) -> None:
+    def test_hyphenated_words_rejoin_across_the_line_break(self, sample_chunks: list) -> None:
         text = sample_chunks[0].text
         assert "accidentis" in text  # "acci-" + "dentis"
         assert "objectum" in text  # "ob-" + "jectum"
@@ -681,24 +633,18 @@ class TestFixtureEndToEnd:
         assert len({x.chunk_id for x in sample_chunks}) == len(sample_chunks)
 
     def test_de_cive_edition_year(self) -> None:
-        chunks = list(
-            parse_file(_FIXTURE, work_title="De Cive", work_code="de_cive_lat")
-        )
+        chunks = list(parse_file(_FIXTURE, work_title="De Cive", work_code="de_cive_lat"))
         assert chunks[0].edition_year == "1642"
 
     def test_unknown_work_code_falls_back_without_crashing(self) -> None:
-        chunks = list(
-            parse_file(_FIXTURE, work_title="Whatever", work_code="unknown_code")
-        )
+        chunks = list(parse_file(_FIXTURE, work_title="Whatever", work_code="unknown_code"))
         assert chunks, "an unregistered work code should still parse"
 
     def test_chapters_past_the_works_count_are_dropped(self) -> None:
         """`_MAX_CHAPTER_BY_CODE` caps De Cive at 18 and Leviathan at 47.
         A fixture parsed as a 2-chapter work keeps only 1 and 2."""
 
-        chunks = list(
-            parse_file(_FIXTURE, work_title="Tiny", work_code="leviathan_lat")
-        )
+        chunks = list(parse_file(_FIXTURE, work_title="Tiny", work_code="leviathan_lat"))
         assert max(int(c.book.split()[1]) for c in chunks) == 5
 
 

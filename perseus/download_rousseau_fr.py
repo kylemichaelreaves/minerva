@@ -100,10 +100,7 @@ _WORKS: tuple[dict, ...] = (
 
 
 def _url(title: str) -> str:
-    return (
-        "https://fr.wikisource.org/api/rest_v1/page/html/"
-        + quote(title, safe="")
-    )
+    return "https://fr.wikisource.org/api/rest_v1/page/html/" + quote(title, safe="")
 
 
 _fetch = make_fetcher()

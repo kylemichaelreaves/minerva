@@ -97,21 +97,13 @@ def validate_chunk_counts(
         lo, hi = spec
         labels = corpus_db_labels(manifest, corpus_id)
         if not labels:
-            errors.append(
-                f"{corpus_id}: no manifest author rows — cannot map DB labels"
-            )
+            errors.append(f"{corpus_id}: no manifest author rows — cannot map DB labels")
             continue
         count = count_chunks_for_corpus(conn, labels)
         if count < lo:
-            errors.append(
-                f"{corpus_id}: {count:,} chunks below minimum {lo:,} "
-                f"(labels={labels!r})"
-            )
+            errors.append(f"{corpus_id}: {count:,} chunks below minimum {lo:,} (labels={labels!r})")
         elif count > hi:
-            errors.append(
-                f"{corpus_id}: {count:,} chunks above maximum {hi:,} "
-                f"(labels={labels!r})"
-            )
+            errors.append(f"{corpus_id}: {count:,} chunks above maximum {hi:,} (labels={labels!r})")
     return errors
 
 
@@ -166,9 +158,7 @@ def validate_snapshot(
     errors: list[str] = []
     for corpus_id, (lo, hi) in sorted(ranges.items()):
         if corpus_id not in snapshot:
-            errors.append(
-                f"{corpus_id}: missing from snapshot — run `make generate-authors`"
-            )
+            errors.append(f"{corpus_id}: missing from snapshot — run `make generate-authors`")
             continue
         count = snapshot[corpus_id]
         if count < lo:
@@ -205,8 +195,7 @@ def snapshot_drift(
         # separately rather than through the thousands separator.
         shown = "absent" if got is None else f"{got:,}"
         errors.append(
-            f"{corpus_id}: snapshot says {shown} but DB has {want:,} "
-            f"— run `make generate-authors`"
+            f"{corpus_id}: snapshot says {shown} but DB has {want:,} — run `make generate-authors`"
         )
     return errors
 

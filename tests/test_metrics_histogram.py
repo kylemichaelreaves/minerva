@@ -48,8 +48,8 @@ def test_quantile_single_bucket_interpolates_within_it():
 
 def test_quantile_p95_lands_in_the_tail_bucket():
     counts = [0] * BUCKET_COUNT
-    counts[0] = 95   # [0, 1)
-    counts[8] = 5    # [250, 500)
+    counts[0] = 95  # [0, 1)
+    counts[8] = 5  # [250, 500)
     assert quantile(counts, 0.99) == pytest.approx(450.0)
 
 

@@ -907,15 +907,15 @@ class _CapturingBackend(llm.LLMBackend):
 
 
 class TestSourceExcerptIsWindowedOnTheSpan:
-    def test_a_cite_past_char_400_reaches_the_judge(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_a_cite_past_char_400_reaches_the_judge(self, populated_db: sqlite3.Connection) -> None:
         # The Hobbes shape from #713: the citation sits well past the
         # first 400 chars, so a head-only excerpt hides it and the judge
         # rejects it as "not visible in the source excerpt".
         cite = "Matth. xiii. 3"
-        text = ("lorem ipsum dolor " * 70) + f"the seed, {cite}, and to the leaven " + (
-            "sit amet " * 100
+        text = (
+            ("lorem ipsum dolor " * 70)
+            + f"the seed, {cite}, and to the leaven "
+            + ("sit amet " * 100)
         )
         start = text.index(cite)
         assert start > 1000
@@ -989,10 +989,18 @@ def _seed_judged_row(
 class TestRejudgeBlind:
     def _seed(self, conn: sqlite3.Connection) -> dict[str, int]:
         return {
-            "blind": _seed_judged_row(conn, chunk_id="rep-509d", cite="Matth. xiii. 3", past_head=True),
-            "seen": _seed_judged_row(conn, chunk_id="rep-510a", cite="Matth. xiii. 4", past_head=False),
+            "blind": _seed_judged_row(
+                conn, chunk_id="rep-509d", cite="Matth. xiii. 3", past_head=True
+            ),
+            "seen": _seed_judged_row(
+                conn, chunk_id="rep-510a", cite="Matth. xiii. 4", past_head=False
+            ),
             "kept": _seed_judged_row(
-                conn, chunk_id="rep-514a", cite="Matth. xiii. 5", past_head=True, curator_status="auto"
+                conn,
+                chunk_id="rep-514a",
+                cite="Matth. xiii. 5",
+                past_head=True,
+                curator_status="auto",
             ),
             "fresh": _seed_judged_row(
                 conn,

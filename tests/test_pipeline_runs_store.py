@@ -36,10 +36,7 @@ def _stats():
 
 def test_rows_round_trip(conn):
     m.write_pipeline_rows(conn, _stats().rows(at=1_700_000_000.0, pipeline="lemmatize"))
-    got = {
-        (r["lang"], r["backend"], r["model"], r["kind"]): r
-        for r in m.pipeline_runs(conn)
-    }
+    got = {(r["lang"], r["backend"], r["model"], r["kind"]): r for r in m.pipeline_runs(conn)}
     assert ("lat", "spacy", "la_core_web_sm", "batch_duration") in got
     assert got[("lat", "spacy", "la_core_web_sm", "batch_duration")]["count"] == 10
     assert got[("grc", "stanza", "grc", "batch_duration")]["count"] == 1
@@ -50,8 +47,7 @@ def test_throughput_survives_the_round_trip(conn):
 
     m.write_pipeline_rows(conn, _stats().rows(at=1.0, pipeline="lemmatize"))
     row = next(
-        r for r in m.pipeline_runs(conn)
-        if r["lang"] == "lat" and r["kind"] == "batch_duration"
+        r for r in m.pipeline_runs(conn) if r["lang"] == "lat" and r["kind"] == "batch_duration"
     )
     assert row["items"] == 640
     assert row["items_per_s"] == pytest.approx(640 / (120.0 / 1000.0))
@@ -62,8 +58,7 @@ def test_quantiles_are_recoverable_after_the_round_trip(conn):
 
     m.write_pipeline_rows(conn, _stats().rows(at=1_700_000_000.0, pipeline="lemmatize"))
     row = next(
-        r for r in m.pipeline_runs(conn)
-        if r["lang"] == "lat" and r["kind"] == "batch_duration"
+        r for r in m.pipeline_runs(conn) if r["lang"] == "lat" and r["kind"] == "batch_duration"
     )
     assert 0 < row["p50_ms"] < 100
     assert row["mean"] == pytest.approx(12.0)
@@ -98,4 +93,4 @@ def test_an_old_metrics_database_gains_the_table(tmp_path):
     plain.commit()
     plain.close()
     with closing(m.open_db(path)) as conn:
-        assert m.pipeline_runs(conn) == []       # table exists, and is empty
+        assert m.pipeline_runs(conn) == []  # table exists, and is empty

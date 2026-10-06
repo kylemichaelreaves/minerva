@@ -112,13 +112,9 @@ def granularity_policy(manifest: dict[str, Any]) -> GranularityPolicy:
             fine[str(key)] = entry
     return GranularityPolicy(
         max_chunk_chars=int(raw.get("max_chunk_chars") or DEFAULT_MAX_CHUNK_CHARS),
-        min_mean_chunk_chars=int(
-            raw.get("min_mean_chunk_chars") or DEFAULT_MIN_MEAN_CHUNK_CHARS
-        ),
+        min_mean_chunk_chars=int(raw.get("min_mean_chunk_chars") or DEFAULT_MIN_MEAN_CHUNK_CHARS),
         known_fine=fine,
-        max_mean_chunk_chars=int(
-            raw.get("max_mean_chunk_chars") or DEFAULT_MAX_MEAN_CHUNK_CHARS
-        ),
+        max_mean_chunk_chars=int(raw.get("max_mean_chunk_chars") or DEFAULT_MAX_MEAN_CHUNK_CHARS),
         tolerance_pct=float(
             raw.get("tolerance_pct")
             if raw.get("tolerance_pct") is not None

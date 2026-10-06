@@ -130,9 +130,7 @@ class TestCodegenWriteSafety:
         )
         broken = sandboxed_artifacts["AUTHOR_ORDERING"]
         broken.write_text(
-            broken.read_text(encoding="utf-8").replace(
-                codegen.END_ORDINAL, "# END SOMETHING_ELSE"
-            ),
+            broken.read_text(encoding="utf-8").replace(codegen.END_ORDINAL, "# END SOMETHING_ELSE"),
             encoding="utf-8",
         )
         manifest = _load_manifest()
@@ -144,9 +142,7 @@ class TestCodegenWriteSafety:
             encoding="utf-8"
         ), "the first file was rewritten before the second was validated"
 
-    def test_apply_writes_still_writes_all_four_when_valid(
-        self, sandboxed_artifacts
-    ) -> None:
+    def test_apply_writes_still_writes_all_four_when_valid(self, sandboxed_artifacts) -> None:
         for name, (begin, end) in {
             "CORPUS_REGISTRY": (codegen.BEGIN_CORPORA, codegen.END_CORPORA),
             "AUTHOR_ORDERING": (codegen.BEGIN_ORDINAL, codegen.END_ORDINAL),

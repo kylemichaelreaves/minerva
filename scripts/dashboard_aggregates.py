@@ -79,9 +79,7 @@ def main() -> None:
     # is per-target-work; an author can be in-corpus but be referenced
     # at the bare-author level, with no in_corpus_work_id resolved.)
     in_corpus_authors = {
-        row[0]
-        for row in conn.execute("SELECT DISTINCT author FROM works").fetchall()
-        if row[0]
+        row[0] for row in conn.execute("SELECT DISTINCT author FROM works").fetchall() if row[0]
     }
 
     # Per target author (incoming degree, including out-of-corpus).

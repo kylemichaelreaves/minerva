@@ -24,8 +24,13 @@ def conn(tmp_path):
 
 def _run(source_id, *, at=1.0, run_id="r1", status="ok", ms=1000.0, chunks=100, error=None):
     return IngestRun(
-        at=at, run_id=run_id, source_id=source_id, status=status,
-        elapsed_ms=ms, chunks=chunks, error=error,
+        at=at,
+        run_id=run_id,
+        source_id=source_id,
+        status=status,
+        elapsed_ms=ms,
+        chunks=chunks,
+        error=error,
     )
 
 
@@ -51,19 +56,25 @@ def test_a_skipped_source_is_distinguishable_from_a_fast_one(conn):
     instant — the same not-measured/measured-zero confusion the request
     layer had to fix twice."""
 
-    m.write_ingest_runs(conn, [
-        _run("fast_one", ms=0.4, chunks=3),
-        _run("marx_pgde", status="skipped", ms=0.0, chunks=0),
-    ])
+    m.write_ingest_runs(
+        conn,
+        [
+            _run("fast_one", ms=0.4, chunks=3),
+            _run("marx_pgde", status="skipped", ms=0.0, chunks=0),
+        ],
+    )
     by = {r["source_id"]: r for r in m.ingest_runs(conn)}
     assert by["fast_one"]["status"] == "ok"
     assert by["marx_pgde"]["status"] == "skipped"
 
 
 def test_a_failed_source_keeps_its_error(conn):
-    m.write_ingest_runs(conn, [
-        _run("theognis", status="failed", ms=3100.0, chunks=0, error="HTTPError: 403"),
-    ])
+    m.write_ingest_runs(
+        conn,
+        [
+            _run("theognis", status="failed", ms=3100.0, chunks=0, error="HTTPError: 403"),
+        ],
+    )
     (row,) = m.ingest_runs(conn)
     assert row["status"] == "failed"
     assert "403" in row["error"]
@@ -85,9 +96,14 @@ def test_a_partial_run_leaves_other_sources_history_alone(conn):
 
 
 def test_a_run_id_groups_one_invocation(conn):
-    m.write_ingest_runs(conn, [
-        _run("a", run_id="r1"), _run("b", run_id="r1"), _run("a", at=2.0, run_id="r2"),
-    ])
+    m.write_ingest_runs(
+        conn,
+        [
+            _run("a", run_id="r1"),
+            _run("b", run_id="r1"),
+            _run("a", at=2.0, run_id="r2"),
+        ],
+    )
     assert len({r["run_id"] for r in m.ingest_runs(conn)}) == 2
     assert len([r for r in m.ingest_runs(conn) if r["run_id"] == "r1"]) == 2
 

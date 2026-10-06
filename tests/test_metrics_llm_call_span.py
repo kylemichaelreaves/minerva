@@ -106,9 +106,7 @@ ANTHROPIC_STREAM = [
 OLLAMA_STREAM = [b'{"message":{"content":"a"}}\n', b'{"message":{"content":"b"}}\n']
 
 STREAMING = [
-    pytest.param(
-        lambda: OpenAIBackend(api_key="k", model="m"), OPENAI_STREAM, b"", id="openai"
-    ),
+    pytest.param(lambda: OpenAIBackend(api_key="k", model="m"), OPENAI_STREAM, b"", id="openai"),
     pytest.param(
         lambda: AnthropicBackend(api_key="k", model="m"), ANTHROPIC_STREAM, b"", id="anthropic"
     ),
@@ -174,9 +172,7 @@ def test_an_interrupted_stream_is_still_timed(monkeypatch, make_backend, stream,
 
 
 @pytest.mark.parametrize("make_backend,stream,payload", STREAMING)
-def test_abandoning_a_stream_still_records_what_it_cost(
-    monkeypatch, make_backend, stream, payload
-):
+def test_abandoning_a_stream_still_records_what_it_cost(monkeypatch, make_backend, stream, payload):
     """`_send_sse`'s `finally: it.close()` is what closes the generator when a
     client disconnects — and closing it is what ends the span (#609). Without
     that contract this measurement would be best-effort."""
@@ -187,8 +183,8 @@ def test_abandoning_a_stream_still_records_what_it_cost(
 
     with rec.record("chat", "POST") as span:
         gen = make_backend().stream_complete([Message("user", "q")])
-        next(gen)          # one token, then the client goes away
-        gen.close()        # exactly what _send_sse's finally does
+        next(gen)  # one token, then the client goes away
+        gen.close()  # exactly what _send_sse's finally does
 
     ms = _llm_call_ms(span)
     assert ms > HEADER_TICK * 1000.0, "an abandoned stream recorded only connect time"

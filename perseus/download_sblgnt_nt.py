@@ -35,24 +35,44 @@ from _download import FailureAccumulator, make_fetcher
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-RAW_BASE = (
-    "https://raw.githubusercontent.com/LogosBible/SBLGNT/master/data/sblgnt/xml"
-)
+RAW_BASE = "https://raw.githubusercontent.com/LogosBible/SBLGNT/master/data/sblgnt/xml"
 
 # Filenames as they appear in the SBLGNT repo. Order = canonical NT
 # order (Matthew → Revelation). The .xml suffix is added by the
 # downloader.
 _NT_BOOK_FILES: tuple[str, ...] = (
-    "Matt", "Mark", "Luke", "John", "Acts",
-    "Rom", "1Cor", "2Cor", "Gal", "Eph",
-    "Phil", "Col", "1Thess", "2Thess", "1Tim",
-    "2Tim", "Titus", "Phlm", "Heb", "Jas",
-    "1Pet", "2Pet", "1John", "2John", "3John",
-    "Jude", "Rev",
+    "Matt",
+    "Mark",
+    "Luke",
+    "John",
+    "Acts",
+    "Rom",
+    "1Cor",
+    "2Cor",
+    "Gal",
+    "Eph",
+    "Phil",
+    "Col",
+    "1Thess",
+    "2Thess",
+    "1Tim",
+    "2Tim",
+    "Titus",
+    "Phlm",
+    "Heb",
+    "Jas",
+    "1Pet",
+    "2Pet",
+    "1John",
+    "2John",
+    "3John",
+    "Jude",
+    "Rev",
 )
 
 
 _fetch = make_fetcher()
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)

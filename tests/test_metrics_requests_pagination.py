@@ -49,8 +49,12 @@ def test_a_page_and_its_successor_do_not_overlap(conn):
         _add(conn, i, at=T0 + i)
     first = m.requests(conn, since=0.0, until=T0 + 100, limit=4)
     nxt = m.requests(
-        conn, since=0.0, until=T0 + 100, limit=4,
-        before_at=first[-1]["at"], before_id=first[-1]["id"],
+        conn,
+        since=0.0,
+        until=T0 + 100,
+        limit=4,
+        before_at=first[-1]["at"],
+        before_id=first[-1]["id"],
     )
     assert set(_ids(first)) & set(_ids(nxt)) == set()
     assert _ids(first) + _ids(nxt) == [f"id{i:04d}" for i in range(9, 1, -1)]
@@ -63,10 +67,14 @@ def test_a_row_inserted_between_pages_does_not_shift_the_second(conn):
     for i in range(6):
         _add(conn, i, at=T0 + i)
     first = m.requests(conn, since=0.0, until=T0 + 100, limit=3)
-    _add(conn, 99, at=T0 + 50)          # newer than everything already seen
+    _add(conn, 99, at=T0 + 50)  # newer than everything already seen
     nxt = m.requests(
-        conn, since=0.0, until=T0 + 100, limit=3,
-        before_at=first[-1]["at"], before_id=first[-1]["id"],
+        conn,
+        since=0.0,
+        until=T0 + 100,
+        limit=3,
+        before_at=first[-1]["at"],
+        before_id=first[-1]["id"],
     )
     assert set(_ids(first)) & set(_ids(nxt)) == set()
     assert "id0099" not in _ids(nxt)
@@ -77,11 +85,15 @@ def test_rows_sharing_an_instant_are_not_skipped(conn):
     value, and a cursor on `at` alone would drop one of them."""
 
     for i in range(4):
-        _add(conn, i, at=T0)            # identical timestamps
+        _add(conn, i, at=T0)  # identical timestamps
     first = m.requests(conn, since=0.0, until=T0 + 100, limit=2)
     nxt = m.requests(
-        conn, since=0.0, until=T0 + 100, limit=2,
-        before_at=first[-1]["at"], before_id=first[-1]["id"],
+        conn,
+        since=0.0,
+        until=T0 + 100,
+        limit=2,
+        before_at=first[-1]["at"],
+        before_id=first[-1]["id"],
     )
     assert len(_ids(first) + _ids(nxt)) == 4
     assert len(set(_ids(first) + _ids(nxt))) == 4
@@ -92,8 +104,12 @@ def test_the_cursor_respects_the_window(conn):
     for i in range(1, 4):
         _add(conn, i, at=T0 + i)
     rows = m.requests(
-        conn, since=T0 - 100, until=T0 + 100, limit=10,
-        before_at=T0 + 3, before_id="id0003",
+        conn,
+        since=T0 - 100,
+        until=T0 + 100,
+        limit=10,
+        before_at=T0 + 3,
+        before_id="id0003",
     )
     assert _ids(rows) == ["id0002", "id0001"]
 
@@ -104,8 +120,13 @@ def test_the_cursor_respects_the_filters(conn):
     conn.execute("UPDATE request_spans SET status = 500 WHERE id IN ('id0001','id0003')")
     conn.commit()
     rows = m.requests(
-        conn, since=0.0, until=T0 + 100, limit=10, errors_only=True,
-        before_at=T0 + 3, before_id="id0003",
+        conn,
+        since=0.0,
+        until=T0 + 100,
+        limit=10,
+        errors_only=True,
+        before_at=T0 + 3,
+        before_id="id0003",
     )
     assert _ids(rows) == ["id0001"]
 

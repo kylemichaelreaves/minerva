@@ -41,6 +41,7 @@ _PG_ID = 2680
 
 _fetch = make_fetcher()
 
+
 class _ParaExtractor(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)

@@ -53,6 +53,7 @@ BASE = "https://classics.mit.edu/Aristotle"
 
 _fetch = make_fetcher()
 
+
 def _slug_for(title: str) -> str:
     return "".join(c.lower() if c.isalnum() else "_" for c in title).strip("_")
 
@@ -72,15 +73,16 @@ def _slug_for(title: str) -> str:
 # files use.
 
 _BLOCKQUOTE_RE = re.compile(r"<BLOCKQUOTE>(.*?)</BLOCKQUOTE>", re.IGNORECASE | re.DOTALL)
-_PART_RE       = re.compile(r"<B>\s*Part\s+(\d+)\s*</B>", re.IGNORECASE)
+_PART_RE = re.compile(r"<B>\s*Part\s+(\d+)\s*</B>", re.IGNORECASE)
 _TRANSLATOR_RE = re.compile(r"Translated by\s+([^<]+)")
-_ANCHOR_RE     = re.compile(r"<A\s+NAME=\"[^\"]*\"[^>]*></A>", re.IGNORECASE)
-_TAG_RE        = re.compile(r"<[^>]+>")
-_HTML_ENTITY   = re.compile(r"&[a-zA-Z]+;|&#\d+;")
+_ANCHOR_RE = re.compile(r"<A\s+NAME=\"[^\"]*\"[^>]*></A>", re.IGNORECASE)
+_TAG_RE = re.compile(r"<[^>]+>")
+_HTML_ENTITY = re.compile(r"&[a-zA-Z]+;|&#\d+;")
 
 
 def _html_entity(m: re.Match[str]) -> str:
     import html as _h
+
     return _h.unescape(m.group(0))
 
 
@@ -108,7 +110,7 @@ def _html_to_text_mirror(html: str, canonical_title: str) -> str:
     # the SECTION 1 body and pollute term-glossary chunks.
     first_part = _PART_RE.search(body)
     if first_part is not None:
-        body = body[first_part.start():]
+        body = body[first_part.start() :]
 
     # Replace Part markers with synthetic line headers BEFORE stripping
     # other tags, so the boundary survives the tag-strip pass.
@@ -189,8 +191,7 @@ def main() -> int:
         dest_dir = out / slug
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / "eng.txt"
-        print(f"[{i}/{len(works)}] {w.ica_slug} {w.canonical_title!r} "
-              f"-> {dest.relative_to(out)}")
+        print(f"[{i}/{len(works)}] {w.ica_slug} {w.canonical_title!r} -> {dest.relative_to(out)}")
         if args.skip_existing and dest.is_file() and dest.stat().st_size > 0:
             print("  skip (already exists)")
             if i < len(works):

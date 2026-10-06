@@ -38,6 +38,7 @@ class _CountingLemmatizer:
     with ``EMPTY`` — those come back with no tokens at all, which is the
     zero-lemma population #263 is about. Records every chunk it was
     handed so a test can assert the *second* pass was handed nothing."""
+
     # The real Lemmatizer exposes these; the pipeline-stats key is built
     # from them. A stub without them is an incomplete stand-in.
     backend = "stub"
@@ -230,6 +231,7 @@ class _VariableLemmatizer:
     """Yields ``tokens_per_chunk`` tokens for every chunk, so a second
     pass can be made to produce FEWER than the first — the shape that
     leaves high-index rows from the earlier tokenization behind."""
+
     # The real Lemmatizer exposes these; the pipeline-stats key is built
     # from them. A stub without them is an incomplete stand-in.
     backend = "stub"

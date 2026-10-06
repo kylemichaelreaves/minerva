@@ -19,8 +19,8 @@ def _seed(conn, ages_days):
     for i, age in enumerate(ages_days):
         conn.execute(
             "INSERT INTO request_spans"
-        " (id, at, label, method, status, total_ms, accounted_ms, phases)"
-        " VALUES (?,?,?,?,?,?,?,?)",  # named, so an added column cannot break this
+            " (id, at, label, method, status, total_ms, accounted_ms, phases)"
+            " VALUES (?,?,?,?,?,?,?,?)",  # named, so an added column cannot break this
             (f"id{i}", now - age * 86400, "works list", "GET", 200, 1.0, 0.0, "[]"),
         )
     conn.commit()
@@ -39,7 +39,7 @@ def test_nothing_is_deleted_by_default(tmp_path):
     _seed(c, [0.1, 400, 4000])
     c.close()
 
-    c = m.open_db(path)          # reopen: the prune runs here, if at all
+    c = m.open_db(path)  # reopen: the prune runs here, if at all
     assert _ids(c) == ["id0", "id1", "id2"]
     c.close()
 

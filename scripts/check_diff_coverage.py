@@ -181,7 +181,9 @@ def _cond(taken: list[int]) -> str | None:
     return f"{100 * hit // len(taken)}% ({hit}/{len(taken)})"
 
 
-def _parse_lcov(text: str) -> tuple[
+def _parse_lcov(
+    text: str,
+) -> tuple[
     dict[str, dict[int, int]],
     dict[str, dict[int, list[int]]],
 ]:

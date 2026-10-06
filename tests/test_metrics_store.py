@@ -109,8 +109,13 @@ def test_summary_label_filter_returns_sub_spans(conn):
 def test_series_groups_by_requested_granularity(conn):
     m.write(conn, [_sample(at=1_700_000_000.0), _sample(at=1_700_001_000.0)])
     points = m.series(
-        conn, label="work range", kind="total", span="",
-        since=0, until=2_000_000_000, bucket_seconds=3600,
+        conn,
+        label="work range",
+        kind="total",
+        span="",
+        since=0,
+        until=2_000_000_000,
+        bucket_seconds=3600,
     )
     assert len(points) == 1
     assert points[0]["count"] == 2
@@ -119,8 +124,13 @@ def test_series_groups_by_requested_granularity(conn):
 def test_series_is_ordered_by_time(conn):
     m.write(conn, [_sample(at=1_700_100_000.0), _sample(at=1_700_000_000.0)])
     points = m.series(
-        conn, label="work range", kind="total", span="",
-        since=0, until=2_000_000_000, bucket_seconds=300,
+        conn,
+        label="work range",
+        kind="total",
+        span="",
+        since=0,
+        until=2_000_000_000,
+        bucket_seconds=300,
     )
     assert [p["t"] for p in points] == sorted(p["t"] for p in points)
 
@@ -128,7 +138,12 @@ def test_series_is_ordered_by_time(conn):
 def test_series_empty_when_nothing_matches(conn):
     m.write(conn, [_sample()])
     points = m.series(
-        conn, label="nonexistent", kind="total", span="",
-        since=0, until=2_000_000_000, bucket_seconds=300,
+        conn,
+        label="nonexistent",
+        kind="total",
+        span="",
+        since=0,
+        until=2_000_000_000,
+        bucket_seconds=300,
     )
     assert points == []

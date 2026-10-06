@@ -26,9 +26,19 @@ def _fake_source(tmp_path: Path, n: int = 3) -> IngestSource:
     def fake_parse(path: Path):
         for i in range(n):
             yield tei.Chunk(
-                chunk_id=f"c{i}", corpus="plato", author="Plato", work="Republic",
-                lang="eng", section=None, book=None, page=None, speaker=None,
-                text="hello", source_file="x.xml", translator=None, edition_year=None,
+                chunk_id=f"c{i}",
+                corpus="plato",
+                author="Plato",
+                work="Republic",
+                lang="eng",
+                section=None,
+                book=None,
+                page=None,
+                speaker=None,
+                text="hello",
+                source_file="x.xml",
+                translator=None,
+                edition_year=None,
             )
 
     # path_kind="file": the default is "dir", and `path_present` would
@@ -111,5 +121,5 @@ def test_a_metrics_failure_never_fails_the_ingest(monkeypatch, tmp_path, capsys)
         raise sqlite3.OperationalError("disk full")
 
     monkeypatch.setattr("minerva.cli.ingest_cmd.metrics_store.open_db", boom)
-    _record_ingest_run(log)          # must not raise
+    _record_ingest_run(log)  # must not raise
     assert "could not record run history" in capsys.readouterr().err

@@ -37,12 +37,12 @@ def _locs(text: str, rule=None) -> list[str | None]:
         ("stripe for stripe’ (Exodus 21:24). 2.", "Exod 21:24"),
         ("e, and recompense’ (Deuteronomy 32:35). 4.", "Deut 32:35"),
         ("e out of my mouth’ (Revelation 3:16). 30", "Rev 3:16"),
-        ("he Tirans.\" 38. Cf. Philippians 2: 6 7. G", "Phil 2:6"),
+        ('he Tirans." 38. Cf. Philippians 2: 6 7. G', "Phil 2:6"),
         ("d consequences 94-6 1 Corinthians 2: 10 85 n", "1Cor 2:10"),
         ("kwell,1955). 9. Cf. Psalms 127:2: ‘It", "Ps 127:2"),
-        ("deceased Giants; as Proverbs 21.16. \"Th", "Prov 21:16"),
-        ("e words of Solomon (Ecclesiastes 12.7.) \"T", "Eccl 12:7"),
-        ("appears by that of 2 Esdras 14.21. \"Th", "2Esd 14:21"),
+        ('deceased Giants; as Proverbs 21.16. "Th', "Prov 21:16"),
+        ('e words of Solomon (Ecclesiastes 12.7.) "T', "Eccl 12:7"),
+        ('appears by that of 2 Esdras 14.21. "Th', "2Esd 14:21"),
         ("2:17; Isaiah 10:22; Hosea 1:10; Rom", "Isa 10:22"),
     ],
 )
@@ -66,9 +66,9 @@ def test_full_names_with_roman_chapters(text: str, locator: str) -> None:
 
 
 def test_a_bare_numbered_book_is_ambiguous() -> None:
-    """"Timothy 3.2" is 1 or 2 Timothy; the rule must not claim to know."""
+    """ "Timothy 3.2" is 1 or 2 Timothy; the rule must not claim to know."""
 
-    (c,) = _cands("The eighth place is, Timothy 3.2. \"A")
+    (c,) = _cands('The eighth place is, Timothy 3.2. "A')
     assert c.target_locator == "1Tim 3:2"
     assert c.confidence == _CONF_AMBIGUOUS
 

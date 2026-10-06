@@ -55,7 +55,7 @@ def test_a_query_outside_a_request_is_a_no_op(conn):
     """The CLI and ingest run the same code paths with no request in flight."""
 
     assert current_span() is None
-    conn.execute("SELECT 1").fetchone()      # must not raise
+    conn.execute("SELECT 1").fetchone()  # must not raise
 
 
 def test_nothing_escapes_through_an_explicit_cursor():

@@ -134,9 +134,7 @@ def test_page_one_is_not_every_works_opening_paragraph(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("limit", [1, 3, 4, 7])
-def test_paging_crosses_work_boundaries_without_loss_or_repeat(
-    tmp_path: Path, limit: int
-) -> None:
+def test_paging_crosses_work_boundaries_without_loss_or_repeat(tmp_path: Path, limit: int) -> None:
     conn = _build(tmp_path)
     try:
         want = _oracle(conn)
@@ -201,8 +199,14 @@ def _build_skewed(tmp_path: Path) -> sqlite3.Connection:
     handful of matches."""
 
     chunks = [
-        make_chunk(chunk_id=f"s{i}", work="Lang", author="Hegel", lang="deu",
-                   section=str(i), text="der " * 3)
+        make_chunk(
+            chunk_id=f"s{i}",
+            work="Lang",
+            author="Hegel",
+            lang="deu",
+            section=str(i),
+            text="der " * 3,
+        )
         for i in range(200)
     ]
     db = tmp_path / "skew.sqlite"
@@ -281,8 +285,14 @@ def test_a_scoped_rare_filter_is_answered_from_the_facet_index(
 def test_a_scoped_common_filter_still_walks(tmp_path: Path) -> None:
     conn = _build_skewed_counted(tmp_path)
     try:
-        query = {"lemma": "der", "lang": "deu", "pos": "DET", "limit": "5",
-                 "scope": "author", "author": "Hegel"}
+        query = {
+            "lemma": "der",
+            "lang": "deu",
+            "pos": "DET",
+            "limit": "5",
+            "scope": "author",
+            "author": "Hegel",
+        }
         plans = _page_plans(conn, query)
     finally:
         conn.close()
@@ -385,16 +395,23 @@ def test_migration_0038_rebuilds_the_0036_column_order(tmp_path: Path) -> None:
         )
         mod.apply(conn)
         assert _index_columns(conn) == [
-            "lemma_fold", "lang_resolved", "work_id", "chunk_ord", "surface_start"
+            "lemma_fold",
+            "lang_resolved",
+            "work_id",
+            "chunk_ord",
+            "surface_start",
         ]
         # And re-running over the new shape leaves it alone.
         root = conn.execute(
             "SELECT rootpage FROM sqlite_master WHERE name = 'chunk_lemmas_by_locator'"
         ).fetchone()[0]
         mod.apply(conn)
-        assert conn.execute(
-            "SELECT rootpage FROM sqlite_master WHERE name = 'chunk_lemmas_by_locator'"
-        ).fetchone()[0] == root
+        assert (
+            conn.execute(
+                "SELECT rootpage FROM sqlite_master WHERE name = 'chunk_lemmas_by_locator'"
+            ).fetchone()[0]
+            == root
+        )
     finally:
         conn.close()
 

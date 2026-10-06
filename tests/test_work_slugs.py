@@ -164,8 +164,7 @@ def test_slug_snapshot_drift_names_a_work_the_index_no_longer_has() -> None:
 
     conn = sqlite3.connect(":memory:")
     conn.executescript(
-        "CREATE TABLE works (author TEXT, title TEXT);"
-        "INSERT INTO works VALUES ('Kant', 'Kritik');"
+        "CREATE TABLE works (author TEXT, title TEXT);INSERT INTO works VALUES ('Kant', 'Kritik');"
     )
     errs = slug_snapshot_drift(
         conn,

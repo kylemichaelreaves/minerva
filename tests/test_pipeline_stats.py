@@ -31,8 +31,8 @@ def test_one_duration_row_per_key_not_per_batch():
         s.record_batch(lang="lat", backend="spacy", model="la_core_web_sm", ms=160.0, size=64)
     rows = [r for r in s.rows(at=1.0, pipeline="lemmatize") if r.kind == "batch_duration"]
     assert len(rows) == 1
-    assert rows[0].count == 100          # batches observed
-    assert rows[0].items == 6400         # chunks they covered
+    assert rows[0].count == 100  # batches observed
+    assert rows[0].items == 6400  # chunks they covered
 
 
 def test_throughput_is_derivable():

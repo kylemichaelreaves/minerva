@@ -278,9 +278,7 @@ def test_split_by_chapter_tags_ocr_garbled_editorial_headings(tmp_path: Path):
     matched body is kept but tagged `block_type='editorial'`."""
     text = "EDITORIAL INTR O DUCTION\n\neditor's commentary text\n\nCHAPTER ONE\n\nHegel body\n"
     chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf"))
-    assert any(
-        c.block_type == "editorial" and "editor" in c.text.lower() for c in chunks
-    )
+    assert any(c.block_type == "editorial" and "editor" in c.text.lower() for c in chunks)
     assert any(c.section == "Chapter One, ¶1" and c.block_type is None for c in chunks)
 
 
@@ -448,9 +446,7 @@ def test_split_by_chapter_ignores_page_furniture_when_not_opted_in(tmp_path: Pat
         "THE LECTURES OF 1822-3 Caesar's Commentaries, belong here too.4 "
         "In particular. 4. On Herodotus, see the Fragment. 135\n"
     )
-    chunks = list(
-        corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf")
-    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf"))
     notes = [c for c in chunks if c.block_type == "note"]
     assert notes == []
     assert any("THE LECTURES OF 1822-3" in c.text for c in chunks)
@@ -1523,9 +1519,7 @@ def test_editorial_heading_body_is_tagged_not_dropped(tmp_path):
     # `_make_work` is the existing helper at tests/test_corpus_parse.py:47.
     # `locator="chapter"` selects `split_by_chapter`, the splitter work 712
     # uses and the one carrying the editorial-heading sweep.
-    chunks = list(
-        corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf")
-    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.pdf"))
 
     by_type = {c.block_type: c for c in chunks}
     assert "editorial" in by_type, [c.section for c in chunks]

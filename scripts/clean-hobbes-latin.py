@@ -4,9 +4,9 @@
 Runs between ``perseus/download_hobbes_la.py`` and ``minerva ingest``,
 in place and idempotently, over::
 
-    data/hobbes/raw_lat/leviathan_lat.txt
-    data/hobbes/raw_lat/leviathan_appendix_lat.txt
-    data/hobbes/raw_lat/de_cive_lat.txt
+    data / hobbes / raw_lat / leviathan_lat.txt
+    data / hobbes / raw_lat / leviathan_appendix_lat.txt
+    data / hobbes / raw_lat / de_cive_lat.txt
 
 (every ``*.txt`` there — the appendix, added by #575, needs no rule of its
 own: its scan resolves the ligatures the same ways, 209 words repaired and
@@ -163,8 +163,7 @@ def main() -> int:
             file=sys.stderr,
         )
     print(
-        f"\nTotal: {total_repaired:,} words repaired, "
-        f"{total_carets:,} caret tokens stripped.",
+        f"\nTotal: {total_repaired:,} words repaired, {total_carets:,} caret tokens stripped.",
         file=sys.stderr,
     )
     return 0

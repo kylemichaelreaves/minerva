@@ -46,9 +46,8 @@ BOULAINVILLIERS_DIR = REPO_ROOT / "data" / "boulainvilliers"
 # the Lettres ``^^H`` etc. is right-margin; we strip these BEFORE
 # the trailing-whitespace trim so the line below it becomes empty
 # and gets collapsed by the blank-line dedup.
-MARGIN_NOISE = re.compile(
-    r"\s*\^\^[A-Z|]\s*$"
-)
+MARGIN_NOISE = re.compile(r"\s*\^\^[A-Z|]\s*$")
+
 
 # Image-glyph-soup line predicate. A "line" qualifies as garbage
 # when fewer than 40 % of its non-whitespace characters are
@@ -232,12 +231,12 @@ _RUNNING_HEADERS = re.compile(
 # * Mixed (Gallica's catalog page markers): "p. 12", "Pag. 5"
 _PAGE_NUMBER_LINE = re.compile(
     r"^\s*(?:"
-    r"\d{1,4}\.?"                            # bare arabic
-    r"|[IVXLCDM]{1,8}\.?"                    # uppercase roman
-    r"|[ivxlcdm]{1,8}\.?"                    # lowercase roman
-    r"|[Pp]a?g\.?\s*\d+\.?"                  # "p. 12" / "Pag. 12"
-    r"|\d+\s*[°º]\.?"                        # "1°" / "2º."
-    r"|[IVX]+\s+\d+"                         # split roman+arabic
+    r"\d{1,4}\.?"  # bare arabic
+    r"|[IVXLCDM]{1,8}\.?"  # uppercase roman
+    r"|[ivxlcdm]{1,8}\.?"  # lowercase roman
+    r"|[Pp]a?g\.?\s*\d+\.?"  # "p. 12" / "Pag. 12"
+    r"|\d+\s*[°º]\.?"  # "1°" / "2º."
+    r"|[IVX]+\s+\d+"  # split roman+arabic
     r")\s*$"
 )
 

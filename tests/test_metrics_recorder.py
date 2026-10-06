@@ -84,9 +84,7 @@ def test_first_event_is_recorded_once(conn):
         clock.advance(0.500)
         span.first_event()  # every SSE event calls it; only the first counts
         span.status = 200
-    ttfe = conn.execute(
-        "SELECT sum_ms FROM request_timings WHERE kind = 'ttfe'"
-    ).fetchone()[0]
+    ttfe = conn.execute("SELECT sum_ms FROM request_timings WHERE kind = 'ttfe'").fetchone()[0]
     assert ttfe == pytest.approx(0.0)
 
 

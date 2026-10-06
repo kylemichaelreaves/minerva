@@ -40,7 +40,10 @@ def main() -> None:
     ap.add_argument(
         "--out",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "data" / "plato" / "raw_deu"
+        default=Path(__file__).resolve().parents[1]
+        / "data"
+        / "plato"
+        / "raw_deu"
         / "republic_schleiermacher_mdz.hocr",
         help="Output concatenated-hOCR path.",
     )

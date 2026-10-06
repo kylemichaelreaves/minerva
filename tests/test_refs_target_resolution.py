@@ -37,9 +37,7 @@ class TestNormalizedWorkResolution:
 
         assert target.in_corpus_work_id == expected
 
-    def test_case_drifted_title_links_to_the_work(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_case_drifted_title_links_to_the_work(self, populated_db: sqlite3.Connection) -> None:
         """The live shape: ``De natura deorum`` against ``De Natura Deorum``."""
 
         expected = populated_db.execute(
@@ -61,8 +59,7 @@ class TestNormalizedWorkResolution:
         drops spacing as well as case, and accents with it."""
 
         expected = populated_db.execute(
-            "SELECT id FROM works WHERE author = 'Hegel' "
-            "AND title = 'Phänomenologie des Geistes'"
+            "SELECT id FROM works WHERE author = 'Hegel' AND title = 'Phänomenologie des Geistes'"
         ).fetchone()[0]
 
         target = refs_schema.ensure_target(
@@ -73,9 +70,7 @@ class TestNormalizedWorkResolution:
 
         assert target.in_corpus_work_id == expected
 
-    def test_unknown_title_stays_out_of_corpus(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_unknown_title_stays_out_of_corpus(self, populated_db: sqlite3.Connection) -> None:
         """Cicero is not in ``populated_db``; normalizing must not
         invent a link."""
 
@@ -87,9 +82,7 @@ class TestNormalizedWorkResolution:
 
         assert target.in_corpus_work_id is None
 
-    def test_normalizing_does_not_cross_authors(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_normalizing_does_not_cross_authors(self, populated_db: sqlite3.Connection) -> None:
         """A title that exists under a *different* author must not link."""
 
         target = refs_schema.ensure_target(
@@ -100,9 +93,7 @@ class TestNormalizedWorkResolution:
 
         assert target.in_corpus_work_id is None
 
-    def test_ambiguous_normalized_title_stays_null(
-        self, populated_db: sqlite3.Connection
-    ) -> None:
+    def test_ambiguous_normalized_title_stays_null(self, populated_db: sqlite3.Connection) -> None:
         """Two works whose titles normalize to the same key are not a
         link — picking either would be arbitrary. Leaving NULL keeps the
         target visibly unresolved, which is the same choice

@@ -97,9 +97,7 @@ def test_lowercase_spelled_out_genitive_is_a_cite():
 
     Aquinas, chunk 74dd9482bbec9ec16fd4."""
     rule = ScriptureCiteRule()
-    hits = list(
-        rule.scan(_chunk("sicut sapientiae 11-21 dicitur: omnia in numero"))
-    )
+    hits = list(rule.scan(_chunk("sicut sapientiae 11-21 dicitur: omnia in numero")))
     assert len(hits) == 1
     assert hits[0].target_work == "Wisdom"
     assert hits[0].target_locator == "Wis 11:21"

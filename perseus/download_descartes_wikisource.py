@@ -35,12 +35,9 @@ from pathlib import Path
 
 from _download import ParagraphExtractor, make_fetcher
 
-_LATIN_URL = (
-    "https://la.wikisource.org/api/rest_v1/page/html/Principia_philosophiae"
-)
+_LATIN_URL = "https://la.wikisource.org/api/rest_v1/page/html/Principia_philosophiae"
 _FRENCH_URL = (
-    "https://fr.wikisource.org/api/rest_v1/page/html/"
-    "Principes_de_la_philosophie_(%C3%A9d._Desrez)"
+    "https://fr.wikisource.org/api/rest_v1/page/html/Principes_de_la_philosophie_(%C3%A9d._Desrez)"
 )
 
 
@@ -78,9 +75,7 @@ _LATIN_ARTICLE_RE = re.compile(r"^\[(\d+)\.(\d{3})\]\s*(.*)$")
 # strings, footnote ordinals): real article titles in Desrez run
 # 30-250 chars; body paragraphs are uniformly 400+ chars in this
 # Pars-I excerpt, so 300 is well clear of either side.
-_FRENCH_ARTICLE_RE = re.compile(
-    r"^(\d+)\.?\s+([A-ZÀ-ÿ].{4,300})\s*$"
-)
+_FRENCH_ARTICLE_RE = re.compile(r"^(\d+)\.?\s+([A-ZÀ-ÿ].{4,300})\s*$")
 
 
 def _render_latin_principia(paragraphs: list[str]) -> str:

@@ -41,12 +41,18 @@ def args(tmp_path, populated_db, db_path):
             # and `store.open_db` then CREATES as an empty database in the
             # CWD. The test still passes; it is just no longer testing
             # anything, and it litters the repo root.
-            "--db", str(db_path),
-            "--conversations-db", str(tmp_path / "conversations.sqlite"),
-            "--translations-db", str(tmp_path / "translations.sqlite"),
-            "--concept-cache-db", str(tmp_path / "concepts.sqlite"),
-            "--metrics-db", str(tmp_path / "metrics.sqlite"),
-            "--llm", "none",
+            "--db",
+            str(db_path),
+            "--conversations-db",
+            str(tmp_path / "conversations.sqlite"),
+            "--translations-db",
+            str(tmp_path / "translations.sqlite"),
+            "--concept-cache-db",
+            str(tmp_path / "concepts.sqlite"),
+            "--metrics-db",
+            str(tmp_path / "metrics.sqlite"),
+            "--llm",
+            "none",
         ]
     )
 
@@ -61,9 +67,7 @@ def test_refuses_when_another_server_holds_the_lock(args, monkeypatch, capsys):
     assert "pid 4242" in err
 
 
-def test_a_backend_that_cannot_be_built_exits_2_without_taking_the_lock(
-    args, monkeypatch, capsys
-):
+def test_a_backend_that_cannot_be_built_exits_2_without_taking_the_lock(args, monkeypatch, capsys):
     monkeypatch.setattr(serve_cmd.serve_lock, "find_running_server", lambda _db: None)
     monkeypatch.setattr(
         serve_cmd, "make_backend", lambda _a: (_ for _ in ()).throw(llm.LLMError("no api key"))
@@ -190,12 +194,17 @@ def test_sigterm_clears_the_serve_lock(args, tmp_path):
 
     argv = [
         "serve",
-        "--db", str(args.db),
-        "--conversations-db", str(args.conversations_db),
-        "--translations-db", str(args.translations_db),
-        "--concept-cache-db", str(args.concept_cache_db),
+        "--db",
+        str(args.db),
+        "--conversations-db",
+        str(args.conversations_db),
+        "--translations-db",
+        str(args.translations_db),
+        "--concept-cache-db",
+        str(args.concept_cache_db),
         "--no-metrics",
-        "--llm", "none",
+        "--llm",
+        "none",
     ]
     proc = subprocess.run(
         [sys.executable, "-c", _SIGTERM_DURING_SERVE, *argv],
@@ -226,7 +235,11 @@ def test_every_connection_handed_to_serve_is_closed_when_it_returns(args, monkey
     assert serve_cmd.cmd_serve(args) == 0
     conns = {k: v for k, v in seen.items() if k.endswith("conn") and v is not None}
     assert set(conns) == {
-        "conn", "conversations_conn", "translations_conn", "concept_cache_conn", "metrics_conn"
+        "conn",
+        "conversations_conn",
+        "translations_conn",
+        "concept_cache_conn",
+        "metrics_conn",
     }
     for c in conns.values():
         with pytest.raises(sqlite3.ProgrammingError, match="closed"):

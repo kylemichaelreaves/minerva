@@ -37,6 +37,7 @@ _URL = (
 
 _fetch = make_fetcher()
 
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(

@@ -100,17 +100,13 @@ def _fetch_to(item: str, out_path: Path) -> None:
 # ──────────────────────────────────────────────────────────────────
 
 GOBINEAU_SOURCES: list[tuple[str, str]] = [
-    (f"essaisurlingali0{v}gobigoog", f"essai_inegalite_vol{v}_fra.txt")
-    for v in range(1, 5)
+    (f"essaisurlingali0{v}gobigoog", f"essai_inegalite_vol{v}_fra.txt") for v in range(1, 5)
 ]
 
 RENAN_SOURCES: list[tuple[str, str]] = [
     ("viedejsus00renauoft", "vie_de_jesus_fra.txt"),
     ("histoiredesorigi04renauoft", "antechrist_fra.txt"),
-    *[
-        (f"histoiredupeuple0{v}rena", f"peuple_israel_vol{v}_fra.txt")
-        for v in range(1, 6)
-    ],
+    *[(f"histoiredupeuple0{v}rena", f"peuple_israel_vol{v}_fra.txt") for v in range(1, 6)],
 ]
 
 

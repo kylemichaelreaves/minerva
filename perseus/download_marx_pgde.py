@@ -83,10 +83,7 @@ _MAX_CHAPTERS = 30  # safety cap
 
 
 def _chapter_url(slug: str, n: int) -> str:
-    return (
-        f"https://www.projekt-gutenberg.org/authors/karl-marx/books/"
-        f"{slug}/chapter/{n}"
-    )
+    return f"https://www.projekt-gutenberg.org/authors/karl-marx/books/{slug}/chapter/{n}"
 
 
 _fetch = make_fetcher()
@@ -226,9 +223,7 @@ def _fetch_work(slug: str) -> list[str]:
         # Hash the body-paragraph list (ignoring order/whitespace
         # noise) to deduplicate single-page renderings vs real
         # multi-chapter works.
-        body_signature = hashlib.sha256(
-            "\n".join(body).encode("utf-8")
-        ).hexdigest()
+        body_signature = hashlib.sha256("\n".join(body).encode("utf-8")).hexdigest()
         if body_signature == prev_hash:
             # Two consecutive chapters identical → stub or single-
             # page work. We've already captured the content.

@@ -84,9 +84,7 @@ _QUALIFIER = r"(?:[\w.-]+/[\w.-]+)?"
 #: constantly: a `Refs #N` line after a sentence ending in "fixed.", and
 #: `/close-out (#N)`. Flagging the sanctioned non-closing form is how a gate
 #: gets overridden, which is the corrosion #331 is about.
-_CLOSING_REF = re.compile(
-    rf"\b(?:{_KEYWORDS})\b{_GAP}{_QUALIFIER}#(\d+)", re.IGNORECASE
-)
+_CLOSING_REF = re.compile(rf"\b(?:{_KEYWORDS})\b{_GAP}{_QUALIFIER}#(\d+)", re.IGNORECASE)
 
 
 def scan_closing_refs(text: str) -> set[int]:
@@ -456,10 +454,7 @@ def run(
 
     claim = f"close {sorted(expected)}" if expected else "close nothing"
     waited = f"; read the link {attempts_used}x" if attempts_used > 1 else ""
-    print(
-        f"check-pr-link: PR #{pr} should {claim}; "
-        f"scanned {len(scanned)} text(s){waited}"
-    )
+    print(f"check-pr-link: PR #{pr} should {claim}; scanned {len(scanned)} text(s){waited}")
 
     if failures:
         for f in failures:

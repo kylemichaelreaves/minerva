@@ -53,8 +53,13 @@ def test_series_includes_a_request_recorded_at_until(conn, offset):
     now = BOUNDARY + offset
     _write(conn, now)
     points = m.series(
-        conn, label="works list", kind="total", span="",
-        since=0.0, until=now, bucket_seconds=m.BUCKET_SECONDS,
+        conn,
+        label="works list",
+        kind="total",
+        span="",
+        since=0.0,
+        until=now,
+        bucket_seconds=m.BUCKET_SECONDS,
     )
     assert [p["count"] for p in points] == [1], (
         f"a request recorded at {now} is missing from a series ending at {now}"

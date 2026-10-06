@@ -43,9 +43,9 @@ from _download import ParagraphExtractor, make_fetcher
 
 _IA_WORKS: tuple[tuple[str, str], ...] = (
     # (output filename, IA identifier)
-    ("kapital_bd1.txt", "daskapitalkritik67marx"),    # 1867 Fraktur
-    ("kapital_bd2.txt", "ldpd_13046079_002"),         # Bd 2
-    ("kapital_bd3.txt", "ldpd_13046079_003"),         # Bd 3
+    ("kapital_bd1.txt", "daskapitalkritik67marx"),  # 1867 Fraktur
+    ("kapital_bd2.txt", "ldpd_13046079_002"),  # Bd 2
+    ("kapital_bd3.txt", "ldpd_13046079_003"),  # Bd 3
 )
 
 
@@ -57,9 +57,7 @@ def _ia_url(ident: str) -> str:
 # marxists.org: 1844 Manuscripts (11 sub-pages)
 # ─────────────────────────────────────────────────────────────────
 
-_MARXISTS_BASE = (
-    "https://www.marxists.org/deutsch/archiv/marx-engels/1844/oek-phil/"
-)
+_MARXISTS_BASE = "https://www.marxists.org/deutsch/archiv/marx-engels/1844/oek-phil/"
 _MARXISTS_1844_SUBPAGES: tuple[tuple[str, str], ...] = (
     # (heading inserted into output, sub-page filename)
     ("VORREDE", "vorrede.htm"),
@@ -85,13 +83,9 @@ _MARXISTS_1844_SUBPAGES: tuple[tuple[str, str], ...] = (
 # fixed:
 
 _WAYBACK_DI_TOC = (
-    "https://web.archive.org/web/20160303184231/"
-    "http://www.mlwerke.de/me/me03/me03_009.htm"
+    "https://web.archive.org/web/20160303184231/http://www.mlwerke.de/me/me03/me03_009.htm"
 )
-_WAYBACK_DI_BASE = (
-    "https://web.archive.org/web/20160303184231/"
-    "http://www.mlwerke.de/me/me03/"
-)
+_WAYBACK_DI_BASE = "https://web.archive.org/web/20160303184231/http://www.mlwerke.de/me/me03/"
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -255,9 +249,7 @@ _MLWERKE_CHROME_RES = (
 
 
 def _drop_mlwerke_chrome(paragraphs: list[str]) -> list[str]:
-    return [
-        p for p in paragraphs if not any(rx.match(p) for rx in _MLWERKE_CHROME_RES)
-    ]
+    return [p for p in paragraphs if not any(rx.match(p) for rx in _MLWERKE_CHROME_RES)]
 
 
 def fetch_deutsche_ideologie(*, dest_root: Path) -> Path:

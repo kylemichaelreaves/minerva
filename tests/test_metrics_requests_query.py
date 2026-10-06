@@ -25,14 +25,21 @@ def conn():
     return c
 
 
-def _add(c, *, n=0, at=T0, label="works list", method="GET", status=200,
-         total=10.0, phases=()):
+def _add(c, *, n=0, at=T0, label="works list", method="GET", status=200, total=10.0, phases=()):
     c.execute(
         "INSERT INTO request_spans"
         " (id, at, label, method, status, total_ms, accounted_ms, phases)"
         " VALUES (?,?,?,?,?,?,?,?)",  # named, so an added column cannot break this
-        (f"id{n:04d}", at, label, method, status, total,
-         sum(p["ms"] for p in phases), json.dumps(list(phases))),
+        (
+            f"id{n:04d}",
+            at,
+            label,
+            method,
+            status,
+            total,
+            sum(p["ms"] for p in phases),
+            json.dumps(list(phases)),
+        ),
     )
     c.commit()
 
@@ -133,7 +140,7 @@ def test_phases_and_database_time_are_both_subtracted(conn):
         " (id, at, label, method, status, total_ms, accounted_ms, phases,"
         "  sqlite_ms, sqlite_queries)"
         " VALUES ('a', ?, 'chat', 'POST', 200, 100.0, 60.0,"
-        " '[{\"name\": \"llm_call\", \"ms\": 60.0}]', 30.0, 4)",
+        ' \'[{"name": "llm_call", "ms": 60.0}]\', 30.0, 4)',
         (T0,),
     )
     conn.commit()
@@ -151,7 +158,7 @@ def test_unaccounted_never_goes_negative(conn):
         " (id, at, label, method, status, total_ms, accounted_ms, phases,"
         "  sqlite_ms, sqlite_queries)"
         " VALUES ('a', ?, 'chat', 'POST', 200, 10.0, 8.0,"
-        " '[{\"name\": \"llm_call\", \"ms\": 8.0}]', 9.0, 2)",
+        ' \'[{"name": "llm_call", "ms": 8.0}]\', 9.0, 2)',
         (T0,),
     )
     conn.commit()

@@ -116,8 +116,7 @@ def test_dry_run_writes_nothing_and_deletes_nothing(data_dir: Path) -> None:
     for name in before:
         _fake_snapshot(data_dir, name)
 
-    res = _run(data_dir, "pre-gamma", MINERVA_SNAPSHOT_KEEP="1",
-               MINERVA_SNAPSHOT_DRY_RUN="1")
+    res = _run(data_dir, "pre-gamma", MINERVA_SNAPSHOT_KEEP="1", MINERVA_SNAPSHOT_DRY_RUN="1")
 
     assert _names(data_dir) == before, "dry run must not create or delete"
     assert "20260101T000000Z-pre-alpha" in res.stdout + res.stderr
@@ -131,8 +130,9 @@ def test_dry_run_lists_protected_snapshots_separately(data_dir: Path) -> None:
     _fake_snapshot(data_dir, "20260101T000000Z-before-0035", protected=True)
     _fake_snapshot(data_dir, "20260102T000000Z-pre-beta")
 
-    out = _run(data_dir, "pre-gamma", MINERVA_SNAPSHOT_KEEP="1",
-               MINERVA_SNAPSHOT_DRY_RUN="1").stderr
+    out = _run(
+        data_dir, "pre-gamma", MINERVA_SNAPSHOT_KEEP="1", MINERVA_SNAPSHOT_DRY_RUN="1"
+    ).stderr
     prune_at = out.index("would prune")
     protected_at = out.index("protected, never pruned")
     assert prune_at < protected_at

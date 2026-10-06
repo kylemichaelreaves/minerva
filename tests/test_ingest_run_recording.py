@@ -28,8 +28,15 @@ def test_a_successful_worker_result_becomes_an_ok_row():
 def test_a_skipped_worker_result_becomes_a_skipped_row():
     log = IngestRunLog(run_id="r1")
     ingest_runs_from_results(
-        {"marx_pgde": {"source_id": "marx_pgde", "skipped": True, "reason": "no-path",
-                       "elapsed": 0.0, "count": 0}},
+        {
+            "marx_pgde": {
+                "source_id": "marx_pgde",
+                "skipped": True,
+                "reason": "no-path",
+                "elapsed": 0.0,
+                "count": 0,
+            }
+        },
         log,
     )
     (row,) = log.rows()
@@ -40,8 +47,14 @@ def test_a_skipped_worker_result_becomes_a_skipped_row():
 def test_a_failed_worker_result_keeps_its_error():
     log = IngestRunLog(run_id="r1")
     ingest_runs_from_results(
-        {"theognis": {"source_id": "theognis", "elapsed": 3.1, "count": 0,
-                      "error": "HTTPError: 403"}},
+        {
+            "theognis": {
+                "source_id": "theognis",
+                "elapsed": 3.1,
+                "count": 0,
+                "error": "HTTPError: 403",
+            }
+        },
         log,
     )
     (row,) = log.rows()
@@ -55,8 +68,7 @@ def test_failure_wins_over_skipped():
 
     log = IngestRunLog(run_id="r1")
     ingest_runs_from_results(
-        {"x": {"source_id": "x", "skipped": True, "elapsed": 0.0, "count": 0,
-               "error": "boom"}},
+        {"x": {"source_id": "x", "skipped": True, "elapsed": 0.0, "count": 0, "error": "boom"}},
         log,
     )
     assert log.rows()[0].status == "failed"
@@ -72,7 +84,5 @@ def test_every_source_in_the_run_gets_a_row():
         },
         log,
     )
-    assert {r.source_id: r.status for r in log.rows()} == {
-        "a": "ok", "b": "skipped", "c": "failed"
-    }
+    assert {r.source_id: r.status for r in log.rows()} == {"a": "ok", "b": "skipped", "c": "failed"}
     assert len({r.run_id for r in log.rows()}) == 1

@@ -23,7 +23,9 @@ def test_leaves_text_alone_when_there_is_no_running_head():
 
 def test_splits_a_trailing_note_block_when_the_marker_is_present():
     # Marker '.4' upstream is what licenses treating '4.' as a note.
-    text = "Caesar's Commentaries, belong here too.4 In particular. 4. On Herodotus, see the Fragment."
+    text = (
+        "Caesar's Commentaries, belong here too.4 In particular. 4. On Herodotus, see the Fragment."
+    )
     body, notes = pf.split_trailing_notes(text)
     assert body == "Caesar's Commentaries, belong here too.4 In particular."
     assert notes == "4. On Herodotus, see the Fragment."

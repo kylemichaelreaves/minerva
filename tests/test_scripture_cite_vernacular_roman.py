@@ -94,7 +94,10 @@ class TestEnglishForms:
         same abbreviations resolve as well."""
 
         rule = ScriptureCiteRuleEn()
-        got = [c.target_locator for c in rule.scan(_chunk('And (Matth. 19.13.) "they', author="Hobbes"))]
+        got = [
+            c.target_locator
+            for c in rule.scan(_chunk('And (Matth. 19.13.) "they', author="Hobbes"))
+        ]
         assert got == ["Matt 19:13"]
 
 
@@ -117,7 +120,10 @@ class TestGermanForms:
         """Kant and Nietzsche write the Latin-form ``Luc.`` for Luke."""
 
         rule = ScriptureCiteRuleDe()
-        got = [c.target_locator for c in rule.scan(_chunk("(Luc. 17. 21 bis 22)", author="Kant", lang="deu"))]
+        got = [
+            c.target_locator
+            for c in rule.scan(_chunk("(Luc. 17. 21 bis 22)", author="Kant", lang="deu"))
+        ]
         assert got == ["Luke 17:21"]
 
 

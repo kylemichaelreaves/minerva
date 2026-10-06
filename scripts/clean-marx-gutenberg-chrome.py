@@ -76,9 +76,7 @@ _CHROME_LINE_PATTERNS = [
     # Vendor row — variants with/without "Bei tredition" prefix.
     # NB: the original regex doubled "Bei "; fixed here so the bare
     # "Bei Amazon Bei Thalia ..." form matches.
-    re.compile(
-        r"^(?:Bei tredition )?Bei Amazon Bei Thalia(?: Lokale Buchhandlung)?$"
-    ),
+    re.compile(r"^(?:Bei tredition )?Bei Amazon Bei Thalia(?: Lokale Buchhandlung)?$"),
     # Chapter pager.
     re.compile(r"^← Vorheriges Kapitel \d+ / \d+ Nächstes Kapitel →$"),
     # Donation footer block.
@@ -94,14 +92,11 @@ _CHROME_LINE_PATTERNS = [
     # Author/byline trailer at the end of a section:
     #   "Karl Marx-Friedrich Engels - Die deutsche Ideologie"
     re.compile(r"^Karl Marx-Friedrich Engels - .+$"),
-
     # --- Wayback Machine / Internet Archive viewer chrome ---
     # The Wayback page header lists the source URL.
     re.compile(r"^The Wayback Machine - https?://.+$"),
     # Capture-count line: "269 captures 20 Feb 2001 - 03 May 2026".
-    re.compile(
-        r"^\d+ captures \d+ [A-Za-zäöü]+ \d+ - \d+ [A-Za-zäöü]+ \d+$"
-    ),
+    re.compile(r"^\d+ captures \d+ [A-Za-zäöü]+ \d+ - \d+ [A-Za-zäöü]+ \d+$"),
     # IA collection banner.
     re.compile(r"^Collection: Wikipedia Outlinks March 2016$"),
     # IA crawl description paragraph (single long line).
