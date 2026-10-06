@@ -139,12 +139,11 @@ lint-web:
 lint: lint-py lint-web
 
 # The --fix scope matches lint-py so `make format-py && make check`
-# can't leave a lint error behind. The `ruff format` scope is
-# deliberately narrower: formatting scripts/ and perseus/ is a large
-# reflow that belongs with #136, which also has to settle the
-# codegen-owned files ruff currently reformats out of sync.
+# can't leave a lint error behind. The `ruff format` scope is the same four
+# trees, and `check-format-baseline` polices exactly that scope (#136); the
+# codegen-owned files are excluded from formatting in pyproject.toml.
 format-py:
-	$(RUFF) format src tests
+	$(RUFF) format src tests scripts perseus
 	$(RUFF) check --fix src tests scripts perseus
 
 format-web:
@@ -221,7 +220,8 @@ check-diff-coverage:
 # this gate existed (#483). Reformatting them all fails the changed-line gate
 # at 74.4%, so the drift is pinned in `web/.prettier-baseline` and everything
 # else is held to the formatter. The baseline is policy — hand-edited, and the
-# gate fails on a *stale* pin too, so it can only shrink.
+# gate fails on a *stale* pin too, so it can only shrink. ruff joined it in
+# #136, pinned in `.ruff-format-baseline`; this target runs both.
 check-format-baseline:
 	$(PYTHON) scripts/check_format_baseline.py
 

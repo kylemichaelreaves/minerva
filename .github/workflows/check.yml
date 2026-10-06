@@ -175,6 +175,12 @@ jobs:
         # up with NameError the moment the code path ran (#116).
         run: uv run --no-sync ruff check src tests scripts perseus
 
+      - name: ruff format against the pinned baseline
+        # Mirrors the ruff half of `make check-format-baseline` (#136). The
+        # Prettier half runs in the web job, which has `npm ci`; this one
+        # needs the locked ruff, which only this job installs.
+        run: uv run --no-sync python scripts/check_format_baseline.py ruff
+
       - name: Author manifest sync
         # Mirrors `make check-authors`: generated corpus_registry /
         # author_ordering / atlasData / dominantPhil must match
@@ -306,7 +312,7 @@ jobs:
         # `eslint-config-prettier` only *disables* formatting rules. Runs
         # prettier over web/ via npx, so it needs the install above; the
         # script is stdlib-only, so the runner's system python3 serves (#685).
-        run: python3 ../scripts/check_format_baseline.py
+        run: python3 ../scripts/check_format_baseline.py prettier
 
       - name: Frontend test location
         # Mirrors `make check-test-location`. Sonar's coverage gate does
