@@ -8,6 +8,7 @@ two different things depending on the row.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -17,7 +18,9 @@ from minerva.metrics.pipeline_stats import PipelineStats
 
 @pytest.fixture
 def conn(tmp_path):
-    return m.open_db(tmp_path / "metrics.sqlite")
+    c = m.open_db(tmp_path / "metrics.sqlite")
+    yield c
+    c.close()
 
 
 def _stats():
@@ -94,5 +97,5 @@ def test_an_old_metrics_database_gains_the_table(tmp_path):
     plain.executescript("CREATE TABLE request_timings (bucket_start INTEGER);")
     plain.commit()
     plain.close()
-    conn = m.open_db(path)
-    assert m.pipeline_runs(conn) == []       # table exists, and is empty
+    with closing(m.open_db(path)) as conn:
+        assert m.pipeline_runs(conn) == []       # table exists, and is empty

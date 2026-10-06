@@ -17,7 +17,9 @@ from minerva.metrics.ingest_runs import IngestRun
 
 @pytest.fixture
 def conn(tmp_path):
-    return m.open_db(tmp_path / "metrics.sqlite")
+    c = m.open_db(tmp_path / "metrics.sqlite")
+    yield c
+    c.close()
 
 
 def _run(source_id, *, at=1.0, run_id="r1", status="ok", ms=1000.0, chunks=100, error=None):

@@ -67,15 +67,23 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-# `-W error::ResourceWarning` promotes an unclosed file/socket/DB handle
-# to a test failure. It is a cheap, broad gate on a real class of bug:
-# turning it on for #246 surfaced six production CLI handlers that opened
-# a store and never closed it (`cmd_index` was 54 of the 900 warnings),
-# the same defect #227 fixed in the `terms` CLI. It could not be adopted
-# until those — and the test-side connections `tests/conftest.py` now
-# owns — were fixed. Run with `-X tracemalloc=20` to get the allocation
-# site when it fires.
-addopts = "-q -W error::ResourceWarning"
+# `-W error::ResourceWarning` promotes an unclosed file/socket handle to a
+# test failure. It is a cheap, broad gate on a real class of bug: turning
+# it on for #246 surfaced six production CLI handlers that opened a store
+# and never closed it (`cmd_index` was 54 of the 900 warnings), the same
+# defect #227 fixed in the `terms` CLI. It could not be adopted until
+# those — and the test-side connections `tests/conftest.py` now owns —
+# were fixed.
+#
+# It does NOT catch a leaked SQLite connection on its own, though this
+# comment said it did from #246 until #663. That warning fires when the
+# connection is garbage-collected, where Python can only report it as an
+# unraisable exception; pytest wraps it in
+# `PytestUnraisableExceptionWarning`, which is not a ResourceWarning, and
+# 27 leaks passed every run. The second flag is what fails them. GC timing
+# decides which test the failure lands on, so the reported test is often
+# not the leaker: run with `-X tracemalloc=20` to get the allocation site.
+addopts = "-q -W error::ResourceWarning -W error::pytest.PytestUnraisableExceptionWarning"
 
 # Coverage config — `pytest --cov` reads this when pytest-cov is
 # installed (in [dev]). Plain `pytest` still works without coverage

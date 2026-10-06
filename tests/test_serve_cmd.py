@@ -112,7 +112,13 @@ def test_no_metrics_skips_the_metrics_database(args, monkeypatch, tmp_path):
     monkeypatch.setattr(serve_cmd.serve_lock, "write_serve_lock", lambda *a, **k: None)
     monkeypatch.setattr(serve_cmd.serve_lock, "clear_serve_lock", lambda *a, **k: None)
     seen: dict[str, object] = {}
-    monkeypatch.setattr(server_mod, "serve", lambda **kw: seen.update(kw))
+
+    def serve(**kw):
+        seen.update(kw)
+        # Counted here, while `serve` holds it: `cmd_serve` closes it on return.
+        seen["chunks"] = kw["conn"].execute("SELECT count(*) FROM chunks").fetchone()[0]
+
+    monkeypatch.setattr(server_mod, "serve", serve)
 
     assert serve_cmd.cmd_serve(args) == 0
     assert seen["metrics_conn"] is None
@@ -120,7 +126,7 @@ def test_no_metrics_skips_the_metrics_database(args, monkeypatch, tmp_path):
     # Proves the connection handed to `serve` is the SEEDED index and not a
     # fresh empty file created from a mis-stringified path.
     assert isinstance(seen["conn"], sqlite3.Connection)
-    assert seen["conn"].execute("SELECT count(*) FROM chunks").fetchone()[0] > 0
+    assert seen["chunks"] > 0
 
 
 def test_a_backend_failure_opens_no_databases_at_all(args, monkeypatch, capsys):
@@ -152,3 +158,76 @@ def test_a_backend_failure_opens_no_databases_at_all(args, monkeypatch, capsys):
     assert serve_cmd.cmd_serve(args) == 2
     assert opened == [], f"opened {opened} before discovering the backend could not be built"
     assert "no api key" in capsys.readouterr().err
+
+
+_SIGTERM_DURING_SERVE = """
+import os, signal, sys
+from minerva import server
+from minerva.cli import build_parser, serve_cmd
+
+def serve(**_kw):
+    os.kill(os.getpid(), signal.SIGTERM)
+    signal.pause()  # unreachable once SIGTERM unwinds; holds the process if it does not
+
+server.serve = serve
+sys.exit(serve_cmd.cmd_serve(build_parser().parse_args(sys.argv[1:])))
+"""
+
+
+def test_sigterm_clears_the_serve_lock(args, tmp_path):
+    """#722: SIGTERM's default action ends the process without unwinding, so
+    the `finally` that clears the lock never ran and the lock outlived the
+    server. Harmless until the pid is reused — then `index` and `serve` refuse
+    to run against a server that does not exist.
+
+    A subprocess, because the signal has to land on a real process: sending it
+    to the pytest worker would, on the failing side, kill the run."""
+
+    import subprocess
+    import sys
+
+    from minerva import serve_lock
+
+    argv = [
+        "serve",
+        "--db", str(args.db),
+        "--conversations-db", str(args.conversations_db),
+        "--translations-db", str(args.translations_db),
+        "--concept-cache-db", str(args.concept_cache_db),
+        "--no-metrics",
+        "--llm", "none",
+    ]
+    proc = subprocess.run(
+        [sys.executable, "-c", _SIGTERM_DURING_SERVE, *argv],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert not serve_lock.serve_lock_path(args.db).exists(), (
+        f"lock left behind; exit={proc.returncode} stderr={proc.stderr[-500:]}"
+    )
+    assert proc.returncode == 0
+
+
+def test_every_connection_handed_to_serve_is_closed_when_it_returns(args, monkeypatch):
+    """#663: `cmd_serve` opened five databases and closed none, on every exit
+    path. The process usually ended right after, which hid it — and so did the
+    suite, because a connection leaked at garbage collection surfaces as an
+    unraisable-exception warning rather than the ResourceWarning `addopts`
+    promotes."""
+
+    from minerva import server as server_mod
+
+    monkeypatch.setattr(serve_cmd.serve_lock, "find_running_server", lambda _db: None)
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(server_mod, "serve", lambda **kw: seen.update(kw))
+
+    assert serve_cmd.cmd_serve(args) == 0
+    conns = {k: v for k, v in seen.items() if k.endswith("conn") and v is not None}
+    assert set(conns) == {
+        "conn", "conversations_conn", "translations_conn", "concept_cache_conn", "metrics_conn"
+    }
+    for c in conns.values():
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            c.execute("SELECT 1")  # type: ignore[attr-defined]

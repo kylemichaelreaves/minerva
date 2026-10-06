@@ -9,6 +9,7 @@ flag is a biased sample of runs, not a trend.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from minerva import tei
@@ -89,8 +90,8 @@ def test_record_ingest_run_writes_the_rows(monkeypatch, tmp_path):
     log.record("plato", status="ok", elapsed_ms=120.0, chunks=3)
     monkeypatch.setattr("minerva.cli.ingest_cmd.DEFAULT_METRICS_DB", tmp_path / "metrics.sqlite")
     _record_ingest_run(log)
-    conn = m.open_db(tmp_path / "metrics.sqlite")
-    assert [r["source_id"] for r in m.ingest_runs(conn)] == ["plato"]
+    with closing(m.open_db(tmp_path / "metrics.sqlite")) as conn:
+        assert [r["source_id"] for r in m.ingest_runs(conn)] == ["plato"]
 
 
 def test_an_empty_log_writes_nothing(monkeypatch, tmp_path):
