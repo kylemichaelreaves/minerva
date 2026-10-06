@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } 
 import App from "~/App";
 import { invalidateReads } from "~/api/readCache";
 import { _resetToastsForTesting } from "~/utils/apiError";
+import { makeLemmaDetail, makeLemmaIndex } from "./helpers/concordance";
 import { okResponse } from "./helpers/testRouting";
 
 // A retained Reader keeps global listeners armed that `inert` cannot reach (#352).
@@ -101,6 +102,14 @@ describe("a suspended Reader stops answering global events", () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/terms/")) return Promise.resolve(okResponse(TERM));
+      // The concordance this file steps out to. Unmocked, both fell through to
+      // `{}` and the surface crashed into its error boundary (#761).
+      if (url.includes("/api/concordance/lemma")) {
+        return Promise.resolve(okResponse(makeLemmaDetail()));
+      }
+      if (url.includes("/api/concordance/index")) {
+        return Promise.resolve(okResponse(makeLemmaIndex()));
+      }
       if (url.includes("occurrence_map") || url.includes("references_map")) {
         return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
       }
