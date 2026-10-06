@@ -6,6 +6,8 @@ record two timestamps: the last time watched source was edited, and the last
 time `make check` passed. `is_stale` compares their mtimes. This is the same
 shape of bug #254 hit twice: an edit made *after* the last passing run of
 `make check` reaches `git push`/`gh pr create` unverified.
+
+Role: workflow
 """
 
 from __future__ import annotations

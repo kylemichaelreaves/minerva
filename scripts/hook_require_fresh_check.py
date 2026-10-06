@@ -7,6 +7,8 @@ both introduced after the last local `make check` run. Asks rather than
 denies: the marker granularity is "some watched file changed", which can be
 broader than what the push actually carries (a stash, a second worktree),
 so a human override is cheaper than a hard block on every false positive.
+
+Role: workflow
 """
 
 from __future__ import annotations

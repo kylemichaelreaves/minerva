@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Check that `pyproject.toml`'s coverage `omit` and `sonar-project.
-properties`'s `sonar.coverage.exclusions` agree on `src/minerva/` (#345).
+"""Check that `pyproject.toml`'s coverage `omit` and
+`sonar-project.properties`'s `sonar.coverage.exclusions` agree on
+`src/minerva/` (#345).
 
 `pyproject.toml`'s `[tool.coverage.run].omit` controls what the local
 suite (and the `coverage.xml` it uploads) measures; Sonar's
@@ -19,6 +20,8 @@ entry outside it (`scripts/**`, `web/src/**`) can never affect what
 
 Reporting-only tool this is not — a mismatch here is exactly the
 "coverage gate scores real code 0%" failure mode, so this one gates.
+
+Role: workflow
 """
 
 from __future__ import annotations

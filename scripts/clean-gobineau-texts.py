@@ -27,6 +27,8 @@ Boulainvilliers' 497). Running the f→s pass on clean 19th-c
 French would only invite false positives.
 
 Idempotent.
+
+Role: oneoff
 """
 
 from __future__ import annotations

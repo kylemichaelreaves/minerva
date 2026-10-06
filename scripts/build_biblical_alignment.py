@@ -32,6 +32,8 @@ Rows are inserted with:
 Idempotent: re-runs are no-ops because we dedup on
 ``(source_chunk_id, target_chunk_id, reference_type)`` before
 inserting. Run after a fresh MT or Quran ingest.
+
+Role: workflow
 """
 
 from __future__ import annotations

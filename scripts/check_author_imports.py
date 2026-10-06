@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Fail if code imports deprecated root minerva.<author>_works shims."""
+"""Fail if code imports deprecated root minerva.<author>_works shims.
+
+Role: workflow
+"""
 
 from __future__ import annotations
 

@@ -8,6 +8,8 @@ from the #176 kind of accident, where a paragraph *discussing* the convention
 carried the same hazard aimed at the same open issue. `make check-pr-link`
 is the gate that actually fails a bad PR before merge; this just surfaces the
 same scan a few minutes earlier, when it is cheaper to notice.
+
+Role: workflow
 """
 
 from __future__ import annotations

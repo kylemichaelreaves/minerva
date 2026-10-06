@@ -41,6 +41,10 @@ NEITHER = {"python": False, "web": False}
         # that stack's code rather than as documentation.
         (["tests/fixtures/hobbes_la/README.md"], PYTHON),
         (["web/tests/fixtures/notes.md"], WEB),
+        # Generated from scripts/ and diffed by the python job's
+        # `generate_scripts_index.py --check` (#505), so a hand-edit to it
+        # must run that job.
+        (["docs/SCRIPTS.md"], PYTHON),
     ],
 )
 def test_paths_map_to_the_suites_they_can_break(paths, expected):

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Verify a corpus author is fully wired for ingest (registry, manifest, rules)."""
+"""Verify a corpus author is fully wired for ingest (registry, manifest, rules).
+
+Role: workflow
+"""
 
 from __future__ import annotations
 

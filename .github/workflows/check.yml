@@ -219,6 +219,12 @@ jobs:
         # file 0% (#339, #345). No remote backstop, so it runs here (#685).
         run: uv run --no-sync python scripts/check_coverage_exclusions.py
 
+      - name: Script index current
+        # Mirrors `make check-scripts-index`: docs/SCRIPTS.md is generated
+        # from each script's docstring, and every script declares a
+        # `Role:` (#505). A new script without one fails here.
+        run: uv run --no-sync python scripts/generate_scripts_index.py --check
+
       - name: Tests (pytest with coverage)
         # `--cov` reads config from [tool.coverage.run] in
         # pyproject.toml. `xml:coverage.xml` emits the artifact in a

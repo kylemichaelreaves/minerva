@@ -8,6 +8,8 @@
 #
 # Hooks installed:
 #   * pre-commit — runs `make lint typecheck` (see scripts/githooks/pre-commit)
+#
+# Role: workflow
 
 set -e
 

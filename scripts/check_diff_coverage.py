@@ -41,6 +41,8 @@ hand after editing means re-running the suites first.
 
 Usage:
     scripts/check_diff_coverage.py [--base origin/main] [--threshold 80]
+
+Role: workflow
 """
 
 from __future__ import annotations

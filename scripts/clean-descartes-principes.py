@@ -42,6 +42,8 @@ Even after this, the file's chunks remain partially unreadable —
 this is **harm reduction, not a fix**.
 
 Idempotent.
+
+Role: oneoff
 """
 
 from __future__ import annotations

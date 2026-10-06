@@ -165,7 +165,7 @@ replies — is inline as `[arg. 1]` / `[s.c.]` / `[co.]` / `[ad 1]` markers but 
 split, so a whole article is one chunk and the dialectic is unsearchable.
 
 - **Files:** `corpus/split_aquinas.py` (locator `aquinas`, 6 works in
-  `authors/aquinas_works.py`). Background survey: `docs/aquinas_cite_survey.md`.
+  `authors/aquinas_works.py`). Background survey: `docs/archive/aquinas_cite_survey.md`.
   Source structure: [[corpus-thomisticum-anchors]].
 - **Decision needed (assess step):** taxonomy for objections/replies. They are
   Aquinas's *own* dialectic (positions he raises then answers), so attribution is to

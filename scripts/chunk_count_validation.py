@@ -12,6 +12,8 @@ Counts are read from ``chunks_full.corpus``, which stores
 ``LOWER(works.author)`` (e.g. ``hebrew bible``), not the corpus slug
 (``hebrew_mt``). Each manifest author row's ``display_name`` is
 lower-cased and summed for its ``corpus_id``.
+
+Role: workflow
 """
 
 from __future__ import annotations

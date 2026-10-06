@@ -44,6 +44,8 @@ Signals:
 Output: a Markdown table per author with counts for each signal,
 ranked by total issue count. The top-N "worst offender" chunks are
 appended per signal so the operator can spot-check.
+
+Role: workflow
 """
 
 from __future__ import annotations

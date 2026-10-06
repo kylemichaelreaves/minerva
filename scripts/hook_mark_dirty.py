@@ -4,6 +4,8 @@
 Runs after Write/Edit/MultiEdit. Records that source `make check` actually
 covers has changed since the last passing run, so `hook_require_fresh_check`
 can catch a push made after an edit `make check` never saw (#254).
+
+Role: workflow
 """
 
 from __future__ import annotations

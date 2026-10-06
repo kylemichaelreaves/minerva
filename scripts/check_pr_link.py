@@ -36,6 +36,8 @@ Usage:
 
     scripts/check_pr_link.py 315 297 300   # must close exactly 297 and 300
     scripts/check_pr_link.py 327           # must close nothing (a Refs-only PR)
+
+Role: workflow
 """
 
 from __future__ import annotations

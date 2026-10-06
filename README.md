@@ -42,7 +42,7 @@ for experiments.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Routes, DBs, HTTP API |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Fresh-machine setup, `make check` |
 | [docs/MEMORY.md](docs/MEMORY.md) | Operator rules (snapshots, re-ingest) |
-| [docs/SCRIPTS.md](docs/SCRIPTS.md) | One-off scripts |
+| [docs/SCRIPTS.md](docs/SCRIPTS.md) | Every script in `scripts/`, workflow vs one-off (generated) |
 | [docs/syntax-annotation-plan.md](docs/syntax-annotation-plan.md) | Dependency-syntax reader overlay — design, derivations, known gaps |
 | [FigJam — Application Architecture](https://www.figma.com/board/3EXl1NgThKiIs2sBeEKHOz) | Canonical board — corpus, pipeline, stores, API, frontend, refs |
 | [FigJam — App Flow + Ingestion](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26) | Superseded; user journeys + pipeline diagram |

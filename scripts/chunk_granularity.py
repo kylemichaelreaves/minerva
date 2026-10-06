@@ -27,6 +27,8 @@ is a visible line in a PR diff rather than a side effect of an ingest.
 **The gate is baseline-pinned, and fails only on new violations.** A bare
 "no chunk over N characters" assertion fails immediately on all 753 existing
 ones and is unlandable — the trap that has #229 stuck.
+
+Role: workflow
 """
 
 from __future__ import annotations

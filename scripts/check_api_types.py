@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Verify API contract fixture keys exist on TS wire types (api/types/*.ts)."""
+"""Verify API contract fixture keys exist on TS wire types (api/types/*.ts).
+
+Role: workflow
+"""
 
 from __future__ import annotations
 

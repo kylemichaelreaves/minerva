@@ -3,6 +3,8 @@
 
 Runs after Bash. Records the last time `make check` itself succeeded, so
 `hook_require_fresh_check` can compare it against `hook_mark_dirty`'s marker.
+
+Role: workflow
 """
 
 from __future__ import annotations

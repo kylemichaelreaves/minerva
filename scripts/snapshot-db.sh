@@ -57,6 +57,8 @@
 #
 # MINERVA_SNAPSHOT_DRY_RUN=1 reports what rotation would prune and writes
 # nothing at all — no snapshot, no deletions.
+#
+# Role: workflow
 
 set -euo pipefail
 

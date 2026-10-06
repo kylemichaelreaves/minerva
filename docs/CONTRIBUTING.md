@@ -587,7 +587,7 @@ issues with them.
 | [BACKEND.md](BACKEND.md) | Module layout, SQL, error handling, testing conventions for `src/minerva/` |
 | [FRONTEND.md](FRONTEND.md) | Solid component, CSS, reactivity, testing conventions for `web/` |
 | [MEMORY.md](MEMORY.md) | Operator rules (snapshots, re-ingest) |
-| [SCRIPTS.md](SCRIPTS.md) | One-off operator scripts |
+| [SCRIPTS.md](SCRIPTS.md) | Every script in `scripts/`, workflow vs one-off (generated) |
 | [FigJam — Application Architecture](https://www.figma.com/board/3EXl1NgThKiIs2sBeEKHOz) | Canonical board: corpus → pipeline → stores → API → frontend → refs |
 | [FigJam — App Flow](https://www.figma.com/board/9yBqT8fZSPFwcARJrnBy26) | Superseded; user journeys + ingestion pipeline |
 | [FigJam — Ingest Wave](https://www.figma.com/board/uaeZ5hqmEClhmBQf4Gv0xA) | Author-ingest checklist visual |

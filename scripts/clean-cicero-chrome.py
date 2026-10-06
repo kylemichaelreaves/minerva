@@ -31,6 +31,8 @@ We deliberately leave alone:
 * The 48 mostly_digits chunks (legitimate footnote citations).
 
 Idempotent.
+
+Role: oneoff
 """
 
 from __future__ import annotations

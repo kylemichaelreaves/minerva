@@ -12,6 +12,8 @@ test failure on its own:
 `data/index.sqlite` is gitignored, so CI cannot check either against the live
 corpus. This snapshot is what it checks instead — the `chunk_counts.json`
 pattern (#157), for the same reason.
+
+Role: workflow
 """
 
 from __future__ import annotations

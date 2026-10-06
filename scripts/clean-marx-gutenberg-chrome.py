@@ -40,6 +40,8 @@ prose) passes through untouched.
 
 Idempotent: re-running on an already-cleaned file produces the
 same output (the regexes don't match anything by then).
+
+Role: oneoff
 """
 
 from __future__ import annotations

@@ -6,6 +6,8 @@ Derives the expected closing-issue set from the PR body's own closing
 keywords (the same scan `check_pr_link.evaluate` uses to compute `hazard`)
 and feeds it straight to `scripts/check_pr_link.py`, so a broken link is
 visible in this turn rather than at the next `/close-out` phase 5.
+
+Role: workflow
 """
 
 from __future__ import annotations

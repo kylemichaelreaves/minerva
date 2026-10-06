@@ -43,6 +43,8 @@ does, or at a page break after a closed sentence — with the page's note
 area, which only its position identifies, held aside while a paragraph
 runs on across the break. The file holds one paragraph per line, so the
 work is ingested without a second reflow.
+
+Role: oneoff
 """
 
 from __future__ import annotations

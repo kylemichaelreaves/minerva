@@ -22,6 +22,8 @@ script does not list is trusted, so a stale list fails open — it
 over-scopes as before rather than refusing a real title.
 
     $ uv run python scripts/derive_common_title_tokens.py
+
+Role: workflow
 """
 
 from __future__ import annotations

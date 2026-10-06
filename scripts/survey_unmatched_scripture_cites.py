@@ -20,7 +20,10 @@ Examples of forms the current rule misses:
 * Ordinal-spelled ``prima Cor`` / ``secunda Cor`` instead of ``I Cor``.
 * Macron-stripped variants (``Math.`` for ``Matth.``).
 
-The script never writes to the index — purely read-and-print."""
+The script never writes to the index — purely read-and-print.
+
+Role: oneoff
+"""
 
 from __future__ import annotations
 
