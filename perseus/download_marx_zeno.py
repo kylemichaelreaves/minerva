@@ -33,117 +33,26 @@ Run:
 from __future__ import annotations
 
 import argparse
-import re
-import time
-import urllib.parse
 from pathlib import Path
 
-from _download import fetch_with_retry
+from _zeno import ZenoWork, add_crawl_args, main_for
 
-ROOT = "http://www.zeno.org"
+MAX_PAGES = 100
 
 # (output filename, zeno root URL path)
-WORKS: list[tuple[str, str]] = [
-    (
+WORKS: list[ZenoWork] = [
+    ZenoWork(
         "einleitung_grundrisse.html",
         "/Philosophie/M/Marx,+Karl/Einleitung+%5Bzur+Kritik+der+politischen+%C3%96konomie%5D",
     ),
-    (
+    ZenoWork(
         "formen_vorkapitalistisch.html",
         "/Philosophie/M/Marx,+Karl/Formen,+die+der+kapitalistischen+Produktion+vorhergehen",
     ),
 ]
 
-_HREF_RE = re.compile(r'href="([^"]+)"', re.IGNORECASE)
 
-
-def fetch(url: str, *, timeout: float = 30, retries: int = 8) -> str:
-    """zeno.org-specific fetch wrapper — ISO-8859-1 decoded, retries
-    on transient HTTP / URL errors. Delegates to the shared
-    ``_download.fetch_with_retry`` helper (Phase 5)."""
-
-    return fetch_with_retry(
-        url,
-        timeout=timeout,
-        retries=retries,
-        encoding="iso-8859-1",
-    )
-
-
-def extract_links(html: str, root_path: str) -> list[str]:
-    """Return paths under `root_path` linked from the given HTML.
-    Footnote-anchor links (`#fnA1`, `#fnA1ref`) are stripped by the
-    fragment-removal step; only true sub-pages survive."""
-
-    out: list[str] = []
-    seen: set[str] = set()
-    for raw in _HREF_RE.findall(html):
-        if raw.startswith(ROOT):
-            raw = raw[len(ROOT):]
-        if not raw.startswith("/"):
-            continue
-        path = raw.split("#", 1)[0].split("?", 1)[0]
-        if not path.startswith(root_path):
-            continue
-        if path == root_path:
-            continue
-        if path in seen:
-            continue
-        seen.add(path)
-        out.append(path)
-    return out
-
-
-def crawl_work(
-    root_path: str, *, delay: float = 1.5, max_pages: int = 100
-) -> list[tuple[str, str]]:
-    """BFS-walk one work's subtree on zeno. Cap at max_pages."""
-
-    queue: list[str] = [root_path]
-    seen: set[str] = {root_path}
-    pages: list[tuple[str, str]] = []
-    while queue and len(pages) < max_pages:
-        path = queue.pop(0)
-        url = ROOT + path
-        try:
-            html = fetch(url)
-        except Exception as e:
-            print(f"  [skip] {path}: {e}")
-            continue
-        pages.append((path, html))
-        decoded = urllib.parse.unquote(path)
-        print(f"  [{len(pages):>3}] {decoded[-80:]:<80}  {len(html):>7,} bytes")
-        for child in extract_links(html, root_path):
-            if child in seen:
-                continue
-            seen.add(child)
-            queue.append(child)
-        time.sleep(delay)
-    if len(pages) >= max_pages:
-        print(f"  (hit max_pages={max_pages}; stopping)")
-    return pages
-
-
-def download_work(
-    filename: str, root_path: str, out_dir: Path, *, delay: float
-) -> Path | None:
-    print(f"\n=== {filename}: {urllib.parse.unquote(root_path)} ===")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    pages = crawl_work(root_path, delay=delay)
-    if not pages:
-        print("  no content fetched")
-        return None
-    parts = [
-        f"<!-- ZENO_PAGE: {urllib.parse.unquote(p)} -->\n{html}"
-        for p, html in pages
-    ]
-    out_path = out_dir / filename
-    out_path.write_text("\n\n".join(parts), encoding="utf-8")
-    print(f"  → {out_path} ({len(pages)} pages, {out_path.stat().st_size:,} bytes)")
-    return out_path
-
-
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--data-root",
@@ -151,17 +60,10 @@ def main() -> None:
         default=Path(__file__).resolve().parents[1] / "data",
         help="Top of the data tree; files land in <root>/marx/raw_deu/.",
     )
-    parser.add_argument(
-        "--delay",
-        type=float,
-        default=1.5,
-        help="Seconds to wait between requests (be polite to zeno.org).",
-    )
+    add_crawl_args(parser)
     args = parser.parse_args()
-    out_dir = args.data_root / "marx" / "raw_deu"
-    for filename, root_path in WORKS:
-        download_work(filename, root_path, out_dir, delay=args.delay)
+    return main_for(WORKS, args.data_root / "marx" / "raw_deu", args, max_pages=MAX_PAGES)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

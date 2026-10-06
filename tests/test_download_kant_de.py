@@ -1,5 +1,5 @@
 """Offline tests for ``perseus/download_kant_de.py``'s ``title_to_path``
-and ``extract_links`` (issue #420).
+and the shared ``_zeno.extract_links`` (issue #420).
 
 zeno.org percent-encodes ``:``, ``[`` and ``]`` in its own outbound
 hrefs (``%3A``, ``%5B``, ``%5D``), but ``title_to_path`` left those
@@ -20,6 +20,7 @@ from pathlib import Path
 
 perseus_dir = Path(__file__).resolve().parents[1] / "perseus"
 sys.path.insert(0, str(perseus_dir))
+import _zeno as zeno  # noqa: E402
 import download_kant_de as kant  # noqa: E402
 
 _BRACKETED_TITLE = "Einleitung in die Kritik der Urteilskraft [1. Fassung]"
@@ -42,5 +43,5 @@ def test_title_to_path_encodes_brackets_like_zeno_does():
 
 def test_extract_links_finds_chapter_children_of_a_bracketed_title():
     root_path = kant.title_to_path(_BRACKETED_TITLE)
-    children = kant.extract_links(_TOC_HTML, root_path)
+    children = zeno.extract_links(_TOC_HTML, root_path)
     assert len(children) == 2
