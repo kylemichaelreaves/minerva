@@ -4223,4 +4223,7 @@ focus is invisible; #726 had to add its own ring), #775 (vitest leaks an
 `unhandledRejection` listener per file under vmThreads), #776 (local installs
 ignore `uv.lock`, which the new ruff gate makes visible).
 
-Not in this batch: #510 still waits on its owner decision.
+Not in this batch: #510. Decided 2026-10-06 by the owner: option (b), keep
+`retryKey` as the `useAbortableFetch` retry idiom. The convergence the issue
+asked for had already happened in #244, and adding `refetch()` was declined.
+The issue is now shut, with no code change.
