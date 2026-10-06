@@ -25,12 +25,6 @@ describe("selectArcPairs", () => {
     expect(out).toHaveLength(1);
   });
 
-  it("filters intra-scripture when hideIntraScrip", () => {
-    const intra: AuthorPair = { src: "X", tgt: "Y", n: 9, intra_scrip: true };
-    const out = selectArcPairs([intra], [], ENDS, { hideIntraScrip: true });
-    expect(out).toHaveLength(0);
-  });
-
   // #692: the name filter and the endpoint lookup are one step, so no caller
   // can hold a pair it then fails to place — which is what left NetworkArc
   // with a null-year guard that no input could reach.

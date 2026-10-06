@@ -169,4 +169,23 @@ describe("<ArcPanel />", () => {
     expect(tip?.textContent).not.toContain("reaches back");
     expect(Number.parseFloat(tip?.style.left ?? "")).toBe(24);
   });
+
+  it("says '1 reference', not '1 references' (#728)", () => {
+    const one = [pair("Plato", "Homer", 1)];
+    const { container } = render(() => (
+      <ArcPanel
+        authors={authors}
+        matrixCells={cells}
+        topPairsAll={one}
+        topPairsNonScrip={one}
+        topPairsPerAuthor={[]}
+        onOpenPair={vi.fn()}
+      />
+    ));
+    const arc = container.querySelector<SVGPathElement>("path.net-arc");
+    if (!arc) throw new Error("no arc");
+    fireEvent.mouseMove(arc, { clientX: 10, clientY: 200 });
+    const count = container.querySelector(".net-tooltip .count")?.textContent;
+    expect(count).toBe("1 reference");
+  });
 });

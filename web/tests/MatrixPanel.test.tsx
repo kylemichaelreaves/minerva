@@ -94,6 +94,29 @@ describe("<MatrixPanel />", () => {
     expect(container.querySelector(".net-tooltip")).toBeNull();
   });
 
+  it("lines the crosshair and both axis labels up with the hovered cell (#728)", () => {
+    // Pins positions across #728, which moved the crosshair and the labels
+    // off `rowPos`/`colPos` lookups (each with an unreachable `?? 0`) and
+    // onto the placed cell and the label's own index.
+    const { container, cell } = setup();
+    const target = cell(1); // Aquinas → Vulgate: row 1, column 1 (neither is 0)
+    const n = (el: Element | null | undefined, a: string) => Number(el?.getAttribute(a));
+    fireEvent.mouseEnter(target);
+
+    const [rowBar, colBar] = container.querySelectorAll(".net-matrix-crosshair rect");
+    expect(n(rowBar, "y")).toBe(n(target, "y") - 0.5);
+    expect(n(colBar, "x")).toBe(n(target, "x") - 0.5);
+
+    const label = (name: string, axis: "row" | "col") =>
+      [...container.querySelectorAll("text")].find(
+        (t) => t.textContent === name && (t.getAttribute("transform") !== null) === (axis === "col"),
+      );
+    const cellMidY = n(target, "y") - 0.5 + n(rowBar, "height") / 2;
+    const cellMidX = n(target, "x") - 0.5 + n(colBar, "width") / 2;
+    expect(n(label("Aquinas", "row"), "y")).toBeCloseTo(cellMidY + 3.5);
+    expect(n(label("Vulgate", "col"), "x")).toBeCloseTo(cellMidX + 3.5);
+  });
+
   it("puts the tooltip right of a cell, flipping left near the right edge", () => {
     const { container, cell } = setup();
     const tipLeft = () =>

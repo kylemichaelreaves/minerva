@@ -17,16 +17,16 @@ export function formatYearEra(year: number): string {
   return year < 0 ? `${Math.abs(year)} BC` : `${year} CE`;
 }
 
-function interpolate(
-  ord: number,
-  lo: NetworkAuthor,
-  hi: NetworkAuthor,
-  years: Map<string, number>,
-) {
-  const y0 = years.get(lo.name) ?? 0;
-  const y1 = years.get(hi.name) ?? 0;
-  if (hi.ord === lo.ord) return y0;
-  return Math.round(y0 + ((y1 - y0) * (ord - lo.ord)) / (hi.ord - lo.ord));
+/** An author with the year it was looked up under — carried together so
+ *  nothing re-looks it up behind a fallback that cannot fire (#728). */
+interface Dated {
+  a: NetworkAuthor;
+  year: number;
+}
+
+function interpolate(ord: number, lo: Dated, hi: Dated) {
+  if (hi.a.ord === lo.a.ord) return lo.year;
+  return Math.round(lo.year + ((hi.year - lo.year) * (ord - lo.a.ord)) / (hi.a.ord - lo.a.ord));
 }
 
 /** Sort authors by year for the time axis.
@@ -40,17 +40,18 @@ export function placeAuthors(
   years: ReadonlyMap<string, number>,
 ): ArcAuthor[] {
   const byOrd = [...authors].sort((a, b) => a.ord - b.ord);
-  const dated = byOrd.filter((a) => years.has(a.name));
-  const known = new Map(dated.map((a) => [a.name, years.get(a.name) ?? 0]));
+  const dated: Dated[] = byOrd.flatMap((a) => {
+    const year = years.get(a.name);
+    return year === undefined ? [] : [{ a, year }];
+  });
   const placed = byOrd.map((a) => {
-    const y = known.get(a.name);
+    const y = years.get(a.name);
     if (y !== undefined) return { a, year: y, dated: true };
-    const lo = dated.findLast((d) => d.ord <= a.ord);
-    const hi = dated.find((d) => d.ord >= a.ord);
-    const ref = lo ?? hi;
+    const lo = dated.findLast((d) => d.a.ord <= a.ord);
+    const hi = dated.find((d) => d.a.ord >= a.ord);
     let year = 0;
-    if (lo && hi) year = interpolate(a.ord, lo, hi, known);
-    else if (ref) year = known.get(ref.name) ?? 0;
+    if (lo && hi) year = interpolate(a.ord, lo, hi);
+    else year = (lo ?? hi)?.year ?? 0;
     return { a, year, dated: false };
   });
   return placed
@@ -125,13 +126,20 @@ export function timeScale(years: number[], padL: number, innerW: number): number
   ).map((p) => p.x);
 }
 
-/** Midpoints of the gaps long enough to be compressed. */
-export function axisBreaks(years: number[], xs: number[]): number[] {
+/** A point on the axis, as `placeOnAxis` returns it. */
+interface AxisPoint {
+  year: number;
+  x: number;
+}
+
+/** Midpoints of the gaps long enough to be compressed. Takes
+ *  `placeOnAxis`'s output, so a year and its x cannot come apart (#728). */
+export function axisBreaks(axis: readonly AxisPoint[]): number[] {
   const out: number[] = [];
-  for (let i = 1; i < years.length; i++) {
-    if ((years[i] ?? 0) - (years[i - 1] ?? 0) > GAP_CAP) {
-      out.push(((xs[i] ?? 0) + (xs[i - 1] ?? 0)) / 2);
-    }
+  let prev: AxisPoint | undefined;
+  for (const p of axis) {
+    if (prev && p.year - prev.year > GAP_CAP) out.push((p.x + prev.x) / 2);
+    prev = p;
   }
   return out;
 }
@@ -154,14 +162,14 @@ export interface EraSpan {
 
 /** Bracket over the authors in each era, 5 px past the outermost ticks.
  *  Eras with no authors are omitted. */
-export function eraSpans(authors: ArcAuthor[], xs: number[]): EraSpan[] {
+export function eraSpans(axis: readonly AxisPoint[]): EraSpan[] {
   const out: EraSpan[] = [];
   for (const [name, from, to] of ERAS) {
-    const ids = authors.flatMap((a, i) => (a.year >= from && a.year < to ? [i] : []));
-    const first = ids[0];
-    const last = ids.at(-1);
+    const inEra = axis.filter((p) => p.year >= from && p.year < to);
+    const first = inEra[0];
+    const last = inEra.at(-1);
     if (first === undefined || last === undefined) continue;
-    out.push({ name, x0: (xs[first] ?? 0) - 5, x1: (xs[last] ?? 0) + 5 });
+    out.push({ name, x0: first.x - 5, x1: last.x + 5 });
   }
   return out;
 }
@@ -169,7 +177,7 @@ export function eraSpans(authors: ArcAuthor[], xs: number[]): EraSpan[] {
 /** Era caption shortened to fit a bracket `width` px wide. */
 export function eraLabel(name: string, width: number): string {
   if (width > 80) return name.toUpperCase();
-  if (width > 34) return (name.split(" ")[0] ?? name).slice(0, 5).toUpperCase();
+  if (width > 34) return name.replace(/ .*/, "").slice(0, 5).toUpperCase();
   return "";
 }
 

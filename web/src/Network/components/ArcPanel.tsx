@@ -19,7 +19,6 @@ import {
 } from "~/Network/components/arcLayout";
 
 export interface SelectArcPairsOpts {
-  hideIntraScrip?: boolean;
   cap?: number;
 }
 
@@ -36,7 +35,7 @@ export function selectArcPairs<T>(
   const seen = new Set<string>();
   const unique = [...primary, ...supplemental].filter((p) => {
     const key = `${p.src}\x00${p.tgt}`;
-    if (seen.has(key) || (opts.hideIntraScrip && p.intra_scrip)) return false;
+    if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
@@ -150,8 +149,6 @@ export function ArcPanel(props: {
   const geo = createMemo(() => {
     const { w, h } = size();
     const axis = placeOnAxis(placed(), PAD_X, Math.max(0, w - 2 * PAD_X));
-    const years = axis.map((a) => a.year);
-    const xs = axis.map((a) => a.x);
     const xOf = new Map(axis.map((a) => [a.name, a.x]));
     const everyArc = resolvePairs([...allPairs(), ...restPairs()], xOf);
     return {
@@ -159,8 +156,8 @@ export function ArcPanel(props: {
       h,
       axis,
       xOf,
-      breaks: axisBreaks(years, xs),
-      eras: eraSpans(axis, xs),
+      breaks: axisBreaks(axis),
+      eras: eraSpans(axis),
       maxN: Math.max(1, ...everyArc.map((a) => a.pair.n)),
       maxSpan: Math.max(1, ...everyArc.map(arcSpan)),
       maxDip: Math.max(0, h - BASE_Y - 14),
