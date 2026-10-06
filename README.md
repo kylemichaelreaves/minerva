@@ -101,6 +101,7 @@ uv venv -p 3.13                             # uv (recommended)
 uv pip install -e '.[embed,hegel,lemma]'    # everything; see pyproject.toml
 make install-lemma-models                   # model wheels; pinned in lemma-models.txt
 
+npm install -g npm@11.12.1                  # npm pinned in web/package.json (#605)
 npm ci --prefix web                         # frontend (make check / make run)
 
 cp .envrc.example .envrc                    # optional — LLM keys; then: direnv allow

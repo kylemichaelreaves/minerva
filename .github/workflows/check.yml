@@ -285,6 +285,13 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Install the pinned npm
+        # `.nvmrc`'s Node bundles npm 10.9.8, which strips the lock's `libc`
+        # blocks; `packageManager` pins npm 11 and `engine-strict` refuses
+        # anything older (#605). Read from package.json, not restated here.
+        working-directory: web
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
+
       - name: Install dependencies
         run: npm ci
 
@@ -330,6 +337,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Install the pinned npm
+        # `.nvmrc`'s Node bundles npm 10.9.8, which strips the lock's `libc`
+        # blocks; `packageManager` pins npm 11 and `engine-strict` refuses
+        # anything older (#605). Read from package.json, not restated here.
+        working-directory: web
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
 
       - name: Install dependencies
         run: npm ci
@@ -399,6 +413,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Install the pinned npm
+        # `.nvmrc`'s Node bundles npm 10.9.8, which strips the lock's `libc`
+        # blocks; `packageManager` pins npm 11 and `engine-strict` refuses
+        # anything older (#605). Read from package.json, not restated here.
+        working-directory: web
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
 
       - name: Install web dependencies
         run: npm ci

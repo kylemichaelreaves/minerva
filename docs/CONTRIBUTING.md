@@ -17,10 +17,19 @@ git clone <repo-url> minerva && cd minerva
 uv venv -p 3.13
 uv pip install -e '.[embed,hegel,lemma,dev]'
 
+nvm use                                  # Node from .nvmrc
+npm install -g npm@11.12.1               # the npm web/package.json pins
 npm ci --prefix web
 
 cp .envrc.example .envrc   # optional — fill in LLM keys, then: direnv allow
 ```
+
+`.nvmrc`'s Node bundles npm 10, and npm 10 strips the `libc` blocks npm 11
+writes into `web/package-lock.json` — 78 deleted lines from a bare
+`npm install`, staged into whatever PR was open (#605). `web/.npmrc` sets
+`engine-strict`, so an npm older than `packageManager` in
+`web/package.json` now refuses to install (`EBADENGINE`, `notsup`) instead.
+That error means "install the pinned npm", not "loosen the pin".
 
 Never commit `.envrc` (gitignored). Only `.envrc.example` belongs in git.
 
