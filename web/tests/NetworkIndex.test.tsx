@@ -90,6 +90,22 @@ describe("<Network />", () => {
     );
   });
 
+  it("renders a summary with no authors instead of overflowing the stack", async () => {
+    // A filter that matches nothing returns an empty matrix. The author-seed
+    // effect read `allAuthors()` and wrote a fresh `[]` back, which Solid
+    // treats as a change, so it re-ran itself until "Maximum call stack size
+    // exceeded" — caught by the fetch hook and shown as the network's error.
+    // Found when #761 mocked the summary and asserted the page rendered.
+    fetchMock.mockResolvedValueOnce(makeNetworkSummary({ xrefs: 0 }));
+    const { container } = mount();
+
+    await waitFor(() => {
+      expect(container.querySelector(".net-loading")).toBeNull();
+    });
+    expect(container.querySelector(".net-error")).toBeNull();
+    expect(container.querySelector(".net-footer")).toHaveTextContent("0 xrefs");
+  });
+
   it("hides the body and shows the error when the fetch fails", async () => {
     fetchMock.mockRejectedValueOnce(new Error("network summary unavailable"));
     const { container } = mount();

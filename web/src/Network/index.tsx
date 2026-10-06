@@ -66,7 +66,10 @@ export default function Network(props: NetworkProps) {
       !props.sourceMethods?.length &&
       allAuthors().length === 0
     ) {
-      setAllAuthors(d.matrix.authors.map((a) => a.name));
+      // Only when there is something to seed. Writing `[]` over `[]` is a
+      // change to Solid (a new array), so an empty summary re-ran this effect
+      // until the stack overflowed (#761).
+      if (d.matrix.authors.length > 0) setAllAuthors(d.matrix.authors.map((a) => a.name));
       return;
     }
     // Deep link with ?source= filters the matrix but the author
