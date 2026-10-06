@@ -4190,3 +4190,37 @@ What changed the plan mid-batch:
 
 The live re-ingest is an operator step outside the PR; its source list and
 expected churn are in the PR body.
+
+## Batch 13f — dev tooling & test infra, plus 13a's follow-ups (#605 #663 #664 #722 #758 #726 #727 #728; #136 partial)
+
+13f's five, the newer #758, and the three issues 13a filed. Three owner
+decisions taken 2026-10-06 before any code, each because phase 1 found the
+issue's fix could not land as written:
+
+- **#605: pin npm 11.** The lock's `libc` blocks are written by npm 11.12.1
+  (zero-line round trip, and Dependabot keeps them); the pinned Node's npm
+  10.9.8 strips all 26. The issue's "use the pinned Node" branch was false
+  under both the old and the new `.nvmrc`. Now `packageManager`,
+  `engines.npm`, and `engine-strict` in `web/.npmrc`; CI installs the pin.
+- **#136: gate first, then a tranche (`Refs`).** The 2026-09-12 comment
+  read `check_format_baseline.py`, the Prettier gate, as the Python one, and
+  nothing gated `ruff format`, so the residue went 90 → 143. The script now
+  gates both formatters, `.ruff-format-baseline` is the ruff policy, and 92
+  files Sonar holds to no coverage bar were reformatted in a commit of their
+  own (tests; perseus/scripts with zero Sonar-reported duplication). 50
+  remain pinned: 35 `src`, 13 duplicated perseus, 2 scripts.
+- **#726: the two named files, file the rest.** An AST sweep found 12
+  controls in `LemmaDetail.tsx`/`IndexPage.tsx` (the issue had listed 9) and 35
+  across `web/src`; the other 23 are #773.
+
+Corrections posted on their issues: #605, #136, #727 (18 casts, not 22, and
+the "fixed in 13a" fixture still lacked two required fields), #726 (scope),
+#728 (taperPath's `|| 1` is reachable and was kept, with a test).
+
+Filed along the way, no active plan covers them beyond this note: #773
+(the 23 controls), #774 (`styles.css` sets `outline: 0` on every button, so
+focus is invisible; #726 had to add its own ring), #775 (vitest leaks an
+`unhandledRejection` listener per file under vmThreads), #776 (local installs
+ignore `uv.lock`, which the new ruff gate makes visible).
+
+Not in this batch: #510 still waits on its owner decision.
