@@ -265,3 +265,26 @@ def test_parse_args_shared_flags():
     assert args.delay == 1.5
     assert zeno.select_works(_works(), ["nope.html"]) == []
     assert zeno.select_works(_works(), None) == _works()
+
+
+def _cli_args(**overrides):
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    zeno.add_crawl_args(ap)
+    args = ap.parse_args([])
+    for k, v in overrides.items():
+        setattr(args, k, v)
+    return args
+
+
+def test_main_for_refuses_an_output_dir_outside_the_repo_and_temp(tmp_path):
+    # The output directory comes from --out / --data-root. Anything outside
+    # the repo or the temp dir is refused before a directory is created.
+    with pytest.raises(SystemExit, match="outside"):
+        zeno.main_for([], Path("/etc/zeno-out"), _cli_args(), max_pages=1)
+    assert not Path("/etc/zeno-out").exists()
+
+
+def test_main_for_accepts_a_temp_output_dir(tmp_path):
+    assert zeno.main_for([], tmp_path / "out", _cli_args(), max_pages=1) == 0
