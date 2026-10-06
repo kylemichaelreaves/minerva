@@ -4227,3 +4227,51 @@ Not in this batch: #510. Decided 2026-10-06 by the owner: option (b), keep
 `retryKey` as the `useAbortableFetch` retry idiom. The convergence the issue
 asked for had already happened in #244, and adding `refetch()` was declined.
 The issue is now shut, with no code change.
+
+## Batch 13c — audit-2026-07 residue (#498 #499 #500 #501 #502 #504 #505)
+
+Seven issues from the July audit's triage (#481); plan rows 21, 22, 24, 25
+and 26. Four owner decisions taken 2026-10-06 after phase 1, each because the
+issue's fix could not land as written, or because the issue picked no fix:
+
+- **#498 (2): last-wins, not raise.** 34 declarations share a filename on
+  purpose (one Gregor PDF holds twelve Kant works; one Diels OCR text holds
+  twenty-four Presocratics). Raising on duplicates would have failed
+  `make check` on its first run. `make_find_work`'s two branches disagreed
+  (first-wins vs last-wins); both are now last-wins. (1) needed 17 literals,
+  not 183. (3) is `strict=` at the ingest write path, permissive for
+  migrations.
+- **#500: revision in the key, plus a relabel.** The issue's premise was wrong
+  three ways. `embeddings.model` already exists per row, and #285's
+  incremental embed already compares it. spaCy and Stanza were already pinned
+  (#302, and the stanza version in the lock). `bump_embedding_generation` is
+  a cache counter. The pinned revision reproduced stored vectors exactly
+  (cos 1.0 on 8 samples). Migration 0040 relabelled 412,105 live rows, and 0
+  were left to re-encode.
+- **#504: delete all five routes and the shim.** My own phase-1 correction
+  under-counted the shim's importers (6 test files, "no production code").
+  It is 10 test files plus `cli/serve_cmd.py`, so deleting to that scope
+  would have broken `minerva serve`. Corrected on the issue.
+- **#505: generated index, archive three.** `docs/SCRIPTS.md` is generated
+  from each script's `Role:` docstring line, and `make check` gates it.
+  `corpus-quality-audit.md` and `dashboard_aggregates.json` are generated
+  output and stay in `docs/`.
+
+**#501 is partial (`Refs`).** The zeno half shipped: `perseus/_zeno.py`, and a
+failed page now fails the crawl. Before and after crawls of Marx gave the same
+2 files with identical page markers. The bytes differ only in zeno's rotating
+ad blocks. The chunk-emit half stays behind batch 20's window (row 22): its
+test is a byte-identical `chunks.jsonl`.
+
+**#499** shipped as content checks that produce byte-identical output against
+today's OCR. Reading the cut lines showed the Boulainvilliers bounds were
+wrong from the start. #779 records that and corrects #741's provenance claim.
+
+Filed along the way. No active plan covers these beyond this note:
+
+- **#779:** Boulainvilliers front matter is indexed as body. This needs a
+  re-ingest window.
+- **#780:** `_download.py`'s retry misses read-time timeouts.
+- **#781:** `_zeno.py`'s page cap and prefix filter.
+- **#782:** the `handlers/citations.py` shim and its vacuous test.
+- **#783:** `download_ancient_pg.py` never checks the language.
