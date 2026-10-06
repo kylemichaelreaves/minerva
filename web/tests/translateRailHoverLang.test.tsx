@@ -4,11 +4,12 @@
 // (flip target, then re-run) is the one under test.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type * as readerApi from "~/api/readerApi";
 import { createRoot } from "solid-js";
 
-const translate = vi.fn();
+const translate = vi.fn<typeof readerApi.translate>();
 vi.mock("~/api/readerApi", () => ({
-  translate: (...args: unknown[]) => translate(...args) as never,
+  translate: (...args: Parameters<typeof readerApi.translate>) => translate(...args),
 }));
 
 import { useTranslateRail } from "~/Reader/useTranslateRail";

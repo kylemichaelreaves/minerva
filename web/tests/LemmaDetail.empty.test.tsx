@@ -8,15 +8,18 @@
 // Clicking one must clear exactly that filter and leave the others alone.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as concordanceApi from "~/api/concordanceApi";
+import type { LemmaDetailResponse } from "~/api/concordanceApi";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 
-const fetchLemmaDetail = vi.fn();
+const fetchLemmaDetail = vi.fn<typeof concordanceApi.fetchLemmaDetail>();
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("~/api/concordanceApi")>();
   return {
     ...mod,
-    fetchLemmaDetail: (...args: unknown[]) => fetchLemmaDetail(...args) as never,
+    fetchLemmaDetail: (...args: Parameters<typeof concordanceApi.fetchLemmaDetail>) =>
+      fetchLemmaDetail(...args),
   };
 });
 
@@ -42,7 +45,7 @@ const ROW = {
   kwic_right: " ist",
 };
 
-function detail(overrides: Record<string, unknown> = {}) {
+function detail(overrides: Partial<LemmaDetailResponse> = {}): LemmaDetailResponse {
   return {
     lemma: "Begriff",
     lang: "deu",
@@ -89,10 +92,7 @@ function renderDetail(props: Partial<LemmaDetailProps> = {}) {
 
 /** The morph filter the component asked the server for. */
 function requestedMorph(): unknown {
-  const first = must(fetchLemmaDetail.mock.calls[0], "a fetchLemmaDetail call") as [
-    { morph?: unknown },
-  ];
-  return first[0].morph;
+  return must(fetchLemmaDetail.mock.calls[0], "a fetchLemmaDetail call")[0].morph;
 }
 
 beforeEach(() => {

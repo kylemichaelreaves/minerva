@@ -1,5 +1,14 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+  type Mock,
+  type MockedFunction,
+} from "vitest";
 import {
   buildChatBody,
   chatStream,
@@ -7,7 +16,9 @@ import {
   getConversation,
   listConversations,
   parseSseBuffer,
+  type ChatStreamHandlers,
 } from "~/api/chatApi";
+import type { MinervaTurn } from "~/utils/uiTypes";
 import { getWorkRange, listWorks, translate } from "~/api/readerApi";
 import { must } from "./helpers/must";
 
@@ -86,7 +97,7 @@ describe("chatStream()", () => {
 
     const meta = vi.fn();
     const delta = vi.fn();
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     const error = vi.fn();
 
     await chatStream(
@@ -98,10 +109,7 @@ describe("chatStream()", () => {
     expect(delta).toHaveBeenCalledTimes(2);
     expect(done).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
-    const doneTurn = must(done.mock.calls[0])[0] as {
-      paragraphs: string[];
-      role: string;
-    };
+    const doneTurn = must(done.mock.calls[0])[0];
     expect(doneTurn.paragraphs).toEqual(["Hello"]);
     expect(doneTurn.role).toBe("minerva");
   });
@@ -165,13 +173,8 @@ describe("chatStream()", () => {
     expect(sentBody()).not.toHaveProperty("work_id");
   });
 
-  function doneTurnOf(done: ReturnType<typeof vi.fn>): {
-    dominant: string;
-    abstained?: boolean;
-    paragraphs: string[];
-    citations: { n: number; src: string }[];
-  } {
-    return must(done.mock.calls[0])[0] as never;
+  function doneTurnOf(done: Mock<ChatStreamHandlers["onDone"]>): MinervaTurn {
+    return must(done.mock.calls[0])[0];
   }
 
   it("accepts any single-character dominant verbatim; falls back to P on garbage", async () => {
@@ -186,7 +189,7 @@ describe("chatStream()", () => {
           `event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":${JSON.stringify(code)}}\n\n`,
         ]),
       );
-      const done = vi.fn();
+      const done = vi.fn<ChatStreamHandlers["onDone"]>();
       await chatStream({ query: "q" }, { ...noopHandlers, onDone: done });
       expect(doneTurnOf(done).dominant).toBe(expected);
       fetchMock.mockReset();
@@ -198,7 +201,7 @@ describe("chatStream()", () => {
       'event: meta\ndata: {"citations":[],"abstained":true,"backend":"none","conversation_id":"c1"}\n\n' +
       'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     await chatStream({ query: "q" }, { ...noopHandlers, onDone: done });
     expect(doneTurnOf(done).abstained).toBe(true);
   });
@@ -218,7 +221,7 @@ describe("chatStream()", () => {
       `event: meta\ndata: ${JSON.stringify(meta)}\n\n` +
       'event: done\ndata: {"response":"x","paragraphs":["Open with [3] then [1] and [2]."],"dominant":"P"}\n\n';
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     await chatStream({ query: "q" }, { ...noopHandlers, onDone: done });
     const turn = doneTurnOf(done);
     expect(turn.paragraphs).toEqual(["Open with [1] then [2] and [3]."]);
@@ -232,7 +235,7 @@ describe("chatStream()", () => {
       'event: done\ndata: {"response":"x","paragraphs":["x"],"dominant":"P"}\n\n';
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
     const onMeta = vi.fn();
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     const error = vi.fn();
     await chatStream({ query: "q" }, { ...noopHandlers, onMeta, onDone: done, onError: error });
     expect(error).not.toHaveBeenCalled();
@@ -243,7 +246,7 @@ describe("chatStream()", () => {
   it("routes a malformed done event (non-array paragraphs) to onError", async () => {
     const sse = 'event: done\ndata: {"response":"x","paragraphs":"x","dominant":"P"}\n\n';
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     const error = vi.fn();
     await chatStream({ query: "q" }, { ...noopHandlers, onDone: done, onError: error });
     expect(done).not.toHaveBeenCalled();
@@ -253,7 +256,7 @@ describe("chatStream()", () => {
   it("tolerates a done event with missing paragraphs (defaults to [])", async () => {
     const sse = 'event: done\ndata: {"response":"x","dominant":"P"}\n\n';
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     const error = vi.fn();
     await chatStream({ query: "q" }, { ...noopHandlers, onDone: done, onError: error });
     expect(error).not.toHaveBeenCalled();
@@ -392,7 +395,7 @@ describe("chat request plumbing (via chatStream)", () => {
       'event: meta\ndata: {"citations":[],"abstained":false,"backend":"stub","conversation_id":"srv-id-1","title":"On the divided line"}\n\n' +
       doneSse;
     fetchMock.mockResolvedValueOnce(sseResponse([sse]));
-    const done = vi.fn();
+    const done = vi.fn<ChatStreamHandlers["onDone"]>();
     await chatStream({ query: "What is the divided line?" }, { ...noopHandlers, onDone: done });
     const turn = must(done.mock.calls[0])[0] as { conversation_id?: string; title?: string };
     expect(turn.conversation_id).toBe("srv-id-1");

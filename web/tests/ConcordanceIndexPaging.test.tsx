@@ -8,19 +8,23 @@
 
 import { render, waitFor } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as concordanceApi from "~/api/concordanceApi";
+import type { LemmaIndexArgs, LemmaIndexResponse } from "~/api/concordanceApi";
+import type * as readerApi from "~/api/readerApi";
 
-const fetchLemmaIndex = vi.fn();
-const listWorks = vi.fn();
+const fetchLemmaIndex = vi.fn<typeof concordanceApi.fetchLemmaIndex>();
+const listWorks = vi.fn<typeof readerApi.listWorks>();
 
 vi.mock("~/api/readerApi", () => ({
-  listWorks: (...args: unknown[]) => listWorks(...args) as never,
+  listWorks: (...args: Parameters<typeof readerApi.listWorks>) => listWorks(...args),
 }));
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("~/api/concordanceApi")>();
   return {
     ...mod,
-    fetchLemmaIndex: (...args: unknown[]) => fetchLemmaIndex(...args) as never,
+    fetchLemmaIndex: (...args: Parameters<typeof concordanceApi.fetchLemmaIndex>) =>
+      fetchLemmaIndex(...args),
   };
 });
 
@@ -44,7 +48,7 @@ function makeRows(from: number, n: number) {
   }));
 }
 
-function page(offset: number, n: number, nextOffset: number | null) {
+function page(offset: number, n: number, nextOffset: number | null): LemmaIndexResponse {
   return {
     scope: "corpus",
     scope_label: "All German",
@@ -53,6 +57,7 @@ function page(offset: number, n: number, nextOffset: number | null) {
     sort: "freq",
     total_lemmas: 135047,
     total_occurrences: 9_000_000,
+    letter_counts: {},
     limit: PAGE,
     offset,
     next_offset: nextOffset,
@@ -115,7 +120,7 @@ describe("concordance index paging", () => {
     must(fireIntersect)();
 
     await waitFor(() => expect(rowCount(container)).toBe(PAGE + 50));
-    const second = must(fetchLemmaIndex.mock.calls[1])[0] as Record<string, unknown>;
+    const second: LemmaIndexArgs = must(fetchLemmaIndex.mock.calls[1])[0];
     expect(second.offset).toBe(PAGE);
     expect(second.limit).toBe(PAGE);
   });
@@ -136,7 +141,7 @@ describe("concordance index paging", () => {
     // The re-entrancy guard. A sentinel can intersect repeatedly while a page
     // is still loading, and each extra call would append the SAME offset again
     // — duplicating rows rather than advancing.
-    let release: ((v: unknown) => void) | null = null;
+    let release: ((v: LemmaIndexResponse) => void) | null = null;
     fetchLemmaIndex
       .mockResolvedValueOnce(page(0, PAGE, PAGE))
       .mockReturnValueOnce(new Promise((r) => (release = r)));
@@ -151,7 +156,7 @@ describe("concordance index paging", () => {
     // One page in flight, not three.
     expect(fetchLemmaIndex).toHaveBeenCalledTimes(2);
 
-    must<(v: unknown) => void>(release)(page(PAGE, 50, null));
+    must<(v: LemmaIndexResponse) => void>(release)(page(PAGE, 50, null));
     await waitFor(() => expect(rowCount(container)).toBe(PAGE + 50));
     expect(fetchLemmaIndex).toHaveBeenCalledTimes(2);
   });

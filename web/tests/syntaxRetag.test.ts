@@ -72,7 +72,7 @@ function okTransport(): CorrectionTransport {
       if (req.kind === "head") patched.head = Number(req.toVal);
       return Promise.resolve(accepted(next++, patched));
     }),
-    remove: vi.fn(() => Promise.resolve()),
+    remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
   };
 }
 

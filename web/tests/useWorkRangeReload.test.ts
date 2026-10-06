@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { createRoot, createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as readerApi from "~/api/readerApi";
+import type { WorkRange } from "~/api/types/reader";
+import type * as refsApi from "~/api/refsApi";
 import { useWorkRange } from "~/Reader/useWorkRange";
 import type { Route } from "~/routing";
 
@@ -18,16 +21,18 @@ import type { Route } from "~/routing";
 // route object, and the reload begins with `setRange(null)` — the blank frame
 // #342 is about.
 
-const RANGE = {
+const RANGE: WorkRange = {
   work_id: 781,
   corpus: "marx",
   author: "Marx",
   work: "Das Kapital, Band I",
+  display_title: "Das Kapital, Band I",
   lang: "deu",
   total: 1,
   offset: 0,
   limit: 80,
   edition: "t900",
+  editions: [],
   chunks: [
     {
       chunk_id: "k-1",
@@ -41,19 +46,19 @@ const RANGE = {
   ],
 };
 
-const getWorkRange = vi.fn(() => Promise.resolve(RANGE));
+const getWorkRange = vi.fn<typeof readerApi.getWorkRange>(() => Promise.resolve(RANGE));
 
 vi.mock("~/api/readerApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/api/readerApi")>()),
-  getWorkRange: (...args: unknown[]) => getWorkRange(...(args as [])),
-  fetchOccurrenceMap: vi.fn(() =>
+  getWorkRange: (...args: Parameters<typeof readerApi.getWorkRange>) => getWorkRange(...args),
+  fetchOccurrenceMap: vi.fn<typeof readerApi.fetchOccurrenceMap>(() =>
     Promise.resolve({ work_id: 781, lang: "deu", from: 0, limit: 80, by_chunk: {} }),
   ),
 }));
 
 vi.mock("~/api/refsApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/api/refsApi")>()),
-  fetchReferencesMap: vi.fn(() =>
+  fetchReferencesMap: vi.fn<typeof refsApi.fetchReferencesMap>(() =>
     Promise.resolve({ work_id: 781, lang: "deu", from: 0, limit: 80, by_chunk: {} }),
   ),
 }));
