@@ -216,6 +216,12 @@ class TestDePinned:
         # Prefixed Mose-form is unambiguous → full band.
         assert cands[1].confidence == 0.90
 
+    def test_period_form_needs_a_verse_after_the_chapter(self) -> None:
+        # The period separator would otherwise read sentence-final
+        # punctuation after a chapter number as a cite.
+        rule = ScriptureCiteRuleDe()
+        assert list(rule.scan(_chunk("Er las Joh. 3. Dann ging er.", lang="deu"))) == []
+
     def test_lang_and_self_reference_gates(self) -> None:
         rule = ScriptureCiteRuleDe()
         assert list(rule.scan(_chunk("Röm 8,15", lang="eng"))) == []
