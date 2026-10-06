@@ -59,13 +59,16 @@ export default defineConfig({
         "tests/**",
       ],
       thresholds: {
-        // Baseline from the orchestration-layer test pass (Jun 2026).
-        // Kept ~5 points below measured totals to catch regressions
-        // without blocking incremental coverage work on routes/ingest.
-        lines: 56,
-        statements: 52,
-        branches: 45,
-        functions: 46,
+        // 5 points below measured totals, floored, to catch a real regression
+        // without failing on noise. Measured 2026-10-06 (#762): lines 87.94,
+        // statements 85.61, branches 73.68, functions 85.56. The previous
+        // values (56/52/45/46, set at #12 in Jun 2026) had sat 26–39 points
+        // below actual for months while this comment said ~5, so the gate
+        // could not fail on any realistic drop. Re-pin when totals move.
+        lines: 82,
+        statements: 80,
+        branches: 68,
+        functions: 80,
       },
     },
   },
