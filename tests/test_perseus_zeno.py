@@ -278,13 +278,17 @@ def _cli_args(**overrides):
     return args
 
 
-def test_main_for_refuses_an_output_dir_outside_the_repo_and_temp(tmp_path):
+def test_main_for_refuses_an_output_dir_outside_the_repo(tmp_path):
     # The output directory comes from --out / --data-root. Anything outside
-    # the repo or the temp dir is refused before a directory is created.
-    with pytest.raises(SystemExit, match="outside"):
-        zeno.main_for([], Path("/etc/zeno-out"), _cli_args(), max_pages=1)
-    assert not Path("/etc/zeno-out").exists()
+    # the repo (the temp dir included) is refused before a directory is made.
+    for outside in (Path("/etc/zeno-out"), tmp_path / "out"):
+        with pytest.raises(SystemExit, match="outside the repo"):
+            zeno.main_for([], outside, _cli_args(), max_pages=1)
+        assert not outside.exists()
 
 
-def test_main_for_accepts_a_temp_output_dir(tmp_path):
-    assert zeno.main_for([], tmp_path / "out", _cli_args(), max_pages=1) == 0
+def test_an_output_dir_inside_the_repo_is_accepted():
+    repo = Path(__file__).resolve().parents[1]
+    target = repo / "data" / "x" / "raw_deu"
+    assert zeno._confined_out_dir(target) == target
+    assert zeno._confined_out_dir(repo / "data" / ".." / "data") == repo / "data"

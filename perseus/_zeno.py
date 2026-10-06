@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import http.client
 import re
-import tempfile
 import time
 import urllib.parse
 from collections.abc import Callable, Iterable, Sequence
@@ -326,22 +325,18 @@ def select_works(works: Sequence[ZenoWork], only: Sequence[str] | None) -> list[
     return [w for w in works if not only or w.filename in only]
 
 
-# Where a crawl may write. The output directory arrives from a CLI flag, so
-# it is resolved and confined before anything is created (SonarCloud
-# pythonsecurity:S8707). The repo covers `data/`; the temp dir covers the
-# before/after comparison crawls a refactor is checked with.
+# Where a crawl may write: inside the repo. The output directory arrives
+# from a CLI flag, so it is resolved and confined before anything is created
+# (SonarCloud pythonsecurity:S8707). Not the temp dir too: a publicly
+# writable base is its own finding (python:S5443). A before/after comparison
+# crawl writes to a scratch directory under the repo instead.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_ALLOWED_OUT_BASES = (
-    _REPO_ROOT,
-    Path(tempfile.gettempdir()).resolve(),
-    Path("/tmp").resolve(),
-)
 
 
 def _confined_out_dir(out_dir: Path) -> Path:
     resolved = out_dir.resolve()
-    if not any(resolved.is_relative_to(base) for base in _ALLOWED_OUT_BASES):
-        raise SystemExit(f"refusing to write outside the repo or the temp dir: {resolved}")
+    if not resolved.is_relative_to(_REPO_ROOT):
+        raise SystemExit(f"refusing to write outside the repo ({_REPO_ROOT}): {resolved}")
     return resolved
 
 
