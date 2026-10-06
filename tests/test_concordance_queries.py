@@ -1927,18 +1927,53 @@ def cross_script_db(tmp_path: Path) -> sqlite3.Connection:
     store.insert_chunks(conn, jsonl)
 
     # grc-1: two Greek tokens (no override) + one Latin token tagged 'lat'
-    _insert_lemma_lang(conn, chunk_id="grc-1", token_index=0, surface="λόγος",
-                       lemma="λόγος", pos="NOUN", feats="Case=Nom|Number=Sing")
-    _insert_lemma_lang(conn, chunk_id="grc-1", token_index=1, surface="ratio",
-                       lemma="ratio", pos="NOUN", feats="Case=Nom|Number=Sing",
-                       lang="lat")
-    _insert_lemma_lang(conn, chunk_id="grc-1", token_index=2, surface="λόγου",
-                       lemma="λόγος", pos="NOUN", feats="Case=Gen|Number=Sing")
+    _insert_lemma_lang(
+        conn,
+        chunk_id="grc-1",
+        token_index=0,
+        surface="λόγος",
+        lemma="λόγος",
+        pos="NOUN",
+        feats="Case=Nom|Number=Sing",
+    )
+    _insert_lemma_lang(
+        conn,
+        chunk_id="grc-1",
+        token_index=1,
+        surface="ratio",
+        lemma="ratio",
+        pos="NOUN",
+        feats="Case=Nom|Number=Sing",
+        lang="lat",
+    )
+    _insert_lemma_lang(
+        conn,
+        chunk_id="grc-1",
+        token_index=2,
+        surface="λόγου",
+        lemma="λόγος",
+        pos="NOUN",
+        feats="Case=Gen|Number=Sing",
+    )
     # lat-1: the same Latin lemma in an ordinary Latin chunk
-    _insert_lemma_lang(conn, chunk_id="lat-1", token_index=0, surface="ratio",
-                       lemma="ratio", pos="NOUN", feats="Case=Nom|Number=Sing")
-    _insert_lemma_lang(conn, chunk_id="lat-1", token_index=1, surface="rationis",
-                       lemma="ratio", pos="NOUN", feats="Case=Gen|Number=Sing")
+    _insert_lemma_lang(
+        conn,
+        chunk_id="lat-1",
+        token_index=0,
+        surface="ratio",
+        lemma="ratio",
+        pos="NOUN",
+        feats="Case=Nom|Number=Sing",
+    )
+    _insert_lemma_lang(
+        conn,
+        chunk_id="lat-1",
+        token_index=1,
+        surface="rationis",
+        lemma="ratio",
+        pos="NOUN",
+        feats="Case=Gen|Number=Sing",
+    )
     conn.commit()
 
     from minerva.concordance import aggregate
@@ -1973,9 +2008,7 @@ def test_kwic_reaches_the_cross_script_run_the_leaderboard_counts(
     embedded Latin token lives in a 'grc' chunk, so a ``cf.lang = 'lat'``
     rule never sees it."""
 
-    res = concordance_queries.lemma_detail(
-        cross_script_db, {"lemma": "ratio", "lang": "lat"}
-    )
+    res = concordance_queries.lemma_detail(cross_script_db, {"lemma": "ratio", "lang": "lat"})
     assert res["total"] == _board_count(cross_script_db, "ratio", "lat")
     assert res["total"] == 3
     chunks_seen = {r["chunk_id"] for r in res["rows"]}
@@ -1988,14 +2021,10 @@ def test_kwic_does_not_serve_the_latin_run_under_greek(
     """The other half of one rule: a token overridden to 'lat' is Latin
     vocabulary everywhere, so 'grc' must not serve it either (#427)."""
 
-    res = concordance_queries.lemma_detail(
-        cross_script_db, {"lemma": "ratio", "lang": "grc"}
-    )
+    res = concordance_queries.lemma_detail(cross_script_db, {"lemma": "ratio", "lang": "grc"})
     assert res["total"] == 0
     # The Greek tokens in the same chunk are untouched.
-    greek = concordance_queries.lemma_detail(
-        cross_script_db, {"lemma": "λόγος", "lang": "grc"}
-    )
+    greek = concordance_queries.lemma_detail(cross_script_db, {"lemma": "λόγος", "lang": "grc"})
     assert greek["total"] == 2
 
 
@@ -2004,9 +2033,7 @@ def test_cross_script_breakdowns_match_the_leaderboard_partition(
 ) -> None:
     """The facet counts partition on the same rule as the total."""
 
-    res = concordance_queries.lemma_detail(
-        cross_script_db, {"lemma": "ratio", "lang": "lat"}
-    )
+    res = concordance_queries.lemma_detail(cross_script_db, {"lemma": "ratio", "lang": "lat"})
     assert {b["value"]: b["count"] for b in res["pos_breakdown"]} == {"NOUN": 3}
     assert {b["value"]: b["count"] for b in res["case_breakdown"]} == {
         "Nom": 2,
@@ -2051,9 +2078,7 @@ def test_lemma_detail_reads_chunk_lemmas_twice_not_six_times(
 
     n = _aggregate_scans(
         concordance_db,
-        lambda: concordance_queries.lemma_detail(
-            concordance_db, {"lemma": "haben", "lang": "deu"}
-        ),
+        lambda: concordance_queries.lemma_detail(concordance_db, {"lemma": "haben", "lang": "deu"}),
     )
     assert n == 3, f"expected 3 reads of chunk_lemmas, saw {n}"
 
@@ -2088,9 +2113,7 @@ def test_filters_narrow_the_total_while_breakdowns_stay_unfiltered(
         concordance_db,
         {"lemma": "Geist", "lang": "deu", "morph": "Case=Nom"},
     )
-    unfiltered = concordance_queries.lemma_detail(
-        concordance_db, {"lemma": "Geist", "lang": "deu"}
-    )
+    unfiltered = concordance_queries.lemma_detail(concordance_db, {"lemma": "Geist", "lang": "deu"})
     assert unfiltered["total"] == 4
     assert filtered["total"] == 3, "Case=Nom must narrow the total"
     assert len(filtered["rows"]) == filtered["total"], "page must match total"
@@ -2125,14 +2148,12 @@ def test_breakdown_ties_are_ordered_deterministically(
     """Equal counts sort by value, so the top-N is a function of the data
     rather than of the order SQLite emitted the groups in."""
 
-    res = concordance_queries.lemma_detail(
-        concordance_db, {"lemma": "Geist", "lang": "deu"}
-    )
+    res = concordance_queries.lemma_detail(concordance_db, {"lemma": "Geist", "lang": "deu"})
     cases = res["case_breakdown"]
     assert [b["value"] for b in cases] == ["Nom", "Acc"], "count order wins"
-    surfaces = concordance_queries.lemma_detail(
-        concordance_db, {"lemma": "haben", "lang": "deu"}
-    )["work_breakdown"]
+    surfaces = concordance_queries.lemma_detail(concordance_db, {"lemma": "haben", "lang": "deu"})[
+        "work_breakdown"
+    ]
     values = [b["value"] for b in surfaces]
     assert values == sorted(values), "ties fall back to the value"
 
@@ -2166,8 +2187,15 @@ def untagged_lemma_db(tmp_path: Path) -> sqlite3.Connection:
     store.insert_chunks(conn, jsonl)
     # One tagged row, two untagged ones: NULL pos/feats and empty-string
     # pos/feats, the two shapes the old SQL predicates each excluded.
-    _insert_lemma_lang(conn, chunk_id="u-1", token_index=0, surface="Sein",
-                       lemma="Sein", pos="NOUN", feats="Case=Nom|Number=Sing")
+    _insert_lemma_lang(
+        conn,
+        chunk_id="u-1",
+        token_index=0,
+        surface="Sein",
+        lemma="Sein",
+        pos="NOUN",
+        feats="Case=Nom|Number=Sing",
+    )
     conn.execute(
         "INSERT INTO chunk_lemmas (chunk_id, token_index, surface_form, "
         "surface_start, surface_end, lemma, lemma_fold, pos, feats) "
@@ -2192,16 +2220,12 @@ def test_untagged_rows_count_toward_the_total_but_not_the_facets(
     a morphology bucket of its own. Only the work breakdown, which has no
     such predicate, counts all three."""
 
-    res = concordance_queries.lemma_detail(
-        untagged_lemma_db, {"lemma": "Sein", "lang": "deu"}
-    )
+    res = concordance_queries.lemma_detail(untagged_lemma_db, {"lemma": "Sein", "lang": "deu"})
     assert res["total"] == 3
     assert {b["value"]: b["count"] for b in res["pos_breakdown"]} == {"NOUN": 1}
     assert {b["value"]: b["count"] for b in res["case_breakdown"]} == {"Nom": 1}
     assert {b["value"]: b["count"] for b in res["number_breakdown"]} == {"Sing": 1}
     assert res["gender_breakdown"] == [], "no row carries a Gender feature"
-    assert {b["value"]: b["count"] for b in res["work_breakdown"]} == {
-        "Wissenschaft der Logik": 3
-    }
+    assert {b["value"]: b["count"] for b in res["work_breakdown"]} == {"Wissenschaft der Logik": 3}
     # The surface guard is the same shape; all three rows carry one here.
     assert {b["value"]: b["count"] for b in res["surface_breakdown"]} == {"Sein": 3}

@@ -124,10 +124,13 @@ jobs:
 
       # Use the same Python the repo pins so CI matches local
       # behaviour (CLTK/Stanza hold us at <3.14 — see pyproject.toml).
+      # Read from the pin, not restated: `python-version: "3.13"` installed
+      # whatever 3.13.x the runner carried, and every `uv run` warned that
+      # the venv did not satisfy `.python-version` (#758).
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.13"
+          python-version-file: .python-version
 
       # uv is dramatically faster than pip for a multi-extra install
       # and matches the README + Makefile workflow.
@@ -151,7 +154,7 @@ jobs:
         # Only --locked keeps lock and pyproject in sync by construction,
         # which is the whole point. Verified both behaviours against a
         # deliberately stale lock before choosing.
-        run: uv sync -p 3.13 --locked --extra dev --extra hegel
+        run: uv sync --locked --extra dev --extra hegel
 
       - name: Lint (ruff)
         # --no-sync: run in the env the install step built. Without it,
@@ -171,6 +174,12 @@ jobs:
         # F821 undefined names — downloaders that imported fine and blew
         # up with NameError the moment the code path ran (#116).
         run: uv run --no-sync ruff check src tests scripts perseus
+
+      - name: ruff format against the pinned baseline
+        # Mirrors the ruff half of `make check-format-baseline` (#136). The
+        # Prettier half runs in the web job, which has `npm ci`; this one
+        # needs the locked ruff, which only this job installs.
+        run: uv run --no-sync python scripts/check_format_baseline.py ruff
 
       - name: Author manifest sync
         # Mirrors `make check-authors`: generated corpus_registry /
@@ -282,6 +291,13 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Install the pinned npm
+        # `.nvmrc`'s Node bundles npm 10.9.8, which strips the lock's `libc`
+        # blocks; `packageManager` pins npm 11 and `engine-strict` refuses
+        # anything older (#605). Read from package.json, not restated here.
+        working-directory: web
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
+
       - name: Install dependencies
         run: npm ci
 
@@ -296,7 +312,7 @@ jobs:
         # `eslint-config-prettier` only *disables* formatting rules. Runs
         # prettier over web/ via npx, so it needs the install above; the
         # script is stdlib-only, so the runner's system python3 serves (#685).
-        run: python3 ../scripts/check_format_baseline.py
+        run: python3 ../scripts/check_format_baseline.py prettier
 
       - name: Frontend test location
         # Mirrors `make check-test-location`. Sonar's coverage gate does
@@ -327,6 +343,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Install the pinned npm
+        # `.nvmrc`'s Node bundles npm 10.9.8, which strips the lock's `libc`
+        # blocks; `packageManager` pins npm 11 and `engine-strict` refuses
+        # anything older (#605). Read from package.json, not restated here.
+        working-directory: web
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
 
       - name: Install dependencies
         run: npm ci
@@ -375,7 +398,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.13"
+          python-version-file: .python-version
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -388,7 +411,7 @@ jobs:
         # for that binary to exist.
         working-directory: .
         # Locked install, same rationale as the python job above (#125).
-        run: uv sync -p 3.13 --locked --extra dev
+        run: uv sync --locked --extra dev
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -396,6 +419,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Install the pinned npm
+        # `.nvmrc`'s Node bundles npm 10.9.8, which strips the lock's `libc`
+        # blocks; `packageManager` pins npm 11 and `engine-strict` refuses
+        # anything older (#605). Read from package.json, not restated here.
+        working-directory: web
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
 
       - name: Install web dependencies
         run: npm ci

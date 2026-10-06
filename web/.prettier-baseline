@@ -111,9 +111,7 @@ tests/readerUtils.test.ts
 tests/refsAuthorOptions.test.ts
 tests/routing-concordance.test.ts
 tests/routing.test.ts
-tests/SyntaxOverlay.test.tsx
 tests/syntaxPos.test.ts
-tests/syntaxStore.test.ts
 tests/theme.test.ts
 tests/ThemeToggle.test.tsx
 tests/useClickOutside.test.ts

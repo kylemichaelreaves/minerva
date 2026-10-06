@@ -64,10 +64,10 @@ def test_unaccounted_time_is_recoverable_from_the_row(conn):
     clock = FakeClock()
     rec = Recorder(conn, now=lambda: 1_700_000_000.0, clock=clock)
     with rec.record("chat", "POST") as span:
-        clock.advance(0.010)              # 10ms unmeasured before the phase
+        clock.advance(0.010)  # 10ms unmeasured before the phase
         with sub_span("llm_call", clock=clock):
-            clock.advance(0.080)          # 80ms inside the phase
-        clock.advance(0.010)              # 10ms unmeasured after
+            clock.advance(0.080)  # 80ms inside the phase
+        clock.advance(0.010)  # 10ms unmeasured after
         span.status = 200
 
     (row,) = _rows(conn)

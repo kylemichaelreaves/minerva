@@ -13,6 +13,7 @@
 // cannot distinguish "the shell dismisses" from "this card wired its own".
 
 import { render, fireEvent } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import PopoverCard from "~/components/primitives/PopoverCard";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
@@ -24,13 +25,13 @@ const ANCHOR = new DOMRect(100, 200, 20, 16);
  *  card, `.xref-pin` for the reference card. Rendered as a sibling of the
  *  shell, which is where both live in the Reader: the marker is inside a
  *  `.line`, the card is a fixed-position child of the Reader root. */
-function withAnchor(children: () => unknown) {
+function withAnchor(children: () => JSX.Element) {
   return render(() => (
     <>
       <button class="test-anchor" type="button">
         anchor
       </button>
-      {children() as never}
+      {children()}
     </>
   ));
 }

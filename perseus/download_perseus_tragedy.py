@@ -48,55 +48,52 @@ USER_AGENT = (
     "respects canonical-greekLit CC-BY-SA-4.0 license)"
 )
 
-RAW_BASE = (
-    "https://raw.githubusercontent.com/"
-    "PerseusDL/canonical-greekLit/master/data"
-)
+RAW_BASE = "https://raw.githubusercontent.com/PerseusDL/canonical-greekLit/master/data"
 
 # (work_urn_suffix, canonical_title, slug_for_directory)
 # Canonical titles match the Loeb / OCT editions; slugs are
 # lowercase-snake-case for filesystem friendliness.
 AESCHYLUS_PLAYS: list[tuple[str, str, str]] = [
-    ("tlg001", "Suppliants",            "suppliants"),
-    ("tlg002", "Persians",              "persians"),
-    ("tlg003", "Prometheus Bound",      "prometheus_bound"),
-    ("tlg004", "Seven Against Thebes",  "seven_against_thebes"),
-    ("tlg005", "Agamemnon",             "agamemnon"),
-    ("tlg006", "Libation Bearers",      "libation_bearers"),
-    ("tlg007", "Eumenides",             "eumenides"),
+    ("tlg001", "Suppliants", "suppliants"),
+    ("tlg002", "Persians", "persians"),
+    ("tlg003", "Prometheus Bound", "prometheus_bound"),
+    ("tlg004", "Seven Against Thebes", "seven_against_thebes"),
+    ("tlg005", "Agamemnon", "agamemnon"),
+    ("tlg006", "Libation Bearers", "libation_bearers"),
+    ("tlg007", "Eumenides", "eumenides"),
 ]
 SOPHOCLES_PLAYS: list[tuple[str, str, str]] = [
-    ("tlg001", "Trachiniae",            "trachiniae"),
-    ("tlg002", "Antigone",              "antigone"),
-    ("tlg003", "Ajax",                  "ajax"),
-    ("tlg004", "Oedipus Tyrannus",      "oedipus_tyrannus"),
-    ("tlg005", "Electra",               "electra"),
-    ("tlg006", "Philoctetes",           "philoctetes"),
-    ("tlg007", "Oedipus at Colonus",    "oedipus_at_colonus"),
+    ("tlg001", "Trachiniae", "trachiniae"),
+    ("tlg002", "Antigone", "antigone"),
+    ("tlg003", "Ajax", "ajax"),
+    ("tlg004", "Oedipus Tyrannus", "oedipus_tyrannus"),
+    ("tlg005", "Electra", "electra"),
+    ("tlg006", "Philoctetes", "philoctetes"),
+    ("tlg007", "Oedipus at Colonus", "oedipus_at_colonus"),
     # tlg008 (Ichneutae / Tracking Satyrs) is a fragmentary satyr
     # play from Oxyrhynchus papyri — explicitly excluded per the
     # "surviving plays only" scope.
 ]
 EURIPIDES_PLAYS: list[tuple[str, str, str]] = [
-    ("tlg001", "Cyclops",                  "cyclops"),
-    ("tlg002", "Alcestis",                 "alcestis"),
-    ("tlg003", "Medea",                    "medea"),
-    ("tlg004", "Heraclidae",               "heraclidae"),
-    ("tlg005", "Hippolytus",               "hippolytus"),
-    ("tlg006", "Andromache",               "andromache"),
-    ("tlg007", "Hecuba",                   "hecuba"),
-    ("tlg008", "Suppliants",               "suppliants"),
-    ("tlg009", "Heracles",                 "heracles"),
-    ("tlg010", "Ion",                      "ion"),
-    ("tlg011", "Trojan Women",             "trojan_women"),
-    ("tlg012", "Electra",                  "electra"),
-    ("tlg013", "Iphigenia in Tauris",      "iphigenia_in_tauris"),
-    ("tlg014", "Helen",                    "helen"),
-    ("tlg015", "Phoenician Women",         "phoenician_women"),
-    ("tlg016", "Orestes",                  "orestes"),
-    ("tlg017", "Bacchae",                  "bacchae"),
-    ("tlg018", "Iphigenia in Aulis",       "iphigenia_in_aulis"),
-    ("tlg019", "Rhesus",                   "rhesus"),
+    ("tlg001", "Cyclops", "cyclops"),
+    ("tlg002", "Alcestis", "alcestis"),
+    ("tlg003", "Medea", "medea"),
+    ("tlg004", "Heraclidae", "heraclidae"),
+    ("tlg005", "Hippolytus", "hippolytus"),
+    ("tlg006", "Andromache", "andromache"),
+    ("tlg007", "Hecuba", "hecuba"),
+    ("tlg008", "Suppliants", "suppliants"),
+    ("tlg009", "Heracles", "heracles"),
+    ("tlg010", "Ion", "ion"),
+    ("tlg011", "Trojan Women", "trojan_women"),
+    ("tlg012", "Electra", "electra"),
+    ("tlg013", "Iphigenia in Tauris", "iphigenia_in_tauris"),
+    ("tlg014", "Helen", "helen"),
+    ("tlg015", "Phoenician Women", "phoenician_women"),
+    ("tlg016", "Orestes", "orestes"),
+    ("tlg017", "Bacchae", "bacchae"),
+    ("tlg018", "Iphigenia in Aulis", "iphigenia_in_aulis"),
+    ("tlg019", "Rhesus", "rhesus"),
 ]
 
 # (author_urn, raw_dir_name, plays)
@@ -148,10 +145,7 @@ def _fetch_play(
 
     tried: list[str] = []
     for file_suffix in LANG_SUFFIX_CANDIDATES[lang]:
-        url = (
-            f"{RAW_BASE}/{author_urn}/{work_urn}/"
-            f"{author_urn}.{work_urn}.{file_suffix}.xml"
-        )
+        url = f"{RAW_BASE}/{author_urn}/{work_urn}/{author_urn}.{work_urn}.{file_suffix}.xml"
         tried.append(file_suffix)
         try:
             return _fetch(url), None, tried

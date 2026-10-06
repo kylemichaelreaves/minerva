@@ -1,0 +1,73 @@
+# ruff format baseline — POLICY, hand-edited, never regenerated (#136).
+#
+# Nothing gated `ruff format` until #136, and the drift grew while a comment
+# on that issue read the Prettier gate (#483) as the Python one: 90 files
+# unformatted on 2026-09-12, 143 on 2026-10-06. Same contract as
+# web/.prettier-baseline: `scripts/check_format_baseline.py` fails on a file
+# that drifts without being listed here, AND on a listed file that has since
+# been formatted. So this list can only shrink.
+#
+# What is still pinned, and why it was not simply reformatted:
+#   src/      — Sonar scores reformatted lines as new code against its 80%
+#               changed-line coverage gate; #229 failed at 64.9% doing all
+#               of it at once. Take a file once its own coverage is >= 80%,
+#               the way #465 did.
+#   perseus/, scripts/ — coverage-excluded, but the files below carry
+#               duplication Sonar reports (perseus/ as a whole: 9.9%), and a
+#               reformat counts every duplicated line it touches against the
+#               3% new-code duplication gate. scripts/generate_author_artifacts.py
+#               carries an open Sonar BUG, which a reformat could re-attribute
+#               as new and fail the reliability rating.
+#
+# To unpin: `.venv/bin/ruff format <path>`, delete its line, `make check`.
+
+perseus/download_augustine.py
+perseus/download_hegel_de.py
+perseus/download_kant_de.py
+perseus/download_kjv_en.py
+perseus/download_luther_1545_de.py
+perseus/download_luther_1912_de.py
+perseus/download_marx_zeno.py
+perseus/download_nietzsche_de.py
+perseus/download_perseus_epictetus.py
+perseus/download_perseus_lucretius.py
+perseus/download_sacy_fr.py
+perseus/download_spinoza.py
+perseus/ocr_lpwh.py
+scripts/clean-sacy-fra.py
+scripts/generate_author_artifacts.py
+src/minerva/authors/cicero_works.py
+src/minerva/authors/homer_works.py
+src/minerva/cli/refs/add.py
+src/minerva/cli/terms/bulk.py
+src/minerva/cli/terms/lemmatize.py
+src/minerva/concordance/aggregate.py
+src/minerva/concordance/index_queries.py
+src/minerva/concordance/kwic_queries.py
+src/minerva/corpus/split_augustine.py
+src/minerva/corpus/split_platon_werke.py
+src/minerva/corpus/split_spinoza.py
+src/minerva/corpus/split_spinoza_ethica.py
+src/minerva/glossary_spec.py
+src/minerva/http/handlers/metrics.py
+src/minerva/ingest/registry.py
+src/minerva/lemmatize.py
+src/minerva/llm.py
+src/minerva/metrics/histogram.py
+src/minerva/metrics/ingest_runs.py
+src/minerva/metrics/pipeline_stats.py
+src/minerva/metrics/recorder.py
+src/minerva/metrics/store.py
+src/minerva/reader/display.py
+src/minerva/reader/queries.py
+src/minerva/refs/network_queries.py
+src/minerva/refs/review_queries.py
+src/minerva/refs/rules/loader.py
+src/minerva/refs/rules/scripture_cite/en.py
+src/minerva/refs/schema.py
+src/minerva/refs/spec.py
+src/minerva/sources/hebrew_mt.py
+src/minerva/sources/hobbes_la.py
+src/minerva/sources/tei_drama.py
+src/minerva/sources/tei_p5.py
+src/minerva/sqlite_util.py

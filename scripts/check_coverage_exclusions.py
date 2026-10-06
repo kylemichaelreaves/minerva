@@ -70,11 +70,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"check-coverage-exclusions: ok ({len(omit)} src/minerva/ entries agree)")
         return 0
 
-    print("check-coverage-exclusions: pyproject.toml and sonar-project.properties disagree on src/minerva/", file=sys.stderr)
+    print(
+        "check-coverage-exclusions: pyproject.toml and sonar-project.properties disagree on src/minerva/",
+        file=sys.stderr,
+    )
     for entry in sorted(only_pyproject):
-        print(f"  in pyproject.toml's omit, missing from sonar.coverage.exclusions: {entry}", file=sys.stderr)
+        print(
+            f"  in pyproject.toml's omit, missing from sonar.coverage.exclusions: {entry}",
+            file=sys.stderr,
+        )
     for entry in sorted(only_sonar):
-        print(f"  in sonar.coverage.exclusions, missing from pyproject.toml's omit: {entry}", file=sys.stderr)
+        print(
+            f"  in sonar.coverage.exclusions, missing from pyproject.toml's omit: {entry}",
+            file=sys.stderr,
+        )
     return 1
 
 

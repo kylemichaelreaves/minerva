@@ -78,6 +78,7 @@ def resolve_db_path() -> Path:
     override = os.environ.get("MINERVA_DB")
     return Path(override) if override else DEFAULT_DB
 
+
 # WHERE predicate selecting the glossary word-list chunks, evaluated
 # against the chunks_full view. The ``(len - len_without('. ')) / 2``
 # expression counts sentence breaks without a UDF, so this runs on a

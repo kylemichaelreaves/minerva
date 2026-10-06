@@ -86,9 +86,7 @@ def test_case_drifted_seed_rows_are_relinked(tmp_path: Path):
     conn = store.open_db(path)  # applies 0035
     try:
         assert _link(conn, "De republica") == _work_id(conn, "De Re Publica")
-        assert _link(conn, "Tusculanae disputationes") == _work_id(
-            conn, "Tusculanae Disputationes"
-        )
+        assert _link(conn, "Tusculanae disputationes") == _work_id(conn, "Tusculanae Disputationes")
         assert _link(conn, "De natura deorum") == _work_id(conn, "De Natura Deorum")
     finally:
         conn.close()

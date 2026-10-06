@@ -40,7 +40,12 @@ _mod = import_module("clean-boulainvilliers-texts")
 clean_text = _mod.clean_text
 
 DOWNLOADS = Path.home() / "Downloads"
-OUT = Path(__file__).resolve().parent.parent / "data" / "boulainvilliers" / "lettres_parlemens_fra.txt"
+OUT = (
+    Path(__file__).resolve().parent.parent
+    / "data"
+    / "boulainvilliers"
+    / "lettres_parlemens_fra.txt"
+)
 
 # Match each tome's HTML filename. Gallica's filename pattern is
 # "Lettres sur ... Tome N _ Gallica.html".
@@ -78,10 +83,7 @@ def _extract_body_text(html_path: Path) -> str:
     # space-joined get_text.
     paras = body.find_all("p")
     if paras:
-        text = "\n\n".join(
-            re.sub(r"\s+", " ", p.get_text(" ", strip=True)).strip()
-            for p in paras
-        )
+        text = "\n\n".join(re.sub(r"\s+", " ", p.get_text(" ", strip=True)).strip() for p in paras)
     else:
         text = re.sub(r"\s+", " ", body.get_text(" ", strip=True)).strip()
 
@@ -104,7 +106,7 @@ def _extract_body_text(html_path: Path) -> str:
                 # Skip past this entire line.
                 nl = text.find("\n", idx)
                 if nl > 0:
-                    text = text[nl + 1:]
+                    text = text[nl + 1 :]
                 break
     return text
 

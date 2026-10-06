@@ -107,11 +107,7 @@ def _rest_url(title: str) -> str:
     ``/html`` suffix.
     """
 
-    return (
-        "https://la.wikisource.org/w/rest.php/v1/page/"
-        + quote(title, safe="")
-        + "/html"
-    )
+    return "https://la.wikisource.org/w/rest.php/v1/page/" + quote(title, safe="") + "/html"
 
 
 _fetch = make_fetcher()
@@ -231,9 +227,7 @@ def fetch_work(title: str, *, dest: Path, delay: float = 1.5) -> Path | None:
     # The marker filter applies to the top-level page too. It used to be
     # sub-page-only, which is why 18 bare Roman markers still reached the
     # output on works whose text sits on the root page (#151).
-    paragraphs: list[str] = [
-        p for p in _extract_paragraphs(root_html) if not _is_marker(p)
-    ]
+    paragraphs: list[str] = [p for p in _extract_paragraphs(root_html) if not _is_marker(p)]
     for sub in subpages:
         label = unquote(sub).replace("_", " ")
         print(f"  - {label}")

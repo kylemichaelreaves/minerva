@@ -59,9 +59,7 @@ class TestMolesworthForms:
             ("Jer. xxxi. 33, dabo legem meam", "Jer 31:33"),
         ],
     )
-    def test_roman_chapter_with_arabic_verse(
-        self, text: str, locator: str
-    ) -> None:
+    def test_roman_chapter_with_arabic_verse(self, text: str, locator: str) -> None:
         assert locator in _locators(text)
 
     @pytest.mark.parametrize(

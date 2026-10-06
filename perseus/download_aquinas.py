@@ -90,39 +90,115 @@ _BASE = "https://www.corpusthomisticum.org"
 # work of Thomas himself).
 
 _ST_PAGES: tuple[str, ...] = (
-    "sth1001.html", "sth1002.html", "sth1003.html", "sth1015.html",
-    "sth1028.html", "sth1044.html", "sth1050.html", "sth1065.html",
-    "sth1075.html", "sth1077.html", "sth1084.html", "sth1090.html",
+    "sth1001.html",
+    "sth1002.html",
+    "sth1003.html",
+    "sth1015.html",
+    "sth1028.html",
+    "sth1044.html",
+    "sth1050.html",
+    "sth1065.html",
+    "sth1075.html",
+    "sth1077.html",
+    "sth1084.html",
+    "sth1090.html",
     "sth1103.html",
-    "sth2000.html", "sth2001.html", "sth2006.html", "sth2022.html",
-    "sth2026.html", "sth2040.html", "sth2049.html", "sth2055.html",
-    "sth2071.html", "sth2072.html", "sth2073.html", "sth2074.html",
-    "sth2075.html", "sth2085.html", "sth2090.html", "sth2093.html",
-    "sth2094.html", "sth2095.html", "sth2098.html", "sth2106.html",
+    "sth2000.html",
+    "sth2001.html",
+    "sth2006.html",
+    "sth2022.html",
+    "sth2026.html",
+    "sth2040.html",
+    "sth2049.html",
+    "sth2055.html",
+    "sth2071.html",
+    "sth2072.html",
+    "sth2073.html",
+    "sth2074.html",
+    "sth2075.html",
+    "sth2085.html",
+    "sth2090.html",
+    "sth2093.html",
+    "sth2094.html",
+    "sth2095.html",
+    "sth2098.html",
+    "sth2106.html",
     "sth2109.html",
-    "sth3000.html", "sth3001.html", "sth3017.html", "sth3023.html",
-    "sth3025.html", "sth3027.html", "sth3034.html", "sth3044.html",
-    "sth3045.html", "sth3047.html", "sth3057.html", "sth3061.html",
-    "sth3079.html", "sth3080.html", "sth3081.html", "sth3082.html",
-    "sth3092.html", "sth3101.html", "sth3102.html", "sth3106.html",
-    "sth3109.html", "sth3121.html", "sth3122.html", "sth3123.html",
-    "sth3141.html", "sth3143.html", "sth3144.html", "sth3146.html",
-    "sth3155.html", "sth3170.html", "sth3171.html", "sth3179.html",
+    "sth3000.html",
+    "sth3001.html",
+    "sth3017.html",
+    "sth3023.html",
+    "sth3025.html",
+    "sth3027.html",
+    "sth3034.html",
+    "sth3044.html",
+    "sth3045.html",
+    "sth3047.html",
+    "sth3057.html",
+    "sth3061.html",
+    "sth3079.html",
+    "sth3080.html",
+    "sth3081.html",
+    "sth3082.html",
+    "sth3092.html",
+    "sth3101.html",
+    "sth3102.html",
+    "sth3106.html",
+    "sth3109.html",
+    "sth3121.html",
+    "sth3122.html",
+    "sth3123.html",
+    "sth3141.html",
+    "sth3143.html",
+    "sth3144.html",
+    "sth3146.html",
+    "sth3155.html",
+    "sth3170.html",
+    "sth3171.html",
+    "sth3179.html",
     "sth3183.html",
-    "sth4000.html", "sth4001.html", "sth4002.html", "sth4016.html",
-    "sth4027.html", "sth4040.html", "sth4046.html", "sth4053.html",
-    "sth4060.html", "sth4066.html", "sth4072.html", "sth4073.html",
-    "sth4074.html", "sth4078.html", "sth4079.html", "sth4080.html",
-    "sth4082.html", "sth4083.html", "sth4084.html",
+    "sth4000.html",
+    "sth4001.html",
+    "sth4002.html",
+    "sth4016.html",
+    "sth4027.html",
+    "sth4040.html",
+    "sth4046.html",
+    "sth4053.html",
+    "sth4060.html",
+    "sth4066.html",
+    "sth4072.html",
+    "sth4073.html",
+    "sth4074.html",
+    "sth4078.html",
+    "sth4079.html",
+    "sth4080.html",
+    "sth4082.html",
+    "sth4083.html",
+    "sth4084.html",
 )
 
 _SCG_PAGES: tuple[str, ...] = (
-    "scg1001.html", "scg1010.html", "scg1014.html", "scg1029.html",
-    "scg1037.html", "scg1044.html", "scg1072.html", "scg1097.html",
-    "scg2001.html", "scg2006.html", "scg2039.html", "scg2046.html",
-    "scg2056.html", "scg2091.html",
-    "scg3001.html", "scg3064.html", "scg3111.html",
-    "scg4001.html", "scg4027.html", "scg4079.html",
+    "scg1001.html",
+    "scg1010.html",
+    "scg1014.html",
+    "scg1029.html",
+    "scg1037.html",
+    "scg1044.html",
+    "scg1072.html",
+    "scg1097.html",
+    "scg2001.html",
+    "scg2006.html",
+    "scg2039.html",
+    "scg2046.html",
+    "scg2056.html",
+    "scg2091.html",
+    "scg3001.html",
+    "scg3064.html",
+    "scg3111.html",
+    "scg4001.html",
+    "scg4027.html",
+    "scg4079.html",
 )
 
 
@@ -138,31 +214,45 @@ _SCG_PAGES: tuple[str, ...] = (
 #   can — Sentencia libri De anima           (Aristotle: De anima)
 
 _SENT_MET_PAGES: tuple[str, ...] = (
-    "cmp00.html",          # prooemium
-    "cmp0101.html",        # lib. 1 lectiones 1-3
-    "cmp0104.html",        # lib. 1 lectiones 4-17
-    "cmp02.html", "cmp03.html", "cmp04.html", "cmp05.html",
-    "cmp06.html", "cmp07.html", "cmp09.html", "cmp10.html",
-    "cmp11.html", "cmp12.html",
+    "cmp00.html",  # prooemium
+    "cmp0101.html",  # lib. 1 lectiones 1-3
+    "cmp0104.html",  # lib. 1 lectiones 4-17
+    "cmp02.html",
+    "cmp03.html",
+    "cmp04.html",
+    "cmp05.html",
+    "cmp06.html",
+    "cmp07.html",
+    "cmp09.html",
+    "cmp10.html",
+    "cmp11.html",
+    "cmp12.html",
 )
 
 _SENT_ETH_PAGES: tuple[str, ...] = (
-    "ctc0101.html", "ctc0104.html", "ctc0119.html",
+    "ctc0101.html",
+    "ctc0104.html",
+    "ctc0119.html",
     "ctc02.html",
     "ctc0314.html",
-    "ctc06.html", "ctc07.html", "ctc08.html", "ctc10.html",
+    "ctc06.html",
+    "ctc07.html",
+    "ctc08.html",
+    "ctc10.html",
 )
 
 _SENT_PHY_PAGES: tuple[str, ...] = (
-    "cpy011.html",         # lib. 1 lectio 1
-    "cpy012.html",         # lib. 1 lectio 2 — liber 2
-    "cpy03.html",          # libri 3-4
-    "cpy05.html",          # libri 5-6
-    "cpy07.html",          # libri 7-8
+    "cpy011.html",  # lib. 1 lectio 1
+    "cpy012.html",  # lib. 1 lectio 2 — liber 2
+    "cpy03.html",  # libri 3-4
+    "cpy05.html",  # libri 5-6
+    "cpy07.html",  # libri 7-8
 )
 
 _SENT_AN_PAGES: tuple[str, ...] = (
-    "can1.html", "can2.html", "can3.html",
+    "can1.html",
+    "can2.html",
+    "can3.html",
 )
 
 
@@ -191,7 +281,7 @@ _P_BLOCK_RE = re.compile(
     r'<P\s+TITLE="(?P<title>[^"]*)"[^>]*>'
     r'<A\s+NAME="(?P<id>\d+)">'
     r'<SPAN\s+CLASS="ref">\[(?P=id)\]\s*(?P<cite>[^<]*)</SPAN></A>'
-    r'(?P<body>.*?)</P>',
+    r"(?P<body>.*?)</P>",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -230,9 +320,7 @@ _ST_PARS_LABEL: dict[str, int] = {
 
 _ST_PARS_PRO_RE = re.compile(r"^(I|I-II|II-II|III) pr\.$")
 _ST_Q_PRO_RE = re.compile(r"^(I|I-II|II-II|III) q\. (\d+) pr\.$")
-_ST_ARTICLE_RE = re.compile(
-    r"^(I|I-II|II-II|III) q\. (\d+) a\. (\d+) (?P<sub>.+)$"
-)
+_ST_ARTICLE_RE = re.compile(r"^(I|I-II|II-II|III) q\. (\d+) a\. (\d+) (?P<sub>.+)$")
 
 
 def _cite_to_st_title(cite: str) -> str | None:
@@ -388,9 +476,7 @@ def _extract_sententia(
         lib, lect = current_key
         marker = f"[SENT_{tag}.{lib}.{lect}]"
         if current_parts:
-            body = "\n\n".join(
-                f"[n. {n}] {text}" for n, text in current_parts
-            )
+            body = "\n\n".join(f"[n. {n}] {text}" for n, text in current_parts)
         else:
             body = ""
         chunks.append((marker, body))
@@ -438,6 +524,7 @@ def _write_work(
 
 
 # ----- per-work fetch entry points -----
+
 
 def fetch_summa_theologiae(*, dest_root: Path) -> Path:
     chunks = _extract_st(_ST_PAGES)

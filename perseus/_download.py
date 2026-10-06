@@ -31,17 +31,13 @@ from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from threading import Lock
 
-USER_AGENT = (
-    "minerva-research/1.0 (local research; one-shot bulk fetch with delays)"
-)
+USER_AGENT = "minerva-research/1.0 (local research; one-shot bulk fetch with delays)"
 
 # HTTP status codes worth retrying. 408/425/429 are server-side
 # "slow down / try again later"; 5xx is server transient. The full
 # 5xx range is included so a 504 Gateway Timeout from a CDN doesn't
 # need a per-call exception in the script that imports us.
-_RETRY_CODES: frozenset[int] = frozenset(
-    {408, 425, 429, 500, 502, 503, 504}
-)
+_RETRY_CODES: frozenset[int] = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
 def fetch_bytes_with_retry(
@@ -80,34 +76,24 @@ def fetch_bytes_with_retry(
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = resp.read()
             if min_bytes and len(data) < min_bytes:
-                raise RuntimeError(
-                    f"response too small ({len(data)} bytes < {min_bytes})"
-                )
+                raise RuntimeError(f"response too small ({len(data)} bytes < {min_bytes})")
             if reject_markers:
                 text = data.decode("utf-8", errors="replace")
                 for marker in reject_markers:
                     if marker in text:
-                        raise RuntimeError(
-                            f"response rejected: found marker {marker!r}"
-                        )
+                        raise RuntimeError(f"response rejected: found marker {marker!r}")
             return data
         except urllib.error.HTTPError as e:
             if e.code in _RETRY_CODES and attempt + 1 < retries:
                 wait = min(backoff_max, backoff_initial * (2**attempt))
-                print(
-                    f"  HTTP {e.code}; retry in {wait:.0f}s "
-                    f"({attempt + 1}/{retries})"
-                )
+                print(f"  HTTP {e.code}; retry in {wait:.0f}s ({attempt + 1}/{retries})")
                 time.sleep(wait)
                 continue
             raise
         except urllib.error.URLError as e:
             if attempt + 1 < retries:
                 wait = min(backoff_max, backoff_initial * (2**attempt))
-                print(
-                    f"  URL error {e.reason!r}; retry in {wait:.0f}s "
-                    f"({attempt + 1}/{retries})"
-                )
+                print(f"  URL error {e.reason!r}; retry in {wait:.0f}s ({attempt + 1}/{retries})")
                 time.sleep(wait)
                 continue
             raise
@@ -213,9 +199,7 @@ def fetch_parallel(
     """
 
     url_list = list(urls)
-    results: list[tuple[str, str | Exception]] = [
-        (u, RuntimeError("unassigned")) for u in url_list
-    ]
+    results: list[tuple[str, str | Exception]] = [(u, RuntimeError("unassigned")) for u in url_list]
 
     def _one(idx: int, url: str) -> None:
         if limiter is not None:
@@ -330,9 +314,7 @@ class ParagraphExtractor(HTMLParser):
         self._skip_class_tokens = (
             frozenset(skip_class_tokens) if skip_class_tokens is not None else None
         )
-        self._skip_id_tokens = (
-            frozenset(skip_id_tokens) if skip_id_tokens is not None else None
-        )
+        self._skip_id_tokens = frozenset(skip_id_tokens) if skip_id_tokens is not None else None
         # A STACK of open tag names, not a depth counter (#297). Real
         # pages are not well-formed and `HTMLParser` does not synthesise
         # the end tags a browser would, so counting `+1` per start and
@@ -359,8 +341,10 @@ class ParagraphExtractor(HTMLParser):
         for name, value in attrs:
             if value is None:
                 continue
-            tokens = self._skip_class_tokens if name == "class" else (
-                self._skip_id_tokens if name == "id" else None
+            tokens = (
+                self._skip_class_tokens
+                if name == "class"
+                else (self._skip_id_tokens if name == "id" else None)
             )
             if tokens is not None and any(tok in tokens for tok in value.split()):
                 return True
@@ -372,9 +356,7 @@ class ParagraphExtractor(HTMLParser):
             self.paragraphs.append(text)
         self._buf.clear()
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # A void element has no end tag, so counting it would strand the
         # depth above zero and silently swallow every following
         # paragraph. `<br/>` survives only because HTMLParser routes the

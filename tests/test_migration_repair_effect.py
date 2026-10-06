@@ -37,9 +37,7 @@ def _sql_probe(version: int):
         version,
         f"{version:04d}_probe_schema",
         "sql",
-        lambda conn: execute_script_statements(
-            conn, "CREATE TABLE probe_schema (x INTEGER);\n"
-        ),
+        lambda conn: execute_script_statements(conn, "CREATE TABLE probe_schema (x INTEGER);\n"),
     )
 
 
@@ -95,9 +93,7 @@ def test_a_fresh_database_is_not_warned_about(tmp_path: Path, monkeypatch, capsy
     conn.close()
 
 
-def test_a_schema_migration_records_null_not_zero(
-    tmp_path: Path, monkeypatch, capsys
-):
+def test_a_schema_migration_records_null_not_zero(tmp_path: Path, monkeypatch, capsys):
     """`apply()` returning None means "not measured", which is not the
     same as "measured, zero" — and only the second is worth a warning."""
 
@@ -138,6 +134,9 @@ def test_the_column_is_added_to_a_pre_existing_bookkeeping_table(tmp_path: Path)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(schema_migrations)")}
     assert "rows_changed" in cols
     # The pre-existing row survives, with no invented count.
-    assert conn.execute(
-        "SELECT rows_changed FROM schema_migrations WHERE version = 9999"
-    ).fetchone()[0] is None
+    assert (
+        conn.execute("SELECT rows_changed FROM schema_migrations WHERE version = 9999").fetchone()[
+            0
+        ]
+        is None
+    )

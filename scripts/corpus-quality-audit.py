@@ -88,6 +88,7 @@ def resolve_db_path() -> Path:
     override = os.environ.get("MINERVA_DB")
     return Path(override) if override else DB
 
+
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from chunk_count_validation import (  # noqa: E402
     MANIFEST_PATH,
@@ -153,37 +154,116 @@ _LONG_S_LANGS = {"eng", "fra", "deu"}
 _LONG_S_KNOWN_FP = frozenset(
     {
         # English everyday vocabulary the regex picks up.
-        "different", "differently", "differential", "difference",
-        "differences", "differed", "differing", "differs",
-        "indifferent", "indifference", "indifferently",
-        "effect", "effects", "effected", "affecting", "affected",
-        "effective", "effectively", "effectiveness",
-        "afford", "affords", "afforded", "affording", "affirmation",
-        "affirmative", "affirmatively", "affirmed", "affirming",
-        "affirms", "office", "offices", "officer", "officers",
-        "official", "officially", "officials",
-        "offer", "offered", "offering", "offers",
-        "after", "afterward", "afterwards", "aftermath", "afterlife",
-        "often", "oftentimes",
-        "sufficient", "sufficiently", "sufficiency", "sufficiencies",
-        "insufficient", "insufficiently", "insufficiency",
-        "difficult", "difficulty", "difficulties", "difficultly",
-        "effort", "efforts", "effortless", "effortlessly",
-        "affection", "affections", "affectionate", "affectionately",
-        "gift", "gifts", "gifted",
-        "left", "deify", "deified", "deifies", "deifying",
-        "shift", "shifts", "shifted", "shifting", "shifter",
+        "different",
+        "differently",
+        "differential",
+        "difference",
+        "differences",
+        "differed",
+        "differing",
+        "differs",
+        "indifferent",
+        "indifference",
+        "indifferently",
+        "effect",
+        "effects",
+        "effected",
+        "affecting",
+        "affected",
+        "effective",
+        "effectively",
+        "effectiveness",
+        "afford",
+        "affords",
+        "afforded",
+        "affording",
+        "affirmation",
+        "affirmative",
+        "affirmatively",
+        "affirmed",
+        "affirming",
+        "affirms",
+        "office",
+        "offices",
+        "officer",
+        "officers",
+        "official",
+        "officially",
+        "officials",
+        "offer",
+        "offered",
+        "offering",
+        "offers",
+        "after",
+        "afterward",
+        "afterwards",
+        "aftermath",
+        "afterlife",
+        "often",
+        "oftentimes",
+        "sufficient",
+        "sufficiently",
+        "sufficiency",
+        "sufficiencies",
+        "insufficient",
+        "insufficiently",
+        "insufficiency",
+        "difficult",
+        "difficulty",
+        "difficulties",
+        "difficultly",
+        "effort",
+        "efforts",
+        "effortless",
+        "effortlessly",
+        "affection",
+        "affections",
+        "affectionate",
+        "affectionately",
+        "gift",
+        "gifts",
+        "gifted",
+        "left",
+        "deify",
+        "deified",
+        "deifies",
+        "deifying",
+        "shift",
+        "shifts",
+        "shifted",
+        "shifting",
+        "shifter",
         # German philosophical vocabulary.
-        "auffassen", "auffassung", "auffassungen", "aufforderung",
-        "offen", "offene", "offenen", "offener", "offenes",
-        "offenbar", "offenbarte", "offenbart", "offenbarung",
+        "auffassen",
+        "auffassung",
+        "auffassungen",
+        "aufforderung",
+        "offen",
+        "offene",
+        "offenen",
+        "offener",
+        "offenes",
+        "offenbar",
+        "offenbarte",
+        "offenbart",
+        "offenbarung",
         # French. "effective" / "affirmation" / "affirmative" are
         # spelled identically in English and are already listed above.
-        "effet", "effets", "effectif", "effectivement",
-        "affirmé", "affirmer",
-        "différent", "différente", "différents", "différentes",
-        "différence", "différences", "différencier",
-        "indifférent", "indifférence",
+        "effet",
+        "effets",
+        "effectif",
+        "effectivement",
+        "affirmé",
+        "affirmer",
+        "différent",
+        "différente",
+        "différents",
+        "différentes",
+        "différence",
+        "différences",
+        "différencier",
+        "indifférent",
+        "indifférence",
     }
 )
 
@@ -263,15 +343,11 @@ def audit(
     """
 
     print("Scanning chunks_full ...", file=sys.stderr)
-    cursor = conn.execute(
-        "SELECT chunk_id, author, work, lang, text FROM chunks_full"
-    )
+    cursor = conn.execute("SELECT chunk_id, author, work, lang, text FROM chunks_full")
 
     # author → signal → list of (chunk_id, snippet). Bounded by
     # ``sample_size`` so the report stays readable.
-    findings: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
+    findings: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(lambda: defaultdict(list))
     # author → signal → unbounded count of hits across the corpus.
     # Always equals or exceeds ``len(findings[au][sig])``. Drives the
     # summary table so high-count signals stay visible even after the
@@ -354,9 +430,7 @@ def audit(
                 totals[au]["duplicate_text"] += 1
                 entries = findings[au]["duplicate_text"]
                 if len(entries) < sample_size:
-                    entries.append(
-                        (cids[0], f"({len(cids)} copies) {text[:140]}")
-                    )
+                    entries.append((cids[0], f"({len(cids)} copies) {text[:140]}"))
 
     # Materialize ``{signal: (total_count, sample_entries)}`` from
     # the two parallel structures.
@@ -376,9 +450,7 @@ def render_chunk_count_section(
     bad = [r for r in rows if r[4] != "ok"]
     out: list[str] = ["## Chunk count ranges\n"]
     if not bad:
-        out.append(
-            "All corpora with manifest `expected_chunks` are within range.\n"
-        )
+        out.append("All corpora with manifest `expected_chunks` are within range.\n")
         return "\n".join(out)
 
     out.append(
@@ -389,9 +461,7 @@ def render_chunk_count_section(
     out.append("| Corpus | Count | Min | Max | Status |")
     out.append("|---|---:|---:|---:|---|")
     for corpus_id, count, lo, hi, status in bad:
-        out.append(
-            f"| {corpus_id} | {count:,} | {lo:,} | {hi:,} | {status} |"
-        )
+        out.append(f"| {corpus_id} | {count:,} | {lo:,} | {hi:,} | {status} |")
     out.append("")
     return "\n".join(out)
 
@@ -451,23 +521,29 @@ def render_report(
         "cleanup pass.\n"
     )
     out.append("**High-confidence flags worth investigating first:**\n")
-    out.append("- `duplicate_text` with high counts → almost always real (re-ingest residue or Gutenberg/site-chrome bleed)")
+    out.append(
+        "- `duplicate_text` with high counts → almost always real (re-ingest residue or Gutenberg/site-chrome bleed)"
+    )
     out.append("- `caret_artifact` → real OCR debris (column-edge ^ characters)")
     out.append("- `glyph_soup` (after Hebrew/Arabic skip) → real EPUB image-glyph leakage")
     out.append("- `mostly_digits` → real page-number leakage")
     out.append("- `long_s_codepoint` → real (literal ``ſ`` should be 0)\n")
     out.append("**Noisier signals — verify samples before acting:**\n")
-    out.append("- `long_s_misread` on **eng** → mostly false positives on real `-ation`/`-ative`/`-iff-` words. Trustworthy on **fra** / **deu**.")
-    out.append("- `tiny_chunk` → mix of real noise and legitimate short chunks (author/section names, numbered headings).")
-    out.append("- `run_on_token` → catches real PDF-extraction issues but also legitimate long compound words (German *Bundesverfassungsgerichtsentscheidung*).\n")
+    out.append(
+        "- `long_s_misread` on **eng** → mostly false positives on real `-ation`/`-ative`/`-iff-` words. Trustworthy on **fra** / **deu**."
+    )
+    out.append(
+        "- `tiny_chunk` → mix of real noise and legitimate short chunks (author/section names, numbered headings)."
+    )
+    out.append(
+        "- `run_on_token` → catches real PDF-extraction issues but also legitimate long compound words (German *Bundesverfassungsgerichtsentscheidung*).\n"
+    )
 
     out.append("## Worst-offender samples per (author, signal)\n")
     for au, sigs in ranked[:top_authors]:
         out.append(f"### {au}\n")
         # Sort signals by count desc.
-        signal_items = sorted(
-            sigs.items(), key=lambda kv: kv[1][0], reverse=True
-        )
+        signal_items = sorted(sigs.items(), key=lambda kv: kv[1][0], reverse=True)
         for sig, (n, entries) in signal_items:
             if n == 0:
                 continue

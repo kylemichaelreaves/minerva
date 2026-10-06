@@ -53,10 +53,7 @@ from _download import fetch_with_retry
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = REPO_ROOT / "data" / "theognis"
 
-ENGLISH_URL = (
-    "https://archive.org/download/worksofhesiodca00hesi/"
-    "worksofhesiodca00hesi_djvu.txt"
-)
+ENGLISH_URL = "https://archive.org/download/worksofhesiodca00hesi/worksofhesiodca00hesi_djvu.txt"
 
 UA = "minerva-corpus-fetch/1.0 (+personal research; PD-only sources)"
 
@@ -315,8 +312,7 @@ def main(argv: list[str] | None = None) -> int:
         fetch_english(out_dir=OUT_DIR)
     else:
         print(
-            "\nSkipping English (see #448) — pass --include-english to "
-            "force it.",
+            "\nSkipping English (see #448) — pass --include-english to force it.",
             file=sys.stderr,
         )
 

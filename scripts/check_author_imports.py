@@ -17,11 +17,7 @@ SCAN_ROOTS = (
 )
 
 # minerva.foo_works where foo_works.py lives under authors/
-AUTHOR_MODULES = {
-    p.stem
-    for p in AUTHORS.glob("*_works.py")
-    if p.name != "__init__.py"
-}
+AUTHOR_MODULES = {p.stem for p in AUTHORS.glob("*_works.py") if p.name != "__init__.py"}
 
 PATTERNS = (
     re.compile(r"from\s+minerva\.(\w+_works)\s+import"),

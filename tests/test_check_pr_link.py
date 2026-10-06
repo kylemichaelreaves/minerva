@@ -411,6 +411,51 @@ class TestResolveClosingRefs:
 
         assert slept == [0.25]
 
+    def test_the_default_budget_outwaits_a_link_that_took_longer_than_two_seconds(self):
+        """#664, measured on PR #662: the hook checked within a second of `gh pr
+        create`, and three reads over two seconds all came back empty while a
+        re-query moments later found both links. Creation propagates slower
+        than the body edit #331 sized the budget for.
+
+        Simulated clock: the link is visible once five seconds have been
+        waited, which the old 3 x 1s budget (two waits, 2s) never reached."""
+
+        slept: list[float] = []
+
+        def fetch() -> set[int]:
+            return {999001} if sum(slept) >= 5.0 else set()
+
+        resolved, attempts = cpl.resolve_closing_refs(fetch, {999001}, sleep=slept.append)
+
+        assert resolved == {999001}
+        assert attempts > 1
+
+    def test_the_full_budget_fits_inside_the_hook_that_runs_it(self):
+        """The bound cannot simply be raised. `hook_pr_link_autocheck.py` runs
+        this check with a timeout in `.claude/settings.json`; a budget that
+        outlasts it gets the check killed mid-wait and reports nothing at all,
+        which is worse than a hedged `[missing]`. Half the timeout is left for
+        the reads themselves — each is a `gh` round trip."""
+
+        import json
+        from pathlib import Path
+
+        settings = json.loads(
+            (Path(__file__).resolve().parents[1] / ".claude/settings.json").read_text()
+        )
+        (timeout,) = [
+            h["timeout"]
+            for entry in settings["hooks"]["PostToolUse"]
+            for h in entry["hooks"]
+            if "hook_pr_link_autocheck.py" in h["command"]
+        ]
+        fetch, _ = self._fetch_returning(set())
+        slept: list[float] = []
+
+        cpl.resolve_closing_refs(fetch, {999001}, sleep=slept.append)
+
+        assert sum(slept) <= timeout / 2
+
 
 class TestFailureSummary:
     """The line printed under the defect list. It used to assert flatly that

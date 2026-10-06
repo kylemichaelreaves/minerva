@@ -54,10 +54,7 @@ _WORKS: tuple[dict, ...] = (
 
 
 def _url(title: str) -> str:
-    return (
-        "https://de.wikisource.org/api/rest_v1/page/html/"
-        + quote(title, safe="")
-    )
+    return "https://de.wikisource.org/api/rest_v1/page/html/" + quote(title, safe="")
 
 
 def fetch_all(*, dest_root: Path) -> list[Path]:

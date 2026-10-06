@@ -160,3 +160,59 @@ def test_ci_reads_the_pin_rather_than_floating_a_major():
     assert not re.search(r'node-version:\s*"?\d', workflow), (
         "a floating major reintroduces the gap .nvmrc closes"
     )
+
+
+# --- #605: npm is pinned too ------------------------------------------------
+#
+# The lock carries `libc` blocks that npm 11 writes and npm 10 strips. Node
+# 22.23.2 ships npm 10.9.8, so every bare `npm install` on the pinned Node
+# deleted 26 of them (78 lines) and staged that into whatever PR was open;
+# Dependabot, on npm 11, put them back on its next bump. The Node pin does
+# not pin npm, so npm gets its own: `packageManager` names it, `engines.npm`
+# with `engine-strict` makes an older npm refuse to install rather than
+# silently rewrite the lock, and CI installs the named version.
+
+
+def _web_package() -> dict:
+    return json.loads((_ROOT / "web" / "package.json").read_text())
+
+
+def _pinned_npm() -> str:
+    pm = _web_package().get("packageManager", "")
+    m = re.fullmatch(r"npm@(\d+\.\d+\.\d+)", pm)
+    assert m, f"web/package.json packageManager must pin an exact npm, got {pm!r}"
+    return m[1]
+
+
+def test_package_manager_pins_an_npm_that_writes_libc():
+    """npm 10 is the one that strips them; 11.12.1 was measured keeping all 26."""
+
+    assert int(_pinned_npm().split(".")[0]) >= 11
+
+
+def test_engines_npm_floor_is_the_pinned_npm():
+    assert _web_package()["engines"].get("npm") == f">={_pinned_npm()}"
+
+
+def test_engines_are_enforced_not_advisory():
+    """Without `engine-strict` an older npm prints EBADENGINE and rewrites
+    the lock anyway — the silent failure this is here to stop."""
+
+    npmrc = (_ROOT / "web" / ".npmrc").read_text().splitlines()
+    assert "engine-strict=true" in npmrc
+
+
+def test_ci_installs_the_pinned_npm_before_every_npm_ci():
+    """setup-node installs the npm bundled with `.nvmrc`'s Node (10.9.8),
+    which `engine-strict` now refuses."""
+
+    workflow = (_ROOT / ".github" / "workflows" / "check.yml").read_text()
+    jobs = re.split(r"\n  (?=[\w-]+:\n)", workflow)
+    with_ci = [j for j in jobs if re.search(r"^\s*run: npm ci\s*$", j, re.MULTILINE)]
+    assert with_ci
+    for job in with_ci:
+        install = job.find("npm install -g")
+        assert 0 <= install < job.find("run: npm ci"), job.splitlines()[0]
+        assert "packageManager" in job[install : job.find("\n", install)], (
+            "read the version from package.json rather than restating it"
+        )

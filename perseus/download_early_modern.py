@@ -80,9 +80,7 @@ _DCP_HEAD_RE = re.compile(r"^DE\s+CORPORE\s+POLITICO", re.IGNORECASE)
 # PG 74236 uses "LIBERTY AND NECESSITY:" (without the "OF" prefix) for
 # the work-start heading even though the title page lists it as "OF
 # LIBERTY AND NECESSITY". Accept both.
-_OLN_HEAD_RE = re.compile(
-    r"^(?:OF\s+)?LIBERTY\s+AND\s+NECESSITY", re.IGNORECASE
-)
+_OLN_HEAD_RE = re.compile(r"^(?:OF\s+)?LIBERTY\s+AND\s+NECESSITY", re.IGNORECASE)
 
 
 def _split_hobbes_vol04(combined: Path) -> tuple[Path, Path]:
@@ -165,18 +163,14 @@ def _concat_locke_essay(vol2_path: Path) -> Path:
     vol1_path = vol2_path.parent / "essay_vol1.txt"
     if not vol1_path.is_file():
         raise RuntimeError(
-            f"Locke Essay Vol 1 not found at {vol1_path}; "
-            "PG 10615 must download first."
+            f"Locke Essay Vol 1 not found at {vol1_path}; PG 10615 must download first."
         )
     vol1 = vol1_path.read_text(encoding="utf-8")
     vol2 = vol2_path.read_text(encoding="utf-8")
     combined = vol1.rstrip() + "\n\n" + vol2.lstrip()
     essay_path = vol2_path.parent / "essay.txt"
     essay_path.write_text(combined, encoding="utf-8")
-    print(
-        f"  ↳ joined vol1+vol2 into {essay_path.name} "
-        f"({len(combined):,} chars)"
-    )
+    print(f"  ↳ joined vol1+vol2 into {essay_path.name} ({len(combined):,} chars)")
     # Drop the volume intermediates so locke_works.find_work sees
     # only "essay.txt" and ingest doesn't double-count.
     vol1_path.unlink()

@@ -126,8 +126,7 @@ def test_note_sibling_sorts_after_its_own_paragraph_and_before_the_next():
     from minerva.glossary_import import _section_payload
 
     keys = [
-        _section_payload("paragraph", f"Intro, {s}")["sort_key"]
-        for s in ("¶1", "¶1.note", "¶2")
+        _section_payload("paragraph", f"Intro, {s}")["sort_key"] for s in ("¶1", "¶1.note", "¶2")
     ]
     assert keys == sorted(keys), keys
     assert len(set(keys)) == 3

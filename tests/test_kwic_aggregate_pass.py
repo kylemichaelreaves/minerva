@@ -40,8 +40,14 @@ _CHUNKS = 20
 @pytest.fixture
 def conn(tmp_path: Path):
     chunks = [
-        make_chunk(chunk_id=f"c{i}", work="Logik", author="Hegel", lang="deu",
-                   section=str(i), text="der " * len(_TOKENS))
+        make_chunk(
+            chunk_id=f"c{i}",
+            work="Logik",
+            author="Hegel",
+            lang="deu",
+            section=str(i),
+            text="der " * len(_TOKENS),
+        )
         for i in range(_CHUNKS)
     ]
     db = tmp_path / "agg.sqlite"
@@ -81,8 +87,7 @@ def test_the_morph_filter_is_evaluated_once_per_group_not_per_row(
     aggregate pass, the request's first statement, calls it once per group."""
 
     groups = conn.execute(
-        "SELECT COUNT(*) FROM (SELECT DISTINCT pos, surface_form, feats, work_id "
-        "FROM chunk_lemmas)"
+        "SELECT COUNT(*) FROM (SELECT DISTINCT pos, surface_form, feats, work_id FROM chunk_lemmas)"
     ).fetchone()[0]
     rows = conn.execute("SELECT COUNT(*) FROM chunk_lemmas").fetchone()[0]
     assert groups < rows  # or the test cannot tell the two apart
@@ -116,8 +121,10 @@ def test_the_morph_filter_is_evaluated_once_per_group_not_per_row(
         ({"pos": "PRON"}, "pos = 'PRON'"),
         ({"surface": "Der"}, "surface_form = 'Der'"),
         ({"morph": "Case=Gen"}, "feats LIKE '%Case=Gen%'"),
-        ({"morph": "Case=Nom,Number=Sing"},
-         "feats LIKE '%Case=Nom%' AND feats LIKE '%Number=Sing%'"),
+        (
+            {"morph": "Case=Nom,Number=Sing"},
+            "feats LIKE '%Case=Nom%' AND feats LIKE '%Number=Sing%'",
+        ),
         ({"pos": "DET", "surface": "der"}, "pos = 'DET' AND surface_form = 'der'"),
         ({"morph": "Case=Voc"}, "feats LIKE '%Case=Voc%'"),
         # LIKE is ASCII-case-insensitive, and that stays SQLite's to decide.
@@ -156,10 +163,12 @@ def test_the_breakdowns_parse_each_feats_string_once(
     assert len(groups) > len(distinct)
     assert sorted(parsed) == sorted(distinct)
     assert {b["value"]: b["count"] for b in out["case_breakdown"]} == {
-        "Nom": 2 * _CHUNKS, "Gen": 2 * _CHUNKS
+        "Nom": 2 * _CHUNKS,
+        "Gen": 2 * _CHUNKS,
     }
     assert {b["value"]: b["count"] for b in out["number_breakdown"]} == {
-        "Sing": 3 * _CHUNKS, "Plur": _CHUNKS
+        "Sing": 3 * _CHUNKS,
+        "Plur": _CHUNKS,
     }
     assert {b["value"]: b["count"] for b in out["gender_breakdown"]} == {"Masc": 2 * _CHUNKS}
 
@@ -176,11 +185,17 @@ def test_the_breakdowns_parse_each_feats_string_once(
         ({"morph": "Number=Dual", "surface": "der"}, {"Number": "surface_form = 'der'"}),
         ({"morph": "Number=Dual", "pos": "PRON"}, {"Number": "pos = 'PRON'"}),
         # Both morph filters: each link drops exactly one of them.
-        ({"morph": "Case=Gen,Number=Dual"},
-         {"Number": "feats LIKE '%Case=Gen%'", "Case": "feats LIKE '%Number=Dual%'"}),
-        ({"morph": "Case=Gen,Number=Sing", "surface": "der"},
-         {"Number": "feats LIKE '%Case=Gen%' AND surface_form = 'der'",
-          "Case": "feats LIKE '%Number=Sing%' AND surface_form = 'der'"}),
+        (
+            {"morph": "Case=Gen,Number=Dual"},
+            {"Number": "feats LIKE '%Case=Gen%'", "Case": "feats LIKE '%Number=Dual%'"},
+        ),
+        (
+            {"morph": "Case=Gen,Number=Sing", "surface": "der"},
+            {
+                "Number": "feats LIKE '%Case=Gen%' AND surface_form = 'der'",
+                "Case": "feats LIKE '%Number=Sing%' AND surface_form = 'der'",
+            },
+        ),
         ({}, {}),
         ({"surface": "nie"}, {}),
     ],

@@ -81,9 +81,7 @@ def test_recorder_survives_a_handler_exception(populated_db, metrics_conn):
     deps.metrics = Recorder(metrics_conn)
     with pytest.raises(ValueError), deps.metrics.record("work range", "GET"):
         raise ValueError("handler blew up")
-    assert metrics_conn.execute(
-        "SELECT status_class FROM request_timings"
-    ).fetchone()[0] == 5
+    assert metrics_conn.execute("SELECT status_class FROM request_timings").fetchone()[0] == 5
 
 
 class FailingMetricsConn:

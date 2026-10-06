@@ -115,9 +115,7 @@ def test_summary_offset_excludes_rows_recorded_in_the_current_window(deps):
     with deps.metrics.record("works list", "GET") as span:
         span.status = 200
     rows_1h = _handle_metrics_summary(deps, {"window": "1h"})["rows"]
-    assert [r["label"] for r in rows_1h if r["kind"] == "total"] == [
-        "works list"
-    ]
+    assert [r["label"] for r in rows_1h if r["kind"] == "total"] == ["works list"]
     prior = _handle_metrics_summary(deps, {"window": "1h", "offset": "1"})
     assert prior["rows"] == []
 
@@ -129,9 +127,7 @@ def test_series_offset_shifts_the_window_back_too(deps):
         span.status = 200
     now = _handle_metrics_series(deps, {"label": "works list", "window": "6h"})
     assert len(now["points"]) == 1
-    prior = _handle_metrics_series(
-        deps, {"label": "works list", "window": "6h", "offset": "1"}
-    )
+    prior = _handle_metrics_series(deps, {"label": "works list", "window": "6h", "offset": "1"})
     assert prior["points"] == []
 
 

@@ -51,6 +51,7 @@ from _download import fetch_with_retry
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data" / "boulainvilliers"
 
+
 def _archive_djvu(item: str) -> str:
     return f"https://archive.org/download/{item}/{item}_djvu.txt"
 

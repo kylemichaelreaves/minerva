@@ -85,9 +85,9 @@ def test_thread_time_is_never_silently_swapped_for_process_time():
     import inspect
 
     tree = ast.parse(inspect.getsource(R))
-    referenced = {
-        node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
-    } | {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+    referenced = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)} | {
+        node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+    }
     assert "process_time" not in referenced, (
         "process_time is process-wide; under ThreadingHTTPServer it attributes "
         "concurrent requests' CPU to whichever span is open (4.5x overattribution "

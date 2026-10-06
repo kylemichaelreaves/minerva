@@ -33,10 +33,7 @@ def test_span_name_is_instrumented_somewhere(name):
 
     src = pathlib.Path(__file__).resolve().parents[1] / "src" / "minerva"
     needle = f'sub_span("{name}"'
-    found = any(
-        needle in p.read_text(encoding="utf-8")
-        for p in src.rglob("*.py")
-    )
+    found = any(needle in p.read_text(encoding="utf-8") for p in src.rglob("*.py"))
     assert found, f"no {needle}) call found under {src}"
 
 

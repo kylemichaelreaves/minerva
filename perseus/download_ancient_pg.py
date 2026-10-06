@@ -62,7 +62,7 @@ def _fetch(pg_id: int) -> str:
 
 def fetch_all(*, data_root: Path, delay: float = 1.0) -> list[Path]:
     written: list[Path] = []
-    for sub, filename, pg_id in (_CICERO_PG + _ALT_PG):
+    for sub, filename, pg_id in _CICERO_PG + _ALT_PG:
         dest_dir = data_root / sub
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / filename

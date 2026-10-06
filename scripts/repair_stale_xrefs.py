@@ -153,16 +153,12 @@ def find_stale_xrefs(conn: sqlite3.Connection) -> list[StaleXref]:
             continue
         if _is_accepted_wide_snapshot(snapshot, actual):
             continue
-        stale.append(
-            StaleXref(id=xref_id, source_chunk_id=chunk_id, reason="snapshot mismatch")
-        )
+        stale.append(StaleXref(id=xref_id, source_chunk_id=chunk_id, reason="snapshot mismatch"))
     return stale
 
 
 def delete_stale_xrefs(conn: sqlite3.Connection, stale: list[StaleXref]) -> None:
-    conn.executemany(
-        "DELETE FROM cross_references WHERE id = ?", [(s.id,) for s in stale]
-    )
+    conn.executemany("DELETE FROM cross_references WHERE id = ?", [(s.id,) for s in stale])
     # #459: this module's own docstring used to assume a deleted xref's
     # `refs_scan_state` row would already read as stale — true only when
     # the chunk's *text* changed. An in-range snapshot mismatch can be

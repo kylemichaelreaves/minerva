@@ -48,6 +48,7 @@ RAW_BASE = "https://raw.githubusercontent.com/OpenGreekAndLatin/First1KGreek/mas
 
 _fetch = make_fetcher()
 
+
 def _slug_for(title: str) -> str:
     """Filename-safe slug derived from the canonical title."""
     return "".join(c.lower() if c.isalnum() else "_" for c in title).strip("_")
@@ -86,7 +87,9 @@ def main() -> int:
         dest_dir = out / slug
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / "grc.xml"
-        print(f"[{i}/{len(works)}] {w.first1k_tlg} {w.canonical_title!r} -> {dest.relative_to(out)}")
+        print(
+            f"[{i}/{len(works)}] {w.first1k_tlg} {w.canonical_title!r} -> {dest.relative_to(out)}"
+        )
         if args.skip_existing and dest.is_file() and dest.stat().st_size > 0:
             print("  skip (already exists)")
             if i < len(works):
@@ -95,9 +98,7 @@ def main() -> int:
         try:
             data = _fetch(remote)
         except urllib.error.HTTPError as e:
-            failures.record(
-                w.first1k_tlg, f"HTTP {e.code} (likely a TLG slot we got wrong)"
-            )
+            failures.record(w.first1k_tlg, f"HTTP {e.code} (likely a TLG slot we got wrong)")
             continue
         dest.write_bytes(data)
         # Also fetch the __cts__.xml sidecar — it carries the canonical

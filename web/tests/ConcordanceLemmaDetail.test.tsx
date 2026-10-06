@@ -8,16 +8,19 @@
 // so keeping it would render the old occurrences under the new heading.
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type * as concordanceApi from "~/api/concordanceApi";
+import type { LemmaDetailResponse } from "~/api/concordanceApi";
 import { render, screen, waitFor } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 
-const fetchLemmaDetail = vi.fn();
+const fetchLemmaDetail = vi.fn<typeof concordanceApi.fetchLemmaDetail>();
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("~/api/concordanceApi")>();
   return {
     ...mod,
-    fetchLemmaDetail: (...args: unknown[]) => fetchLemmaDetail(...args) as never,
+    fetchLemmaDetail: (...args: Parameters<typeof concordanceApi.fetchLemmaDetail>) =>
+      fetchLemmaDetail(...args),
   };
 });
 
@@ -39,7 +42,7 @@ const row = (surface: string) => ({
   kwic_right: " ist",
 });
 
-const detail = (lemma: string, surface: string) => ({
+const detail = (lemma: string, surface: string): LemmaDetailResponse => ({
   lemma,
   lang: "deu",
   scope: "corpus" as const,
@@ -102,12 +105,12 @@ describe("<ConcordanceLemmaDetail />", () => {
   it("does not show the previous lemma's occurrences under the new lemma", async () => {
     const [lemma, setLemma] = createSignal("Begriff");
     let releaseSecond!: () => void;
-    const second = new Promise((resolve) => {
+    const second = new Promise<LemmaDetailResponse>((resolve) => {
       releaseSecond = () => {
         resolve(detail("Anschauung", "Anschauungen"));
       };
     });
-    fetchLemmaDetail.mockImplementation((args: { lemma: string }) =>
+    fetchLemmaDetail.mockImplementation((args) =>
       args.lemma === "Begriff" ? Promise.resolve(detail("Begriff", "Begriffe")) : second,
     );
 

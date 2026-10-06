@@ -69,7 +69,7 @@ function okTransport(): CorrectionTransport {
       const t = tok(req.tokId, req.kind === "head" ? Number(req.toVal) : 2, req.toVal);
       return Promise.resolve(accepted(id, { ...t, corrected: true }));
     }),
-    remove: vi.fn(() => Promise.resolve()),
+    remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
   };
 }
 
@@ -83,7 +83,11 @@ async function withStore(
   };
   const store = createRoot((d) => {
     dispose = d;
-    return createCorrectionStore(() => "abc", () => doc(), transport);
+    return createCorrectionStore(
+      () => "abc",
+      () => doc(),
+      transport,
+    );
   });
   try {
     await body(store);
@@ -104,7 +108,7 @@ describe("createCorrectionStore", () => {
     });
     const transport: CorrectionTransport = {
       post: vi.fn(() => pending),
-      remove: vi.fn(() => Promise.resolve()),
+      remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
     };
 
     await withStore(transport, async (store) => {
@@ -143,7 +147,7 @@ describe("createCorrectionStore", () => {
   it("rolls the edit back when the server refuses it", async () => {
     const transport: CorrectionTransport = {
       post: vi.fn(() => Promise.reject(new ApiError("would make a cycle", 409))),
-      remove: vi.fn(() => Promise.resolve()),
+      remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
     };
 
     await withStore(transport, async (store) => {
@@ -160,7 +164,7 @@ describe("createCorrectionStore", () => {
   it("surfaces the server's reason for a refusal", async () => {
     const transport: CorrectionTransport = {
       post: vi.fn(() => Promise.reject(new ApiError("w1 is inside the subtree of w2.", 409))),
-      remove: vi.fn(() => Promise.resolve()),
+      remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
     };
 
     await withStore(transport, async (store) => {
@@ -208,7 +212,7 @@ describe("createCorrectionStore", () => {
   it("rolls back on a network failure the same way as on a refusal", async () => {
     const transport: CorrectionTransport = {
       post: vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))),
-      remove: vi.fn(() => Promise.resolve()),
+      remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
     };
 
     await withStore(transport, async (store) => {
@@ -285,7 +289,7 @@ describe("createCorrectionStore", () => {
 describe("what counts as a refusal", () => {
   const failWith = (err: Error): CorrectionTransport => ({
     post: vi.fn(() => Promise.reject(err)),
-    remove: vi.fn(() => Promise.resolve()),
+    remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
   });
 
   it("calls a 409 a refusal", async () => {
@@ -329,7 +333,12 @@ describe("corrections from an earlier session", () => {
     };
     const store = createRoot((d) => {
       dispose = d;
-      return createCorrectionStore(() => "abc", () => doc(), transport, () => saved);
+      return createCorrectionStore(
+        () => "abc",
+        () => doc(),
+        transport,
+        () => saved,
+      );
     });
     try {
       await body(store);
@@ -481,7 +490,7 @@ describe("a navigation between chunks", () => {
     });
     const transport: CorrectionTransport = {
       post: vi.fn(() => answered),
-      remove: vi.fn(() => Promise.resolve()),
+      remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
     };
 
     await withNavigation(transport, async (store, goTo) => {
@@ -500,7 +509,7 @@ describe("a navigation between chunks", () => {
   it("does not carry a refusal across to the new chunk", async () => {
     const transport: CorrectionTransport = {
       post: vi.fn(() => Promise.reject(new ApiError("would make a cycle", 409))),
-      remove: vi.fn(() => Promise.resolve()),
+      remove: vi.fn<CorrectionTransport["remove"]>(() => Promise.resolve()),
     };
 
     await withNavigation(transport, async (store, goTo) => {

@@ -9,6 +9,7 @@ maintainability audit; the dispatch wiring still happens in
 from __future__ import annotations
 
 import argparse
+import signal
 import sqlite3
 import sys
 from pathlib import Path
@@ -48,6 +49,18 @@ def _open_metrics_db(path: Path) -> sqlite3.Connection | None:
             file=sys.stderr,
         )
         return None
+
+
+def _exit_on_sigterm(_signum: int, _frame: object) -> None:
+    """Turn SIGTERM into `SystemExit` so the stack unwinds (#722).
+
+    The default action ends the process on the spot, so the `finally` that
+    clears the serve lock never ran and the lock outlived the server. That
+    self-heals while the pid stays dead, and breaks `index` and `serve` once
+    the pid is reused. Ctrl-C was never affected: SIGINT already raises.
+    """
+
+    sys.exit(0)
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -93,6 +106,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # still runs at each dispatch site) but skips durable persistence.
     metrics_conn = None if args.no_metrics else _open_metrics_db(args.metrics_db)
     serve_lock.write_serve_lock(args.db, host=args.host, port=args.port)
+    previous_sigterm = signal.signal(signal.SIGTERM, _exit_on_sigterm)
     try:
         _server.serve(
             host=args.host,
@@ -115,7 +129,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
             allowed_origins=frozenset(args.allow_origin),
         )
     finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
         serve_lock.clear_serve_lock(args.db)
+        # `serve` borrows these; nothing else closes them (#663).
+        for c in (conn, conversations_conn, translations_conn, concept_cache_conn, metrics_conn):
+            if c is not None:
+                c.close()
     return 0
 
 

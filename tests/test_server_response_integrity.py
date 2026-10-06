@@ -146,9 +146,7 @@ def _yields_unencodable_payload():
     ids=["generator raises", "unencodable event payload"],
 )
 def test_failure_mid_stream_writes_only_one_status_line(deps, monkeypatch, generator):
-    monkeypatch.setattr(
-        serve_mod, "_handle_chat_stream", lambda d, p, _g=generator: _g()
-    )
+    monkeypatch.setattr(serve_mod, "_handle_chat_stream", lambda d, p, _g=generator: _g())
     with _running(deps) as srv:
         wire = _send(srv, _chat_stream_request())
     assert _status_lines(wire) == 1, f"second HTTP response written into stream:\n{wire}"
@@ -157,9 +155,7 @@ def test_failure_mid_stream_writes_only_one_status_line(deps, monkeypatch, gener
 def test_failure_mid_stream_ends_the_stream_with_an_error_event(deps, monkeypatch):
     """The client is mid-read; the only honest signal is an SSE error event."""
 
-    monkeypatch.setattr(
-        serve_mod, "_handle_chat_stream", lambda d, p: _raises_after_first_event()
-    )
+    monkeypatch.setattr(serve_mod, "_handle_chat_stream", lambda d, p: _raises_after_first_event())
     with _running(deps) as srv:
         wire = _send(srv, _chat_stream_request())
     assert "event: error" in wire, wire
@@ -269,7 +265,8 @@ def test_patch_reference_through_real_http(deps, populated_db):
     with _running(deps) as srv:
         wire = _send(
             srv,
-            b"PATCH /api/references/" + str(ids["plato_to_aristotle"]).encode()
+            b"PATCH /api/references/"
+            + str(ids["plato_to_aristotle"]).encode()
             + b" HTTP/1.1\r\nHost: 127.0.0.1\r\n"
             b"Content-Type: application/json\r\n"
             b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body,
@@ -324,9 +321,11 @@ def test_route_handler_exception_becomes_a_500(deps, monkeypatch, verb, path, bo
     monkeypatch.setattr(serve_mod, "_match_route", lambda p, routes: ("x route", _boom, ()))
     head = verb.encode() + b" " + path + b" HTTP/1.1\r\nHost: 127.0.0.1\r\n"
     if body:
-        head += b"Content-Type: application/json\r\nContent-Length: " + str(
-            len(body)
-        ).encode() + b"\r\n"
+        head += (
+            b"Content-Type: application/json\r\nContent-Length: "
+            + str(len(body)).encode()
+            + b"\r\n"
+        )
     with _running(deps) as srv:
         wire = _send(srv, head + b"\r\n" + body)
     assert "500 Internal Server Error" in wire, wire

@@ -153,8 +153,7 @@ class VolumeSlice:
         ends = [i for i, ln in enumerate(lines) if i > first and self.end.match(ln)]
         if not ends:
             raise SliceError(
-                f"{label}: end marker {self.end.pattern!r} never matched "
-                f"after line {first + 1}"
+                f"{label}: end marker {self.end.pattern!r} never matched after line {first + 1}"
             )
         out = lines[first : ends[0]]
         low = int(self.expected_lines * 0.85)

@@ -9,6 +9,8 @@ without a `sub_span` in every handler.
 
 from __future__ import annotations
 
+from contextlib import closing
+
 import pytest
 
 from minerva.metrics.recorder import Recorder, current_span
@@ -53,7 +55,7 @@ def test_a_query_outside_a_request_is_a_no_op(conn):
     """The CLI and ingest run the same code paths with no request in flight."""
 
     assert current_span() is None
-    conn.execute("SELECT 1").fetchone()      # must not raise
+    conn.execute("SELECT 1").fetchone()  # must not raise
 
 
 def test_nothing_escapes_through_an_explicit_cursor():
@@ -99,10 +101,10 @@ def test_the_metrics_write_is_not_attributed_to_the_request_that_caused_it(tmp_p
 
     from minerva.metrics import store as m
 
-    metrics_conn = m.open_db(tmp_path / "metrics.sqlite")
-    rec = Recorder(metrics_conn, now=lambda: 1_700_000_000.0)
-    with rec.record("works list", "GET") as span:
-        span.status = 200
-    written = metrics_conn.execute("SELECT sqlite_queries FROM request_spans").fetchone()[0]
+    with closing(m.open_db(tmp_path / "metrics.sqlite")) as metrics_conn:
+        rec = Recorder(metrics_conn, now=lambda: 1_700_000_000.0)
+        with rec.record("works list", "GET") as span:
+            span.status = 200
+        written = metrics_conn.execute("SELECT sqlite_queries FROM request_spans").fetchone()[0]
     # The request itself issued no queries; the metrics INSERT must not appear.
     assert written == 0

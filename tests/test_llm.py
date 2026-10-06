@@ -411,7 +411,9 @@ def test_anthropic_refusal_raises_with_category(monkeypatch):
 def test_anthropic_effort_is_sent_as_output_config(monkeypatch):
     # #744: effort is the only depth control on Sonnet 5.5, and the API
     # default is `high` — omitting it is not "no thinking".
-    backend = AnthropicBackend(api_key="sk-ant", base_url="https://api.example.com/v1", effort="low")
+    backend = AnthropicBackend(
+        api_key="sk-ant", base_url="https://api.example.com/v1", effort="low"
+    )
     sent = _capture_anthropic_body(monkeypatch, backend, _OK)
     backend.complete([Message("user", "q")])
     assert sent["output_config"] == {"effort": "low"}

@@ -39,6 +39,7 @@ RAW_BASE = "https://raw.githubusercontent.com/OpenGreekAndLatin/First1KGreek/mas
 
 _fetch = make_fetcher()
 
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(

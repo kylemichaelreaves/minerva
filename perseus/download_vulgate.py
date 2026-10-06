@@ -32,10 +32,7 @@ from _download import FailureAccumulator, make_fetcher
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-RAW_BASE = (
-    "https://raw.githubusercontent.com/BibleGet-I-O/Clementine-Vulgate/"
-    "master/src/utf8"
-)
+RAW_BASE = "https://raw.githubusercontent.com/BibleGet-I-O/Clementine-Vulgate/master/src/utf8"
 
 # Filenames as they appear in BibleGet-I-O/Clementine-Vulgate's
 # src/utf8/. 73 entries total — the Catholic canon plus the LXX
@@ -43,32 +40,85 @@ RAW_BASE = (
 # Baruch, 1-2 Maccabees). Order = canonical Vulgate sequence.
 _VULGATE_FILES: tuple[str, ...] = (
     # ----- Pentateuch -----
-    "Gn.lat", "Ex.lat", "Lv.lat", "Nm.lat", "Dt.lat",
+    "Gn.lat",
+    "Ex.lat",
+    "Lv.lat",
+    "Nm.lat",
+    "Dt.lat",
     # ----- Historical -----
-    "Jos.lat", "Jdc.lat", "Rt.lat",
-    "1Rg.lat", "2Rg.lat", "3Rg.lat", "4Rg.lat",
-    "1Par.lat", "2Par.lat",
-    "Esr.lat", "Neh.lat",
-    "Tob.lat", "Jdt.lat", "Est.lat",
-    "1Mcc.lat", "2Mcc.lat",
+    "Jos.lat",
+    "Jdc.lat",
+    "Rt.lat",
+    "1Rg.lat",
+    "2Rg.lat",
+    "3Rg.lat",
+    "4Rg.lat",
+    "1Par.lat",
+    "2Par.lat",
+    "Esr.lat",
+    "Neh.lat",
+    "Tob.lat",
+    "Jdt.lat",
+    "Est.lat",
+    "1Mcc.lat",
+    "2Mcc.lat",
     # ----- Wisdom -----
-    "Job.lat", "Ps.lat", "Pr.lat", "Ecl.lat", "Ct.lat",
-    "Sap.lat", "Sir.lat",
+    "Job.lat",
+    "Ps.lat",
+    "Pr.lat",
+    "Ecl.lat",
+    "Ct.lat",
+    "Sap.lat",
+    "Sir.lat",
     # ----- Major prophets -----
-    "Is.lat", "Jr.lat", "Lam.lat", "Bar.lat", "Ez.lat", "Dn.lat",
+    "Is.lat",
+    "Jr.lat",
+    "Lam.lat",
+    "Bar.lat",
+    "Ez.lat",
+    "Dn.lat",
     # ----- Minor prophets -----
-    "Os.lat", "Joel.lat", "Am.lat", "Abd.lat", "Jon.lat", "Mch.lat",
-    "Nah.lat", "Hab.lat", "Soph.lat", "Agg.lat", "Zach.lat", "Mal.lat",
+    "Os.lat",
+    "Joel.lat",
+    "Am.lat",
+    "Abd.lat",
+    "Jon.lat",
+    "Mch.lat",
+    "Nah.lat",
+    "Hab.lat",
+    "Soph.lat",
+    "Agg.lat",
+    "Zach.lat",
+    "Mal.lat",
     # ----- Gospels + Acts -----
-    "Mt.lat", "Mc.lat", "Lc.lat", "Jo.lat", "Act.lat",
+    "Mt.lat",
+    "Mc.lat",
+    "Lc.lat",
+    "Jo.lat",
+    "Act.lat",
     # ----- Pauline epistles -----
-    "Rom.lat", "1Cor.lat", "2Cor.lat", "Gal.lat", "Eph.lat",
-    "Phlp.lat", "Col.lat", "1Thes.lat", "2Thes.lat",
-    "1Tim.lat", "2Tim.lat", "Tit.lat", "Phlm.lat",
+    "Rom.lat",
+    "1Cor.lat",
+    "2Cor.lat",
+    "Gal.lat",
+    "Eph.lat",
+    "Phlp.lat",
+    "Col.lat",
+    "1Thes.lat",
+    "2Thes.lat",
+    "1Tim.lat",
+    "2Tim.lat",
+    "Tit.lat",
+    "Phlm.lat",
     # ----- Hebrews -----
     "Hbr.lat",
     # ----- Catholic epistles -----
-    "Jac.lat", "1Ptr.lat", "2Ptr.lat", "1Jo.lat", "2Jo.lat", "3Jo.lat",
+    "Jac.lat",
+    "1Ptr.lat",
+    "2Ptr.lat",
+    "1Jo.lat",
+    "2Jo.lat",
+    "3Jo.lat",
     "Jud.lat",
     # ----- Revelation -----
     "Apc.lat",
@@ -76,6 +126,7 @@ _VULGATE_FILES: tuple[str, ...] = (
 
 
 _fetch = make_fetcher()
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)

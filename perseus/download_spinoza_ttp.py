@@ -75,11 +75,34 @@ def _caput_url(name: str) -> str:
 # caput 0 so the marker shape stays uniform with the other 20.
 _PAGES: tuple[tuple[int, str], ...] = (
     (0, "Praefatio"),
-    *((i, f"Caput_{r}") for i, r in enumerate(
-        ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
-         "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX"),
-        start=1,
-    )),
+    *(
+        (i, f"Caput_{r}")
+        for i, r in enumerate(
+            (
+                "I",
+                "II",
+                "III",
+                "IV",
+                "V",
+                "VI",
+                "VII",
+                "VIII",
+                "IX",
+                "X",
+                "XI",
+                "XII",
+                "XIII",
+                "XIV",
+                "XV",
+                "XVI",
+                "XVII",
+                "XVIII",
+                "XIX",
+                "XX",
+            ),
+            start=1,
+        )
+    ),
 )
 
 
@@ -90,9 +113,7 @@ _fetch = make_fetcher()
 # nested braces — the caller loops it so nested templates unwrap from
 # the inside out. `_RE_WIKILINK` keeps the display half of a piped
 # link (`[[Deus|Dei]]` -> `Dei`) and the whole target otherwise.
-_RE_REF = re.compile(
-    r"<ref[^>]*/>|<ref[^>]*>.*?</ref>", re.DOTALL | re.IGNORECASE
-)
+_RE_REF = re.compile(r"<ref[^>]*/>|<ref[^>]*>.*?</ref>", re.DOTALL | re.IGNORECASE)
 _RE_TEMPLATE = re.compile(r"\{\{[^{}]*\}\}", re.DOTALL)
 _RE_HTML_TAG = re.compile(r"<[^>]+>")
 _RE_WIKILINK = re.compile(r"\[\[(?:[^\]|]*\|)?([^\]|]+)\]\]")

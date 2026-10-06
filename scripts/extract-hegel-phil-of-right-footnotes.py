@@ -45,13 +45,11 @@ from bs4 import BeautifulSoup
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EPUB = (
     REPO_ROOT
-    / "data" / "hegel"
+    / "data"
+    / "hegel"
     / "Elements of the Philosophy of Right (Cam - Georg Wilhelm Friedrich Hegel.epub"
 )
-OUT = (
-    REPO_ROOT / "data" / "hegel"
-    / "elements_phil_of_right_eng_editors_notes.html"
-)
+OUT = REPO_ROOT / "data" / "hegel" / "elements_phil_of_right_eng_editors_notes.html"
 
 ENDNOTE_FILES = ["text/part0029.html", "text/part0030.html"]
 
@@ -139,8 +137,8 @@ def _emit_html(sections: list[tuple[str, list[tuple[int, str]]]]) -> str:
     """
 
     parts: list[str] = [
-        "<!doctype html>\n<html lang=\"en\"><head>"
-        "<meta charset=\"utf-8\">"
+        '<!doctype html>\n<html lang="en"><head>'
+        '<meta charset="utf-8">'
         "<title>Elements of the Philosophy of Right "
         "— Editor's Notes</title>"
         "</head><body>\n"
@@ -165,9 +163,7 @@ def _emit_html(sections: list[tuple[str, list[tuple[int, str]]]]) -> str:
             heading = f"SECTION X NOTES — {label.upper()}"
         parts.append(f"<h2>{html.escape(heading)}</h2>\n")
         for num, text in notes:
-            parts.append(
-                f"<p>{num}. {html.escape(text)}</p>\n"
-            )
+            parts.append(f"<p>{num}. {html.escape(text)}</p>\n")
     parts.append("</body></html>\n")
     return "".join(parts)
 

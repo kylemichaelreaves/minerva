@@ -131,12 +131,8 @@ class TestChunksByCorpusLangQuery:
             "VALUES ('hegel-second-1', 9001, 'deu', 'test.xml', 'Zweites Werk.', 1, 9001)"
         )
 
-        rows = {
-            (r[0], r[1]): r[2] for r in populated_db.execute(CHUNKS_BY_CORPUS_LANG_SQL)
-        }
-        reference = {
-            (r[0], r[1]): r[2] for r in populated_db.execute(_VIEW_BASED_CORPUS_LANG)
-        }
+        rows = {(r[0], r[1]): r[2] for r in populated_db.execute(CHUNKS_BY_CORPUS_LANG_SQL)}
+        reference = {(r[0], r[1]): r[2] for r in populated_db.execute(_VIEW_BASED_CORPUS_LANG)}
         assert rows == reference
         # One row for (hegel, deu), carrying both works' chunks.
         assert rows[("hegel", "deu")] == reference[("hegel", "deu")]

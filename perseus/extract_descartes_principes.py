@@ -39,10 +39,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = REPO_ROOT / "data" / "descartes" / "raw_fr" / "principes_pars2to4.txt"
 
-SOURCE_URL = (
-    "https://archive.org/download/uvresdedescartes09desc/"
-    "uvresdedescartes09desc_djvu.txt"
-)
+SOURCE_URL = "https://archive.org/download/uvresdedescartes09desc/uvresdedescartes09desc_djvu.txt"
 UA = "minerva-corpus-fetch/1.0 (+personal research; PD source)"
 
 # Boundary line numbers in the 2026-06-01 OCR dump. Re-probe if
@@ -145,8 +142,7 @@ def main() -> int:
     clean = _extract(raw)
     OUT_PATH.write_text(clean, encoding="utf-8")
     print(
-        f"  → {OUT_PATH} ({len(clean):,} chars, "
-        f"{clean.count(chr(10))} lines)",
+        f"  → {OUT_PATH} ({len(clean):,} chars, {clean.count(chr(10))} lines)",
         file=sys.stderr,
     )
     return 0

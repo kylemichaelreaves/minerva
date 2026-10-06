@@ -16,19 +16,23 @@
 
 import { render, screen, waitFor } from "@solidjs/testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as concordanceApi from "~/api/concordanceApi";
+import type { LemmaIndexResponse } from "~/api/concordanceApi";
+import type * as readerApi from "~/api/readerApi";
 
-const fetchLemmaIndex = vi.fn();
-const listWorks = vi.fn();
+const fetchLemmaIndex = vi.fn<typeof concordanceApi.fetchLemmaIndex>();
+const listWorks = vi.fn<typeof readerApi.listWorks>();
 
 vi.mock("~/api/readerApi", () => ({
-  listWorks: (...args: unknown[]) => listWorks(...args) as never,
+  listWorks: (...args: Parameters<typeof readerApi.listWorks>) => listWorks(...args),
 }));
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("~/api/concordanceApi")>();
   return {
     ...mod,
-    fetchLemmaIndex: (...args: unknown[]) => fetchLemmaIndex(...args) as never,
+    fetchLemmaIndex: (...args: Parameters<typeof concordanceApi.fetchLemmaIndex>) =>
+      fetchLemmaIndex(...args),
   };
 });
 
@@ -50,7 +54,7 @@ const ROWS = [
   },
 ];
 
-function response(overrides: Record<string, unknown> = {}) {
+function response(overrides: Partial<LemmaIndexResponse> = {}): LemmaIndexResponse {
   return {
     scope: "corpus",
     scope_label: "All German",

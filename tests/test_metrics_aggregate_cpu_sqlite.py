@@ -67,7 +67,7 @@ def test_each_phase_gets_its_own_cpu_row(conn, monkeypatch):
         span.status = 200
     rows = _rows(conn)
     assert rows[("cpu", "llm_call")] == (1, pytest.approx(4.0))
-    assert ("total", "llm_call") in rows          # the wall row still there
+    assert ("total", "llm_call") in rows  # the wall row still there
 
 
 def test_sqlite_time_appears_as_its_own_span(conn):

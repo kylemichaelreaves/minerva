@@ -22,26 +22,30 @@
 
 import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as concordanceApi from "~/api/concordanceApi";
+import type { LemmaIndexResponse } from "~/api/concordanceApi";
+import type * as readerApi from "~/api/readerApi";
 
-const fetchLemmaIndex = vi.fn();
-const listWorks = vi.fn();
+const fetchLemmaIndex = vi.fn<typeof concordanceApi.fetchLemmaIndex>();
+const listWorks = vi.fn<typeof readerApi.listWorks>();
 
 vi.mock("~/api/readerApi", () => ({
-  listWorks: (...args: unknown[]) => listWorks(...args) as never,
+  listWorks: (...args: Parameters<typeof readerApi.listWorks>) => listWorks(...args),
 }));
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("~/api/concordanceApi")>();
   return {
     ...mod,
-    fetchLemmaIndex: (...args: unknown[]) => fetchLemmaIndex(...args) as never,
+    fetchLemmaIndex: (...args: Parameters<typeof concordanceApi.fetchLemmaIndex>) =>
+      fetchLemmaIndex(...args),
   };
 });
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
 import { must } from "./helpers/must";
 
-const RESPONSE = {
+const RESPONSE: LemmaIndexResponse = {
   scope: "author",
   scope_label: "Hegel",
   lang: "deu",

@@ -73,6 +73,7 @@ def resolve_db_path() -> Path:
     override = os.environ.get("MINERVA_DB")
     return Path(override) if override else _DEFAULT_DB
 
+
 # How many offending rows to keep per invariant. A count alone sends the
 # next reader back to write the query again by hand, which is the whole
 # thing this script exists to stop; a full dump is unreadable.
@@ -133,8 +134,7 @@ def audit_lemma_surface_offsets(conn: sqlite3.Connection) -> Result:
         )
     }
     rows = conn.execute(
-        "SELECT chunk_id, surface_form, surface_start, surface_end, lang "
-        "FROM chunk_lemmas"
+        "SELECT chunk_id, surface_form, surface_start, surface_end, lang FROM chunk_lemmas"
     )
     for chunk_id, surface_form, start, end, row_lang in rows:
         found = chunks.get(chunk_id)
@@ -155,10 +155,7 @@ def audit_lemma_surface_offsets(conn: sqlite3.Connection) -> Result:
                 Violation(
                     group=lang,
                     chunk_id=chunk_id,
-                    detail=(
-                        f"[{start}:{end}] stored {surface_form!r} "
-                        f"but text holds {actual!r}"
-                    ),
+                    detail=(f"[{start}:{end}] stored {surface_form!r} but text holds {actual!r}"),
                 )
             )
     return result
@@ -370,9 +367,7 @@ def _format_text(results: list[tuple[Invariant, Result]]) -> str:
             if res.rows_checked
             else 100.0
         )
-        out.append(
-            f"    {'ALL':8} {res.rows_checked:12,} {res.violations:12,} {pct:8.2f}%"
-        )
+        out.append(f"    {'ALL':8} {res.rows_checked:12,} {res.violations:12,} {pct:8.2f}%")
         if inv.known_exceptions:
             out.append(f"\n    note: {inv.known_exceptions}")
         if res.examples:

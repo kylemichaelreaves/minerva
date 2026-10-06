@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createSignal } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import { RailContent } from "~/Reader/components/Rail";
+import type { WordLookup } from "~/api/types/reader";
 import type { RailState, WordInfoState } from "~/Reader/types";
 import { must } from "./helpers/must";
 
@@ -16,10 +17,27 @@ const RAIL_READY: RailState = {
   ref: "¶1",
   response: {
     translated_text: "The spirit",
-    literal_text: null,
+    literal_text: "The spirit",
     model: "stub",
     cached: false,
-  } as never,
+  },
+};
+
+const GEIST: WordLookup = {
+  surface: "Geist",
+  lemma: "Geist",
+  lang: "deu",
+  edition_id: 1,
+  work_id: 1,
+  work_title: "Phänomenologie des Geistes",
+  occurrence_count: 0,
+  samples_offset: 0,
+  next_samples_offset: null,
+  pos: "NOUN",
+  gender: null,
+  number: null,
+  feats: null,
+  samples: [],
 };
 
 function setup(initialWordInfo: WordInfoState = { kind: "idle" }) {
@@ -63,12 +81,7 @@ describe("<RailContent /> tabs", () => {
     clickTab("Translation");
     expect(activeTab()).toContain("Translation");
     // loading → ready is the SAME lookup — no auto-flip.
-    setWordInfo({
-      kind: "ready",
-      lang: "eng",
-      info: { lemma: "Geist", samples: [], total_samples: 0 } as never,
-      loadingMore: false,
-    });
+    setWordInfo({ kind: "ready", info: GEIST, loadingMore: false });
     expect(activeTab()).toContain("Translation");
     // A fresh lookup (idle → loading) flips again.
     setWordInfo({ kind: "idle" });

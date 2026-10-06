@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as syntaxApi from "~/api/syntaxApi";
 import type { ChunkSyntax, SyntaxToken } from "~/api/syntaxApi";
 import { SyntaxOverlay } from "~/Syntax";
 
@@ -49,13 +50,11 @@ const chunks: Record<string, ChunkSyntax> = { long, short };
 
 vi.mock("~/api/syntaxApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/api/syntaxApi")>()),
-  fetchChunkSyntax: vi.fn((id: string) => {
+  fetchChunkSyntax: vi.fn<typeof syntaxApi.fetchChunkSyntax>((id) => {
     const doc = chunks[id];
-    return doc
-      ? Promise.resolve(doc)
-      : Promise.reject(new Error(`no fixture for ${id}`));
+    return doc ? Promise.resolve(doc) : Promise.reject(new Error(`no fixture for ${id}`));
   }),
-  postCorrection: vi.fn((chunkId: string, req: { sentOrd: number; tokId: number; kind: string; toVal: string }) =>
+  postCorrection: vi.fn<typeof syntaxApi.postCorrection>((chunkId, req) =>
     Promise.resolve({
       id: 7,
       chunk_id: chunkId,
@@ -64,7 +63,7 @@ vi.mock("~/api/syntaxApi", async (importOriginal) => ({
       corrections: 1,
     }),
   ),
-  deleteCorrection: vi.fn(() => Promise.resolve()),
+  deleteCorrection: vi.fn<typeof syntaxApi.deleteCorrection>(() => Promise.resolve()),
 }));
 
 /** Mount the overlay on a chunk the test can change under it. */

@@ -73,15 +73,16 @@ def _snapshot_before_mutation(db_path: Path) -> None:
         check=True,
     )
 
+
 # (translator_author, source_author) pairs and the direction. Each
 # tuple is: source = translator (chunks doing the translating),
 # target = source language being translated. Order matters when we
 # query for shared sections — we always join translator to target.
 _DIRECTIONS: tuple[tuple[str, str], ...] = (
-    ("Septuagint",    "Hebrew Bible"),   # LXX     → MT
-    ("Vulgate",       "Hebrew Bible"),   # Vulgate → MT
-    ("Vulgate",       "Septuagint"),     # Vulgate → LXX
-    ("Vulgate",       "New Testament"),  # Vulgate → NT
+    ("Septuagint", "Hebrew Bible"),  # LXX     → MT
+    ("Vulgate", "Hebrew Bible"),  # Vulgate → MT
+    ("Vulgate", "Septuagint"),  # Vulgate → LXX
+    ("Vulgate", "New Testament"),  # Vulgate → NT
 )
 
 

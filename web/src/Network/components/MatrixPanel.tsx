@@ -56,7 +56,7 @@ export function MatrixPanel(props: {
 }) {
   let wrapEl: HTMLDivElement | undefined;
   const size = useElementSize(() => wrapEl, { w: 720, h: 460 });
-  const [hover, setHover] = createSignal<MatrixCell | null>(null);
+  const [hover, setHover] = createSignal<GridCell | null>(null);
   const [mode, setMode] = createSignal<MatrixMode>("n");
 
   const axes = createMemo(() => buildAxes(props.authors, props.cells));
@@ -151,29 +151,26 @@ export function MatrixPanel(props: {
                 height={geo().gridH}
                 fill="var(--net-matrix-field)"
               />
-              <Show when={hover()}>
-                {(c) => <Crosshair cell={c()} axes={axes()} geo={geo()} />}
-              </Show>
+              <Show when={hover()}>{(g) => <Crosshair g={g()} geo={geo()} />}</Show>
               <Bands axes={axes()} geo={geo()} />
               <For each={axes().rows}>
-                {(i) => (
+                {(i, pos) => (
                   <text
                     x={PAD.l - 6}
-                    y={PAD.t + (axes().rowPos.get(i) ?? 0) * geo().ch + geo().ch / 2 + 3.5}
+                    y={PAD.t + pos() * geo().ch + geo().ch / 2 + 3.5}
                     text-anchor="end"
                     font-size="10.5"
                     font-family="var(--sans)"
                     fill={labelFill(i)}
-                    {...labelEmphasis(hover()?.r, i)}
+                    {...labelEmphasis(hover()?.cell.r, i)}
                   >
                     {author(i)?.short}
                   </text>
                 )}
               </For>
               <For each={axes().cols}>
-                {(i) => {
-                  const x = () =>
-                    PAD.l + (axes().colPos.get(i) ?? 0) * geo().cw + geo().cw / 2 + 3.5;
+                {(i, pos) => {
+                  const x = () => PAD.l + pos() * geo().cw + geo().cw / 2 + 3.5;
                   const y = PAD.t - 6;
                   return (
                     <text
@@ -183,7 +180,7 @@ export function MatrixPanel(props: {
                       font-size="10.5"
                       font-family="var(--sans)"
                       fill={labelFill(i)}
-                      {...labelEmphasis(hover()?.c, i)}
+                      {...labelEmphasis(hover()?.cell.c, i)}
                     >
                       {author(i)?.short}
                     </text>
@@ -211,7 +208,7 @@ export function MatrixPanel(props: {
                             onFocus={() => {
                               setCurrent(cellKey(g));
                               setPending(null);
-                              setHover(g.cell);
+                              setHover(g);
                             }}
                             onKeyDown={(e) => onCellKey(e, g)}
                             onOpen={() => open(g)}
@@ -223,11 +220,7 @@ export function MatrixPanel(props: {
                 </For>
               </g>
             </svg>
-            <Show when={hover()}>
-              {(c) => (
-                <MatrixTooltip authors={props.authors} cell={c()} axes={axes()} geo={geo()} />
-              )}
-            </Show>
+            <Show when={hover()}>{(g) => <MatrixTooltip g={g()} axes={axes()} geo={geo()} />}</Show>
           </div>
           <div class="net-matrix-strip">
             <span class="label">drill-down</span>
@@ -250,7 +243,7 @@ function MatrixCellRect(props: {
   tabbable: boolean;
   /** An arrow key moved here: take focus. */
   focusNow: boolean;
-  onHover: (cell: MatrixCell | null) => void;
+  onHover: (g: GridCell | null) => void;
   onFocus: () => void;
   onKeyDown: (e: KeyboardEvent) => void;
   onOpen: () => void;
@@ -274,7 +267,7 @@ function MatrixCellRect(props: {
       width={Math.max(0, props.geo.cw - 1)}
       height={Math.max(0, props.geo.ch - 1)}
       fill={props.fill}
-      onMouseEnter={() => props.onHover(props.g.cell)}
+      onMouseEnter={() => props.onHover(props.g)}
       onMouseLeave={() => props.onHover(null)}
       onFocus={() => props.onFocus()}
       onBlur={() => props.onHover(null)}
@@ -295,9 +288,11 @@ function labelEmphasis(hovered: number | undefined, i: number) {
   return hovered === i ? { "font-weight": 600 } : { opacity: 0.45 };
 }
 
-function Crosshair(props: { cell: MatrixCell; axes: MatrixAxes; geo: Geometry }) {
-  const r = () => props.axes.rowPos.get(props.cell.r) ?? 0;
-  const c = () => props.axes.colPos.get(props.cell.c) ?? 0;
+/** Takes the placed cell, so its position is known rather than looked up
+ *  with a fallback that can never fire (#728). */
+function Crosshair(props: { g: GridCell; geo: Geometry }) {
+  const r = () => props.g.row;
+  const c = () => props.g.col;
   return (
     <g class="net-matrix-crosshair" pointer-events="none">
       <rect
@@ -374,34 +369,30 @@ function Bands(props: { axes: MatrixAxes; geo: Geometry }) {
 const TIP_W = 240;
 const TIP_H = 110;
 
-function MatrixTooltip(props: {
-  authors: NetworkAuthor[];
-  cell: MatrixCell;
-  axes: MatrixAxes;
-  geo: Geometry;
-}) {
-  const src = () => props.authors[props.cell.r];
-  const tgt = () => props.authors[props.cell.c];
+function MatrixTooltip(props: { g: GridCell; axes: MatrixAxes; geo: Geometry }) {
+  const cell = () => props.g.cell;
+  const src = () => props.g.src;
+  const tgt = () => props.g.tgt;
   // Right of the cell, flipping to the left when it would overflow.
   const left = () => {
-    const cellX = PAD.l + (props.axes.colPos.get(props.cell.c) ?? 0) * props.geo.cw;
+    const cellX = PAD.l + props.g.col * props.geo.cw;
     const right = cellX + props.geo.cw + 10;
     return right + TIP_W > props.geo.w ? Math.max(0, cellX - TIP_W - 10) : right;
   };
   const top = () => {
-    const raw = PAD.t + (props.axes.rowPos.get(props.cell.r) ?? 0) * props.geo.ch - 6;
+    const raw = PAD.t + props.g.row * props.geo.ch - 6;
     return Math.max(0, Math.min(raw, props.geo.h - TIP_H));
   };
   return (
     <div class="net-tooltip" style={{ left: `${left()}px`, top: `${top()}px` }}>
       <div class="pair">
-        {src()?.name} <span class="arr">→</span> {tgt()?.name}
+        {src().name} <span class="arr">→</span> {tgt().name}
       </div>
-      <div class="count">{props.cell.n.toLocaleString()} xrefs</div>
+      <div class="count">{cell().n.toLocaleString()} xrefs</div>
       <div class="shares">
-        {pct(props.cell.n, props.axes.rowTotal.get(props.cell.r))} of {src()?.short}’s citations
+        {pct(cell().n, props.axes.rowTotal.get(cell().r))} of {src().short}’s citations
         <br />
-        {pct(props.cell.n, props.axes.colTotal.get(props.cell.c))} of citations to {tgt()?.short}
+        {pct(cell().n, props.axes.colTotal.get(cell().c))} of citations to {tgt().short}
       </div>
       <div class="hint">click to filter /refs ↘</div>
     </div>

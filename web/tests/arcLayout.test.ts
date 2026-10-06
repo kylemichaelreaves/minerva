@@ -165,7 +165,17 @@ describe("resolvePairs", () => {
 
 describe("axisBreaks", () => {
   it("marks the midpoint of each gap longer than GAP_CAP", () => {
-    expect(axisBreaks([0, 50, 50 + GAP_CAP + 1], [0, 10, 30])).toEqual([20]);
+    const axis = [
+      { year: 0, x: 0 },
+      { year: 50, x: 10 },
+      { year: 50 + GAP_CAP + 1, x: 30 },
+    ];
+    expect(axisBreaks(axis)).toEqual([20]);
+  });
+
+  it("marks nothing on an empty or one-point axis", () => {
+    expect(axisBreaks([])).toEqual([]);
+    expect(axisBreaks([{ year: 0, x: 0 }])).toEqual([]);
   });
 });
 
@@ -179,10 +189,11 @@ describe("eraSpans", () => {
   });
 
   it("brackets the authors in each era and skips empty eras", () => {
-    const spans = eraSpans(
-      [a("Homer", -800), a("Plato", -380), a("Nietzsche", 1880)],
-      [10, 50, 90],
-    );
+    const spans = eraSpans([
+      { ...a("Homer", -800), x: 10 },
+      { ...a("Plato", -380), x: 50 },
+      { ...a("Nietzsche", 1880), x: 90 },
+    ]);
     expect(spans).toEqual([
       { name: "Archaic", x0: 5, x1: 15 },
       { name: "Classical", x0: 45, x1: 55 },
@@ -232,6 +243,13 @@ describe("logWeight", () => {
 });
 
 describe("taperPath", () => {
+  it("stays finite when both ends share an x (#728: the `|| 1` is reachable)", () => {
+    // At the midpoint of an arc from x to itself the tangent is (0, 0), so
+    // the normal divides by zero without the guard. #728 listed the guard as
+    // unreachable; it is not, and this keeps it.
+    expect(taperPath(40, 40, 50, 30, 4)).not.toMatch(/NaN|Infinity/);
+  });
+
   it("is a closed outline starting at the citing end", () => {
     const d = taperPath(10, 110, 50, 30, 4);
     const [x, y] = (/^M([\d.]+),([\d.]+)/.exec(d) ?? []).slice(1).map(Number);

@@ -199,6 +199,9 @@ class TestVerifiersLeaveHumanDecisionsAlone:
         _mark_human(populated_db, rid, "auto")
         stats = embed_verify.verify_quoted_references(populated_db, _ZeroEmbedder())
         assert stats.examined == 0
-        assert populated_db.execute(
-            "SELECT curator_status FROM cross_references WHERE id = ?", (rid,)
-        ).fetchone()[0] == "auto"
+        assert (
+            populated_db.execute(
+                "SELECT curator_status FROM cross_references WHERE id = ?", (rid,)
+            ).fetchone()[0]
+            == "auto"
+        )

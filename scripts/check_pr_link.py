@@ -84,9 +84,7 @@ _QUALIFIER = r"(?:[\w.-]+/[\w.-]+)?"
 #: constantly: a `Refs #N` line after a sentence ending in "fixed.", and
 #: `/close-out (#N)`. Flagging the sanctioned non-closing form is how a gate
 #: gets overridden, which is the corrosion #331 is about.
-_CLOSING_REF = re.compile(
-    rf"\b(?:{_KEYWORDS})\b{_GAP}{_QUALIFIER}#(\d+)", re.IGNORECASE
-)
+_CLOSING_REF = re.compile(rf"\b(?:{_KEYWORDS})\b{_GAP}{_QUALIFIER}#(\d+)", re.IGNORECASE)
 
 
 def scan_closing_refs(text: str) -> set[int]:
@@ -95,11 +93,17 @@ def scan_closing_refs(text: str) -> set[int]:
 
 
 #: How many times to read `closingIssuesReferences` before believing a link is
-#: absent, and the pause between reads. The field is eventually consistent after
-#: a body edit, so one read can report `[missing]` for a link that registers a
-#: moment later (#331). A genuinely missing link costs these seconds; a false
-#: failure costs the gate its credibility.
-_LINK_ATTEMPTS = 3
+#: absent, and the base pause between reads. The field is eventually consistent
+#: after a body edit, so one read can report `[missing]` for a link that
+#: registers a moment later (#331). A genuinely missing link costs these
+#: seconds; a false failure costs the gate its credibility.
+#:
+#: The pause grows linearly — 1, 2, 3, 4s, ten in all. Three reads over two
+#: seconds was sized for a body *edit* and came up short on a PR *creation*
+#: (#664, PR #662). The ceiling is the hook that runs this right after `gh pr
+#: create`: its timeout in `.claude/settings.json` has to cover the waits and
+#: the five `gh` reads, which a test pins.
+_LINK_ATTEMPTS = 5
 _LINK_RETRY_DELAY = 1.0
 
 
@@ -142,7 +146,7 @@ def resolve_closing_refs(
         if not unsettled:
             return resolved, attempt
         if attempt < attempts:
-            sleep(delay)
+            sleep(delay * attempt)
     return resolved, attempts
 
 
@@ -450,10 +454,7 @@ def run(
 
     claim = f"close {sorted(expected)}" if expected else "close nothing"
     waited = f"; read the link {attempts_used}x" if attempts_used > 1 else ""
-    print(
-        f"check-pr-link: PR #{pr} should {claim}; "
-        f"scanned {len(scanned)} text(s){waited}"
-    )
+    print(f"check-pr-link: PR #{pr} should {claim}; scanned {len(scanned)} text(s){waited}")
 
     if failures:
         for f in failures:

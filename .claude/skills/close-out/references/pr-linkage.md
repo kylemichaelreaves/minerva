@@ -42,9 +42,12 @@ A non-zero exit means the PR is broken, not that the check is wrong.
 ## The one measured exception
 
 `closingIssuesReferences` is **eventually consistent** after a body edit.
-The check absorbs this itself: it reads the field up to three times, a
-second apart, stopping when the answer settles, and prints `read the link
-2x` (or `3x`) when it had to.
+The check absorbs this itself: it reads the field up to five times, waiting
+1, 2, 3 and 4 seconds between reads, stopping when the answer settles, and
+prints `read the link Nx` when it had to. The budget was three reads a
+second apart until a PR *creation* outlasted it (#664); the hook that runs
+the check right after `gh pr create` has a timeout the budget must fit
+inside, and a test pins that.
 
 The retry covers both directions — the field is re-derived from the body
 on every edit, and a removal propagates on the same delay as an addition
@@ -54,7 +57,7 @@ the PR's own text: an `unexpected` link whose number still carries a
 closing keyword somewhere in the title, body or commits is real and is
 never re-read. `base` and `hazard` are never re-read either.
 
-If a `missing`-only or `unexpected`-only failure survives all three
+If a `missing`-only or `unexpected`-only failure survives all five
 reads, the summary hedges rather than asserting the PR is broken, and
 names the re-query:
 
@@ -63,7 +66,8 @@ gh pr view <n> --json closingIssuesReferences --jq '[.closingIssuesReferences[].
 ```
 
 If the number is there after all — or gone, for `unexpected` — say so:
-three reads over two seconds were not enough and the bound wants raising.
+five reads over ten seconds were not enough and the bound wants raising —
+within the hook's timeout.
 Any other defect it reports is real, including `unexpected` reported
 alongside its `hazard`, which is the pairing meaning the keyword really
 is still in the text.

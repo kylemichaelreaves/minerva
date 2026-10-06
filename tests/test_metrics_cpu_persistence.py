@@ -61,8 +61,9 @@ def test_a_phase_carries_its_own_cpu_in_the_json(conn, monkeypatch):
             cpu.advance(0.004)
         span.status = 200
     phases = json.loads(_row(conn)["phases"])
-    assert phases == [{"name": "llm_call", "ms": pytest.approx(phases[0]["ms"]),
-                       "cpu_ms": pytest.approx(4.0)}]
+    assert phases == [
+        {"name": "llm_call", "ms": pytest.approx(phases[0]["ms"]), "cpu_ms": pytest.approx(4.0)}
+    ]
 
 
 def test_an_unmeasurable_cpu_is_null_not_zero(conn, monkeypatch):
@@ -82,7 +83,7 @@ def test_a_genuinely_idle_request_records_zero_not_null(conn, monkeypatch):
     monkeypatch.setattr(R, "_THREAD_TIME", cpu)
     rec = Recorder(conn, now=lambda: 1_700_000_000.0)
     with rec.record("works list", "GET") as span:
-        span.status = 200          # no CPU burned at all
+        span.status = 200  # no CPU burned at all
     assert _row(conn)["cpu_ms"] == 0.0
 
 
@@ -99,7 +100,9 @@ def test_an_existing_database_gains_the_column(tmp_path):
         " label TEXT NOT NULL, method TEXT NOT NULL, status INTEGER NOT NULL,"
         " total_ms REAL NOT NULL, accounted_ms REAL NOT NULL, phases TEXT NOT NULL);"
     )
-    c.execute("INSERT INTO request_spans VALUES ('old', 1.0, 'works list', 'GET', 200, 5.0, 0.0, '[]')")
+    c.execute(
+        "INSERT INTO request_spans VALUES ('old', 1.0, 'works list', 'GET', 200, 5.0, 0.0, '[]')"
+    )
     c.commit()
     c.close()
 
@@ -114,6 +117,6 @@ def test_an_existing_database_gains_the_column(tmp_path):
 def test_opening_an_already_migrated_database_is_a_no_op(tmp_path):
     path = tmp_path / "metrics.sqlite"
     m.open_db(path).close()
-    conn = m.open_db(path)          # must not raise "duplicate column name"
+    conn = m.open_db(path)  # must not raise "duplicate column name"
     assert "cpu_ms" in {r[1] for r in conn.execute("PRAGMA table_info(request_spans)")}
     conn.close()

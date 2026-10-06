@@ -341,20 +341,26 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                 : `${L} — ${n.toLocaleString()} lemma${n === 1 ? "" : "s"}`;
             };
             return (
-              <span
-                class={klass()}
+              <button
+                type="button"
+                class={`conc-btn ${klass()}`}
                 title={title()}
+                aria-pressed={L === letter()}
                 onClick={() => props.onNavigate({ letter: L === letter() ? undefined : L })}
               >
                 {L}
-              </span>
+              </button>
             );
           }}
         </For>
         <Show when={letter()}>
-          <span class="l az-all" onClick={() => props.onNavigate({ letter: undefined })}>
+          <button
+            type="button"
+            class="conc-btn l az-all"
+            onClick={() => props.onNavigate({ letter: undefined })}
+          >
             all
-          </span>
+          </button>
         </Show>
       </div>
 
@@ -389,18 +395,19 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
           <div class="conc-mob-sheet">
             {filterBar()}
             <div class="conc-mob-sheet-foot">
-              <span
-                class="reset"
+              <button
+                type="button"
+                class="conc-btn reset"
                 onClick={() => {
                   resetAll();
                   setSheetOpen(false);
                 }}
               >
                 ↺ Reset all
-              </span>
-              <span class="done" onClick={() => setSheetOpen(false)}>
+              </button>
+              <button type="button" class="conc-btn done" onClick={() => setSheetOpen(false)}>
                 <b>{data()?.total_lemmas.toLocaleString() ?? "—"}</b> lemmas →
-              </span>
+              </button>
             </div>
           </div>
         </MobileSheet>
@@ -447,12 +454,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               <ConcEmpty icon="!" title="Couldn't load the lemma index">
                 <div>{error()}</div>
                 <div style={{ "margin-top": "10px" }}>
-                  <span
-                    style={{ color: "var(--accent)", cursor: "pointer" }}
-                    onClick={() => setRetryKey((k) => k + 1)}
-                  >
-                    retry
-                  </span>
+                  <RetryButton onClick={() => setRetryKey((k) => k + 1)} />
                 </div>
               </ConcEmpty>
             }
@@ -469,7 +471,7 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
               footer={
                 <>
                   Runs once per edition. Re-fetch when complete:{" "}
-                  <a onClick={() => setRetryKey((k) => k + 1)}>retry</a>
+                  <RetryButton onClick={() => setRetryKey((k) => k + 1)} />
                 </>
               }
             />
@@ -509,7 +511,8 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
                   }
                   footer={
                     <>
-                      Re-fetch when complete: <a onClick={() => setRetryKey((k) => k + 1)}>retry</a>
+                      Re-fetch when complete:{" "}
+                      <RetryButton onClick={() => setRetryKey((k) => k + 1)} />
                     </>
                   }
                 />
@@ -736,4 +739,14 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
     appendError: pagination.appendError,
     setSentinelEl,
   };
+}
+
+/** The index's retry control: a real button styled as an inline link, so it
+ *  is keyboard-reachable (#726). Three error and empty states share it. */
+function RetryButton(props: { onClick: () => void }) {
+  return (
+    <button type="button" class="conc-btn conc-link" onClick={() => props.onClick()}>
+      retry
+    </button>
+  );
 }

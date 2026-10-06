@@ -16,10 +16,10 @@ const RAIL_READY: RailState = {
   ref: "¶1",
   response: {
     translated_text: "The spirit",
-    literal_text: null,
+    literal_text: "The spirit",
     model: "stub",
     cached: false,
-  } as never,
+  },
 };
 
 function renderRail(props: Partial<Parameters<typeof RailContent>[0]> = {}) {

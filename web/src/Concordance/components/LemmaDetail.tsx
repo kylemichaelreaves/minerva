@@ -187,12 +187,13 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                 "margin-top": "2px",
               }}
             >
-              <a
-                style={{ color: "var(--accent)", cursor: "pointer", "text-decoration": "none" }}
+              <button
+                type="button"
+                class="conc-btn conc-link"
                 onClick={() => props.onBackToIndex()}
               >
                 ‹ back to index
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -263,10 +264,22 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
                   />
                 </Show>
                 <Show when={props.surface}>
-                  <a onClick={() => props.onNavigate({ surface: undefined })}>Drop Surface form</a>
+                  <button
+                    type="button"
+                    class="broaden-link"
+                    onClick={() => props.onNavigate({ surface: undefined })}
+                  >
+                    Drop Surface form
+                  </button>
                 </Show>
                 <Show when={scope() !== "corpus"}>
-                  <a onClick={() => props.onNavigate({ scope: "corpus" })}>Zoom to corpus</a>
+                  <button
+                    type="button"
+                    class="broaden-link"
+                    onClick={() => props.onNavigate({ scope: "corpus" })}
+                  >
+                    Zoom to corpus
+                  </button>
                 </Show>
               </div>
             </ConcEmpty>
@@ -332,18 +345,19 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
           <div class="conc-mob-sheet">
             {filterRail(d)}
             <div class="conc-mob-sheet-foot">
-              <span
-                class="reset"
+              <button
+                type="button"
+                class="conc-btn reset"
                 onClick={() => {
                   resetAllFilters();
                   setSheetOpen(false);
                 }}
               >
                 ↺ Reset all
-              </span>
-              <span class="done" onClick={() => setSheetOpen(false)}>
+              </button>
+              <button type="button" class="conc-btn done" onClick={() => setSheetOpen(false)}>
                 <b>{d().total.toLocaleString()}</b> occurrences →
-              </span>
+              </button>
             </div>
           </div>
         </MobileSheet>

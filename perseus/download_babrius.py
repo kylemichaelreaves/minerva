@@ -57,21 +57,15 @@ GREEK_TEI_URL = (
 )
 # Retained for `--keep-crusius` only; not ingested.
 CRUSIUS_OCR_URL = (
-    "https://archive.org/download/babriifabvlaeaes00babruoft/"
-    "babriifabvlaeaes00babruoft_djvu.txt"
+    "https://archive.org/download/babriifabvlaeaes00babruoft/babriifabvlaeaes00babruoft_djvu.txt"
 )
-ENGLISH_URL = (
-    "https://archive.org/download/bib_fict_4103078/"
-    "bib_fict_4103078_djvu.txt"
-)
+ENGLISH_URL = "https://archive.org/download/bib_fict_4103078/bib_fict_4103078_djvu.txt"
 
 UA = "minerva-corpus-fetch/1.0 (+personal research; PD-only sources)"
 
 
 def _fetch(url: str) -> str:
-    return fetch_with_retry(
-        url, timeout=60, user_agent=UA, encoding="utf-8"
-    )
+    return fetch_with_retry(url, timeout=60, user_agent=UA, encoding="utf-8")
 
 
 # Greek character predicate. Use Unicode block ranges.
@@ -178,9 +172,7 @@ def _extract_greek(raw: str) -> str:
 # Perry index ref "(P. F. nnn.)" for #2 onward. We use the Perry ref
 # as the canonical fable boundary marker — it appears immediately
 # below the title for every fable in the body.
-_DAVIES_FABLE = re.compile(
-    r"^\s*FABLE\s+([IVXLC]+)\.?\s*$", re.IGNORECASE
-)
+_DAVIES_FABLE = re.compile(r"^\s*FABLE\s+([IVXLC]+)\.?\s*$", re.IGNORECASE)
 # Perry / Babrian cross-reference, printed under every fable's title:
 # "(P. F. 403.)". These lines ARE the fable boundaries, so a variant this
 # pattern misses is a fable the corpus loses silently.
@@ -211,9 +203,7 @@ _PERRY_REF = re.compile(
 # All-caps title line — Davies's fable titles. At least 3 letters,
 # mostly uppercase, no terminal period (the title ends with "." but
 # we need a flexible match).
-_ALLCAPS_TITLE = re.compile(
-    r"^\s*[A-Z][A-Z ’',\-]{3,}\.?\s*$"
-)
+_ALLCAPS_TITLE = re.compile(r"^\s*[A-Z][A-Z ’',\-]{3,}\.?\s*$")
 
 
 def _extract_english(raw: str) -> str:
@@ -247,9 +237,7 @@ def _extract_english(raw: str) -> str:
             end = i
             break
 
-    out: list[str] = [
-        "# Babrius — Davies 1860 English verse (archive.org bib_fict_4103078)\n"
-    ]
+    out: list[str] = ["# Babrius — Davies 1860 English verse (archive.org bib_fict_4103078)\n"]
     current_fable = 0  # We renumber sequentially since titles vary.
     current_title: str | None = None
     fable_lines: list[str] = []

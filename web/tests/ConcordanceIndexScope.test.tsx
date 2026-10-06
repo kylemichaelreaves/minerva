@@ -4,10 +4,13 @@
 // scope=work without ?work=).
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type * as concordanceApi from "~/api/concordanceApi";
+import type { LemmaIndexResponse } from "~/api/concordanceApi";
+import type * as readerApi from "~/api/readerApi";
 import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 
-const fetchLemmaIndex = vi.fn();
-const listWorks = vi.fn();
+const fetchLemmaIndex = vi.fn<typeof concordanceApi.fetchLemmaIndex>();
+const listWorks = vi.fn<typeof readerApi.listWorks>();
 
 const WORKS = [
   {
@@ -40,21 +43,22 @@ const WORKS = [
 ];
 
 vi.mock("~/api/readerApi", () => ({
-  listWorks: (...args: unknown[]) => listWorks(...args) as never,
+  listWorks: (...args: Parameters<typeof readerApi.listWorks>) => listWorks(...args),
 }));
 
 vi.mock("~/api/concordanceApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("~/api/concordanceApi")>();
   return {
     ...mod,
-    fetchLemmaIndex: (...args: unknown[]) => fetchLemmaIndex(...args) as never,
+    fetchLemmaIndex: (...args: Parameters<typeof concordanceApi.fetchLemmaIndex>) =>
+      fetchLemmaIndex(...args),
   };
 });
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
 import { must } from "./helpers/must";
 
-const emptyIndex = {
+const emptyIndex: LemmaIndexResponse = {
   scope: "work",
   scope_label: "Kritik der reinen Vernunft",
   lang: "deu",
@@ -62,10 +66,13 @@ const emptyIndex = {
   sort: "freq",
   total_lemmas: 1,
   total_occurrences: 1313,
+  letter_counts: {},
   limit: 200,
   offset: 0,
+  next_offset: null,
   rows: [
     {
+      rank: 1,
       lemma: "Begriff",
       pos: "NOUN",
       count: 1313,
@@ -110,7 +117,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0];
     expect(args.scope).toBe("work");
     expect(args.works).toEqual(["Kritik der reinen Vernunft"]);
     expect(await screen.findByText("Begriff")).toBeInTheDocument();
@@ -127,7 +134,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0];
     expect(args.scope).toBe("work");
     expect(args.works).toEqual(["Kritik der reinen Vernunft", "Phänomenologie des Geistes"]);
   });
@@ -174,7 +181,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0];
     expect(args.scope).toBe("author");
     expect(args.authors).toEqual(["Kant"]);
   });
@@ -190,7 +197,7 @@ describe("ConcordanceIndexPage scope narrowing", () => {
       />
     ));
     await waitFor(() => expect(fetchLemmaIndex).toHaveBeenCalled());
-    const args = must(fetchLemmaIndex.mock.calls[0])[0] as Record<string, unknown>;
+    const args = must(fetchLemmaIndex.mock.calls[0])[0];
     expect(args.scope).toBe("author");
     expect(args.authors).toEqual(["Kant", "Hegel"]);
   });
