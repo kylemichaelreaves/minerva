@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 import { must } from "./helpers/must";
+import { expectSurfaceFailures } from "./surfaceFailures";
 
 // #426. The app mounted no `ErrorBoundary` anywhere, so anything that threw
 // during a render escaped the tree entirely: no fallback, no message, and
@@ -18,6 +19,9 @@ function Boom(): never {
 }
 
 describe("<SurfaceErrorBoundary />", () => {
+  // Every test here crashes a surface on purpose.
+  beforeEach(expectSurfaceFailures);
+
   it("renders children when nothing throws", () => {
     const { container } = render(() => (
       <SurfaceErrorBoundary label="Test surface">

@@ -5,6 +5,8 @@ import { invalidateReads } from "~/api/readCache";
 import { _resetToastsForTesting } from "~/utils/apiError";
 import { okResponse } from "./helpers/testRouting";
 import { must } from "./helpers/must";
+import { makeLemmaDetail, makeLemmaIndex } from "./helpers/concordance";
+import { makeNetworkSummary } from "./helpers/networkSummary";
 
 // The concordance is a step-out from the Reader, not a destination (#348).
 //
@@ -63,6 +65,29 @@ const INDEX_HASH = "#/concordance?lang=deu";
 
 let fetchMock: MockedFunction<typeof fetch>;
 
+/** What every route in this file fetches: the Reader's range and maps, plus
+ *  the concordance and network surfaces it steps out to. Those three used to
+ *  fall through to `{}`, so each surface crashed into its error boundary and
+ *  the tests asserted against a skeleton or the fallback (#761). Anything
+ *  still unlisted answers `{}`; a surface that crashes on it now fails the
+ *  test (tests/surfaceFailures.ts). */
+function answer(input: RequestInfo | URL): Promise<Response> {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.includes("occurrence_map") || url.includes("references_map")) {
+    return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
+  }
+  if (url.includes("/api/concordance/lemma")) return Promise.resolve(okResponse(makeLemmaDetail()));
+  if (url.includes("/api/concordance/index")) return Promise.resolve(okResponse(makeLemmaIndex()));
+  if (url.includes("/api/network/summary"))
+    return Promise.resolve(okResponse(makeNetworkSummary()));
+  if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
+  if (url.includes("/api/works")) return Promise.resolve(okResponse({ works: [] }));
+  if (url.includes("/api/conversations")) {
+    return Promise.resolve(okResponse({ conversations: [] }));
+  }
+  return Promise.resolve(okResponse({}));
+}
+
 /** Drive the hash the way the browser's back/forward buttons do — the app
  *  reads the URL on popstate and never writes history from an effect. */
 function go(hash: string): void {
@@ -85,18 +110,7 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
     invalidateReads();
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("occurrence_map") || url.includes("references_map")) {
-        return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
-      }
-      if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
-      if (url.includes("/api/works")) return Promise.resolve(okResponse({ works: [] }));
-      if (url.includes("/api/conversations")) {
-        return Promise.resolve(okResponse({ conversations: [] }));
-      }
-      return Promise.resolve(okResponse({}));
-    });
+    fetchMock.mockImplementation(answer);
   });
 
   afterEach(() => {
@@ -212,7 +226,11 @@ describe("the concordance as a step-out that keeps the Reader mounted", () => {
 
     await goAndSettle(LEMMA_HASH);
 
-    expect(document.querySelector(".conc-stage")).not.toBeNull();
+    // `.lemma-id` renders from the lemma payload. `.conc-stage` alone also
+    // matches the loading skeleton, which is all this used to see (#761).
+    await waitFor(() => {
+      expect(document.querySelector(".lemma-id")).toHaveTextContent("12 occurrences");
+    });
   });
 });
 
@@ -223,18 +241,7 @@ describe("the network and refs routes as full-page destinations", () => {
     invalidateReads();
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockImplementation((input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("occurrence_map") || url.includes("references_map")) {
-        return Promise.resolve(okResponse({ work_id: 781, lang: "deu", by_chunk: {} }));
-      }
-      if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
-      if (url.includes("/api/works")) return Promise.resolve(okResponse({ works: [] }));
-      if (url.includes("/api/conversations")) {
-        return Promise.resolve(okResponse({ conversations: [] }));
-      }
-      return Promise.resolve(okResponse({}));
-    });
+    fetchMock.mockImplementation(answer);
   });
 
   afterEach(() => {
@@ -270,6 +277,12 @@ describe("the network and refs routes as full-page destinations", () => {
 
     expect(document.querySelector(".reader")).toBeNull();
     expect(keepAlive()).toBeNull();
+    // And the dashboard itself rendered — this ran against the error
+    // fallback until the summary was mocked (#761).
+    await waitFor(() => {
+      expect(document.querySelector(".net-loading")).toBeNull();
+    });
+    expect(document.querySelector(".net-error")).toBeNull();
   });
 
   it("releases the Reader for the refs browser", async () => {
@@ -298,7 +311,7 @@ describe("the network and refs routes as full-page destinations", () => {
     window.history.replaceState(null, "", LEMMA_HASH);
     render(() => <App />);
     await waitFor(() => {
-      expect(document.querySelector(".conc-stage")).not.toBeNull();
+      expect(document.querySelector(".lemma-id")).toHaveTextContent("12 occurrences");
     });
 
     expect(keepAlive()).toBeNull();

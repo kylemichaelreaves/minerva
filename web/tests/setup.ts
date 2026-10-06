@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach } from "vitest";
 import { cleanup } from "@solidjs/testing-library";
+import { assertNoUnexpectedSurfaceFailures, recordSurfaceFailure } from "./surfaceFailures";
 
 // jsdom doesn't implement window.matchMedia. The `useMobile` hook
 // reads it at module load time (to seed its initial signal), so any
@@ -113,7 +114,20 @@ if (typeof document !== "undefined" && !document.fonts) {
 // belt-and-braces.
 afterEach(() => {
   cleanup();
+  assertNoUnexpectedSurfaceFailures();
 });
+
+// SurfaceErrorBoundary logs "[<label>] surface failed:" and renders a
+// fallback, which no test asserted against — see tests/surfaceFailures.ts.
+// Wrapped here, not spied, so a test's own `vi.spyOn(console, "error")`
+// still layers on top and `restoreAllMocks` puts this wrapper back.
+const consoleError = console.error.bind(console);
+console.error = (...args: unknown[]) => {
+  if (typeof args[0] === "string" && args[0].endsWith(" surface failed:")) {
+    recordSurfaceFailure(args);
+  }
+  consoleError(...args);
+};
 
 // Solid's createResource emits fetcher rejections to the global
 // unhandledRejection channel even when the consumer reads `.error`
