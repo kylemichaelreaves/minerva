@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
+import { afterAll, afterEach } from "vitest";
 import { cleanup } from "@solidjs/testing-library";
 import { assertNoUnexpectedSurfaceFailures, recordSurfaceFailure } from "./surfaceFailures";
 
@@ -136,24 +136,33 @@ console.error = (...args: unknown[]) => {
 // the rejection escapes the test runner and vitest flags it. Swallow
 // rejections that look like our own apiGet errors. Real assertion
 // failures still surface — they don't go through this channel.
+//
+// Removed again after each file. Under `pool: "vmThreads"` every test file
+// runs in a fresh VM context, but the worker's `process` is shared, so a
+// listener left registered outlives its file: one more per file, each holding
+// a closure over a dead context, until Node warns past ten (#775).
+function swallowApiRejection(reason: unknown): void {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  // `ApiError` by name, not by message shape. The message is whatever
+  // `readErrorDetail` pulled out of the body, which for a deliberate refusal
+  // is prose — "syntax parsing is deu-only; chunk 'rep-509d' is 'eng'" — and
+  // matches neither pattern below. Those two stay for the errors that are
+  // not ApiErrors at all.
+  if (
+    (reason instanceof Error && reason.name === "ApiError") ||
+    msg.startsWith("fetch returned no response for ") ||
+    /^\d{3}\b/.test(msg)
+  ) {
+    // Expected: a test didn't mock a parallel-mount API call.
+    // The component already shows the error state; consume here.
+    return;
+  }
+  throw reason instanceof Error ? reason : new Error(msg);
+}
 if (typeof process !== "undefined") {
-  process.on("unhandledRejection", (reason) => {
-    const msg = reason instanceof Error ? reason.message : String(reason);
-    // `ApiError` by name, not by message shape. The message is whatever
-    // `readErrorDetail` pulled out of the body, which for a deliberate refusal
-    // is prose — "syntax parsing is deu-only; chunk 'rep-509d' is 'eng'" — and
-    // matches neither pattern below. Those two stay for the errors that are
-    // not ApiErrors at all.
-    if (
-      (reason instanceof Error && reason.name === "ApiError") ||
-      msg.startsWith("fetch returned no response for ") ||
-      /^\d{3}\b/.test(msg)
-    ) {
-      // Expected: a test didn't mock a parallel-mount API call.
-      // The component already shows the error state; consume here.
-      return;
-    }
-    throw reason instanceof Error ? reason : new Error(msg);
+  process.on("unhandledRejection", swallowApiRejection);
+  afterAll(() => {
+    process.off("unhandledRejection", swallowApiRejection);
   });
 }
 

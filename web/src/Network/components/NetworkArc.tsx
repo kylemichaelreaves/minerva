@@ -19,6 +19,7 @@ import { YEAR_TICKS, formatYear } from "~/utils/atlasGeometry";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { NetworkDrilldownShell } from "~/Network/components/NetworkDrilldownShell";
 import { YEAR_BY_NAME, selectArcPairs } from "~/Network/components/ArcPanel";
+import { onActivateKey } from "~/utils/activateKey";
 
 interface Props {
   minConfidence?: number;
@@ -193,6 +194,7 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
         class="net-arc-svg"
         viewBox={`0 0 ${VB_WIDTH} ${layout().vbHeight}`}
         preserveAspectRatio="xMidYMin meet"
+        // eslint-disable-next-line minerva/no-mouse-only-click -- click-outside dismiss of the tooltip; nothing to reach
         onClick={() => setHovered(null)}
       >
         <line
@@ -229,7 +231,14 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
           {(a) => {
             const nudged = a.yLbl - a.yNat > 1.5;
             return (
-              <g class="net-arc-author" onClick={() => props.onOpenAuthor(a.name)}>
+              <g
+                class="net-arc-author"
+                role="button"
+                tabindex="0"
+                aria-label={`${a.name}: open author`}
+                onClick={() => props.onOpenAuthor(a.name)}
+                onKeyDown={onActivateKey(() => props.onOpenAuthor(a.name))}
+              >
                 <line
                   x1={BASE_X - 5}
                   y1={a.yNat}
@@ -265,6 +274,11 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
             const stroke = backward ? "var(--accent)" : "var(--ink-mute, #6b6357)";
             const sw = 0.6 + Math.log10(p.n + 1) * 0.5;
             const isHovered = () => hovered()?.pair === p;
+            // Anchor the tooltip's vertical position to the arc's midpoint so
+            // it visually associates with the tapped arc rather than the touch
+            // point (which on mobile is wherever the user's finger happened to
+            // land).
+            const show = () => setHovered({ pair: p, yViewBox: (yA + yB) / 2 });
             return (
               <path
                 d={`M ${BASE_X} ${yA} A ${rx} ${ry} 0 0 1 ${BASE_X} ${yB}`}
@@ -274,14 +288,14 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
                 opacity={isHovered() ? 0.85 : 0.5}
                 stroke-linecap="round"
                 style={{ cursor: "pointer" }}
+                role="button"
+                tabindex="0"
+                aria-label={`${p.src} → ${p.tgt}: ${p.n.toLocaleString()} reference${p.n === 1 ? "" : "s"}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Anchor the tooltip's vertical position to the arc's
-                  // midpoint so it visually associates with the tapped
-                  // arc rather than the touch point (which on mobile
-                  // is wherever the user's finger happened to land).
-                  setHovered({ pair: p, yViewBox: (yA + yB) / 2 });
+                  show();
                 }}
+                onKeyDown={onActivateKey(show)}
               />
             );
           }}
@@ -305,6 +319,7 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
             <div
               class="net-tooltip net-tooltip-mobile"
               style={{ top: `${tipTop()}px` }}
+              // eslint-disable-next-line minerva/no-mouse-only-click -- tap-to-dismiss; focusing another arc or author replaces it
               onClick={(e) => {
                 e.stopPropagation();
                 setHovered(null);

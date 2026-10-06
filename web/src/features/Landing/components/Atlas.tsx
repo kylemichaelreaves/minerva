@@ -18,6 +18,7 @@ import {
   type AtlasAuthor,
   type Tradition,
 } from "~/data/atlasData";
+import { onActivateKey } from "~/utils/activateKey";
 
 /** Format one corpus-fact number, tolerating a missing field.
  *
@@ -119,9 +120,15 @@ export function Atlas(props: {
               return (
                 <g
                   class="atlas-author"
+                  role="button"
+                  tabindex="0"
+                  aria-label={`${a.name}: open references`}
                   onMouseEnter={() => setHover(a)}
                   onMouseLeave={() => setHover((h) => (h === a ? null : h))}
+                  onFocus={() => setHover(a)}
+                  onBlur={() => setHover((h) => (h === a ? null : h))}
                   onClick={() => props.onPickAuthor(a.name)}
+                  onKeyDown={onActivateKey(() => props.onPickAuthor(a.name))}
                   style={{ cursor: "pointer" }}
                 >
                   <Show when={needsConnector}>

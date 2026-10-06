@@ -24,17 +24,23 @@ export function ActiveFilterStrip(props: {
   return (
     <Show when={props.items.length > 0}>
       <div class="afs">
-        <span class="afs-lab">
-          Active · {props.items.length}
-        </span>
+        <span class="afs-lab">Active · {props.items.length}</span>
         <For each={props.items}>
           {(it) => (
             <span class="afs-pill">
               <span class="k">{it.k}</span>
               <span>{it.v}</span>
-              <span class="x" onClick={(e) => { e.stopPropagation(); it.onRemove(); }}>
+              <button
+                type="button"
+                class="x"
+                aria-label={`Remove ${it.k}: ${it.v}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  it.onRemove();
+                }}
+              >
                 ×
-              </span>
+              </button>
             </span>
           )}
         </For>
@@ -43,9 +49,9 @@ export function ActiveFilterStrip(props: {
             <b>{props.count?.toLocaleString()}</b> {props.countLabel ?? "results"}
           </span>
         </Show>
-        <span class="afs-reset" onClick={() => props.onReset()}>
+        <button type="button" class="afs-reset" onClick={() => props.onReset()}>
           ↺ reset all
-        </span>
+        </button>
       </div>
     </Show>
   );
