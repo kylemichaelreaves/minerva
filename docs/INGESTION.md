@@ -641,6 +641,11 @@ authoritative source-of-truth in git).
 
 ## 12. Run the detection pipeline
 
+`make post-ingest AUTHOR=<NewAuthor> LLM_CALLS=500` runs this whole section,
+plus the embed and lemmatize passes before it and `make generate-authors`
+after. Without `LLM_CALLS` it stops short of the paid llm-verify step and
+says so. The steps it runs, by hand:
+
 ```sh
 scripts/snapshot-db.sh pre-<author>-refs
 
