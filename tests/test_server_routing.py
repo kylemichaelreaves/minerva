@@ -90,17 +90,16 @@ def test_slug_pair_route_matches_two_segments(populated_db) -> None:
 
 
 def test_slug_pair_route_does_not_shadow_the_numeric_sub_resources(populated_db) -> None:
-    """`/api/works/42/term_occurrences` is two segments too.
+    """`/api/works/42/occurrence_map` is two segments too.
 
     Registered before the numeric routes, the slug pattern would eat every one
-    of them and the reader would lose term occurrences, occurrence maps, lemma
-    highlights and the references map at once.
+    of them and the reader would lose occurrence maps, lemma highlights and the
+    references map at once.
     """
 
     deps = make_deps(populated_db, StubBackend())
     routes = build_get_routes(deps, dict)
     for path, label in (
-        ("/api/works/42/term_occurrences", "work-occurrences"),
         ("/api/works/42/occurrence_map", "work-occurrence-map"),
         ("/api/works/42/lemma_highlights", "lemma-highlights"),
         ("/api/works/42/references_map", "work references map"),

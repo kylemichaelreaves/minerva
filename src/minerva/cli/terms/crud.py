@@ -25,8 +25,8 @@ def cmd_terms_list(args: argparse.Namespace, conn: sqlite3.Connection) -> int:
         where.append("t.source_language = ?")
         params.append(args.lang)
     if args.like:
-        # Matches the HTTP path in terms_queries.py — without ESCAPE
-        # a `%` in --like matches every term instead of none (#120).
+        # Without ESCAPE a `%` in --like matches every term instead of
+        # none (#120).
         where.append("t.source_form LIKE ? ESCAPE '\\'")
         params.append(f"%{escape_like_substring(args.like)}%")
     if where:

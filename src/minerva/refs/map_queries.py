@@ -14,44 +14,6 @@ from .filters import parse_filters, status_clause
 from .row_utils import xref_row_to_dict
 
 
-def chunk_references(
-    conn: sqlite3.Connection,
-    chunk_id: str,
-    query: dict[str, str],
-) -> dict[str, Any]:
-    """``GET /api/chunks/:chunk_id/references``."""
-
-    statuses, min_conf = parse_filters(query)
-    status_sql, status_params = status_clause(statuses, min_conf)
-
-    outgoing_rows = conn.execute(
-        f"SELECT xr.*, "
-        f"       rt.canonical_author, rt.canonical_work, "
-        f"       rt.in_corpus_work_id "
-        f"FROM cross_references xr "
-        f"JOIN reference_targets rt ON rt.id = xr.target_id "
-        f"WHERE xr.source_chunk_id = ? AND {status_sql} "
-        f"ORDER BY xr.confidence DESC, xr.id",
-        (chunk_id, *status_params),
-    ).fetchall()
-    incoming_rows = conn.execute(
-        f"SELECT xr.*, "
-        f"       rt.canonical_author, rt.canonical_work, "
-        f"       rt.in_corpus_work_id "
-        f"FROM cross_references xr "
-        f"JOIN reference_targets rt ON rt.id = xr.target_id "
-        f"WHERE xr.target_chunk_id = ? AND {status_sql} "
-        f"ORDER BY xr.confidence DESC, xr.id",
-        (chunk_id, *status_params),
-    ).fetchall()
-
-    return {
-        "chunk_id": chunk_id,
-        "outgoing": [xref_row_to_dict(r) for r in outgoing_rows],
-        "incoming": [xref_row_to_dict(r) for r in incoming_rows],
-    }
-
-
 def work_references_map(
     conn: sqlite3.Connection,
     work_id: int,

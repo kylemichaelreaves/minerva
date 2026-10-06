@@ -7,10 +7,15 @@ from __future__ import annotations
 from conftest import StubBackend
 from conftest import make_deps as _make_deps
 
-from minerva import server
 from minerva.errors import NotFoundError
-from minerva.http.serve import _route_error_status
-from minerva.http.server_core import _HTTPError
+from minerva.http.serve import _cors_headers, _route_error_status
+from minerva.http.server_core import (
+    _BUCKET_SWEEP_INTERVAL,
+    _MAX_BUCKETS,
+    _RATE_LIMITS,
+    _HTTPError,
+    _RateLimiter,
+)
 
 
 def _make_deps_with_limiter(populated_db, backend, **kwargs):
@@ -18,7 +23,7 @@ def _make_deps_with_limiter(populated_db, backend, **kwargs):
     per-route bucket counts don't bleed across cases."""
 
     deps = _make_deps(populated_db, backend, **kwargs)
-    deps.rate_limiter = server._RateLimiter()
+    deps.rate_limiter = _RateLimiter()
     return deps
 
 
@@ -35,7 +40,7 @@ def test_rate_limiter_allows_under_cap(populated_db):
 def test_rate_limiter_blocks_over_cap(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap, _ = server._RATE_LIMITS["chat"]
+    cap, _ = _RATE_LIMITS["chat"]
     for _ in range(cap):
         assert deps.rate_limiter.allow("chat", "1.2.3.4") is True
     assert deps.rate_limiter.allow("chat", "1.2.3.4") is False
@@ -44,7 +49,7 @@ def test_rate_limiter_blocks_over_cap(populated_db):
 def test_rate_limiter_isolates_ips(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap, _ = server._RATE_LIMITS["chat"]
+    cap, _ = _RATE_LIMITS["chat"]
     for _ in range(cap):
         deps.rate_limiter.allow("chat", "1.1.1.1")
     # Different IP is unaffected.
@@ -54,7 +59,7 @@ def test_rate_limiter_isolates_ips(populated_db):
 def test_rate_limiter_isolates_routes(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap_chat, _ = server._RATE_LIMITS["chat"]
+    cap_chat, _ = _RATE_LIMITS["chat"]
     for _ in range(cap_chat):
         deps.rate_limiter.allow("chat", "1.1.1.1")
     # /api/translate has its own bucket.
@@ -64,7 +69,7 @@ def test_rate_limiter_isolates_routes(populated_db):
 def test_rate_limiter_window_expires(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps_with_limiter(populated_db, backend)
-    cap, window = server._RATE_LIMITS["chat"]
+    cap, window = _RATE_LIMITS["chat"]
     # Fill the bucket at t=0.
     for _ in range(cap):
         assert deps.rate_limiter.allow("chat", "1.1.1.1", now=0.0) is True
@@ -86,8 +91,8 @@ def test_rate_limiter_drains_expired_timestamps(populated_db):
     still passes.
     """
 
-    rl = server._RateLimiter()
-    _cap, window = server._RATE_LIMITS["chat"]
+    rl = _RateLimiter()
+    _cap, window = _RATE_LIMITS["chat"]
 
     rl.allow("chat", "1.1.1.1", now=0.0)
     rl.allow("chat", "1.1.1.1", now=window + 1.0)
@@ -106,12 +111,12 @@ def test_rate_limiter_sweeps_idle_buckets(populated_db):
     keyed on an attacker-chosen value under `serve --host 0.0.0.0`.
     """
 
-    rl = server._RateLimiter()
+    rl = _RateLimiter()
     rl.allow("chat", "1.1.1.1", now=0.0)
     assert ("chat", "1.1.1.1") in rl._buckets
 
     # A request from a different IP, far enough out that the sweep runs.
-    rl.allow("chat", "2.2.2.2", now=server._BUCKET_SWEEP_INTERVAL + 1.0)
+    rl.allow("chat", "2.2.2.2", now=_BUCKET_SWEEP_INTERVAL + 1.0)
 
     assert ("chat", "1.1.1.1") not in rl._buckets, "idle bucket was never evicted"
     assert ("chat", "2.2.2.2") in rl._buckets
@@ -121,11 +126,11 @@ def test_rate_limiter_bucket_count_is_bounded(populated_db):
     """An IP-rotating client must not be able to grow `_buckets`
     without bound between sweeps."""
 
-    rl = server._RateLimiter()
-    for i in range(server._MAX_BUCKETS * 2):
+    rl = _RateLimiter()
+    for i in range(_MAX_BUCKETS * 2):
         rl.allow("chat", f"10.{i // 65536}.{(i // 256) % 256}.{i % 256}", now=0.0)
 
-    assert len(rl._buckets) <= server._MAX_BUCKETS
+    assert len(rl._buckets) <= _MAX_BUCKETS
 
 
 def test_rate_limiter_active_bucket_survives_sweep(populated_db):
@@ -138,9 +143,9 @@ def test_rate_limiter_active_bucket_survives_sweep(populated_db):
     be live when the sweep runs.
     """
 
-    rl = server._RateLimiter()
-    cap, window = server._RATE_LIMITS["chat"]
-    sweep = server._BUCKET_SWEEP_INTERVAL
+    rl = _RateLimiter()
+    cap, window = _RATE_LIMITS["chat"]
+    sweep = _BUCKET_SWEEP_INTERVAL
 
     rl.allow("chat", "9.9.9.9", now=0.0)  # first call arms the sweep clock
 
@@ -173,7 +178,7 @@ def test_cors_loopback_allows_default_vite_origin(populated_db):
     deps = _make_deps(populated_db, backend)
     deps.cors_wildcard = False
     deps.allowed_origins = frozenset({"http://localhost:5173"})
-    h = server._cors_headers(deps, origin="http://localhost:5173")
+    h = _cors_headers(deps, origin="http://localhost:5173")
     assert h["Access-Control-Allow-Origin"] == "http://localhost:5173"
     assert h["Vary"] == "Origin"
 
@@ -183,7 +188,7 @@ def test_cors_loopback_rejects_unlisted_origin(populated_db):
     deps = _make_deps(populated_db, backend)
     deps.cors_wildcard = False
     deps.allowed_origins = frozenset({"http://localhost:5173"})
-    h = server._cors_headers(deps, origin="https://attacker.example")
+    h = _cors_headers(deps, origin="https://attacker.example")
     assert "Access-Control-Allow-Origin" not in h
 
 
@@ -192,7 +197,7 @@ def test_cors_non_local_with_allow_list_echoes_matching_origin(populated_db):
     deps = _make_deps(populated_db, backend)
     deps.cors_wildcard = False
     deps.allowed_origins = frozenset({"https://trusted.example"})
-    h = server._cors_headers(deps, origin="https://trusted.example")
+    h = _cors_headers(deps, origin="https://trusted.example")
     assert h["Access-Control-Allow-Origin"] == "https://trusted.example"
     assert h["Vary"] == "Origin"
 
@@ -202,7 +207,7 @@ def test_cors_non_local_without_match_omits_allow_origin(populated_db):
     deps = _make_deps(populated_db, backend)
     deps.cors_wildcard = False
     deps.allowed_origins = frozenset({"https://trusted.example"})
-    h = server._cors_headers(deps, origin="https://attacker.example")
+    h = _cors_headers(deps, origin="https://attacker.example")
     # Browsers fall through to same-origin policy when ACAO is missing.
     assert "Access-Control-Allow-Origin" not in h
 
@@ -212,14 +217,14 @@ def test_cors_non_local_empty_allow_list_emits_nothing(populated_db):
     deps = _make_deps(populated_db, backend)
     deps.cors_wildcard = False
     deps.allowed_origins = frozenset()
-    h = server._cors_headers(deps, origin="https://anything.example")
+    h = _cors_headers(deps, origin="https://anything.example")
     assert "Access-Control-Allow-Origin" not in h
 
 
 def test_cors_allow_methods_includes_patch(populated_db):
     backend = StubBackend()
     deps = _make_deps(populated_db, backend)
-    h = server._cors_headers(deps, origin=None)
+    h = _cors_headers(deps, origin=None)
     assert "PATCH" in h["Access-Control-Allow-Methods"]
 
 

@@ -10,7 +10,6 @@ from urllib.parse import unquote
 from .handlers import (
     _handle_chat,
     _handle_chunk_context,
-    _handle_chunk_references,
     _handle_chunk_syntax,
     _handle_concordance_index,
     _handle_concordance_lemma,
@@ -31,13 +30,9 @@ from .handlers import (
     _handle_syntax_correction_create,
     _handle_syntax_correction_delete,
     _handle_term_by_id,
-    _handle_terms_by_chunk,
-    _handle_terms_list,
     _handle_translate,
-    _handle_translation_renderings,
     _handle_word_lookup,
     _handle_work_occurrence_map,
-    _handle_work_occurrences,
     _handle_work_range,
     _handle_work_range_by_slug,
     _handle_work_references_map,
@@ -58,15 +53,10 @@ _CHUNK_SYNTAX_CORRECTIONS_RE = re.compile(r"^/api/chunks/([^/]+)/syntax/correcti
 # the id it got back from the POST, and undo should not have to know where the
 # row came from.
 _SYNTAX_CORRECTION_BY_ID_RE = re.compile(r"^/api/syntax/corrections/(\d+)$")
-_TERMS_LIST_PATH = "/api/terms"
 _TERM_BY_ID_RE = re.compile(r"^/api/terms/(\d+)$")
-_TERMS_BY_CHUNK_RE = re.compile(r"^/api/terms/by_chunk/([^/]+)$")
-_WORK_OCCURRENCES_RE = re.compile(r"^/api/works/(\d+)/term_occurrences$")
 _WORK_OCCURRENCE_MAP_RE = re.compile(r"^/api/works/(\d+)/occurrence_map$")
 _WORK_LEMMA_HIGHLIGHTS_RE = re.compile(r"^/api/works/(\d+)/lemma_highlights$")
-_TRANSLATION_RENDERINGS_RE = re.compile(r"^/api/translations/(\d+)/renderings$")
 _WORD_LOOKUP_PATH = "/api/words/lookup"
-_CHUNK_REFERENCES_RE = re.compile(r"^/api/chunks/([^/]+)/references$")
 _WORK_REFERENCES_MAP_RE = re.compile(r"^/api/works/(\d+)/references_map$")
 _REFERENCES_LIST_PATH = "/api/references"
 _REFERENCES_SOURCES_PATH = "/api/references/sources"
@@ -123,11 +113,6 @@ def build_get_routes(
             lambda m: _handle_chunk_syntax(deps, unquote(m.group(1))),
         ),
         (
-            _CHUNK_REFERENCES_RE,
-            "chunk references",
-            lambda m: _handle_chunk_references(deps, unquote(m.group(1)), qs()),
-        ),
-        (
             _WORK_REFERENCES_MAP_RE,
             "work references map",
             lambda m: _handle_work_references_map(deps, int(m.group(1)), qs()),
@@ -151,16 +136,6 @@ def build_get_routes(
             lambda: _handle_concordance_lemma(deps, qs()),
         ),
         (
-            _TERMS_BY_CHUNK_RE,
-            "terms-by-chunk",
-            lambda m: _handle_terms_by_chunk(deps, unquote(m.group(1))),
-        ),
-        (
-            _WORK_OCCURRENCES_RE,
-            "work-occurrences",
-            lambda m: _handle_work_occurrences(deps, int(m.group(1)), qs()),
-        ),
-        (
             _WORK_OCCURRENCE_MAP_RE,
             "work-occurrence-map",
             lambda m: _handle_work_occurrence_map(deps, int(m.group(1)), qs()),
@@ -170,12 +145,6 @@ def build_get_routes(
             "lemma-highlights",
             lambda m: _handle_lemma_highlights(deps, int(m.group(1)), qs()),
         ),
-        (
-            _TRANSLATION_RENDERINGS_RE,
-            "translation-renderings",
-            lambda m: _handle_translation_renderings(deps, int(m.group(1))),
-        ),
-        (_TERMS_LIST_PATH, "terms list", lambda: _handle_terms_list(deps, qs())),
         (
             _TERM_BY_ID_RE,
             "term-by-id",

@@ -86,7 +86,7 @@ def test_the_serve_lock_is_cleared_even_when_serve_raises(args, monkeypatch):
     """`finally: clear_serve_lock` is what stops a crash from locking out the
     next start — the failure mode the lock exists to prevent, inverted."""
 
-    from minerva import server as server_mod
+    from minerva.http import serve as http_serve
 
     monkeypatch.setattr(serve_cmd.serve_lock, "find_running_server", lambda _db: None)
     calls: list[str] = []
@@ -101,7 +101,7 @@ def test_the_serve_lock_is_cleared_even_when_serve_raises(args, monkeypatch):
         calls.append("serve")
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(server_mod, "serve", boom)
+    monkeypatch.setattr(http_serve, "serve", boom)
 
     with pytest.raises(KeyboardInterrupt):
         serve_cmd.cmd_serve(args)
@@ -109,7 +109,7 @@ def test_the_serve_lock_is_cleared_even_when_serve_raises(args, monkeypatch):
 
 
 def test_no_metrics_skips_the_metrics_database(args, monkeypatch, tmp_path):
-    from minerva import server as server_mod
+    from minerva.http import serve as http_serve
 
     args.no_metrics = True
     monkeypatch.setattr(serve_cmd.serve_lock, "find_running_server", lambda _db: None)
@@ -122,7 +122,7 @@ def test_no_metrics_skips_the_metrics_database(args, monkeypatch, tmp_path):
         # Counted here, while `serve` holds it: `cmd_serve` closes it on return.
         seen["chunks"] = kw["conn"].execute("SELECT count(*) FROM chunks").fetchone()[0]
 
-    monkeypatch.setattr(server_mod, "serve", serve)
+    monkeypatch.setattr(http_serve, "serve", serve)
 
     assert serve_cmd.cmd_serve(args) == 0
     assert seen["metrics_conn"] is None
@@ -166,14 +166,14 @@ def test_a_backend_failure_opens_no_databases_at_all(args, monkeypatch, capsys):
 
 _SIGTERM_DURING_SERVE = """
 import os, signal, sys
-from minerva import server
 from minerva.cli import build_parser, serve_cmd
+from minerva.http import serve as http_serve
 
 def serve(**_kw):
     os.kill(os.getpid(), signal.SIGTERM)
     signal.pause()  # unreachable once SIGTERM unwinds; holds the process if it does not
 
-server.serve = serve
+http_serve.serve = serve
 sys.exit(serve_cmd.cmd_serve(build_parser().parse_args(sys.argv[1:])))
 """
 
@@ -226,11 +226,11 @@ def test_every_connection_handed_to_serve_is_closed_when_it_returns(args, monkey
     unraisable-exception warning rather than the ResourceWarning `addopts`
     promotes."""
 
-    from minerva import server as server_mod
+    from minerva.http import serve as http_serve
 
     monkeypatch.setattr(serve_cmd.serve_lock, "find_running_server", lambda _db: None)
     seen: dict[str, object] = {}
-    monkeypatch.setattr(server_mod, "serve", lambda **kw: seen.update(kw))
+    monkeypatch.setattr(http_serve, "serve", lambda **kw: seen.update(kw))
 
     assert serve_cmd.cmd_serve(args) == 0
     conns = {k: v for k, v in seen.items() if k.endswith("conn") and v is not None}

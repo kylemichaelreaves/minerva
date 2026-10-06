@@ -75,7 +75,7 @@ for experiments.
 | `authors/*_works.py` | Per-author work tables for PDF/EPUB/HTML ingest |
 | `retrieve.py` / `embed.py` | Hybrid search |
 | `agent/` | Citation-strict prompts + answer composition |
-| `http/` (`serve.py` · `router.py` · `handlers/`) | REST API for the SPA (`server.py` is a re-export shim, not the server) |
+| `http/` (`serve.py` · `router.py` · `handlers/`) | REST API for the SPA |
 
 Download scripts are grouped under `perseus/` — biblical (`download_hebrew_mt.py`,
 `download_first1kgreek_lxx.py`, `download_sblgnt_nt.py`, `download_vulgate.py`,

@@ -1,7 +1,7 @@
 """HTTP-handler tests for cross-reference endpoints.
 
 The refs stack went un-tested in the original audit — these tests
-exercise the four GET surfaces plus the PATCH curator update so a
+exercise the three GET surfaces plus the PATCH curator update so a
 regression in the refs API doesn't slip past CI silently.
 
 We build the queue directly via ``refs.schema.insert_cross_reference``
@@ -17,7 +17,6 @@ import pytest
 from conftest import StubBackend, make_deps
 
 from minerva.http.handlers.references import (
-    _handle_chunk_references,
     _handle_reference_update,
     _handle_references_list,
     _handle_review_queue,
@@ -77,47 +76,6 @@ def _seed_two_refs(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 # ════════════════════════════════════════════════════════════════════
-# GET /api/chunks/:id/references
-# ════════════════════════════════════════════════════════════════════
-
-
-class TestChunkReferences:
-    def test_outgoing_and_incoming(self, populated_db: sqlite3.Connection) -> None:
-        ids = _seed_two_refs(populated_db)
-        deps = make_deps(populated_db, StubBackend())
-
-        # Plato chunk has 1 outgoing (→ Aristotle), 0 incoming
-        out = _handle_chunk_references(deps, "rep-509d", {})
-        assert out["chunk_id"] == "rep-509d"
-        assert len(out["outgoing"]) == 1
-        assert len(out["incoming"]) == 0
-        assert out["outgoing"][0]["id"] == ids["plato_to_aristotle"]
-        assert out["outgoing"][0]["target"]["author"] == "Aristotle"
-        assert out["outgoing"][0]["reference_type"] == "cites"
-
-        # Aristotle chunk has 1 outgoing (→ Cicero) and 1 incoming
-        # (from Plato).
-        ne = _handle_chunk_references(deps, "ne-1097b", {})
-        assert len(ne["outgoing"]) == 1
-        assert ne["outgoing"][0]["target"]["author"] == "Cicero"
-        assert len(ne["incoming"]) == 1
-        assert ne["incoming"][0]["source_chunk_id"] == "rep-509d"
-
-    def test_min_confidence_filter(self, populated_db: sqlite3.Connection) -> None:
-        _seed_two_refs(populated_db)
-        deps = make_deps(populated_db, StubBackend())
-        # min_confidence=0.9 should drop the 0.85 Plato→Aristotle row
-        out = _handle_chunk_references(deps, "rep-509d", {"min_confidence": "0.9"})
-        assert out["outgoing"] == []
-
-    def test_unknown_chunk_returns_empty(self, populated_db: sqlite3.Connection) -> None:
-        deps = make_deps(populated_db, StubBackend())
-        out = _handle_chunk_references(deps, "nonexistent", {})
-        assert out["outgoing"] == []
-        assert out["incoming"] == []
-
-
-# ════════════════════════════════════════════════════════════════════
 # GET /api/works/:id/references_map
 # ════════════════════════════════════════════════════════════════════
 
@@ -139,7 +97,7 @@ class TestWorkReferencesMap:
 
 
 # ════════════════════════════════════════════════════════════════════
-# GET /api/references/by-author
+# GET /api/references, filtered by author
 # ════════════════════════════════════════════════════════════════════
 
 

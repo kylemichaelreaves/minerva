@@ -1,6 +1,7 @@
-"""Tests for `minerva.server` — JSON marshalling, history parsing, and the
-private `_handle_chat` / `_handle_health` entry points. The HTTP layer itself
-is exercised end-to-end by the Vitest suite in web/tests/e2e/."""
+"""Tests for the chat HTTP surface — JSON marshalling (`chat_service`,
+`citations`), history parsing, and the private `_handle_chat` /
+`_handle_health` entry points. The HTTP layer itself is exercised
+end-to-end by the Vitest suite in web/tests/e2e/."""
 
 from __future__ import annotations
 
@@ -15,13 +16,22 @@ from conftest import (
     make_hit,
 )
 
-from minerva import agent, llm, server
+from minerva import agent, chat_service, llm
+from minerva.citations import (
+    _PASSAGE_PREVIEW_CHARS,
+    _dominant_from_hits,
+    _dominant_from_response,
+    _hit_to_citation,
+)
+from minerva.http.handlers import _handle_chat, _handle_health
+from minerva.http.serve import _MAX_REQUEST_BYTES, _parse_content_length
+from minerva.http.server_core import ServerDeps, _HTTPError
 
 # ---------- _history_from_payload ----------
 
 
 def test_history_from_payload_keeps_valid_messages():
-    out = server._history_from_payload(
+    out = chat_service.history_from_payload(
         [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "content": "hello"},
@@ -33,7 +43,7 @@ def test_history_from_payload_keeps_valid_messages():
 
 
 def test_history_from_payload_drops_unknown_roles():
-    out = server._history_from_payload(
+    out = chat_service.history_from_payload(
         [
             {"role": "system", "content": "shouldn't appear"},
             {"role": "user", "content": "ok"},
@@ -43,7 +53,7 @@ def test_history_from_payload_drops_unknown_roles():
 
 
 def test_history_from_payload_drops_malformed_entries():
-    out = server._history_from_payload(
+    out = chat_service.history_from_payload(
         [
             "not a dict",
             {"role": "user"},  # missing content
@@ -56,9 +66,9 @@ def test_history_from_payload_drops_malformed_entries():
 
 
 def test_history_from_payload_returns_empty_for_non_list():
-    assert server._history_from_payload(None) == []
-    assert server._history_from_payload("not a list") == []
-    assert server._history_from_payload({"role": "user", "content": "x"}) == []
+    assert chat_service.history_from_payload(None) == []
+    assert chat_service.history_from_payload("not a list") == []
+    assert chat_service.history_from_payload({"role": "user", "content": "x"}) == []
 
 
 # ---------- _hit_to_citation ----------
@@ -66,7 +76,7 @@ def test_history_from_payload_returns_empty_for_non_list():
 
 def test_hit_to_citation_includes_locator_and_score():
     hit = make_hit(text="short text")
-    cite = server._hit_to_citation(hit, n=3)
+    cite = _hit_to_citation(hit, n=3)
     assert cite["n"] == 3
     assert cite["chunk_id"] == hit.chunk_id
     assert cite["src"] == "Plato, Republic 509d Bk 6"
@@ -77,8 +87,8 @@ def test_hit_to_citation_includes_locator_and_score():
 def test_hit_to_citation_truncates_long_text():
     long = "x" * 1000
     hit = make_hit(text=long)
-    cite = server._hit_to_citation(hit, n=1)
-    assert len(cite["text"]) <= server._PASSAGE_PREVIEW_CHARS + 10
+    cite = _hit_to_citation(hit, n=1)
+    assert len(cite["text"]) <= _PASSAGE_PREVIEW_CHARS + 10
     assert cite["text"].endswith("[…]")
 
 
@@ -86,15 +96,15 @@ def test_hit_to_citation_truncates_long_text():
 
 
 def test_dominant_from_hits_plato_top():
-    assert server._dominant_from_hits([make_hit(corpus="plato")]) == "P"
+    assert _dominant_from_hits([make_hit(corpus="plato")]) == "P"
 
 
 def test_dominant_from_hits_aristotle_top():
-    assert server._dominant_from_hits([make_hit(corpus="aristotle", author="Aristotle")]) == "A"
+    assert _dominant_from_hits([make_hit(corpus="aristotle", author="Aristotle")]) == "A"
 
 
 def test_dominant_from_hits_empty_falls_back_to_p():
-    assert server._dominant_from_hits([]) == "P"
+    assert _dominant_from_hits([]) == "P"
 
 
 # ---------- _answer_to_json ----------
@@ -109,7 +119,7 @@ def test_answer_to_json_splits_paragraphs_on_double_newline():
         backend="stub",
         pinned=[],
     )
-    body = server._answer_to_json(ans)
+    body = chat_service.answer_to_json(ans)
     assert body["paragraphs"] == ["First [1].", "Second paragraph.", "Third."]
     assert body["dominant"] == "P"
     assert body["abstained"] is False
@@ -119,7 +129,7 @@ def test_answer_to_json_splits_paragraphs_on_double_newline():
 def test_answer_to_json_preserves_response_text_verbatim():
     raw = "Hello [1].\n\nWorld."
     ans = agent.Answer(query="q", response=raw, hits=[], abstained=False, backend="stub")
-    body = server._answer_to_json(ans)
+    body = chat_service.answer_to_json(ans)
     assert body["response"] == raw
 
 
@@ -131,7 +141,7 @@ def test_answer_to_json_collapses_no_llm_response_to_a_placeholder():
         abstained=False,
         backend="none",
     )
-    body = server._answer_to_json(ans)
+    body = chat_service.answer_to_json(ans)
     assert body["paragraphs"] == ["(retrieval-only mode — see citations below.)"]
     assert len(body["citations"]) == 1
 
@@ -144,7 +154,7 @@ def test_answer_to_json_keeps_abstain_message_intact():
         abstained=True,
         backend="none",
     )
-    body = server._answer_to_json(ans)
+    body = chat_service.answer_to_json(ans)
     assert body["abstained"] is True
     assert body["paragraphs"] == ["I could not find enough evidence."]
     assert body["citations"] == []
@@ -153,7 +163,7 @@ def test_answer_to_json_keeps_abstain_message_intact():
 def test_answer_to_json_numbers_citations_from_one():
     hits = [make_hit(chunk_id=f"c{i}", section=f"5{i}0a") for i in range(3)]
     ans = agent.Answer(query="q", response="text", hits=hits, abstained=False, backend="stub")
-    body = server._answer_to_json(ans)
+    body = chat_service.answer_to_json(ans)
     assert [c["n"] for c in body["citations"]] == [1, 2, 3]
 
 
@@ -167,7 +177,7 @@ _make_deps = make_deps
 def test_handle_chat_calls_agent_with_numeric_cite_style(populated_db):
     backend = StubBackend(reply="ok [1].")
     deps = _make_deps(populated_db, backend)
-    body = server._handle_chat(deps, {"query": "divided line", "history": []})
+    body = _handle_chat(deps, {"query": "divided line", "history": []})
     # The system prompt threaded into the LLM call must use numeric markers.
     assert "[N]" in backend.last_system()
     assert body["abstained"] is False
@@ -177,7 +187,7 @@ def test_handle_chat_calls_agent_with_numeric_cite_style(populated_db):
 def test_handle_chat_threads_history_into_agent(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    server._handle_chat(
+    _handle_chat(
         deps,
         {
             "query": "and then?",
@@ -195,22 +205,22 @@ def test_handle_chat_threads_history_into_agent(populated_db):
 def test_handle_chat_rejects_missing_query(populated_db):
     backend = StubBackend()
     deps = _make_deps(populated_db, backend)
-    with pytest.raises(server._HTTPError) as exc_info:
-        server._handle_chat(deps, {})
+    with pytest.raises(_HTTPError) as exc_info:
+        _handle_chat(deps, {})
     assert exc_info.value.status == HTTPStatus.BAD_REQUEST
 
 
 def test_handle_chat_rejects_blank_query(populated_db):
     backend = StubBackend()
     deps = _make_deps(populated_db, backend)
-    with pytest.raises(server._HTTPError):
-        server._handle_chat(deps, {"query": "   "})
+    with pytest.raises(_HTTPError):
+        _handle_chat(deps, {"query": "   "})
 
 
 def test_handle_health_includes_backend_name(populated_db):
     backend = llm.NullBackend()
     deps = _make_deps(populated_db, backend)
-    body = server._handle_health(deps)
+    body = _handle_health(deps)
     assert body["backend"] == "none"
     assert body["chunks_total"] >= 5
 
@@ -219,32 +229,32 @@ def test_handle_health_includes_backend_name(populated_db):
 
 
 def test_parse_content_length_handles_missing_and_zero():
-    assert server._parse_content_length(None) == 0
-    assert server._parse_content_length("") == 0
-    assert server._parse_content_length("0") == 0
+    assert _parse_content_length(None) == 0
+    assert _parse_content_length("") == 0
+    assert _parse_content_length("0") == 0
 
 
 def test_parse_content_length_accepts_normal_value():
-    assert server._parse_content_length("128") == 128
+    assert _parse_content_length("128") == 128
 
 
 def test_parse_content_length_rejects_negative():
-    with pytest.raises(server._HTTPError) as info:
-        server._parse_content_length("-1")
+    with pytest.raises(_HTTPError) as info:
+        _parse_content_length("-1")
     assert info.value.status == HTTPStatus.BAD_REQUEST
     assert "negative" in info.value.message
 
 
 def test_parse_content_length_rejects_non_numeric():
-    with pytest.raises(server._HTTPError) as info:
-        server._parse_content_length("not-a-number")
+    with pytest.raises(_HTTPError) as info:
+        _parse_content_length("not-a-number")
     assert info.value.status == HTTPStatus.BAD_REQUEST
     assert "invalid" in info.value.message.lower()
 
 
 def test_parse_content_length_rejects_oversize():
-    with pytest.raises(server._HTTPError) as info:
-        server._parse_content_length(str(server._MAX_REQUEST_BYTES + 1))
+    with pytest.raises(_HTTPError) as info:
+        _parse_content_length(str(_MAX_REQUEST_BYTES + 1))
     assert info.value.status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
 
 
@@ -252,14 +262,14 @@ def test_parse_content_length_strips_surrounding_whitespace():
     """Some padded-header clients send `Content-Length: 128 ` with trailing
     whitespace. Python's `int("128 ", 10)` would raise; we strip both
     sides for symmetric handling."""
-    assert server._parse_content_length(" 128") == 128
-    assert server._parse_content_length("128 ") == 128
-    assert server._parse_content_length(" 128 ") == 128
+    assert _parse_content_length(" 128") == 128
+    assert _parse_content_length("128 ") == 128
+    assert _parse_content_length(" 128 ") == 128
     # Whitespace-only header normalizes to "no body".
-    assert server._parse_content_length("   ") == 0
+    assert _parse_content_length("   ") == 0
     # Negative with padding still rejected — strip first, then validate.
-    with pytest.raises(server._HTTPError) as info:
-        server._parse_content_length(" -1 ")
+    with pytest.raises(_HTTPError) as info:
+        _parse_content_length(" -1 ")
     assert info.value.status == HTTPStatus.BAD_REQUEST
 
 
@@ -269,7 +279,7 @@ def test_parse_content_length_strips_surrounding_whitespace():
 def test_handle_chat_honors_client_rewrite_when_allowed(populated_db):
     backend = StubBackend(reply="divided line")
     deps = _make_deps(populated_db, backend)
-    deps = server.ServerDeps(
+    deps = ServerDeps(
         conn=deps.conn,
         conversations_conn=deps.conversations_conn,
         translations_conn=deps.translations_conn,
@@ -288,14 +298,14 @@ def test_handle_chat_honors_client_rewrite_when_allowed(populated_db):
         {"role": "user", "content": "What is the divided line?"},
         {"role": "assistant", "content": "Republic 509d."},
     ]
-    server._handle_chat(deps, {"query": "and after?", "history": history, "rewrite": True})
+    _handle_chat(deps, {"query": "and after?", "history": history, "rewrite": True})
     # Rewrite call + answer call.
     assert len(backend.captured) == 2
 
 
 def test_handle_chat_ignores_client_rewrite_when_disallowed(populated_db):
     backend = StubBackend(reply="ok")
-    deps = server.ServerDeps(
+    deps = ServerDeps(
         conn=populated_db,
         conversations_conn=_conv_conn(),
         translations_conn=_trans_conn(),
@@ -314,7 +324,7 @@ def test_handle_chat_ignores_client_rewrite_when_disallowed(populated_db):
         {"role": "user", "content": "What is the divided line?"},
         {"role": "assistant", "content": "Republic 509d."},
     ]
-    server._handle_chat(deps, {"query": "divided line", "history": history, "rewrite": True})
+    _handle_chat(deps, {"query": "divided line", "history": history, "rewrite": True})
     # Only the answer call; rewrite was suppressed by the server flag.
     assert len(backend.captured) == 1
     assert "rewrite follow-up questions" not in backend.captured[0][0][0].content
@@ -322,7 +332,7 @@ def test_handle_chat_ignores_client_rewrite_when_disallowed(populated_db):
 
 def test_handle_chat_request_speaker_overrides_server_default(speaker_db):
     backend = StubBackend(reply="ok")
-    deps = server.ServerDeps(
+    deps = ServerDeps(
         conn=speaker_db,
         conversations_conn=_conv_conn(),
         translations_conn=_trans_conn(),
@@ -335,7 +345,7 @@ def test_handle_chat_request_speaker_overrides_server_default(speaker_db):
         top_k=10,
         static_dir=None,  # type: ignore[arg-type]
     )
-    body = server._handle_chat(
+    body = _handle_chat(
         deps,
         {
             "query": "knowledge perception",
@@ -347,7 +357,7 @@ def test_handle_chat_request_speaker_overrides_server_default(speaker_db):
 
 def test_handle_chat_falls_back_to_deps_speaker_when_request_omits_it(speaker_db):
     backend = StubBackend(reply="ok")
-    deps = server.ServerDeps(
+    deps = ServerDeps(
         conn=speaker_db,
         conversations_conn=_conv_conn(),
         translations_conn=_trans_conn(),
@@ -360,21 +370,21 @@ def test_handle_chat_falls_back_to_deps_speaker_when_request_omits_it(speaker_db
         top_k=10,
         static_dir=None,  # type: ignore[arg-type]
     )
-    body = server._handle_chat(deps, {"query": "knowledge perception"})
+    body = _handle_chat(deps, {"query": "knowledge perception"})
     assert all(c["speaker"] == "Theaetetus" for c in body["citations"])
 
 
 def test_hit_to_citation_includes_speaker():
     hit = make_hit()
     hit.meta["speaker"] = "Socrates"
-    cite = server._hit_to_citation(hit, n=1)
+    cite = _hit_to_citation(hit, n=1)
     assert cite["speaker"] == "Socrates"
 
 
 def test_hit_to_citation_speaker_is_none_when_metadata_missing():
     hit = make_hit()
     hit.meta["speaker"] = None
-    cite = server._hit_to_citation(hit, n=1)
+    cite = _hit_to_citation(hit, n=1)
     assert cite["speaker"] is None
 
 
@@ -390,7 +400,7 @@ def test_handle_chat_threads_recent_user_turns_into_retrieval(populated_db):
         {"role": "user", "content": "Where is the divided line introduced?"},
         {"role": "assistant", "content": "Republic 509d."},
     ]
-    body = server._handle_chat(deps, {"query": "what comes right after?", "history": history})
+    body = _handle_chat(deps, {"query": "what comes right after?", "history": history})
     # The retrieval_query is "Where is the divided line introduced? what comes right after?",
     # so Republic 509-510 should land in the citations even though the bare query has no "line" tokens.
     sources = [c["src"] for c in body["citations"]]
@@ -406,12 +416,12 @@ def test_build_retrieval_query_uses_last_two_user_turns():
         llm.Message(role="user", content="third"),
         llm.Message(role="assistant", content="reply3"),
     ]
-    out = server._build_retrieval_query("now", history)
+    out = chat_service.build_retrieval_query("now", history)
     assert out == "second third now"
 
 
 def test_build_retrieval_query_with_empty_history():
-    assert server._build_retrieval_query("hello", []) == "hello"
+    assert chat_service.build_retrieval_query("hello", []) == "hello"
 
 
 # ---------- rewrite flag ----------
@@ -425,7 +435,7 @@ def test_handle_chat_rewrite_flag_invokes_agent_rewrite_query(populated_db):
         {"role": "user", "content": "What is the divided line?"},
         {"role": "assistant", "content": "Republic 509d."},
     ]
-    server._handle_chat(
+    _handle_chat(
         deps,
         {
             "query": "and after?",
@@ -442,7 +452,7 @@ def test_handle_chat_rewrite_flag_invokes_agent_rewrite_query(populated_db):
 def test_handle_chat_rewrite_skipped_when_no_history(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    server._handle_chat(deps, {"query": "divided line", "rewrite": True})
+    _handle_chat(deps, {"query": "divided line", "rewrite": True})
     # Only the answer call; no rewrite when there's no prior history to anchor on.
     assert len(backend.captured) == 1
     # And it's the answer prompt, not the rewrite one.
@@ -465,7 +475,7 @@ def test_handle_chat_auto_rewrites_followup_when_force_rewrite_set(populated_db)
         {"role": "assistant", "content": "Republic 509d."},
     ]
     # Note: payload omits `rewrite: true`. The server should still rewrite.
-    server._handle_chat(deps, {"query": "and after?", "history": history})
+    _handle_chat(deps, {"query": "and after?", "history": history})
     assert len(backend.captured) == 2
     assert "rewrite follow-up questions" in backend.captured[0][0][0].content
 
@@ -476,7 +486,7 @@ def test_handle_chat_auto_rewrite_skipped_when_no_history(populated_db):
 
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend, force_rewrite=True)
-    server._handle_chat(deps, {"query": "divided line"})
+    _handle_chat(deps, {"query": "divided line"})
     assert len(backend.captured) == 1
     assert "rewrite follow-up questions" not in backend.captured[0][0][0].content
 
@@ -492,7 +502,7 @@ def test_handle_chat_auto_rewrite_off_leaves_followups_unrewritten(populated_db)
         {"role": "user", "content": "What is the divided line?"},
         {"role": "assistant", "content": "Republic 509d."},
     ]
-    server._handle_chat(deps, {"query": "and after?", "history": history})
+    _handle_chat(deps, {"query": "and after?", "history": history})
     assert len(backend.captured) == 1
     assert "rewrite follow-up questions" not in backend.captured[0][0][0].content
 
@@ -507,7 +517,7 @@ def test_handle_chat_routes_to_named_author_corpus(populated_db):
 
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    body = server._handle_chat(deps, {"query": "What does Aristotle say about ergon?"})
+    body = _handle_chat(deps, {"query": "What does Aristotle say about ergon?"})
     # `src` locators look like "Aristotle, Nicomachean Ethics 1097b" —
     # all returned citations should start with the named author.
     srcs = [c["src"] for c in body["citations"]]
@@ -522,7 +532,7 @@ def test_handle_chat_operator_corpus_overrides_detection(populated_db):
 
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend, corpus="plato")
-    body = server._handle_chat(deps, {"query": "What does Aristotle say about ergon?"})
+    body = _handle_chat(deps, {"query": "What does Aristotle say about ergon?"})
     # Operator pin keeps us in Plato even though "Aristotle" appears in
     # the query. No Aristotle citations should leak in.
     srcs = [c["src"] for c in body["citations"]]
@@ -549,7 +559,7 @@ def test_handle_chat_multi_author_query_does_not_narrow(populated_db):
 def test_handle_chat_resolves_pinned_chunk_ids_into_hits(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    body = server._handle_chat(
+    body = _handle_chat(
         deps,
         {
             "query": "anchored discussion",
@@ -565,7 +575,7 @@ def test_handle_chat_resolves_pinned_chunk_ids_into_hits(populated_db):
 def test_handle_chat_silently_drops_unknown_pinned_ids(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    body = server._handle_chat(
+    body = _handle_chat(
         deps,
         {
             "query": "anchored",
@@ -577,14 +587,14 @@ def test_handle_chat_silently_drops_unknown_pinned_ids(populated_db):
 
 
 def test_pinned_ids_from_payload_filters_garbage():
-    out = server._pinned_ids_from_payload(["a", "", None, "b", 42, "a", "c"])
+    out = chat_service.pinned_ids_from_payload(["a", "", None, "b", 42, "a", "c"])
     # de-duped, strings only
     assert out == ["a", "b", "c"]
 
 
 def test_pinned_ids_from_payload_returns_empty_for_non_list():
-    assert server._pinned_ids_from_payload(None) == []
-    assert server._pinned_ids_from_payload("a,b,c") == []
+    assert chat_service.pinned_ids_from_payload(None) == []
+    assert chat_service.pinned_ids_from_payload("a,b,c") == []
 
 
 # ---------- weighted dominant heuristic ----------
@@ -601,23 +611,23 @@ def test_dominant_from_hits_weighted_vote_overrides_top_hit():
             corpus="aristotle", author="Aristotle", work="Nicomachean Ethics", section="1097b"
         ),
     ]
-    assert server._dominant_from_hits(hits) == "A"
+    assert _dominant_from_hits(hits) == "A"
 
 
 def test_max_request_bytes_is_finite_and_sane():
     # Sanity: the limit should exist and be small enough to reject obvious abuse.
-    assert isinstance(server._MAX_REQUEST_BYTES, int)
-    assert 0 < server._MAX_REQUEST_BYTES <= 10 * 1024 * 1024  # ≤ 10 MiB
+    assert isinstance(_MAX_REQUEST_BYTES, int)
+    assert 0 < _MAX_REQUEST_BYTES <= 10 * 1024 * 1024  # ≤ 10 MiB
 
 
 def test_dominant_from_hits_recognizes_hegel():
     hits = [make_hit(corpus="hegel", author="Hegel", work="PR", section="§258")]
-    assert server._dominant_from_hits(hits) == "H"
+    assert _dominant_from_hits(hits) == "H"
 
 
 def test_dominant_from_hits_recognizes_kant():
     hits = [make_hit(corpus="kant", author="Kant", work="KrV", section="A19")]
-    assert server._dominant_from_hits(hits) == "K"
+    assert _dominant_from_hits(hits) == "K"
 
 
 def test_dominant_from_hits_breaks_ties_with_top_hit_corpus():
@@ -630,12 +640,12 @@ def test_dominant_from_hits_breaks_ties_with_top_hit_corpus():
         make_hit(corpus="plato", author="Plato", work="Republic", section="509b"),
     ]
     # 2 hegel, 2 plato within top_n=4; top hit is Hegel → H wins.
-    assert server._dominant_from_hits(hits, top_n=4) == "H"
+    assert _dominant_from_hits(hits, top_n=4) == "H"
 
 
 def test_dominant_from_hits_falls_back_to_p_for_unknown_corpus():
     hits = [make_hit(corpus="totally_unknown_corpus", author="Nobody", work="X")]
-    assert server._dominant_from_hits(hits) == "P"
+    assert _dominant_from_hits(hits) == "P"
 
 
 def test_dominant_from_hits_respects_top_n_window():
@@ -647,9 +657,9 @@ def test_dominant_from_hits_respects_top_n_window():
         make_hit(corpus="aristotle", author="Aristotle", work="NE", section="3"),
     ]
     # Default top_n=3 → 2 Plato vs 1 Aristotle → Plato
-    assert server._dominant_from_hits(hits) == "P"
+    assert _dominant_from_hits(hits) == "P"
     # Larger window pulls in 3 Aristotle, only 2 Plato → Aristotle
-    assert server._dominant_from_hits(hits, top_n=5) == "A"
+    assert _dominant_from_hits(hits, top_n=5) == "A"
 
 
 # ---------- _dominant_from_response (cited-hit dominance) ----------
@@ -675,7 +685,7 @@ def test_dominant_from_response_follows_cited_hits_not_retrieval_rank():
         "Democracy is unstable [3]. The poor displace the rich [5]. "
         "Tyranny grows from democracy [4]. The democratic soul is disordered [6]."
     )
-    assert server._dominant_from_response(response, pinned=[], hits=hits) == "P"
+    assert _dominant_from_response(response, pinned=[], hits=hits) == "P"
 
 
 def test_dominant_from_response_falls_back_to_retrieval_when_no_cites():
@@ -689,7 +699,7 @@ def test_dominant_from_response_falls_back_to_retrieval_when_no_cites():
         make_hit(corpus="plato", author="Plato", work="Republic"),
     ]
     response = "I could not find enough evidence in the indexed corpus."
-    assert server._dominant_from_response(response, pinned=[], hits=hits) == "A"
+    assert _dominant_from_response(response, pinned=[], hits=hits) == "A"
 
 
 def test_dominant_from_response_counts_pinned_in_numbering():
@@ -704,7 +714,7 @@ def test_dominant_from_response_counts_pinned_in_numbering():
     ]
     # [1] = the pinned Hegel chunk; LLM only cites it.
     response = "On the state, see [1]."
-    assert server._dominant_from_response(response, pinned=pinned, hits=hits) == "H"
+    assert _dominant_from_response(response, pinned=pinned, hits=hits) == "H"
 
 
 def test_dominant_from_response_ignores_out_of_range_cites():
@@ -716,7 +726,7 @@ def test_dominant_from_response_ignores_out_of_range_cites():
         make_hit(corpus="aristotle", author="Aristotle", work="Politics"),
     ]
     response = "Plato [1] is also discussed in [99]."
-    assert server._dominant_from_response(response, pinned=[], hits=hits) == "P"
+    assert _dominant_from_response(response, pinned=[], hits=hits) == "P"
 
 
 # ---------- missing_pinned_ids surfacing ----------
@@ -725,7 +735,7 @@ def test_dominant_from_response_ignores_out_of_range_cites():
 def test_handle_chat_surfaces_unknown_pinned_ids(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    body = server._handle_chat(
+    body = _handle_chat(
         deps,
         {
             "query": "anchored discussion",
@@ -741,7 +751,7 @@ def test_handle_chat_surfaces_unknown_pinned_ids(populated_db):
 def test_handle_chat_omits_missing_pinned_ids_when_all_resolve(populated_db):
     backend = StubBackend(reply="ok")
     deps = _make_deps(populated_db, backend)
-    body = server._handle_chat(
+    body = _handle_chat(
         deps,
         {
             "query": "anchored discussion",

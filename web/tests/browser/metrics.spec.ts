@@ -78,7 +78,7 @@ test.describe("Metrics layout", () => {
       "/api/references",
       "/api/references/review_queue",
       "/api/network/summary",
-      "/api/terms",
+      "/api/references/sources",
     ]) {
       await request.get(path);
     }

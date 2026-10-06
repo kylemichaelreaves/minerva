@@ -165,9 +165,3 @@ def _handle_translate(deps: ServerDeps, payload: dict[str, Any]) -> dict[str, An
         # refusal). Loop and try to become the leader ourselves; only a
         # request whose begin_inflight said is_leader may call the LLM.
     raise llm.LLMError("translation repeatedly failed upstream")
-
-
-# Re-export for tests importing `minerva.server._TRANSLATE_SYSTEM`, etc.
-_LANG_NAME = LANG_NAME
-_MAX_TRANSLATE_CHARS = MAX_TRANSLATE_CHARS
-_TRANSLATE_SYSTEM = TRANSLATE_SYSTEM
