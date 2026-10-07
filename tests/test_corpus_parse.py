@@ -1737,6 +1737,6 @@ def test_parse_file_refuses_an_epub_without_a_structured_locator(tmp_path: Path)
 
     epub = tmp_path / "x.epub"
     epub.write_bytes(b"")
-    work = _make_work("chapter")
+    chunks = parse_file(epub, _make_work("chapter"))  # a generator: nothing runs yet
     with pytest.raises(ValueError, match="structured"):
-        next(parse_file(epub, work))
+        next(chunks)
