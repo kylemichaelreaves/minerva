@@ -705,11 +705,44 @@ class TestDamagedRunningHeads:
     def test_body_lines_are_not_heads(self, line: str) -> None:
         assert _classify(line, max_chap=3, damaged_heads=True).kind == "body"
 
-    def test_is_off_by_default(self) -> None:
-        """Leviathan and De Cive do not use it: their leaked heads are a
-        separate, id-churning fix."""
+    def test_is_off_for_an_unknown_work(self) -> None:
+        """`_classify` keeps it opt-in; `parse_file` turns it on per work."""
 
         assert _classify("APPENDIX  AD  LEVIATHAN.  53/ ", max_chap=3).kind == "body"
+
+    @pytest.mark.parametrize(
+        "work_code,head",
+        [
+            # #734: the leaks `_RUNNING_HEAD_RE` misses in the other two
+            # works — a comma, a digit inside a word, a stray glyph.
+            ("leviathan_lat", "322  DB  CIVITATE  CHRI8TIANA. "),
+            ("leviathan_lat", "DE  POTENTIA,  DIGNITATE,  ET  HONORE. "),
+            ("de_cive_lat", "DE STATU HOMINUM, ETC. 159"),
+            ("de_cive_lat", "DE LEGE NATURJE CIRCA CONTRACTUS. ]175"),
+        ],
+    )
+    def test_is_on_for_leviathan_and_de_cive(
+        self, tmp_path: Path, work_code: str, head: str
+    ) -> None:
+        """The head falls mid-paragraph at a page break. Left in, it is
+        spliced into the text and its full stop ends the paragraph there."""
+
+        src = tmp_path / f"{work_code}.txt"
+        src.write_text(
+            # Far enough below the CAPUT break that the orphan rule, which
+            # also drops a short isolated line near one, cannot be what
+            # removes the head.
+            "CAPUT  I.\n\n" + "Prior  paragraphus  hic  finitur.\n" * 8 + "\n"
+            "Civitatem  esse  personam  unam,  cujus  actionum  homines\n"
+            "\n\n" + head + "\n\n"
+            "plurimi  ex  pactis  mutuis  authores  se  fecerunt  omnes.\n",
+            encoding="utf-8",
+        )
+        chunks = list(parse_file(src, work_title="T", work_code=work_code))
+        assert [c.text for c in chunks][1:] == [
+            "Civitatem esse personam unam, cujus actionum homines "
+            "plurimi ex pactis mutuis authores se fecerunt omnes."
+        ]
 
 
 class TestAppendixEndToEnd:

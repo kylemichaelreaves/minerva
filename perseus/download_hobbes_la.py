@@ -53,9 +53,11 @@ the one text we want, so each is sliced (see ``_SLICES``):
     from this scan, because the scan has **no leaves for pp. 510–512**
     (``_page_numbers.json`` runs leaf 475 = p. 509, leaf 476 = p. 513):
     they hold the last page of the Leviathan's *Conclusio*, the
-    appendix's title and the opening of its Caput I. The Leviathan slice
-    therefore ends mid-sentence ("Itaque atramentum"); changing its
-    source would re-mint every Leviathan ``chunk_id``, so it stays.
+    appendix's title and the opening of its Caput I. The slice used to
+    end mid-sentence there ("Itaque atramentum"). Changing the whole
+    work's source would re-mint every Leviathan ``chunk_id``, so only the
+    missing p. 510 is taken from the UofT scan below and appended
+    (``LEVIATHAN_TAIL``, #733).
   * Appendix ad Leviathan (#575) — IA ``operaphilosophic03hobbuoft``,
     the University of Toronto scan of the same vol. III, which has
     pp. 510–512. Hobbes's own 1668 addition, ingested as its own work.
@@ -63,7 +65,8 @@ the one text we want, so each is sliced (see ``_SLICES``):
     against 87.0% for the Leviathan from the Google scan — but 83.2% for
     the Leviathan read from *this* scan, so the gap is the scan, not the
     text. Its OCR mangles running heads (``APPENDIX AD LEVIATHAN. 5a3``),
-    which ``sources/hobbes_la.py`` handles for this work only.
+    which ``sources/hobbes_la.py`` handles by shape (and, since #734,
+    for the other two works as well).
   * De Cive Latin — IA ``thomhobbesmalmes0002hobb`` = Opera Latina
     vol. II. Contains *De Homine* (Caput I–XV) and then *De Cive*
     (Caput I–XVIII). Slicing is not optional here: De Homine's chapter
@@ -200,6 +203,69 @@ _SLICES: dict[str, VolumeSlice] = {
 }
 
 
+# ──────────────────────────────────────────────────────────────────
+# Tail patch (#733)
+# ──────────────────────────────────────────────────────────────────
+
+
+class TailPatch:
+    """Lines one scan lacks at a work's end, taken from another scan.
+
+    ``after`` matches the last line both scans share, which must be the
+    slice's last non-blank line; the patch is every donor line after it,
+    up to the line matching ``until``. Each check fails loudly rather than
+    appending the wrong page, or the right page twice.
+    """
+
+    def __init__(self, *, donor_ia: str, after: str, until: str, max_lines: int) -> None:
+        self.donor_ia = donor_ia
+        self.after = re.compile(after, re.IGNORECASE)
+        self.until = re.compile(until, re.IGNORECASE)
+        self.max_lines = max_lines
+
+
+# The Google scan of vol. III has no leaves for pp. 510–512, so the
+# Leviathan slice stops mid-sentence at "Itaque atramentum" with the last
+# eight lines of Caput XLVII on p. 510 missing. The UofT scan has them.
+LEVIATHAN_TAIL = TailPatch(
+    donor_ia="operaphilosophic03hobbuoft",
+    after=r".*\bItaque\s+atramentum\s*$",
+    until=r"\s*APPENDIX\s+AD\s+LEVIATHAN\s*[.,]?\s*$",
+    max_lines=60,
+)
+
+_TAILS: dict[str, TailPatch] = {"leviathan_lat.txt": LEVIATHAN_TAIL}
+
+
+def patch_tail(body: str, donor: str, patch: TailPatch, *, label: str) -> str:
+    """Append the donor lines ``patch`` names to ``body``."""
+
+    last = next((ln for ln in reversed(body.split("\n")) if ln.strip()), "")
+    if not patch.after.match(last):
+        raise SliceError(
+            f"{label}: slice does not end at {patch.after.pattern!r} (ends {last!r}); "
+            "the gap this patch fills may be gone"
+        )
+    lines = donor.split("\n")
+    anchors = [i for i, ln in enumerate(lines) if patch.after.match(ln)]
+    if len(anchors) != 1:
+        raise SliceError(
+            f"{label}: anchor {patch.after.pattern!r} matched {len(anchors)} time(s) "
+            f"in {patch.donor_ia}, needed exactly 1"
+        )
+    ends = [i for i in range(anchors[0] + 1, len(lines)) if patch.until.match(lines[i])]
+    if not ends:
+        raise SliceError(
+            f"{label}: end marker {patch.until.pattern!r} not found in {patch.donor_ia}"
+        )
+    tail = lines[anchors[0] + 1 : ends[0]]
+    if len(tail) > patch.max_lines:
+        raise SliceError(
+            f"{label}: patch from {patch.donor_ia} is {len(tail)} lines, over {patch.max_lines}"
+        )
+    return body.rstrip("\n") + "\n" + "\n".join(tail).rstrip() + "\n"
+
+
 # (work_label, ia_item_id, output_filename)
 _DOWNLOADS: tuple[tuple[str, str, str], ...] = (
     (
@@ -232,14 +298,26 @@ def _fetch_ia_text(ia_id: str) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _volume(ia_id: str, volumes: dict[str, str]) -> str:
+    """Fetch an item's text once per run; the UofT scan serves two files."""
+
+    if ia_id not in volumes:
+        volumes[ia_id] = _fetch_ia_text(ia_id)
+    return volumes[ia_id]
+
+
 def _download_one(
     data_root: Path,
     label: str,
     ia_id: str,
     filename: str,
+    volumes: dict[str, str],
 ) -> Path:
-    volume = _fetch_ia_text(ia_id)
+    volume = _volume(ia_id, volumes)
     body = _SLICES[filename].apply(volume, label=label)
+    tail = _TAILS.get(filename)
+    if tail is not None:
+        body = patch_tail(body, _volume(tail.donor_ia, volumes), tail, label=label)
     dest_dir = data_root / "hobbes" / "raw_lat"
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / filename
@@ -262,10 +340,11 @@ def main() -> None:
     args = parser.parse_args()
 
     failures: list[str] = []
+    volumes: dict[str, str] = {}
     for label, ia_id, filename in _DOWNLOADS:
         print(f"\n{label}: {filename} (IA {ia_id})")
         try:
-            _download_one(args.data_root, label, ia_id, filename)
+            _download_one(args.data_root, label, ia_id, filename, volumes)
         except SliceError as exc:
             print(f"  ✗ {exc}", file=sys.stderr)
             failures.append(filename)

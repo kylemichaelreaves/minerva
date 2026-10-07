@@ -21,6 +21,7 @@ everything to the end of the work.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Sequence
 
 from ..corpus_works import CorpusWork
 from ..tei import Chunk
@@ -46,15 +47,31 @@ def apply_editorial_runs(chunks: list[Chunk], work: CorpusWork) -> list[Chunk]:
     if not work.editorial_runs:
         return chunks
     out = list(chunks)
-    pos = 0
-    for opener, closer in work.editorial_runs:
-        begin = _find(out, opener, pos)
-        if begin is None:
-            raise ValueError(f"{work.title!r}: editorial run opener {opener!r} not found")
-        end = len(out) if closer is None else _find(out, closer, begin + 1)
-        if end is None:
-            raise ValueError(f"{work.title!r}: editorial run closer {closer!r} not found")
+    for begin, end in run_spans(out, work.editorial_runs, f"{work.title!r}: editorial run"):
         for i in range(begin, end):
             out[i] = dataclasses.replace(out[i], block_type="editorial")
-        pos = end
     return out
+
+
+def run_spans(
+    chunks: list[Chunk], bounds: Sequence[tuple[str, str | None]], what: str
+) -> list[tuple[int, int]]:
+    """``[begin, end)`` index spans for each ``(opener, closer)`` pair.
+
+    Runs are matched in order: each opener is searched for after the
+    previous run ends, and each closer after its own opener. A closer of
+    ``None`` runs to the end of the work. Shared with `relabel_runs`.
+    """
+
+    spans: list[tuple[int, int]] = []
+    pos = 0
+    for opener, closer in bounds:
+        begin = _find(chunks, opener, pos)
+        if begin is None:
+            raise ValueError(f"{what} opener {opener!r} not found")
+        end = len(chunks) if closer is None else _find(chunks, closer, begin + 1)
+        if end is None:
+            raise ValueError(f"{what} closer {closer!r} not found")
+        spans.append((begin, end))
+        pos = end
+    return spans

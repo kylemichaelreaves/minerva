@@ -129,6 +129,12 @@ class CorpusWork:
     # and of the first paragraph after it, or ``None`` to run to the end
     # of the work. Matched in order; a run that no longer matches raises.
     editorial_runs: tuple[tuple[str, str | None], ...] = ()
+    # Runs given one section label, ``"<label>, ¶N"`` numbered across the
+    # run, by `corpus/relabel_runs.py` (#735): front matter the heading
+    # detector filed under labels made from wrapped title lines. Each entry
+    # is ``(opener, closer, label)``, matched like `editorial_runs`. This
+    # re-mints the run's ``chunk_id``s; nothing outside a run moves.
+    relabel_runs: tuple[tuple[str, str | None, str], ...] = ()
     # A facing-page edition flattened into alternating original and
     # translation blocks (Miller's Loeb *De Officiis*, #675). The pass in
     # `corpus/facing_text.py` drops the original-language chunks and types
