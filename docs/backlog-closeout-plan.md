@@ -4305,3 +4305,24 @@ the issue guessed).
 
 Filed along the way: **#785** (WordRun). No active plan covers it beyond this
 note.
+
+## Batch 13l — download and crawl hardening (#780 #781 #782 #783; #740 partial)
+
+The four `cli-scripts` issues batch 13c filed, plus #740's dependency half.
+None needs a DB step. Findings that changed the work:
+
+- **#780's proposed fix would have hidden errors more.** `fetch_parallel` never
+  read its futures, so narrowing `_one()`'s `except` alone would have left a
+  raised bug on an unread future and its slot at `RuntimeError("unassigned")`.
+  The shipped fix narrows and reads every future back. Corrected on the issue.
+- **#781's boundary was measured before tightening.** 0 of 4,125 existing zeno
+  pages sit outside `root + "/"`, so no live re-crawl was needed.
+- **#783: two of the nine Gutenberg ids are bilingual.** 47001 and 14970 read
+  `Language: English, Latin`, so the expected value is per id.
+- **#740 split.** `pyspellchecker` is now the `ocr-clean` extra. Running the
+  Gobineau/Renan cleaners on the current files changes corpus text, so it
+  rides the next operator re-ingest window, and #740 stays open (`Refs`).
+
+Filed along the way: **#787** (the MDZ Plato downloader skips failed pages
+and exits 0, the same class as #781). No active plan covers it beyond this
+note.

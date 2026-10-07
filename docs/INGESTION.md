@@ -876,7 +876,7 @@ use `--use-vectors`.
 
 | File | When to touch |
 |------|----------------|
-| `src/minerva/http/handlers/citations.py` — `_CORPUS_TO_DOMINANT` | Only if you want a new gutter glyph (Π/Α/Η/Κ today). Unknown corpora fall back to `P`. |
+| `data/authors/manifest.yaml` — the corpus's `dominant_code` | Only if you want a new gutter glyph (Π/Α/Η/Κ today). `make generate-authors` carries it into `corpus_registry.CORPUS_TO_DOMINANT`, which `minerva/citations.py` reads. Unknown corpora fall back to `P`. |
 | `pyproject.toml` / `src/minerva/cli/__init__.py` | One-line project descriptions; cosmetic. |
 | `src/minerva/eval_data/gold.jsonl` | If you maintain locator-eval coverage for the author. |
 | `docs/dashboard_aggregates.json` | Regenerate via [`scripts/dashboard_aggregates.py`](../scripts/dashboard_aggregates.py) — see [`SCRIPTS.md`](SCRIPTS.md). |

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from minerva import agent, chat_service
+from minerva import agent, chat_service, citations, retrieve
 from minerva.errors import PayloadTooLargeError
-from minerva.http.handlers import citations
 
 
 def test_citations_from_retrieval_deduped():
@@ -14,9 +13,19 @@ def test_citations_from_retrieval_deduped():
     assert chat_service.citations_from_retrieval(retrieval) == []
 
 
-def test_citations_from_hits_matches_citations_module():
-    # Empty lists should agree between modules.
-    assert citations.citations_from_hits([], []) == []
+def _hit(chunk_id: str) -> retrieve.Hit:
+    meta = {"text": f"text of {chunk_id}", "corpus": "plato", "work": "Republic", "section": "1"}
+    return retrieve.Hit(chunk_id=chunk_id, score=0.5, bm25=0.0, cosine=0.0, meta=meta)
+
+
+def test_citations_from_hits_numbers_pinned_first_then_hits():
+    # Replaces a test that asserted `[] == []` through a re-export shim (#782).
+    out = citations.citations_from_hits([_hit("p1")], [_hit("h1"), _hit("h2")])
+    assert [(c["n"], c["chunk_id"], c["pinned"]) for c in out] == [
+        (1, "p1", True),
+        (2, "h1", False),
+        (3, "h2", False),
+    ]
 
 
 def test_history_from_payload_skips_invalid():

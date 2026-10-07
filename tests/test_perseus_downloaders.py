@@ -981,3 +981,38 @@ def test_every_perseus_module_imports():
             failures.append(f"{path.name}: {type(exc).__name__}: {exc}")
 
     assert not failures, "modules failed to import:\n" + "\n".join(failures)
+
+
+def _pg_body(language: str) -> bytes:
+    return (
+        "The Project Gutenberg eBook of Something\n\n"
+        f"Title: Something\nLanguage: {language}\n\n*** START OF THE PROJECT ***\nbody\n"
+    ).encode()
+
+
+def test_ancient_pg_refuses_a_text_in_the_wrong_language(monkeypatch, tmp_path):
+    """#783: a wrong PG id fetches a real, well-formed book in another
+    language. Every other Gutenberg downloader checks the ``Language:`` header;
+    this one wrote whatever came back."""
+
+    mod = importlib.import_module("download_ancient_pg")
+    monkeypatch.setattr(mod, "fetch", lambda url: _pg_body("German"))
+    with pytest.raises(RuntimeError, match="Language"):
+        mod.fetch_all(data_root=tmp_path, delay=0)
+    assert not list(tmp_path.rglob("*.txt"))
+
+
+def test_ancient_pg_accepts_each_id_s_own_header(monkeypatch, tmp_path):
+    """Two of the ids are bilingual and their header says so: 47001 (Miller's
+    De Officiis) and 14970 (Reid's Academica) read ``English, Latin``."""
+
+    mod = importlib.import_module("download_ancient_pg")
+    bilingual = {47001, 14970}
+
+    def fake_fetch(url: str) -> bytes:
+        pg_id = int(url.rsplit("/pg", 1)[1].removesuffix(".txt"))
+        return _pg_body("English, Latin" if pg_id in bilingual else "English")
+
+    monkeypatch.setattr(mod, "fetch", fake_fetch)
+    written = mod.fetch_all(data_root=tmp_path, delay=0)
+    assert len(written) == len(mod._CICERO_PG + mod._ALT_PG)
