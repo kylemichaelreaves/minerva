@@ -35,6 +35,8 @@ function makeReference(overrides: Partial<Reference> = {}): Reference {
     confidence: 0.9,
     source_method: "rule+embed+llm",
     curator_status: "approved",
+    curated_by: null,
+    curated_at: null,
     note: null,
     ...overrides,
   };

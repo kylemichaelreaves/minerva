@@ -37,6 +37,8 @@ def xref_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "confidence": row["confidence"],
         "source_method": row["source_method"],
         "curator_status": row["curator_status"],
+        "curated_by": row["curated_by"],
+        "curated_at": row["curated_at"],
         "note": row["curator_note"],
     }
 

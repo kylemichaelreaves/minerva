@@ -44,6 +44,8 @@ function makeRow(overrides: Partial<ReferencesListRow> = {}): ReferencesListRow 
     confidence: 0.9,
     source_method: "rule+embed+llm",
     curator_status: "approved",
+    curated_by: null,
+    curated_at: null,
     note: null,
     source: {
       author: "Plato",
@@ -256,5 +258,41 @@ describe("<Refs />", () => {
     });
     fireEvent.click(must(container.querySelector(".ref-row")));
     expect(props.onOpenSource).not.toHaveBeenCalled();
+  });
+
+  // #720: who decided a row. NULL predates migration 0039 and must read
+  // "unrecorded", never "machine".
+  it.each([
+    ["rejected", "human", "by human"],
+    ["rejected", "llm", "by llm"],
+    ["rejected", null, "unrecorded"],
+    ["manual", null, "unrecorded"],
+  ] as const)("a %s row decided by %s shows '%s'", async (status, by, label) => {
+    fetchMock.mockResolvedValueOnce(
+      okResponse(makeResponse([makeRow({ curator_status: status, curated_by: by })])),
+    );
+    const { container } = renderRefs(defaultProps());
+    await waitFor(() => {
+      expect(container.querySelector(".ref-row-curated")?.textContent).toBe(label);
+    });
+  });
+
+  it("an undecided auto row shows no verdict author", async () => {
+    fetchMock.mockResolvedValueOnce(
+      okResponse(makeResponse([makeRow({ curator_status: "auto", curated_by: null })])),
+    );
+    const { container } = renderRefs(defaultProps());
+    await waitFor(() => expect(container.querySelector(".ref-row")).not.toBeNull());
+    expect(container.querySelector(".ref-row-curated")).toBeNull();
+  });
+
+  it("an llm-promoted auto row names its verdict author", async () => {
+    fetchMock.mockResolvedValueOnce(
+      okResponse(makeResponse([makeRow({ curator_status: "auto", curated_by: "llm" })])),
+    );
+    const { container } = renderRefs(defaultProps());
+    await waitFor(() => {
+      expect(container.querySelector(".ref-row-curated")?.textContent).toBe("by llm");
+    });
   });
 });

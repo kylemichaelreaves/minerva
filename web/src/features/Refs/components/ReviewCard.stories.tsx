@@ -22,6 +22,8 @@ const ROW: ReviewQueueRow = {
   confidence: 0.55,
   source_method: "rule_weak",
   curator_status: "auto",
+  curated_by: null,
+  curated_at: null,
   note: null,
   source: {
     author: "Aquinas",
@@ -101,6 +103,8 @@ export const OutOfCorpus: Story = {
       confidence: 0.62,
       source_method: "rule_weak",
       curator_status: "auto",
+      curated_by: null,
+      curated_at: null,
       note: "Initial low-confidence flag for Conf. III.4 echo.",
       source: {
         author: "Augustine",

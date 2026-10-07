@@ -1064,3 +1064,124 @@ class TestRejudgeBlind:
         backend = _CapturingBackend()
         llm_verify.verify_rows_with_llm(populated_db, backend, max_llm_calls=5)
         assert [r["id"] for batch in backend.payloads for r in batch] == [ids["fresh"]]
+
+
+# ════════════════════════════════════════════════════════════════════
+# --max-rows: a row cap for llm-verify (#572)
+# ════════════════════════════════════════════════════════════════════
+
+
+def _examined_ids(backend: _CapturingBackend) -> list[int]:
+    return [int(r["id"]) for batch in backend.payloads for r in batch]  # type: ignore[call-overload]
+
+
+class TestMaxRows:
+    def test_caps_examined_calls_and_checkpoint(self, populated_db: sqlite3.Connection) -> None:
+        ids = _seed_rows(populated_db, 5)
+        backend = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=2,
+            max_llm_calls=100,
+            skip_short_chunks=False,
+            max_rows=3,
+        )
+        assert _examined_ids(backend) == ids[:3]
+        assert stats.examined == 3
+        assert stats.llm_calls == 2
+        # The checkpoint stops at the last capped row, so --resume picks
+        # up exactly the rows the cap left behind.
+        assert llm_verify._read_checkpoint(populated_db) == ids[2]
+
+    def test_resume_after_a_capped_run_takes_the_rest(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 5)
+        llm_verify.verify_rows_with_llm(
+            populated_db, _CapturingBackend(), skip_short_chunks=False, max_rows=2
+        )
+        backend = _CapturingBackend()
+        llm_verify.verify_rows_with_llm(
+            populated_db, backend, skip_short_chunks=False, resume=True, max_rows=2
+        )
+        assert _examined_ids(backend) == ids[2:4]
+
+    def test_none_leaves_the_run_unchanged(self, populated_db: sqlite3.Connection) -> None:
+        ids = _seed_rows(populated_db, 4)
+        backend = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, skip_short_chunks=False, max_rows=None
+        )
+        assert _examined_ids(backend) == ids
+        assert stats.examined == 4
+
+    def test_a_cap_above_the_eligible_count_changes_nothing(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        ids = _seed_rows(populated_db, 3)
+        backend = _CapturingBackend()
+        llm_verify.verify_rows_with_llm(populated_db, backend, skip_short_chunks=False, max_rows=10)
+        assert _examined_ids(backend) == ids
+
+    def test_tighter_than_max_llm_calls_wins(self, populated_db: sqlite3.Connection) -> None:
+        _seed_rows(populated_db, 6)
+        backend = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=1,
+            max_llm_calls=5,
+            skip_short_chunks=False,
+            max_rows=2,
+        )
+        assert stats.examined == 2
+        assert stats.llm_calls == 2
+
+    def test_looser_than_max_llm_calls_loses(self, populated_db: sqlite3.Connection) -> None:
+        _seed_rows(populated_db, 6)
+        backend = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db,
+            backend,
+            batch_size=1,
+            max_llm_calls=2,
+            skip_short_chunks=False,
+            max_rows=5,
+        )
+        assert stats.examined == 2
+        assert stats.llm_calls == 2
+
+    def test_applies_after_the_rejudge_blind_filter(self, populated_db: sqlite3.Connection) -> None:
+        # The lowest id is a rejected row whose cite WAS in view, so the
+        # blind filter drops it. A cap applied before that filter (an SQL
+        # LIMIT) would spend its one row on it and judge nothing.
+        _seed_judged_row(populated_db, chunk_id="rep-510a", cite="Matth. xiii. 4", past_head=False)
+        blind = _seed_judged_row(
+            populated_db, chunk_id="rep-509d", cite="Matth. xiii. 3", past_head=True
+        )
+        _seed_judged_row(populated_db, chunk_id="rep-514a", cite="Matth. xiii. 5", past_head=True)
+        backend = _CapturingBackend()
+        stats = llm_verify.verify_rows_with_llm(
+            populated_db, backend, rejudge_blind=True, max_rows=1
+        )
+        assert _examined_ids(backend) == [blind]
+        assert stats.examined == 1
+
+    def test_verbose_reports_the_cap(
+        self, populated_db: sqlite3.Connection, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _seed_rows(populated_db, 4)
+        llm_verify.verify_rows_with_llm(
+            populated_db, _CapturingBackend(), skip_short_chunks=False, max_rows=2, verbose=True
+        )
+        assert "4 eligible, capped to 2 by --max-rows" in capsys.readouterr().out
+
+    def test_verbose_is_silent_when_the_cap_does_not_bind(
+        self, populated_db: sqlite3.Connection, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _seed_rows(populated_db, 2)
+        llm_verify.verify_rows_with_llm(
+            populated_db, _CapturingBackend(), skip_short_chunks=False, max_rows=5, verbose=True
+        )
+        assert "--max-rows" not in capsys.readouterr().out

@@ -23,6 +23,8 @@ const REF: Reference = {
   confidence: 0.9,
   source_method: "rule",
   curator_status: "approved",
+  curated_by: null,
+  curated_at: null,
   note: null,
 };
 

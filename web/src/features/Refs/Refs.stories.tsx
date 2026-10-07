@@ -45,6 +45,8 @@ const SAMPLE: ReferencesListResponse = {
       confidence: 1.0,
       source_method: "manual",
       curator_status: "approved",
+      curated_by: null,
+      curated_at: null,
       note: "Aquinas's Second Way appeals to the prime mover of Phys. VIII.6.",
       source: {
         author: "Aquinas",
@@ -72,6 +74,8 @@ const SAMPLE: ReferencesListResponse = {
       confidence: 0.95,
       source_method: "rule_strong",
       curator_status: "approved",
+      curated_by: null,
+      curated_at: null,
       note: "The phantasm article — locus classicus on Aristotelian cognition.",
       source: {
         author: "Aquinas",
@@ -99,6 +103,8 @@ const SAMPLE: ReferencesListResponse = {
       confidence: 1.0,
       source_method: "manual",
       curator_status: "manual",
+      curated_by: null,
+      curated_at: null,
       note:
         "Augustine's 'fecisti nos ad te' echoes the call-to-philosophy of " +
         "Cicero's lost Hortensius (cited explicitly in Conf. III.4.7).",
@@ -128,6 +134,8 @@ const SAMPLE: ReferencesListResponse = {
       confidence: 1.0,
       source_method: "manual",
       curator_status: "manual",
+      curated_by: null,
+      curated_at: null,
       note:
         "E I, P14's monism explicitly extends-by-correcting Descartes's " +
         "two-substance ontology in Princ. I.51-54.",
@@ -157,6 +165,8 @@ const SAMPLE: ReferencesListResponse = {
       confidence: 1.0,
       source_method: "manual",
       curator_status: "manual",
+      curated_by: null,
+      curated_at: null,
       note:
         "PR §258 — the state as actuality of the ethical Idea, against " +
         "Kant's contractualist construal.",
@@ -186,6 +196,8 @@ const SAMPLE: ReferencesListResponse = {
       confidence: 0.55,
       source_method: "rule_weak",
       curator_status: "auto",
+      curated_by: null,
+      curated_at: null,
       note: null,
       source: {
         author: "Hegel",

@@ -4436,3 +4436,63 @@ Those rows were deleted via `repair_stale_xrefs` and rediscovered by
 pre-window value.
 
 Filed along the way: #798. No active plan covers it beyond this note.
+
+## Batch 13d — refs pipeline correctness (#518 #523 #572 #710 #715 #720; #800 folded in)
+
+Phase 1 ran read-only on 2026-10-07 and corrected every issue on the issue
+itself. The owner decisions, also on the issues, set the shape of four fixes.
+One was revised the same day:
+
+- **#710: relabel, not filter.** The morning decision was option (b), which
+  excluded apparatus-sourced citations from the attribution views. It was
+  replaced by relabelling. `chunks.attributed_to` (migration 0041) names whoever
+  wrote a `note`/`editorial`/`cast` chunk, and every view that credits a source
+  author reads `COALESCE(c.attributed_to, works.author)`. That covers the
+  Network page, `/api/references` and its picker, the review queue,
+  `refs list`/`refs review` and the judge's `source_author`. Shorey's footnote
+  citing Aristotle is Shorey's citation. Editors are off the author axis, so
+  the Network page lists them in an *Editors & translators* panel.
+  - **Names:** derived from the edition's responsible party by the cleaner
+    retrieval already used, plus six source-file overrides where the
+    bibliography names nobody (Higginson, Reid), the wrong person
+    (Wood/Nisbet, Diels's "Fragments (DK 22)") or the host author (Hobbes's
+    transcriber's notes).
+  - **`spurious`:** credited to "<author> (doubtful or spurious)", never the
+    editor.
+  - **Cleaner bug fixed:** it could not parse an editor with initials
+    ("ed. J. Bywater, Aristotle's Ethica Nicomachea" passed through whole),
+    and this was fixed here.
+- **#518 + #715: refresh on match.** `upsert_candidate` refreshes the row a
+  candidate matches.
+  - **Verdict columns:** only unverified rule-tier rows, gated on the row's own
+    tier, status and `curated_by`, as phase 1 corrected.
+  - **Spans:** the two-part stale test, applied to any tier.
+  - **`refs build --refresh-only`** applies it to a scope without inserting
+    (#801) or touching scan state.
+- **#523 + #800: one resolver.** `resolve_target_work` (exact → folded → 1:1
+  alias, read from the code-owned `ALIASES`) is used by `ensure_target`, the
+  index rebind and its assert.
+- **#572:** `--limit` exits 2 under the verify strategies, and llm-verify has
+  `--max-rows`. **#720:** `curated_by`/`curated_at` appear on API rows, the
+  Refs page, `refs list --curated-by` and the review walker.
+
+Live window (snapshot `20261007T194007Z-13d-refs-relabel`):
+
+- **0041:** attributed all 10,578 apparatus chunks and nothing else. 1,161
+  citations moved off their host author, 398 of them at the Network default.
+  Hegel 3,007 → 2,750 (−8.5%), Cicero −89, Epictetus −19, Aristotle −17.
+- **Rebind:** relinked Cicero targets 2–5, exactly #800's four. No alias link
+  exists today, as #523 measured.
+- **`--refresh-only`:** scanned 182,653 chunks and inserted 0 rows. It
+  refreshed 515: 487 Nietzsche and 22 Aquinas rows moved `rule_strong` →
+  `rule_weak`, Renan 27840 moved up, and 5 spans moved.
+  `xref_source_span` 345 → 340, and every other `make audit` invariant is
+  unchanged.
+- **Scoped llm-verify** on the downgraded rows:
+  - Nietzsche→Christ: 484 rows (the other 3 are short chunks), 60 kept and 424
+    rejected, in 49 calls. That is #54's intent finally reaching the old rows.
+  - Aquinas: the 22 by id, 16 kept and 6 rejected, in 3 calls.
+  - Both runs reset the shared `--resume` checkpoint (78708 → 15114), which
+    was restored by hand. Filed as #802.
+
+Filed along the way: **#802**. No active plan covers it beyond this note.

@@ -29,6 +29,8 @@ function makeRow(overrides: Partial<ReviewQueueRow> = {}): ReviewQueueRow {
     confidence: 0.4,
     source_method: "rule+embed",
     curator_status: "auto",
+    curated_by: null,
+    curated_at: null,
     note: null,
     source: {
       author: "Plato",

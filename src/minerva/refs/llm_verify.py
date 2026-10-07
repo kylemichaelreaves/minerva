@@ -54,7 +54,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import llm as llm_mod
-from .constants import NOT_HUMAN_CURATED
+from .constants import NOT_HUMAN_CURATED, SOURCE_AUTHOR
 
 # `output_config.effort` for the judge when --llm-effort is not given.
 # Measured on Sonnet 5.5 (#744, 30 batches of 10): the judge spent zero
@@ -420,7 +420,7 @@ def _eligible_rows_sql(
         "       xr.source_method, "
         "       c.text AS source_text, "
         "       c.section AS source_section, "
-        "       src_work.author AS source_author, "
+        f"       {SOURCE_AUTHOR} AS source_author, "
         "       src_work.title AS source_work, "
         "       rt.canonical_author AS target_author, "
         "       rt.canonical_work AS target_work, "
@@ -635,6 +635,7 @@ def verify_rows_with_llm(
     max_backend_retries: int = 2,
     backend_retry_backoff: float = 2.0,
     rejudge_blind: bool = False,
+    max_rows: int | None = None,
 ) -> LLMVerifyStats:
     """Drive the Phase 4 verifier. Batches eligible rows, calls the
     backend per batch, parses verdicts, updates the database. Returns
@@ -671,6 +672,12 @@ def verify_rows_with_llm(
     without their cite in the excerpt, instead of the unjudged rows. It
     always resumes, from its own checkpoint, so a finished re-judge is a
     no-op rather than a second bill.
+
+    ``max_rows`` caps the rows examined (#572), whichever of it and
+    ``max_llm_calls × batch_size`` binds first. It is applied after the
+    blind-rejudge filter, so the cap is spent on rows that will actually
+    be judged, and the checkpoint stops at the last capped row, so
+    ``--resume`` picks up exactly the rows it left behind.
     """
 
     rows, checkpoint_key = _select_rows(
@@ -688,6 +695,11 @@ def verify_rows_with_llm(
 
     if not rows:
         return LLMVerifyStats()
+
+    if max_rows is not None and len(rows) > max_rows:
+        if verbose:
+            print(f"  {len(rows)} eligible, capped to {max_rows} by --max-rows", flush=True)
+        rows = rows[:max_rows]
 
     if verbose:
         print(

@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import type { NetworkSummary } from "~/api/networkApi";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
+import { ApparatusPanel } from "~/Network/components/ApparatusPanel";
 import { ArcPanel } from "~/Network/components/ArcPanel";
 import { HeatmapPanel } from "~/Network/components/HeatmapPanel";
 import { LeaderboardPanel } from "~/Network/components/LeaderboardPanel";
@@ -52,6 +53,7 @@ export function NetworkBody(props: {
                 rows={props.summary.top_works}
                 onOpen={props.onOpenTargetWork}
               />
+              <ApparatusPanel rows={props.summary.apparatus_sources} />
             </div>
           </section>
         </div>

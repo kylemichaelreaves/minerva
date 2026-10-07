@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from minerva.refs import schema as refs_schema
 from minerva.refs.rules import (
     AuthorMentionRule,
@@ -19,6 +21,7 @@ from minerva.refs.rules import (
     StrongMentionRule,
     apply_rules_to_chunk,
     insert_candidate,
+    upsert_candidate,
 )
 from minerva.refs.rules.aquinas import StructuralCommentaryRule
 from minerva.refs.rules.scripture_cite import (
@@ -407,3 +410,129 @@ class TestInsertCandidate:
         auto = _make_candidate(source_form_snapshot="Philosophus")
         new_id = insert_candidate(populated_db, auto, skip_if_manual_exists=False)
         assert new_id is not None
+
+
+# ════════════════════════════════════════════════════════════════════
+# Refresh on match — #518 (stale confidence / tier) and #715 (stale span)
+# ════════════════════════════════════════════════════════════════════
+
+_REP_509D = (
+    "Conceive then, as we were saying, that there are these two entities, "
+    "represented by a line divided into two unequal sections."
+)
+_DIVIDED = (_REP_509D.index("divided"), _REP_509D.index("divided") + len("divided"))
+
+
+def _row(conn: sqlite3.Connection, rid: int) -> tuple:
+    return conn.execute(
+        "SELECT confidence, source_method, source_span_start, source_span_end, "
+        "curator_status, curated_by FROM cross_references WHERE id = ?",
+        (rid,),
+    ).fetchone()
+
+
+def _seed_existing(conn: sqlite3.Connection, **cols: object) -> int:
+    """A row already in the table at `_make_candidate`'s content key."""
+    cand = _make_candidate(source_span_start=_DIVIDED[0], source_span_end=_DIVIDED[1])
+    rid = insert_candidate(conn, cand)
+    assert rid is not None
+    if cols:
+        sets = ", ".join(f"{k} = ?" for k in cols)
+        conn.execute(f"UPDATE cross_references SET {sets} WHERE id = ?", (*cols.values(), rid))
+    conn.commit()
+    return rid
+
+
+def _fresh(**overrides: object) -> Candidate:
+    return _make_candidate(source_span_start=_DIVIDED[0], source_span_end=_DIVIDED[1], **overrides)
+
+
+class TestRefreshOnMatch:
+    def test_a_retuned_rule_corrects_an_auto_rule_row(self, populated_db) -> None:
+        # The Nietzsche `christlich` shape: stored rule_strong 0.88, the
+        # rule now emits rule_weak 0.45.
+        rid = _seed_existing(populated_db, confidence=0.88, source_method="rule_strong")
+        outcome, got_id = upsert_candidate(
+            populated_db, _fresh(confidence=0.45, source_method="rule_weak")
+        )
+        assert (outcome, got_id) == ("refreshed", rid)
+        assert _row(populated_db, rid)[:2] == (0.45, "rule_weak")
+
+    def test_insert_candidate_still_returns_none_on_a_match(self, populated_db) -> None:
+        _seed_existing(populated_db, confidence=0.88, source_method="rule_strong")
+        assert insert_candidate(populated_db, _fresh(confidence=0.45)) is None
+
+    def test_an_unchanged_match_is_reported_unchanged(self, populated_db) -> None:
+        rid = _seed_existing(populated_db)
+        assert upsert_candidate(populated_db, _fresh()) == ("unchanged", rid)
+
+    @pytest.mark.parametrize(
+        "cols",
+        [
+            # A verifier's tier: refreshing would send 11,265 verified rows
+            # back into the llm-verify queue (#518 phase-1 correction 4).
+            {"source_method": "rule+embed+llm", "confidence": 0.95},
+            {"source_method": "rule+embed", "confidence": 0.93},
+            # A curator's decision, whatever the tier.
+            {"curator_status": "rejected"},
+            {"curator_status": "approved"},
+            # A verdict author on an auto row.
+            {"curated_by": "llm"},
+            {"curated_by": "human"},
+        ],
+    )
+    def test_a_decided_or_verified_row_keeps_its_verdict(self, populated_db, cols) -> None:
+        rid = _seed_existing(populated_db, **cols)
+        before = _row(populated_db, rid)
+        outcome, _ = upsert_candidate(
+            populated_db, _fresh(confidence=0.45, source_method="rule_strong")
+        )
+        assert outcome == "unchanged"
+        assert _row(populated_db, rid) == before
+
+    def test_a_non_rule_candidate_never_rewrites_a_rule_row(self, populated_db) -> None:
+        # embed-verify's allusion sweep also calls insert_candidate.
+        rid = _seed_existing(populated_db)
+        upsert_candidate(populated_db, _fresh(confidence=0.86, source_method="embed_only"))
+        assert _row(populated_db, rid)[:2] == (0.7, "rule_weak")
+
+    def test_a_stale_span_moves_to_the_candidate_span(self, populated_db) -> None:
+        # #715: the text shifted under a surviving chunk_id, so the stored
+        # slice no longer reads the snapshot. Spans are facts, not
+        # verdicts, so even a verified row is corrected.
+        rid = _seed_existing(
+            populated_db,
+            source_method="rule+embed+llm",
+            confidence=0.95,
+            source_span_start=_DIVIDED[0] - 12,
+            source_span_end=_DIVIDED[1] - 12,
+        )
+        outcome, _ = upsert_candidate(populated_db, _fresh())
+        assert outcome == "refreshed"
+        assert _row(populated_db, rid)[:4] == (0.95, "rule+embed+llm", *_DIVIDED)
+
+    def test_a_span_that_still_reads_the_snapshot_is_not_moved(self, populated_db) -> None:
+        # The form can repeat inside a chunk: a stored span on another
+        # occurrence is still right, so it must not churn (#715 comment).
+        populated_db.execute(
+            "UPDATE chunks SET text = ? WHERE chunk_id = 'rep-509d'",
+            ("divided " + _REP_509D,),
+        )
+        populated_db.commit()
+        rid = _seed_existing(populated_db, source_span_start=0, source_span_end=7)
+        cand = _make_candidate(source_span_start=_DIVIDED[0] + 8, source_span_end=_DIVIDED[1] + 8)
+        assert upsert_candidate(populated_db, cand) == ("unchanged", rid)
+        assert _row(populated_db, rid)[2:4] == (0, 7)
+
+    def test_refresh_only_mode_never_inserts(self, populated_db) -> None:
+        outcome, rid = upsert_candidate(populated_db, _fresh(), insert=False)
+        assert (outcome, rid) == ("absent", None)
+        assert populated_db.execute("SELECT COUNT(*) FROM cross_references").fetchone()[0] == 0
+
+    def test_refresh_only_mode_still_refreshes(self, populated_db) -> None:
+        rid = _seed_existing(populated_db, confidence=0.9, source_method="rule_strong")
+        outcome, _ = upsert_candidate(
+            populated_db, _fresh(confidence=0.65, source_method="rule_weak"), insert=False
+        )
+        assert outcome == "refreshed"
+        assert _row(populated_db, rid)[:2] == (0.65, "rule_weak")

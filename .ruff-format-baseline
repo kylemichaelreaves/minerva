@@ -60,7 +60,6 @@ src/minerva/refs/network_queries.py
 src/minerva/refs/review_queries.py
 src/minerva/refs/rules/loader.py
 src/minerva/refs/rules/scripture_cite/en.py
-src/minerva/refs/schema.py
 src/minerva/refs/spec.py
 src/minerva/sources/hebrew_mt.py
 src/minerva/sources/hobbes_la.py

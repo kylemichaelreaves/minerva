@@ -3,6 +3,8 @@ LLM base-url safety check."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from minerva.cli import _validate_base_url, build_parser
@@ -258,3 +260,61 @@ def test_refs_llm_verify_passes_effort_to_the_backend(tmp_path, monkeypatch, fla
     assert _build_llm_verify(args) == 2
     assert seen["effort"] == expected
     assert not (tmp_path / "x.db").exists()
+
+
+def test_refs_build_max_rows_flag(parser):
+    """#572: a row cap for llm-verify, separate from --limit."""
+    args = parser.parse_args(["refs", "build", "--strategy", "llm-verify"])
+    assert args.max_rows is None
+    args = parser.parse_args(["refs", "build", "--strategy", "llm-verify", "--max-rows", "7"])
+    assert args.max_rows == 7
+
+
+@pytest.mark.parametrize("strategy", ["llm-verify", "embed-verify"])
+def test_refs_build_limit_with_a_verify_strategy_exits_2(tmp_path, capsys, strategy):
+    """#572: --limit was never wired to either verify strategy, so
+    `--limit 3` and `--limit 1000000` ran identical llm-verify passes.
+    Refuse it rather than let it read as a cost control."""
+    from minerva.cli.refs.build import cmd_refs_build
+
+    db = tmp_path / "never-created.db"
+    args = build_parser().parse_args(
+        ["refs", "build", "--strategy", strategy, "--limit", "3", "--db", str(db)]
+    )
+    assert cmd_refs_build(args) == 2
+    err = capsys.readouterr().err
+    assert "--limit" in err and "--max-rows" in err
+    assert not db.exists()
+
+
+def test_refs_llm_verify_passes_max_rows_through(tmp_path, monkeypatch):
+    from minerva import llm as llm_mod
+    from minerva.cli.refs.build import _build_llm_verify
+    from minerva.refs import llm_verify
+
+    seen = {}
+
+    monkeypatch.setattr(
+        llm_mod, "make_backend", lambda kind, **kw: SimpleNamespace(name="fake", model="m")
+    )
+
+    def fake_verify(conn, backend, **kw):
+        conn.close()
+        seen.update(kw)
+        return llm_verify.LLMVerifyStats()
+
+    monkeypatch.setattr(llm_verify, "verify_rows_with_llm", fake_verify)
+    args = build_parser().parse_args(
+        [
+            "refs",
+            "build",
+            "--strategy",
+            "llm-verify",
+            "--db",
+            str(tmp_path / "x.db"),
+            "--max-rows",
+            "4",
+        ]
+    )
+    assert _build_llm_verify(args) == 0
+    assert seen["max_rows"] == 4

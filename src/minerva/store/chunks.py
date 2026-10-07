@@ -8,6 +8,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from .. import orthography
+from ..apparatus_attribution import attribute_chunk
 from ..ingest import load_jsonl
 from ..sqlite_util import foreign_keys_off_for_transaction, table_exists
 from .embeddings import invalidate_embedding_cache
@@ -382,8 +383,8 @@ def insert_chunks(
             INSERT_SQL = (
                 "INSERT OR REPLACE INTO chunks "
                 "(chunk_id, edition_id, translation_id, work_id, lang, section, book, page, "
-                " speaker, source_file, text, ord, text_norm, block_type) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " speaker, source_file, text, ord, text_norm, block_type, attributed_to) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             for obj in load_jsonl(jsonl_path):
                 # Incremental mode: skip rows whose corpus is out of scope.
@@ -440,6 +441,14 @@ def insert_chunks(
                         ord_counter[key],
                         orthography.canonicalize(obj["text"], obj["lang"]),
                         obj.get("block_type"),
+                        # Who wrote an apparatus chunk (#710); migration
+                        # 0041 backfills the same function's answer.
+                        attribute_chunk(
+                            block_type=obj.get("block_type"),
+                            author=obj["author"],
+                            source_file=obj["source_file"],
+                            responsible=obj.get("translator"),
+                        ),
                     )
                 )
                 if len(batch) >= _INSERT_BATCH:
@@ -660,59 +669,65 @@ def _rebind_reference_targets(conn: sqlite3.Connection) -> int:
     ``foreign_keys_off_for_transaction``, so the cascade never fires and
     the stale integer survives instead.
 
-    Resolution is by exact ``(author, title)`` — the same lookup
-    :func:`refs.schema.ensure_target` uses, which is the only other
-    writer of this column. ``works`` is ``UNIQUE (author, title)`` so the
-    subquery is scalar. A target whose work is not (or no longer) in the
+    Resolution is :func:`refs.schema.resolve_target_work` — the lookup
+    :func:`refs.schema.ensure_target`, the only other writer of this
+    column, links with. It was exact-only here while ``ensure_target``
+    had gone exact-then-folded, so every index run re-NULLed the folded
+    links (#800). A target whose work is not (or no longer) in the
     corpus resolves to NULL, which is the honest answer: out-of-corpus
     targets are NULL by design (migration 0012 seeds them that way).
 
     Returns the number of rows whose value actually changed.
     """
 
-    resolve = (
-        "SELECT w.id FROM works w "
-        "WHERE w.author = reference_targets.canonical_author "
-        "  AND w.title  = reference_targets.canonical_work"
-    )
-    # ``IS NOT`` rather than ``<>`` so the NULL cases compare correctly
-    # and the rowcount reflects real changes only.
-    cur = conn.execute(
-        f"UPDATE reference_targets "
-        f"SET in_corpus_work_id = ({resolve}) "
-        f"WHERE in_corpus_work_id IS NOT ({resolve})"
-    )
-    changed = cur.rowcount
-    if changed:
+    changes = [
+        (want, target_id) for target_id, want, have in _target_resolutions(conn) if want != have
+    ]
+    conn.executemany("UPDATE reference_targets SET in_corpus_work_id = ? WHERE id = ?", changes)
+    if changes:
         print(
-            f"  reference_targets: re-resolved {changed} in_corpus_work_id "
+            f"  reference_targets: re-resolved {len(changes)} in_corpus_work_id "
             f"pointer(s) to the rebuilt works ids",
             flush=True,
         )
-    return changed
+    return len(changes)
+
+
+def _target_resolutions(conn: sqlite3.Connection) -> list[tuple[int, int | None, int | None]]:
+    """``(target id, resolved work id, stored work id)`` for every target."""
+
+    from ..refs.schema import resolve_target_work
+
+    out: list[tuple[int, int | None, int | None]] = []
+    for target_id, author, work, have in conn.execute(
+        "SELECT id, canonical_author, canonical_work, in_corpus_work_id FROM reference_targets"
+    ).fetchall():
+        hit = resolve_target_work(conn, author=author, work=work)
+        out.append((int(target_id), None if hit is None else hit[0], have))
+    return out
 
 
 def _assert_reference_targets_resolve(conn: sqlite3.Connection) -> None:
-    """Raise when any ``in_corpus_work_id`` points at a work whose
-    ``(author, title)`` disagrees with the target's declared pair.
+    """Raise when any ``in_corpus_work_id`` is not the work the target's
+    ``(canonical_author, canonical_work)`` resolves to.
 
     Deliberately not ``PRAGMA foreign_key_check``: the stale ids this
     guards against point at rows that really exist, so they are
     referentially *valid* and a FK check passes on them by construction.
     That is precisely why the drift in #273 went undetected for so long.
+    It compares against the shared resolver rather than title equality,
+    which would reject every folded or alias link (#800).
     """
 
-    bad = conn.execute(
-        "SELECT rt.id, rt.canonical_author, rt.canonical_work, w.author, w.title "
-        "FROM reference_targets rt "
-        "JOIN works w ON w.id = rt.in_corpus_work_id "
-        "WHERE w.author <> rt.canonical_author OR w.title <> rt.canonical_work "
-        "LIMIT 3"
-    ).fetchall()
+    bad = [
+        (target_id, have, want)
+        for target_id, want, have in _target_resolutions(conn)
+        if have is not None and have != want
+    ][:3]
     if bad:
         raise RuntimeError(
             f"insert_chunks left reference_targets pointing at the wrong "
-            f"work; first {len(bad)}: {bad!r}"
+            f"work; first {len(bad)} (target, stored, resolved): {bad!r}"
         )
 
 

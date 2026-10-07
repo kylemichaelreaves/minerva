@@ -15,6 +15,7 @@ from collections.abc import Iterable
 import numpy as np
 
 from . import embed, orthography, store
+from .apparatus_attribution import clean_responsible
 from .block_types import APPARATUS_LABEL, APPARATUS_TYPES
 from .corpus_registry import corpus_authors
 from .metrics.recorder import sub_span
@@ -190,31 +191,7 @@ _PARATEXT_TYPES = ("signature",)
 # line still come back.
 _APPARATUS_MAX_SHARE = 1 / 3
 
-_TRANSLATED_BY_RE = re.compile(
-    r"(?:translated by|English Translation by|Translation by|trans\.?\s*by)\s+(.+)$", re.I
-)
-_EDITED_BY_RE = re.compile(r"\bed(?:ited by|\.)\s+([A-Z][^.,;]+)")
-
-
-def _clean_responsible(blob: str | None) -> str | None:
-    """Pull a clean translator/editor name from a source-bibliography blob,
-    e.g. 'Plato in Twelve Volumes, Vol. 8 translated by W.R.M. Lamb.' →
-    'W.R.M. Lamb'. None when no name is recoverable (caller falls back to a
-    bare 'editorial note' label), as for an original-language edition,
-    whose translator field is the placeholder '(Original)'."""
-    if not blob or blob == "(Original)":
-        return None
-    m = _TRANSLATED_BY_RE.search(blob)
-    if m:
-        name = re.split(r";|\bIntroduction\b|\bin (?:two|three) volumes", m.group(1))[0]
-        return name.strip(" .,") or None
-    m = _EDITED_BY_RE.search(blob)
-    if m:
-        return "ed. " + m.group(1).strip(" .,")
-    # Already a clean name (e.g. "Wood / Nisbet"), not a bibliography blob.
-    if len(blob) <= 50 and "Volume" not in blob and ":" not in blob:
-        return blob.strip(" .,") or None
-    return None
+_clean_responsible = clean_responsible
 
 
 def _fts_match(

@@ -138,6 +138,8 @@ def test_review_labels_the_matched_form_as_wider_than_the_highlight(capsys):
         "source_form_snapshot": "in Psalmo: cor meum et caro mea exultaverunt.",
         "quoted_phrase": None,
         "curator_note": None,
+        "curated_by": None,
+        "curated_at": None,
         "source_text": "Dicitur in Psalmo: cor meum et caro mea exultaverunt.",
         "source_span_start": 12,
         "source_span_end": 52,

@@ -23,16 +23,21 @@ Strategy dispatch:
   ``--llm-base-url`` overrides go through the same
   ``validate_base_url`` credential-leak guard as ask/chat/serve.
 
-Dedup: every insert goes through :func:`refs.rules.insert_candidate`,
+Dedup: every insert goes through :func:`refs.rules.upsert_candidate`,
 which blocks re-creation of an existing logical row (same source +
-target + reference_type + source_form + quoted_phrase) and never
-overrides a curator-manual/approved row at the same site. Re-running
-is idempotent — the row count stabilizes after the first pass.
+target + reference_type + source_form + quoted_phrase + target chunk)
+and never overrides a curator-manual/approved row at the same site.
+Re-running is idempotent — the row count stabilizes after the first
+pass. A matched row is not left as it was, though: a rule-tier row
+nobody has verified follows the rule's current confidence and tier
+(#518), and a span that no longer reads its snapshot is moved (#715).
+``--refresh-only`` applies that to a whole scope without inserting.
 """
 
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from collections import defaultdict
 
@@ -42,7 +47,27 @@ from ...refs import rules as refs_rules
 from ..terms._io import _open
 
 
+def _rules_only_flag_misused(args: argparse.Namespace) -> str | None:
+    """Name the rules-only flag passed with a verify strategy, if any."""
+    if args.strategy == "rules":
+        return None
+    if getattr(args, "limit", None) is not None:
+        # #572: neither verify strategy reads --limit, so it bounded
+        # nothing while reading as a cost control.
+        return (
+            f"--limit applies to --strategy rules only; {args.strategy} never "
+            "reads it. Bound an llm-verify run with --max-rows or --max-llm-calls."
+        )
+    if getattr(args, "refresh_only", False):
+        return f"--refresh-only applies to --strategy rules only, not {args.strategy}."
+    return None
+
+
 def cmd_refs_build(args: argparse.Namespace) -> int:
+    misuse = _rules_only_flag_misused(args)
+    if misuse:
+        print(misuse, file=sys.stderr)
+        return 2
     if args.strategy == "embed-verify":
         return _build_embed_verify(args)
     if args.strategy == "llm-verify":
@@ -53,112 +78,135 @@ def cmd_refs_build(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
-
     conn = _open(args)
-    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        _RulesPass(conn, args).run()
+    finally:
+        conn.close()
+    return 0
 
-    n_chunks_scanned = 0
-    n_candidates = 0
-    n_inserted = 0
-    n_skipped_dedup = 0
-    per_source: dict[str, dict[str, int]] = defaultdict(
-        lambda: {"chunks": 0, "candidates": 0, "inserted": 0}
-    )
-    per_pair: dict[tuple[str, str], int] = defaultdict(int)
 
-    chunk_iter = refs_rules.iter_chunks_for_rules(
-        conn,
-        source_author=args.source_author,
-        limit=args.limit,
-        rescan_all=getattr(args, "rescan_all", False),
-    )
+class _RulesPass:
+    """The ``--strategy rules`` pass, and its ``--refresh-only`` mode.
 
-    # Per-author throttling: skip a chunk when the source author has
-    # no rule module. The runner returns an empty candidate list for
-    # those, but we want the report to show "scanned 0" rather than
-    # "scanned N, candidates 0" which is misleading.
-    #
-    # This used to name Plato, Aristotle and Descartes as examples —
-    # wrong by the time #459 found it: all three have real modules, and
-    # the wrong example is what let Aristotle's `refs_scan_state` cache
-    # sit falsely "current" (hash and rules fingerprint both matching)
-    # for 17,095 chunks, silently withholding 58 detectable references
-    # that only `--rescan-all` surfaced. Naming specific authors here
-    # invites the same drift; check `_rules_for_author` directly.
-    rules_seen_for: dict[str, bool] = {}
+    ``--refresh-only`` (#518, #715) is the live backfill for
+    :func:`refs.rules.upsert_candidate`'s refresh: it visits every chunk
+    in scope regardless of ``refs_scan_state`` — the cache fingerprints
+    the rules, not the insert path, so every affected chunk reads as
+    current — refreshes the rows its candidates match, inserts nothing
+    (so a rescan cannot add #801's duplicates), and leaves the scan-state
+    cache as it found it.
+    """
 
-    # Batch the scan-state upserts — record_scan_state issues one
-    # executemany per flush rather than one INSERT per chunk.
-    scan_state_batch: list[refs_rules.ChunkInfo] = []
+    def __init__(self, conn: sqlite3.Connection, args: argparse.Namespace) -> None:
+        self.conn = conn
+        self.args = args
+        self.refresh_only = bool(getattr(args, "refresh_only", False))
+        self.outcomes: dict[str, int] = defaultdict(int)
+        self.n_chunks_scanned = 0
+        self.n_candidates = 0
+        self.per_source: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"chunks": 0, "candidates": 0, "inserted": 0}
+        )
+        self.per_pair: dict[tuple[str, str], int] = defaultdict(int)
+        # Per-author throttling: skip a chunk when the source author has
+        # no rule module. The runner returns an empty candidate list for
+        # those, but we want the report to show "scanned 0" rather than
+        # "scanned N, candidates 0" which is misleading.
+        #
+        # This used to name Plato, Aristotle and Descartes as examples —
+        # wrong by the time #459 found it: all three have real modules, and
+        # the wrong example is what let Aristotle's `refs_scan_state` cache
+        # sit falsely "current" (hash and rules fingerprint both matching)
+        # for 17,095 chunks, silently withholding 58 detectable references
+        # that only `--rescan-all` surfaced. Naming specific authors here
+        # invites the same drift; check `_rules_for_author` directly.
+        self.rules_seen_for: dict[str, bool] = {}
+        # Batch the scan-state upserts — record_scan_state issues one
+        # executemany per flush rather than one INSERT per chunk.
+        self.scan_state_batch: list[refs_rules.ChunkInfo] = []
 
-    for chunk in chunk_iter:
+    def run(self) -> None:
+        chunk_iter = refs_rules.iter_chunks_for_rules(
+            self.conn,
+            source_author=self.args.source_author,
+            limit=self.args.limit,
+            rescan_all=self.refresh_only or getattr(self.args, "rescan_all", False),
+        )
+        for chunk in chunk_iter:
+            self._scan(chunk)
+        self._flush()
+        self._report()
+
+    def _has_rules(self, author: str) -> bool:
+        if author not in self.rules_seen_for:
+            self.rules_seen_for[author] = bool(refs_rules._rules_for_author(author))
+        return self.rules_seen_for[author]
+
+    def _scan(self, chunk: refs_rules.ChunkInfo) -> None:
         # Skip chunks whose source author has no rule module — saves
-        # a pattern scan on every Plato/Aristotle chunk. We still
+        # a pattern scan on every such chunk. We still
         # record_scan_state for them so the next run skips them at
         # the iterator level instead of re-issuing this check.
-        if chunk.author not in rules_seen_for:
-            rules_seen_for[chunk.author] = bool(refs_rules._rules_for_author(chunk.author))
-        scan_state_batch.append(chunk)
-        if not rules_seen_for[chunk.author]:
-            continue
-
-        n_chunks_scanned += 1
-        per_source[chunk.author]["chunks"] += 1
-
+        self.scan_state_batch.append(chunk)
+        if not self._has_rules(chunk.author):
+            return
+        self.n_chunks_scanned += 1
+        source = self.per_source[chunk.author]
+        source["chunks"] += 1
         candidates = refs_rules.apply_rules_to_chunk(chunk)
-        n_candidates += len(candidates)
-        per_source[chunk.author]["candidates"] += len(candidates)
-
+        self.n_candidates += len(candidates)
+        source["candidates"] += len(candidates)
         for cand in candidates:
-            new_id = refs_rules.insert_candidate(conn, cand)
-            if new_id is None:
-                n_skipped_dedup += 1
-                continue
-            n_inserted += 1
-            per_source[chunk.author]["inserted"] += 1
-            per_pair[(chunk.author, cand.target_author)] += 1
-
+            outcome, _ = refs_rules.upsert_candidate(self.conn, cand, insert=not self.refresh_only)
+            self.outcomes[outcome] += 1
+            if outcome == "inserted":
+                source["inserted"] += 1
+                self.per_pair[(chunk.author, cand.target_author)] += 1
         # Commit periodically to bound the transaction size. Every
         # 500 chunks is small enough to surface a hard failure quickly
         # but big enough that we're not paying the fsync cost per row.
-        if n_chunks_scanned % 500 == 0:
-            refs_rules.record_scan_state(conn, scan_state_batch)
-            scan_state_batch.clear()
-            conn.commit()
-            if args.verbose:
+        if self.n_chunks_scanned % 500 == 0:
+            self._flush()
+            if self.args.verbose:
                 print(
-                    f"  ... {n_chunks_scanned} chunks scanned, "
-                    f"{n_inserted} inserted, {n_skipped_dedup} skipped",
+                    f"  ... {self.n_chunks_scanned} chunks scanned, "
+                    f"{self.outcomes['inserted']} inserted, "
+                    f"{self.outcomes['refreshed']} refreshed",
                     file=sys.stderr,
                 )
 
-    refs_rules.record_scan_state(conn, scan_state_batch)
-    conn.commit()
+    def _flush(self) -> None:
+        if not self.refresh_only:
+            refs_rules.record_scan_state(self.conn, self.scan_state_batch)
+        self.scan_state_batch.clear()
+        self.conn.commit()
 
-    # Report.
-    print(
-        f"\nrules build complete: "
-        f"scanned {n_chunks_scanned} chunks, "
-        f"{n_candidates} candidates emitted, "
-        f"{n_inserted} new rows, "
-        f"{n_skipped_dedup} skipped (already present)"
-    )
-
-    if per_source:
-        print("\nPer source author:")
-        for author in sorted(per_source.keys()):
-            s = per_source[author]
-            print(
-                f"  {author:14s}  chunks={s['chunks']:5d}  "
-                f"candidates={s['candidates']:5d}  inserted={s['inserted']:5d}"
-            )
-
-    if per_pair:
-        print("\nNew references by (source → target):")
-        for (src, tgt), n in sorted(per_pair.items(), key=lambda kv: -kv[1]):
-            print(f"  {src:14s} → {tgt:18s}  {n}")
-
-    return 0
+    def _report(self) -> None:
+        o = self.outcomes
+        mode = "rules refresh-only" if self.refresh_only else "rules build"
+        print(
+            f"\n{mode} complete: "
+            f"scanned {self.n_chunks_scanned} chunks, "
+            f"{self.n_candidates} candidates emitted, "
+            f"{o['inserted']} new rows, "
+            f"{o['refreshed']} refreshed, "
+            f"{o['unchanged'] + o['blocked']} skipped (already present)"
+            + (f", {o['absent']} unmatched (not inserted)" if self.refresh_only else "")
+        )
+        if self.per_source:
+            print("\nPer source author:")
+            for author in sorted(self.per_source):
+                s = self.per_source[author]
+                print(
+                    f"  {author:14s}  chunks={s['chunks']:5d}  "
+                    f"candidates={s['candidates']:5d}  inserted={s['inserted']:5d}"
+                )
+        if self.per_pair:
+            print("\nNew references by (source → target):")
+            for (src, tgt), n in sorted(self.per_pair.items(), key=lambda kv: -kv[1]):
+                print(f"  {src:14s} → {tgt:18s}  {n}")
 
 
 def _build_embed_verify(args: argparse.Namespace) -> int:
@@ -322,6 +370,7 @@ def _build_llm_verify(args: argparse.Namespace) -> int:
         sleep_between_calls=args.sleep_between_calls,
         resume=getattr(args, "resume", False),
         rejudge_blind=getattr(args, "rejudge_blind", False),
+        max_rows=getattr(args, "max_rows", None),
     )
     print(
         f"\nllm-verify done: "

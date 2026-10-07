@@ -26,5 +26,6 @@ export function makeNetworkSummary(
     scripture_heatmap: { authors: [], sections: [], cells: [] },
     verification: [],
     top_works: over.works ?? [],
+    apparatus_sources: [],
   };
 }

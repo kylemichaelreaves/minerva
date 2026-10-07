@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 from unittest.mock import patch
 
@@ -18,9 +19,13 @@ import numpy as np
 import pytest
 
 from minerva import llm
-from minerva.cli.refs.review import cmd_refs_review
+from minerva.cli import refs as refs_cli
+from minerva.cli.refs.list_cmd import cmd_refs_list
+from minerva.cli.refs.review import _fetch_one_row, _print_row, cmd_refs_review
 from minerva.refs import embed_verify, llm_verify
 from minerva.refs import schema as refs_schema
+from minerva.refs.list_queries import references_list
+from minerva.refs.review_queries import review_queue
 from minerva.refs.update_queries import update_reference
 
 
@@ -205,3 +210,116 @@ class TestVerifiersLeaveHumanDecisionsAlone:
             ).fetchone()[0]
             == "auto"
         )
+
+
+class TestProvenanceIsSurfaced:
+    """#720: the columns were written but no reader could see them."""
+
+    def test_the_patch_response_carries_the_verdict_author(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        rid = _seed(populated_db)
+        body = update_reference(populated_db, rid, status="rejected", note=None, update_note=False)
+        assert body["curated_by"] == "human"
+        assert body["curated_at"] is not None
+        assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", body["curated_at"])
+
+    def test_api_list_and_review_rows_carry_null_on_a_fresh_row(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        _seed(populated_db)
+        listed = references_list(populated_db, {"limit": "5", "min_confidence": "0"})["references"]
+        queued = review_queue(populated_db, {"limit": "5"})["references"]
+        for row in (listed[0], queued[0]):
+            assert (row["curated_by"], row["curated_at"]) == (None, None)
+
+    @pytest.mark.parametrize(
+        ("curated_by", "expected"),
+        [("human", "human_row"), ("none", "fresh_row"), ("llm", None), (None, "both")],
+    )
+    def test_list_references_filters_on_the_verdict_author(
+        self, populated_db: sqlite3.Connection, curated_by: str | None, expected: str | None
+    ) -> None:
+        fresh = _seed(populated_db)
+        human = _seed(populated_db, chunk_id="rep-510a")
+        _mark_human(populated_db, human, "rejected")
+        rows = refs_schema.list_references(populated_db, curated_by=curated_by)
+        ids = {r["id"] for r in rows}
+        want = {
+            "human_row": {human},
+            "fresh_row": {fresh},
+            None: set(),
+            "both": {fresh, human},
+        }[expected]
+        assert ids == want
+        for r in rows:
+            assert r["curated_by"] == ("human" if r["id"] == human else None)
+            assert (r["curated_at"] is None) == (r["id"] != human)
+
+    def test_list_references_rejects_an_unknown_verdict_author(
+        self, populated_db: sqlite3.Connection
+    ) -> None:
+        with pytest.raises(ValueError, match="curated_by"):
+            refs_schema.list_references(populated_db, curated_by="robot")
+
+    def test_refs_list_json_carries_both_fields(
+        self, populated_db: sqlite3.Connection, db_path, capsys
+    ) -> None:
+        human = _seed(populated_db)
+        _mark_human(populated_db, human, "rejected")
+        args = _list_args(db_path, json=True, curated_by="human")
+        assert cmd_refs_list(args) == 0
+        out = json.loads(capsys.readouterr().out)
+        assert [r["id"] for r in out] == [human]
+        assert out[0]["curated_by"] == "human"
+        assert out[0]["curated_at"].endswith("Z")
+
+    def test_refs_list_table_has_a_curated_by_column(
+        self, populated_db: sqlite3.Connection, db_path, capsys
+    ) -> None:
+        _seed(populated_db)
+        assert cmd_refs_list(_list_args(db_path, json=False, curated_by="none")) == 0
+        header = capsys.readouterr().out.splitlines()[0]
+        assert "curated_by" in header
+
+    def test_refs_list_cli_parses_the_flag(self) -> None:
+        ns = _parse_refs(["list", "--curated-by", "none"])
+        assert ns.curated_by == "none"
+        with pytest.raises(SystemExit):
+            _parse_refs(["list", "--curated-by", "robot"])
+
+    @pytest.mark.parametrize("decided", [True, False])
+    def test_review_walker_prints_the_verdict_author(
+        self, populated_db: sqlite3.Connection, decided: bool, capsys
+    ) -> None:
+        rid = _seed(populated_db, source_method="rule_strong")
+        if decided:
+            _mark_human(populated_db, rid, "auto")
+        row = _fetch_one_row(populated_db, source_author=None, target_author=None, after_id=0)
+        assert row["curated_by"] == ("human" if decided else None)
+        _print_row(row, 1)
+        out = capsys.readouterr().out
+        if decided:
+            assert re.search(r"curated: human  \(at \d{4}-\d\d-\d\dT[\d:]+Z\)", out)
+        else:
+            assert "curated: unrecorded" in out
+
+
+def _list_args(db_path, *, json: bool, curated_by: str | None) -> argparse.Namespace:
+    return argparse.Namespace(
+        db=db_path,
+        source_author=None,
+        target_author=None,
+        target_work=None,
+        status=None,
+        curated_by=curated_by,
+        limit=50,
+        json=json,
+    )
+
+
+def _parse_refs(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    subs = parser.add_subparsers()
+    refs_cli.register_subparsers(subs)
+    return parser.parse_args(["refs", *argv])

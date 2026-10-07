@@ -41,6 +41,8 @@ const inCorpusRef: Reference = {
   confidence: 1.0,
   source_method: "manual",
   curator_status: "manual",
+  curated_by: null,
+  curated_at: null,
   note: "the locus classicus on Aquinas's appropriation of Aristotelian cognition",
 };
 
@@ -70,6 +72,8 @@ const outOfCorpusRef: Reference = {
   confidence: 1.0,
   source_method: "manual",
   curator_status: "manual",
+  curated_by: null,
+  curated_at: null,
   note: null,
 };
 
@@ -94,6 +98,8 @@ const pendingRef: Reference = {
   source_method: "rule+embed",
   // curator_status='auto' is what flips the visual state to PENDING.
   curator_status: "auto",
+  curated_by: null,
+  curated_at: null,
   note: "auto-detected via Plotinus-Augustine embedding similarity",
 };
 

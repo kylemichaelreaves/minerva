@@ -71,6 +71,16 @@ export interface NetworkSummary {
   };
   verification: VerificationRow[];
   top_works: TopWorkRow[];
+  /** Editors' / translators' citations, credited to them (#710). */
+  apparatus_sources: ApparatusSourceRow[];
+}
+
+export interface ApparatusSourceRow {
+  /** The person credited: an editor, translator or transcriber. */
+  name: string;
+  /** The author whose work hosts their apparatus. */
+  host_author: string;
+  n: number;
 }
 
 export interface NetworkSummaryArgs {
