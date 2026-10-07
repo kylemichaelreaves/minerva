@@ -62,8 +62,9 @@ def test_chunk_rejects_a_value_outside_the_vocabulary(value):
 
 def test_typing_post_passes_are_checked_too():
     # Post-passes type with dataclasses.replace, which re-runs __init__.
+    body = _chunk(None)
     with pytest.raises(ValueError, match="block_type"):
-        dataclasses.replace(_chunk(None), block_type="sig")
+        dataclasses.replace(body, block_type="sig")
 
 
 def test_apparatus_types_are_part_of_the_vocabulary():

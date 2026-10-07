@@ -60,10 +60,9 @@ def test_a_chunk_without_a_collision_is_returned_unchanged():
 def test_repeat_ids_are_deterministic_across_runs():
     # Derived state (embeddings, lemmas, xrefs) is keyed on chunk_id, so a
     # re-ingest of unchanged text must mint the same ids again.
-    def run() -> list[str]:
-        return [c.chunk_id for c in tei.disambiguate_chunk_ids([_chunk("a")] * 3)]
-
-    assert run() == run()
+    first_run = [c.chunk_id for c in tei.disambiguate_chunk_ids([_chunk("a")] * 3)]
+    second_run = [c.chunk_id for c in tei.disambiguate_chunk_ids([_chunk("a")] * 3)]
+    assert first_run == second_run
 
 
 def test_repeat_ids_keep_every_other_field():

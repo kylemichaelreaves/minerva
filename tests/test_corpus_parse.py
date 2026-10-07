@@ -378,7 +378,8 @@ def test_page_furniture_is_separated_for_works_that_opt_in(tmp_path):
 
     body = [c for c in chunks if c.block_type is None]
     notes = [c for c in chunks if c.block_type == "note"]
-    assert len(body) == 1 and len(notes) == 1
+    assert len(body) == 1
+    assert len(notes) == 1
     assert body[0].text == "Caesar's Commentaries, belong here too.4 In particular."
     assert notes[0].text == "4. On Herodotus, see the Fragment."
     # Sibling numbering, NOT a renumbered ¶ — `section` feeds `chunk_id`, so
@@ -1736,5 +1737,6 @@ def test_parse_file_refuses_an_epub_without_a_structured_locator(tmp_path: Path)
 
     epub = tmp_path / "x.epub"
     epub.write_bytes(b"")
+    work = _make_work("chapter")
     with pytest.raises(ValueError, match="structured"):
-        list(parse_file(epub, _make_work("chapter")))
+        next(parse_file(epub, work))
