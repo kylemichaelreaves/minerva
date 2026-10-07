@@ -26,6 +26,7 @@ import sys
 from contextlib import closing
 from typing import Any
 
+from ...refs.constants import SOURCE_AUTHOR
 from ..terms._io import _open
 
 
@@ -82,7 +83,7 @@ def _fetch_one_row(
     ]
     params: list[Any] = [after_id]
     if source_author is not None:
-        clauses.append("src_work.author = ?")
+        clauses.append(f"{SOURCE_AUTHOR} = ?")
         params.append(source_author)
     if target_author is not None:
         clauses.append("rt.canonical_author = ?")
@@ -95,10 +96,11 @@ def _fetch_one_row(
         "       xr.source_span_end, xr.source_form_snapshot, xr.quoted_phrase, "
         "       xr.target_id, xr.reference_type, xr.confidence, "
         "       xr.source_method, xr.curator_note, "
+        "       xr.curated_by, xr.curated_at, "
         "       rt.canonical_author AS target_author, "
         "       rt.canonical_work AS target_work, "
         "       rt.in_corpus_work_id, "
-        "       src_work.author AS source_author, "
+        f"       {SOURCE_AUTHOR} AS source_author, "
         "       src_work.title AS source_work, "
         "       c.section AS source_section, "
         "       c.text AS source_text "
@@ -142,6 +144,12 @@ def _print_row(row: sqlite3.Row, ordinal: int) -> None:
         f"confidence={row['confidence']:.2f}  "
         f"method={row['source_method']}"
     )
+    # NULL is "unrecorded", never "machine": most rejections predate the
+    # column (#720).
+    if row["curated_by"]:
+        print(f"curated: {row['curated_by']}  {_dim('(at ' + str(row['curated_at']) + ')')}")
+    else:
+        print(f"curated: {_dim('unrecorded')}")
     if row["source_form_snapshot"]:
         # Labelled "matched", not "form", because it is deliberately a
         # WIDER extent than the highlight below: the rule matches the

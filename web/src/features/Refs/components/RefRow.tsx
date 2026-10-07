@@ -34,6 +34,7 @@ export function RefRow(props: {
           confidence={props.row.confidence}
           sourceMethod={props.row.source_method}
           curatorStatus={props.row.curator_status}
+          curatedBy={props.row.curated_by}
         />
       </button>
     </li>

@@ -38,6 +38,8 @@ const SAMPLE_QUEUE: ReviewQueueResponse = {
       confidence: 0.55,
       source_method: "rule_weak",
       curator_status: "auto",
+      curated_by: null,
+      curated_at: null,
       note: null,
       source: {
         author: "Aquinas",
@@ -66,6 +68,8 @@ const SAMPLE_QUEUE: ReviewQueueResponse = {
       confidence: 0.62,
       source_method: "rule_weak",
       curator_status: "auto",
+      curated_by: null,
+      curated_at: null,
       note: "Initial low-confidence flag; reviewer should confirm Conf. III.4 echo of Hortensius's call-to-philosophy.",
       source: {
         author: "Augustine",
@@ -94,6 +98,8 @@ const SAMPLE_QUEUE: ReviewQueueResponse = {
       confidence: 0.72,
       source_method: "rule_weak",
       curator_status: "auto",
+      curated_by: null,
+      curated_at: null,
       note: null,
       source: {
         author: "Hegel",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from .constants import SOURCE_AUTHOR
 from .filters import parse_filters, parse_limit_offset, status_clause
 from .row_utils import xref_row_to_dict
 
@@ -23,7 +24,7 @@ def references_list(
     clauses: list[str] = [status_sql]
     params: list[Any] = list(status_params)
     if query.get("source_author"):
-        clauses.append("src_work.author = ?")
+        clauses.append(f"{SOURCE_AUTHOR} = ?")
         params.append(query["source_author"])
     if query.get("target_author"):
         clauses.append("rt.canonical_author = ?")
@@ -51,7 +52,7 @@ def references_list(
         f"SELECT xr.*, "
         f"       rt.canonical_author, rt.canonical_work, "
         f"       rt.in_corpus_work_id, "
-        f"       src_work.author AS _src_author, "
+        f"       {SOURCE_AUTHOR} AS _src_author, "
         f"       src_work.title AS _src_work, "
         f"       c.section AS _src_section "
         f"{base_from}"
@@ -104,14 +105,14 @@ def references_sources(
     status_sql, status_params = status_clause(statuses, min_conf)
 
     src_sql = (
-        "SELECT DISTINCT src_work.author "
+        f"SELECT DISTINCT {SOURCE_AUTHOR} "
         "FROM cross_references xr "
         "JOIN chunks c ON c.chunk_id = xr.source_chunk_id "
         "LEFT JOIN editions e ON e.id = c.edition_id "
         "LEFT JOIN translations t ON t.id = c.translation_id "
         "LEFT JOIN works src_work "
         "       ON src_work.id = COALESCE(e.work_id, t.work_id) "
-        f"WHERE {status_sql} AND src_work.author IS NOT NULL"
+        f"WHERE {status_sql} AND {SOURCE_AUTHOR} IS NOT NULL"
     )
     tgt_sql = (
         "SELECT DISTINCT rt.canonical_author "

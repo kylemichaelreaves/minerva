@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..sqlite_util import insert_with_shadow_retry
+from .constants import CURATED_BY_VALUES, SOURCE_AUTHOR
 
 # Same budget as terms.py's _MAX_INSERT_RETRIES — bounded high enough
 # for plausible curator-collision bursts, low enough that a programming
@@ -151,6 +152,66 @@ def find_work_by_title_key(
     return matches[0]
 
 
+def _find_work_by_alias(
+    conn: sqlite3.Connection, *, author: str, title: str
+) -> tuple[int, str] | None:
+    """The one in-corpus work of ``author`` that answers to ``title`` as an
+    alias (#523), or None — including when several do: "Das Kapital"
+    names all three Bände, and a guess would read as resolved.
+
+    Reads the code-owned natural keys in ``authors/work_aliases.ALIASES``,
+    not the ``work_aliases`` table: the index rebinds targets before it
+    re-syncs that table, so the table can still hold pre-reset work ids
+    at the moment this runs (#800).
+    """
+
+    from ..authors.work_aliases import ALIASES
+
+    wanted = _title_key(title)
+    if not wanted:
+        return None
+    titles = {
+        work_title
+        for (alias_author, work_title), names in ALIASES.items()
+        if alias_author == author and any(_title_key(n) == wanted for n in names)
+    }
+    matches = [
+        (int(row[0]), row[1])
+        for t in sorted(titles)
+        for row in conn.execute(
+            "SELECT id, citation_system FROM works WHERE author = ? AND title = ?", (author, t)
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def resolve_target_work(
+    conn: sqlite3.Connection, *, author: str, work: str
+) -> tuple[int, str] | None:
+    """``(works.id, citation_system)`` a target's ``(author, work)`` names,
+    or None. Exact title, then folded (#493/#524), then a one-to-one
+    alias (#523); each step declines on ambiguity rather than picking.
+
+    The single resolver for ``reference_targets.in_corpus_work_id``:
+    :func:`ensure_target` links with it, and the index's rebind and its
+    integrity assert (``store/chunks.py``) re-resolve with it. They used
+    to disagree — the rebind was exact-only, so every index run re-NULLed
+    the folded links ``ensure_target`` had made (#800).
+    """
+
+    if work == "*":
+        return None
+    exact = conn.execute(
+        "SELECT id, citation_system FROM works WHERE author = ? AND title = ?",
+        (author, work),
+    ).fetchone()
+    if exact is not None:
+        return int(exact[0]), exact[1]
+    return find_work_by_title_key(conn, author=author, title=work) or _find_work_by_alias(
+        conn, author=author, title=work
+    )
+
+
 def ensure_target(
     conn: sqlite3.Connection,
     *,
@@ -163,9 +224,10 @@ def ensure_target(
     exists, return that row regardless of the other inputs (do not
     update — curator can edit via the CLI explicitly).
 
-    If the named work matches an in-corpus ``works`` row (by exact
-    author + title), the new ``reference_targets`` row is created
-    with ``in_corpus_work_id`` set so the reader's "Open in reader →"
+    If the named work matches an in-corpus ``works`` row (by
+    :func:`resolve_target_work`: exact, folded, then a one-to-one
+    alias), the new ``reference_targets`` row is created with
+    ``in_corpus_work_id`` set so the reader's "Open in reader →"
     affordance can resolve."""
 
     existing = find_target_by_author_work(
@@ -176,22 +238,10 @@ def ensure_target(
     if existing is not None:
         return existing
 
-    # Auto-link to a works row if one matches. Exact title first; a
-    # title that differs only in case, accent or word division falls
-    # through to the folded comparison, because an exact-match miss is
-    # silent — the target is simply created out-of-corpus and nothing
-    # says why (#493).
-    work_row: tuple[int, Any] | None = None
-    exact = conn.execute(
-        "SELECT id, citation_system FROM works WHERE author = ? AND title = ?",
-        (canonical_author, canonical_work),
-    ).fetchone()
-    if exact is not None:
-        work_row = (int(exact[0]), exact[1])
-    else:
-        work_row = find_work_by_title_key(
-            conn, author=canonical_author, title=canonical_work
-        )
+    # Auto-link to a works row if one matches. A miss is silent — the
+    # target is simply created out-of-corpus and nothing says why (#493)
+    # — so the resolver tries folded and alias spellings too.
+    work_row = resolve_target_work(conn, author=canonical_author, work=canonical_work)
     in_corpus_work_id: int | None = None
     if work_row is not None:
         in_corpus_work_id = work_row[0]
@@ -296,9 +346,7 @@ def insert_cross_reference(
     ``citation_system``; the schema doesn't enforce payload structure.
     """
 
-    src_edition_id, src_translation_id = _resolve_source_edition_translation(
-        conn, source_chunk_id
-    )
+    src_edition_id, src_translation_id = _resolve_source_edition_translation(conn, source_chunk_id)
 
     payload_json: str | None = None
     if target_locator_payload is not None:
@@ -428,16 +476,20 @@ def list_references(
     target_author: str | None = None,
     target_work: str | None = None,
     curator_status: str | None = None,
+    curated_by: str | None = None,
     limit: int = 100,
 ) -> list[sqlite3.Row]:
     """Filtered listing for the curator CLI. JOINs through
     ``editions``/``translations`` + ``works`` to surface the source
-    author/work alongside the target."""
+    author/work alongside the target.
+
+    ``curated_by`` is one of :data:`constants.CURATED_BY_VALUES`, or
+    ``"none"`` for rows with no recorded verdict author (#720)."""
 
     clauses: list[str] = []
     args: list[Any] = []
     if source_author is not None:
-        clauses.append("src_work.author = ?")
+        clauses.append(f"{SOURCE_AUTHOR} = ?")
         args.append(source_author)
     if target_author is not None:
         clauses.append("rt.canonical_author = ?")
@@ -448,17 +500,24 @@ def list_references(
     if curator_status is not None:
         clauses.append("xr.curator_status = ?")
         args.append(curator_status)
+    if curated_by == "none":
+        clauses.append("xr.curated_by IS NULL")
+    elif curated_by is not None:
+        if curated_by not in CURATED_BY_VALUES:
+            raise ValueError(f"curated_by must be one of {CURATED_BY_VALUES} or 'none'")
+        clauses.append("xr.curated_by = ?")
+        args.append(curated_by)
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
 
     sql = (
         f"SELECT xr.id, xr.source_chunk_id, "
-        f"       src_work.author AS source_author, src_work.title AS source_work, "
+        f"       {SOURCE_AUTHOR} AS source_author, src_work.title AS source_work, "
         f"       c.section AS source_section, "
         f"       rt.canonical_author AS target_author, "
         f"       rt.canonical_work AS target_work, "
         f"       xr.target_locator, "
         f"       xr.reference_type, xr.confidence, xr.source_method, "
-        f"       xr.curator_status, xr.quoted_phrase "
+        f"       xr.curator_status, xr.curated_by, xr.curated_at, xr.quoted_phrase "
         f"FROM cross_references xr "
         f"JOIN reference_targets rt ON rt.id = xr.target_id "
         f"JOIN chunks c ON c.chunk_id = xr.source_chunk_id "

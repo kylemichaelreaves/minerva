@@ -57,6 +57,13 @@ def _db_at_0034(tmp_path: Path, *, extra: str | None = None) -> Path:
             "VALUES ('Cicero', ?, 'lat', 'paragraph')",
             (extra,),
         )
+    # The state 0035 repairs: fold-linkable targets left NULL. Until #800
+    # the index's exact-only rebind produced it by itself; the rebind now
+    # shares 0035's folded resolver and links them at insert, so the
+    # fixture has to put the NULLs back.
+    conn.execute(
+        "UPDATE reference_targets SET in_corpus_work_id = NULL WHERE canonical_author = 'Cicero'"
+    )
     conn.execute("DELETE FROM schema_migrations WHERE version = 35")
     conn.commit()
     conn.close()

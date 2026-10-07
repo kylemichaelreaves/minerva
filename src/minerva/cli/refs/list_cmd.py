@@ -16,16 +16,19 @@ from ..terms._io import _emit, _open
 
 def cmd_refs_list(args: argparse.Namespace) -> int:
     conn = _open(args)
-    conn.execute("PRAGMA foreign_keys = ON")
-
-    rows = refs_schema.list_references(
-        conn,
-        source_author=args.source_author,
-        target_author=args.target_author,
-        target_work=args.target_work,
-        curator_status=args.status,
-        limit=args.limit,
-    )
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        rows = refs_schema.list_references(
+            conn,
+            source_author=args.source_author,
+            target_author=args.target_author,
+            target_work=args.target_work,
+            curator_status=args.status,
+            curated_by=getattr(args, "curated_by", None),
+            limit=args.limit,
+        )
+    finally:
+        conn.close()
 
     headers = (
         "id",
@@ -39,6 +42,8 @@ def cmd_refs_list(args: argparse.Namespace) -> int:
         "conf",
         "method",
         "status",
+        "curated_by",
+        "curated_at",
     )
     table_rows = [
         (
@@ -53,6 +58,8 @@ def cmd_refs_list(args: argparse.Namespace) -> int:
             f"{r['confidence']:.2f}",
             r["source_method"],
             r["curator_status"],
+            r["curated_by"],
+            r["curated_at"],
         )
         for r in rows
     ]

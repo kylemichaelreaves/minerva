@@ -532,6 +532,32 @@ escape hatch for a fingerprint that is itself wrong (see
 .venv/bin/minerva refs build --strategy rules --rescan-all
 ```
 
+What a rescan does to a row it already has: the dedup key leaves out
+`confidence`, `source_method` and the span, so for a long time the
+answer was "nothing" — a re-tuned rule corrected new rows and left old
+ones at the old value forever (510 rows, #518), and a span that no longer
+read its text after a same-id edit stayed wrong (#715). A matched row is
+now refreshed: an unverified rule-tier row (`rule_strong`/`rule_weak`,
+`auto`, no `curated_by`) takes the rule's current confidence and tier, and
+a span is moved when its slice no longer reads the snapshot but the
+candidate's does. Verified and curated rows keep their verdict.
+
+The cache cannot tell that this changed, because it fingerprints the
+rules, not the insert path, so the next ordinary build visits none of the
+affected chunks. `--rescan-all` would, but it also re-inserts #801's
+duplicates. Apply a refresh with `--refresh-only` instead: it rescans the
+scope, refreshes what it matches, inserts nothing, and leaves
+`refs_scan_state` alone. Snapshot first.
+
+```sh
+scripts/snapshot-db.sh refs-refresh
+.venv/bin/minerva refs build --strategy rules --refresh-only [--source-author X]
+```
+
+`--limit` is a rules-only flag: it caps the chunks *fetched*, before the
+cache skips current ones, so against an already-scanned author it can scan
+0. The verify strategies never read it and exit 2 if it is passed (#572).
+
 **Stage 1 — embed-verify (free, local)**:
 
 ```bash
@@ -566,7 +592,10 @@ verdict to `source_method='rule+embed+llm'` for kept rows,
 `curator_status='rejected'` for dismissed ones.
 
 Cost: roughly $0.01–0.05 per LLM call on Sonnet → $5–30 for a
-typical post-ingest run of a single author. Cap via `--max-llm-calls`.
+typical post-ingest run of a single author. Cap via `--max-llm-calls`
+(× `--batch-size` rows), or cap rows directly with `--max-rows N`, which
+binds whichever is tighter and stops the checkpoint at the last capped
+row, so `--resume` takes exactly the rest (#572).
 
 Before #713 the judge saw only the first 400 characters of the source
 chunk, so a cite past that point was judged on its `source_form` alone
@@ -583,7 +612,23 @@ Every verdict records its author in `curated_by` (`human` | `llm` |
 row whose `curated_by` is `human`**, in whatever status the person left
 it, `auto` included. Rows that predate 0039 read `NULL` (unknown), which
 is why the one bulk re-judge so far could not rule out overturning a
-curator (#714).
+curator (#714). Both columns are on every `/api/references` row, the Refs
+page shows them (NULL on a decided row reads "unrecorded", never
+"machine"), the review walker prints them, and `refs list --curated-by
+human|llm|embed|none` filters on them (#720).
+
+**Who a citation is credited to.** A cite inside a translator's or
+editor's apparatus (`block_type` note / editorial / cast) is theirs, not
+the author's: Shorey's footnote citing Aristotle is Shorey's citation.
+`chunks.attributed_to` (migration 0041) names that person — derived from
+the edition's translator/editor, or from
+`apparatus_attribution.ATTRIBUTION_OVERRIDES` where the bibliography names
+no one or the wrong one — and every view that credits a source author
+reads `COALESCE(c.attributed_to, works.author)`: the Network page, the
+`/api/references` list and its source picker, the review queue,
+`refs list`/`refs review`, and the llm-verify judge's `source_author`
+(#710). The rows themselves are kept. `--source-author` on `refs build`
+and the verifiers still means the *corpus* to process.
 
 **Verification coverage audit** — periodically check which authors
 have escaped verification:

@@ -32,6 +32,10 @@ export interface Reference {
   confidence: number;
   source_method: string;
   curator_status: "auto" | "approved" | "rejected" | "manual";
+  /** Who decided the row (#718). NULL = unrecorded — most rejections
+   *  predate migration 0039 — never "machine" (#720). */
+  curated_by: "human" | "llm" | "embed" | null;
+  curated_at: string | null;
   note: string | null;
 }
 

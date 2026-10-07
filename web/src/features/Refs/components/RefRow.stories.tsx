@@ -22,6 +22,8 @@ const ROW: ReferencesListRow = {
   confidence: 0.95,
   source_method: "rule_strong",
   curator_status: "approved",
+  curated_by: null,
+  curated_at: null,
   note: "The phantasm article — locus classicus on Aristotelian cognition.",
   source: {
     author: "Aquinas",

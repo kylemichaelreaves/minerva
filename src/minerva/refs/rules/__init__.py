@@ -27,7 +27,8 @@ in the cross-reference plan and arrive incrementally — the framework
 in this module is designed to accept them without refactor.
 
 Output format: every rule emits ``Candidate`` rows. The runner pipes
-them through :func:`insert_candidate` which:
+them through :func:`upsert_candidate` (or its id-returning wrapper
+:func:`insert_candidate`) which:
 
 * resolves the target via :func:`refs.schema.ensure_target` (creates
   the ``reference_targets`` row on first use; auto-links to a
@@ -36,7 +37,9 @@ them through :func:`insert_candidate` which:
   (``source_chunk_id``, ``target_id``, ``reference_type``,
   ``source_form_snapshot``, ``quoted_phrase``) so re-running the
   rules doesn't accrete duplicate auto-rows alongside curator-
-  approved ones;
+  approved ones — and refreshes a matched row instead of leaving it:
+  an unverified rule-tier row takes the rule's current confidence and
+  tier (#518), a stale span moves to the candidate's (#715);
 * inserts via :func:`refs.schema.insert_cross_reference` with
   ``curator_status='auto'`` and the rule-supplied confidence /
   source_method.
@@ -328,7 +331,48 @@ def insert_candidate(
 ) -> int | None:
     """Resolve the candidate's target + insert it as a cross-reference
     row with ``curator_status='auto'``. Returns the new row id, or
-    ``None`` when a content-equivalent row already exists.
+    ``None`` when a content-equivalent row already exists (which
+    :func:`upsert_candidate` may have refreshed — #518)."""
+
+    outcome, row_id = upsert_candidate(conn, cand, skip_if_manual_exists=skip_if_manual_exists)
+    return row_id if outcome == "inserted" else None
+
+
+# Tiers a rule wrote and nothing has verified since. Only these follow a
+# re-tuned rule: a verifier's tier records a judgement the rule cannot
+# overrule, and refreshing one would downgrade it back into the
+# llm-verify queue — 11,265 rows key-matched a candidate when #518 was
+# measured.
+_RULE_TIERS = frozenset({"rule_strong", "rule_weak"})
+
+
+def upsert_candidate(
+    conn: sqlite3.Connection,
+    cand: Candidate,
+    *,
+    insert: bool = True,
+    skip_if_manual_exists: bool = True,
+) -> tuple[str, int | None]:
+    """Insert ``cand``, or refresh the row it matches. Returns
+    ``(outcome, row_id)``, outcome one of ``inserted``, ``refreshed``,
+    ``unchanged``, ``blocked`` (a curator row at the site), or ``absent``
+    (no match and ``insert=False``).
+
+    A matched row is refreshed in two independent ways (#518, #715):
+
+    * **Verdict columns** — ``confidence`` and ``source_method`` follow
+      the rule when the row is still a rule's own: rule tier,
+      ``curator_status='auto'``, no ``curated_by``, and the candidate is
+      itself a rule's. Before this, a re-tuned rule corrected new rows
+      and left old ones at the old value forever (510 rows, #518).
+    * **Span** — moved to the candidate's when the stored slice of the
+      chunk no longer reads the snapshot *and* the candidate's does.
+      A span is a fact about the text, not a verdict, so this applies to
+      verified rows too; the two-part test keeps a span that sits on a
+      repeated occurrence of the form from churning.
+
+    ``insert=False`` is the refresh-only backfill mode: nothing new is
+    written, so a rescan cannot add the duplicates #801 describes.
 
     Dedup key: ``(source_chunk_id, target_id, reference_type,
     source_form_snapshot, quoted_phrase, target_chunk_id)`` with
@@ -397,7 +441,11 @@ def insert_candidate(
         ),
     ).fetchone()
     if existing is not None:
-        return None
+        return (
+            "refreshed" if _refresh_matched(conn, existing[0], cand) else "unchanged"
+        ), existing[0]
+    if not insert:
+        return "absent", None
 
     if skip_if_manual_exists:
         # Block auto rows that overlap a curator's manual entry even
@@ -416,7 +464,7 @@ def insert_candidate(
             ),
         ).fetchone()
         if manual is not None:
-            return None
+            return "blocked", None
 
     # cand.note is rule-level documentation (a one-line description of the
     # rule's intent, e.g. "Aquinas cites Augustine constantly across ST and
@@ -442,7 +490,68 @@ def insert_candidate(
         curator_status="auto",
         curator_note=None,
     )
-    return new_id
+    return "inserted", new_id
+
+
+def _refresh_matched(conn: sqlite3.Connection, row_id: int, cand: Candidate) -> bool:
+    """Apply :func:`upsert_candidate`'s two refreshes to a matched row.
+    Returns whether anything changed."""
+
+    row = conn.execute(
+        "SELECT xr.confidence, xr.source_method, xr.curator_status, xr.curated_by, "
+        "       xr.source_span_start, xr.source_span_end, xr.source_form_snapshot, c.text "
+        "FROM cross_references xr JOIN chunks c ON c.chunk_id = xr.source_chunk_id "
+        "WHERE xr.id = ?",
+        (row_id,),
+    ).fetchone()
+    if row is None:
+        return False
+    conf, method, status, curated_by, start, end, snapshot, text = row
+    sets: dict[str, object] = {}
+
+    if (
+        method in _RULE_TIERS
+        and cand.source_method in _RULE_TIERS
+        and status == "auto"
+        and curated_by is None
+        and (conf, method) != (cand.confidence, cand.source_method)
+    ):
+        sets["confidence"] = cand.confidence
+        sets["source_method"] = cand.source_method
+
+    if _span_is_stale(text, start, end, snapshot, cand):
+        sets["source_span_start"] = cand.source_span_start
+        sets["source_span_end"] = cand.source_span_end
+
+    if not sets:
+        return False
+    assignments = ", ".join(f"{col} = ?" for col in sets)
+    conn.execute(
+        f"UPDATE cross_references SET {assignments} WHERE id = ?",
+        (*sets.values(), row_id),
+    )
+    return True
+
+
+def _reads(text: str, start: int | None, end: int | None, snapshot: str) -> bool:
+    """Whether ``text[start:end]`` reads the snapshot. Contained-in counts:
+    #414's accepted rows keep a snapshot wider than their span."""
+    if start is None or end is None:
+        return False
+    piece = text[start:end]
+    return bool(piece) and (piece == snapshot or piece in snapshot)
+
+
+def _span_is_stale(
+    text: str, start: int | None, end: int | None, snapshot: str | None, cand: Candidate
+) -> bool:
+    if snapshot is None or start is None or end is None:
+        return False
+    if (start, end) == (cand.source_span_start, cand.source_span_end):
+        return False
+    return not _reads(text, start, end, snapshot) and _reads(
+        text, cand.source_span_start, cand.source_span_end, snapshot
+    )
 
 
 # ──────────────────────────────────────────────────────────────────

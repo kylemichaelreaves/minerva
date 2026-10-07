@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from .constants import SOURCE_AUTHOR
 from .filters import parse_filters, status_clause
 from .row_utils import short_author
 
@@ -156,7 +157,7 @@ def network_summary(
         names = [s for s in (n.strip() for n in raw_source_authors.split(",")) if s]
         if names:
             extra_sql += (
-                f" AND src_work.author IN ({','.join('?' * len(names))})"
+                f" AND {SOURCE_AUTHOR} IN ({','.join('?' * len(names))})"
             )
             extra_params.extend(names)
 
@@ -181,14 +182,14 @@ def network_summary(
                 # rather than dropping the filter silently.
                 authors_in_buckets = ["__no_such_author__"]
             extra_sql += (
-                f" AND src_work.author IN ({','.join('?' * len(authors_in_buckets))})"
+                f" AND {SOURCE_AUTHOR} IN ({','.join('?' * len(authors_in_buckets))})"
             )
             extra_params.extend(authors_in_buckets)
 
     # 1. Author × author counts (source → target).
     rows = conn.execute(
         f"""
-        SELECT src_work.author AS src_author,
+        SELECT {SOURCE_AUTHOR} AS src_author,
                rt.canonical_author AS tgt_author,
                COUNT(*) AS n
         FROM cross_references xr
@@ -199,10 +200,10 @@ def network_summary(
                ON src_work.id = COALESCE(e.work_id, t.work_id)
         JOIN reference_targets rt ON rt.id = xr.target_id
         WHERE {status_sql}
-          AND src_work.author IS NOT NULL
+          AND {SOURCE_AUTHOR} IS NOT NULL
           AND rt.canonical_author IS NOT NULL
           {extra_sql}
-        GROUP BY src_work.author, rt.canonical_author
+        GROUP BY src_author, rt.canonical_author
         """,
         (*status_params, *extra_params),
     ).fetchall()
@@ -307,7 +308,7 @@ def network_summary(
         # any author whose biblical engagement is paraphrastic.
         scrip_rows = conn.execute(
             f"""
-            SELECT src_work.author AS src_author,
+            SELECT {SOURCE_AUTHOR} AS src_author,
                    COALESCE(NULLIF(rt.canonical_work, '*'), tgt.book) AS book,
                    COUNT(*) AS n
             FROM cross_references xr
@@ -319,10 +320,10 @@ def network_summary(
             JOIN reference_targets rt ON rt.id = xr.target_id
             LEFT JOIN chunks tgt ON tgt.chunk_id = xr.target_chunk_id
             WHERE {status_sql}
-              AND src_work.author IN ({",".join("?" * len(scrip_authors))})
+              AND {SOURCE_AUTHOR} IN ({",".join("?" * len(scrip_authors))})
               AND COALESCE(NULLIF(rt.canonical_work, '*'), tgt.book) IS NOT NULL
               {extra_sql}
-            GROUP BY src_work.author, COALESCE(NULLIF(rt.canonical_work, '*'), tgt.book)
+            GROUP BY src_author, COALESCE(NULLIF(rt.canonical_work, '*'), tgt.book)
             """,
             (*status_params, *scrip_authors, *extra_params),
         ).fetchall()
@@ -351,7 +352,7 @@ def network_summary(
     # carried verbatim; anything else falls into ``other``.
     verif_rows = conn.execute(
         f"""
-        SELECT src_work.author AS src_author,
+        SELECT {SOURCE_AUTHOR} AS src_author,
                xr.source_method AS method,
                COUNT(*) AS n
         FROM cross_references xr
@@ -360,9 +361,9 @@ def network_summary(
         LEFT JOIN translations t ON t.id = c.translation_id
         LEFT JOIN works src_work
                ON src_work.id = COALESCE(e.work_id, t.work_id)
-        WHERE {status_sql} AND src_work.author IS NOT NULL
+        WHERE {status_sql} AND {SOURCE_AUTHOR} IS NOT NULL
           {extra_sql}
-        GROUP BY src_work.author, xr.source_method
+        GROUP BY src_author, xr.source_method
         """,
         (*status_params, *extra_params),
     ).fetchall()
@@ -440,6 +441,10 @@ def network_summary(
     ).fetchone()[0]
     total_works = conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
 
+    apparatus_sources = _apparatus_sources(
+        conn, status_sql, status_params, extra_sql, extra_params
+    )
+
     return {
         "totals": {
             "xrefs": int(total_xrefs),
@@ -460,5 +465,39 @@ def network_summary(
         "scripture_heatmap": heatmap_payload,
         "verification": verification_payload,
         "top_works": top_works,
+        "apparatus_sources": apparatus_sources,
     }
 
+
+def _apparatus_sources(
+    conn: sqlite3.Connection,
+    status_sql: str,
+    status_params: tuple[Any, ...] | list[Any],
+    extra_sql: str,
+    extra_params: list[Any],
+) -> list[dict[str, Any]]:
+    """Editors', translators' and transcribers' citations (#710).
+
+    They are credited to that person, which keeps them off the author
+    axis — the matrix, arcs and heatmap draw in-corpus authors only — so
+    without this list they would be credited and invisible. Each row
+    names the person and the author whose work hosts their apparatus.
+    """
+
+    rows = conn.execute(
+        f"""
+        SELECT c.attributed_to, src_work.author, COUNT(*) AS n
+        FROM cross_references xr
+        JOIN chunks c ON c.chunk_id = xr.source_chunk_id
+        LEFT JOIN editions e ON e.id = c.edition_id
+        LEFT JOIN translations t ON t.id = c.translation_id
+        LEFT JOIN works src_work
+               ON src_work.id = COALESCE(e.work_id, t.work_id)
+        WHERE {status_sql} AND c.attributed_to IS NOT NULL
+          {extra_sql}
+        GROUP BY c.attributed_to, src_work.author
+        ORDER BY n DESC, c.attributed_to
+        """,
+        (*status_params, *extra_params),
+    ).fetchall()
+    return [{"name": name, "host_author": host, "n": int(n)} for name, host, n in rows]

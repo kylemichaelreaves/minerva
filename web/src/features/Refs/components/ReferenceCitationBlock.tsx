@@ -33,6 +33,8 @@ export function ReferenceCitationBlock(props: {
   confidence: number;
   sourceMethod: string;
   curatorStatus?: string;
+  /** Undefined = the caller does not carry provenance; null = unrecorded. */
+  curatedBy?: string | null;
   showOutOfCorpus?: boolean;
   inCorpusWorkId?: number | null;
   sourceForm?: string | null;
@@ -49,6 +51,15 @@ export function ReferenceCitationBlock(props: {
       </Show>
     </>
   );
+
+  // #720: who decided the row. A decided status with no recorded author
+  // predates migration 0039, so it reads "unrecorded", never "machine";
+  // an undecided auto row with no author shows nothing.
+  const curatedLabel = (): string | null => {
+    if (props.curatedBy === undefined) return null;
+    if (props.curatedBy) return `by ${props.curatedBy}`;
+    return props.curatorStatus && props.curatorStatus !== "auto" ? "unrecorded" : null;
+  };
 
   return (
     <>
@@ -105,6 +116,9 @@ export function ReferenceCitationBlock(props: {
           <span class={`ref-row-status status-${props.curatorStatus}`}>
             {props.curatorStatus}
           </span>
+        </Show>
+        <Show when={curatedLabel()}>
+          {(label) => <span class="ref-row-curated">{label()}</span>}
         </Show>
       </div>
     </>

@@ -6,6 +6,7 @@ import sqlite3
 from typing import Any
 
 from ..errors import BadRequestError
+from .constants import SOURCE_AUTHOR
 from .filters import parse_limit_offset
 from .row_utils import xref_row_to_dict
 
@@ -39,7 +40,7 @@ def review_queue(
     clauses: list[str] = ["xr.curator_status = 'auto'"]
     params: list[Any] = []
     if query.get("source_author"):
-        clauses.append("src_work.author = ?")
+        clauses.append(f"{SOURCE_AUTHOR} = ?")
         params.append(query["source_author"])
     if query.get("reference_type"):
         clauses.append("xr.reference_type = ?")
@@ -64,7 +65,7 @@ def review_queue(
         f"SELECT xr.*, "
         f"       rt.canonical_author, rt.canonical_work, "
         f"       rt.in_corpus_work_id, "
-        f"       src_work.author AS _src_author, "
+        f"       {SOURCE_AUTHOR} AS _src_author, "
         f"       src_work.title AS _src_work, "
         f"       c.section AS _src_section, "
         f"       c.text AS _src_text "

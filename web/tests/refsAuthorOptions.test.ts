@@ -38,6 +38,8 @@ function rowWithAuthors(source: string, target: string): ReferencesListRow {
     confidence: 1,
     source_method: "rule",
     curator_status: "approved",
+    curated_by: null,
+    curated_at: null,
     note: null,
     source: { author: source, work: "w", section: null },
   };

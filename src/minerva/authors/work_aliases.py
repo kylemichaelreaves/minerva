@@ -20,6 +20,13 @@ So aliases live here, in code, keyed on the NATURAL key
 ``index --reset`` reshuffles it (#193 — a spec anchored on edition 58
 came to name Homer's Iliad). Keyed on the title, this table is
 re-materialized into the DB on every index run and cannot rot.
+
+Two consumers. Detection (``detect_work``) reads the materialized
+``work_aliases`` table. Cross-reference target resolution
+(``refs.schema.resolve_target_work``, #523) reads :data:`ALIASES`
+directly — the index rebinds targets *before* it re-syncs the table, so
+the table can still hold pre-reset work ids at that moment (#800) — and
+links only an alias that names exactly one in-corpus work.
 """
 
 from __future__ import annotations

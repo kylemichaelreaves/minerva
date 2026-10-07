@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 
 from ... import llm as llm_mod
+from ...refs.constants import CURATED_BY_VALUES
 from ...refs.llm_verify import LLM_VERIFY_DEFAULT_EFFORT
 from .add import cmd_refs_add
 from .build import cmd_refs_build
@@ -132,6 +133,11 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
         choices=("auto", "approved", "rejected", "manual"),
         help="Filter by curator_status.",
     )
+    pl.add_argument(
+        "--curated-by",
+        choices=(*CURATED_BY_VALUES, "none"),
+        help="Filter by who decided the row; 'none' = no verdict author recorded.",
+    )
     pl.add_argument("--limit", type=int, default=50)
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_refs_list)
@@ -203,12 +209,29 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
     pb.add_argument(
         "--limit",
         type=int,
-        help="Cap the number of chunks scanned. Useful for smoke / debug runs.",
+        help=(
+            "[--strategy rules only] Cap the chunks fetched for scanning, "
+            "before the scan-state cache skips current ones — so on an "
+            "already-scanned author it can scan 0. Refused under the verify "
+            "strategies, which never read it; bound a paid llm-verify run "
+            "with --max-rows or --max-llm-calls."
+        ),
     )
     pb.add_argument(
         "--verbose",
         action="store_true",
         help="Print per-500-chunks progress to stderr.",
+    )
+    pb.add_argument(
+        "--refresh-only",
+        action="store_true",
+        help=(
+            "[--strategy rules only] Rescan the scope and refresh the rows "
+            "today's rules match — rule-tier confidence/source_method "
+            "(#518) and stale spans (#715) — inserting nothing and leaving "
+            "the scan-state cache alone. The live backfill for a re-tuned "
+            "rule; snapshot the DB first."
+        ),
     )
     pb.add_argument(
         "--rescan-all",
@@ -348,6 +371,15 @@ def register_subparsers(parent_subparsers: argparse._SubParsersAction) -> None:
             "Cost guard — caps total API calls for --strategy llm-verify "
             "(default: 100). The verifier stops when the budget is "
             "exhausted; re-running picks up where it left off."
+        ),
+    )
+    pb.add_argument(
+        "--max-rows",
+        type=int,
+        help=(
+            "[--strategy llm-verify only] Cap the rows examined. Binds "
+            "alongside --max-llm-calls × --batch-size, whichever is tighter; "
+            "--resume continues from the last capped row."
         ),
     )
     pb.add_argument(
