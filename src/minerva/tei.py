@@ -38,6 +38,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from .authors import plato_titles
+from .block_types import BLOCK_TYPES
 from .transliterate import (
     betacode_to_unicode as _betacode_to_unicode,
 )
@@ -83,9 +84,10 @@ class Chunk:
     # corpus, e.g. KrV (kant_ab) vs. the rest of Kant (paragraph).
     citation_system: str | None = None
     # Structural role of this chunk within its work. ``None`` (≡ "body")
-    # is ordinary section/paragraph prose; structure-aware extractors set
-    # "remark" (Hegel Anmerkung / Spinoza Scholium), "addition" (Hegel
-    # Zusatz), "note" (footnote), or "blockquote". See
+    # is ordinary section/paragraph prose; anything else must be one of
+    # `block_types.BLOCK_TYPES` — "remark" (Hegel Anmerkung / Spinoza
+    # Scholium), "addition" (Hegel Zusatz), "note" (footnote), and so on.
+    # Checked in `__post_init__` (#536). See
     # docs/block-structure-remediation-plan.md.
     block_type: str | None = None
     # Subordinate per-edition/translation display title, when the
@@ -95,6 +97,16 @@ class Chunk:
     # .title_local by the store; NOT part of the chunk_id hash (display
     # metadata only). See authors/plato_titles.py.
     title_local: str | None = None
+
+    def __post_init__(self) -> None:
+        # Runs on `dataclasses.replace` too, so the typing post-passes are
+        # held to the same vocabulary as the splitters.
+        if self.block_type is not None and self.block_type not in BLOCK_TYPES:
+            raise ValueError(
+                f"block_type {self.block_type!r} is not in block_types.BLOCK_TYPES "
+                f"({', '.join(sorted(BLOCK_TYPES))}); add it there and to the TS "
+                "BlockType union, or use None for body text"
+            )
 
     def to_json_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -145,6 +157,29 @@ _FOOTNOTE_MARKER_RE = re.compile(r"\d+(?:\.\d+)*\Z")
 def _make_chunk_id(*parts: str) -> str:
     blob = "|".join(p or "" for p in parts).encode("utf-8")
     return hashlib.blake2b(blob, digest_size=10).hexdigest()
+
+
+def disambiguate_chunk_ids(chunks: Iterable[Chunk]) -> Iterator[Chunk]:
+    """Give each repeat of a ``chunk_id`` within one source its own id (#707).
+
+    Parsers hash the locator and the opening of the text, so two paragraphs
+    with the same section label and the same first 120 characters collide
+    (a title-page "OF", a repeated lacuna marker). The first occurrence keeps
+    its id; the Nth gets one derived from it and N, so only the rows that
+    used to be overwritten are re-minted, and the same source re-mints the
+    same ids on every ingest.
+    """
+
+    seen: dict[str, int] = {}
+    for chunk in chunks:
+        n = seen.get(chunk.chunk_id, 0) + 1
+        seen[chunk.chunk_id] = n
+        if n == 1:
+            yield chunk
+        else:
+            yield dataclasses.replace(
+                chunk, chunk_id=_make_chunk_id(chunk.chunk_id, f"occurrence {n}")
+            )
 
 
 def _dominant_speaker(buf: list[tuple[str, str | None]]) -> str | None:

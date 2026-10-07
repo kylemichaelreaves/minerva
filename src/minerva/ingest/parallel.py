@@ -94,7 +94,7 @@ def _worker_parse_source(
     corpus_pipeline.reset_parse_failures()
     try:
         with Path(shard_path_str).open("w", encoding="utf-8") as fh:
-            for chunk in source.parse(path):  # type: ignore[arg-type]
+            for chunk in source.iter_chunks(path):  # type: ignore[arg-type]
                 fh.write(json.dumps(chunk.to_json_dict(), ensure_ascii=False) + "\n")
                 n += 1
                 k = f"{chunk.corpus}/{chunk.lang}"

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from minerva import corpus as corpus_parse
 from minerva import corpus_works
 from minerva.authors import hegel_works
@@ -376,7 +378,8 @@ def test_page_furniture_is_separated_for_works_that_opt_in(tmp_path):
 
     body = [c for c in chunks if c.block_type is None]
     notes = [c for c in chunks if c.block_type == "note"]
-    assert len(body) == 1 and len(notes) == 1
+    assert len(body) == 1
+    assert len(notes) == 1
     assert body[0].text == "Caesar's Commentaries, belong here too.4 In particular."
     assert notes[0].text == "4. On Herodotus, see the Fragment."
     # Sibling numbering, NOT a renumbered ¶ — `section` feeds `chunk_id`, so
@@ -1723,3 +1726,17 @@ def test_a_note_rejected_by_emit_stays_in_the_body_instead_of_vanishing(tmp_path
     all_text = " ".join(c.text for c in chunks)
     assert "CAIRD, EDWARD" in all_text, "the rejected note must not disappear"
     assert "WALLACE, WILLIAM" in all_text
+
+
+def test_parse_file_refuses_an_epub_without_a_structured_locator(tmp_path: Path):
+    # The generic EPUB extractor is gone (#554): it dropped editorial spine
+    # items before any chunk existed to tag, and no registered source used
+    # it. An EPUB now needs a structure-aware splitter, as Hegel's PR has;
+    # the file is never opened, so an empty one is enough to prove it.
+    from minerva.corpus.pipeline import parse_file
+
+    epub = tmp_path / "x.epub"
+    epub.write_bytes(b"")
+    work = _make_work("chapter")
+    with pytest.raises(ValueError, match="structured"):
+        next(parse_file(epub, work))

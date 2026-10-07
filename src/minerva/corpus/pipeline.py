@@ -20,7 +20,6 @@ from pathlib import Path
 
 from ..corpus_extract import (
     IngestDepsMissing,
-    extract_epub,
     extract_html,
     extract_ocr_pages,
     extract_pdf,
@@ -145,7 +144,14 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
             # flattened text. See split_hegel_pr_epub.
             yield from _yield_structured(split_hegel_pr_epub(path, work), path, work)
             return
-        text = extract_epub(path)
+        # No generic EPUB path (#554). The one it had flattened the spine to
+        # a string and dropped every editorial item on the way, so #534's
+        # tag-don't-delete policy could not reach it — and after PR moved
+        # to its own splitter, no registered source used it at all.
+        raise ValueError(
+            f"{path.name}: EPUB needs a structured locator (as Hegel PR's "
+            f"'pr_structured'); {work.locator!r} has no EPUB splitter"
+        )
     elif suffix in {".html", ".htm"}:
         # zeno.org dumps from `perseus/download_hegel_de.py` carry
         # ZENO_PAGE markers — we use those for clean chapter boundaries

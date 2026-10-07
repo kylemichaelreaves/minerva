@@ -50,6 +50,12 @@ class IngestSource:
             return False
         return path.is_file() if self.path_kind == "file" else path.is_dir()
 
+    def iter_chunks(self, path: Path) -> Iterator[tei.Chunk]:
+        """``parse`` with repeated ``chunk_id``s made unique (#707). Every
+        ingest path — serial and parallel — goes through here, so no parser
+        has to remember to."""
+        return tei.disambiguate_chunk_ids(self.parse(path))
+
 
 # --- Parser factories (lazy imports keep optional deps off the critical path) ---
 
@@ -589,7 +595,6 @@ def iter_registered_chunks(
     """
 
     import sys as _sys
-    import time as _time
 
     missing = missing_registered_sources(paths, only=only)
     if missing:
@@ -613,22 +618,38 @@ def iter_registered_chunks(
         # history assembled only from runs where someone passed
         # `--timing` would be a biased sample of the runs, not a trend.
         if not per_source_timing and run_log is None:
-            yield from source.parse(path)  # type: ignore[arg-type]
+            yield from source.iter_chunks(path)  # type: ignore[arg-type]
             continue
-        start = _time.perf_counter()
-        n = 0
-        for chunk in source.parse(path):  # type: ignore[arg-type]
-            n += 1
-            yield chunk
-        elapsed = _time.perf_counter() - start
-        if run_log is not None:
-            run_log.record(
-                source.id, status="ok", elapsed_ms=elapsed * 1000.0, chunks=n
-            )
-        if per_source_timing:
-            # Round to centiseconds; lots of trivial sources finish in
-            # <100 ms and a full-precision float just clutters the output.
-            print(
-                f"timing: ingest:{source.id}  {elapsed:.2f}s ({n} chunks)",
-                file=_sys.stderr,
-            )
+        yield from _iter_source_timed(
+            source, path, per_source_timing=per_source_timing, run_log=run_log
+        )
+
+
+def _iter_source_timed(
+    source: IngestSource,
+    path: Path | None,
+    *,
+    per_source_timing: bool,
+    run_log: object | None,
+) -> Iterator[tei.Chunk]:
+    """One source's chunks, counted and timed for ``run_log`` and/or the
+    ``--timing`` stderr line."""
+
+    import sys as _sys
+    import time as _time
+
+    start = _time.perf_counter()
+    n = 0
+    for chunk in source.iter_chunks(path):  # type: ignore[arg-type]
+        n += 1
+        yield chunk
+    elapsed = _time.perf_counter() - start
+    if run_log is not None:
+        run_log.record(source.id, status="ok", elapsed_ms=elapsed * 1000.0, chunks=n)
+    if per_source_timing:
+        # Round to centiseconds; lots of trivial sources finish in
+        # <100 ms and a full-precision float just clutters the output.
+        print(
+            f"timing: ingest:{source.id}  {elapsed:.2f}s ({n} chunks)",
+            file=_sys.stderr,
+        )

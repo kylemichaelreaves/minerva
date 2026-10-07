@@ -39,7 +39,7 @@ Run by the Makefile, CI, a hook, another script, or a documented procedure.
 |--------|---------|
 | [`audit_invariants.py`](../scripts/audit_invariants.py) | Check whole-corpus invariants against the live index (#320). |
 | [`build_biblical_alignment.py`](../scripts/build_biblical_alignment.py) | Build verse-to-verse alignment cross-references between the four biblical corpora (Hebrew MT ↔ Septuagint ↔ Vulgate ↔ New Testament). |
-| [`check_api_types.py`](../scripts/check_api_types.py) | Verify API contract fixture keys exist on TS wire types (api/types/*.ts). |
+| [`check_api_types.py`](../scripts/check_api_types.py) | Verify API contract fixture keys exist on TS wire types (api/types/*.ts), and that the TS ``BlockType`` union matches ``block_types.BLOCK_TYPES``. |
 | [`check_author_imports.py`](../scripts/check_author_imports.py) | Fail if code imports deprecated root minerva.&lt;author>_works shims. |
 | [`check_author_ingest.py`](../scripts/check_author_ingest.py) | Verify a corpus author is fully wired for ingest (registry, manifest, rules). |
 | [`check_coverage_exclusions.py`](../scripts/check_coverage_exclusions.py) | Check that `pyproject.toml`'s coverage `omit` and `sonar-project.properties`'s `sonar.coverage.exclusions` agree on `src/minerva/` (#345). |
