@@ -4496,3 +4496,48 @@ Live window (snapshot `20261007T194007Z-13d-refs-relabel`):
     was restored by hand. Filed as #802.
 
 Filed along the way: **#802**. No active plan covers it beyond this note.
+
+## Batch 13e — ingest invariants (#536 #542 #554 #707; #648 held out; #804 folded in)
+
+Phase 1 corrected four of the five issues, each on its own issue. Two of
+them changed what got built, and the owner decided both (2026-10-07):
+
+- **#554: retire, not restructure.** `extract_epub` had no live caller. The
+  corpus's one EPUB uses Hegel's `pr_structured` parser, so #542's "zero
+  hits" was a structural zero. The generic path is deleted, and `parse_file`
+  raises on an `.epub` with no structured locator. #542's other two sites had
+  already been fixed by #555, so it closes with #554.
+- **#648: held out.** #673 + #674 did not reach the outcome it defined. 78
+  German function-word rows are still `lat` inside `grc` chunks, and they are
+  Diels's *inline* glosses (`[nämlich der …]`, `(so die Hss.)`) inside
+  fragment chunks, which a chunk-level `block_type` cannot exclude. Moved to
+  the Diels window with #737 and #796.
+
+What shipped:
+
+- **#536:** `block_types.BLOCK_TYPES` is the vocabulary, and `tei.Chunk`
+  rejects any other value, including through `dataclasses.replace`.
+  `check_api_types.py` fails on either-direction disagreement with the TS
+  union. Its first run found the drift the issue never saw: Python emits
+  `signature`, which TS lacked. `body` and `blockquote` were dropped from TS.
+- **#707:** `IngestSource.iter_chunks` re-mints each repeat of a `chunk_id`
+  within a source. The serial and parallel paths both use it. The first
+  occurrence keeps its id. The index now uses plain `INSERT`, so a duplicate
+  that slips through aborts the transaction instead of overwriting.
+
+Live window (snapshot `20261007T225704Z-13e-ingest-invariants`):
+
+- **Full read-only re-parse** of all sources vs `data/chunks.jsonl`: 0
+  duplicate ids (was 5); 5 new ids, one per colliding file; 88 Nietzsche
+  rows `NULL → signature`. Two unrelated drifts were filed as #805:
+  Epictetus 20 → 48 from #394's unapplied split, and one Kant char.
+- **`ingest --only` for the six affected corpora**, then
+  `index --incremental`: chunks 412,685 → 412,690 and
+  `cross_references` 67,655 → 67,655, with 10,506/10,506 rebound and 0
+  orphans. `signature` rows 0 → 88 (#804). The new 5 were embedded,
+  lemmatized (eng 3, fra 2) and scanned (0 candidates).
+- **`make audit` before/after differs only by those 5 chunks.** There was
+  no same-id text change, so no stale-span regression was possible.
+
+Filed along the way: **#804** (folded in), **#805**. No active plan covers
+#805 beyond this note.

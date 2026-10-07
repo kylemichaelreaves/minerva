@@ -37,8 +37,8 @@ submodule.
 
 from __future__ import annotations
 
-# Heading-cleaning helpers live in `..heading_clean` and PDF / EPUB /
-# HTML extractors in `..corpus_extract`. Re-exported here for the same
+# Heading-cleaning helpers live in `..heading_clean` and PDF / HTML
+# extractors in `..corpus_extract`. Re-exported here for the same
 # reason the splitters are: keeping the test-facing surface stable as
 # the internal layout evolved.
 from ..corpus_extract import (  # noqa: F401
@@ -47,7 +47,6 @@ from ..corpus_extract import (  # noqa: F401
     _detect_page_chrome,
     _extract_pdf_page_lines,
     _fuse_kerned_words,
-    extract_epub,
     extract_html,
     extract_ocr_pages,
     extract_pdf,

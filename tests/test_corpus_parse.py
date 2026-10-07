@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from minerva import corpus as corpus_parse
 from minerva import corpus_works
 from minerva.authors import hegel_works
@@ -1723,3 +1725,16 @@ def test_a_note_rejected_by_emit_stays_in_the_body_instead_of_vanishing(tmp_path
     all_text = " ".join(c.text for c in chunks)
     assert "CAIRD, EDWARD" in all_text, "the rejected note must not disappear"
     assert "WALLACE, WILLIAM" in all_text
+
+
+def test_parse_file_refuses_an_epub_without_a_structured_locator(tmp_path: Path):
+    # The generic EPUB extractor is gone (#554): it dropped editorial spine
+    # items before any chunk existed to tag, and no registered source used
+    # it. An EPUB now needs a structure-aware splitter, as Hegel's PR has;
+    # the file is never opened, so an empty one is enough to prove it.
+    from minerva.corpus.pipeline import parse_file
+
+    epub = tmp_path / "x.epub"
+    epub.write_bytes(b"")
+    with pytest.raises(ValueError, match="structured"):
+        list(parse_file(epub, _make_work("chapter")))

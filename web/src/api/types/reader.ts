@@ -14,15 +14,15 @@ export interface Work {
 
 /** Structural role of a chunk within its work. Absent/`null` ≡ ordinary
  * body prose; the others mark set-apart matter (Hegel Anmerkung →
- * `remark`, Zusatz → `addition`, footnotes → `note`, quotations →
- * `blockquote`). See docs/block-structure-remediation-plan.md. */
+ * `remark`, Zusatz → `addition`, footnotes → `note`). Must equal
+ * `block_types.BLOCK_TYPES` in Python, arm for arm — `make check`
+ * (scripts/check_api_types.py) fails on a value either side lacks (#536).
+ * See docs/block-structure-remediation-plan.md. */
 export type BlockType =
-  | "body"
   | "remark"
   | "addition"
   | "note"
   | "cast"
-  | "blockquote"
   // A dialectical voice by another author hosted inside the work —
   // Hobbes/Caterus/Arnauld/… objecting to Descartes' Meditations.
   // The objector's name rides in `speaker`.
@@ -35,7 +35,11 @@ export type BlockType =
   // doubtful, false or forged (Diels's ZWEIFELHAFTE / UNECHTE sections).
   // Shown in place, set apart; in `block_types.APPARATUS_TYPES`, so it is
   // capped in retrieval and never lemmatized (#683).
-  | "spurious";
+  | "spurious"
+  // The author's own title-page or valediction line (Nietzsche's "… Von
+  // Friedrich Nietzsche"): his words, but paratext, so capped in retrieval
+  // (retrieve.py `_PARATEXT_TYPES`, #291).
+  | "signature";
 
 export interface SourceChunk {
   chunk_id: string;

@@ -15,6 +15,17 @@ concordance never counts them (#674).
 
 from __future__ import annotations
 
+#: Every value ``chunks.block_type`` may hold; ``None`` (≡ body) is the
+#: rest. The single source of truth (#536): `tei.Chunk` rejects anything
+#: else at construction, and `scripts/check_api_types.py` fails `make check`
+#: when the TS ``BlockType`` union (web/src/api/types/reader.ts) differs in
+#: either direction. ``signature`` is paratext, not apparatus: Nietzsche's
+#: own title-page and valediction lines, capped in retrieval but still his
+#: words (#291).
+BLOCK_TYPES: frozenset[str] = frozenset(
+    {"remark", "addition", "objection", "note", "cast", "editorial", "spurious", "signature"}
+)
+
 APPARATUS_TYPES: tuple[str, ...] = ("note", "cast", "editorial", "spurious")
 APPARATUS_LABEL: dict[str, str] = {
     "note": "editorial note",

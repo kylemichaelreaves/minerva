@@ -290,8 +290,8 @@ Recoverability is **source-dependent**:
 
 **Where structure is lost in the pipeline** (file:line):
 
-- `src/minerva/corpus_extract.py` — `extract_html` / `extract_epub` strip all
-  markup (class, `rend`, indentation) to plain text before chunking.
+- `src/minerva/corpus_extract.py` — `extract_html` / `extract_epub` (the latter
+  retired in #554) strip all markup (class, `rend`, indentation) to plain text before chunking.
 - `src/minerva/corpus/split_paragraphic.py:288` — paragraphs detected by blank
   lines only (`re.split(r"\n\s*\n", body)`); no block-type notion. Letter-free
   lines are dropped as non-prose (`:73`).
@@ -318,7 +318,7 @@ backward-compatible.
 | `remark` | authorial set-apart commentary — Hegel *Anmerkung*, Spinoza *Scholium* |
 | `addition` | editor-compiled additions — Hegel *Zusatz* (Gans, from lectures) |
 | `note` | footnote / endnote (currently dropped by the TEI parser) |
-| `blockquote` | quoted passage set apart from the prose |
+| `blockquote` | quoted passage set apart from the prose — *proposed, never emitted; dropped from the vocabulary in #536* |
 
 Optional companion field `block_parent_section` (or reuse `section`) so a Remark
 can point at the § it elaborates — enables "show §29 with its Remark grouped."
@@ -556,7 +556,7 @@ affects most works, in three distinct failure modes:
 |---|---|---|
 | **TEI.2 `tei.py:360`** drops every `<note>` + `<castList>` | translator/scholarly footnotes | **~8,100**: Plato 4,137 (Republic 2,769) + 68 castLists; Aristotle 3,507; Homer 295; Epictetus 92 |
 | `split_ekgwb` strips `.footnotes`/apparatus | Nietzsche Nachlass | — |
-| `extract_epub` drops editorial back-matter spine items | generic EPUB path | — |
+| `extract_epub` drops editorial back-matter spine items | generic EPUB path | — (path retired in #554; no source used it) |
 | `split_stephanus_de` skips the "ANMERKUNGEN" section | Schleiermacher | — |
 
 ### Mode 2 — content MERGED / untyped (the Hegel problem; ~47.8k early-modern chunks are `block_type=NULL`)

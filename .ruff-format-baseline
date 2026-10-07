@@ -46,7 +46,6 @@ src/minerva/corpus/split_spinoza.py
 src/minerva/corpus/split_spinoza_ethica.py
 src/minerva/glossary_spec.py
 src/minerva/http/handlers/metrics.py
-src/minerva/ingest/registry.py
 src/minerva/lemmatize.py
 src/minerva/llm.py
 src/minerva/metrics/histogram.py

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Verify API contract fixture keys exist on TS wire types (api/types/*.ts).
+"""Verify API contract fixture keys exist on TS wire types (api/types/*.ts),
+and that the TS ``BlockType`` union matches ``block_types.BLOCK_TYPES``.
 
 Role: workflow
 """
@@ -72,8 +73,50 @@ def _interface_fields(path: Path, name: str) -> set[str]:
     return fields
 
 
+def _ts_union_members(path: Path, name: str) -> set[str]:
+    """String-literal arms of ``export type <name> = | "a" | "b";``.
+
+    Comments are skipped, so a comment that quotes a value is not an arm."""
+
+    text = path.read_text(encoding="utf-8")
+    m = re.search(rf"export type {re.escape(name)}\s*=", text)
+    if not m:
+        raise SystemExit(f"type {name} not found in {path}")
+    # Strip comments line by line before looking for the terminating `;`,
+    # which a comment may itself contain.
+    body: list[str] = []
+    for line in text[m.end() :].splitlines():
+        code = line.split("//", 1)[0]
+        body.append(code.split(";", 1)[0])
+        if ";" in code:
+            break
+    return set(re.findall(r'"([^"]*)"', "\n".join(body)))
+
+
+def block_type_errors(*, python: set[str], ts: set[str]) -> list[str]:
+    """Both directions (#536): a value Python emits with no TS arm, and an
+    arm nothing in Python can produce."""
+
+    errors = [
+        f"block_type {v!r} is in block_types.BLOCK_TYPES but has no TS arm in BlockType"
+        for v in sorted(python - ts)
+    ]
+    errors += [
+        f"BlockType arm {v!r} is not in block_types.BLOCK_TYPES — nothing can emit it"
+        for v in sorted(ts - python)
+    ]
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
+
+    from minerva.block_types import BLOCK_TYPES
+
+    errors += block_type_errors(
+        python=set(BLOCK_TYPES),
+        ts=_ts_union_members(TS_TYPES / "reader.ts", "BlockType"),
+    )
 
     # A fixture with no mapping used to be skipped in silence, which is how
     # `terms_list` sat unchecked from the day it was added. Adding a fixture

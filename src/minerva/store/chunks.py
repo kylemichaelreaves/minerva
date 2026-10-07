@@ -380,8 +380,16 @@ def insert_chunks(
             # and MUST be written here: `chunks_full` inner-joins `works` on
             # it, so a row inserted without it disappears from every reader,
             # search and refs query rather than raising.
+            #
+            # Plain INSERT, not OR REPLACE: both modes delete every row they
+            # are about to re-insert, so the only thing REPLACE could still
+            # overwrite is a second row with the same chunk_id in this JSONL
+            # — which it did silently, dropping the earlier paragraph (#707).
+            # Ingest now mints a distinct id per repeat
+            # (`tei.disambiguate_chunk_ids`); one that slips through aborts
+            # the transaction instead of losing text.
             INSERT_SQL = (
-                "INSERT OR REPLACE INTO chunks "
+                "INSERT INTO chunks "
                 "(chunk_id, edition_id, translation_id, work_id, lang, section, book, page, "
                 " speaker, source_file, text, ord, text_norm, block_type, attributed_to) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
