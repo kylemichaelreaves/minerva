@@ -720,13 +720,14 @@ class TestGermanOpenersWithStrayGreek:
         assert _body(chunks, "22 B 152", "deu").startswith("“Der Abend")
 
     def test_stray_greek_letter_in_german_continuation_is_german(self, tmp_path: Path) -> None:
-        # `ΟἹ,` is OCR for 61: German, whatever its first two letters.
+        # `ΟἹ,` is OCR for 61: German, whatever its first two letters. (The
+        # real line is restored as an opener by `_OCR_REPAIRS`, #737.)
         src = _one_page(
-            _GREEK_OPENER, _GERMAN_OPENER, "ΟἹ, Meerwasser ist das reinste und scheußlichste."
+            _GREEK_OPENER, _GERMAN_OPENER, "ΟἹ, Salzwasser ist das reinste und scheußlichste."
         )
         chunks = _parse(tmp_path, src)
-        assert "Meerwasser" in _body(chunks, "31 B 98", "deu")
-        assert "Meerwasser" not in _body(chunks, "31 B 98", "grc")
+        assert "Salzwasser" in _body(chunks, "31 B 98", "deu")
+        assert "Salzwasser" not in _body(chunks, "31 B 98", "grc")
 
 
 class TestCommaOpeners:
@@ -826,8 +827,9 @@ class TestAFragments:
     @pytest.mark.parametrize(
         "line",
         [
-            # Not 196a after 126, nor anything else: no opener at all.
-            "1960, [0] Anonym. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
+            # Not 196a after 126, nor anything else: no opener at all. (The
+            # real `1960, [0] Anonym.` is 126b, restored by `_OCR_REPAIRS`.)
+            "1960, [0] Schol. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
             "1422. [0] Anonym. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
             "1262°. [0] Anonym. in Plat. Theaet. ἄλλα τε τινα εἴρηκεν",
         ],
@@ -1170,3 +1172,379 @@ class TestHeraclitusDoubtfulExcerpt:
 
     def test_german_126b(self, heraclitus_b125_b139) -> None:
         assert _fragment(heraclitus_b125_b139, "22 B 126b", "deu").text.startswith("Stets")
+
+
+# ════════════════════════════════════════════════════════════════════
+# Batch 13n: chapter boundaries, opener sequences and DK numbering
+# ════════════════════════════════════════════════════════════════════
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _fixture_chunks(name: str) -> list:
+    return list(presocratic.parse_file(_FIXTURES / name))
+
+
+class TestUnknownChapterEndsTheChapter:
+    """Verbatim OCR of pp. 410–413: Anaxagoras B 22–23, then Archelaos
+    (`47. AROHELAOS.`, not ingested) and his testimonia (#736)."""
+
+    def test_archelaos_testimonia_are_not_anaxagoras_fragments(self) -> None:
+        chunks = _fixture_chunks("presocratic_anaxagoras_b22_archelaos.txt")
+        # B 24 is real: a spurious one-liner crammed onto B 23's line.
+        assert sorted({c.section for c in chunks}) == ["59 B 22", "59 B 23", "59 B 24"]
+        assert not [c for c in chunks if "Ἀρχέλαος" in c.text or "ARCHELAOS" in c.text]
+
+    def test_running_head_naming_b_fragments_does_not_reopen(self, tmp_path: Path) -> None:
+        # Line 5850's running head says `B. FRAGMENTE.` and names Archelaos:
+        # after an unknown heading it must not put the parser back in B.
+        src = (
+            "46. ANAXAGORAS.\nB. FRAGMENTE.\n"
+            "22. A. behauptet in seiner Physik unter der Vogelsmilch das Weiße im Ei.\n"
+            "47. AROHELAOS.\n"
+            "B. FRAGMENTE. 22. UNECHTES. 47. ARCHELAOS. 411\n"
+            "2. SUID. s. v. Ἀρχέλαος. Ἀρχέλαος Ἀπολλοδώρου ἢ Μίδωνος Μιλήσιος φιλόσοφος\n"
+        )
+        assert _sections(_parse(tmp_path, src), "grc") == []
+
+
+@pytest.fixture(scope="module")
+def joint_openers() -> list:
+    return _fixture_chunks("presocratic_empedocles_joint_openers.txt")
+
+
+class TestJointOpeners:
+    """Verbatim OCR of pp. 251 and 278 (#737): `77. 78. [` and
+    `148. 149. 150. [` open several fragments on one source passage."""
+
+    @pytest.fixture
+    def chunks(self, joint_openers) -> list:
+        return joint_openers
+
+    @pytest.mark.parametrize("n", [77, 78])
+    def test_77_78_both_carry_the_shared_text(self, chunks, n) -> None:
+        assert "ἐμπεδόφυλλα καὶ ἐμπεδόκαρπα" in _body(chunks, f"31 B {n}", "grc")
+        assert _body(chunks, f"31 B {n}", "deu").startswith("Immer Blätter")
+
+    def test_the_joint_german_does_not_trail_into_76(self, chunks) -> None:
+        assert "77." not in _body(chunks, "31 B 76", "deu")
+        assert "Immer" not in _body(chunks, "31 B 76", "deu")
+
+    @pytest.mark.parametrize("n", [148, 149, 150])
+    def test_148_to_150_each_carry_the_shared_text(self, chunks, n) -> None:
+        assert "ἀμφιβρότην χθόνα" in _body(chunks, f"31 B {n}", "grc")
+
+    def test_german_148_to_150_stay_separate(self, chunks) -> None:
+        assert _body(chunks, "31 B 149", "deu") == "Wolkensammelnde (Luft)."
+        assert _body(chunks, "31 B 151", "deu") == "Lebenspendende (Aphrodite)."
+        assert "ζείδωρος" in _body(chunks, "31 B 151", "grc")
+
+
+@pytest.fixture(scope="module")
+def xenophanes_imitation() -> list:
+    return _fixture_chunks("presocratic_xenophanes_b42_imitation.txt")
+
+
+class TestImitationAfterTheGreek:
+    """Verbatim OCR of pp. 65–67: `C. IMITATION.` comes between the Greek
+    of B 43–45 and their German, on the same page (#737)."""
+
+    def test_german_of_b43_to_b45_is_kept(self, xenophanes_imitation) -> None:
+        # Doubtful fragments: typed spurious, like their Greek.
+        chunks = xenophanes_imitation
+        assert _fragment(chunks, "21 B 43", "deu").text == "Eber (?)."
+        assert _fragment(chunks, "21 B 44", "deu").text.endswith(
+            "mit schrillem und klagendem Tone."
+        )
+        b45 = _fragment(chunks, "21 B 45", "deu")
+        assert b45.text.startswith("Doch ich warf mich hin und her")
+        assert b45.block_type == "spurious"
+
+    def test_imitation_itself_is_not_a_fragment(self, xenophanes_imitation) -> None:
+        chunks = xenophanes_imitation
+        assert not [c for c in chunks if "λέκτρ" in c.text or "Herc." in c.text]
+        assert not [c for c in chunks if c.section == "21 B 1"]
+
+    def test_imitation_ends_at_the_page(self, tmp_path: Path) -> None:
+        # Past the page break nothing is the chapter's, even German that
+        # would continue its numbering.
+        src = (
+            "11. XENOPHANES.\nB. FRAGMENTE.\n"
+            "42. Da würde Lust bekommen ein Junger nach einer jungen Magd.\n"
+            "C. IMITATION.\n"
+            "43. Eber (?).\n"
+            "ἐγὼ δὲ τοὺς θεοὺς οὔτε λέκτρ᾽ ἃ μὴ θέμις στέργειν νομίζω\n"
+            "67\n"
+            "44. Die Phönikier gebrauchten spannenlange Gingrasflöten.\n"
+        )
+        chunks = _parse(tmp_path, src)
+        assert _sections(chunks, "deu") == ["21 B 42", "21 B 43"]
+        assert _body(chunks, "21 B 43", "deu") == "Eber (?)."
+
+
+@pytest.fixture(scope="module")
+def xenophanes_b15_b21a() -> list:
+    return _fixture_chunks("presocratic_xenophanes_b15_b21a.txt")
+
+
+@pytest.fixture(scope="module")
+def empedocles_b138_b142() -> list:
+    return _fixture_chunks("presocratic_empedocles_b138_b142.txt")
+
+
+class TestApparatusLineRanges:
+    """`4. 5 (16, 1. 2) erg. *:` and `2. 3 παῖδες ἀπορραίσαντε]` cite
+    print lines 4–5 and 2–3: apparatus, not fragments 4 and 2 (#737)."""
+
+    def test_xenophanes_line_972_is_apparatus(self, xenophanes_b15_b21a) -> None:
+        chunks = xenophanes_b15_b21a
+        assert "21 B 4" not in _sections(chunks, "grc")
+        assert "Clemens’ Paraphrase" in _editorial(chunks)
+
+    def test_empedocles_line_4042_is_apparatus(self, empedocles_b138_b142) -> None:
+        chunks = empedocles_b138_b142
+        assert "31 B 2" not in _sections(chunks, "grc")
+        assert "παῖδες ἀπορραίσαντε" in _editorial(chunks)
+        # What it used to take with it is B 141's verse.
+        assert "δειλοί, πάνδειλοι, κυάμων" in _body(chunks, "31 B 141", "grc")
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "147. 1387. 388 K., 450. 451 St.] CLeum. Strom. v 122 ἢν δὲ ὁσίως καὶ δικαίως",
+            "25. 3 K., 14 Cr.] Sımpr. phys. 23, 19 ἀλλ᾽ ἀπάνευθε πόνοιο νόου φρενὶ πάντα",
+            "7. 8 K., 6 Cr.] Dioc. vııı 36 περὶ δὲ τοῦ ἄλλοτε ἄλλον γεγενῆσθαι",
+        ],
+    )
+    def test_an_opener_whose_bracket_was_lost_still_opens(self, tmp_path: Path, line) -> None:
+        num = line.split(".")[0]
+        src = "21. EMPEDOKLES,.\nB. FRAGMENTE.\n" + line + "\n"
+        assert _sections(_parse(tmp_path, src), "grc") == [f"31 B {num}"]
+
+
+class TestGermanSplitterNeedsTheSequence:
+    """Verbatim OCR of p. 249 (#737): `69. Doppelträchtig (d. i. im 7.
+    und 10. Monat gebärend).` is one fragment, not 69 and a second B 10."""
+
+    def test_ordinal_inside_prose_does_not_split(self) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b67_b71.txt")
+        assert (
+            _body(chunks, "31 B 69", "deu")
+            == "Doppelträchtig (d. i. im 7. und 10. Monat gebärend)."
+        )
+        assert _sections(chunks, "deu") == [f"31 B {n}" for n in range(67, 72)]
+
+    def test_crammed_german_in_sequence_still_splits(self, tmp_path: Path) -> None:
+        src = _one_page(
+            "11. Alles, was da kreucht, wird mit Gottes Geißel geweidet. 12. Wer in"
+            " dieselben Fluten steigt, dem strömt stets anderes Wasser zu. 13. Am Dreck"
+            " sich ergetzen."
+        )
+        assert _sections(_parse(tmp_path, src), "deu") == ["31 B 11", "31 B 12", "31 B 13"]
+
+
+class TestMisreadPeriodOpeners:
+    """An OCR misreading of the number behind a full stop: `11.` for 71,
+    `156.` for 125, `8.` for 3 (#737). Taken for the number it can be
+    misread from, when that one is next and not there yet."""
+
+    def test_xenophanes_90_is_20(self, xenophanes_b15_b21a) -> None:
+        assert "τέτταρα πρὸς τοῖς πεντήκοντα" in _body(xenophanes_b15_b21a, "21 B 20", "grc")
+        assert "21 B 90" not in _sections(xenophanes_b15_b21a, "grc")
+
+    def test_heraclitus_11_and_16_are_71_and_76(self) -> None:
+        chunks = _fixture_chunks("presocratic_heraclitus_b68_b79.txt")
+        assert "τοῦ ἐπιλανθανομένου" in _body(chunks, "22 B 71", "grc")
+        assert "ζῆι πῦρ τὸν γῆς θάνατον" in _body(chunks, "22 B 76", "grc")
+        assert _sections(chunks, "grc") == [f"22 B {n}" for n in range(68, 80)]
+
+    def test_empedocles_156_and_198_are_125_and_123(self) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b120_b126.txt")
+        b125 = _fragment(chunks, "31 B 125", "grc")
+        assert "νεκρὰ εἴδε᾽ ἀμείβων" in b125.text
+        assert b125.block_type is None
+        assert _body(chunks, "31 B 123", "deu").startswith("Und die Geister des Wachstums")
+        assert {"31 B 156", "31 B 198"}.isdisjoint(c.section for c in chunks)
+
+    def test_anaxagoras_german_8_is_3(self) -> None:
+        chunks = _fixture_chunks("presocratic_anaxagoras_b1_b5.txt")
+        assert _body(chunks, "59 B 3", "deu").startswith("Denn bei dem Kleinen")
+        assert _sections(chunks, "deu") == [f"59 B {n}" for n in range(1, 5)]
+
+    def test_empedocles_89_crammed_behind_88(self) -> None:
+        # `80.` for 86 (0 for 6), and B 89 with its bracket read `1`.
+        chunks = _fixture_chunks("presocratic_empedocles_b84_b89.txt")
+        assert "ἐξ ὧν ὄμματ᾽ ἔπηξεν" in _body(chunks, "31 B 86", "grc")
+        assert "πάντων εἰσὶν ἀπορροαί" in _body(chunks, "31 B 89", "grc")
+        assert "PLur. quaest. nat." not in _body(chunks, "31 B 88", "grc")
+
+    def test_a_jump_that_is_no_misreading_stays(self, tmp_path: Path) -> None:
+        # Heraclitus German 19–25 are lost on their page: 26 after 18 is
+        # no misreading of 19–21, and must not become one (#737's cascade).
+        src = _one_page(
+            "18. Wer das Unerwartete nicht erhofft, wird es nicht finden.",
+            "26. Der Mensch zündet sich in der Nacht ein Licht an.",
+            "27. Der Menschen wartet nach dem Tode, was sie nicht hoffen.",
+        )
+        assert _sections(_parse(tmp_path, src), "deu") == ["31 B 18", "31 B 26", "31 B 27"]
+
+
+class TestDroppedGerman:
+    """German the OCR left without a usable opener (#737)."""
+
+    @pytest.mark.parametrize(
+        ("n", "start"),
+        [
+            (19, "Leute, die weder zu hören"),
+            (20, "Heraklit scheint die Geburt"),
+            (21, "Tod ist alles, was wir im Wachen sehen"),
+            (22, "Denn die Goldgräber schaufeln"),
+            (23, "Gäb’ es jenes"),
+            (24, "Im Kriege Gefallene"),
+            (25, "Größerer Tod empfängt"),
+        ],
+    )
+    def test_heraclitus_19_to_25_whose_numbers_were_lost(self, heraclitus_b14_b30, n, start):
+        assert _body(heraclitus_b14_b30, f"22 B {n}", "deu").startswith(start)
+        assert start not in _body(heraclitus_b14_b30, "22 B 18", "deu")
+
+    def test_heraclitus_61_read_as_greek_letters(self) -> None:
+        chunks = _fixture_chunks("presocratic_heraclitus_b59_b62.txt")
+        assert _body(chunks, "22 B 61", "deu").startswith("Meerwasser ist das reinste")
+        assert _body(chunks, "22 B 60", "deu") == "Der Weg auf und ab ist ein und derselbe."
+
+    def test_heraclitus_126b_greek_read_as_1960(self, heraclitus_b125_b139) -> None:
+        assert "ἄλλως ἄζλλο ἀεὶ" in _fragment(heraclitus_b125_b139, "22 B 126b", "grc").text
+        assert "Anonym" not in _fragment(heraclitus_b125_b139, "22 B 126a", "grc").text
+
+    def test_heraclitus_138_german_is_a_cross_reference(self, heraclitus_b125_b139) -> None:
+        assert _fragment(heraclitus_b125_b139, "22 B 138", "deu").text.startswith("= Poseidippos")
+        assert _fragment(heraclitus_b125_b139, "22 B 139", "deu").text.startswith("Astrologische")
+
+    def test_empedocles_german_1_behind_its_title(self) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b1_b9.txt")
+        assert _body(chunks, "31 B 1", "deu") == "Pausanias, Sohn des klugen Anchitos, höre!"
+
+    def test_german_opening_on_an_ellipsis(self) -> None:
+        empedocles = _fixture_chunks("presocratic_empedocles_b1_b9.txt")
+        # 1912's B 3, DK's B 5 (#738).
+        assert _body(empedocles, "31 B 5", "deu") == "... zu wahren im Innern Deiner stummen Brust."
+        anaxagoras = _fixture_chunks("presocratic_anaxagoras_b5_b10.txt")
+        # `9... . während`: the full stop and an ellipsis run together.
+        assert _body(anaxagoras, "59 B 9", "deu").startswith(".. . während diese Stoffe")
+        assert "während" not in _body(anaxagoras, "59 B 8", "deu")
+
+    def test_empedocles_german_7_read_as_4(self) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b1_b9.txt")
+        assert _body(chunks, "31 B 7", "deu") == "Ungewordne Elemente."
+        # 1912's B 4, the German it was swallowing, is DK's B 3 (#738).
+        assert "Ungewordne" not in _body(chunks, "31 B 3", "deu")
+
+    def test_empedocles_154a_to_154c_german(self) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b152_b157.txt")
+        assert _fragment(chunks, "31 B 154a", "deu").text.startswith("Wehen und Schmerzen")
+        assert _fragment(chunks, "31 B 154b", "deu").text.startswith("Die zuerst das ruchlose")
+        assert _fragment(chunks, "31 B 154c", "deu").text.startswith("Auch bei den Pflanzen")
+        assert _fragment(chunks, "31 B 154", "deu").text.endswith("verödet dalag .. .")
+
+
+@pytest.fixture(scope="module")
+def parmenides_b1_b6() -> list:
+    return _fixture_chunks("presocratic_parmenides_b1_b6.txt")
+
+
+class TestDielsKranzNumbering:
+    """1912's fragment numbers, mapped to DK's (#738): Parmenides 2→4,
+    3→5, 4→2, 5→3; Empedocles 3→5, 4→3, 5→4; Heraclitus 84 → 84a, 84b."""
+
+    @pytest.fixture
+    def parmenides(self, parmenides_b1_b6) -> list:
+        return parmenides_b1_b6
+
+    @pytest.mark.parametrize(
+        ("section", "greek"),
+        [("28 B 4", "οὐ γὰρ ἀποτμήξει τὸ ἐὸν"), ("28 B 5", "ξυνὸν δέ μοί ἐστιν")],
+    )
+    def test_parmenides_greek(self, parmenides, section, greek) -> None:
+        # 1912's B 2 and B 3: two fragments, though the OCR read both `3.`.
+        assert greek in _body(parmenides, section, "grc")
+
+    def test_parmenides_greek_b2_and_b3_are_not_merged(self, parmenides) -> None:
+        assert "ξυνὸν" not in _body(parmenides, "28 B 4", "grc")
+
+    @pytest.mark.parametrize(
+        ("section", "start"),
+        [
+            ("28 B 2", "Wohlan, so will ich denn verkünden"),
+            ("28 B 3", "Denn (das Seiende) denken und sein ist dasselbe."),
+            ("28 B 4", "Betrachte wie doch das Ferne"),
+            ("28 B 5", "Ein Gemeinsames (Zusammenhängendes)"),
+        ],
+    )
+    def test_parmenides_german(self, parmenides, section, start) -> None:
+        assert _body(parmenides, section, "deu").startswith(start)
+
+    @pytest.mark.parametrize(
+        ("section", "start"),
+        [
+            ("31 B 3", "Wohlan, ihr Götter"),
+            ("31 B 4", "Doch Niedrigen liegt es nur zu sehr am Herzen"),
+            ("31 B 5", "... zu wahren"),
+        ],
+    )
+    def test_empedocles_german(self, section, start) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b1_b9.txt")
+        assert _body(chunks, section, "deu").startswith(start)
+
+    def test_empedocles_greek(self) -> None:
+        chunks = _fixture_chunks("presocratic_empedocles_b1_b9.txt")
+        assert "στεγάσαι φρενὸς ἔλλοπος εἴσω" in _body(chunks, "31 B 5", "grc")
+        assert "μανίην ἀποτρέψατε γλώσσης" in _body(chunks, "31 B 3", "grc")
+
+    def test_heraclitus_84_is_split_into_84a_and_84b(self) -> None:
+        chunks = _fixture_chunks("presocratic_heraclitus_b80_b85.txt")
+        assert _body(chunks, "22 B 84a", "grc") == "μεταβάλλον ἀναπαύεται"
+        assert _body(chunks, "22 B 84b", "grc") == "κάματός ἐστι τοῖς αὐτοῖς μοχθεῖν καὶ ἄρχεσθαι."
+        assert _body(chunks, "22 B 84a", "deu") == (
+            "Sich wandelnd ruht es aus (das ätherische Feuer im menschlichen Körper)"
+        )
+        assert _body(chunks, "22 B 84b", "deu") == (
+            "Es ist ermattend, denselben Herren zu frohnen und dienen."
+        )
+        assert "22 B 84" not in {c.section for c in chunks}
+
+    def test_84b_keeps_the_source_citation(self) -> None:
+        chunks = _fixture_chunks("presocratic_heraclitus_b80_b85.txt")
+        halves = [_fragment(chunks, f"22 B 84{x}", "grc") for x in "ab"]
+        books = {c.book for c in halves}
+        assert len(books) == 1 and "Enn" in books.pop()
+
+    def test_unmapped_fragments_keep_their_number(self) -> None:
+        chunks = _fixture_chunks("presocratic_heraclitus_b80_b85.txt")
+        assert _body(chunks, "22 B 85", "deu").startswith("Mit dem Herzen zu kämpfen")
+        # `8ὅ.`, B 85's Greek opener with a Greek letter for its 5 (#737).
+        assert _body(chunks, "22 B 85", "grc").startswith("θυμῶι μάχεσθαι χαλεπόν")
+
+
+class TestNumberingHelpers:
+    def test_a_misreading_already_there_is_passed_over(self) -> None:
+        # `98.` after 92 is 93 (8 for 3), unless 93 is already there.
+        assert presocratic._misread_as(98, (92, ""), {}) == (93, "")
+        assert presocratic._misread_as(98, (92, ""), {(93, ""): []}) is None
+
+    @pytest.mark.parametrize(
+        ("printed", "true", "count"),
+        [("297", "27", 1), ("156", "125", 2), ("26", "21", None), ("8", "13", None)],
+    )
+    def test_misreadings(self, printed, true, count) -> None:
+        assert presocratic._misreadings(printed, true) == count
+
+    def test_dk_key_of_a_split_fragment_is_its_first_half(self) -> None:
+        # The apparatus and the spurious type follow it there.
+        assert presocratic._dk_key(22, (84, "")) == (84, "a")
+        assert presocratic._dk_key(28, (2, "")) == (4, "")
+        assert presocratic._dk_key(64, (2, "")) == (2, "")
+
+    def test_a_split_that_finds_no_divide_keeps_1912s_number(self) -> None:
+        buf = {(84, ""): ["Sich wandelnd ruht es aus."]}
+        assert presocratic._to_dk(22, buf, "deu") == buf
