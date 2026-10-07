@@ -7,7 +7,9 @@ where ``data/`` does not exist:
 * ``renan_peuple_israel_vol5.txt`` — a paragraph interrupted by its own
   page's footnote and by the next page's running head;
 * ``gobineau_essai_inegalite_vol4.txt`` — a running head the OCR read as
-  ``DBA KACtB HUMAINES. 37!``;
+  ``DBA KACtB HUMAINES. 37!``. An excerpt of the file the corpus called
+  "vol. 4" before #742, which was the corrupt Google scan of *Tome II*
+  (re-sourced in batch 13m); kept because its OCR damage is the point;
 * ``boulainvilliers_histoire.txt`` — a signature mark and catchword
   (``Y y une``) and a head whose page number came out ``1 3 o``;
 * ``boulainvilliers_lettres.txt`` — every line its own blank-separated
@@ -301,3 +303,89 @@ class TestPipeline:
             "158 HISTOIRE DU PEUPLE D'ISRAËL.",
             "continue ici.",
         ]
+
+
+class TestCarets:
+    """`^` is OCR noise in the Gobineau and Renan scans, never text.
+
+    Measured over the corpus files (batch 13m): in Renan about two thirds
+    of the 3,095 carets stand where a superscript note call was printed
+    (`Jérusalem^.`, `moyens ^ Un Juif`); in Gobineau most sit inside a
+    word the OCR garbled (`diT^e`). None reads as a misprinted circumflex.
+    A note call is not text, so the caret goes; what must not happen is a
+    word fused to its neighbour, or a caret-only line turned into a blank
+    that ends a paragraph.
+    """
+
+    @pytest.mark.parametrize(
+        ("line", "expected"),
+        [
+            # A note call after a word, before its punctuation.
+            ("le pays fort tempéré^. Sans doute", "le pays fort tempéré. Sans doute"),
+            # A free-standing note call between two words: one space, not two.
+            ("pour les esprits moyens ^ Un Juif", "pour les esprits moyens Un Juif"),
+            ("épître dite aux Éphésiens^ Mais", "épître dite aux Éphésiens Mais"),
+            # At the end of a line: nothing left behind.
+            (
+                "couvrirent toujours depuis la colline occidental e^",
+                "couvrirent toujours depuis la colline occidental e",
+            ),
+            ("vie était racontée ^", "vie était racontée"),
+            # Glyph noise inside a word.
+            ("diT^e les tendances", "diTe les tendances"),
+            # Between a word and a number, a space keeps them apart.
+            ("Saint Paul^2 et", "Saint Paul 2 et"),
+            ("Au 11^siècle", "Au 11 siècle"),
+            # A run of carets is one caret.
+            ("s'approchait^^^^^^", "s'approchait"),
+            # The second half of a divided word is found again.
+            ("Gomme exemple des chan-^", "Gomme exemple des chan-"),
+        ],
+    )
+    def test_strips_the_character(self, line: str, expected: str) -> None:
+        assert ocr_reflow.strip_carets(line) == expected
+
+    def test_a_caret_standing_for_a_note_number_goes_too(self) -> None:
+        """`^. Megillaih Taanith` is note 2 with its number read as `^`.
+        Reflow does not take `^. ` for a note marker, so the line is glued
+        into the paragraph above whether or not the caret stays; 12 of the
+        13 such lines in Renan were, so keeping it only left carets in
+        body text."""
+
+        assert ocr_reflow.strip_carets("^. Megillaih Taanith") == ". Megillaih Taanith"
+
+    def test_a_caret_only_line_is_removed_not_blanked(self) -> None:
+        assert ocr_reflow.strip_carets("une phrase qui\n^^\ncontinue.") == (
+            "une phrase qui\ncontinue."
+        )
+        assert reflow("une phrase qui\n^^\n\ncontinue.", OcrReflow(())) == (
+            "une phrase qui continue."
+        )
+
+    def test_reflow_strips_carets(self) -> None:
+        assert reflow("la colline occidental e^\nSimon fortifia.", OcrReflow(())) == (
+            "la colline occidental e Simon fortifia."
+        )
+
+    def test_a_caret_after_a_full_stop_no_longer_hides_it(self) -> None:
+        assert reflow("de cette inscription.^\n\nSimon fut.", OcrReflow(())) == (
+            "de cette inscription.\n\nSimon fut."
+        )
+
+    @pytest.mark.parametrize(
+        ("name", "spec"),
+        [
+            ("renan_peuple_israel_vol5.txt", RENAN),
+            ("renan_peuple_israel_vol5_notes.txt", RENAN),
+            ("gobineau_essai_inegalite_vol4.txt", GOBINEAU),
+        ],
+    )
+    def test_no_caret_survives_in_the_real_excerpts(self, name: str, spec: OcrReflow) -> None:
+        for para in _paragraphs(name, spec):
+            assert "^" not in para
+
+    def test_the_ecclesiaste_note_call_leaves_one_space(self) -> None:
+        body = next(
+            p for p in _paragraphs("renan_peuple_israel_vol5.txt", RENAN) if p.startswith("C'est")
+        )
+        assert "le Cohélet ou Ecclésiaste Nulle part ailleurs" in body

@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
-"""One-shot cleanup for the Boulainvilliers source texts.
+"""Cleanup for the Boulainvilliers source texts.
 
-After ingest, the chunks were unreadable because of three layered
-OCR artifacts that the original fetcher didn't normalize:
+Runs over the downloader's output (``perseus/download_boulainvilliers.py``
+writes the Histoire and the Lettres) and, per paragraph, inside
+``scripts/extract-essai-pdf.py`` for the Essai. It repairs:
 
-1. **Long-s** (U+017F ``ſ``) — the medial-s glyph the 18th-c
-   printer used everywhere. Survived through Google Books OCR
-   in some volumes, especially the EPUB-derived Essai. Maps to
-   plain ``s``.
-2. **Unicode ligatures** in the U+FB00–FB06 range — ``ﬀ ﬁ ﬂ ﬃ ﬄ ﬅ``.
-   The Gallica-derived EPUB encodes typographic ligatures as
-   atomic codepoints; modern French expects them decomposed.
-3. **OCR margin debris** — the Lettres scan has trailing ``^^H``
-   ``^^|`` ``^^B`` markers on every line (page-edge garbage); the
-   Essai EPUB has multi-line runs of dots and stray Latin-1
-   characters from image-as-text rendering between actual prose
-   paragraphs.
+1. **Long-s** (U+017F ``ſ``) and **Unicode ligatures** (U+FB00–FB06),
+   via `minerva.textnorm.normalize_ligatures`.
+2. **The long-s read as ``f``** (``Hiftoire``), by a dictionary-guided
+   f→s swap (needs ``pyspellchecker``).
+3. **OCR debris** — tokens with a stray ``^``, the Lettres' ``^^H``
+   right-margin markers, whole lines that are page numbers, glyph soup
+   (fewer than 40 % letters) or a running head.
 
-We also collapse hyphenation across line breaks (``ruppri-\\nmer``
-→ ``ruppri-mer`` becomes ``ruppri-mer`` joined; the chunker's
-paragraph splitter then sees clean sentences). And we drop lines
-that are predominantly non-letter characters (image-glyph soup).
+It does not join words divided at the line end, split run-together words
+or drop "column-edge" lines of short words: the first is done
+compound-aware by `corpus/ocr_reflow` at ingest for the two works that
+reach this script line by line, and the other two removed far more body
+text than debris (#739: 87 of 103 column-edge drops in the Lettres were
+body text; the splitter wrote ``Angle terre`` 89 times). The old join
+also closed up a hyphen followed by a space mid-line (``inftan- ces``);
+the reflow does not, so that shape now reaches the index as printed.
 
-Re-runnable: keeps idempotent properties — running twice gives the
-same output as running once. Safe to call after a fetcher refresh.
+Idempotent: cleaning its own output changes nothing, so re-running it
+over ``data/boulainvilliers`` is safe. (Before #739 it was not — the
+hyphen join kept joining across the gaps it had made.)
 
 The f→s pass needs ``pyspellchecker``, declared as the ``ocr-clean`` extra
 (#740; it used to be imported without being declared anywhere)::
@@ -75,27 +76,6 @@ def _is_glyph_soup(line: str) -> bool:
     return letters < 0.40 * len(s)
 
 
-def _join_hyphenation(text: str) -> str:
-    """Merge hyphen-broken words across line endings AND across the
-    spaces that html-extracted text sometimes leaves between them.
-
-    ``ruppri-\\nmer`` → ``rupprimer``. The 18th-c print breaks any
-    word at the right margin with ``-\\n``; without fixing, the
-    chunker emits two half-words that lemmatize as bogus tokens.
-
-    Gallica's HTML "Text View" sometimes collapses the line break
-    into a single space (when paragraph-aware extraction joins
-    inline spans), leaving the visible artifact ``inftan- ces``.
-    The second sub catches that shape too. Both only fire when the
-    continuation starts with a lowercase letter — uppercase signals
-    a new sentence / heading.
-    """
-
-    text = re.sub(r"(\w)-\n([a-zàâéèêëîïôöùûüç])", r"\1\2", text)
-    text = re.sub(r"(\w)- ([a-zàâéèêëîïôöùûüç])", r"\1\2", text)
-    return text
-
-
 _FRENCH_DICT = None
 
 
@@ -132,76 +112,67 @@ def _fix_medial_f_to_s(text: str) -> str:
     ``effet`` → ``esset``, ``enfant`` → ``ensant`` would all be
     wrong; the dict knows ``différent`` / ``effet`` / ``enfant``
     are real French and leaves them alone).
+
+    The word is judged whole even when the printer divided it at the line
+    end (``mau-`` / ``vaifes``): the fragments alone are either no word or
+    the wrong one (``ef-`` / ``fectivement`` would become ``es-``). The
+    hyphen and line break stay where they are, for `corpus/ocr_reflow` to
+    rejoin at ingest.
     """
 
     sp = _french_dict()
 
-    def _try_candidates(word: str) -> str:
-        # Skip word-initial f, all-cap acronyms, and short stubs.
-        if len(word) < 3 or word.lower()[0] == "f":
-            return word
-        if not any(ch in word for ch in "fF"):
-            return word
-        # Generate candidates: replace every combination of f-clusters
-        # with s-equivalents. For each medial-f position, the swap can
-        # be f→s or ff→ss; we enumerate the 2^k cluster choices.
-        # In practice, words have ≤ 3 medial-f positions, so the
-        # enumeration cap is tiny.
-        lower = word.lower()
-        positions: list[tuple[int, int]] = []
-        i = 0
-        while i < len(lower):
-            if lower[i] != "f":
-                i += 1
-                continue
-            # word-initial f stays as f (the lower[0]=='f' guard
-            # catches the leading-position case at the outer level,
-            # but a word with an internal "f" preceded by f-initial
-            # like "Ffrancesco" would loop; we don't expect those).
-            if i == 0:
-                i += 1
-                continue
-            run_end = i
-            while run_end < len(lower) and lower[run_end] == "f":
-                run_end += 1
-            positions.append((i, run_end))
-            i = run_end
-        if not positions:
-            return word
-        # Enumerate 2^len(positions) variants — small (usually 2-8).
-        n = len(positions)
-        best = word
-        best_score = -1  # higher = better dictionary match
-        # Score the original first.
-        if word.lower() in sp:
-            best_score = 1
-            best = word
-        for mask in range(1, 1 << n):
-            variant = list(word)
-            for idx, (start, end) in enumerate(positions):
-                if (mask >> idx) & 1:
-                    for k in range(start, end):
-                        # Preserve case of the original character.
-                        variant[k] = "S" if word[k].isupper() else "s"
-            candidate = "".join(variant)
-            if candidate.lower() in sp:
-                # Prefer candidates that swap MORE (closer to long-s
-                # interpretation), but only beat the original if it's
-                # also in dict. Tied candidates: prefer the highest
-                # swap count.
-                swap_count = bin(mask).count("1")
-                if swap_count > best_score:
-                    best_score = swap_count
-                    best = candidate
-        return best
-
-    # Tokenise on word boundaries that preserve apostrophes inside
-    # words (l'eft → ["l", "'", "eft"]). Each alphabetic-only token
-    # gets the candidate-search treatment.
     def _repl(m: re.Match[str]) -> str:
-        return _try_candidates(m.group(0))
+        left, sep, right = m.group(0).partition("-\n")
+        fixed = _repair_long_s(left + right, sp)
+        return fixed[: len(left)] + sep + fixed[len(left) :]
 
-    return re.sub(r"[A-Za-zÀ-ÿ]+", _repl, text)
+    return _WORD_OR_DIVIDED_WORD.sub(_repl, text)
+
+
+#: A word, or a word divided at the line end (``mau-\nvaifes``). Letters only,
+#: so apostrophes split tokens (``l'eft`` → ``l``, ``eft``).
+_WORD_OR_DIVIDED_WORD = re.compile(r"[A-Za-zÀ-ÿ]+(?:-\n[a-zà-ÿ][A-Za-zÀ-ÿ]*)?")
+
+
+def _medial_f_runs(lower: str) -> list[tuple[int, int]]:
+    """The ``(start, end)`` of each run of ``f`` after the first letter."""
+
+    return [(m.start(), m.end()) for m in re.finditer(r"f+", lower) if m.start() > 0]
+
+
+def _swapped(word: str, positions: list[tuple[int, int]], mask: int) -> str:
+    """*word* with the runs selected by *mask* turned to ``s``, keeping case."""
+
+    variant = list(word)
+    for idx, (start, end) in enumerate(positions):
+        if (mask >> idx) & 1:
+            for k in range(start, end):
+                variant[k] = "S" if word[k].isupper() else "s"
+    return "".join(variant)
+
+
+def _repair_long_s(word: str, sp) -> str:
+    """The dictionary's best reading of *word* with ``f`` runs read as ``s``.
+
+    Word-initial ``f`` is left alone (usually genuine). Every combination of
+    medial runs is tried — ``2**k`` variants, k rarely above 3 — and the
+    dictionary form that swaps the most runs wins; the original stands if
+    it is a word and no variant swapping two or more runs is.
+    """
+
+    if len(word) < 3 or word[0] in "fF":
+        return word
+    positions = _medial_f_runs(word.lower())
+    if not positions:
+        return word
+    best, best_score = word, (1 if word.lower() in sp else -1)
+    for mask in range(1, 1 << len(positions)):
+        candidate = _swapped(word, positions, mask)
+        swap_count = bin(mask).count("1")
+        if swap_count > best_score and candidate.lower() in sp:
+            best, best_score = candidate, swap_count
+    return best
 
 
 # Boulainvilliers-specific running-header patterns. Each pattern is a
@@ -215,8 +186,11 @@ _RUNNING_HEADERS = re.compile(
     r"|PARLEMENS\s+de\s+France\s*\.?"
     # "Lettre N" / "LETTRE N" / "LETT. N" / "LETTREI" etc.
     r"|LETTRE?\.?\s*[IVX]+\s*\.?,?"
-    # "LETT.II," / "XBPP.II." / "LETTREI." / "TBPP.II."
-    r"|[A-Z]{2,5}\.?\s*[IVX]+\s*\.?,?"
+    # The Lettres' per-letter heads as the OCR mangles them: "Lett.V.",
+    # "LiTT. V,", "Utt. IX.", "Tr.IX.". A dot after the letters and an
+    # upper-case numeral, case-sensitively — the dotless form this replaced
+    # matched "Roi." (Ro + i), "Bailli." and "Louis XI" (#739).
+    r"|(?-i:[A-Za-z]{2,5}\.\s*[IVX]{1,4}\s*[.,]?)"
     # "Tome L A" / "Tome PREMIER" / "Tome II"
     r"|Tome\s+(?:[IVX]+|PREMIER|SECOND|TROISIEME|L\s*A)"
     # "Differtation sur la Noblesse" / "Dissertation sur la Noblesse"
@@ -246,27 +220,6 @@ _PAGE_NUMBER_LINE = re.compile(
     r"|[IVX]+\s+\d+"  # split roman+arabic
     r")\s*$"
 )
-
-
-def _is_column_edge_garbage(line: str) -> bool:
-    """Detect lines that are mostly OCR column-edge debris — runs of
-    single-letter tokens separated by spaces (``I â à 'S e e p it 3 a 4 j r $``).
-    Such lines are page-margin OCR scraps that the body-text reader
-    never wanted.
-
-    A line qualifies as column-edge garbage when ≥ 70% of its tokens
-    are 1-2 chars long AND the total token count is ≥ 5 (short
-    legitimate sentences pass).
-    """
-
-    s = line.strip()
-    if len(s) < 8:
-        return False
-    tokens = s.split()
-    if len(tokens) < 5:
-        return False
-    short = sum(1 for t in tokens if len(t) <= 2)
-    return short / len(tokens) >= 0.70
 
 
 def _strip_caret_artifacts(text: str) -> str:
@@ -313,92 +266,43 @@ def _strip_inline_running_headers(text: str) -> str:
     return _INLINE_RUNNING_HEADERS.sub(" ", text)
 
 
-def _split_run_on_words(text: str) -> str:
-    """Insert spaces in run-on tokens that the dictionary recognises as
-    two consecutive French words.
+def _keep_line(line: str, drop_glyph_soup: bool) -> bool:
+    if drop_glyph_soup and _is_glyph_soup(line):
+        return False
+    return not (_PAGE_NUMBER_LINE.match(line) or _RUNNING_HEADERS.match(line))
 
-    OCR sometimes drops the space between adjacent words: ``sensiblepar``,
-    ``Arrierefiefs``, ``tefuis``, ``oude``. We try every possible split
-    point on each unfamiliar token of length ≥ 6 and accept the split
-    only when BOTH halves are real French words. The dict check makes
-    this safe — words like ``avantageuses``, ``conférence``, ``régulier``
-    that aren't run-ons stay intact because no valid split exists.
 
-    The minimum-half-length of 3 stops false positives on short common
-    fragments (``de``, ``la``, ``il``) that would otherwise match
-    anywhere.
-    """
-
-    sp = _french_dict()
-
-    def _try_split(word: str) -> str:
-        if len(word) < 6:
-            return word
-        # Skip if the original is already in dict.
-        lower = word.lower()
-        if lower in sp:
-            return word
-        # Skip uppercase tokens (likely proper nouns / acronyms).
-        if word.isupper():
-            return word
-        # Skip words containing ``f`` — those are very likely
-        # long-s OCR misreads (``fervice`` for ``service``,
-        # ``fanté`` for ``santé``) that the f→s pass either
-        # already handled or couldn't fix because the dict didn't
-        # know the 18th-c form. Either way, splitting them as
-        # run-on words almost always yields nonsense — ``fervice``
-        # → ``fer vice`` (iron vice), ``foulagement`` →
-        # ``foulage ment``, ``fubftituer`` → ``fub stituer``. Leave
-        # them unsplit so the reader can still recognise the
-        # long-s misread.
-        if "f" in lower:
-            return word
-        # Try every interior split; accept the FIRST that gives two
-        # real words BOTH of length ≥ 4 (avoids breaking on tiny
-        # function words like ``de``, ``la``, ``il``). The leftmost
-        # split tends to be the right one (French lexicon is
-        # dominated by 4-10-char words).
-        for i in range(4, len(word) - 3):
-            left, right = lower[:i], lower[i:]
-            if left in sp and right in sp:
-                # Preserve case: capital first letter on left if
-                # the original was capitalised.
-                a = word[:i]
-                b = word[i:]
-                return f"{a} {b}"
-        return word
-
-    return re.sub(r"[A-Za-zÀ-ÿ]+", lambda m: _try_split(m.group(0)), text)
+_MIDLINE_HYPHEN = re.compile(r"(\w)- ([a-zàâéèêëîïôöùûüç])")
 
 
 def clean_text(raw: str, *, drop_glyph_soup: bool = True) -> str:
     text = _normalize_ligatures(raw)
-    text = _join_hyphenation(text)
+    # A word split mid-line (`Mai- fon`, left by the PDF span join) is closed
+    # up here; the ingest reflow only rejoins a hyphen at a line END. Before
+    # the f→s pass, so the joined word is judged whole (batch 13m).
+    text = _MIDLINE_HYPHEN.sub(r"\1\2", text)
+    # Before the line filters, so a running head misread `Hiftoriques`
+    # still matches them.
     text = _fix_medial_f_to_s(text)
     text = _strip_caret_artifacts(text)
     text = _strip_inline_running_headers(text)
-    text = _split_run_on_words(text)
     out_lines: list[str] = []
-    for line in text.split("\n"):
+    for raw_line in text.split("\n"):
         # Strip margin debris first, then trailing whitespace.
-        line = MARGIN_NOISE.sub("", line)
-        line = line.rstrip()
-        if drop_glyph_soup and _is_glyph_soup(line):
-            continue
-        if _PAGE_NUMBER_LINE.match(line):
-            continue
-        if _RUNNING_HEADERS.match(line):
-            continue
-        if _is_column_edge_garbage(line):
-            continue
-        # Collapse intra-line multiple spaces (left over from
-        # the caret-stripping pass).
-        line = re.sub(r" {2,}", " ", line)
-        out_lines.append(line)
+        line = MARGIN_NOISE.sub("", raw_line).rstrip()
+        if _keep_line(line, drop_glyph_soup):
+            # Collapse intra-line multiple spaces (left over from
+            # the caret-stripping pass).
+            out_lines.append(re.sub(r" {2,}", " ", line))
     text = "\n".join(out_lines)
     # Collapse 3+ consecutive blank lines to 2.
     text = re.sub(r"\n{3,}", "\n\n", text)
-    return text
+    # And after them: stripping debris that stood at a line break
+    # (`con- ^^^` / `fommation`) is what brings a divided word's halves
+    # together, and only then can it be judged whole. The mid-line join runs
+    # again for the same reason: `cbamtt- ^^ foibies` only becomes
+    # `cbamtt- foibies` once the debris is gone.
+    return _fix_medial_f_to_s(_MIDLINE_HYPHEN.sub(r"\1\2", text))
 
 
 def _process_file(path: Path) -> None:

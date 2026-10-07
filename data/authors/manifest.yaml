@@ -1020,9 +1020,12 @@ expected_chunks:
   boulainvilliers:
     min: 1992
     max: 2578
+  # Re-centred 2026-10-07 (#742, batch 13m): the four files were tomes IV,
+  # I, IV and II, so the corpus held Tome IV twice and no Tome III. Rebuilt
+  # as tomes I-IV of the 1853-55 edition, 3,469 -> 4,189. Same formula.
   gobineau:
-    min: 2949
-    max: 3816
+    min: 3561
+    max: 4608
   renan:
     min: 10257
     max: 13274

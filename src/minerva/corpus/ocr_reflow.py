@@ -30,6 +30,9 @@ rather than read as text, which is most of this module:
   of this one, recognised only when the next page really does begin with
   it (`une` … `Lothaire. une armée`).
 
+The OCR's stray carets (`tempéré^.`, `diT^e`) are deleted first; see
+`strip_carets`.
+
 Footnotes are body text of the edition and are kept. A note that sits
 between the two halves of a divided paragraph is emitted after the
 paragraph rather than in the middle of it.
@@ -221,6 +224,51 @@ def _is_page_token(token: str) -> bool:
 def is_signature(line: str) -> bool:
     stripped = line.strip()
     return bool(_SIGNATURE_RE.match(stripped) or _DOUBLED_SIGNATURE_RE.match(stripped))
+
+
+# ── Carets ─────────────────────────────────────────────────────────
+
+#: A run of carets and the spaces around it.
+_CARET_RUN_RE = re.compile(r"[ \t]*\^+[ \t]*")
+
+
+def _caret_gap(match: re.Match[str]) -> str:
+    """What a caret run leaves behind: a space where it stood between two
+    words, or between a word and a number, so neither is fused to the
+    other; nothing inside a word, before punctuation, or at a line end."""
+
+    line, (start, end) = match.string, match.span()
+    if start == 0 or end == len(line):
+        return ""
+    left, right = line[start - 1], line[end]
+    spaced = match.group() != match.group().strip()
+    if spaced or (left.isdigit() != right.isdigit() and left.isalnum() and right.isalnum()):
+        return " "
+    return ""
+
+
+def strip_carets(text: str) -> str:
+    """The text without the `^` the OCR scatters through these scans.
+
+    Measured over the corpus files (batch 13m), a caret is a superscript
+    note call (`tempéré^.`, `moyens ^ Un Juif`) or glyph noise inside a
+    word the OCR garbled (`diT^e`), and none a misread circumflex — so it
+    is deleted, never replaced by a letter. A line that was nothing but
+    carets is removed rather than left blank, because a blank line is a
+    paragraph boundary to `reflow`.
+
+    `reflow` applies it to every work it reflows. The third such corpus,
+    Boulainvilliers, has no carets at all (measured), so in effect it
+    touches Gobineau and Renan only.
+    """
+
+    if "^" not in text:
+        return text
+    lines = text.split("\n")
+    stripped = [_CARET_RUN_RE.sub(_caret_gap, line) if "^" in line else line for line in lines]
+    return "\n".join(
+        new for old, new in zip(lines, stripped, strict=True) if new.strip() or not old.strip()
+    )
 
 
 # ── Classification ─────────────────────────────────────────────────
@@ -453,7 +501,7 @@ def reflow(text: str, spec: OcrReflow, is_heading: Callable[[str], bool] = _neve
     disappears into the paragraph before it.
     """
 
-    lines = text.split("\n")
+    lines = strip_carets(text).split("\n")
     kinds = classify(lines, spec)
     items = [(kind, line) for line, kind in zip(lines, kinds, strict=True) if kind in (BODY, BLANK)]
     # Furniture is a hole in the page: skipped, and never a paragraph end.

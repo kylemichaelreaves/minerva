@@ -46,6 +46,8 @@ def _renan_work(code: str, title: str, year: str, filename: str) -> CorpusWork:
         author="Renan",
         citation_system="paragraph",
         ocr_reflow=_OCR_HEADS,
+        # Renan's footnotes are his own (#732).
+        footnote_remarks=True,
     )
 
 
