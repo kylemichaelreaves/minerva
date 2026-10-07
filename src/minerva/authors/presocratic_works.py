@@ -13,7 +13,8 @@ This module maintains both:
   sometimes mis-recognized; primary match is by name);
 * the modern DK chapter number — used in the canonical
   ``section`` locator written to ``chunks.section`` (e.g.,
-  ``"22 B 1"`` for Heraclitus's first B-fragment).
+  ``"22 B 1"`` for Heraclitus's first B-fragment). The fragment number
+  in it is mapped from 1912's to DK's by the parser (#738).
 
 Phase 1 covers the canonical ~12 pre-Socratics — the figures
 responsible for >90% of philosophical references to the school.
