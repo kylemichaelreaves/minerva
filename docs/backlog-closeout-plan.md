@@ -4367,3 +4367,31 @@ the Cicero half of #732.
 
 Filed along the way, none covered by an active plan beyond this note: #789,
 #790, #791, #792, #793, #794. The impossible verses went on #519.
+
+## Batch 13n — the Presocratics window (#736 #738; #737 partial)
+
+The Diels parser, plus a live re-ingest of the nine DK author corpora
+(snapshot `20261007T015634Z-13n-presocratics-window`). Phase 1 corrected all
+three issues on the issues themselves:
+
+- **#736:** 11 of the 12 Anaxagoras fragments named, not 12. B 3 escaped
+  because its opener was eaten as a running head. It is the only leak of its
+  kind among the source's 66 headings.
+- **#737:** one misidentification (`156.` at line 3949 is B 125, not B 126).
+  The population was 162 flags, of which 13 of a 15-sample were real. **The
+  hypothesis cascaded when prototyped:** an ordering check on every opener lost
+  80 Empedocles German sections and shifted 24 Heraclitus keys. Shipped
+  instead: per-family fixes, each fixture-tested and checked per author. Flags
+  went 162 → 25, and 7 real defects remain on the issue.
+- **#738:** only 8 fragment numbers differ between 1912 and Diels–Kranz:
+  Parmenides B 2–5 (a 4-cycle), Empedocles B 3–5 (a 3-cycle), and Heraclitus
+  84 → 84a/84b. 0 cross_references touch DK chunks, and none of the 45
+  in-corpus fragment citations cites a renumbered one. Owner decision: map to
+  DK. The docstring that called the 1912 fragment numbers "Kranz 1951" is how
+  this stayed hidden; it now says which number is which. Diogenes is unverified
+  against DK (Band II is restricted on archive.org) and is kept as identity.
+
+Live result: 937 → 978 chunks, 57 ids gone, 98 new, 0 cross_references
+affected. Every `make audit` invariant matches its pre-window value.
+
+Filed along the way: #796. No active plan covers it beyond this note.
