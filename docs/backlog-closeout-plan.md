@@ -4326,3 +4326,44 @@ None needs a DB step. Findings that changed the work:
 Filed along the way: **#787** (the MDZ Plato downloader skips failed pages
 and exits 0, the same class as #781). No active plan covers it beyond this
 note.
+
+## Batch 13m — the French operator window (#779 #739 #742 #740; #732 and #741 partial)
+
+Boulainvilliers, Gobineau and Renan: code fixes, then one live re-ingest of the
+three corpora (snapshot `20261007T005015Z-13m-french-window`). Phase 1 ran as
+four read-only agents, and **every one of the six issues needed a correction**.
+Each correction is posted on its issue. The four that changed the work:
+
+- **#742 was about the wrong volume.** The four Gobineau files were tomes IV,
+  I, IV and II. The corpus held Tome IV twice and no Tome III, and the
+  `01..04` in the archive.org ids are Google disambiguators, not volume
+  numbers. Owner decision: rebuild as tomes I–IV of the 1853–55 edition. Tome
+  II was re-sourced from `bub_gb_kMd-BHlp-M8C` (57% → 89% vocabulary hit),
+  Tome III added from `bub_gb_Qk-jzgOI3KQC`, and the duplicate dropped.
+  3,469 → 4,189 chunks, all re-id'd.
+- **#732 named the wrong type and a twentieth of the size.** The Renan
+  footnotes are 6,219 chunks, not 287 (287 was a <40-char filter). `note` is
+  editor's apparatus and would have re-attributed Renan's own words and purged
+  81,664 lemma rows. They are typed `remark`, as Kapital's are, by a post-pass
+  with zero id churn.
+- **#779's measuring query could not verify its own fix.** `LIKE '%Efq%'` is
+  case-insensitive, and all 34 Lettres hits were `prefque`. The Histoire's
+  front matter was 160 chunks, including Louis XIV's 1697 *Mémoire*, which is
+  not by Boulainvilliers. The end cut dropped the work's last 315 lines.
+- **#739's "drop the filters, the reflow covers it" was half true.** The
+  reflow rejoins a hyphen at a line end, not mid-line. Removing the mid-line
+  join left `bien- tôt` for `bientôt`, so it was kept.
+
+**One regression found and repaired in the window.** The ingest-time caret
+strip changed text in about 1,150 Renan chunks whose ids survived. 160
+cross_references then held stale spans: `xref_source_span` for French went
+from 4 to 160. Those 160 rows were deleted via `repair_stale_xrefs`, which also
+clears their scan state, and `refs build` rediscovered all 160 with correct
+spans. French now holds at 0. The 5 Hegel rows that predate the window stay
+with #715.
+
+Not done, by decision: margin notes (#741, best detector 19/30 precision) and
+the Cicero half of #732.
+
+Filed along the way, none covered by an active plan beyond this note: #789,
+#790, #791, #792, #793, #794. The impossible verses went on #519.

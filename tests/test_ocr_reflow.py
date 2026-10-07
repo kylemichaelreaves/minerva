@@ -7,7 +7,9 @@ where ``data/`` does not exist:
 * ``renan_peuple_israel_vol5.txt`` — a paragraph interrupted by its own
   page's footnote and by the next page's running head;
 * ``gobineau_essai_inegalite_vol4.txt`` — a running head the OCR read as
-  ``DBA KACtB HUMAINES. 37!``;
+  ``DBA KACtB HUMAINES. 37!``. An excerpt of the file the corpus called
+  "vol. 4" before #742, which was the corrupt Google scan of *Tome II*
+  (re-sourced in batch 13m); kept because its OCR damage is the point;
 * ``boulainvilliers_histoire.txt`` — a signature mark and catchword
   (``Y y une``) and a head whose page number came out ``1 3 o``;
 * ``boulainvilliers_lettres.txt`` — every line its own blank-separated
