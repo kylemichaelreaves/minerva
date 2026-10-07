@@ -4395,3 +4395,44 @@ Live result: 937 → 978 chunks, 57 ids gone, 98 new, 0 cross_references
 affected. Every `make audit` invariant matches its pre-window value.
 
 Filed along the way: #796. No active plan covers it beyond this note.
+
+## Batch 13o — the Hobbes window (#733 #734 #735; #574 decided)
+
+Three ingest fixes for Hobbes, plus one live re-ingest of both Hobbes sources,
+`hobbes` and `hobbes_la` (snapshot `20261007T123521Z-13o-hobbes-window`).
+
+- **#733:** the Google scan of Opera Latina III has no leaves for pp. 510–512.
+  The downloader now appends p. 510 from the UofT scan, which was already
+  fetched for the Appendix. It refuses if the slice no longer ends at "Itaque
+  atramentum". On re-download, De Cive and the Appendix come back
+  byte-identical, and the Leviathan file differs only by the appended page.
+  The last chunk kept its id.
+- **#734:** the damaged-head shape rule, until now on for the Appendix only, is
+  on for Leviathan and De Cive. That drops 44 + 42 leaked heads and chapter
+  titles, every one read and none of them body text. 230 + 29 ids were
+  re-minted, as the issue predicted.
+- **#735 was corrected before the fix.** The repeated `¶1` comes from two
+  headings with the same label, not a counter restart. "Continue the ¶ count"
+  is a corpus-wide change, filed as #798 with 3,025 duplicated locators over
+  109 work/file pairs. The fix is a per-work `CorpusWork.relabel_runs` pass,
+  and by owner decision it also covers the title page, transcriber's notes and
+  dedication, which sat under `Ecclesiastical and CIVILL`. It re-minted 73 ids
+  and carried 0 cross_references.
+- **#574 closed as accepted-not-fixed** (owner decision). The hOCR direction was
+  already stopped in 13b, vertical coherence was never prototyped, and nothing
+  separates margin from body without cutting body words.
+
+Live result: hobbes 5,293 → 5,267 chunks (lat 1,726 → 1,700). 332 ids
+re-minted, exactly 230 + 29 + 73. 169 source-side cross_references were
+orphaned; `refs build` rediscovered 167. The difference is a triplicate `quotes`
+row on one Cap 42 span collapsing to one. Scoped llm-verify on the 9 new
+`rule_weak` rows promoted 8 and rejected 1, which matches the snapshot.
+
+**The 13m regression recurred, and was caught the same way.** Five De Cive
+chunks lost a head past character 120 and kept their ids, which left 5
+`rule_strong` rows with shifted spans: `xref_source_span` went 345 → 350.
+Those rows were deleted via `repair_stale_xrefs` and rediscovered by
+`refs build` with correct spans. Every `make audit` invariant now equals its
+pre-window value.
+
+Filed along the way: #798. No active plan covers it beyond this note.
