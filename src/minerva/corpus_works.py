@@ -83,6 +83,11 @@ class CorpusWork:
     #: catchwords are stepped over. The tuple lists the work's running-head
     #: titles as printed; ``None`` leaves the text as it is. `.txt` only.
     ocr_reflow: tuple[str, ...] | None = None
+    #: Type the paragraphs `ocr_reflow` kept as footnotes
+    #: ``block_type='remark'`` after ids are fixed
+    #: (`corpus/footnote_remarks.py`, #732). For a work whose footnotes are
+    #: the author's own; an editor's would be ``note``.
+    footnote_remarks: bool = False
     # Front-matter headings to capture under `locator="section"`. The
     # default §-splitter drops everything before the first `§N` marker,
     # which silently loses Hegel's own Preface / Introduction in

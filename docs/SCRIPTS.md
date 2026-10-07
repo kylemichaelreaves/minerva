@@ -76,7 +76,7 @@ Written for a migration or remediation that has landed. Nothing runs these.
 
 | Script | Summary |
 |--------|---------|
-| [`clean-boulainvilliers-texts.py`](../scripts/clean-boulainvilliers-texts.py) | One-shot cleanup for the Boulainvilliers source texts. |
+| [`clean-boulainvilliers-texts.py`](../scripts/clean-boulainvilliers-texts.py) | Cleanup for the Boulainvilliers source texts. |
 | [`clean-cicero-chrome.py`](../scripts/clean-cicero-chrome.py) | Strip Wikisource + Project Gutenberg chrome from Cicero files. |
 | [`clean-descartes-principes.py`](../scripts/clean-descartes-principes.py) | Partial cleanup for Descartes' *Principes* parts II-IV. |
 | [`clean-gobineau-texts.py`](../scripts/clean-gobineau-texts.py) | One-shot cleanup for the Gobineau source texts. |
