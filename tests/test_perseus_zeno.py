@@ -184,6 +184,14 @@ def test_unexpected_exception_is_not_swallowed(jobs):
         zeno.crawl(ROOT, fetch=fake, max_pages=100, delay=0, jobs=jobs)
 
 
+def test_extract_links_stops_at_a_path_boundary():
+    """#781: ``/W/Foobar`` extends ``/W/Foo`` as a string, but it is a sibling
+    work, not a subpage. A prefix match with no ``/`` boundary crawled it."""
+
+    html = _page(f"{ROOT}/sub", f"{ROOT}+Zweiter+Teil/sub", f"{ROOT}x")
+    assert zeno.extract_links(html, ROOT) == [f"{ROOT}/sub"]
+
+
 def _works() -> list[zeno.ZenoWork]:
     return [zeno.ZenoWork("werk.html", ROOT)]
 
@@ -292,3 +300,26 @@ def test_an_output_dir_inside_the_repo_is_accepted():
     target = repo / "data" / "x" / "raw_deu"
     assert zeno._confined_out_dir(target) == target
     assert zeno._confined_out_dir(repo / "data" / ".." / "data") == repo / "data"
+
+
+def test_run_works_fails_and_withholds_a_crawl_cut_off_by_max_pages(tmp_path, capsys):
+    """#781: a work that hit ``max_pages`` with paths still queued is partial
+    in exactly the way a failed page is, and used to be written at exit 0."""
+
+    code = zeno.run_works(_works(), tmp_path, fetch=FakeSite(SITE), max_pages=3, delay=0)
+
+    assert code != 0
+    assert not (tmp_path / "werk.html").exists()
+    out = capsys.readouterr().out
+    assert "max_pages" in out
+    assert "--allow-partial" in out
+
+
+def test_run_works_allow_partial_writes_a_capped_crawl(tmp_path):
+    code = zeno.run_works(
+        _works(), tmp_path, fetch=FakeSite(SITE), max_pages=3, delay=0, allow_partial=True
+    )
+
+    assert code == 0
+    text = (tmp_path / "werk.html").read_text(encoding="utf-8")
+    assert text.count("<!-- ZENO_PAGE:") == 3

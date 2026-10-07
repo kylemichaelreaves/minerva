@@ -10,12 +10,11 @@ this time. We pull page-by-page, read the page furniture off by its
 *position*, and hand off to the standard Boulainvilliers cleanup
 (long-s → s, ligatures, dictionary-guided f→s).
 
-Run it in an environment that has both PyMuPDF and ``pyspellchecker``;
-the cleanup's f→s pass needs the latter and it is not a project
-dependency::
+Run it with the ``hegel`` extra (PyMuPDF) and the ``ocr-clean`` extra
+(``pyspellchecker``, which the cleanup's f→s pass needs; declared since
+#740)::
 
-    uv run --no-project --with pymupdf --with pyspellchecker \\
-        python scripts/extract-essai-pdf.py [OUT]
+    uv run --extra hegel --extra ocr-clean python scripts/extract-essai-pdf.py [OUT]
 
 **Spaces (#561).** Gallica's text layer stores each OCR'd word as its
 own span, and most spans carry no space glyph. Every PyMuPDF text mode

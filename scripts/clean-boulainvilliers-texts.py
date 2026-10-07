@@ -25,6 +25,11 @@ that are predominantly non-letter characters (image-glyph soup).
 Re-runnable: keeps idempotent properties — running twice gives the
 same output as running once. Safe to call after a fetcher refresh.
 
+The f→s pass needs ``pyspellchecker``, declared as the ``ocr-clean`` extra
+(#740; it used to be imported without being declared anywhere)::
+
+    uv run --extra ocr-clean python scripts/clean-boulainvilliers-texts.py
+
 Role: oneoff
 """
 

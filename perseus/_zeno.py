@@ -83,10 +83,14 @@ def extract_links(html: str, root_path: str, *, site_root: str = ZENO_ROOT) -> l
 
     Fragments and queries are stripped (so footnote anchors collapse onto
     their page), the root itself is excluded, and duplicates are dropped.
-    The prefix match has no ``/`` boundary — measured 2026-10-06 over all
-    4,125 ``ZENO_PAGE`` markers in the five crawlers' dumps, none crossed
-    into a sibling work, so the looser rule is kept as-is.
+    A subpage is ``root_path + "/…"``: a bare string prefix also matched a
+    sibling work whose path extends the root's, as ``/W/Foobar`` extends
+    ``/W/Foo`` (#781). Measured before tightening it: every one of the 4,125
+    ``ZENO_PAGE`` markers in the 54 existing dumps already sits under its
+    root's ``/``, so no crawl that worked loses a page.
     """
+
+    subtree = root_path + "/"
 
     out: list[str] = []
     seen: set[str] = set()
@@ -94,7 +98,7 @@ def extract_links(html: str, root_path: str, *, site_root: str = ZENO_ROOT) -> l
         path = _site_path(raw, site_root)
         if path is None or path == root_path or path in seen:
             continue
-        if not path.startswith(root_path):
+        if not path.startswith(subtree):
             continue
         seen.add(path)
         out.append(path)
@@ -247,8 +251,9 @@ def run_works(
     """Crawl each work and write ``out_dir/<filename>``. Returns the exit
     code: 0 when every page was fetched (or ``allow_partial``), else 1.
 
-    A work with any failed page is withheld unless ``allow_partial``, so a
-    good dump already on disk is never overwritten by a truncated one.
+    A work with any failed page, or cut off by ``max_pages`` with paths still
+    queued, is withheld unless ``allow_partial``, so a good dump already on
+    disk is never overwritten by a truncated one.
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -264,6 +269,12 @@ def run_works(
             jobs=jobs,
             site_root=site_root,
         )
+        if result.truncated:
+            # A capped crawl is partial in exactly the way a failed page is:
+            # the unvisited subtrees are missing from the dump (#781).
+            result.failures.append(
+                (work.root_path, f"hit max_pages={max_pages} with paths still unvisited")
+            )
         if result.failures:
             failed.append((work.filename, result.failures))
         if not result.pages or (result.failures and not allow_partial):

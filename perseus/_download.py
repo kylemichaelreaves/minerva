@@ -56,7 +56,8 @@ def fetch_bytes_with_retry(
 
     Returns raw response bytes. Non-retryable HTTP errors (404, 403,
     …) propagate immediately. Retries on 408/425/429/5xx, ``URLError``,
-    and ``IncompleteRead`` (common on large TEI/HTML payloads).
+    ``IncompleteRead`` (common on large TEI/HTML payloads), and a timeout or
+    connection reset raised while reading the body.
 
     ``extra_headers`` are merged with ``User-Agent`` — use for Perseus
     ``Referer``, Wikisource ``Accept``, etc.
@@ -104,6 +105,18 @@ def fetch_bytes_with_retry(
                 print(
                     f"  IncompleteRead ({partial} bytes); retry in {wait:.0f}s "
                     f"({attempt + 1}/{retries})"
+                )
+                time.sleep(wait)
+                continue
+            raise
+        except (TimeoutError, ConnectionError) as e:
+            # urllib wraps a failure in URLError only while it opens the
+            # connection. A timeout or reset during `resp.read()` arrives bare,
+            # and used to escape on the first attempt (#780).
+            if attempt + 1 < retries:
+                wait = min(backoff_max, backoff_initial * (2**attempt))
+                print(
+                    f"  {type(e).__name__} during read; retry in {wait:.0f}s ({attempt + 1}/{retries})"
                 )
                 time.sleep(wait)
                 continue
@@ -180,6 +193,13 @@ class RateLimiter:
             self._last[host] = now
 
 
+#: What :func:`fetch_parallel` hands back as a URL's result rather than
+#: raising: network and HTTP failures (``HTTPError`` and ``URLError`` are
+#: ``OSError``s), and the ``RuntimeError`` :func:`fetch_with_retry` raises for
+#: a body it rejects (``min_bytes`` / ``reject_markers``).
+FETCH_ERRORS: tuple[type[Exception], ...] = (OSError, http.client.HTTPException, RuntimeError)
+
+
 def fetch_parallel(
     urls: Iterable[str],
     *,
@@ -194,10 +214,11 @@ def fetch_parallel(
     ...]`` in INPUT order — callers can zip the result against the
     original list without re-correlating.
 
-    Errors are returned, not raised, so one bad URL out of many
-    doesn't kill the batch. The caller decides whether to retry,
-    log, or surface to the user — and must re-raise what it did not
-    expect, since every ``Exception`` lands here, bugs included.
+    Fetch errors (:data:`FETCH_ERRORS`) are returned, not raised, so one
+    bad URL out of many doesn't kill the batch. The caller decides whether
+    to retry, log, or surface to the user. Anything else is a bug and is
+    raised from here: it used to come back as that URL's result, looking
+    like a failed fetch (#780).
 
     ``fetch`` replaces the default :func:`fetch_with_retry` call (and
     with it ``encoding`` / ``timeout`` / ``retries``) — the seam
@@ -223,12 +244,16 @@ def fetch_parallel(
                     encoding=encoding,
                 )
             results[idx] = (url, html)
-        except Exception as exc:
+        except FETCH_ERRORS as exc:
             results[idx] = (url, exc)
 
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        for idx, url in enumerate(url_list):
-            pool.submit(_one, idx, url)
+        futures = [pool.submit(_one, idx, url) for idx, url in enumerate(url_list)]
+    # Read every future back: an exception `_one` did not catch is stored on
+    # its future, and an unread future drops it silently, leaving that slot
+    # at its "unassigned" placeholder.
+    for future in futures:
+        future.result()
 
     return results
 

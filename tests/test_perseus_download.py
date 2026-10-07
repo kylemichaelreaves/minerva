@@ -211,3 +211,88 @@ class TestFailureAccumulator:
         assert len(acc) == 0
         acc.record("Gen.xml", "HTTP 404")
         assert len(acc) == 1
+
+
+class _ReadFails:
+    """A response whose ``read()`` raises ``exc`` — the failure urllib does
+    NOT wrap in ``URLError``, because the connection is already open."""
+
+    def __init__(self, exc):
+        self.exc = exc
+
+    def read(self):
+        raise self.exc
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+class _ReadsOk(_ReadFails):
+    def read(self):
+        return b"ok"
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [TimeoutError("The read operation timed out"), ConnectionResetError(54, "reset")],
+    ids=["timeout", "reset"],
+)
+def test_fetch_with_retry_retries_a_failure_during_read(monkeypatch, download_mod, exc):
+    """#780: a timeout or reset raised by ``resp.read()`` is a bare
+    ``OSError``, not ``URLError``, and used to escape on the first attempt."""
+
+    responses = [_ReadFails(exc), _ReadFails(exc), _ReadsOk(None)]
+    attempts = []
+
+    def fake_urlopen(req, timeout):
+        del req, timeout
+        attempts.append(1)
+        return responses[len(attempts) - 1]
+
+    monkeypatch.setattr(download_mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(download_mod.time, "sleep", lambda s: None)
+    assert download_mod.fetch_with_retry("http://example.test/x", retries=8) == "ok"
+    assert len(attempts) == 3
+
+
+def test_fetch_with_retry_still_raises_a_read_failure_once_retries_run_out(
+    monkeypatch, download_mod
+):
+    monkeypatch.setattr(
+        download_mod.urllib.request,
+        "urlopen",
+        lambda req, timeout: _ReadFails(TimeoutError("slow")),
+    )
+    monkeypatch.setattr(download_mod.time, "sleep", lambda s: None)
+    with pytest.raises(TimeoutError):
+        download_mod.fetch_with_retry("http://example.test/x", retries=3)
+
+
+@pytest.mark.parametrize("jobs", [1, 3])
+def test_fetch_parallel_raises_what_is_not_a_fetch_error(download_mod, jobs):
+    """#780: a programming error must not come back looking like a failed
+    fetch. It used to be returned as the URL's result."""
+
+    def buggy(url):
+        if url.endswith("bad"):
+            return {}["missing"]
+        return "ok"
+
+    with pytest.raises(KeyError):
+        download_mod.fetch_parallel(
+            ["http://a/1", "http://a/bad", "http://a/2"], jobs=jobs, fetch=buggy
+        )
+
+
+def test_fetch_parallel_still_returns_network_errors(download_mod):
+    def flaky(url):
+        if url.endswith("bad"):
+            raise ConnectionResetError(54, "reset")
+        return "ok"
+
+    results = download_mod.fetch_parallel(["http://a/1", "http://a/bad"], jobs=2, fetch=flaky)
+    assert results[0] == ("http://a/1", "ok")
+    assert isinstance(results[1][1], ConnectionResetError)
