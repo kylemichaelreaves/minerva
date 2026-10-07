@@ -96,6 +96,9 @@ _LEXICON: dict[tuple[str | None, str], str] = {
     ("I", "Ptr"): "1 Peter",
     ("II", "Petr"): "2 Peter",
     ("II", "Ptr"): "2 Peter",
+    # Molesworth abbreviates one letter shorter: "2 Pet. iii. 13".
+    ("I", "Pet"): "1 Peter",
+    ("II", "Pet"): "2 Peter",
     # John epistles: bare "Ioan" defaults to the Gospel (more frequent);
     # ordinal-prefixed forms route to the epistles.
     ("I", "Ioan"): "1 John",
@@ -317,11 +320,12 @@ _LEXICON: dict[tuple[str | None, str], str] = {
 # mirror of 30-odd keys drifts the first time a book is added to one
 # list and not the other.
 #
-# These keys are reachable ONLY from `ScriptureCiteRuleLatRoman`.
-# `_CITE_RE`'s prefix group is `I{1,3}V?|ad`, which cannot match a
-# digit at all — on "Paulus 1 Cor. 9" it captures `prefix=None,
-# abbr='Paulus', chap='1'` and never consults these entries. So adding
-# them changes nothing for any author the Arabic rule serves.
+# These keys were once reachable only from `ScriptureCiteRuleLatRoman`:
+# `_CITE_RE`'s prefix group was `I{1,3}V?|ad`, which cannot match a
+# digit, so Aquinas's "2 Cor. 3-18" fell to the bare default and bound
+# 1 Cor (#719). It now admits a spaced `[1-4]` too. A digit that pins no
+# entry here — "art. 3 Matth. 5-3" — is dropped from the cite by
+# `BaseScriptureCiteRule._resolve_book` rather than sinking it.
 _ARABIC_FOR_ROMAN_ORDINAL = {"I": "1", "II": "2", "III": "3", "IV": "4"}
 _LEXICON.update(
     {
@@ -345,10 +349,6 @@ _LEXICON.update(
 # are `ex`, `io`, `is` and `tim` — 2 or 3 letters, every one. A blanket
 # `re.IGNORECASE` would admit all ten (#511).
 #
-# The regex is only half the anchor. `BaseScriptureCiteRule.scan` looks
-# the abbrev up verbatim, so relaxing the pattern alone finds the spans
-# and then drops them at the lexicon miss — measured as +0 candidates.
-# These keys are the other half.
 # The regex is only half the anchor. `BaseScriptureCiteRule.scan` looks
 # the abbrev up verbatim in three tables — `_LEXICON`, `_AMBIGUOUS_BARE`
 # and `_WORD_COLLISION` — all keyed on the capitalised form, so
@@ -375,7 +375,7 @@ def _sbl_abbr_for(book: str) -> str | None:
 # ──────────────────────────────────────────────────────────────────
 #
 # Pattern:
-#   (optional prefix: ordinal "I"/"II"/"III"/"IV" or preposition "ad")
+#   (optional prefix: ordinal "I"/"II"/"III"/"IV", "1"–"4", or preposition "ad")
 #   word-boundary + capitalized book abbreviation + literal "."
 #   whitespace
 #   chapter digits
@@ -385,7 +385,7 @@ def _sbl_abbr_for(book: str) -> str | None:
 # accidental in-word substrings ("Apostolicam." → not a cite).
 
 _CITE_RE = re.compile(
-    r"(?:\b(?P<prefix>I{1,3}V?|ad)\s+)?"  # optional ordinal/prep
+    r"(?:\b(?P<prefix>I{1,3}V?|[1-4]|ad)\s+)?"  # optional ordinal/prep
     # Book abbreviation. Length 1..15 to accommodate spelled-out Latin
     # genitive forms ("Lamentationes" 13, "Thessalonicenses" 16 —
     # the 16-char form is just past the cap and would need explicit

@@ -208,4 +208,4 @@ minerva = "minerva.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-minerva = ["eval_data/*.jsonl"]
+minerva = ["eval_data/*.jsonl", "refs/rules/scripture_cite/verse_counts.json"]

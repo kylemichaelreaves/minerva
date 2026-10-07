@@ -58,11 +58,19 @@ def test_full_names_with_arabic_chapters(text: str, locator: str) -> None:
         ("Moses, argue thus, (Numbers xvi. 3): _Y", "Num 16:3"),
         ("t in their goings._ Micah v. 4, 5, ", "Mic 5:4"),
         ("inion_, &c. Haggai (Haggai ii. 6-7): ", "Hag 2:6"),
-        ("d is in his heart._ Jeremiah xxx. 33: _I ", "Jer 30:33"),
     ],
 )
 def test_full_names_with_roman_chapters(text: str, locator: str) -> None:
     assert _locs(text, ScriptureCiteRuleEnRoman()) == [locator]
+
+
+def test_an_impossible_verse_in_the_source_is_refused() -> None:
+    """The source misprints Jeremiah 31:33 ("I will put my law in their
+    inward parts, and write it in their hearts") as xxx. 33. Jeremiah 30
+    has 24 verses, so the verse canon refuses it (#519). This case used to
+    sit in the list above, pinning the impossible ``Jer 30:33``."""
+
+    assert _locs("d is in his heart._ Jeremiah xxx. 33: _I ", ScriptureCiteRuleEnRoman()) == []
 
 
 def test_a_bare_numbered_book_is_ambiguous() -> None:
