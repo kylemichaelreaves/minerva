@@ -86,13 +86,27 @@ WORKS: tuple[CorpusWork, ...] = (
         # title page and the Godolphin dedication (#705). Then the table of
         # contents (#679): the "OF MAN" part title and 48 chapter-title
         # lines, up to the Introduction's first paragraph. Only "OF MAN"
-        # was typed by its "Contents…" heading; the rest sat under labels
-        # the heading detector made from wrapped title lines ("Defects",
-        # "And Misery"). Those labels are wrong but feed `chunk_id`, so
-        # they stay: typing alone keeps every id.
+        # was typed by its "Contents…" heading.
         editorial_runs=(
             ("TRANSCRIBER’S NOTES ON THE E-TEXT", "TO MY MOST HONOR’D FRIEND"),
             ("OF MAN", "Nature (the art whereby God"),
+        ),
+        # Everything before the Introduction sat under labels the heading
+        # detector made from wrapped title lines: "Ecclesiastical and
+        # CIVILL" (the title's second line) over the title page, notes and
+        # dedication, and "Defects", "And Misery", "Books of Holy
+        # Scripture" (twice) … over the contents. #679 kept them because
+        # `section` feeds `chunk_id`; #735 relabels them and re-mints those
+        # 73 ids, which carried 0 cross_references.
+        relabel_runs=(
+            ("By Thomas Hobbes", "TRANSCRIBER’S NOTES ON THE E-TEXT", "Title Page"),
+            (
+                "TRANSCRIBER’S NOTES ON THE E-TEXT",
+                "TO MY MOST HONOR’D FRIEND",
+                "Transcriber’s Notes",
+            ),
+            ("TO MY MOST HONOR’D FRIEND", "OF MAN", "Dedication"),
+            ("OF MAN", "Nature (the art whereby God", "Contents"),
         ),
     ),
     # ─── Appendix ad Leviathan ────────────────────────────────────

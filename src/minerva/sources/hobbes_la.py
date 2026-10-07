@@ -11,8 +11,8 @@ latine scripsit omnia* (London: Bohn, 1839) by
     philosophica de cive*.
   * ``leviathan_appendix_lat.txt`` — vol. III again, from a second scan,
     Caput I–III of the *Appendix ad Leviathan* (#575). A dialogue, and
-    OCR'd worse at the running heads; see `_DAMAGED_HEAD_CODES` and
-    `_DIALOGUE_CODES` for the two rules only it uses.
+    OCR'd worse at the running heads; see `_DAMAGED_HEAD_CODES` (now on
+    for all three works, #734) and `_DIALOGUE_CODES` (the appendix's own).
 
 **This replaced a parser for a completely different kind of page.**
 Until 2026-09 the sources were IA scans of the 17th-century printings,
@@ -182,7 +182,7 @@ _MIN_CHUNK_CHARS = 80
 
 # ── The Appendix ad Leviathan (#575) ──────────────────────────────
 #
-# Two rules the appendix needs and the other two works do not use.
+# Two rules the appendix needed first. The second is still its alone.
 #
 # **Damaged running heads.** The appendix is read from a different scan
 # of vol. III than the Leviathan (the Leviathan's scan has no leaves for
@@ -194,10 +194,14 @@ _MIN_CHUNK_CHARS = 80
 # caught by shape instead: short, at least three-quarters capitals, and
 # no lowercase run of three letters, which every body line has.
 #
-# Leviathan and De Cive leak running heads the same way (``DE STATU
-# HOMINUM, ETC. 159``, ``322 DB CIVITATE CHRI8TIANA.``), but stripping
-# them there changes text and so ``chunk_id``s; that is its own change.
-_DAMAGED_HEAD_CODES = frozenset({"leviathan_appendix_lat"})
+# Leviathan and De Cive leak running heads and chapter titles the same
+# way — ``DE STATU HOMINUM, ETC. 159`` (a comma), ``322 DB CIVITATE
+# CHRI8TIANA.`` (a digit in a word), ``DE POTENTIA, DIGNITATE, ET
+# HONORE.`` — so the rule is on for them too (#734): 44 lines in
+# Leviathan and 42 in De Cive, every one read, none of it body text. Each
+# leak was also a false paragraph break, since a head ends in a full stop.
+# Turning it on re-minted 230 and 29 ids in the 2026-10 operator window.
+_DAMAGED_HEAD_CODES = frozenset({"leviathan_appendix_lat", "leviathan_lat", "de_cive_lat"})
 _DAMAGED_HEAD_MAX_CHARS = 50
 _DAMAGED_HEAD_MIN_CAPITALS = 10
 _LOWERCASE_RUN_RE = re.compile(r"[a-z]{3,}")
