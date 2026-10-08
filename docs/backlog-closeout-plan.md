@@ -4144,7 +4144,8 @@ waiting on another batch's re-ingest window or on an owner decision.
 | 13i Author metadata (era, year) | #695 #698 | 2 | **editorial decision**: era boundaries, six floruit dates |
 | 13j Refs rule coverage | #521 #522 | 2 | rule design |
 | 13p Heading regex (French window II, part 1) | #731 #793; #791 partial | 2 | corpus-wide re-ingest of 11 corpora — **worked 2026-10-08, see below** |
-| 13q Renan reflow | #789 #792 #814 | 3 | Renan re-ingest window; per-work gating; owner-approved scope 2026-10-08 |
+| 13q Renan reflow | #789 #792 #814 | 3 | Renan re-ingest window; per-work gating; owner-approved scope 2026-10-08 — **worked 2026-10-08, see below** |
+| 13q-bis Renan reflow residue | #819 #820 #821 | 3 | a Renan (and, for #820, Gobineau) re-ingest window; #820 and #821 need a sweep read before any rule widens |
 | 13r Boulainvilliers text | #790 #791 (rest) #815 | 3 | Boulainvilliers re-ingest window; #790 fix decided 2026-10-08 |
 | Owner / blocked | #299 #333 #463 #526 | 4 | a decision, or a merge to measure |
 
@@ -4660,3 +4661,95 @@ heads leak into the body, now in 13q), #815 (Boulainvilliers `&`→`de` and
 Essai echoes, now in 13r), #816 (`_surnames_for` placeholders), and #817
 (`Book I` blanked as too short). No active plan covers #813, #816 or #817
 beyond this note.
+
+## Batch 13q — Renan reflow (#789 #792 #814)
+
+Phase 1 re-measured all three. The counts from 13p's corrections
+reproduced:
+
+- **#792:** 582 mangled-opener lines (165 start a chunk, 417 sit
+  mid-chunk), and 14 `^.` lines.
+- **#814:** 42 head-regex chunks.
+- **#789:** the vol5 splice, with `de bons autres Pères` at ord 79 and the
+  orphan `conseils, à l'heure…` at ord 82.
+
+The owner had already approved the corrected scope, so the run continued.
+Building it corrected the record twice more, and both corrections are on
+their issues:
+
+- **#789: the carry follows the page's *last* body paragraph, not its
+  first block.** The 13p prototype's first-block rule capped the carry at
+  60 attachments. Letting a capitalised body block wait instead of cancel
+  took it to 148.
+- **#789: "starts non-uppercase" lets new notes through.** Notes whose
+  marker was wrecked (`■1.`, `<.`, `l.Le`) and quotations (`« Voilà…`)
+  passed the 13p test. The candidate must now open lower-case, or on a
+  number that is not a marker.
+- **#814: the two named causes cleared about 18 of the 42.** The rest were
+  folios the OCR read as punctuation and letters, on both the titled heads
+  (`VIE DE JÉSUS. :{`) and the untitled recto heads (`AUTONOMIE JUIVE. T9`).
+
+What shipped:
+
+- **A per-work `ocr_reflow_notes` flag, Renan only.**
+  - Mangled note markers are held aside and tested before the heading test:
+    `t.` `o.` `\.` `î.` `l.` `.3.`, a stripped caret's `. `, and `I.` with
+    a guard for contents entries and capitals.
+  - `split_by_chapter` skips those markers as headings.
+  - `footnote_remarks` types them in lockstep.
+  - The carry is under the same flag.
+- **Ungated head rules.**
+  - `«` is now a folio character.
+  - A trailing folio mangled into punctuation and stray letters counts
+    after a titled head.
+  - A short token with a digit and no two-letter run counts as a folio.
+  - Every newly dropped line across Renan, Gobineau and Boulainvilliers was
+    read before shipping: 218 in all, and two are not heads. One is OCR
+    junk in a note area. The other is Gobineau tome IV's title-page
+    `RUE JACOB, 5f».`.
+
+Live window (snapshot `20261008T213011Z-13q-renan-reflow`):
+
+- **Chunks.** Re-ingested `renan`, `gobineau` and `boulainvilliers`.
+  4,989 ids are gone and 4,940 are new, with 527 same-id text changes and
+  38 retyped. 412,652 → 412,603 chunks. Every figure equals the offline
+  sweep, and 0 chunks changed in any other corpus.
+- **Notes.** 886 mangled-opener lines now start their own chunk. **0** sit
+  mid-chunk (617 before) and **0** are missing from every chunk (26
+  before). Renan `remark` chunks went 6,215 → 6,936.
+- **`I.` notes.** All 22 `I. <citation>` notes whose text was in no chunk
+  are back. The labels they had become are gone, including
+  `I. Pliilémon, 9` over 123 chunks.
+- **Running heads.** #814's own regex went 42 → 9. The vol5 example now
+  reads `…de bons conseils, à l'heure solennelle…`, and its note ends
+  `…autres Pères de l'Eglise.`
+- **Cross-references.**
+  - 983 source-side rows were dropped as orphans, 0 target-side.
+  - `refs build` rediscovered 948 with the same author, form and target.
+    None of the other 35 had been verified. 18 were note markers read as
+    Chronicles (`2. Ch. IV, 16`). 17 were impossible verses, or verses
+    refused under #811's versification class.
+  - French `xref_source_span` went 0 → 99. All 99 are this window's rows,
+    deleted with `repair_stale_xrefs`. 92 already had a twin in the note
+    chunk the text moved to. The other 7 are impossible verses (5) or
+    #811-class refusals (Hos 10:14 and Ps 86:14 against Sacy).
+- **Verify.** Scoped llm-verify on the 73 new `rule_weak` rows examined
+  62: 58 promoted and 4 rejected. The other 11 are on short source chunks,
+  which the pass skips by design. 58 of the orphaned rows had been judged
+  before, 3 of them rejections. Each has a new `rule_weak` row with the
+  same form and target, but forms like `Spinoza` repeat, so the new rows
+  could not be matched to the judged ones 1:1. Whether every old verdict
+  was re-made is unmeasured. The checkpoint was restored to
+  78708.
+- **Audit.** Every `make audit` invariant equals its pre-window value.
+  `xref_source_span` holds 398 (`lat`, pre-existing).
+
+Filed along the way, all slotted as 13q-bis:
+
+- #819: the running heads still glued, 39 `INTRODUCTION. xv` and 9
+  digitless recto folios. The owner chose to file it rather than grow this
+  window.
+- #820: the body path merges consecutive notes with no blank between them.
+- #821: the carry's ~14 wrong attachments out of 148, and its unmeasured
+  recall.
+
