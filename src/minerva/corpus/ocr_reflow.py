@@ -57,9 +57,17 @@ class OcrReflow:
     they are compared after folding case, accents and everything that is
     not a letter, and matched fuzzily because the OCR rarely reads a
     small-caps head the same way twice.
+
+    ``notes`` turns on the rules for Renan's note area, which no other
+    scan was measured against (#789, #792): notes whose number the OCR
+    mangled (`opens_mangled_note`) are held aside like any other, and a
+    note that runs over a page break is carried to its continuation at
+    the foot of the next page. Measured ungated, the carry alone took 71
+    chunks out of Gobineau.
     """
 
     titles: tuple[str, ...] = ()
+    notes: bool = False
 
 
 # ── Line shapes ────────────────────────────────────────────────────
@@ -81,9 +89,15 @@ _NOTE_OPEN_RE = re.compile(r"^(?:\(\s?\d{1,3}\s?\)\s|\d{1,2}\.\s|\([ivx]{1,3}\)\
 
 #: A page number as the OCR reads one: a short token, at least one
 #: character a digit, the rest drawn from the misreads attested in these
-#: scans (`4!`, `3^3`, `Î80`, `45-`).
-_PAGE_CHARS = frozenset("0123456789IlOoSsiÎî|/()»•■*^!'-.,")
+#: scans (`4!`, `3^3`, `Î80`, `45-`, `«3`).
+_PAGE_CHARS = frozenset("0123456789IlOoSsiÎî|/()«»•■*^!'-.,")
 _PAGE_MAX_CHARS = 9
+
+#: ...or a folio read worse than that, where a digit survived among
+#: letters and stray marks: `T9`, `3M`, `12]`, `1C7`, `:{87`. No run of
+#: two letters, so it is never a word. Measured on Renan's recto heads,
+#: which carry no title to match and so rest on the folio alone (#814).
+_MANGLED_FOLIO_RE = re.compile(r"(?=.*\d)(?!.*[^\W\d_]{2})\S{1,5}")
 
 #: A front-matter folio in roman numerals, as the OCR reads them:
 #: `XXII`, `xwii`, `XLiv`, `xLviit`. Three characters at least, so the
@@ -115,6 +129,13 @@ _TITLE_MIN_COVER = 0.72
 #: lines ending a sentence — `Roi de France.`, `de France.` — matched a
 #: short title and were dropped in the first sweep.
 _UNNUMBERED_MIN_LETTERS = 12
+
+#: ...unless what follows the title is a folio the OCR read as punctuation
+#: and stray letters — `VIE DE JÉSUS. :{`, `'25;{`, `2G1`, `S.')`, `l` —
+#: which is how a 10-letter title fell under the floor above in 42 *Vie
+#: de Jésus* heads (#814). A short token with no run of three letters is
+#: no French word; the line before it must be capitals, as a head is.
+_FOLIO_DEBRIS_RE = re.compile(r"(?!.*[^\W\d_]{3})\S{1,6}")
 
 #: An untitled head (Renan's recto heads carry the *book* title, which
 #: changes every few chapters) must be nearly all capitals and carry a
@@ -181,6 +202,9 @@ def is_running_head(line: str, spec: OcrReflow) -> bool:
         numbered or roman or len(_fold(body)) >= _UNNUMBERED_MIN_LETTERS
     ):
         return True
+    title = _title_before_folio_debris(stripped)
+    if title and _title_score(title, spec.titles) >= _TITLE_MATCH:
+        return True
     # Only an arabic folio licenses the untitled rule. A roman one would
     # make every `CHAPITRE XIII.` a head — which the first attempt did,
     # dropping 150 chapter headings across the fourteen files.
@@ -218,6 +242,64 @@ def _is_page_token(token: str) -> bool:
         len(token) <= _PAGE_MAX_CHARS
         and any(c.isdigit() for c in token)
         and all(c in _PAGE_CHARS for c in token)
+    ) or bool(_MANGLED_FOLIO_RE.fullmatch(token))
+
+
+def _title_before_folio_debris(line: str) -> str:
+    """The capitals before a trailing folio the OCR mangled, or `""`.
+
+    The debris is left out of the title match: the stray `s` of `S.')`
+    alone pulls `VIE DR JIÎSUS.` under `_TITLE_MATCH`."""
+
+    title, _, last = line.rpartition(" ")
+    letters = [c for c in title if c.isalpha()]
+    if (
+        _FOLIO_DEBRIS_RE.fullmatch(last)
+        and len(letters) >= _HEAD_MIN_LETTERS
+        and sum(c.isupper() for c in letters) / len(letters) >= _HEAD_MIN_UPPER
+    ):
+        return title
+    return ""
+
+
+# ── Mangled note markers ───────────────────────────────────────────
+
+#: Note numbers as the Renan OCR misreads them, each read in full over
+#: the seven volumes (#792): `1` read as `i`, `t`, `l`, `î`, `\\` or a
+#: lone full stop (`i. `, `t. `, `\\. `, `(i. `); a stray space before the
+#: full stop (`1 . `); `5`/`4` read as `S`/`A` before a capital, since a
+#: note opens on its first word; `.3. `; and a superscript caret note
+#: call, `^. Tac, Ann.`, which `strip_carets` leaves as `. Tac, Ann.`.
+#: A full stop run into a word (`.lean est venu`) is a misread capital.
+_MANGLED_NOTE_OPEN_RE = re.compile(
+    r"^(?:\(?i ?\. |\d ?\. |[SA]\. (?=[A-ZÉ«])|[tlîo\\]\. |\.\d\. |\. (?=\S))"
+)
+#: `1` read as the roman numeral, which a heading also opens with.
+_ROMAN_ONE_NOTE_RE = re.compile(r"^I\. (?=\S)")
+#: A table-of-contents entry carries no punctuation but its dash or
+#: leaders (`I. Paul captif à Rome 1`); a note cites (`I. Acl., I, 14.`).
+_NOTE_PUNCTUATION = frozenset(".,;:")
+_CAPITAL_HEADING_MIN_UPPER = 0.9
+
+
+def opens_mangled_note(line: str) -> bool:
+    """A note whose number the OCR misread, by its first line.
+
+    `I. ` is the one opener a heading shares, so it needs the note's
+    shape after it: punctuation, no dash, not in capitals."""
+
+    stripped = line.strip()
+    if _MANGLED_NOTE_OPEN_RE.match(stripped):
+        return True
+    if not _ROMAN_ONE_NOTE_RE.match(stripped):
+        return False
+    rest = stripped[3:]
+    letters = [c for c in rest if c.isalpha()]
+    return (
+        rest[:1] not in "—-"
+        and any(c in _NOTE_PUNCTUATION for c in rest)
+        and bool(letters)
+        and sum(c.isupper() for c in letters) / len(letters) < _CAPITAL_HEADING_MIN_UPPER
     )
 
 
@@ -417,24 +499,65 @@ def _rejoin(out: str, line: str, compounds: _Compounds) -> str:
     return out[:-1] + line
 
 
+#: The carry (#789) attaches the page's first unmarked block after its
+#: body text to a note left open at the page break only when that block
+#: opens lower-case and its first line is at least this long: a short
+#: line is as likely the end of the body's own paragraph. Measured over
+#: the seven volumes: 136 attachments, 8 wrong, every one read.
+_CARRY_MIN_CHARS = 55
+
+#: ...and opens on a lower-case letter, or on a number that is not a note
+#: marker (`3 etsuiv., 6-16`, but not `1 Luc, XVII` or `1, Ce beau`). A
+#: guillemet, dash or capital opens a quotation or a body paragraph; `■1.`,
+#: `<.` and `'I.` are notes whose marker the OCR mangled past recognition.
+#: A capitalised block does not end the wait — it is the page's next body
+#: paragraph, and the note's continuation comes after the last of them.
+_CARRY_OPEN_RE = re.compile(
+    # Not a lone letter and full stop (`l.Le Maaka`, `d. Hab.`): a note
+    # marker mangled into a letter. Not `1 `/`11 ` before a word: `I`/`Il`
+    # opening a line of quoted verse (`11 ne décidera pas`).
+    r"(?![A-Za-z]\.\s?[^\W\d_])(?!1{1,2} [a-zà-öø-ÿ])"
+    r"(?:[a-zà-öø-ÿ]|\d+(?!\d)(?![ ,.\-]+[A-ZÀ-ÖØ-Ý]))"
+)
+
+
 class _Assembler:
     """Collects body lines into paragraphs, holding notes aside while a
-    paragraph is still open."""
+    paragraph is still open.
 
-    def __init__(self, is_heading: Callable[[str], bool], compounds: _Compounds) -> None:
+    Paragraphs are kept as their lines until `finish`, so a note carried
+    over a page break (``notes``) can still take its continuation."""
+
+    def __init__(
+        self, is_heading: Callable[[str], bool], compounds: _Compounds, *, notes: bool = False
+    ) -> None:
         self._is_heading = is_heading
         self._compounds = compounds
-        self.paragraphs: list[str] = []
+        self._notes = notes
+        self._out: list[list[str]] = []
         self._para: list[str] = []
         self._note: list[str] = []
-        self._held: list[str] = []
+        self._note_placed = False
+        self._held: list[list[str]] = []
         self._after_blank = True
+        # The carry: the last note closed with nothing after it, the note
+        # a page break left open, and whether that page has body text yet.
+        self._last_note: list[str] | None = None
+        self._carry_to: list[str] | None = None
+        self._page_has_body = False
 
     def blank(self) -> None:
         self._close_note()
         if self._para and (_closes_sentence(self._para[-1]) or self._overlong()):
             self._flush()
         self._after_blank = True
+
+    def page_break(self) -> None:
+        """A running head: the note last closed may go on overleaf."""
+
+        self._close_note()
+        self._carry_to = self._last_note
+        self._page_has_body = False
 
     def _overlong(self) -> bool:
         """A paragraph still open after this many characters has lost the
@@ -444,16 +567,39 @@ class _Assembler:
 
         return sum(len(line) for line in self._para) >= _MAX_OPEN_CHARS
 
+    def _opens_note(self, stripped: str) -> bool:
+        return bool(_NOTE_OPEN_RE.match(stripped)) or (self._notes and opens_mangled_note(stripped))
+
     def body(self, line: str) -> None:
-        if self._is_heading(line):
+        stripped = line.strip()
+        opens_note = self._after_blank and self._opens_note(stripped)
+        if self._carry_to is not None and self._after_blank and self._page_has_body:
+            self._carry(stripped, opens_note)
+        # A mangled `I. ` note is tested before the heading it resembles.
+        if self._is_heading(line) and not (self._notes and opens_note):
             self._close_note()
             self._flush()
-            self.paragraphs.append(line.strip())
-        elif self._note or (self._after_blank and _NOTE_OPEN_RE.match(line.strip())):
+            self._out.append([stripped])
+            self._last_note = self._carry_to = None
+        elif self._note or opens_note:
             self._note.append(line)
         else:
             self._para.append(line)
+            self._last_note = None
+            self._page_has_body = True
         self._after_blank = False
+
+    def _carry(self, stripped: str, opens_note: bool) -> None:
+        """Attach this block to the note the page break left open, if it
+        reads as that note's continuation. A new note ends the wait."""
+
+        if opens_note:
+            self._carry_to = None
+            return
+        if len(stripped) < _CARRY_MIN_CHARS or not _CARRY_OPEN_RE.match(stripped):
+            return
+        self._note, self._carry_to = self._carry_to, None
+        self._note_placed = True
 
     def note(self, line: str) -> None:
         """A line the caller has placed in a page's note area. A marker
@@ -468,23 +614,25 @@ class _Assembler:
     def finish(self) -> list[str]:
         self._close_note()
         self._flush()
-        return self.paragraphs
+        return [_join_lines(lines, self._compounds) for lines in self._out]
 
     def _close_note(self) -> None:
         if not self._note:
             return
-        text = _join_lines(self._note, self._compounds)
-        self._note = []
-        if self._para:
-            self._held.append(text)
+        note, self._note = self._note, []
+        self._last_note = note
+        if self._note_placed:
+            self._note_placed = False
+        elif self._para:
+            self._held.append(note)
         else:
-            self.paragraphs.append(text)
+            self._out.append(note)
 
     def _flush(self) -> None:
         if self._para:
-            self.paragraphs.append(_join_lines(self._para, self._compounds))
+            self._out.append(self._para)
             self._para = []
-        self.paragraphs.extend(self._held)
+        self._out.extend(self._held)
         self._held = []
 
 
@@ -503,22 +651,35 @@ def reflow(text: str, spec: OcrReflow, is_heading: Callable[[str], bool] = _neve
 
     lines = strip_carets(text).split("\n")
     kinds = classify(lines, spec)
-    items = [(kind, line) for line, kind in zip(lines, kinds, strict=True) if kind in (BODY, BLANK)]
     # Furniture is a hole in the page: skipped, and never a paragraph end.
-    return "\n\n".join(assemble(items, is_heading))
+    # A work with ``notes`` keeps its running heads as page breaks.
+    kept = (BODY, BLANK, HEAD) if spec.notes else (BODY, BLANK)
+    items = [(kind, line) for line, kind in zip(lines, kinds, strict=True) if kind in kept]
+    return "\n\n".join(assemble(items, is_heading, notes=spec.notes))
 
 
-def assemble(items: list[tuple[str, str]], is_heading: Callable[[str], bool] = _never) -> list[str]:
-    """Paragraphs from ``(kind, line)`` pairs, kind BODY, NOTE or BLANK.
+def assemble(
+    items: list[tuple[str, str]],
+    is_heading: Callable[[str], bool] = _never,
+    *,
+    notes: bool = False,
+) -> list[str]:
+    """Paragraphs from ``(kind, line)`` pairs, kind BODY, NOTE, BLANK or
+    HEAD (a page break, for ``notes``).
 
     `reflow` feeds it what `classify` finds; an extractor that can see
     the page (`scripts/extract-essai-pdf.py`) feeds it the note area by
     position, which a text dump cannot tell it.
     """
 
-    compounds = _Compounds([line for kind, line in items if kind != BLANK])
-    assembler = _Assembler(is_heading, compounds)
-    step = {BLANK: lambda _line: assembler.blank(), BODY: assembler.body, NOTE: assembler.note}
+    compounds = _Compounds([line for kind, line in items if kind in (BODY, NOTE)])
+    assembler = _Assembler(is_heading, compounds, notes=notes)
+    step = {
+        BLANK: lambda _line: assembler.blank(),
+        HEAD: lambda _line: assembler.page_break(),
+        BODY: assembler.body,
+        NOTE: assembler.note,
+    }
     for kind, line in items:
         step[kind](line)
     return assembler.finish()

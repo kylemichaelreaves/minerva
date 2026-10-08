@@ -13,27 +13,19 @@ no id moves and embeddings, lemmas and cross-references survive the
 re-ingest. Typing at emit time instead would bypass the splitter's
 bibliography filter, which notes would then reach.
 
-The rule is the one `ocr_reflow` uses to hold notes aside, plus the
-markers the OCR mangled (`i. `, `1 . `, `S. `). Reflow's own regex is
-left alone: a change to it changes which lines it holds aside, so it
-would change text and ids.
+The rule is the one `ocr_reflow` uses to hold notes aside, including
+the markers the OCR mangled (`ocr_reflow.opens_mangled_note`: `i. `,
+`t. `, `I. `, `S. `). The two move in lockstep: a note reflow holds aside
+and this does not type lands as untyped body (#792).
 """
 
 from __future__ import annotations
 
 import dataclasses
-import re
 
 from ..corpus_works import CorpusWork
 from ..tei import Chunk
-from .ocr_reflow import _NOTE_OPEN_RE
-
-#: Note markers as the Renan OCR misreads them: `1` read as `i`
-#: (`i. `, `i . `, `(i. `), a stray space before the full stop (`1 . `),
-#: `5`/`4` read as `S`/`A` — the last only before a capital, since a
-#: note opens on its first word. Swept over all seven volumes: of the
-#: ~190 notes `_NOTE_OPEN_RE` misses, this finds 170.
-_MANGLED_NOTE_OPEN_RE = re.compile(r"^(?:\(?i ?\. |\d ?\. |[SA]\. (?=[A-ZÉ«]))")
+from .ocr_reflow import _NOTE_OPEN_RE, opens_mangled_note
 
 #: A `*`-marked line in capitals is a heading the OCR gave a stray
 #: asterisk (`* IMMORTALITE DE L AME CHEZ LES JUIFS.`), not a note.
@@ -51,7 +43,7 @@ def opens_footnote(text: str) -> bool:
     stripped = text.strip()
     if _NOTE_OPEN_RE.match(stripped):
         return not (stripped.startswith("*") and _is_capital_heading(stripped))
-    return bool(_MANGLED_NOTE_OPEN_RE.match(stripped))
+    return opens_mangled_note(stripped)
 
 
 def apply_footnote_remarks(chunks: list[Chunk], work: CorpusWork) -> list[Chunk]:

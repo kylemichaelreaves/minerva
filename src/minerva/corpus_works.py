@@ -88,6 +88,11 @@ class CorpusWork:
     #: (`corpus/footnote_remarks.py`, #732). For a work whose footnotes are
     #: the author's own; an editor's would be ``note``.
     footnote_remarks: bool = False
+    #: Apply `ocr_reflow`'s note rules (`OcrReflow.notes`, #789 #792):
+    #: mangled note markers held aside, notes carried over a page break.
+    #: Measured on Renan's scans only; ungated they move Gobineau and
+    #: Boulainvilliers text. Changes text, so ids.
+    ocr_reflow_notes: bool = False
     # Front-matter headings to capture under `locator="section"`. The
     # default §-splitter drops everything before the first `§N` marker,
     # which silently loses Hegel's own Preface / Introduction in
