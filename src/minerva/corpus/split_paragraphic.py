@@ -24,6 +24,7 @@ from ..heading_clean import (
 )
 from ..tei import Chunk, _make_chunk_id, _norm_text
 from . import page_furniture
+from .ocr_reflow import opens_mangled_note
 from .text_repair import (
     _looks_like_bibliography,
     _repair_crossref_linebreaks,
@@ -479,7 +480,15 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
     Adjust `_HEADING_RE` if a particular work's chapter heads slip through.
     """
 
-    raw_headings = _merge_continuation_headings(text, list(_HEADING_RE.finditer(text)))
+    matches = [
+        m
+        for m in _HEADING_RE.finditer(text)
+        # `I. Acl., I, 14.` is a note whose `1.` the OCR read as a numeral;
+        # `ocr_reflow` held it aside, and taking it as a label here would
+        # delete its text (#792).
+        if not (work.ocr_reflow_notes and opens_mangled_note(m.group(1)))
+    ]
+    raw_headings = _merge_continuation_headings(text, matches)
     # Three-stage heading sweep:
     #   * Numbered sentences ("XII. This also I observe…") are labelled by
     #     their numeral under the heading above them, so Book I's XII and

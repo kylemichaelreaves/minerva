@@ -389,3 +389,267 @@ class TestCarets:
             p for p in _paragraphs("renan_peuple_israel_vol5.txt", RENAN) if p.startswith("C'est")
         )
         assert "le Cohélet ou Ecclésiaste Nulle part ailleurs" in body
+
+
+#: Renan's scans, with the note rules only his works ask for (#789, #792).
+RENAN_NOTES = OcrReflow(RENAN.titles, notes=True)
+
+
+class TestRenanRunningHeads:
+    """Heads the OCR mangled past the rules above (#814)."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # `«` is a misread folio digit, like the `»` already allowed.
+            "AUTONOMIE JUIVE. «3",
+            # The 10-letter title, under `_UNNUMBERED_MIN_LETTERS`, with a
+            # folio the OCR read as punctuation and stray letters.
+            "VIE DE JÉSUS. :{",
+            "VIE DE JESUS. :,<)",
+            "VIE DE JÉSUS. l",
+            "VIE DE JÉSUS. 2G1",
+            "VIE DR JIÎSUS. S.')",
+            "VIE DE JÉSUS, '25;{",
+            # A recto head has no title to match, so rests on its folio:
+            # a digit among letters and marks still makes one.
+            "AUTONOMIE JUIVE. T9",
+            "LE PEUPLE JUIF SOUS LA DOMINATION ROMAINE. 3M",
+            "[An 70J I/ANTECIIRIST. 5H",
+            "[830 av. J.-C] LES DEUX ROYAUMES. 12]",
+        ],
+    )
+    def test_heads(self, line: str) -> None:
+        assert is_running_head(line, RENAN)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Prose that ends on the title: lower case, so not a head.
+            "la vie de Jésus. Il",
+            # The title alone, its folio lost, stays text: a title page
+            # prints it too, and nothing on the line says it is a head.
+            "VIE DE JÉSUS.",
+            # The trailing token is a word, not a folio.
+            "VIE DE JÉSUS. Rome",
+            # A recto folio with no digit left is not trusted: `Il` and
+            # `St` are words as often as folios.
+            "AUTONOMIE JUIVE. Il",
+            "LE PEUPLE JUIF SOUS LA DOMINATION ROMAINE. 3St",
+        ],
+    )
+    def test_not_heads(self, line: str) -> None:
+        assert not is_running_head(line, RENAN)
+
+    def test_the_short_title_head_no_longer_splits_its_paragraph(self) -> None:
+        paras = _paragraphs("renan_vie_de_jesus.txt", RENAN)
+        assert any("qui se développèrent dès une antiquité fort reculée" in p for p in paras)
+        assert not any("VIE DE JÉSUS" in p for p in paras)
+
+    def test_the_guillemet_folio_head_is_dropped(self) -> None:
+        paras = _paragraphs("renan_peuple_israel_vol5_carry.txt", RENAN)
+        assert not any("AUTONOMIE JUIVE" in p for p in paras)
+
+
+class TestRenanNoteCarry:
+    """A note that runs over a page break continues at the foot of the
+    next page, after that page's body text (#789)."""
+
+    def test_the_continuation_rejoins_its_note(self) -> None:
+        paras = _paragraphs("renan_peuple_israel_vol5_carry.txt", RENAN_NOTES)
+        (note,) = [p for p in paras if p.startswith("1. Les écrivains chrétiens")]
+        assert "citations de Jude. de Barnabe et des autres Pères de l'Eglise." in note
+        assert note.endswith("c'est la partie d seule qui doit nous occuper.")
+
+    def test_the_body_continues_across_both_page_breaks(self) -> None:
+        paras = _paragraphs("renan_peuple_israel_vol5_carry.txt", RENAN_NOTES)
+        (body,) = [p for p in paras if p.startswith("Vers ce temps")]
+        assert "pour donner aux hommes de bons conseils, à l'heure solennelle" in body
+        assert "autres Pères" not in body
+
+    def test_only_a_work_that_asks_for_it(self) -> None:
+        paras = _paragraphs("renan_peuple_israel_vol5_carry.txt", RENAN)
+        assert any("de bons autres Pères de l'Eglise" in p for p in paras)
+
+    @staticmethod
+    def _carry(after_head: list[str]) -> list[str]:
+        """A note open at a page break, then the next page's lines."""
+
+        text = "\n".join(
+            [
+                "Le corps du texte qui ne finit pas",
+                "",
+                "1. Une note qui passe à la page suivante et qui",
+                "",
+                "AUTONOMIE JUIVE. 27",
+                "",
+                *after_head,
+            ]
+        )
+        return reflow(text, RENAN_NOTES).split("\n\n")
+
+    def test_a_short_first_line_is_not_taken(self) -> None:
+        """Under 55 characters the block is as likely the body's own."""
+
+        paras = self._carry(["suite du corps.", "", "fin courte."])
+        assert paras == [
+            "Le corps du texte qui ne finit pas suite du corps.",
+            "1. Une note qui passe à la page suivante et qui",
+            "fin courte.",
+        ]
+
+    def test_a_capitalised_block_is_not_taken(self) -> None:
+        line = "Un nouveau paragraphe commence ici avec une majuscule initiale."
+        paras = self._carry(["suite du corps.", "", line])
+        assert line in paras
+        assert paras[1] == "1. Une note qui passe à la page suivante et qui"
+
+    def test_the_continuation_follows_the_pages_last_body_paragraph(self) -> None:
+        """`Ses sœurs se marièrent…` is the page's second body paragraph;
+        note 4's `…qui au-` goes on after it, as `raient commencé…`."""
+
+        paras = _paragraphs("renan_vie_de_jesus_notes.txt", RENAN_NOTES)
+        (note,) = [p for p in paras if p.startswith("4. En effet")]
+        assert "vrais frères de Jésus, qui auraient commencé par lui être hostiles" in note
+        (body,) = [p for p in paras if p.startswith("Ses sœurs")]
+        assert "raient commencé" not in body
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # A note whose marker the OCR made a letter: a new note.
+            "l.Le Maaka ouBcth-Maakaétaitla région du Jourdain avant son",
+            "d. Hab., 11, 13. Cette belle phrase est répétée dans Jér., li,",
+            # `Il` read as `11`, opening a line of quoted verse.
+            "11 ne décidera pas selon ce que ses oreilles auront entendu;",
+            # A number then a capital is a note marker.
+            "1 Luc, XVII, 20. Comp. Tolmud de Babyl., Sanhédrin, 97 a.",
+            # A quotation.
+            "« Voilà que je viens vite ! Et avec moi j'apporte la récom-",
+        ],
+    )
+    def test_blocks_that_do_not_continue_a_note(self, line: str) -> None:
+        paras = self._carry(["suite du corps.", "", line])
+        assert paras[1] == "1. Une note qui passe à la page suivante et qui"
+
+    def test_a_number_that_continues_a_citation(self) -> None:
+        line = "3 etsuiv., 6-16. Ce dernier écrit n'est pas de Paul; mais il peut"
+        paras = self._carry(["suite du corps.", "", line])
+        assert paras[1] == f"1. Une note qui passe à la page suivante et qui {line}"
+
+    def test_nothing_is_taken_before_the_page_has_body(self) -> None:
+        line = "continuation qui suit directement la tête de page, sans corps."
+        paras = self._carry([line])
+        assert paras[0] == f"Le corps du texte qui ne finit pas {line}"
+
+    def test_a_new_note_ends_the_carry(self) -> None:
+        line = "et un bloc assez long pour passer le seuil des cinquante-cinq."
+        paras = self._carry(["suite du corps.", "", "2. Autre note.", "", line])
+        assert paras[1:] == [
+            "1. Une note qui passe à la page suivante et qui",
+            "2. Autre note.",
+            line,
+        ]
+
+    def test_the_carry_rejoins_a_word_divided_at_the_page_foot(self) -> None:
+        text = "\n".join(
+            [
+                "Le corps du texte qui ne finit pas",
+                "",
+                "1. Une note dont le dernier mot est considé-",
+                "",
+                "AUTONOMIE JUIVE. 27",
+                "",
+                "suite du corps.",
+                "",
+                "rables, et la note continue ici jusqu'à son point final.",
+            ]
+        )
+        paras = reflow(text, RENAN_NOTES).split("\n\n")
+        assert paras[1] == (
+            "1. Une note dont le dernier mot est considérables, "
+            "et la note continue ici jusqu'à son point final."
+        )
+
+
+class TestRenanMangledNotes:
+    """Notes whose number the OCR misread are held aside like any other,
+    and before the heading test that took `I. ` for a numeral (#792)."""
+
+    def test_a_roman_one_note_is_a_note_not_a_heading(self) -> None:
+        paras = _paragraphs("renan_vie_de_jesus_notes.txt", RENAN_NOTES)
+        (body,) = [p for p in paras if p.startswith("Ses sœurs se marièrent")]
+        assert "Acl." not in body
+        assert any(p.startswith("I. Acl., I, 14.") for p in paras)
+
+    def test_a_caret_note_is_held_aside(self) -> None:
+        paras = _paragraphs("renan_antechrist_caret_note.txt", RENAN_NOTES)
+        (body,) = [p for p in paras if "Pomponia" in p and "Graecina portait" in p]
+        assert "Tac, Ann." not in body
+        assert ". Tac, Ann., XIV, 42 elsuiv." in paras
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "I. Acl., I, 14.",
+            "I. Voir lo passage précilô de Papias.",
+            "t. Ce second nom est la traduction grecque du premier.",
+            "o. Col., I, 1.",
+            "\\. Acl., m, 21.",
+            "î. Voir ci-dessus, p. 400.",
+            "l. Sur la conception du nasi cVIsraël, à cette époque, voir",
+            ".3. Jean, XII. 20; Ad., mm. 27.",
+            ". Tac, Ann., XIV, 42 elsuiv.",
+            "i. II Macch., XV, 12 et suIt.",
+            "S. I Macch., xiv, 25 etsuiv.",
+        ],
+    )
+    def test_mangled_openers(self, line: str) -> None:
+        assert ocr_reflow.opens_mangled_note(line)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Table-of-contents entries: a dash, or a title and its folio.
+            "I. — Arrivée des Sémites en Syrie. Chananeeris. . i",
+            "I. Paul captif à Rome 1",
+            "I. Place de Jésus dans l'histoire du monde *",
+            # A heading in capitals.
+            "I. LES ORIGINES",
+            # A caret-stripped full stop run into a word is a misread letter.
+            ".lean est venu, ne mangeant ni ne buvant, et vous",
+            "A. côté du nabi",
+            "",
+        ],
+    )
+    def test_not_mangled_openers(self, line: str) -> None:
+        assert not ocr_reflow.opens_mangled_note(line)
+
+    def test_only_after_a_blank(self) -> None:
+        text = "Une phrase qui ne finit pas\nt. continue ici.\n"
+        assert reflow(text, RENAN_NOTES) == "Une phrase qui ne finit pas t. continue ici."
+
+    def test_only_a_work_that_asks_for_it(self) -> None:
+        paras = _paragraphs("renan_antechrist_caret_note.txt", RENAN)
+        assert any("Pomponia . Tac, Ann." in p for p in paras)
+
+
+class TestRenanPipeline:
+    def test_every_renan_work_asks_for_the_note_rules(self) -> None:
+        assert all(w.ocr_reflow_notes for w in renan_works.WORKS)
+
+    def test_no_other_work_does(self) -> None:
+        assert not any(
+            w.ocr_reflow_notes for w in (*gobineau_works.WORKS, *boulainvilliers_works.WORKS)
+        )
+
+    def test_a_roman_one_note_keeps_its_text_and_is_no_label(self) -> None:
+        """`I. Acl., I, 14.` was a section label, its text in no chunk."""
+
+        from minerva.corpus.pipeline import parse_file
+
+        work = renan_works.WORKS[0]
+        chunks = list(parse_file(FIXTURES / "renan_vie_de_jesus_notes.txt", work))
+        assert not any("Acl." in (c.section or "") for c in chunks)
+        (note,) = [c for c in chunks if c.text.startswith("I. Acl., I, 14.")]
+        assert note.block_type == "remark"

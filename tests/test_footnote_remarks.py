@@ -55,6 +55,10 @@ class TestOpensFootnote:
             "S. I Macch., xiv, 25 etsuiv.",
             "S. « lias supcrstitiones, licet contrarias sibi",
             "A. Énoch, xc.",
+            # ...and the ones reflow learned to hold aside in lockstep (#792).
+            "I. Acl., I, 14.",
+            "t. Ce second nom est la traduction grecque du premier.",
+            ". Tac, Ann., XIV, 42 elsuiv.",
         ],
     )
     def test_notes(self, text: str) -> None:
@@ -68,6 +72,7 @@ class TestOpensFootnote:
             "CIIAPITRK XII",
             "S. de la lettre",  # `S.` needs a capital after it
             "is. lower",
+            "I. Paul captif à Rome 1",  # a contents entry
             "",
         ],
     )
@@ -81,10 +86,12 @@ class TestOnTheRealExcerpt:
         assert set(typed) == {
             "¶3",
             "¶4",
+            "¶5",
             "¶7",
             "¶8",
             "¶9",
             "¶10",
+            "¶11",
             "Ciiapitrk XII, ¶3",
             "Ciiapitrk XII, ¶4",
             "Ciiapitrk XII, ¶6",
@@ -92,8 +99,19 @@ class TestOnTheRealExcerpt:
             "Ciiapitrk XII, ¶8",
             "Ciiapitrk XII, ¶9",
         }
-        assert typed["¶9"] == "i. Comp. I Macch., xv, 11-12."
-        assert typed["¶10"].startswith("S. I Macch., xiv, 25")
+        assert typed["¶10"] == "i. Comp. I Macch., xv, 11-12."
+        assert typed["¶11"].startswith("S. I Macch., xiv, 25")
+
+    def test_mangled_notes_are_held_aside_and_the_body_rejoins(self) -> None:
+        """`i. 1 Macch.` and the caret's `. Megillaih` were glued into the
+        body, which left the body's own continuation an orphan chunk
+        (`sacrée. Quand il vit…`) until reflow held them aside (#792)."""
+
+        chunks = {c.section: c.text for c in _parse()}
+        assert chunks["¶3"].startswith("i. 1 Macch., xiii, 49-52")
+        assert chunks["¶8"].startswith(". Megillaih Taanith")
+        assert "l'enceinte sacrée. Quand il vit" in chunks["¶2"]
+        assert "Macch" not in chunks["¶2"]
 
     def test_body_and_the_starred_heading_are_untouched(self) -> None:
         untyped = {c.section: c.text for c in _parse() if c.block_type is None}

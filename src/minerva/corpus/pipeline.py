@@ -202,7 +202,8 @@ def parse_file(path: Path, work: CorpusWork) -> Iterator[Chunk]:
         # No extraction step needed — the splitter walks the raw text.
         text = path.read_text(encoding="utf-8")
         if work.ocr_reflow is not None:
-            text = reflow(text, OcrReflow(titles=work.ocr_reflow), is_heading=is_heading_line)
+            spec = OcrReflow(titles=work.ocr_reflow, notes=work.ocr_reflow_notes)
+            text = reflow(text, spec, is_heading=is_heading_line)
     elif suffix == ".xml":
         # XML files (TEI.2, TEI P5, EpiDoc) are handled by dedicated
         # parsers (``tei.parse_dir`` / ``tei_p5.parse_dir`` / etc.)
