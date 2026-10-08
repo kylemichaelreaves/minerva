@@ -4143,6 +4143,9 @@ waiting on another batch's re-ingest window or on an owner decision.
 | 13h Perf / observability | #548 #628 #651 | 3 | benchmarks (interleaved) |
 | 13i Author metadata (era, year) | #695 #698 | 2 | **editorial decision**: era boundaries, six floruit dates |
 | 13j Refs rule coverage | #521 #522 | 2 | rule design |
+| 13p Heading regex (French window II, part 1) | #731 #793; #791 partial | 2 | corpus-wide re-ingest of 11 corpora — **worked 2026-10-08, see below** |
+| 13q Renan reflow | #789 #792 #814 | 3 | Renan re-ingest window; per-work gating; owner-approved scope 2026-10-08 |
+| 13r Boulainvilliers text | #790 #791 (rest) #815 | 3 | Boulainvilliers re-ingest window; #790 fix decided 2026-10-08 |
 | Owner / blocked | #299 #333 #463 #526 | 4 | a decision, or a merge to measure |
 
 13a and 13b tie on count; 13a went first because it needs no destructive
@@ -4586,3 +4589,74 @@ Filed along the way: **#807** (OCR Roman numerals parse as other numbers),
 **#811** (versification mismatch refusals). They group as a 13g-bis:
 #807, #808 and #811 are all in the same lexicon and canon layer. #809 needs a
 new rule and its own verify pass. #810 is pipeline work beside #801.
+
+## Batch 13p — the heading regex (#731 #793; #791 partial)
+
+The "untabled ingest follow-ups" were six issues: #731 #789 #790 #791 #792
+#793. Phase 1 ran as three read-only agents, and every issue needed a
+correction. Each correction is posted on its issue. Three halted the run:
+
+- **#790** — word-initial `f` is about 96% of the gap.
+- **#789** — the hypothesis missed the issue's own example. A `«` folio hid
+  the page break.
+- **#792** — 582 mangled notes, not about 190. Notes opened by `I.` were
+  taken as headings and their text vanished.
+
+Owner decisions (2026-10-08):
+
+- Cut the six into three batches. 13p is the shared
+  `split_paragraphic._HEADING_RE`. 13q (Renan reflow) and 13r
+  (Boulainvilliers) follow.
+- **#731: the numeral is the label, and the sentence goes back into the
+  body.** In Cicero, `XII.` is the real chapter number. A numbered sentence
+  is labelled `<enclosing heading>, XII`, so Book I's XII and Book II's XII
+  stay distinct. A roman numeral followed by a title is still one heading.
+- **#790: corpus vocabulary plus word-initial swaps**, for 13r.
+
+What shipped in 13p:
+
+- **Numbered sentences.** `XII. This also I observe--…` no longer becomes
+  the label. The line used to be **deleted from the text**:
+  `LIKE '%This also I observe%'` matched 0 chunks. `is_heading_line`
+  rejects these lines too, so `ocr_reflow` no longer cuts a wrapped
+  sentence in two (Lettres `…Vicomte de` / `IV. Thoars…`).
+- **`INDEX`** is a heading, typed editorial by a whole-label match. It never
+  merges with a neighbour. A contents page lists INDEX directly above
+  Section I, and a merge would have typed Section I as editorial. `NOTES`
+  was left out: it can be an author's own notes.
+- **`CHAPITRE I er` and `LIVRE <word>`** are heads. Widening the capitals to
+  Latin-1, as #793 proposed, would have churned 3,975 ids, mostly by turning
+  Renan's running heads into labels.
+
+Live window (snapshot `20261008T185406Z-13p-heading-regex`):
+
+- **Chunks.** Re-ingested 15 sources over 11 corpora. 9,894 ids were
+  re-minted and 9,856 are new, exactly what the offline sweep predicted.
+  There are 45 same-id text changes and 412,690 → 412,652 chunks.
+- **Text.** About 15,800 words came back into the index. The 47 words no
+  longer in any chunk are heading words now used as labels (`INDEX`,
+  `LIVRE`, `CHAPITRE`) and hyphen fragments that rejoined their word.
+- **Hume.** The 194 index chunks are now editorial.
+- **Gobineau Tome III.** 463 chunks had `book=NULL`; 303 remain. The rest
+  sit under the misread `Xvh` and the missing chapter VII.
+- **Cross-references.** 1,943 source-side rows were dropped, 0 target-side.
+  `refs build` restored all but 33 of them; those 33 are #801 duplicate
+  pairs collapsing. 152 Renan scripture cites came back only after #812
+  merged, because 13g's rules were not yet on main when the first build ran.
+  The remaining 70 new rows come from restored text.
+- **Verify.** Scoped llm-verify on the 744 new `rule_weak` rows examined
+  724: 696 promoted and 27 rejected, against 697 and 18 before. The
+  checkpoint was restored to 78708.
+- **Audit.** Every `make audit` invariant equals its pre-window value.
+  `xref_source_span` stays at 398 (`lat`, pre-existing).
+
+Not fixed here, still on #791: the `Nerale` label over 213 Histoire chunks.
+It comes from the all-caps branch reading an OCR-split `GÉ-NÉRALE`, which no
+roman-branch fix touches. Renan footnotes such as `I. Act., I, 14.` still
+read as short titles, and that is 13q's (#792).
+
+Filed along the way: #813 (Descartes Principes long-s), #814 (Renan running
+heads leak into the body, now in 13q), #815 (Boulainvilliers `&`→`de` and
+Essai echoes, now in 13r), #816 (`_surnames_for` placeholders), and #817
+(`Book I` blanked as too short). No active plan covers #813, #816 or #817
+beyond this note.
