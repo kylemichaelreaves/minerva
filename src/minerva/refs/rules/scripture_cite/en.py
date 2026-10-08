@@ -163,6 +163,14 @@ _LEXICON_EN: dict[tuple[str | None, str], str] = {
     ("II", "Jn"): "2 John",
     ("3", "Jn"): "3 John",
     ("III", "Jn"): "3 John",
+    # Leviathan's "1 Joh. 4.1" ("try the spirits"): `Joh` was keyed bare
+    # only, so the ordinal was dropped and the Gospel won (#719's shape).
+    ("1", "Joh"): "1 John",
+    ("I", "Joh"): "1 John",
+    ("2", "Joh"): "2 John",
+    ("II", "Joh"): "2 John",
+    ("3", "Joh"): "3 John",
+    ("III", "Joh"): "3 John",
     (None, "Jude"): "Jude",
     # ── Revelation ────────────────────────────────────────────────
     (None, "Rev"): "Revelation",

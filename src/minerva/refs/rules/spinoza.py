@@ -13,6 +13,7 @@ often and at lower confidence by default.
 from __future__ import annotations
 
 from . import AuthorMentionRule, StrongMentionRule, _figures
+from .scripture_cite import ScriptureCiteRule, ScriptureCiteRuleLatRoman
 
 RULES = (
     StrongMentionRule(
@@ -78,4 +79,13 @@ RULES = (
         confidence=0.55,
         langs=("lat",),
     ),
+    # ── Latin Vulgate cites. The *Tractatus Theologico-Politicus* is a
+    # book of biblical criticism, and until #576 the corpus recorded
+    # none of its scripture citations. These two read the shapes the
+    # Aquinas and Hobbes rules already know — "Psal. 73", "Gen. v.
+    # 18-20" — which is 25 candidates over Spinoza's 1,522 Latin chunks,
+    # 21 of them chapter-only. Spinoza's own convention, "Gen. cap. 20
+    # v. 6", is several hundred more and neither rule reads it: #809.
+    ScriptureCiteRule(name="spinoza_scripture_cite_lat"),
+    ScriptureCiteRuleLatRoman(name="spinoza_scripture_cite_lat_roman"),
 )

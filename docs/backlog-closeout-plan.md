@@ -4139,7 +4139,7 @@ waiting on another batch's re-ingest window or on an owner decision.
 | 13d Refs pipeline correctness | #518 #523 #572 #710 #715 #720 | 6 | `refs build` + verify on the live DB |
 | 13e Ingest invariants | #536 #542 #554 #648 #707 | 5 | re-chunk churn measurement |
 | 13f Dev tooling & test infra | #136 #605 #663 #664 #722 | 5 | none |
-| 13g Scripture-cite rules | #519 #576 #577 #719 | 4 | `refs build` + verify |
+| 13g Scripture-cite rules | #519 #576 #577 #719 | 4 | `refs build` + verify — **worked 2026-10-07, see below**; follow-ups #807 #808 #809 #810 #811 |
 | 13h Perf / observability | #548 #628 #651 | 3 | benchmarks (interleaved) |
 | 13i Author metadata (era, year) | #695 #698 | 2 | **editorial decision**: era boundaries, six floruit dates |
 | 13j Refs rule coverage | #521 #522 | 2 | rule design |
@@ -4541,3 +4541,48 @@ Live window (snapshot `20261007T225704Z-13e-ingest-invariants`):
 
 Filed along the way: **#804** (folded in), **#805**. No active plan covers
 #805 beyond this note.
+
+## Batch 13g — scripture-cite rules (#519 #577 #719; #576 partial)
+
+Phase 1 confirmed #719 and corrected the other three on their issues. Three
+owner decisions (2026-10-07) set what got built:
+
+- **#519: option B, a committed verse canon.** The highest verse per chapter
+  for the four target Bibles is kept in `scripture_cite/verse_counts.json`.
+  `make generate-authors` writes it and `make check-authors` drift-checks it.
+  - It keeps the maximum, not the set of verses, because Sacy's copy is
+    missing 232 verses that are real.
+  - A book absent from the target edition is not filtered. The KJV has no
+    Apocrypha, so Hobbes's "2 Esdras 14.21" stands.
+  - The canon is bound into a module global so the #304 fingerprint sees it.
+- **#577: the fix changed.** `N.` before a book is Renan's footnote marker,
+  not an ordinal. It sank whatever followed: **520** of Renan's cites, not
+  the ~113 numbered-book ones the survey could see. It also bound `1. Ch.`
+  (*chapitre*) to 1 Chronicles. An Arabic prefix with a period is now
+  excluded, ordinals are mirrored Roman↔Arabic, and `Chron` is keyed.
+- **#576: split.** Both existing Latin rules are registered for Spinoza
+  (23 rows). His `cap. N v. M` convention is **#809**. The PR carries `Refs`
+  for #576.
+
+#719 needed a second mechanism the issue never saw. In "dicitur 2 Cor." the
+lowercase-word branch matched `dicitur 2` and `finditer` resumed past the
+digit. A failed match now resumes after its abbreviation. A prefix that pins
+no lexicon key falls back to the bare book, but only for a book with no
+numbered sense.
+
+Live window (snapshot `20261007T235901Z-13g-scripture-cite`): `refs build`
+rescanned 114,257 chunks and inserted 778 rows.
+
+- 520 are Renan→Sacy, 23 Spinoza, and 6+5 the Hobbes Latin/English
+  ordinal fixes.
+- **208 are #801 duplicates.** 134 of them are non-scripture rows
+  re-emitted only because the fingerprint moved.
+- 108 pre-existing rows are ones the corrected rules no longer emit. Five of
+  those are curated and are kept.
+
+Filed along the way: **#807** (OCR Roman numerals parse as other numbers),
+**#808** (Pascal's Vulgate Kings numbering), **#809** (Spinoza `cap./v.`),
+**#810** (`refs build` never prunes rows its rules stopped emitting), and
+**#811** (versification mismatch refusals). They group as a 13g-bis:
+#807, #808 and #811 are all in the same lexicon and canon layer. #809 needs a
+new rule and its own verify pass. #810 is pipeline work beside #801.

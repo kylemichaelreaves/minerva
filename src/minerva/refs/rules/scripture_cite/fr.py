@@ -38,6 +38,10 @@ _LEXICON_FR: dict[tuple[str | None, str], str] = {
     ("I", "Chr"): "1 Chronicles",
     ("2", "Ch"): "2 Chronicles",
     ("II", "Chr"): "2 Chronicles",
+    # Renan's spelling; `Chr` was the only form keyed (#577).
+    ("I", "Chron"): "1 Chronicles",
+    ("II", "Chron"): "2 Chronicles",
+    (None, "Chron"): "1 Chronicles",  # ambiguous-bare
     (None, "Esd"): "Ezra",
     (None, "Néh"): "Nehemiah",
     (None, "Neh"): "Nehemiah",
@@ -162,6 +166,23 @@ _LEXICON_FR: dict[tuple[str | None, str], str] = {
 }
 
 
+# Each numbered book was typed in one ordinal style only — `("I","Sam")`
+# but no `("1","Sam")`, `("1","Co")` but no `("I","Co")` — so whether a
+# cite resolved depended on which half of the table its abbreviation had
+# landed in (#577). Generated in both directions rather than typed: a hand
+# mirror drifts the first time a book is added to one side only. The same
+# move `lexicon.py` makes for Latin.
+_ARABIC_FOR_ROMAN = {"I": "1", "II": "2", "III": "3"}
+_ROMAN_FOR_ARABIC = {v: k for k, v in _ARABIC_FOR_ROMAN.items()}
+_LEXICON_FR.update(
+    {
+        (twin, abbr): book
+        for (prefix, abbr), book in list(_LEXICON_FR.items())
+        if (twin := _ARABIC_FOR_ROMAN.get(prefix or "") or _ROMAN_FOR_ARABIC.get(prefix or ""))
+        and (twin, abbr) not in _LEXICON_FR
+    }
+)
+
 _AMBIGUOUS_BARE_FR: frozenset[str] = frozenset(
     {
         "Co",
@@ -178,6 +199,7 @@ _AMBIGUOUS_BARE_FR: frozenset[str] = frozenset(
         "Rois",
         "Ch",
         "Chr",
+        "Chron",
         "M",
         "Macc",
         "Jude",
@@ -186,11 +208,22 @@ _AMBIGUOUS_BARE_FR: frozenset[str] = frozenset(
 )
 
 
+# Optional ordinal before the book. A Roman ordinal may carry a period
+# ("III. R. xiii, 2"); an Arabic one may not. "4. Jean, xii, 31" is
+# Renan's footnote 4 citing John 12:31 — there is no 4 John — and
+# "1. Ch. VI, 22" is footnote 1 citing *chapitre* VI of the book under
+# discussion, not 1 Chronicles. Measured over every `fra` chunk on
+# 2026-10-07: 113 Arabic prefixes carry the period, all Renan's footnote
+# markers (`Jean` 57, `Ch` 56), and 45 do not, all genuine ordinals
+# (`Sam` 25, `Rois` 15, `Chron` 3, `Cor` 2). The lookahead keeps the
+# first group out of the prefix (#577).
+_PREFIX_FR = r"(?:\b(?P<prefix>I{1,3}V?|[1-3](?!\s*\.))\s*\.?\s*)?"
+
+
 # French regex tolerates BOTH "Rom 1, 18" (comma) AND "Rom 1:18" (colon)
 # because Pascal mixes the two conventions across his work.
 _CITE_RE_FR = re.compile(
-    r"(?:\b(?P<prefix>I{1,3}V?|[1-3])\s*\.?\s*)?"
-    r"\b(?P<abbr>[A-ZÉÈÀ][A-Za-zéèàç]{1,8})\.?"
+    _PREFIX_FR + r"\b(?P<abbr>[A-ZÉÈÀ][A-Za-zéèàç]{1,8})\.?"
     r"\s+"
     r"(?P<chap>\d{1,3})"
     r"\s*[,:]\s*"  # comma OR colon
@@ -228,8 +261,7 @@ _CITE_RE_FR_ROMAN = re.compile(
     # mixed case (mixed-case runs are OCR noise). Verses stay
     # digits-only: a roman verse group would swallow French "il"
     # ("Marc, ii, il dit…" → Mark 2:49).
-    r"(?:\b(?P<prefix>I{1,3}V?|[1-3])\s*\.?\s*)?"
-    r"\b(?P<abbr>[A-ZÉÈÀ][A-Za-zéèàç]{1,8})\.?,?"
+    _PREFIX_FR + r"\b(?P<abbr>[A-ZÉÈÀ][A-Za-zéèàç]{1,8})\.?,?"
     r"\s+"
     r"(?P<chap>\d{1,3}|[ivxlc]{1,7}|[IVXLC]{1,7})"
     r"\s*[,:.]\s*"

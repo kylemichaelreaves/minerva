@@ -25,6 +25,7 @@ from chunk_count_validation import (
 )
 
 from minerva import corpus_registry
+from minerva.refs.rules.scripture_cite import verse_canon
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RULES_DIR = REPO_ROOT / "src" / "minerva" / "refs" / "rules"
@@ -235,6 +236,27 @@ def _slug_errors(conn: sqlite3.Connection | None) -> list[str]:
     return errors
 
 
+def _verse_canon_errors(conn: sqlite3.Connection | None) -> list[str]:
+    """Verse-canon gate (#519), shaped like :func:`_slug_errors`.
+
+    The canon is read by the scripture rules at emit time, so unlike the
+    other snapshots it is a runtime input, not only a gate fixture. Locally
+    it is compared against the index's four Bibles; in CI, where there is
+    no index, it only has to load and cover them.
+    """
+
+    if not verse_canon.CANON_PATH.is_file():
+        return [
+            f"no verse canon at {_display_path(verse_canon.CANON_PATH)} — run `make generate-authors`"
+        ]
+    canon = verse_canon.load_canon()
+    missing = sorted(set(verse_canon.TARGET_BIBLES) - set(canon))
+    errors = [f"verse canon has no entry for {a!r}" for a in missing]
+    if conn is not None:
+        errors += verse_canon.canon_drift(conn, canon)
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", help="Check one corpus id")
@@ -308,9 +330,11 @@ def main() -> int:
             write_snapshot(build_snapshot(conn, manifest))
             chunk_granularity.write_snapshot(chunk_granularity.build_snapshot(conn, manifest))
             work_slug_snapshot.write_snapshot(work_slug_snapshot.build_snapshot(conn))
+            verse_canon.write_canon(verse_canon.build_canon(conn))
         print(f"wrote {SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         print(f"wrote {chunk_granularity.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
         print(f"wrote {work_slug_snapshot.SNAPSHOT_PATH.relative_to(REPO_ROOT)}")
+        print(f"wrote {verse_canon.CANON_PATH.relative_to(REPO_ROOT)}")
         return 1 if failed else 0
 
     if args.skip_chunk_counts:
@@ -325,6 +349,7 @@ def main() -> int:
     count_errs: list[str] = []
     gran_errs: list[str] = []
     slug_errs: list[str] = []
+    canon_errs: list[str] = []
     if db_path.is_file():
         # Local: the index is authoritative. Check it against the bands,
         # and check the committed snapshot against it so the file CI
@@ -342,6 +367,7 @@ def main() -> int:
                 )
             gran_errs += _granularity_errors(conn, manifest)
             slug_errs += _slug_errors(conn)
+            canon_errs += _verse_canon_errors(conn)
     elif SNAPSHOT_PATH.is_file():
         # CI: `data/index.sqlite` is gitignored and never built here, so
         # the committed snapshot is the only thing to validate against.
@@ -350,6 +376,7 @@ def main() -> int:
         count_errs += validate_snapshot(load_snapshot(), manifest)
         gran_errs += _granularity_errors(None, manifest)
         slug_errs += _slug_errors(None)
+        canon_errs += _verse_canon_errors(None)
     else:
         failed = True
         print(
@@ -361,26 +388,21 @@ def main() -> int:
         )
         # Still run the work-slug check: it needs no index at all, only the
         # committed table, so letting it fall through here would be exactly
-        # the silent skip #157 was about.
+        # the silent skip #157 was about. The verse canon likewise.
         slug_errs += _slug_errors(None)
+        canon_errs += _verse_canon_errors(None)
 
-    if count_errs:
-        failed = True
-        print("chunk counts:")
-        for e in count_errs:
-            print(f"  - {e}")
-
-    if gran_errs:
-        failed = True
-        print("chunk granularity:")
-        for e in gran_errs:
-            print(f"  - {e}")
-
-    if slug_errs:
-        failed = True
-        print("work slugs:")
-        for e in slug_errs:
-            print(f"  - {e}")
+    for label, errs in (
+        ("chunk counts", count_errs),
+        ("chunk granularity", gran_errs),
+        ("work slugs", slug_errs),
+        ("verse canon", canon_errs),
+    ):
+        if errs:
+            failed = True
+            print(f"{label}:")
+            for e in errs:
+                print(f"  - {e}")
 
     return 1 if failed else 0
 

@@ -25,6 +25,18 @@ from .lexicon import (
     _CONF_FULL,
     _sbl_abbr_for,
 )
+from .verse_canon import exists as _verse_exists
+from .verse_canon import load_canon
+
+# Loaded once, at import, into a module global rather than looked up per
+# call: `refs.rules.fingerprint` hashes the globals a rule's methods read,
+# so a regenerated canon invalidates `refs_scan_state` and the next
+# `refs build` re-scans. A lookup through the module object would be
+# skipped by that walk (it does not descend into modules), and a canon
+# change would sit unseen under every already-scanned chunk — #287's
+# failure again. The import of `exists` as a function is for the same
+# reason: the walk hashes the logic of the helpers it can reach.
+_VERSE_CANON = load_canon()
 
 _ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
 
@@ -133,6 +145,77 @@ class BaseScriptureCiteRule:
 
         return abbr
 
+    def _resolve_book(self, m: re.Match[str]) -> tuple[str | None, str, str, int] | None:
+        """``(prefix, abbr, book, span_start)`` for a match, or None.
+
+        A prefix that pins no lexicon entry is not part of the cite. The
+        Latin and French regexes admit a bare digit as an ordinal ("2
+        Cor."), and a digit before a book that has no numbered sense is
+        something else — an article number ("art. 3 Matth. 5-3") or a
+        footnote ("3 Exodus 14: 21", Renan's "1. Matth., VIII, 3"). Dropping
+        the whole cite on that miss is what lost them; it now falls back to
+        the bare book, with the span starting at the book rather than at
+        the stray number."""
+
+        prefix = m.group("prefix")
+        abbr = self.canonical_abbr(m.group("abbr"))
+        book = self.lexicon.get((prefix, abbr))
+        if book is not None:
+            return prefix, abbr, book, m.start()
+        # Only for a book with no numbered sense. Before "Pet." or "Joh."
+        # the digit IS the ordinal, and a miss is a gap in the table;
+        # falling back would bind the bare default — 1 Peter, the Gospel
+        # of John — which is #719's defect by another route.
+        if prefix is None or abbr in self.ambiguous_bare:
+            return None
+        book = self.lexicon.get((None, abbr))
+        if book is None:
+            return None
+        return None, abbr, book, m.start("abbr")
+
+    def _is_ambiguous(self, prefix: str | None, abbr: str) -> bool:
+        return abbr in self.ambiguous_bare and (
+            prefix is None or prefix in self.non_disambiguating_prefixes
+        )
+
+    def _in_canon(self, book: str, chap: int, verse: int | None) -> str | None:
+        """The SBL abbreviation if ``book chap[:verse]`` may exist in the
+        target Bible, else None. A target the canon does not cover passes
+        unchecked (#519)."""
+
+        sbl = _sbl_abbr_for(book)
+        if sbl is None:
+            # Lexicon out of sync with the BCV table. Skipped silently
+            # rather than raised — the rules pass processes thousands of
+            # chunks and one missing entry shouldn't kill the batch.
+            return None
+        found = _verse_exists(_VERSE_CANON, self.target_author, sbl, chap, verse)
+        return sbl if found is not False else None
+
+    def _locate(
+        self, prefix: str | None, abbr: str, book: str, chap: int, verse: int | None
+    ) -> tuple[str, str] | None:
+        """``(book, sbl)`` for a cite whose verse exists, or None.
+
+        When the default book of an ambiguous abbreviation has no such
+        verse, the abbreviation's other numbered books are tried, and the
+        cite moves to the one that has it — "ad Cor. 5-14" is 2 Cor 5:14,
+        because 1 Cor 5 has 13 verses. Two or more fits, or none, and the
+        cite is refused rather than guessed (#519)."""
+
+        sbl = self._in_canon(book, chap, verse)
+        if sbl is not None:
+            return book, sbl
+        if not self._is_ambiguous(prefix, abbr):
+            return None
+        alternates = {
+            other
+            for (p, a), other in self.lexicon.items()
+            if a == abbr and p is not None and other != book
+        }
+        fits = [(b, s) for b in sorted(alternates) if (s := self._in_canon(b, chap, verse))]
+        return fits[0] if len(fits) == 1 else None
+
     def scan(self, chunk: ChunkInfo) -> Iterable[Candidate]:
         if self.langs and chunk.lang not in self.langs:
             return
@@ -141,60 +224,71 @@ class BaseScriptureCiteRule:
         if chunk.author == self.target_author:
             return
 
-        for m in self.cite_re.finditer(chunk.text):
-            prefix = m.group("prefix")
-            abbr = self.canonical_abbr(m.group("abbr"))
-            book = self.lexicon.get((prefix, abbr))
-            if book is None:
+        # Not `finditer`: a match that yields nothing must not consume the
+        # text after its abbreviation. In "dicitur 2 Cor. 3-18" the Latin
+        # regex first matches `dicitur 2` (a lowercase word and a number),
+        # misses the lexicon, and `finditer` would resume past the `2` —
+        # leaving "Cor. 3-18" to bind its bare default, 1 Cor (#719). The
+        # next search starts right after the failed abbreviation instead,
+        # so the digit is still there to be read as an ordinal.
+        pos = 0
+        while (m := self.cite_re.search(chunk.text, pos)) is not None:
+            cand = self._candidate(chunk, m)
+            if cand is None:
+                pos = m.end("abbr")
                 continue
-            sbl = _sbl_abbr_for(book)
-            if sbl is None:
-                # Lexicon out of sync with the BCV table. Logged
-                # silently rather than raised — the rules pass
-                # processes thousands of chunks and one missing
-                # entry shouldn't kill the batch.
-                continue
+            pos = m.end()
+            yield cand
 
-            chap = _parse_cite_num(m.group("chap"))
-            if chap is None:
-                continue
-            verse_raw = m.group("verse")
+    def _candidate(self, chunk: ChunkInfo, m: re.Match[str]) -> Candidate | None:
+        resolved = self._resolve_book(m)
+        if resolved is None:
+            return None
+        prefix, abbr, book, start = resolved
 
-            if verse_raw:
-                verse = _parse_cite_num(verse_raw)
-                if verse is None:
-                    continue
-                target_locator = f"{sbl} {chap}:{verse}"
-                conf = _CONF_FULL
-            else:
-                # Chapter-level locator (Latin only — the vernacular
-                # regexes require a verse): no chunks.section will
-                # match exactly (Bible sections are per-verse), so
-                # the chunk binder leaves target_chunk_id NULL. The
-                # row is still useful for "Aquinas cites Matthew 5
-                # (no specific verse)" curation.
-                target_locator = f"{sbl} {chap}"
-                conf = _CONF_CHAPTER_ONLY
+        chap = _parse_cite_num(m.group("chap"))
+        if chap is None:
+            return None
+        verse_raw = m.group("verse")
+        verse = _parse_cite_num(verse_raw) if verse_raw else None
+        if verse_raw and verse is None:
+            return None
 
-            if abbr in self.ambiguous_bare and (
-                prefix is None or prefix in self.non_disambiguating_prefixes
-            ):
-                conf = _CONF_AMBIGUOUS
+        located = self._locate(prefix, abbr, book, chap, verse)
+        if located is None:
+            return None
+        book, sbl = located
 
-            # A word-collision abbrev without its period is prose as
-            # far as the rule can tell, whether or not a verse follows.
-            if abbr in self.word_collision and not _abbr_carried_period(m):
-                conf = _CONF_AMBIGUOUS
+        if verse is not None:
+            target_locator = f"{sbl} {chap}:{verse}"
+            conf = _CONF_FULL
+        else:
+            # Chapter-level locator (Latin only — the vernacular
+            # regexes require a verse): no chunks.section will
+            # match exactly (Bible sections are per-verse), so
+            # the chunk binder leaves target_chunk_id NULL. The
+            # row is still useful for "Aquinas cites Matthew 5
+            # (no specific verse)" curation.
+            target_locator = f"{sbl} {chap}"
+            conf = _CONF_CHAPTER_ONLY
 
-            yield Candidate(
-                source_chunk_id=chunk.chunk_id,
-                source_span_start=m.start(),
-                source_span_end=m.end(),
-                source_form_snapshot=m.group(0),
-                target_author=self.target_author,
-                target_work=book,
-                target_locator=target_locator,
-                reference_type="cites",
-                confidence=conf,
-                source_method="rule_strong" if conf >= 0.85 else "rule_weak",
-            )
+        if self._is_ambiguous(prefix, abbr):
+            conf = _CONF_AMBIGUOUS
+
+        # A word-collision abbrev without its period is prose as
+        # far as the rule can tell, whether or not a verse follows.
+        if abbr in self.word_collision and not _abbr_carried_period(m):
+            conf = _CONF_AMBIGUOUS
+
+        return Candidate(
+            source_chunk_id=chunk.chunk_id,
+            source_span_start=start,
+            source_span_end=m.end(),
+            source_form_snapshot=chunk.text[start : m.end()],
+            target_author=self.target_author,
+            target_work=book,
+            target_locator=target_locator,
+            reference_type="cites",
+            confidence=conf,
+            source_method="rule_strong" if conf >= 0.85 else "rule_weak",
+        )
