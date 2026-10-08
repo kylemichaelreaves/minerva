@@ -67,7 +67,8 @@ class TestMillerDeOfficiis:
         for english in (
             "*1* I. My dear son Marcus",
             "*2* You will, therefore",
-            "by and by), I wish",
+            # Chapter II's opening line, which #731 had taken as a label.
+            "But since I have decided to write you",
             '"There is no fellowship inviolate',
             "*1* I. I believe, Marcus",
             "*5* II. Therefore, amid all",
@@ -92,7 +93,7 @@ class TestMillerDeOfficiis:
             "#Statement of subject.#",
             "#de Fin. II, 12 ff.",
             "LIBER PRIMUS / BOOK I",
-            "INDEX",
+            # INDEX itself is a heading now (#731); its body is still apparatus.
             "References are to Book",
             "Academicians.",
         ):

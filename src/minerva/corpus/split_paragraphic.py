@@ -45,24 +45,126 @@ _SECTION_MIN_BODY = 50
 # number so we don't mistake an in-line ordinal for a paragraph head.
 _PARAGRAPH_RE = re.compile(r"(?m)^\s*(\d+)\.\s")
 
-# Heading-ish lines, in any of three shapes:
+# Heading-ish lines, in any of these shapes:
 #   1. "CHAPTER ...", "PART ...", "BOOK ...", "SECTION ...", "LECTURE ..."
-#   2. ALL-CAPS short lines (subsection heads in OUP and Cambridge editions)
-#   3. Roman-numeral + period + Title-Case line (Inwood-style major chapters
-#      like "I. Sensory Certainty: The This and Meaning")
+#   2. The French equivalents Gobineau's tomes use: "CHAPITRE I er .",
+#      "LIVRE CINQUIÈME." (#793). Only these two words: widening shape 3's
+#      capitals to Latin-1 instead turned Renan's running heads into labels.
+#   3. ALL-CAPS short lines (subsection heads in OUP and Cambridge editions)
+#   4. "INDEX", too short for shape 3 (#731)
+#   5. Roman numeral + period + text. The text is either a title (Inwood's
+#      "I. Sensory Certainty: The This and Meaning") or the chapter's first
+#      sentence (Loeb Cicero's "XII. This also I observe--that…");
+#      `_numbered_sentence` tells them apart.
 _HEADING_RE = re.compile(
     r"(?m)^\s*("
     r"(?:CHAPTER|PART|BOOK|SECTION|LECTURE)\s+[IVXLC0-9]+[^\n]{0,80}"
+    r"|CHAPITRE\s+[IVXL]+\s*(?:er|re)?\s*\.?"
+    r"|LIVRE\s+[A-ZÀ-ÖØ-Ý]{4,12}\s*\.?"
     r"|[A-Z][A-Z \-—:,'.]{6,80}"
+    r"|INDEX\.?"
     r"|[IVX]+\.\s+[A-Z][^\n]{2,80}"
     r")\s*$"
 )
 
+#: Shape 5 on one line: the numeral, and what follows it.
+_ROMAN_OPEN_RE = re.compile(r"([IVX]+)\.[ \t]+(\S[^\n]*)")
+#: Inside a title these stay lowercase; any other lowercase word makes the
+#: text a sentence rather than a title.
+_TITLE_STOPWORDS = frozenset(
+    [
+        "of",
+        "the",
+        "and",
+        "a",
+        "an",
+        "in",
+        "on",
+        "to",
+        "for",
+        "or",
+        "as",
+        "de",
+        "des",
+        "la",
+        "le",
+        "les",
+        "du",
+        "et",
+        "en",
+        "à",
+        "der",
+        "die",
+        "das",
+        "und",
+        "zu",
+        "den",
+        "von",
+    ]
+)
+#: A comma or semicolon before a lowercase word, or a question or
+#: exclamation mark: prose, not a title.
+_SENTENCE_MARK_RE = re.compile(r"[,;]\s+[a-zà-ÿ]|[?!]")
+#: The longest text after a numeral that is taken as a title without a
+#: blank line under it to confirm it.
+_SHORT_TITLE_CHARS = 48
+#: Headings that never merge with a neighbour. A contents page lists INDEX
+#: last, directly above the first section head.
+_STANDALONE_HEADINGS = frozenset({"INDEX", "INDEX."})
+#: The ordinal suffix of "CHAPITRE I er".
+_ORDINAL_SUFFIX_RE = re.compile(r"\b([IVXL]+)\s*(?:er|re)\b")
+
+
+def _is_title_case(text: str) -> bool:
+    return all(w[0].isupper() or w[0] in "(" or w.lower() in _TITLE_STOPWORDS for w in text.split())
+
+
+def _is_roman_title(rest: str, following: str | None) -> bool:
+    """Whether the text after a roman numeral is a title.
+
+    `following` is the next line, `""` when it is blank, and `None` when
+    unknown — the one-line case, where a long line is not trusted."""
+
+    rest = rest.strip()
+    words = rest.split()
+    if rest[-1] in ",;:-" or words[-1] in _TITLE_STOPWORDS or _SENTENCE_MARK_RE.search(rest):
+        return False
+    if _is_title_case(rest) or len(rest) <= _SHORT_TITLE_CHARS:
+        return True
+    # A long line is a title only when the line under it does not carry on
+    # the sentence.
+    return following is not None and not following[:1].islower()
+
+
+def _numbered_sentence(text: str, match: re.Match[str]) -> int | None:
+    """When a heading match is a numeral run into a sentence, the offset
+    just past the numeral's period; otherwise None.
+
+    The sentence is body text. Taking it as the label deleted it from the
+    index (#731); the numeral alone still marks the chapter."""
+
+    roman = _ROMAN_OPEN_RE.fullmatch(match.group(1))
+    if roman is None:
+        return None
+    after = text[match.end(1) :]
+    newline = after.find("\n")
+    following = "" if newline < 0 else after[newline + 1 :].split("\n", 1)[0].strip()
+    if _is_roman_title(roman.group(2), following):
+        return None
+    return match.start(1) + roman.end(1) + 1
+
 
 def is_heading_line(line: str) -> bool:
-    """Whether one line is a heading `split_by_chapter` would split on."""
+    """Whether one line is a heading `split_by_chapter` would split on.
 
-    return bool(_HEADING_RE.match(line))
+    A numbered sentence is not: in `ocr_reflow` it has to stay in its
+    paragraph, or a wrapped sentence is cut in two."""
+
+    match = _HEADING_RE.match(line)
+    if match is None:
+        return False
+    roman = _ROMAN_OPEN_RE.fullmatch(match.group(1))
+    return roman is None or _is_roman_title(roman.group(2), None)
 
 
 def _has_letter(text: str) -> bool:
@@ -378,7 +480,10 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
     """
 
     raw_headings = _merge_continuation_headings(text, list(_HEADING_RE.finditer(text)))
-    # Two-stage heading sweep:
+    # Three-stage heading sweep:
+    #   * Numbered sentences ("XII. This also I observe…") are labelled by
+    #     their numeral under the heading above them, so Book I's XII and
+    #     Book II's XII stay distinct (#731).
     #   * Editorial / front-matter labels ("Editorial Introduction",
     #     "Glossary", "Bibliography", "List of Abbreviations", indices) —
     #     keep the body but tag it `block_type='editorial'`, so retrieval
@@ -389,7 +494,11 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
     #     Philosophy", single title words like "Lectures") — blank the
     #     label so it doesn't pollute the locator, but keep the body.
     headings: list[tuple[int, int, str, bool]] = []
-    for s, e, label in raw_headings:
+    parent = ""
+    for s, e, label, numbered in raw_headings:
+        if numbered:
+            headings.append((s, e, f"{parent}, {label}" if parent else label, False))
+            continue
         if label and (
             _is_editorial_heading(label) or _is_skipped_for_work(label, work.skip_headings)
         ):
@@ -397,6 +506,7 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
             continue
         cleaned = "" if label and _is_title_page_artifact(label, work) else label
         headings.append((s, e, cleaned, False))
+        parent = cleaned
     if not headings:
         # Whole-document fallback: emit one chunk per paragraph.
         yield from _split_chapter_block(work, path, "", text)
@@ -423,8 +533,13 @@ def split_by_chapter(text: str, work: CorpusWork, path: Path) -> Iterator[Chunk]
 
 def _merge_continuation_headings(
     text: str, matches: list[re.Match[str]]
-) -> list[tuple[int, int, str]]:
+) -> list[tuple[int, int, str, bool]]:
     """Merge consecutive heading matches separated only by whitespace.
+
+    Returns `(start, end, label, numbered)`. A numbered sentence
+    (`_numbered_sentence`) comes back as its bare numeral with `end` just
+    past the period, so the sentence stays in the body; it never merges
+    with a neighbour, and neither does a `_STANDALONE_HEADINGS` label.
 
     PDF extraction wraps long ALL-CAPS chapter heads onto multiple lines,
     so a single heading like "INDEPENDENCE AND DEPENDENCE OF
@@ -440,33 +555,50 @@ def _merge_continuation_headings(
       something else having gone wrong with the extraction.
     """
 
-    out: list[tuple[int, int, str]] = []
+    numbered = [_numbered_sentence(text, m) for m in matches]
+    alone = [
+        cut is not None or m.group(1).strip() in _STANDALONE_HEADINGS
+        for m, cut in zip(matches, numbered, strict=True)
+    ]
+    out: list[tuple[int, int, str, bool]] = []
     i = 0
     while i < len(matches):
-        cur = matches[i]
-        start = cur.start()
-        end = cur.end()
-        label = cur.group(1).strip()
-        j = i + 1
-        seen_in_label = {label}
-        while j < len(matches) and (j - i) <= 4:
-            gap = text[end : matches[j].start()]
-            if gap.strip():
-                break
-            next_label = matches[j].group(1).strip()
-            # Drop the redundant duplicate but advance past it so we don't
-            # restart the BFS at the same position next iteration.
-            if next_label in seen_in_label:
-                end = matches[j].end()
-                j += 1
-                continue
-            label = f"{label} {next_label}"
-            seen_in_label.add(next_label)
-            end = matches[j].end()
-            j += 1
-        out.append((start, end, _clean_heading_label(label)))
+        cut = numbered[i]
+        if cut is not None:
+            numeral = _ROMAN_OPEN_RE.match(matches[i].group(1))
+            out.append((matches[i].start(), cut, numeral.group(1) if numeral else "", True))
+            i += 1
+            continue
+        end, label, j = _extend_heading(text, matches, i, alone)
+        out.append((matches[i].start(), end, _clean_heading_label(label), False))
         i = j
     return out
+
+
+def _extend_heading(
+    text: str, matches: list[re.Match[str]], i: int, alone: list[bool]
+) -> tuple[int, str, int]:
+    """Grow heading `i` over the matches that continue it. Returns its end,
+    its raw label, and the index of the first match not absorbed."""
+
+    end = matches[i].end()
+    label = _ORDINAL_SUFFIX_RE.sub(r"\1", matches[i].group(1).strip())
+    j = i + 1
+    if alone[i]:
+        return end, label, j
+    seen_in_label = {label}
+    while j < len(matches) and (j - i) <= 4 and not alone[j]:
+        if text[end : matches[j].start()].strip():
+            break
+        next_label = _ORDINAL_SUFFIX_RE.sub(r"\1", matches[j].group(1).strip())
+        # Drop the redundant duplicate but advance past it so we don't
+        # restart the BFS at the same position next iteration.
+        if next_label not in seen_in_label:
+            label = f"{label} {next_label}"
+            seen_in_label.add(next_label)
+        end = matches[j].end()
+        j += 1
+    return end, label, j
 
 
 def _packed_paragraphs(paragraphs: list[str], floor: int | None) -> list[str]:
