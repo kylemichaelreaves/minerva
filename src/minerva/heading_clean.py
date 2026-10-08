@@ -103,6 +103,11 @@ _VOLUME_PREFIX_RE = re.compile(r"^volume\s+[ivxlcdm]+\b", re.IGNORECASE)
 # himself writes prefaces and introductions (PhG Vorrede, PR Vorrede,
 # Encyclopaedia Einleitung), so we only catch the qualified variants
 # — "editorial introduction", "translator's preface".
+# Whole labels only: "index" as a substring would catch "Indexical".
+# A back-of-book index is the editor's apparatus, and Hume's was indexed as
+# his body text until INDEX became a heading (#731).
+_EDITORIAL_LABELS = frozenset({"index"})
+
 _EDITORIAL_PHRASES = frozenset(
     {
         "editorialintroduction",
@@ -349,7 +354,7 @@ def _is_editorial_heading(label: str) -> bool:
     norm = _EDITORIAL_NORM_RE.sub("", label.lower())
     if not norm:
         return False
-    if any(phrase in norm for phrase in _EDITORIAL_PHRASES):
+    if norm in _EDITORIAL_LABELS or any(phrase in norm for phrase in _EDITORIAL_PHRASES):
         return True
     # Fuzzy fallback for OCR letter substitution — "introouctjon" for
     # "introduction", "bjbljography" for "bibliography". The exact pass above

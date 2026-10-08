@@ -15,6 +15,7 @@ import pytest
 from minerva import corpus as corpus_parse
 from minerva import corpus_works
 from minerva.authors import hegel_works
+from minerva.corpus import split_paragraphic
 
 # ---------- _detect_page_chrome ----------
 
@@ -511,6 +512,144 @@ def test_split_by_chapter_merges_wrapped_heading_continuations(tmp_path: Path):
     assert "Second Chapter, ¶1" in sections
     # No fragment-as-its-own-heading.
     assert not any(s == "Two Printed Lines, ¶1" for s in sections if "First" not in s)
+
+
+# Cicero's Loeb translations open each traditional chapter with its numeral
+# run into the first sentence (#731). The fixture keeps that shape: a book
+# head, then numbered chapters whose first line is prose that wraps.
+_NUMBERED_CHAPTERS = (
+    "BOOK I\n\n"
+    "MORAL GOODNESS\n\n"
+    "My dear son Marcus, you have now been studying a full year.\n\n"
+    "XII. This also I observe--that he who would properly have been called\n"
+    "a perduellis, was called a hostis.\n\n"
+    "And this is the second paragraph of the twelfth chapter.\n\n"
+    "XIII. Again, we must keep faith even with an enemy, as Regulus\n"
+    "did when he was taken prisoner.\n\n"
+    "BOOK II\n\n"
+    "EXPEDIENCY\n\n"
+    "XII. Let it be set down as an established principle, then, that\n"
+    "what is morally wrong is never expedient.\n"
+)
+
+
+def test_split_by_chapter_numbered_sentence_keeps_its_text(tmp_path: Path):
+    """The sentence a chapter numeral runs into is body text, not a label.
+    Taking it as the label deleted it from the index (#731)."""
+
+    chunks = list(
+        corpus_parse.split_by_chapter(_NUMBERED_CHAPTERS, _make_work("chapter"), tmp_path / "x.txt")
+    )
+    text = " ".join(c.text for c in chunks)
+    assert "This also I observe--that he who would properly have been called" in text
+    assert "Again, we must keep faith even with an enemy" in text
+    assert "Let it be set down as an established principle" in text
+    assert not any("observe" in (c.section or "") for c in chunks)
+
+
+def test_split_by_chapter_numbered_sentence_labels_by_numeral_under_its_book(tmp_path: Path):
+    """The numeral stays a chapter boundary, labelled under the book it sits
+    in so Book I's XII and Book II's XII do not collide."""
+
+    chunks = list(
+        corpus_parse.split_by_chapter(_NUMBERED_CHAPTERS, _make_work("chapter"), tmp_path / "x.txt")
+    )
+    sections = [c.section for c in chunks]
+    assert sections == [
+        "Book I Moral Goodness, ¶1",
+        "Book I Moral Goodness, XII, ¶1",
+        "Book I Moral Goodness, XII, ¶2",
+        "Book I Moral Goodness, XIII, ¶1",
+        "Book II Expediency, XII, ¶1",
+    ]
+    assert chunks[1].text.startswith("This also I observe")
+
+
+def test_split_by_chapter_keeps_roman_titles_whole(tmp_path: Path):
+    """A roman numeral followed by a title, alone on its line, is still one
+    heading — the Inwood shape the branch was written for."""
+
+    text = (
+        "I. Sensory Certainty: The This and Meaning\n\n"
+        "The knowledge which is at the start our object.\n\n"
+        "II. Perception\n\n"
+        "Immediate certainty does not take over the truth.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.section for c in chunks] == [
+        "I. Sensory Certainty: The This and Meaning, ¶1",
+        "II. Perception, ¶1",
+    ]
+
+
+def test_split_by_chapter_index_is_an_editorial_heading(tmp_path: Path):
+    """`INDEX` is five letters, under the all-caps branch's seven, so Hume's
+    index was indexed as the last chapter's body (#731)."""
+
+    text = (
+        "SECTION XII. OF THE ACADEMICAL PHILOSOPHY\n\n"
+        "Commit it then to the flames.\n\n"
+        "INDEX\n\n"
+        "Abstraction, 155.\n\n"
+        "Academics, 41.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    by_text = {c.text: c for c in chunks}
+    assert by_text["Commit it then to the flames."].block_type is None
+    assert by_text["Abstraction, 155."].block_type == "editorial"
+    assert by_text["Abstraction, 155."].section == "Index, ¶1"
+
+
+def test_split_by_chapter_contents_index_does_not_swallow_the_next_heading(tmp_path: Path):
+    """A contents page lists `INDEX` last, right above the first section
+    head. Merging the two typed Section I as editorial."""
+
+    text = (
+        "CONTENTS\n\n"
+        "INDEX\n\n"
+        "SECTION I. OF THE DIFFERENT SPECIES OF PHILOSOPHY\n\n"
+        "Moral philosophy may be treated after two different manners.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    body = next(c for c in chunks if c.text.startswith("Moral philosophy"))
+    assert body.block_type is None
+    assert body.section.startswith("Section I. of the Different Species")
+
+
+def test_split_by_chapter_reads_french_livre_and_chapitre_heads(tmp_path: Path):
+    """`LIVRE CINQUIÈME` has an accented capital and `CHAPITRE I er` an
+    ordinal suffix; neither matched the ASCII-only branches (#793)."""
+
+    text = (
+        "LIVRE CINQUIÈME.\n\n"
+        "CHAPITRE I er .\n\n"
+        "Les Sémites blancs dans l'Asie antérieure.\n\n"
+        "CHAPITRE II.\n\n"
+        "Les Sémites noirs.\n"
+    )
+    chunks = list(corpus_parse.split_by_chapter(text, _make_work("chapter"), tmp_path / "x.txt"))
+    assert [c.section for c in chunks] == [
+        "Livre Cinquième. Chapitre I, ¶1",
+        "Chapitre II, ¶1",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("I. Sensory Certainty: The This and Meaning", True),
+        ("II. Perception", True),
+        ("INDEX", True),
+        ("LIVRE CINQUIÈME.", True),
+        ("CHAPITRE I er .", True),
+        # Numbered sentences: a reflowed line must stay in its paragraph.
+        ("IV. Thoars , & autre André, Vicomte de", False),
+        ("XII. This also I observe--that he who would properly have been called", False),
+        ("I. Elle ordonne que les mesures de grains seront égales", False),
+    ],
+)
+def test_is_heading_line(line: str, expected: bool):
+    assert split_paragraphic.is_heading_line(line) is expected
 
 
 def test_merge_continuation_headings_caps_at_four_lines():
