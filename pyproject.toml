@@ -47,7 +47,7 @@ lemma = [
     # therefore invalidates every downloaded model (#530); `syntax` builds its
     # pipeline with `download_method=None` and so fails hard rather than
     # re-fetching.
-    "stanza>=1.14.0",
+    "stanza>=1.15.0",
     "pyyaml>=6.0.3",
 ]
 all = [
@@ -59,7 +59,7 @@ all = [
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.16.9",
+    "ruff>=0.16.10",
     "pyyaml>=6.0.3",
     "pytest-xdist>=3.8.0",
 ]
