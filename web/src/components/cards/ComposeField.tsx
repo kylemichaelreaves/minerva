@@ -17,6 +17,8 @@ export interface ComposeFieldProps {
   /** Optional element rendered inside the sticky wrap, above the input
    *  box — used by the chat composer for the work-scope chip. */
   scopeChip?: JSX.Element;
+  /** True while the landing → chat transition runs (chat composer only). */
+  entering?: boolean;
 }
 
 export default function ComposeField(props: ComposeFieldProps) {
@@ -24,7 +26,11 @@ export default function ComposeField(props: ComposeFieldProps) {
   const shell = useMobileShellOptional();
   const fallbackMobile = useMobile();
   const isMobile = () => shell?.isMobile() ?? fallbackMobile();
-  const wrapClass = () => (isLanding() ? "landing-input-wrap" : "composer-wrap");
+  const wrapClass = () =>
+    classnames(
+      isLanding() ? "landing-input-wrap" : "composer-wrap",
+      props.entering && "lt-entering",
+    );
   const innerClass = () => (isLanding() ? "" : "composer");
   const inputClass = () => (isLanding() ? "landing-input" : "composer-input");
   const footClass = () => (isLanding() ? "landing-input-foot" : "composer-foot");

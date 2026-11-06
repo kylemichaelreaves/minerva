@@ -34,6 +34,15 @@
   max-width: min(var(--col), 720px);
   margin: 0;
 }
+/* The question sits in the composer's column, not the prose column: `--col`
+   wide and centred in the thread, so its left edge lines up with the
+   composer's and the landing → chat transition can lift it straight up.
+   Below 1100px the thread is already one `--col` column and this is a
+   no-op. */
+.thread.has-margin .turn-user-inner {
+  max-width: var(--col);
+  margin: 0 auto;
+}
 
 .turn {
   padding: 32px 0;

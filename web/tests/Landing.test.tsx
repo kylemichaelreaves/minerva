@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
 import Landing from "~/features/Landing";
 import { must } from "./helpers/must";
+import type { Phase } from "~/features/LandingTransition/controller";
 
-function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
+function renderLanding(opts: { scopeChip?: JSX.Element; leaving?: Phase } = {}) {
   const onSubmit = vi.fn();
   const onOpenRead = vi.fn();
   const onOpenRefs = vi.fn();
@@ -20,6 +21,7 @@ function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
       onOpenConcordance={onOpenConcordance}
       onOpenMetrics={onOpenMetrics}
       scopeChip={opts.scopeChip}
+      leaving={opts.leaving}
     />
   ));
   return {
@@ -220,5 +222,85 @@ describe("<Landing />", () => {
 
     const aside = container.querySelector(".landing-modes-aside");
     expect(aside?.textContent).toMatch(/request timing/i);
+  });
+
+  describe("leaving for the chat", () => {
+    const root = (c: HTMLElement) => must(c.querySelector(".landing"), ".landing");
+
+    it("lifts out: is-leaving, and inert so nothing on it can be clicked or focused", () => {
+      const { container } = renderLanding({ leaving: "lift" });
+      expect(root(container)).toHaveClass("is-leaving");
+      expect(root(container)).toHaveAttribute("inert");
+      expect(root(container)).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("fades out under reduced motion", () => {
+      const { container } = renderLanding({ leaving: "fade" });
+      expect(root(container)).toHaveClass("is-fading");
+      expect(root(container)).toHaveAttribute("inert");
+    });
+
+    it("comes back empty and focused when a flight is called off", () => {
+      // "New conversation" mid-flight reuses this same Landing (it never
+      // unmounted), and its composer keeps the sent text by design — without
+      // a reset, Enter on the "fresh" landing would re-send the old question.
+      const [leaving, setLeaving] = createSignal<Phase | undefined>(undefined);
+      render(() => (
+        <Landing
+          onSubmit={vi.fn()}
+          onOpenRead={vi.fn()}
+          onOpenRefs={vi.fn()}
+          onOpenNetwork={vi.fn()}
+          onOpenConcordance={vi.fn()}
+          onOpenMetrics={vi.fn()}
+          leaving={leaving()}
+        />
+      ));
+      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(
+        /what would you like to consider/i,
+      );
+      fireEvent.input(ta, { target: { value: "What is Geist?" } });
+      setLeaving("lift");
+      ta.blur();
+      setLeaving(undefined);
+
+      expect(ta.value).toBe("");
+      expect(document.activeElement).toBe(ta);
+    });
+
+    it("keeps its text and focus when a flight simply finishes", () => {
+      const [leaving, setLeaving] = createSignal<Phase | undefined>("lift");
+      render(() => (
+        <Landing
+          onSubmit={vi.fn()}
+          onOpenRead={vi.fn()}
+          onOpenRefs={vi.fn()}
+          onOpenNetwork={vi.fn()}
+          onOpenConcordance={vi.fn()}
+          onOpenMetrics={vi.fn()}
+          leaving={leaving()}
+        />
+      ));
+      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(
+        /what would you like to consider/i,
+      );
+      fireEvent.input(ta, { target: { value: "What is Geist?" } });
+      ta.blur();
+      setLeaving("idle");
+
+      expect(ta.value).toBe("What is Geist?");
+      expect(document.activeElement).not.toBe(ta);
+    });
+
+    it("is an ordinary, interactive landing otherwise", () => {
+      for (const leaving of [undefined, "idle"] as const) {
+        const { container, unmount } = renderLanding({ leaving });
+        expect(root(container)).not.toHaveClass("is-leaving");
+        expect(root(container)).not.toHaveClass("is-fading");
+        expect(root(container)).not.toHaveAttribute("inert");
+        expect(root(container)).not.toHaveAttribute("aria-hidden");
+        unmount();
+      }
+    });
   });
 });

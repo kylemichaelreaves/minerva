@@ -1,0 +1,181 @@
+/* ════════════════════════════════════════════════════════════════
+   LANDING → CHAT TRANSITION
+   Timing comes from `--lt-d` / `--lt-ease`, which the controller sets on
+   the root only while a lift runs. Every delay below is a fraction of the
+   lift, per the design doc's choreography table
+   (docs/superpowers/specs/2026-11-06-landing-chat-transition-design.md).
+   ════════════════════════════════════════════════════════════════ */
+
+/* The question in flight. Position, size, font and colour are animated
+   inline by the controller; its frame (padding, border widths, text
+   layout) is copied from the turn it lands in. */
+.lift-ghost {
+  position: fixed;
+  margin: 0;
+  /* Like the textarea, so frame 0 keeps the asker's line breaks. */
+  white-space: pre-wrap;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 50;
+}
+
+@keyframes lt-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes lt-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Individual `translate`/`scale`, not `transform`, so the drift and the
+   fade on the same element never overwrite each other. */
+@keyframes lt-drift {
+  from {
+    translate: 0 0;
+    scale: 1;
+  }
+  to {
+    translate: 0 var(--lt-dy, 0);
+    scale: var(--lt-scale, 1);
+  }
+}
+@keyframes lt-drop-in {
+  from {
+    translate: 0 -6px;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+/* ---------- The landing, leaving ----------
+   It stays mounted as a layer over the freshly mounted chat (`.main` is
+   `position: relative`), paints no background, and is inert. Its own
+   composer box is hidden: the real chat composer has been FLIPped onto the
+   same spot and is the box you see travel. */
+.landing.is-leaving,
+.landing.is-fading {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.landing.is-leaving .landing-input-wrap {
+  visibility: hidden;
+}
+.landing.is-leaving
+  :is(
+    .landing-monogram-wrap,
+    .landing-modes,
+    .landing-modes-aside,
+    .landing-atlas,
+    .landing-header
+  ) {
+  animation:
+    lt-out calc(var(--lt-d) * 0.45) ease both,
+    lt-drift calc(var(--lt-d) * 0.7) var(--lt-ease) both;
+}
+.landing.is-leaving .landing-monogram-wrap {
+  --lt-dy: -18px;
+  --lt-scale: 0.96;
+}
+.landing.is-leaving .landing-modes,
+.landing.is-leaving .landing-modes-aside {
+  --lt-dy: 28px;
+}
+.landing.is-leaving .landing-atlas {
+  --lt-dy: 44px;
+}
+/* Reduced motion: nothing travels. The layer fades out over the chat,
+   which is the crossfade. A literal 180ms, not `--lt-d` (the lift's). */
+.landing.is-fading {
+  animation: lt-out 180ms ease both;
+}
+
+/* ---------- The chat, arriving ---------- */
+/* The question is the ghost until it lands; the real body takes over in the
+   same task the ghost is removed. The turn's own 480ms fade-in would fight
+   the lift, so it is off. */
+.thread.lt-arriving .turn-user,
+.thread.lt-fading .turn-user {
+  animation: none;
+}
+.thread.lt-arriving .turn-user-inner .turn-body {
+  visibility: hidden;
+}
+.thread.lt-arriving .turn-user .turn-meta {
+  animation: lt-in 240ms ease calc(var(--lt-d) * 0.8) both;
+}
+/* The thinking row only: it is a direct child of `.thread`, while reply
+   turns sit inside `[data-turn-id]`. A reply that streams in mid-flight
+   shows at once — the animation never holds reply text back. */
+.thread.lt-arriving > .turn-minerva {
+  animation: lt-in calc(var(--lt-d) * 0.3) ease calc(var(--lt-d) * 0.5) both;
+}
+.topbar.lt-entering {
+  animation:
+    lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both,
+    lt-drop-in calc(var(--lt-d) * 0.4) var(--lt-ease) calc(var(--lt-d) * 0.55) both;
+}
+/* Above the leaving landing, so the descending box passes over the fading
+   mode row rather than under it. The wrap is sticky, so z-index applies. */
+.composer-wrap.lt-entering {
+  z-index: 45;
+}
+/* The footer, and the scope chip above the box — the chat composer always
+   offers one and the landing does not, so it would otherwise pop in on the
+   first frame. */
+.composer-wrap.lt-entering .composer-foot,
+.composer-wrap.lt-entering > :not(.composer) {
+  animation: lt-in calc(var(--lt-d) * 0.35) ease calc(var(--lt-d) * 0.5) both;
+}
+/* The ghost leaves through this box; an empty-field placeholder under it
+   would read as a second line of text. It returns, as a cut, when the
+   flight ends — the design leaves crossfade-or-cut to the builder. */
+.composer-wrap.lt-entering .composer-input::placeholder {
+  color: transparent;
+}
+
+/* ---------- Phone ----------
+   The atlas sits above the owl here, and the landing header is the brand
+   bar, so "owl up, the rest down" becomes "everything above the box up". */
+@media (max-width: 768px) {
+  /* The app-level bar ("☰ Chat") lives outside ChatRoute and mounts the
+     moment the landing yields; without this it lands on top of the landing
+     header on the first frame. Arrives late, like the desktop topbar. */
+  :root:has(.landing.is-leaving) .mobile-topbar {
+    animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
+  }
+  .landing.is-leaving .landing-atlas {
+    --lt-dy: -28px;
+  }
+  .landing.is-leaving .landing-header {
+    --lt-dy: -12px;
+  }
+}
+
+/* Belt and braces: the controller already chooses the fade under reduced
+   motion, so a lift should never run — but if one does, nothing travels. */
+@media (prefers-reduced-motion: reduce) {
+  .landing.is-leaving
+    :is(
+      .landing-monogram-wrap,
+      .landing-modes,
+      .landing-modes-aside,
+      .landing-atlas,
+      .landing-header
+    ) {
+    animation: lt-out calc(var(--lt-d) * 0.45) ease both;
+  }
+  .topbar.lt-entering {
+    animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
+  }
+}

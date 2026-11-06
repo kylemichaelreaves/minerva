@@ -12,11 +12,16 @@ interface TopbarProps {
   theme: Theme;
   onToggleTheme: () => void;
   conversationTitle: string | null | false;
+  /** True while the landing → chat transition runs: the bar fades in late
+   *  (landingTransition.css). */
+  entering?: boolean;
 }
 
 export default function Topbar(props: TopbarProps) {
   return (
-    <div class={classnames("topbar", props.scrolled && "scrolled")}>
+    <div
+      class={classnames("topbar", props.scrolled && "scrolled", props.entering && "lt-entering")}
+    >
       <div class="topbar-left">
         <Show when={props.sidebarCollapsed}>
           <button

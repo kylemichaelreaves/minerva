@@ -8,7 +8,7 @@
 // un-anchored thematic questions — the shape this corpus answers worst,
 // since there is no locus to retrieve — and was removed in #258.
 
-import { Show, createSignal, onMount, type JSX } from "solid-js";
+import { Show, createEffect, createSignal, on, onMount, type JSX } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/cards/ComposeField";
@@ -16,6 +16,8 @@ import { ThemeToggle } from "~/components/shell/ThemeToggle";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
 import { Atlas } from "~/features/Landing/components/Atlas";
+import { classnames } from "~/utils/util";
+import type { Phase } from "~/features/LandingTransition/controller";
 import "~/features/Landing/landing.css";
 
 export type { LandingStats } from "~/api/landingApi";
@@ -41,6 +43,10 @@ interface LandingProps {
    *  `ChatRoute` passes this only when `chatScope()` is set, so the brand
    *  screen stays uncluttered in the common case. */
   scopeChip?: JSX.Element;
+  /** Set while the landing → chat transition runs. The landing stays
+   *  mounted as a layer over the chat, fading out (landingTransition.css),
+   *  and is inert so nothing on it can be clicked or focused meanwhile. */
+  leaving?: Phase;
 }
 
 // Alternate landing logo. The owl-of-Athena is the default mark; on
@@ -77,10 +83,48 @@ export default function Landing(props: LandingProps) {
       });
   });
 
+  const leaving = () => props.leaving === "lift" || props.leaving === "fade";
+
+  // A flight called off ("New conversation" mid-flight) hands back this same
+  // Landing — it never unmounted — and its composer keeps the sent text by
+  // design (`clearOnSend: false`). Reset it, or Enter would re-send the old
+  // question, and take focus back from the chat composer that just left.
+  let textarea: HTMLTextAreaElement | undefined;
+  const field = {
+    ...c,
+    setRef: (el: HTMLTextAreaElement) => {
+      textarea = el;
+      c.setRef(el);
+    },
+  };
+  // Only on a return to the landing (`leaving` cleared). A flight that runs
+  // to its end goes to "idle" as this Landing unmounts; it must not pull
+  // focus off the chat composer on its way out.
+  createEffect(
+    on(
+      () => props.leaving,
+      (now, was) => {
+        if ((was === "lift" || was === "fade") && now === undefined) {
+          c.setValue("");
+          c.autosize();
+          textarea?.focus({ preventScroll: true });
+        }
+      },
+    ),
+  );
+
   const fmtNum = (n: number | undefined) => (n === undefined ? "—" : n.toLocaleString());
 
   return (
-    <div class="landing fade-in">
+    <div
+      class={classnames(
+        "landing fade-in",
+        props.leaving === "lift" && "is-leaving",
+        props.leaving === "fade" && "is-fading",
+      )}
+      attr:inert={leaving() ? "" : undefined}
+      aria-hidden={leaving() ? "true" : undefined}
+    >
       <header class="landing-header">
         <span class="mark">
           <span class="pi">M</span>inerva
@@ -149,7 +193,7 @@ export default function Landing(props: LandingProps) {
           </div>
           <ComposeField
             variant="landing"
-            c={c}
+            c={field}
             sendLabel="Begin"
             scopeChip={props.scopeChip}
             hint={
