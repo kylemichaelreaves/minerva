@@ -310,4 +310,25 @@ describe("defaultEnv", () => {
     expect(cancel).toHaveBeenCalledTimes(4);
     delete (Element.prototype as { animate?: unknown }).animate;
   });
+
+  it("plays: if an animation throws, the ghost and the ones already started are undone", () => {
+    mountLandingAndChat();
+    const cancel = vi.fn();
+    let calls = 0;
+    const animate = vi.fn(() => {
+      calls += 1;
+      if (calls === 3) throw new Error("bad keyframe");
+      return { finished: Promise.resolve(), cancel };
+    });
+    Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true });
+    const env = defaultEnv();
+    const origin = env.measureOrigin();
+    const target = env.measureTarget();
+    if (!origin || !target) throw new Error("fixture did not measure");
+
+    expect(() => env.play(origin, target)).toThrow("bad keyframe");
+    expect(document.querySelectorAll(".lift-ghost")).toHaveLength(0);
+    expect(cancel).toHaveBeenCalledTimes(2);
+    delete (Element.prototype as { animate?: unknown }).animate;
+  });
 });

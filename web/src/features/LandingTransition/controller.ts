@@ -58,28 +58,37 @@ function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
   const g = ghostKeyframes(o, t);
   const c = composerKeyframes(o, t);
   const travel: KeyframeAnimationOptions = { duration: LIFT_MS, easing: SETTLE_EASE, fill: "both" };
-  const anims = [
-    ghost.animate(g.move, travel),
-    ghost.animate(g.chrome, {
-      duration: LIFT_MS * 0.35,
-      delay: LIFT_MS * 0.65,
-      easing: "ease",
-      fill: "both",
-    }),
-  ];
   const wrap = document.querySelector<HTMLElement>(".composer-wrap");
   const composer = document.querySelector<HTMLElement>(".composer");
-  if (wrap) anims.push(wrap.animate(c.wrap, travel));
-  if (composer) anims.push(composer.animate(c.box, travel));
+  const anims: Animation[] = [];
+  const undo = () => {
+    for (const a of anims) a.cancel();
+    ghost.remove();
+  };
+  try {
+    anims.push(
+      ghost.animate(g.move, travel),
+      ghost.animate(g.chrome, {
+        duration: LIFT_MS * 0.35,
+        delay: LIFT_MS * 0.65,
+        easing: "ease",
+        fill: "both",
+      }),
+    );
+    if (wrap) anims.push(wrap.animate(c.wrap, travel));
+    if (composer) anims.push(composer.animate(c.box, travel));
+  } catch (err) {
+    // The controller will cut; nothing of the half-started flight may stay
+    // behind — least of all a fixed ghost holding the question.
+    undo();
+    throw err;
+  }
 
   return {
     finished: Promise.all(anims.map((a) => a.finished)),
     // Also the normal end: cancelling a finished `fill: "both"` animation
     // drops its held last frame, which is where the element sits anyway.
-    cancel: () => {
-      for (const a of anims) a.cancel();
-      ghost.remove();
-    },
+    cancel: undo,
   };
 }
 
