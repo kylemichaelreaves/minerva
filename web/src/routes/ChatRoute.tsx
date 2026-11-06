@@ -58,7 +58,7 @@ export function ChatRoute(props: RouteContextProps) {
         />
       </Show>
       <Show when={!props.conversations.showLanding()}>
-        <div class="scroll" ref={props.scrollRef} onScroll={props.onScroll}>
+        <div class="scroll" ref={props.scrollRef} onScroll={(e) => props.onScroll?.(e)}>
           <Thread
             arriving={transition.phase()}
             messages={props.conversations.messages()}

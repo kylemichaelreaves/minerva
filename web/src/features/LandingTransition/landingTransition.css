@@ -128,7 +128,11 @@
 .composer-wrap.lt-entering {
   z-index: 45;
 }
-.composer-wrap.lt-entering .composer-foot {
+/* The footer, and the scope chip above the box — the chat composer always
+   offers one and the landing does not, so it would otherwise pop in on the
+   first frame. */
+.composer-wrap.lt-entering .composer-foot,
+.composer-wrap.lt-entering > :not(.composer) {
   animation: lt-in calc(var(--lt-d) * 0.35) ease calc(var(--lt-d) * 0.5) both;
 }
 /* The ghost leaves through this box; an empty-field placeholder under it
@@ -142,6 +146,12 @@
    The atlas sits above the owl here, and the landing header is the brand
    bar, so "owl up, the rest down" becomes "everything above the box up". */
 @media (max-width: 768px) {
+  /* The app-level bar ("☰ Chat") lives outside ChatRoute and mounts the
+     moment the landing yields; without this it lands on top of the landing
+     header on the first frame. Arrives late, like the desktop topbar. */
+  :root:has(.landing.is-leaving) .mobile-topbar {
+    animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
+  }
   .landing.is-leaving .landing-atlas {
     --lt-dy: -28px;
   }
