@@ -60,7 +60,7 @@ const TARGET: FlightTarget = {
     borderRightColor: "rgb(59, 53, 48)",
     borderBottomColor: "rgb(59, 53, 48)",
     borderLeftColor: "rgb(26, 23, 20)",
-    fontFamily: "\"EB Garamond\", serif",
+    fontFamily: '"EB Garamond", serif',
     fontWeight: "400",
     letterSpacing: "normal",
     whiteSpace: "normal",
@@ -96,7 +96,15 @@ describe("measureOrigin", () => {
     Object.defineProperty(ta, "clientWidth", { value: 648 });
     stubStyle(
       new Map([
-        [ta, { fontSize: "17px", lineHeight: "24.65px", color: "rgb(26, 23, 20)", fontStyle: "italic" }],
+        [
+          ta,
+          {
+            fontSize: "17px",
+            lineHeight: "24.65px",
+            color: "rgb(26, 23, 20)",
+            fontStyle: "italic",
+          },
+        ],
       ]),
     );
 
@@ -119,7 +127,16 @@ describe("measureOrigin", () => {
     Object.defineProperty(ta, "clientWidth", { value: 398 });
     stubStyle(
       new Map([
-        [ta, { paddingTop: "4px", paddingLeft: "6px", paddingRight: "8px", borderTopWidth: "1px", borderLeftWidth: "1px" }],
+        [
+          ta,
+          {
+            paddingTop: "4px",
+            paddingLeft: "6px",
+            paddingRight: "8px",
+            borderTopWidth: "1px",
+            borderLeftWidth: "1px",
+          },
+        ],
       ]),
     );
 

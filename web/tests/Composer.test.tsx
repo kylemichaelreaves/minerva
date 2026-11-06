@@ -73,4 +73,19 @@ describe("<Composer />", () => {
     render(() => <Composer onSend={vi.fn()} disabled={true} />);
     expect(screen.getByPlaceholderText(/awaiting reply/i)).toBeInTheDocument();
   });
+
+  it("focuses its textarea on mount when asked (landing → chat)", () => {
+    render(() => <Composer onSend={vi.fn()} focusOnMount />);
+    expect(document.activeElement).toBe(screen.getByRole("textbox"));
+  });
+
+  it("leaves focus alone by default (sidebar picks, direct loads)", () => {
+    render(() => <Composer onSend={vi.fn()} />);
+    expect(document.activeElement).not.toBe(screen.getByRole("textbox"));
+  });
+
+  it("marks its wrap as entering while the transition runs", () => {
+    const { container } = render(() => <Composer onSend={vi.fn()} entering />);
+    expect(container.querySelector(".composer-wrap")).toHaveClass("lt-entering");
+  });
 });

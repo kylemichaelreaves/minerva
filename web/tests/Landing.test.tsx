@@ -3,8 +3,9 @@ import { render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import Landing from "~/features/Landing";
 import { must } from "./helpers/must";
+import type { Phase } from "~/features/LandingTransition/controller";
 
-function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
+function renderLanding(opts: { scopeChip?: JSX.Element; leaving?: Phase } = {}) {
   const onSubmit = vi.fn();
   const onOpenRead = vi.fn();
   const onOpenRefs = vi.fn();
@@ -20,6 +21,7 @@ function renderLanding(opts: { scopeChip?: JSX.Element } = {}) {
       onOpenConcordance={onOpenConcordance}
       onOpenMetrics={onOpenMetrics}
       scopeChip={opts.scopeChip}
+      leaving={opts.leaving}
     />
   ));
   return {
@@ -220,5 +222,33 @@ describe("<Landing />", () => {
 
     const aside = container.querySelector(".landing-modes-aside");
     expect(aside?.textContent).toMatch(/request timing/i);
+  });
+
+  describe("leaving for the chat", () => {
+    const root = (c: HTMLElement) => must(c.querySelector(".landing"), ".landing");
+
+    it("lifts out: is-leaving, and inert so nothing on it can be clicked or focused", () => {
+      const { container } = renderLanding({ leaving: "lift" });
+      expect(root(container)).toHaveClass("is-leaving");
+      expect(root(container)).toHaveAttribute("inert");
+      expect(root(container)).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("fades out under reduced motion", () => {
+      const { container } = renderLanding({ leaving: "fade" });
+      expect(root(container)).toHaveClass("is-fading");
+      expect(root(container)).toHaveAttribute("inert");
+    });
+
+    it("is an ordinary, interactive landing otherwise", () => {
+      for (const leaving of [undefined, "idle"] as const) {
+        const { container, unmount } = renderLanding({ leaving });
+        expect(root(container)).not.toHaveClass("is-leaving");
+        expect(root(container)).not.toHaveClass("is-fading");
+        expect(root(container)).not.toHaveAttribute("inert");
+        expect(root(container)).not.toHaveAttribute("aria-hidden");
+        unmount();
+      }
+    });
   });
 });

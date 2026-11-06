@@ -1,4 +1,4 @@
-import { type JSX } from "solid-js";
+import { onMount, type JSX } from "solid-js";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/cards/ComposeField";
 import "~/features/Composer/composer.css";
@@ -11,6 +11,13 @@ interface ComposerProps {
   disabled?: boolean;
   /** Optional work-scope chip rendered above the input. */
   scopeChip?: JSX.Element;
+  /** Focus the textarea as soon as it mounts. Only the landing submit asks:
+   *  the question you typed moves into this box, so your next keystroke
+   *  should too (and on a phone the keyboard stays up). Sidebar picks and
+   *  direct loads leave focus alone. */
+  focusOnMount?: boolean;
+  /** True while the landing → chat transition runs. */
+  entering?: boolean;
 }
 
 export default function Composer(props: ComposerProps) {
@@ -24,10 +31,23 @@ export default function Composer(props: ComposerProps) {
     isDisabled: () => Boolean(props.disabled),
   });
 
+  let textarea: HTMLTextAreaElement | undefined;
+  const field = {
+    ...c,
+    setRef: (el: HTMLTextAreaElement) => {
+      textarea = el;
+      c.setRef(el);
+    },
+  };
+  onMount(() => {
+    if (props.focusOnMount) textarea?.focus({ preventScroll: true });
+  });
+
   return (
     <ComposeField
       variant="composer"
-      c={c}
+      c={field}
+      entering={props.entering}
       sendLabel="Send"
       disabled={props.disabled}
       scopeChip={props.scopeChip}

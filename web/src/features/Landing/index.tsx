@@ -16,6 +16,8 @@ import { ThemeToggle } from "~/components/shell/ThemeToggle";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
 import { Atlas } from "~/features/Landing/components/Atlas";
+import { classnames } from "~/utils/util";
+import type { Phase } from "~/features/LandingTransition/controller";
 import "~/features/Landing/landing.css";
 
 export type { LandingStats } from "~/api/landingApi";
@@ -41,6 +43,10 @@ interface LandingProps {
    *  `ChatRoute` passes this only when `chatScope()` is set, so the brand
    *  screen stays uncluttered in the common case. */
   scopeChip?: JSX.Element;
+  /** Set while the landing → chat transition runs. The landing stays
+   *  mounted as a layer over the chat, fading out (landingTransition.css),
+   *  and is inert so nothing on it can be clicked or focused meanwhile. */
+  leaving?: Phase;
 }
 
 // Alternate landing logo. The owl-of-Athena is the default mark; on
@@ -77,10 +83,20 @@ export default function Landing(props: LandingProps) {
       });
   });
 
+  const leaving = () => props.leaving === "lift" || props.leaving === "fade";
+
   const fmtNum = (n: number | undefined) => (n === undefined ? "—" : n.toLocaleString());
 
   return (
-    <div class="landing fade-in">
+    <div
+      class={classnames(
+        "landing fade-in",
+        props.leaving === "lift" && "is-leaving",
+        props.leaving === "fade" && "is-fading",
+      )}
+      attr:inert={leaving() ? "" : undefined}
+      aria-hidden={leaving() ? "true" : undefined}
+    >
       <header class="landing-header">
         <span class="mark">
           <span class="pi">M</span>inerva
