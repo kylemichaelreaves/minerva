@@ -29,16 +29,18 @@ export function ChatRoute(props: RouteContextProps) {
       fromLanding = false;
     }
   };
-  // "New conversation" (or anything else that brings the landing back)
-  // mid-flight: drop the flight and show an ordinary landing. `on` so this
-  // tracks `showLanding` alone — `cancel()` reads the phase, and tracking it
-  // would re-run this the moment a lift starts, while `showLanding` is still
-  // true, and cancel the flight before the question was even sent.
+  // Leaving mid-flight drops the flight: "New conversation" brings the
+  // landing back, a sidebar pick starts hydrating another conversation.
+  // (The stream's own route change does not hydrate — `onHydratedId` runs
+  // first — so a fast server's meta never cancels.) `on` so this tracks
+  // those two alone: `cancel()` reads the phase, and tracking it would re-run
+  // this the moment a lift starts, while `showLanding` is still true, and
+  // cancel the flight before the question was even sent.
   createEffect(
     on(
-      () => props.conversations.showLanding(),
-      (shown) => {
-        if (shown) transition.cancel();
+      () => props.conversations.showLanding() || props.conversations.hydrating(),
+      (left) => {
+        if (left) transition.cancel();
       },
     ),
   );

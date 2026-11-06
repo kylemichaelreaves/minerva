@@ -163,15 +163,65 @@ test("New conversation mid-flight cancels it cleanly", async ({ page }) => {
   await expect(page.locator(".lift-ghost")).toBeAttached();
   await page.getByRole("button", { name: "New conversation" }).click();
 
-  await expect(page.locator(".lift-ghost")).toHaveCount(0);
-  const landing = page.locator(".landing");
-  await expect(landing).toBeVisible();
-  await expect(landing).not.toHaveClass(/is-leaving/);
-  expect(await liftTiming(page)).toBe("");
+  // Read once, straight away (see the sidebar-pick test for why).
+  const now = await page.evaluate(() => ({
+    ghosts: document.querySelectorAll(".lift-ghost").length,
+    leaving: document.querySelectorAll(".landing.is-leaving").length,
+    timing: document.documentElement.style.getPropertyValue("--lt-d"),
+  }));
+  expect(now).toEqual({ ghosts: 0, leaving: 0, timing: "" });
+  await expect(page.locator(".landing")).toBeVisible();
   // A fresh landing, not the one that just sent: Enter must not re-send.
   const box = page.getByPlaceholder("What would you like to consider?");
   await expect(box).toHaveValue("");
   await expect(box).toBeFocused();
+});
+
+test("picking another conversation mid-flight cancels it", async ({ page }) => {
+  // One earlier conversation in the sidebar, served by stubs.
+  const old = {
+    id: "c-old",
+    title: "Earlier enquiry",
+    dominant: null,
+    created_at: 1,
+    updated_at: 1,
+  };
+  await page.route("**/api/conversations", (route) =>
+    route.fulfill({ json: { conversations: [old] } }),
+  );
+  await page.route("**/api/conversations/c-old", (route) =>
+    route.fulfill({
+      json: {
+        ...old,
+        messages: [
+          {
+            role: "user",
+            content: "An older question",
+            created_at: 1,
+            dominant: null,
+            abstained: null,
+            citations: [],
+          },
+        ],
+      },
+    }),
+  );
+  await holdChat(page);
+  await askFromLanding(page);
+  await expect(page.locator(".lift-ghost")).toBeAttached();
+  await page.getByText("Earlier enquiry").click();
+
+  await expect(page).toHaveURL(/c-old/);
+  // Read once, straight away — not auto-retried: left alone the flight would
+  // clear itself within ~850ms and a waiting assertion would pass anyway.
+  const now = await page.evaluate(() => ({
+    ghosts: document.querySelectorAll(".lift-ghost").length,
+    landings: document.querySelectorAll(".landing").length,
+    arriving: document.querySelectorAll(".thread.lt-arriving").length,
+    timing: document.documentElement.style.getPropertyValue("--lt-d"),
+  }));
+  expect(now).toEqual({ ghosts: 0, landings: 0, arriving: 0, timing: "" });
+  await expect(page.locator(".turn-user-inner .turn-body")).toHaveText("An older question");
 });
 
 test("a fast server: the reply shows mid-flight and nothing restarts", async ({ page }) => {
