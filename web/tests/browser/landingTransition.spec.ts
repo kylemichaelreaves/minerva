@@ -9,6 +9,13 @@ const QUESTION = "What does Hegel mean by the owl of Minerva?";
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
+/** Leaves `/api/chat` pending, so the thread stays in "thinking". */
+async function holdChat(page: Page) {
+  await page.route("**/api/chat", () => {
+    // Never fulfilled, on purpose.
+  });
+}
+
 async function askFromLanding(page: Page, question = QUESTION) {
   await page.goto("/");
   const box = page.getByPlaceholder("What would you like to consider?");
@@ -25,7 +32,7 @@ async function expectTurnAlignedWithComposer(page: Page) {
 }
 
 test("user turn lines up with the composer", async ({ page }) => {
-  await page.route("**/api/chat", () => {});
+  await holdChat(page);
   await askFromLanding(page);
 
   const body = page.locator(".turn-user-inner .turn-body");
@@ -39,7 +46,7 @@ test("user turn still lines up once the page scrolls", async ({ page }) => {
   // (#851), and `html` reserves its gutter (`scrollbar-gutter: stable`), so a
   // scrollbar must shift the thread and the composer alike.
   const long = Array.from({ length: 1500 }, (_, i) => `word${i}`).join(" ");
-  await page.route("**/api/chat", () => {});
+  await holdChat(page);
   await askFromLanding(page, long);
 
   await expect(page.locator(".turn-user-inner .turn-body")).toBeVisible();
