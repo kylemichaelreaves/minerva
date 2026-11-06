@@ -114,6 +114,8 @@ test("Begin lifts the question into the first turn", async ({ page }) => {
   await expect(page.locator(".turn-user-inner .turn-body")).toBeVisible();
   await expect(page.locator(".turn-user-inner .turn-body")).toHaveText(QUESTION);
   expect(await liftTiming(page)).toBe("");
+  // Focus stays in the chat composer once the landing layer goes.
+  await expect(page.getByPlaceholder("Continue the enquiry…")).toBeFocused();
 });
 
 test.describe("under reduced motion", () => {
@@ -166,6 +168,10 @@ test("New conversation mid-flight cancels it cleanly", async ({ page }) => {
   await expect(landing).toBeVisible();
   await expect(landing).not.toHaveClass(/is-leaving/);
   expect(await liftTiming(page)).toBe("");
+  // A fresh landing, not the one that just sent: Enter must not re-send.
+  const box = page.getByPlaceholder("What would you like to consider?");
+  await expect(box).toHaveValue("");
+  await expect(box).toBeFocused();
 });
 
 test("a fast server: the reply shows mid-flight and nothing restarts", async ({ page }) => {
