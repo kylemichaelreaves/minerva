@@ -7,6 +7,7 @@ import { ThreadSkeleton } from "~/Thread/components/ThreadSkeleton";
 import { turnId } from "~/Thread/turnId";
 import "~/Thread/thread.css";
 import { UserTurnView } from "~/Thread/components/UserTurnView";
+import type { Phase } from "~/features/LandingTransition/controller";
 
 export type { ExpandedState } from "~/Thread/components/MinervaTurnView";
 
@@ -18,12 +19,21 @@ interface ThreadProps {
   pinnedChunkIds?: string[];
   onTogglePin?: (chunkId: string) => void;
   onOpenReader?: (workId: string, sourceLang: string | undefined, chunkId: string) => void;
+  /** The landing → chat transition's phase, while it runs. */
+  arriving?: Phase;
 }
 
 export default function Thread(props: ThreadProps) {
   const showSkeleton = () => Boolean(props.hydrating) && props.messages.length === 0;
   return (
-    <div class={classnames("thread", props.marginNotes && "has-margin")}>
+    <div
+      class={classnames(
+        "thread",
+        props.marginNotes && "has-margin",
+        props.arriving === "lift" && "lt-arriving",
+        props.arriving === "fade" && "lt-fading",
+      )}
+    >
       <Show when={showSkeleton()}>
         <ThreadSkeleton />
       </Show>

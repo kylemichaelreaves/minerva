@@ -32,9 +32,10 @@ export default function WorkScopeControl(props: WorkScopeControlProps) {
     open,
     () => setOpen(false),
   );
-  useEscape(() => {
-    if (open()) setOpen(false);
-  });
+  // Gated, not checked inside: ungated, the listener claimed every Escape
+  // (`preventDefault`) with the menu closed, so nothing after it — the chat's
+  // Escape-to-landing — could tell a free Escape from one this had used.
+  useEscape(() => setOpen(false), open);
   createEffect(() => {
     if (open()) filterInput?.focus();
   });
@@ -68,8 +69,7 @@ export default function WorkScopeControl(props: WorkScopeControlProps) {
       return `${w.author} ${w.display_title}`.toLowerCase().includes(q);
     });
     rows.sort(
-      (a, b) =>
-        a.author.localeCompare(b.author) || a.display_title.localeCompare(b.display_title),
+      (a, b) => a.author.localeCompare(b.author) || a.display_title.localeCompare(b.display_title),
     );
     return rows.slice(0, _MAX_ROWS);
   });
@@ -102,12 +102,7 @@ export default function WorkScopeControl(props: WorkScopeControlProps) {
         {(scope) => (
           <div class="chat-scope">
             <span class="chat-scope__label">Asking within</span>
-            <button
-              type="button"
-              class="chat-scope__work"
-              title="Change work"
-              onClick={openPicker}
-            >
+            <button type="button" class="chat-scope__work" title="Change work" onClick={openPicker}>
               {scope().title}
             </button>
             <button
