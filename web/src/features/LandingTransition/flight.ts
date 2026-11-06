@@ -26,8 +26,16 @@ export const CHROME_PROPS = [
   "borderLeftColor",
 ] as const;
 /** Copied from the landed body and held fixed for the whole flight, so the
- *  ghost's text box never changes shape except by its width. */
+ *  ghost's text box never changes shape except by its width — and so it
+ *  wraps the way the landed turn will (the textarea keeps newlines; the
+ *  user turn collapses them), with no jump when the real body takes over. */
 export const FRAME_PROPS = [
+  "fontFamily",
+  "fontWeight",
+  "letterSpacing",
+  "whiteSpace",
+  "overflowWrap",
+  "wordBreak",
   "paddingTop",
   "paddingRight",
   "paddingBottom",

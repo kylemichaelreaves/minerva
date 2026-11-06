@@ -1,0 +1,18 @@
+/* ════════════════════════════════════════════════════════════════
+   LANDING → CHAT TRANSITION
+   Timing comes from `--lt-d` / `--lt-ease`, which the controller sets on
+   the root only while a lift runs. Every delay below is a fraction of the
+   lift, per the design doc's choreography table
+   (docs/superpowers/specs/2026-11-06-landing-chat-transition-design.md).
+   ════════════════════════════════════════════════════════════════ */
+
+/* The question in flight. Position, size, font and colour are animated
+   inline by the controller; its frame (padding, border widths, text
+   layout) is copied from the turn it lands in. */
+.lift-ghost {
+  position: fixed;
+  margin: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 50;
+}
