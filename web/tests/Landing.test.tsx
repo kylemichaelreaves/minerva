@@ -4,6 +4,7 @@ import { createSignal, type JSX } from "solid-js";
 import Landing from "~/features/Landing";
 import { must } from "./helpers/must";
 import type { Phase } from "~/features/LandingTransition/controller";
+import type { ReturnPhase } from "~/features/LandingTransition/returnController";
 
 function renderLanding(opts: { scopeChip?: JSX.Element; leaving?: Phase } = {}) {
   const onSubmit = vi.fn();
@@ -301,6 +302,61 @@ describe("<Landing />", () => {
         expect(root(container)).not.toHaveAttribute("aria-hidden");
         unmount();
       }
+    });
+  });
+
+  describe("arriving from the chat (Escape)", () => {
+    const root = (c: HTMLElement) => must(c.querySelector(".landing"), ".landing");
+
+    function renderArriving(initial: ReturnPhase | undefined) {
+      const [arriving, setArriving] = createSignal<ReturnPhase | undefined>(initial);
+      const utils = render(() => (
+        <Landing
+          onSubmit={vi.fn()}
+          onOpenRead={vi.fn()}
+          onOpenRefs={vi.fn()}
+          onOpenNetwork={vi.fn()}
+          onOpenConcordance={vi.fn()}
+          onOpenMetrics={vi.fn()}
+          arriving={arriving()}
+        />
+      ));
+      return { ...utils, setArriving };
+    }
+
+    it("is an inert layer while it arrives, without the page-load fade", () => {
+      const { container } = renderArriving("return");
+      expect(root(container)).toHaveClass("is-arriving");
+      expect(root(container)).not.toHaveClass("fade-in");
+      expect(root(container)).toHaveAttribute("inert");
+      expect(root(container)).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("fades in under reduced motion", () => {
+      const { container } = renderArriving("fade");
+      expect(root(container)).toHaveClass("is-arriving-fade");
+      expect(root(container)).toHaveAttribute("inert");
+    });
+
+    it("takes focus once it has arrived, and never gets the fade back", async () => {
+      const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+      const { container, setArriving } = renderArriving("return");
+      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(
+        /what would you like to consider/i,
+      );
+      setArriving(undefined);
+      await Promise.resolve();
+
+      expect(document.activeElement).toBe(ta);
+      expect(scrollTo).toHaveBeenCalledWith(0, 0);
+      expect(root(container)).not.toHaveClass("fade-in");
+      expect(root(container)).not.toHaveAttribute("inert");
+    });
+
+    it("a page-load landing keeps its fade", () => {
+      const { container } = renderArriving(undefined);
+      expect(root(container)).toHaveClass("fade-in");
+      expect(root(container)).not.toHaveClass("is-arriving");
     });
   });
 });

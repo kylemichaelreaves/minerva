@@ -241,3 +241,33 @@ as the box descends.
 - The reply's first tokens are never delayed by, nor disturb, the
   animation.
 - `make check` green; Sonar's new-code gates green.
+
+## Addendum: the inverse, Escape → landing (2026-11-06)
+
+Escape in a settled chat plays the transition backwards and lands on an
+empty landing, the same destination as "New conversation"
+(`returnController.ts`, `escapeToLanding.ts`).
+
+- **When.** Only a plain Escape (no modifiers, not repeating, not while
+  composing with an IME) that no other surface claimed. Popovers, the scope
+  menu, dialogs and sheets claim Escape with `preventDefault()` and mostly
+  register after the chat, so the decision waits until dispatch ends and
+  then reads `defaultPrevented`. It is ignored while Minerva is considering
+  or still streaming (leaving would abort the reply), while a conversation
+  hydrates, during either transition, over an unsent draft in the chat
+  composer, and while any other field has focus.
+- **Choreography** (fractions of D = 650ms). The thread fades out over
+  0–.45, the topbar and the composer's footer and scope chip over 0–.35.
+  The real composer slides down into the landing box (translate +
+  `max-width`, the inverse of the forward FLIP). The landing mounts at
+  once as an inert layer and its furniture drifts back from the offsets it
+  left by: fade .55–1, drift .3–1. Nothing flies back with the question.
+- **The layer is `position: fixed`** at the spot where `.main` starts at
+  scroll 0, not `absolute` on `.main`: the document is the scroller (#851), and a
+  long chat may be scrolled far down. On arrival the page scrolls to the
+  top, where the landing now sits in flow, so nothing jumps.
+- **Focus** follows into the landing box on arrival.
+- **Reduced motion:** the landing fades in over the chat as the chat
+  fades out (180ms). **No WAAPI / nothing to measure:** an instant swap.
+- A sidebar pick or New conversation mid-return ends it without
+  navigating on top.

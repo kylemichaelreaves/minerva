@@ -83,15 +83,17 @@
     lt-out calc(var(--lt-d) * 0.45) ease both,
     lt-drift calc(var(--lt-d) * 0.7) var(--lt-ease) both;
 }
-.landing.is-leaving .landing-monogram-wrap {
+/* Shared with the return (below), which drifts the same parts back in from
+   the same offsets. */
+.landing:is(.is-leaving, .is-arriving) .landing-monogram-wrap {
   --lt-dy: -18px;
   --lt-scale: 0.96;
 }
-.landing.is-leaving .landing-modes,
-.landing.is-leaving .landing-modes-aside {
+.landing:is(.is-leaving, .is-arriving) .landing-modes,
+.landing:is(.is-leaving, .is-arriving) .landing-modes-aside {
   --lt-dy: 28px;
 }
-.landing.is-leaving .landing-atlas {
+.landing:is(.is-leaving, .is-arriving) .landing-atlas {
   --lt-dy: 44px;
 }
 /* Reduced motion: nothing travels. The layer fades out over the chat,
@@ -144,6 +146,82 @@
   color: transparent;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   CHAT → LANDING (Escape) — the inverse
+   The landing mounts as a layer over the chat and its furniture drifts back
+   from the offsets it left by; the chat's thread, topbar and composer
+   footer fade out, and the real composer slides down into the landing box
+   (WAAPI, returnController.ts). Out first, in last: the chat is gone by
+   .45, the landing arrives from .3 and settles at 1. `data-lt-return` and
+   the layer's `--lt-top/left/width` are set on the root only while it runs.
+   ════════════════════════════════════════════════════════════════ */
+@keyframes lt-drift-in {
+  from {
+    translate: 0 var(--lt-dy, 0);
+    scale: var(--lt-scale, 1);
+  }
+  to {
+    translate: 0 0;
+    scale: 1;
+  }
+}
+
+/* Fixed where `.main` starts at scroll 0, which is where the landing sits in
+   flow once the chat is gone — a long chat may be scrolled far down. */
+.landing.is-arriving,
+.landing.is-arriving-fade {
+  position: fixed;
+  top: var(--lt-top, 0);
+  left: var(--lt-left, 0);
+  width: var(--lt-width, 100%);
+  bottom: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+/* The chat composer is the box arriving here. */
+.landing.is-arriving .landing-input-wrap {
+  visibility: hidden;
+}
+.landing.is-arriving
+  :is(
+    .landing-monogram-wrap,
+    .landing-modes,
+    .landing-modes-aside,
+    .landing-atlas,
+    .landing-header
+  ) {
+  animation:
+    lt-in calc(var(--lt-d) * 0.45) ease calc(var(--lt-d) * 0.55) both,
+    lt-drift-in calc(var(--lt-d) * 0.7) var(--lt-ease) calc(var(--lt-d) * 0.3) both;
+}
+:root[data-lt-return="return"] .thread {
+  animation: lt-out calc(var(--lt-d) * 0.45) ease both;
+}
+:root[data-lt-return="return"] .topbar {
+  animation: lt-out calc(var(--lt-d) * 0.35) ease both;
+}
+/* Above the arriving landing, so the box passes over its fading-in parts. */
+:root[data-lt-return="return"] .composer-wrap {
+  z-index: 45;
+}
+:root[data-lt-return="return"] .composer-wrap .composer-foot,
+:root[data-lt-return="return"] .composer-wrap > :not(.composer) {
+  animation: lt-out calc(var(--lt-d) * 0.35) ease both;
+}
+/* The landing box has its own placeholder, which takes over on arrival. */
+:root[data-lt-return="return"] .composer-input::placeholder {
+  color: transparent;
+}
+
+/* Reduced motion: nothing travels; the landing fades in over the chat as the
+   chat fades out. */
+.landing.is-arriving-fade {
+  animation: lt-in 180ms ease both;
+}
+:root[data-lt-return="fade"] :is(.thread, .topbar, .composer-wrap) {
+  animation: lt-out 180ms ease both;
+}
+
 /* ---------- Phone ----------
    The atlas sits above the owl here, and the landing header is the brand
    bar, so "owl up, the rest down" becomes "everything above the box up". */
@@ -154,11 +232,18 @@
   :root:has(.landing.is-leaving) .mobile-topbar {
     animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
   }
-  .landing.is-leaving .landing-atlas {
+  .landing:is(.is-leaving, .is-arriving) .landing-atlas {
     --lt-dy: -28px;
   }
-  .landing.is-leaving .landing-header {
+  .landing:is(.is-leaving, .is-arriving) .landing-header {
     --lt-dy: -12px;
+  }
+  /* The return: the "☰ Chat" bar leaves with the desktop topbar. */
+  :root[data-lt-return] .mobile-topbar {
+    animation: lt-out calc(var(--lt-d) * 0.35) ease both;
+  }
+  :root[data-lt-return="fade"] .mobile-topbar {
+    animation: lt-out 180ms ease both;
   }
 }
 
@@ -177,5 +262,15 @@
   }
   .topbar.lt-entering {
     animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
+  }
+  .landing.is-arriving
+    :is(
+      .landing-monogram-wrap,
+      .landing-modes,
+      .landing-modes-aside,
+      .landing-atlas,
+      .landing-header
+    ) {
+    animation: lt-in calc(var(--lt-d) * 0.45) ease calc(var(--lt-d) * 0.55) both;
   }
 }
