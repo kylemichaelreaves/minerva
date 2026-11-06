@@ -284,23 +284,45 @@ async function settledChat(page: Page) {
   await expect(page.locator(".lift-ghost")).toHaveCount(0, { timeout: 1500 });
 }
 
-/** State read once, not auto-retried: the return is transient. */
-const returnState = (page: Page) =>
-  page.evaluate(() => ({
+/** Runs in the page. With `when`, null until that selector matches, so the
+ *  check and the read happen in one frame. */
+function snapshotReturn(when: string | null) {
+  if (when !== null && !document.querySelector(when)) return null;
+  return {
     arriving: document.querySelectorAll(".landing.is-arriving").length,
     fading: document.querySelectorAll(".landing.is-arriving-fade").length,
     landings: document.querySelectorAll(".landing").length,
     threads: document.querySelectorAll(".thread").length,
     stage: document.documentElement.dataset.ltReturn ?? null,
     timing: document.documentElement.style.getPropertyValue("--lt-d"),
-  }));
+  };
+}
+/** Throws instead of asserting: `snapshotReturn(null)` always reads. */
+function present<T>(v: T | null): T {
+  if (v === null) throw new Error("no return state");
+  return v;
+}
+
+/** State read once, not auto-retried: the return is transient. */
+const returnState = async (page: Page) => present(await page.evaluate(snapshotReturn, null));
+
+/** State read in the first frame `selector` matches. Waiting for the
+ *  element and then reading in a second round trip raced the 180ms
+ *  reduced-motion fade on CI: the class was seen, and by the read the return
+ *  had finished (`stage: null`). */
+async function returnStateWhen(page: Page, selector: string) {
+  const handle = await page.waitForFunction(snapshotReturn, selector, {
+    polling: "raf",
+    timeout: 2000,
+  });
+  return present(await handle.jsonValue());
+}
 
 test("Escape in a settled chat returns to an empty landing", async ({ page }) => {
   await settledChat(page);
   await page.keyboard.press("Escape");
 
-  await expect(page.locator(".landing.is-arriving")).toBeAttached();
-  const mid = await returnState(page);
+  const mid = await returnStateWhen(page, ".landing.is-arriving");
   expect(mid).toMatchObject({ arriving: 1, threads: 1, stage: "return" });
 
   await expect(page.locator(".thread")).toHaveCount(0, { timeout: 1500 });
@@ -377,14 +399,24 @@ test("from a scrolled chat the composer lands on the landing box", async ({ page
     );
   });
   await page.keyboard.press("Escape");
-  await expect(page.locator(".landing.is-arriving")).toBeAttached();
+  // Freeze in the first frame the layer exists, inside the page: a second
+  // round trip could find the 650ms flight already over on a slow runner.
+  await page.waitForFunction(
+    () => {
+      if (!document.querySelector(".landing.is-arriving")) return false;
+      const before = (window as unknown as { __before: Set<Animation> }).__before;
+      for (const a of document.getAnimations()) if (!before.has(a)) a.pause();
+      return true;
+    },
+    undefined,
+    { polling: "raf", timeout: 2000 },
+  );
 
   // The flight's last frame: the composer sits on the (hidden) landing box.
   const lastFrame = await page.evaluate(() => {
     const before = (window as unknown as { __before: Set<Animation> }).__before;
     for (const a of document.getAnimations()) {
       if (before.has(a)) continue;
-      a.pause();
       a.currentTime = 650;
     }
     const c = document.querySelector(".composer")?.getBoundingClientRect();
@@ -418,8 +450,8 @@ test.describe("Escape under reduced motion", () => {
     // is ignored, so let it finish.
     await expect(page.locator(".landing")).toHaveCount(0, { timeout: 600 });
     await page.keyboard.press("Escape");
-    await expect(page.locator(".landing.is-arriving-fade")).toBeAttached();
-    expect(await returnState(page)).toMatchObject({ arriving: 0, stage: "fade" });
+    const mid = await returnStateWhen(page, ".landing.is-arriving-fade");
+    expect(mid).toMatchObject({ arriving: 0, fading: 1, stage: "fade" });
 
     await expect(page.locator(".thread")).toHaveCount(0, { timeout: 600 });
     await expect(page.getByPlaceholder("What would you like to consider?")).toBeFocused();
