@@ -8,7 +8,7 @@
 // un-anchored thematic questions — the shape this corpus answers worst,
 // since there is no locus to retrieve — and was removed in #258.
 
-import { Show, createSignal, onMount, type JSX } from "solid-js";
+import { Show, createEffect, createSignal, on, onMount, untrack, type JSX } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/cards/ComposeField";
@@ -16,6 +16,9 @@ import { ThemeToggle } from "~/components/shell/ThemeToggle";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
 import { Atlas } from "~/features/Landing/components/Atlas";
+import { classnames } from "~/utils/util";
+import type { Phase } from "~/features/LandingTransition/controller";
+import type { ReturnPhase } from "~/features/LandingTransition/returnController";
 import "~/features/Landing/landing.css";
 
 export type { LandingStats } from "~/api/landingApi";
@@ -41,6 +44,14 @@ interface LandingProps {
    *  `ChatRoute` passes this only when `chatScope()` is set, so the brand
    *  screen stays uncluttered in the common case. */
   scopeChip?: JSX.Element;
+  /** Set while the landing → chat transition runs. The landing stays
+   *  mounted as a layer over the chat, fading out (landingTransition.css),
+   *  and is inert so nothing on it can be clicked or focused meanwhile. */
+  leaving?: Phase;
+  /** Set while the chat → landing transition (Escape) runs: the inverse —
+   *  this landing is mounted as a layer over the leaving chat, its furniture
+   *  drifting back into place, inert until it arrives. */
+  arriving?: ReturnPhase;
 }
 
 // Alternate landing logo. The owl-of-Athena is the default mark; on
@@ -55,6 +66,13 @@ const ROSE_LOGO_PROBABILITY = 0.2;
 // monogram to the epigraph it describes.
 const TOOLTIP_ID = "landing-monogram-tooltip";
 
+// The last stats any landing fetched. A landing mounted again — New
+// conversation, or Escape from a chat — renders with them at once and
+// refreshes behind: the Atlas caption they fill in is a line tall, and its
+// arriving late re-centred the column, moving the composer box 8px after the
+// return transition had measured where to land.
+let lastStats: LandingStats | null = null;
+
 export default function Landing(props: LandingProps) {
   const useRoseLogo = Math.random() < ROSE_LOGO_PROBABILITY;
   const c = createComposer({
@@ -68,19 +86,85 @@ export default function Landing(props: LandingProps) {
   const fallbackMobile = useMobile();
   const isMobile = () => shell?.isMobile() ?? fallbackMobile();
 
-  const [stats, setStats] = createSignal<LandingStats | null>(null);
+  const [stats, setStats] = createSignal<LandingStats | null>(lastStats);
   onMount(() => {
     void fetchLandingStats()
-      .then(setStats)
+      .then((s) => {
+        lastStats = s;
+        setStats(s);
+      })
       .catch(() => {
         // Stats are decorative — silent on failure.
       });
   });
 
+  const leaving = () => props.leaving === "lift" || props.leaving === "fade";
+  const arriving = () => props.arriving === "return" || props.arriving === "fade";
+  // A landing that arrives by the return transition animates its own parts
+  // in; the whole-page `.fade-in` would double them — and, kept on, restart
+  // the moment `is-arriving` came off.
+  const mountedArriving = untrack(arriving);
+
+  // A flight called off ("New conversation" mid-flight) hands back this same
+  // Landing — it never unmounted — and its composer keeps the sent text by
+  // design (`clearOnSend: false`). Reset it, or Enter would re-send the old
+  // question, and take focus back from the chat composer that just left.
+  let textarea: HTMLTextAreaElement | undefined;
+  const field = {
+    ...c,
+    setRef: (el: HTMLTextAreaElement) => {
+      textarea = el;
+      c.setRef(el);
+    },
+  };
+  // Only on a return to the landing (`leaving` cleared). A flight that runs
+  // to its end goes to "idle" as this Landing unmounts; it must not pull
+  // focus off the chat composer on its way out.
+  createEffect(
+    on(
+      () => props.leaving,
+      (now, was) => {
+        if ((was === "lift" || was === "fade") && now === undefined) {
+          c.setValue("");
+          c.autosize();
+          textarea?.focus({ preventScroll: true });
+        }
+      },
+    ),
+  );
+  // Arrived by Escape: the keyboard follows, as it does into the chat on
+  // Begin. Inert until now, so its own `autofocus` could not take.
+  createEffect(
+    on(
+      () => props.arriving,
+      (now, was) => {
+        if ((was === "return" || was === "fade") && now === undefined) {
+          // The chat it replaced may have been scrolled; the layer was
+          // pinned where the landing sits at the top, so this is no jump.
+          window.scrollTo(0, 0);
+          // A microtask on: this effect can run before the `inert` binding
+          // above has come off, and an inert textarea refuses focus.
+          queueMicrotask(() => textarea?.focus({ preventScroll: true }));
+        }
+      },
+    ),
+  );
+
   const fmtNum = (n: number | undefined) => (n === undefined ? "—" : n.toLocaleString());
 
   return (
-    <div class="landing fade-in">
+    <div
+      class={classnames(
+        "landing",
+        !mountedArriving && "fade-in",
+        props.leaving === "lift" && "is-leaving",
+        props.leaving === "fade" && "is-fading",
+        props.arriving === "return" && "is-arriving",
+        props.arriving === "fade" && "is-arriving-fade",
+      )}
+      attr:inert={leaving() || arriving() ? "" : undefined}
+      aria-hidden={leaving() || arriving() ? "true" : undefined}
+    >
       <header class="landing-header">
         <span class="mark">
           <span class="pi">M</span>inerva
@@ -149,7 +233,7 @@ export default function Landing(props: LandingProps) {
           </div>
           <ComposeField
             variant="landing"
-            c={c}
+            c={field}
             sendLabel="Begin"
             scopeChip={props.scopeChip}
             hint={
