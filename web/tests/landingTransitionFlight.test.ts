@@ -38,6 +38,8 @@ const ORIGIN: FlightOrigin = {
   textTop: 260,
   textLeft: 200,
   textWidth: 648,
+  scrollTop: 0,
+  visibleHeight: 26,
   style: {
     fontSize: "17px",
     lineHeight: "24.65px",
@@ -63,7 +65,6 @@ const TARGET: FlightTarget = {
     fontFamily: '"EB Garamond", serif',
     fontWeight: "400",
     letterSpacing: "normal",
-    whiteSpace: "normal",
     overflowWrap: "normal",
     wordBreak: "normal",
     paddingTop: "0px",
@@ -94,6 +95,7 @@ describe("measureOrigin", () => {
     stubRect(box, { top: 288, left: 184, width: 680, height: 88 });
     Object.defineProperty(ta, "scrollTop", { value: 40 });
     Object.defineProperty(ta, "clientWidth", { value: 648 });
+    Object.defineProperty(ta, "clientHeight", { value: 26 });
     stubStyle(
       new Map([
         [
@@ -114,6 +116,8 @@ describe("measureOrigin", () => {
     expect(o.textLeft).toBe(200);
     expect(o.textWidth).toBe(648);
     expect(o.text).toBe("Why?");
+    expect(o.scrollTop).toBe(40);
+    expect(o.visibleHeight).toBe(26);
     expect(o.style.fontSize).toBe("17px");
     expect(o.box).toEqual({ top: 288, left: 184, width: 680, height: 88 });
   });
@@ -125,12 +129,14 @@ describe("measureOrigin", () => {
     stubRect(ta, { top: 100, left: 50, width: 400, height: 30 });
     stubRect(box, { top: 90, left: 40, width: 420, height: 60 });
     Object.defineProperty(ta, "clientWidth", { value: 398 });
+    Object.defineProperty(ta, "clientHeight", { value: 40 });
     stubStyle(
       new Map([
         [
           ta,
           {
             paddingTop: "4px",
+            paddingBottom: "2px",
             paddingLeft: "6px",
             paddingRight: "8px",
             borderTopWidth: "1px",
@@ -145,6 +151,7 @@ describe("measureOrigin", () => {
     expect(o.textTop).toBe(105);
     expect(o.textLeft).toBe(57);
     expect(o.textWidth).toBe(384);
+    expect(o.visibleHeight).toBe(34);
   });
 });
 
@@ -197,5 +204,19 @@ describe("composerKeyframes", () => {
       { transform: "translate(0px, 0px)" },
     ]);
     expect(box).toEqual([{ maxWidth: "680px" }, { maxWidth: "880px" }]);
+  });
+});
+
+describe("ghostKeyframes clip", () => {
+  it("shows exactly the textarea's visible window on the first frame, then all of it", () => {
+    // A question scrolled 40px inside a 26px-tall textarea: the ghost carries
+    // the whole text, but on frame 0 only what the textarea showed is visible.
+    const { move } = ghostKeyframes({ ...ORIGIN, scrollTop: 40, visibleHeight: 26 }, TARGET);
+
+    // target insets: 0 top padding + 0 top border, so the window starts at 40.
+    expect(move).toMatchObject([
+      { clipPath: "inset(40px 0px calc(100% - 66px) 0px)" },
+      { clipPath: "inset(0px 0px 0px 0px)" },
+    ]);
   });
 });

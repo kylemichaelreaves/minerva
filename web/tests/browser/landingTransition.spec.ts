@@ -182,3 +182,38 @@ test("a fast server: the reply shows mid-flight and nothing restarts", async ({ 
   expect(await ghostsInserted(page)).toBe(1);
   await expect(page.locator(".turn-user-inner .turn-body")).toHaveText(QUESTION);
 });
+
+test("a multi-line question keeps its lines on the first frame", async ({ page }) => {
+  // Shift+Enter line breaks: the ghost must lay out exactly like the
+  // textarea it replaces, or the question visibly reflows on frame 0.
+  const lines = Array.from({ length: 6 }, (_, i) => `Line ${i + 1}`).join("\n");
+  await holdChat(page);
+  await page.goto("/");
+  const box = page.getByPlaceholder("What would you like to consider?");
+  await box.fill(lines);
+  await page.evaluate(() => {
+    (window as unknown as { __before: Set<Animation> }).__before = new Set(
+      document.getAnimations(),
+    );
+  });
+  await box.press("Enter");
+
+  const heights = await page.evaluate(() => {
+    const before = (window as unknown as { __before: Set<Animation> }).__before;
+    for (const a of document.getAnimations()) {
+      if (before.has(a)) continue;
+      a.pause();
+      a.currentTime = 0;
+    }
+    const ghost = document.querySelector<HTMLElement>(".lift-ghost");
+    const ta = document.querySelector<HTMLTextAreaElement>(".landing-input");
+    if (!ghost || !ta) throw new Error("no ghost or no landing textarea");
+    const g = getComputedStyle(ghost);
+    const t = getComputedStyle(ta);
+    return {
+      ghost: ghost.clientHeight - parseFloat(g.paddingTop) - parseFloat(g.paddingBottom),
+      textarea: ta.scrollHeight - parseFloat(t.paddingTop) - parseFloat(t.paddingBottom),
+    };
+  });
+  expect(Math.abs(heights.ghost - heights.textarea)).toBeLessThanOrEqual(1);
+});

@@ -26,14 +26,15 @@ export const CHROME_PROPS = [
   "borderLeftColor",
 ] as const;
 /** Copied from the landed body and held fixed for the whole flight, so the
- *  ghost's text box never changes shape except by its width — and so it
- *  wraps the way the landed turn will (the textarea keeps newlines; the
- *  user turn collapses them), with no jump when the real body takes over. */
+ *  ghost's text box never changes shape except by its width. `white-space`
+ *  is deliberately not among them: the ghost is `pre-wrap` like the
+ *  textarea (landingTransition.css), so frame 0 matches what you typed line
+ *  for line; the user turn collapses line breaks, so a multi-line question
+ *  settles into the turn's wrapping when the real body takes over. */
 export const FRAME_PROPS = [
   "fontFamily",
   "fontWeight",
   "letterSpacing",
-  "whiteSpace",
   "overflowWrap",
   "wordBreak",
   "paddingTop",
@@ -59,6 +60,10 @@ export interface FlightOrigin {
   textTop: number;
   textLeft: number;
   textWidth: number;
+  /** How far the question is scrolled inside the textarea, and how much of
+   *  it shows: frame 0 clips the ghost to that window. */
+  scrollTop: number;
+  visibleHeight: number;
   style: Record<MorphProp, string>;
   box: Rect;
 }
@@ -99,6 +104,8 @@ export function measureOrigin(textarea: HTMLTextAreaElement, box: HTMLElement): 
     textTop: r.top + px(cs.borderTopWidth) + px(cs.paddingTop) - textarea.scrollTop,
     textLeft: r.left + px(cs.borderLeftWidth) + px(cs.paddingLeft),
     textWidth: textarea.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight),
+    scrollTop: textarea.scrollTop,
+    visibleHeight: textarea.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom),
     style: pick(cs, MORPH_PROPS),
     box: rectOf(box),
   };
@@ -123,15 +130,21 @@ export function ghostKeyframes(
   const insetTop = px(s.paddingTop) + px(s.borderTopWidth);
   const insetX = insetLeft + px(s.paddingRight) + px(s.borderRightWidth);
 
+  // The ghost carries the whole question, but on frame 0 shows only the
+  // window the textarea showed — a long, scrolled question would otherwise
+  // appear above the box, over the owl — and opens to all of it in flight.
+  const windowTop = o.scrollTop + insetTop;
   const from: Keyframe = {
     top: `${o.textTop - insetTop}px`,
     left: `${o.textLeft - insetLeft}px`,
     width: `${o.textWidth + insetX}px`,
+    clipPath: `inset(${windowTop}px 0px calc(100% - ${windowTop + o.visibleHeight}px) 0px)`,
   };
   const to: Keyframe = {
     top: `${t.body.top}px`,
     left: `${t.body.left}px`,
     width: `${t.body.width}px`,
+    clipPath: "inset(0px 0px 0px 0px)",
   };
   for (const p of MORPH_PROPS) {
     from[p] = o.style[p];

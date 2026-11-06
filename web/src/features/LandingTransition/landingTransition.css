@@ -12,6 +12,8 @@
 .lift-ghost {
   position: fixed;
   margin: 0;
+  /* Like the textarea, so frame 0 keeps the asker's line breaks. */
+  white-space: pre-wrap;
   box-sizing: border-box;
   pointer-events: none;
   z-index: 50;
