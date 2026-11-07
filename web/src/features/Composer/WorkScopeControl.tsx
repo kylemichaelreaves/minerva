@@ -5,8 +5,8 @@ import type { ChatScope } from "~/features/conversations/conversationsCtrl";
 import type { Work } from "~/utils/types";
 
 /**
- * Chat work-scope control: shows the current scope as a chip (or a
- * "Scope to a work" affordance when unscoped) and opens a searchable
+ * Chat work-scope control: shows the current scope as a pill ("All works"
+ * when unscoped, the work's title when scoped) and opens a searchable
  * drop-up picker over all works. Picking sets the scope; the × clears it.
  * The picker filters across every author by default, with a one-click
  * "Within {author}" toggle (the current scope's author) to narrow.
@@ -91,18 +91,30 @@ export default function WorkScopeControl(props: WorkScopeControlProps) {
       <Show
         when={props.scope()}
         fallback={
-          <button type="button" class="chat-scope-add" onClick={openPicker}>
-            <span class="chat-scope-add__plus" aria-hidden="true">
-              +
-            </span>{" "}
-            Scope to a work
+          <button
+            type="button"
+            class="chat-scope__pill"
+            aria-haspopup="dialog"
+            aria-label="Scope: All works"
+            onClick={openPicker}
+          >
+            All works
+            <span class="chat-scope__chevron" aria-hidden="true">
+              ▾
+            </span>
           </button>
         }
       >
         {(scope) => (
           <div class="chat-scope">
-            <span class="chat-scope__label">Asking within</span>
-            <button type="button" class="chat-scope__work" title="Change work" onClick={openPicker}>
+            <button
+              type="button"
+              class="chat-scope__pill chat-scope__work"
+              aria-haspopup="dialog"
+              aria-label={`Scope: ${scope().title}`}
+              title="Change work"
+              onClick={openPicker}
+            >
               {scope().title}
             </button>
             <button

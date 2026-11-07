@@ -365,7 +365,7 @@ test("Escape keeps a draft: it does not leave over unsent text", async ({ page }
 
 test("an Escape another surface claims does not also leave", async ({ page }) => {
   await settledChat(page);
-  await page.getByRole("button", { name: /scope to a work/i }).click();
+  await page.getByRole("button", { name: "Scope: All works" }).click();
   await expect(page.getByRole("listbox").or(page.getByRole("dialog")).first()).toBeVisible();
 
   await page.keyboard.press("Escape");
