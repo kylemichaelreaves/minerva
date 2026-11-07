@@ -1,9 +1,23 @@
 import { fileURLToPath, URL } from "node:url";
+import { defaultServerConditions } from "vite";
 import { configDefaults, defineConfig } from "vitest/config";
 import solid from "vite-plugin-solid";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [solid()],
+  // Test runs only: files marked `// @vitest-environment node` run in Vite's
+  // `ssr` environment, and need solid-js's *client* build there, or
+  // `createEffect` is a no-op and `isServer` is true. vite-plugin-solid
+  // 2.11.14 added `browser` to that environment itself; 2.11.15 stopped
+  // when the global `test.environment` is a DOM one, without reading the
+  // per-file docblock (#861). Those modules then also leaked into happy-dom
+  // files sharing a worker, so the failure count changed from run to run.
+  // tests/solidClientRuntime.test.ts fails if this stops taking effect.
+  ...(mode === "test" && {
+    environments: {
+      ssr: { resolve: { conditions: ["browser", ...defaultServerConditions] } },
+    },
+  }),
   resolve: {
     // `~/` resolves to `src/` so cross-directory imports stay stable
     // when files move. Picked up by vite (dev/build), vitest, and the
@@ -79,4 +93,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
