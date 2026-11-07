@@ -4,6 +4,7 @@ import { SendIcon } from "~/components/primitives/Icons";
 import type { ComposerState } from "~/utils/composer";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
+import "~/components/cards/composeCard.css";
 
 export interface ComposeFieldProps {
   variant: "landing" | "composer";

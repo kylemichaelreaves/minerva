@@ -298,43 +298,9 @@ body::before {
 
 /* ════════════════════════════════════════════════════════════════
    LANDING — see features/Landing/landing.css for the layout-specific rules.
-   This section keeps a small set of globally-used utilities and the
-   .send-btn baseline used by composer.css (Composer view). The
-   landing variant of .send-btn is overridden in landing.css.
+   This section keeps a small set of globally-used utilities. The composer
+   send button lives in components/cards/composeCard.css.
    ════════════════════════════════════════════════════════════════ */
-
-.send-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border: 1px solid var(--ink);
-  border-radius: var(--radius-pill);
-  font-family: var(--sans);
-  font-size: 11px;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--ink);
-  background: transparent;
-  cursor: pointer;
-  transition:
-    background 140ms,
-    color 140ms;
-}
-.send-btn:hover {
-  background: var(--ink);
-  color: var(--paper);
-}
-.send-btn.disabled {
-  border-color: var(--rule);
-  color: var(--ink-faint);
-  pointer-events: none;
-}
-.send-btn svg {
-  width: 11px;
-  height: 11px;
-  stroke-width: 1.6;
-}
 
 /* ════════════════════════════════════════════════════════════════
    COMPOSER
