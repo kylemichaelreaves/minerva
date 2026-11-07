@@ -9,6 +9,27 @@ function renderComposer() {
 }
 
 describe("<Composer />", () => {
+  it("renders scope, hint and send in one footer, in tab order", () => {
+    const { container } = render(() => (
+      <Composer onSend={vi.fn()} scopeChip={<button>scope</button>} />
+    ));
+    const left = container.querySelector(".compose-foot__left");
+    expect(left).not.toBeNull();
+    const scope = screen.getByRole("button", { name: "scope" });
+    expect(left?.contains(scope)).toBe(true);
+    const order = Array.from(container.querySelectorAll("textarea, button"));
+    expect(order).toEqual([
+      container.querySelector("textarea"),
+      scope,
+      container.querySelector(".compose-foot .compose-send"),
+    ]);
+  });
+
+  it("shows a disabled send while awaiting a reply", () => {
+    const { container } = render(() => <Composer onSend={vi.fn()} disabled />);
+    expect(container.querySelector(".compose-send")).toBeDisabled();
+  });
+
   it("Enter sends the trimmed value and clears the input", () => {
     const { onSend } = renderComposer();
     const ta = screen.getByRole("textbox");

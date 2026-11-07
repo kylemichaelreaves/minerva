@@ -11,11 +11,7 @@ export interface ComposeFieldProps {
   sendLabel: string;
   hint: JSX.Element;
   disabled?: boolean;
-  /** Optional accessory row rendered between the textarea and the
-   *  hint/send footer — used on the landing for starter-prompt pills. */
-  accessory?: JSX.Element;
-  /** Optional element rendered inside the sticky wrap, above the input
-   *  box — used by the chat composer for the work-scope chip. */
+  /** Optional work-scope pill, rendered at the start of the footer. */
   scopeChip?: JSX.Element;
   /** True while the landing → chat transition runs (chat composer only). */
   entering?: boolean;
@@ -28,12 +24,12 @@ export default function ComposeField(props: ComposeFieldProps) {
   const isMobile = () => shell?.isMobile() ?? fallbackMobile();
   const wrapClass = () =>
     classnames(
-      isLanding() ? "landing-input-wrap" : "composer-wrap",
+      isLanding() ? "landing-input-wrap compose-card" : "composer-wrap",
       props.entering && "lt-entering",
     );
-  const innerClass = () => (isLanding() ? "" : "composer");
-  const inputClass = () => (isLanding() ? "landing-input" : "composer-input");
-  const footClass = () => (isLanding() ? "landing-input-foot" : "composer-foot");
+  const cardClass = () => (isLanding() ? undefined : "composer compose-card");
+  const inputClass = () =>
+    isLanding() ? "landing-input compose-input" : "composer-input compose-input";
 
   // Chat composer placeholder differs on mobile per design 2a:
   // "Reply to Minerva…" reads as a quoted invitation in the cramped
@@ -44,47 +40,39 @@ export default function ComposeField(props: ComposeFieldProps) {
     return isMobile() ? "Reply to Minerva…" : "Continue the enquiry…";
   };
 
-  return (
-    <div class={wrapClass()}>
-      {props.scopeChip}
-      <div class={innerClass()}>
-        <textarea
-          ref={props.c.setRef}
-          class={inputClass()}
-          placeholder={placeholder()}
-          value={props.c.value()}
-          disabled={props.disabled}
-          onInput={(e) => props.c.onInput(e)}
-          onKeyDown={(e) => props.c.onKeyDown(e)}
-          rows={1}
-          autofocus={isLanding()}
-        />
-        {props.accessory}
-        <div class={footClass()}>
-          {isLanding() ? (
-            <>
-              <span class="landing-input-hint">{props.hint}</span>
-              <button
-                class={classnames("send-btn", props.c.sendDisabled() && "disabled")}
-                onClick={props.c.send}
-              >
-                {props.sendLabel} <SendIcon />
-              </button>
-            </>
-          ) : (
-            <>
-              <div class="left">{props.hint}</div>
-              <button
-                class={classnames("send-btn", props.c.sendDisabled() && "disabled")}
-                onClick={props.c.send}
-                disabled={props.disabled}
-              >
-                {props.sendLabel} <SendIcon />
-              </button>
-            </>
-          )}
+  // One footer for both variants: scope pill + hint on the left, send on
+  // the right. The landing wrap is itself the card; the chat card sits
+  // inside the sticky `.composer-wrap`.
+  const body = (
+    <>
+      <textarea
+        ref={props.c.setRef}
+        class={inputClass()}
+        placeholder={placeholder()}
+        value={props.c.value()}
+        disabled={props.disabled}
+        onInput={(e) => props.c.onInput(e)}
+        onKeyDown={(e) => props.c.onKeyDown(e)}
+        rows={1}
+        autofocus={isLanding()}
+      />
+      <div class={classnames("compose-foot", isLanding() ? "landing-input-foot" : "composer-foot")}>
+        <div class="compose-foot__left">
+          {props.scopeChip}
+          {props.hint}
         </div>
+        <button
+          class={classnames("compose-send", props.c.sendDisabled() && "disabled")}
+          onClick={props.c.send}
+          disabled={props.disabled}
+        >
+          {props.sendLabel} <SendIcon />
+        </button>
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <div class={wrapClass()}>{isLanding() ? body : <div class={cardClass()}>{body}</div>}</div>
   );
 }

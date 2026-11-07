@@ -140,17 +140,17 @@ describe("<Landing />", () => {
       expect(screen.queryByTestId("scope-chip")).toBeNull();
     });
 
-    it("puts the chip above the input, not below it", () => {
-      // `ComposeField` renders `scopeChip` inside the sticky wrap above the
-      // box. Asserted by document order so a CSS-only reflow cannot make
-      // this pass while the chip reads as belonging to the mode row.
+    it("puts the scope pill in the footer, after the input", () => {
+      // Asserted by document order and ancestry so a CSS-only reflow cannot
+      // make this pass while the pill sits outside the footer.
       const { container } = renderLanding({
         scopeChip: <div data-testid="scope-chip">Das Kapital, Band I</div>,
       });
       const chip = screen.getByTestId("scope-chip");
       const input = container.querySelector(".landing-input");
       expect(input).not.toBeNull();
-      expect(chip.compareDocumentPosition(must(input))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(input?.compareDocumentPosition(chip)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(chip.closest(".compose-foot__left")).not.toBeNull();
     });
 
     it("still submits normally with a chip present", () => {
