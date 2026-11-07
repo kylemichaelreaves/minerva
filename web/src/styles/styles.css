@@ -29,6 +29,13 @@
   --selection: rgba(123, 46, 42, 0.18);
   --scroll-thumb: rgba(26, 23, 20, 0.22);
   --scroll-thumb-hover: rgba(26, 23, 20, 0.36);
+  /* Composer card (landing + chat). Contrast is asserted in
+     tests/composerTokens.test.ts: --ink and --ink-mute on --paper-raised,
+     and --on-accent on --accent, all >= 4.5:1.
+     Light measured: 8.09 (on-accent) / 16.84 (ink) / 5.58 (ink-mute). */
+  --paper-raised: #fbf8f2;
+  --on-accent: var(--paper);
+  --composer-shadow: 0 1px 0 var(--paper-edge), 0 16px 40px rgb(26 23 20 / 8%);
 
   --serif: "EB Garamond", "Hoefler Text", Garamond, "Times New Roman", serif;
   --sans: "Geist", "Söhne", "Helvetica Neue", Arial, sans-serif;
@@ -92,6 +99,11 @@
   --selection: rgba(201, 122, 101, 0.22);
   --scroll-thumb: rgba(226, 216, 196, 0.22);
   --scroll-thumb-hover: rgba(226, 216, 196, 0.36);
+  /* Composer card; contrast asserted in tests/composerTokens.test.ts.
+     Dark measured: 5.78 (on-accent) / 12.60 (ink) / 4.63 (ink-mute). */
+  --paper-raised: #1b1713;
+  --on-accent: var(--paper);
+  --composer-shadow: 0 1px 0 var(--rule-soft);
 
   color-scheme: dark;
 }
