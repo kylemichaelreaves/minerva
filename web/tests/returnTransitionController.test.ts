@@ -44,14 +44,18 @@ afterEach(() => {
 });
 
 describe("returnKeyframes", () => {
-  it("moves the composer's centre and top onto the box's, and its width", () => {
+  it("moves the composer's centre and top onto the box's, and its size", () => {
     const k = returnKeyframes(GEOMETRY);
-    // Centres: 300 + 420 = 720 → 380 + 340 = 720; tops 760 → 320.
+    // Centres: 300 + 420 = 720 → 380 + 340 = 720; bottoms 850 → 402 (the
+    // wrap is bottom-pinned, so at 82px tall that puts the top on 320).
     expect(k.wrap).toEqual([
       { transform: "translate(0px, 0px)" },
-      { transform: "translate(0px, -440px)" },
+      { transform: "translate(0px, -448px)" },
     ]);
-    expect(k.box).toEqual([{ maxWidth: "840px" }, { maxWidth: "680px" }]);
+    expect(k.box).toEqual([
+      { maxWidth: "840px", height: "90px" },
+      { maxWidth: "680px", height: "82px" },
+    ]);
   });
 });
 

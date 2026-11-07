@@ -424,13 +424,15 @@ test("from a scrolled chat the composer lands on the landing box", async ({ page
     if (!c || !b) throw new Error("no composer or no landing box");
     for (const a of document.getAnimations()) if (!before.has(a)) a.play();
     return {
-      c: { top: c.top, x: c.left + c.width / 2, w: c.width },
-      b: { top: b.top, x: b.left + b.width / 2, w: b.width },
+      c: { top: c.top, x: c.left + c.width / 2, w: c.width, h: c.height },
+      b: { top: b.top, x: b.left + b.width / 2, w: b.width, h: b.height },
     };
   });
   expect(Math.abs(lastFrame.c.top - lastFrame.b.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(lastFrame.c.x - lastFrame.b.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(lastFrame.c.w - lastFrame.b.w)).toBeLessThanOrEqual(1);
+  // …at the box's height too, or it steps on the last frame (#854).
+  expect(Math.abs(lastFrame.c.h - lastFrame.b.h)).toBeLessThanOrEqual(1);
 
   // …and the landing in flow puts its box exactly there: no jump on arrival.
   await expect(page.locator(".thread")).toHaveCount(0, { timeout: 1500 });
@@ -499,4 +501,219 @@ test("picking a conversation mid-return goes there, not to the landing", async (
   await page.waitForTimeout(900);
   await expect(page).toHaveURL(/c-old/);
   expect(await page.locator(".composer-wrap").getAttribute("inert")).toBeNull();
+});
+
+// ---------- Frame-level polish (#854) ----------
+// Each of these freezes the flight: every animation started by Enter is
+// paused in the first frame the ghost exists, then seeked. Exact frames, not
+// timed samples, so a slow runner cannot move the numbers.
+
+interface Frozen {
+  __before: Set<Animation>;
+}
+
+/** Presses `key` and pauses every new animation in the first frame `when`
+ *  matches (the ghost, by default) — inside the page, so no round trip can
+ *  let it run on. */
+async function pressFrozen(page: Page, key = "Enter", when = ".lift-ghost") {
+  await page.evaluate(() => {
+    (window as unknown as Frozen).__before = new Set(document.getAnimations());
+  });
+  await page.keyboard.press(key);
+  await page.waitForFunction(
+    (when) => {
+      if (!document.querySelector(when)) return false;
+      const before = (window as unknown as Frozen).__before;
+      for (const a of document.getAnimations()) if (!before.has(a)) a.pause();
+      return true;
+    },
+    when,
+    { polling: "raf", timeout: 2000 },
+  );
+}
+
+/** Seeks every animation the press started to `t` ms. */
+const seekTo = (page: Page, t: number) =>
+  page.evaluate((t) => {
+    const before = (window as unknown as Frozen).__before;
+    for (const a of document.getAnimations()) {
+      if (before.has(a)) continue;
+      a.pause();
+      a.currentTime = t;
+    }
+  }, t);
+
+/** The element's rect, read in the page (no actionability waits). */
+async function boxOf(page: Page, selector: string) {
+  const b = await page.evaluate((s) => {
+    const r = document.querySelector(s)?.getBoundingClientRect();
+    return r ? { x: r.left, y: r.top, width: r.width, height: r.height } : null;
+  }, selector);
+  if (!b) throw new Error(`${selector} has no box`);
+  return b;
+}
+
+async function fillLanding(page: Page, text: string) {
+  await page.goto("/");
+  const box = page.getByPlaceholder("What would you like to consider?");
+  await box.fill(text);
+  await box.focus();
+  await landingSettled(page);
+}
+
+/** The landing's own 480ms on-load fade-in drifts it a few px; a rect read
+ *  before it ends is not where the landing rests. */
+const landingSettled = (page: Page) =>
+  page.waitForFunction(() =>
+    document
+      .querySelector(".landing")
+      ?.getAnimations()
+      .every((a) => a.playState === "finished"),
+  );
+
+const lines = (n: number) =>
+  Array.from({ length: n }, (_, i) => `Line ${i + 1} of a question.`).join("\n");
+
+test("the turn's label has finished fading in when the flight lands", async ({ page }) => {
+  await holdChat(page);
+  await fillLanding(page, QUESTION);
+  await pressFrozen(page);
+  // The last frame before the phase drops and the label's own style takes over.
+  await seekTo(page, 649);
+  const opacity = await page
+    .locator(".thread .turn-user .turn-meta")
+    .evaluate((m) => Number(getComputedStyle(m).opacity));
+  expect(opacity).toBeGreaterThan(0.99);
+});
+
+for (const n of [1, 20]) {
+  test(`the composer box starts at the landing box's height (${n} lines)`, async ({ page }) => {
+    await holdChat(page);
+    await fillLanding(page, lines(n));
+    const landing = await boxOf(page, ".landing-input-wrap");
+    await pressFrozen(page);
+    await seekTo(page, 0);
+    const first = await boxOf(page, ".composer");
+    expect(Math.abs(first.y - landing.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(first.height - landing.height)).toBeLessThanOrEqual(1);
+  });
+}
+
+test("the leaving landing keeps its height, so nothing on it jumps", async ({ page }) => {
+  // Twenty lines make the landing taller than the 900px viewport, and the
+  // chat it is swapped for is not.
+  await holdChat(page);
+  await fillLanding(page, lines(20));
+  const before = await boxOf(page, ".landing-atlas");
+  await pressFrozen(page);
+  await seekTo(page, 0);
+  const first = await boxOf(page, ".landing-atlas");
+  expect(Math.abs(first.y - before.y)).toBeLessThanOrEqual(1);
+});
+
+/** The flight's transient state, read once. */
+const flightState = (page: Page) =>
+  page.evaluate(() => ({
+    ghosts: document.querySelectorAll(".lift-ghost").length,
+    leaving: document.querySelectorAll(".landing.is-leaving").length,
+    timing: document.documentElement.style.getPropertyValue("--lt-d"),
+  }));
+
+test("resizing the window mid-flight cuts to the landed chat", async ({ page }) => {
+  await holdChat(page);
+  await fillLanding(page, QUESTION);
+  await pressFrozen(page);
+  await seekTo(page, 200);
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.waitForFunction(() => !document.querySelector(".lift-ghost"), undefined, {
+    polling: "raf",
+    timeout: 500,
+  });
+  expect(await flightState(page)).toEqual({ ghosts: 0, leaving: 0, timing: "" });
+  await expectTurnAlignedWithComposer(page);
+});
+
+test("a height-only resize (a phone keyboard) does not cut the flight", async ({ page }) => {
+  await holdChat(page);
+  await fillLanding(page, QUESTION);
+  await pressFrozen(page);
+  await seekTo(page, 200);
+  await page.setViewportSize({ width: 1440, height: 700 });
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  expect(await flightState(page)).toMatchObject({ ghosts: 1, leaving: 1 });
+});
+
+test("toggling the theme mid-flight cuts to the landed chat", async ({ page }) => {
+  await holdChat(page);
+  await fillLanding(page, QUESTION);
+  await pressFrozen(page);
+  await seekTo(page, 400);
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: /^Switch to/ })
+    .evaluate((b) => {
+      (b as HTMLButtonElement).click();
+    });
+  expect(await flightState(page)).toEqual({ ghosts: 0, leaving: 0, timing: "" });
+});
+
+test("a work scope's chip travels from the landing's chip", async ({ page, request }) => {
+  await holdChat(page);
+  // A landing arrived at from a work carries its scope (#350): open the
+  // Reader and Escape out of it.
+  const res = await request.get("/api/works");
+  const works = (await res.json()) as { works: { work: string; lang: string }[] };
+  const first = works.works[0];
+  if (!first) throw new Error("/api/works returned no works — the fixture index is empty.");
+  await page.goto(`/#/r/${encodeURIComponent(first.work)}?lang=${encodeURIComponent(first.lang)}`);
+  await page.locator("[data-chunk-id]").first().waitFor();
+  await page.keyboard.press("Escape");
+  const box = page.getByPlaceholder("What would you like to consider?");
+  await expect(page.locator(".landing .chat-scope-control")).toBeVisible();
+  await box.fill(QUESTION);
+  await box.focus();
+  await landingSettled(page);
+  const landingChip = await boxOf(page, ".landing .chat-scope-control");
+
+  await pressFrozen(page);
+  await seekTo(page, 0);
+  const chip = page.locator(".composer-wrap .chat-scope-control");
+  const first0 = await boxOf(page, ".composer-wrap .chat-scope-control");
+  expect(Math.abs(first0.x - landingChip.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(first0.y - landingChip.y)).toBeLessThanOrEqual(1);
+  expect(await chip.evaluate((c) => Number(getComputedStyle(c).opacity))).toBe(1);
+  // …and painted, not under the composer box it starts inside of.
+  const onTop = await chip.evaluate((c) => {
+    const r = c.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit !== null && c.contains(hit);
+  });
+  expect(onTop).toBe(true);
+});
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  const ruleColor = (page: Page) =>
+    page.locator(".composer-wrap").evaluate((w) => getComputedStyle(w).borderTopColor);
+
+  test("no hairline crosses the screen on the first frame", async ({ page }) => {
+    await holdChat(page);
+    await fillLanding(page, QUESTION);
+    await pressFrozen(page);
+    await seekTo(page, 0);
+    expect(await ruleColor(page)).toBe("rgba(0, 0, 0, 0)");
+  });
+
+  test("…nor while the composer travels back down to the landing", async ({ page }) => {
+    await settledChat(page);
+    const rest = await ruleColor(page);
+    expect(rest).not.toBe("rgba(0, 0, 0, 0)");
+    await pressFrozen(page, "Escape", ".landing.is-arriving");
+    // The two frames the hairline was seen in.
+    for (const t of [325, 490]) {
+      await seekTo(page, t);
+      expect(await ruleColor(page)).toBe("rgba(0, 0, 0, 0)");
+    }
+  });
 });

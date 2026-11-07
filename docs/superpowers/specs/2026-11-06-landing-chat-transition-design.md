@@ -57,10 +57,10 @@ settle curve); they are the acceptance reference for "feel":
 
 | Element | Moves | Opacity | Timing |
 |---|---|---|---|
-| Composer box | straight down to the chat composer's slot; widens to it | — | top/left/width over D, E |
+| Composer box | straight down to the chat composer's slot; widens to it, and takes its height (built: the landing box is 86px for one line and up to 376px for a long question, the composer 109px; #854) | — | top/left/width/height over D, E |
 | Question text | from the textarea's text origin straight to the first user turn's body; 17px/1.45 → 18px/1.55, `--ink` → `--ink-soft`; **reflows live as its width changes** (it is real text, not a scaled image) | shown at its origin on frame 0 | over D, E |
 | User-turn left rule | — | transparent → `--ink` | 0.35D, starting at 0.65D |
-| User-turn meta label | — | 0 → 1 | 240ms, starting at 0.8D |
+| User-turn meta label | — | 0 → 1 | 0.35D, starting at 0.65D (built; the prototype's "240ms at 0.8D" ends at 1.17D, after the flight, and popped to full opacity when it did — #854) |
 | Owl | up 18px, scale .96 | 1 → 0 | opacity 0.45D ease; transform 0.7D E |
 | Mode row (+ aside) | down 28px | 1 → 0 | same |
 | Atlas | down 44px | 1 → 0 | same |
@@ -258,8 +258,8 @@ empty landing, the same destination as "New conversation"
   composer, and while any other field has focus.
 - **Choreography** (fractions of D = 650ms). The thread fades out over
   0–.45, the topbar and the composer's footer and scope chip over 0–.35.
-  The real composer slides down into the landing box (translate +
-  `max-width`, the inverse of the forward FLIP). The landing mounts at
+  The real composer slides down into the landing box (translate,
+  `max-width` and `height`, the inverse of the forward FLIP). The landing mounts at
   once as an inert layer and its furniture drifts back from the offsets it
   left by: fade .55–1, drift .3–1. Nothing flies back with the question.
 - **The layer is `position: fixed`** at the spot where `.main` starts at
@@ -271,3 +271,21 @@ empty landing, the same destination as "New conversation"
   fades out (180ms). **No WAAPI / nothing to measure:** an instant swap.
 - A sidebar pick or New conversation mid-return ends it without
   navigating on top.
+
+## Addendum: frame-level polish (#854, 2026-11-07)
+
+- **The composer FLIP carries height too,** and its translate aligns
+  *bottoms*: the composer wrap is pinned to the bottom of the page, so a
+  height change moves the box's top. (Aligning tops with a height animation
+  put the box 22–268px off on frame 0.) Both directions.
+- **The leaving layer keeps the landing's height,** measured in flow before
+  the swap (`--lt-leave-h`). As `inset: 0` alone it took `.main`'s post-swap
+  height and a landing taller than the viewport reflowed on frame 0.
+- **A resize or a theme change mid-flight cuts** to the landed chat. The
+  flight's ends are measured once, in px and computed colours.
+- **A scoped landing's chip travels:** the chat's chip starts on the
+  landing's (inside the box, painted over it) and slides to its place above
+  the composer. An unscoped landing still fades the chat's "scope to a work"
+  control in from 0.5D.
+- **Phone:** the composer wrap's top rule fades in with the footer, and out
+  with it on the return, instead of travelling as a full-width hairline.
