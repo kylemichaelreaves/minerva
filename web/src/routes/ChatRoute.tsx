@@ -50,6 +50,12 @@ export function ChatRoute(props: RouteContextProps) {
     if (ok && !wouldDropInput()) back.begin(c.newConversation);
   });
   const returning = () => back.phase() !== "idle";
+  // The scope both pills show. Unscoped while returning: "New conversation"
+  // clears the scope on arrival, so a scoped pill would ride into the landing
+  // slot and flip to "All works" at the end. The chat composer's pill is the
+  // one the user sees travel (the landing box is hidden throughout), so both
+  // read this, and the flip happens on the first frame instead.
+  const shownScope = () => (returning() ? null : props.conversations.chatScope());
 
   // Leaving mid-flight drops the flight: "New conversation" brings the
   // landing back, a sidebar pick starts hydrating another conversation.
@@ -110,7 +116,7 @@ export function ChatRoute(props: RouteContextProps) {
           entering={lifting()}
           scopeChip={
             <WorkScopeControl
-              scope={props.conversations.chatScope}
+              scope={shownScope}
               works={props.reader.works}
               ensureWorks={props.reader.ensureWorks}
               onSet={props.conversations.setChatScope}
@@ -134,11 +140,9 @@ export function ChatRoute(props: RouteContextProps) {
           scopeChip={
             // Always on, like the chat composer's: "All works" when
             // unscoped, the work's title when a work was carried out of the
-            // Reader (#350). Unscoped while returning: "New conversation"
-            // clears the scope on arrival, so the scoped pill would flip to
-            // "All works" at the end; this shows it from the first frame.
+            // Reader (#350).
             <WorkScopeControl
-              scope={() => (returning() ? null : props.conversations.chatScope())}
+              scope={shownScope}
               works={props.reader.works}
               ensureWorks={props.reader.ensureWorks}
               onSet={props.conversations.setChatScope}

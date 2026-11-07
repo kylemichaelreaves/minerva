@@ -220,8 +220,12 @@ as the box descends.
 - **Scope pill.** It sits in the footer inside the box on both ends, so it
   rides with the box (superseded the earlier "inside the box on the landing,
   above `.composer` in chat" placement; see the composer-card addendum).
-- **Below 1280px**, `--col` is 680px — the same as the landing box — so
-  the box does not widen there; it only moves.
+- **Below 1280px**, `--col` is 680px. (This used to be "the same as the
+  landing box, so the box does not widen there; it only moves". Since the
+  composer card the landing box is `min(720px, 100%)`, so below 1280px the
+  box *narrows* to the chat column as it moves — 720 → 680px — and between
+  the phone breakpoint and ~1064px, with the sidebar open, it is narrower
+  still, sized to the landing's column.)
 - **Mobile.** The atlas sits *above* the owl in the mobile layout, and
   `MobileTopBar` replaces the landing header; "owl up, rest down" is
   re-tuned for that order rather than copied.
@@ -314,6 +318,15 @@ title scoped). That replaces the chip choreography above:
 - **The footer stays visible** through the lift and the return; there is no
   footer or chip fade. Only the placeholder still goes transparent while the
   ghost leaves through the box.
-- **The landing always shows the pill.** On the return it reads "All works"
-  from the first frame: "New conversation" clears the scope on arrival, so
-  showing the scoped title on the way would flip at the end.
+- **Both pills read "All works" for the whole return.** "New conversation"
+  clears the scope on arrival, so showing the scoped title on the way would
+  flip at the end. That goes for the chat composer's pill above all: it is
+  the one the user sees travel, since the landing box is hidden throughout
+  (`.landing.is-arriving .landing-input-wrap`). One accessor in
+  `ChatRoute.tsx` (`shownScope`) feeds both.
+- **The return cuts the copy at the end,** as the lift cuts it at the start.
+  What travels is the chat composer, so it carries the chat's copy (*Send*,
+  `Enter send` / `⇧ Enter new line`) all the way down; the landing's
+  (*Begin*, `↵ begin` / `⇧ ↵ new line`, its placeholder) appears in one frame
+  when the chat unmounts and the landing box takes its place. There is no
+  crossfade in either direction.

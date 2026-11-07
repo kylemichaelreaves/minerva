@@ -698,13 +698,16 @@ test("the scope pill rides inside the box", async ({ page, request }) => {
   expect(opacity).toBe(1);
 });
 
-/** Runs in the page: the landing pill's accessible name, or null when there
- *  is no landing pill. With `when`, null until that selector matches. */
-function landingPillName(when: string | null) {
+/** Runs in the page: each composer's pill by accessible name — the chat's
+ *  (`.composer`) and the landing's — "absent" for one not mounted. With
+ *  `when`, null until that selector matches. */
+function pillNames(when: string | null) {
   if (when !== null && !document.querySelector(when)) return null;
-  return (
-    document.querySelector(".landing .chat-scope__pill")?.getAttribute("aria-label") ?? "absent"
-  );
+  const name = (sel: string) => document.querySelector(sel)?.getAttribute("aria-label") ?? "absent";
+  return {
+    chat: name(".composer .chat-scope__pill"),
+    landing: name(".landing .chat-scope__pill"),
+  };
 }
 
 test("a scoped chat returns to an 'All works' landing without a flip", async ({
@@ -722,13 +725,20 @@ test("a scoped chat returns to an 'All works' landing without a flip", async ({
 
   await page.keyboard.press("Escape");
   // Read once, in the return's first frame — never auto-retried, which would
-  // wait out a scoped pill until it cleared itself.
-  const first = await page.waitForFunction(landingPillName, ".landing.is-arriving", {
+  // wait out a scoped pill until it cleared itself. The chat composer's pill
+  // is the one the user sees travel: the landing box is hidden throughout.
+  const first = await page.waitForFunction(pillNames, ".landing.is-arriving", {
     polling: "raf",
     timeout: 2000,
   });
-  expect(await first.jsonValue()).toBe("Scope: All works");
+  expect(await first.jsonValue()).toEqual({
+    chat: "Scope: All works",
+    landing: "Scope: All works",
+  });
 
   await expect(page.locator(".thread")).toHaveCount(0, { timeout: 1500 });
-  expect(await page.evaluate(landingPillName, null)).toBe("Scope: All works");
+  expect(await page.evaluate(pillNames, null)).toEqual({
+    chat: "absent",
+    landing: "Scope: All works",
+  });
 });
