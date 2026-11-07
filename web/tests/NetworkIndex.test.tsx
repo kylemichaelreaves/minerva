@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchNetworkSummary, type NetworkAuthor } from "~/api/networkApi";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import Network from "~/Network";
+import { fakeMediaQueryList } from "./helpers/matchMedia";
 import { makeNetworkSummary } from "./helpers/networkSummary";
 
 vi.mock("~/api/networkApi", async (importOriginal) => ({
@@ -26,16 +27,9 @@ afterEach(() => {
 });
 
 function forceMobile() {
-  vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
-    matches: true,
-    media: query,
-    onchange: null,
-    addListener: () => undefined,
-    removeListener: () => undefined,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    dispatchEvent: () => false,
-  }));
+  vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
+    fakeMediaQueryList(query, true),
+  );
 }
 
 function mount(initialConf?: number) {
