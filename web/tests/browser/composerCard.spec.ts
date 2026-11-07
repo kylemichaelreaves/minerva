@@ -85,6 +85,33 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+// Between the phone breakpoint and ~1064px the 280px sidebar and the
+// landing's padding leave less than 720px: the card must shrink to fit.
+test.describe("on a narrow desktop", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  test("the landing card stays inside the landing's column with the sidebar open", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator(".sidebar")).toBeVisible();
+    const card = await page.locator(".landing-input-wrap").boundingBox();
+    // The landing's content box: a centred card too wide for it bleeds into
+    // its 32px padding on both sides before it passes the border box.
+    const landing = await page.locator(".landing").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        left: r.left + parseFloat(cs.paddingLeft),
+        right: r.right - parseFloat(cs.paddingRight),
+      };
+    });
+    if (!card) throw new Error("card has no box");
+    expect(card.x).toBeGreaterThanOrEqual(landing.left);
+    expect(card.x + card.width).toBeLessThanOrEqual(landing.right);
+  });
+});
+
 // ---- Phones ---------------------------------------------------------------
 // The card is the same card at 390px, with 12px gutters; send shrinks to a
 // 44px arrow-only circle (named by its label), and a long work title
@@ -155,12 +182,24 @@ test.describe("on a phone", () => {
     expect(send.x + send.width).toBeLessThanOrEqual(card.x + card.width);
   });
 
-  test("phone: the scope picker fits on screen", async ({ page }) => {
-    await phoneChat(page);
-    await page.getByRole("button", { name: "Scope: All works" }).click();
-    const pop = await page.locator(".chat-scope-pop").boundingBox();
-    if (!pop) throw new Error("picker has no box");
-    expect(pop.x).toBeGreaterThanOrEqual(0);
-    expect(pop.x + pop.width).toBeLessThanOrEqual(390);
-  });
+  // "On screen" alone cannot see the phone rules: the desktop picker's
+  // `max-width: 90vw`, anchored at the pill, also stays on screen (measured:
+  // right edge 386 of 390, 318 of 320, 278 of 280), and only overhangs the
+  // card. Inside the card is what the re-anchoring buys, so assert that too.
+  for (const width of [390, 320]) {
+    test(`phone: the scope picker fits on screen and inside the card at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: width === 320 ? 700 : 844 });
+      await phoneChat(page);
+      await page.getByRole("button", { name: "Scope: All works" }).click();
+      const pop = await page.locator(".chat-scope-pop").boundingBox();
+      const card = await page.locator(".composer").boundingBox();
+      if (!pop || !card) throw new Error("picker or card has no box");
+      expect(pop.x).toBeGreaterThanOrEqual(0);
+      expect(pop.x + pop.width).toBeLessThanOrEqual(width);
+      expect(pop.x).toBeGreaterThanOrEqual(card.x);
+      expect(pop.x + pop.width).toBeLessThanOrEqual(card.x + card.width);
+    });
+  }
 });

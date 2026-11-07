@@ -612,8 +612,9 @@
   .chat-scope__pill {
     max-width: 18ch;
   }
-  /* The picker anchors to the card, not the pill: the card is 12px from
-     each screen edge, so the picker spans it and cannot overflow. */
+  /* The picker anchors to the card, not the pill, 12px inside each of its
+     edges, so it cannot overhang the card (anchored at the pill, the
+     desktop rule's 90vw overhangs it by ~25px, though it stays on screen). */
   .chat-scope-control {
     position: static;
   }
