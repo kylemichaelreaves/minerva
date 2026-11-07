@@ -16,7 +16,7 @@
 // clears the thread) runs only once the flight has settled.
 
 import { createSignal, type Accessor } from "solid-js";
-import type { Rect } from "~/features/LandingTransition/flight";
+import { settleOffset, type Rect } from "~/features/LandingTransition/flight";
 import {
   FADE_MS,
   GRACE_MS,
@@ -47,14 +47,17 @@ export interface ReturnEnv {
 }
 
 /** Keyframes for the chat composer's slide into the landing box: its centre
- *  onto the box's centre, its top onto the box's top, its width onto the
- *  box's. The inverse of `composerKeyframes`. */
+ *  onto the box's centre, its width and height onto the box's, and — the
+ *  wrap being bottom-pinned — its bottom onto the box's bottom. The inverse
+ *  of `composerKeyframes`. */
 export function returnKeyframes(g: ReturnGeometry): { wrap: Keyframe[]; box: Keyframe[] } {
-  const dx = g.box.left + g.box.width / 2 - (g.composer.left + g.composer.width / 2);
-  const dy = g.box.top - g.composer.top;
+  const { dx, dy } = settleOffset(g.box, g.composer);
   return {
     wrap: [{ transform: "translate(0px, 0px)" }, { transform: `translate(${dx}px, ${dy}px)` }],
-    box: [{ maxWidth: `${g.composer.width}px` }, { maxWidth: `${g.box.width}px` }],
+    box: [
+      { maxWidth: `${g.composer.width}px`, height: `${g.composer.height}px` },
+      { maxWidth: `${g.box.width}px`, height: `${g.box.height}px` },
+    ],
   };
 }
 

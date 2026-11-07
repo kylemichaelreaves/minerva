@@ -44,7 +44,13 @@ export interface TransitionEnv {
   measureOrigin(): FlightOrigin | null;
   measureTarget(): FlightTarget | null;
   play(o: FlightOrigin, t: FlightTarget): Flight;
-  setTiming(on: boolean): void;
+  /** Before the swap: sets the timing, and pins the leaving layer to the
+   *  landing's height (or clears both). */
+  setStage(on: boolean): void;
+  /** Calls `interrupted` when the flight's measurements go stale — the
+   *  viewport resizes or the theme changes — until the returned function is
+   *  called. */
+  watchInterrupts(interrupted: () => void): () => void;
 }
 
 function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
@@ -60,6 +66,7 @@ function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
   const travel: KeyframeAnimationOptions = { duration: LIFT_MS, easing: SETTLE_EASE, fill: "both" };
   const wrap = document.querySelector<HTMLElement>(".composer-wrap");
   const composer = document.querySelector<HTMLElement>(".composer");
+  const chip = document.querySelector<HTMLElement>(".composer-wrap .chat-scope-control");
   const anims: Animation[] = [];
   const undo = () => {
     for (const a of anims) a.cancel();
@@ -77,6 +84,7 @@ function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
     );
     if (wrap) anims.push(wrap.animate(c.wrap, travel));
     if (composer) anims.push(composer.animate(c.box, travel));
+    if (chip && c.chip) anims.push(chip.animate(c.chip, travel));
   } catch (err) {
     // The controller will cut; nothing of the half-started flight may stay
     // behind — least of all a fixed ghost holding the question.
@@ -99,25 +107,55 @@ export function defaultEnv(): TransitionEnv {
     measureOrigin: () => {
       const ta = document.querySelector<HTMLTextAreaElement>(".landing-input");
       const box = document.querySelector<HTMLElement>(".landing-input-wrap");
-      return ta && box ? measureOrigin(ta, box) : null;
+      const chip = box?.querySelector(".chat-scope-control");
+      return ta && box ? measureOrigin(ta, box, chip) : null;
     },
     measureTarget: () => {
       // The landing submit makes a one-turn thread, so the first match is
       // the turn the question lands in.
       const body = document.querySelector<HTMLElement>(".turn-user-inner .turn-body");
       const composer = document.querySelector<HTMLElement>(".composer");
-      return body && composer ? measureTarget(body, composer) : null;
+      const chip = document.querySelector(".composer-wrap .chat-scope-control");
+      return body && composer ? measureTarget(body, composer, chip) : null;
     },
     play: playFlight,
-    setTiming: (on) => {
+    setStage: (on) => {
       const s = document.documentElement.style;
       if (on) {
         s.setProperty("--lt-d", `${LIFT_MS}ms`);
         s.setProperty("--lt-ease", SETTLE_EASE);
+        // Still in flow, before the swap. As a layer it is `inset: 0` on
+        // `.main`, which shrinks to the chat's height the moment the chat
+        // mounts; a landing taller than the viewport would reflow and its
+        // atlas jump up on frame 0.
+        const landing = document.querySelector(".landing");
+        if (landing) s.setProperty("--lt-leave-h", `${landing.getBoundingClientRect().height}px`);
       } else {
-        s.removeProperty("--lt-d");
-        s.removeProperty("--lt-ease");
+        for (const v of ["--lt-d", "--lt-ease", "--lt-leave-h"]) s.removeProperty(v);
       }
+    },
+    watchInterrupts: (interrupted) => {
+      // The flight's ends are measured once, in px and computed colours, so
+      // a resize leaves the ghost aimed at the old target and a theme toggle
+      // leaves it in the old theme. Both are rare mid-flight; cut.
+      // Width only: a phone's keyboard opening or closing changes the
+      // height alone, which moves nothing the ghost is aimed at (the turn
+      // sits at the top, and the composer's FLIP is relative to wherever
+      // its wrap now is) — and cutting there would cut most phone flights.
+      const width = window.innerWidth;
+      const onResize = () => {
+        if (window.innerWidth !== width) interrupted();
+      };
+      const themes = new MutationObserver(interrupted);
+      themes.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
+      window.addEventListener("resize", onResize);
+      return () => {
+        themes.disconnect();
+        window.removeEventListener("resize", onResize);
+      };
     },
   };
 }
@@ -140,15 +178,18 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
   const [phase, setPhase] = createSignal<Phase>("idle");
   let flight: Flight | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let unwatch: (() => void) | undefined;
 
   function end() {
     clearTimeout(timer);
     timer = undefined;
+    unwatch?.();
+    unwatch = undefined;
     const running = flight;
     flight = null;
     // Same task: the phase drop reveals the real body as the ghost goes.
     setPhase("idle");
-    env.setTiming(false);
+    env.setStage(false);
     running?.cancel();
   }
 
@@ -163,7 +204,7 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
 
   function beginFade(text: string, send: (text: string) => void) {
     setPhase("fade");
-    env.setTiming(true);
+    env.setStage(true);
     sendOrEnd(text, send);
     timer = setTimeout(end, FADE_MS);
   }
@@ -175,7 +216,7 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
       return;
     }
     setPhase("lift");
-    env.setTiming(true);
+    env.setStage(true);
     sendOrEnd(text, send);
 
     const target = attempt(() => env.measureTarget());
@@ -185,6 +226,7 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
       return;
     }
     flight = started;
+    unwatch = env.watchInterrupts(end);
     timer = setTimeout(end, LIFT_MS + GRACE_MS);
     const settle = () => {
       if (flight === started) end();

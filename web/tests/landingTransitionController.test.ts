@@ -25,15 +25,21 @@ function fakeEnv(over: Partial<TransitionEnv> = {}) {
   const done = deferred();
   const cancel = vi.fn();
   const flight: Flight = { finished: done.promise, cancel };
+  const interrupt: { fire: () => void } = { fire: () => undefined };
+  const unwatch = vi.fn();
   const env = {
     reducedMotion: vi.fn<TransitionEnv["reducedMotion"]>(over.reducedMotion ?? (() => false)),
     canAnimate: vi.fn<TransitionEnv["canAnimate"]>(over.canAnimate ?? (() => true)),
     measureOrigin: vi.fn<TransitionEnv["measureOrigin"]>(over.measureOrigin ?? (() => ORIGIN)),
     measureTarget: vi.fn<TransitionEnv["measureTarget"]>(over.measureTarget ?? (() => TARGET)),
     play: vi.fn<TransitionEnv["play"]>(over.play ?? (() => flight)),
-    setTiming: vi.fn<TransitionEnv["setTiming"]>(),
+    setStage: vi.fn<TransitionEnv["setStage"]>(),
+    watchInterrupts: vi.fn<TransitionEnv["watchInterrupts"]>((cb) => {
+      interrupt.fire = cb;
+      return unwatch;
+    }),
   };
-  return { env, cancel, done };
+  return { env, cancel, done, interrupt, unwatch };
 }
 
 beforeEach(() => {
@@ -57,7 +63,7 @@ describe("createLandingTransition", () => {
 
     vi.advanceTimersByTime(FADE_MS);
     expect(t.phase()).toBe("idle");
-    expect(env.setTiming.mock.calls).toEqual([[true], [false]]);
+    expect(env.setStage.mock.calls).toEqual([[true], [false]]);
   });
 
   it("cuts when the browser cannot animate", () => {
@@ -69,7 +75,7 @@ describe("createLandingTransition", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(t.phase()).toBe("idle");
     expect(env.play).not.toHaveBeenCalled();
-    expect(env.setTiming).not.toHaveBeenCalled();
+    expect(env.setStage).not.toHaveBeenCalled();
   });
 
   it("lifts: measures the origin before sending and the target after", () => {
@@ -86,7 +92,7 @@ describe("createLandingTransition", () => {
     expect(order(env.measureTarget)).toBeLessThan(order(env.play));
     expect(env.play).toHaveBeenCalledWith(ORIGIN, TARGET);
     expect(t.phase()).toBe("lift");
-    expect(env.setTiming).toHaveBeenCalledWith(true);
+    expect(env.setStage).toHaveBeenCalledWith(true);
   });
 
   it("ends the lift when the flight finishes", async () => {
@@ -98,7 +104,7 @@ describe("createLandingTransition", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(t.phase()).toBe("idle");
-    expect(env.setTiming).toHaveBeenLastCalledWith(false);
+    expect(env.setStage).toHaveBeenLastCalledWith(false);
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -147,7 +153,7 @@ describe("createLandingTransition", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(t.phase()).toBe("idle");
     expect(env.measureTarget).not.toHaveBeenCalled();
-    expect(env.setTiming).not.toHaveBeenCalled();
+    expect(env.setStage).not.toHaveBeenCalled();
   });
 
   it("degrades to a cut when there is no target to land on", () => {
@@ -159,7 +165,7 @@ describe("createLandingTransition", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(t.phase()).toBe("idle");
     expect(env.play).not.toHaveBeenCalled();
-    expect(env.setTiming).toHaveBeenLastCalledWith(false);
+    expect(env.setStage).toHaveBeenLastCalledWith(false);
   });
 
   it("degrades to a cut, sending once, when play throws", () => {
@@ -203,7 +209,7 @@ describe("createLandingTransition", () => {
       }),
     ).toThrow("send failed");
     expect(t.phase()).toBe("idle");
-    expect(env.setTiming).toHaveBeenLastCalledWith(false);
+    expect(env.setStage).toHaveBeenLastCalledWith(false);
   });
 
   it("cancel mid-flight stops it for good", () => {
@@ -218,7 +224,35 @@ describe("createLandingTransition", () => {
     vi.advanceTimersByTime(LIFT_MS + GRACE_MS);
     t.cancel();
     expect(cancel).toHaveBeenCalledOnce();
-    expect(env.setTiming.mock.calls).toEqual([[true], [false]]);
+    expect(env.setStage.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("cuts when the viewport or theme changes mid-flight", () => {
+    const { env, cancel, interrupt, unwatch } = fakeEnv();
+    const t = createLandingTransition(env);
+    t.begin("Q", vi.fn());
+    expect(env.watchInterrupts).toHaveBeenCalledOnce();
+
+    interrupt.fire();
+    expect(t.phase()).toBe("idle");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(unwatch).toHaveBeenCalledOnce();
+    expect(env.setStage.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("stops watching once the flight lands", async () => {
+    const { env, done, unwatch } = fakeEnv();
+    createLandingTransition(env).begin("Q", vi.fn());
+
+    done.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unwatch).toHaveBeenCalledOnce();
+  });
+
+  it("watches nothing under reduced motion: nothing is aimed", () => {
+    const { env } = fakeEnv({ reducedMotion: vi.fn(() => true) });
+    createLandingTransition(env).begin("Q", vi.fn());
+    expect(env.watchInterrupts).not.toHaveBeenCalled();
   });
 
   it("cancel mid-fade stops it for good", () => {
@@ -229,7 +263,7 @@ describe("createLandingTransition", () => {
     t.cancel();
     expect(t.phase()).toBe("idle");
     vi.advanceTimersByTime(FADE_MS);
-    expect(env.setTiming.mock.calls).toEqual([[true], [false]]);
+    expect(env.setStage.mock.calls).toEqual([[true], [false]]);
   });
 });
 
@@ -238,6 +272,8 @@ describe("defaultEnv", () => {
     document.body.innerHTML = "";
     document.documentElement.style.removeProperty("--lt-d");
     document.documentElement.style.removeProperty("--lt-ease");
+    document.documentElement.style.removeProperty("--lt-leave-h");
+    document.documentElement.removeAttribute("data-theme");
   });
 
   function mountLandingAndChat() {
@@ -266,13 +302,58 @@ describe("defaultEnv", () => {
 
   it("sets and clears the timing custom properties on the root", () => {
     const env = defaultEnv();
-    env.setTiming(true);
+    env.setStage(true);
     const s = document.documentElement.style;
     expect(s.getPropertyValue("--lt-d")).toBe(`${LIFT_MS}ms`);
     expect(s.getPropertyValue("--lt-ease")).toBe("cubic-bezier(.2,.7,.1,1)");
-    env.setTiming(false);
+    // No landing to measure: the layer keeps its `inset: 0` height.
+    expect(s.getPropertyValue("--lt-leave-h")).toBe("");
+    env.setStage(false);
     expect(s.getPropertyValue("--lt-d")).toBe("");
     expect(s.getPropertyValue("--lt-ease")).toBe("");
+  });
+
+  it("pins the leaving layer to the landing's height before the swap", () => {
+    document.body.innerHTML = `<div class="landing"></div>`;
+    const landing = document.querySelector(".landing");
+    if (!landing) throw new Error("no landing");
+    vi.spyOn(landing, "getBoundingClientRect").mockReturnValue({
+      height: 982,
+    } as DOMRect);
+    const env = defaultEnv();
+    const s = document.documentElement.style;
+
+    env.setStage(true);
+    expect(s.getPropertyValue("--lt-leave-h")).toBe("982px");
+    env.setStage(false);
+    expect(s.getPropertyValue("--lt-leave-h")).toBe("");
+  });
+
+  it("reports a change of width or theme until unwatched", async () => {
+    const hit = vi.fn();
+    const unwatch = defaultEnv().watchInterrupts(hit);
+
+    // Height alone (a phone keyboard) is not an interrupt.
+    window.dispatchEvent(new Event("resize"));
+    expect(hit).not.toHaveBeenCalled();
+    vi.stubGlobal("innerWidth", window.innerWidth - 100);
+    window.dispatchEvent(new Event("resize"));
+    expect(hit).toHaveBeenCalledTimes(1);
+    document.documentElement.setAttribute("data-theme", "dark");
+    await Promise.resolve();
+    expect(hit).toHaveBeenCalledTimes(2);
+    // Another attribute on the root is not a theme change.
+    document.documentElement.setAttribute("data-lt-return", "x");
+    await Promise.resolve();
+    document.documentElement.removeAttribute("data-lt-return");
+    expect(hit).toHaveBeenCalledTimes(2);
+
+    unwatch();
+    window.dispatchEvent(new Event("resize"));
+    document.documentElement.setAttribute("data-theme", "light");
+    await Promise.resolve();
+    expect(hit).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
   });
 
   it("reports what the platform supports", () => {
@@ -308,6 +389,32 @@ describe("defaultEnv", () => {
     flight.cancel();
     expect(document.querySelectorAll(".lift-ghost")).toHaveLength(0);
     expect(cancel).toHaveBeenCalledTimes(4);
+    delete (Element.prototype as { animate?: unknown }).animate;
+  });
+
+  it("plays: a scope chip on both ends travels too", () => {
+    mountLandingAndChat();
+    document
+      .querySelector(".landing-input-wrap")
+      ?.insertAdjacentHTML("afterbegin", `<div class="chat-scope-control"></div>`);
+    document
+      .querySelector(".composer-wrap")
+      ?.insertAdjacentHTML("afterbegin", `<div class="chat-scope-control"></div>`);
+    const animate = vi.fn(() => ({ finished: Promise.resolve(), cancel: vi.fn() }));
+    Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true });
+    const env = defaultEnv();
+    const origin = env.measureOrigin();
+    const target = env.measureTarget();
+    if (!origin || !target) throw new Error("fixture did not measure");
+    expect(origin.chip).toBeDefined();
+    expect(target.chip).toBeDefined();
+
+    env.play(origin, target).cancel();
+    // ghost move + ghost chrome + composer wrap + composer box + chip
+    expect(animate).toHaveBeenCalledTimes(5);
+    expect(animate.mock.contexts.at(-1)).toBe(
+      document.querySelector(".composer-wrap .chat-scope-control"),
+    );
     delete (Element.prototype as { animate?: unknown }).animate;
   });
 
