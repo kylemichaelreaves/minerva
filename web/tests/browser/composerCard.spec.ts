@@ -85,6 +85,62 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+// One focus indication: the card's ring. The global `:focus-visible` rule
+// would otherwise paint a square accent outline over the card's rounded border.
+
+async function focusRingOf(page: Page, placeholder: string, card: string) {
+  const box = page.getByPlaceholder(placeholder);
+  // Keyboard modality, so `:focus-visible` applies as it does for real users.
+  for (let i = 0; i < 40; i++) {
+    if (await box.evaluate((el) => el === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(box).toBeFocused();
+  await page.waitForTimeout(250);
+  const input = await box.evaluate((el) => getComputedStyle(el).outlineStyle);
+  const ring = await page.locator(card).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const probe = document.createElement("i");
+    probe.style.color = "var(--ink)";
+    document.body.append(probe);
+    const ink = getComputedStyle(probe).color;
+    probe.remove();
+    return { border: cs.borderTopColor, ink, shadow: cs.boxShadow };
+  });
+  return { input, ring };
+}
+
+test.describe("focus ring", () => {
+  for (const theme of ["light", "dark"] as const) {
+    test(`landing: only the card shows the ring (${theme})`, async ({ page }) => {
+      await setTheme(page, theme);
+      await holdChat(page);
+      await page.goto("/");
+      const { input, ring } = await focusRingOf(
+        page,
+        "What would you like to consider?",
+        ".landing-input-wrap",
+      );
+      expect(input).toBe("none");
+      expect(ring.border).toBe(ring.ink);
+    });
+
+    test(`chat: only the card shows the ring (${theme})`, async ({ page }) => {
+      await setTheme(page, theme);
+      await holdChat(page);
+      await page.goto("/");
+      const box = page.getByPlaceholder("What would you like to consider?");
+      await box.fill(QUESTION);
+      await box.press("Enter");
+      await expect(page.getByPlaceholder("Continue the enquiry…")).toBeVisible();
+      await expect(page.locator(".lift-ghost")).toHaveCount(0, { timeout: 3000 });
+      const { input, ring } = await focusRingOf(page, "Continue the enquiry…", ".composer");
+      expect(input).toBe("none");
+      expect(ring.border).toBe(ring.ink);
+    });
+  }
+});
+
 // Between the phone breakpoint and ~1064px the 280px sidebar and the
 // landing's padding leave less than 720px: the card must shrink to fit.
 test.describe("on a narrow desktop", () => {
@@ -202,4 +258,21 @@ test.describe("on a phone", () => {
       expect(pop.x + pop.width).toBeLessThanOrEqual(card.x + card.width);
     });
   }
+  test("phone: the landing hint does not overlap the scope pill", async ({ page }) => {
+    await holdChat(page);
+    await page.goto("/");
+    const pill = await page.locator(".landing-input-foot .chat-scope-control").boundingBox();
+    const hint = page.locator(".landing-mobile-hint");
+    const h = await hint.boundingBox();
+    if (!pill || !h) throw new Error("pill or hint has no box");
+    const overlaps =
+      pill.x < h.x + h.width &&
+      h.x < pill.x + pill.width &&
+      pill.y < h.y + h.height &&
+      h.y < pill.y + pill.height;
+    expect(overlaps).toBe(false);
+    expect(h.x).toBeGreaterThanOrEqual(pill.x + pill.width);
+    // One line: truncated, not wrapped.
+    expect(h.height).toBeLessThan(20);
+  });
 });

@@ -581,6 +581,14 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--ink-faint);
+    /* One line, truncated: wrapped to two it started against the pill. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .landing-input-foot .chat-scope-control {
+    flex: none;
   }
   /* Both cards: the footer tightens around a 44pt arrow-only send. The
      button keeps its label for assistive tech (aria-label + the clipped

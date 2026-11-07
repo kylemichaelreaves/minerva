@@ -30,6 +30,13 @@
   line-height: 1.45;
   color: var(--ink);
 }
+/* The global `:where(...):focus-visible` ring is (0,1,0) -- the pseudo-class
+   counts even inside `:where()` -- so it ties with the `outline: none` above
+   and wins on source order, drawing a square outline across the card's rounded
+   border. The card's own `:focus-within` ring is the one focus indication. */
+.compose-input:focus-visible {
+  outline: none;
+}
 .compose-input::placeholder {
   color: var(--ink-faint);
   font-style: normal;
