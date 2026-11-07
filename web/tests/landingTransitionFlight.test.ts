@@ -120,21 +120,6 @@ describe("measureOrigin", () => {
     expect(o.visibleHeight).toBe(26);
     expect(o.style.fontSize).toBe("17px");
     expect(o.box).toEqual({ top: 288, left: 184, width: 680, height: 88 });
-    expect(o.chip).toBeUndefined();
-  });
-
-  it("measures the landing's scope chip when there is one", () => {
-    const ta = document.createElement("textarea");
-    const box = document.createElement("div");
-    const chip = document.createElement("div");
-    stubRect(chip, { top: 316, left: 763, width: 182, height: 31 });
-
-    expect(measureOrigin(ta, box, chip).chip).toEqual({
-      top: 316,
-      left: 763,
-      width: 182,
-      height: 31,
-    });
   });
 
   it("counts the textarea's padding and border into the text origin", () => {
@@ -183,10 +168,6 @@ describe("measureTarget", () => {
     expect(t.body).toEqual(TARGET.body);
     expect(t.composer).toEqual(TARGET.composer);
     expect(t.style.borderLeftWidth).toBe("2px");
-    expect(t.chip).toBeUndefined();
-    const chip = document.createElement("div");
-    stubRect(chip, { top: 649, left: 763, width: 182, height: 31 });
-    expect(measureTarget(body, composer, chip).chip?.top).toBe(649);
     expect(t.style.paddingLeft).toBe("18px");
     expect(t.style.fontSize).toBe("18px");
   });
@@ -228,28 +209,6 @@ describe("composerKeyframes", () => {
     expect(box).toEqual([
       { maxWidth: "680px", height: "88px" },
       { maxWidth: "880px", height: "96px" },
-    ]);
-  });
-
-  it("has no chip to carry unless both ends have one", () => {
-    expect(composerKeyframes(ORIGIN, TARGET).chip).toBeUndefined();
-    const chip = { top: 316, left: 763, width: 182, height: 31 };
-    expect(composerKeyframes({ ...ORIGIN, chip }, TARGET).chip).toBeUndefined();
-    expect(composerKeyframes(ORIGIN, { ...TARGET, chip }).chip).toBeUndefined();
-  });
-
-  it("carries the scope chip from the landing's chip, net of the wrap's own move", () => {
-    const { chip } = composerKeyframes(
-      { ...ORIGIN, chip: { top: 316, left: 763, width: 182, height: 31 } },
-      { ...TARGET, chip: { top: 649, left: 763, width: 182, height: 31 } },
-    );
-
-    // The chip moves with the box's top, which frame 0 puts on 304 (from
-    // 688): so 316 - 649 + 384 = 51 down, and 80 right against the wrap's
-    // -80. Opaque throughout, over the CSS fade-in an unscoped landing gets.
-    expect(chip).toEqual([
-      { transform: "translate(80px, 51px)", opacity: 1 },
-      { transform: "translate(0px, 0px)", opacity: 1 },
     ]);
   });
 });

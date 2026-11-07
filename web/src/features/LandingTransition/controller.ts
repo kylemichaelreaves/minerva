@@ -66,7 +66,6 @@ function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
   const travel: KeyframeAnimationOptions = { duration: LIFT_MS, easing: SETTLE_EASE, fill: "both" };
   const wrap = document.querySelector<HTMLElement>(".composer-wrap");
   const composer = document.querySelector<HTMLElement>(".composer");
-  const chip = document.querySelector<HTMLElement>(".composer-wrap .chat-scope-control");
   const anims: Animation[] = [];
   const undo = () => {
     for (const a of anims) a.cancel();
@@ -84,7 +83,6 @@ function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
     );
     if (wrap) anims.push(wrap.animate(c.wrap, travel));
     if (composer) anims.push(composer.animate(c.box, travel));
-    if (chip && c.chip) anims.push(chip.animate(c.chip, travel));
   } catch (err) {
     // The controller will cut; nothing of the half-started flight may stay
     // behind — least of all a fixed ghost holding the question.
@@ -107,16 +105,14 @@ export function defaultEnv(): TransitionEnv {
     measureOrigin: () => {
       const ta = document.querySelector<HTMLTextAreaElement>(".landing-input");
       const box = document.querySelector<HTMLElement>(".landing-input-wrap");
-      const chip = box?.querySelector(".chat-scope-control");
-      return ta && box ? measureOrigin(ta, box, chip) : null;
+      return ta && box ? measureOrigin(ta, box) : null;
     },
     measureTarget: () => {
       // The landing submit makes a one-turn thread, so the first match is
       // the turn the question lands in.
       const body = document.querySelector<HTMLElement>(".turn-user-inner .turn-body");
       const composer = document.querySelector<HTMLElement>(".composer");
-      const chip = document.querySelector(".composer-wrap .chat-scope-control");
-      return body && composer ? measureTarget(body, composer, chip) : null;
+      return body && composer ? measureTarget(body, composer) : null;
     },
     play: playFlight,
     setStage: (on) => {

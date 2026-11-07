@@ -32,17 +32,11 @@ interface LandingProps {
   onOpenMetrics: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
-  /** Optional work-scope chip, rendered above the composer input (#350).
-   *
-   *  Optional rather than always-on because the *cold* landing — app start,
-   *  or "New question" — really is the unscoped global entry point this
-   *  screen was designed as. What it could not express before was a landing
-   *  arrived at **from a work**, where the scope is known and wanted: the
-   *  Reader's back arrow could hand the work to a conversation and this
-   *  screen had nowhere to show it, so leaving the Reader dropped it.
-   *
-   *  `ChatRoute` passes this only when `chatScope()` is set, so the brand
-   *  screen stays uncluttered in the common case. */
+  /** The work-scope pill, rendered in the box's footer (#350). `ChatRoute`
+   *  always passes one — "All works" when unscoped, the work's title when a
+   *  work was carried out of the Reader — so the landing's footer matches
+   *  the chat composer's and the pill rides through the transition in the
+   *  box. Optional here so the component renders without it in isolation. */
   scopeChip?: JSX.Element;
   /** Set while the landing → chat transition runs. The landing stays
    *  mounted as a layer over the chat, fading out (landingTransition.css),

@@ -66,16 +66,12 @@ export interface FlightOrigin {
   visibleHeight: number;
   style: Record<MorphProp, string>;
   box: Rect;
-  /** The landing's work-scope chip, when a scope is set (#350). */
-  chip?: Rect;
 }
 
 export interface FlightTarget {
   body: Rect;
   style: Record<MorphProp | ChromeProp | FrameProp, string>;
   composer: Rect;
-  /** The chat composer's scope control, which sits above its box. */
-  chip?: Rect;
 }
 
 function rectOf(el: Element): Rect {
@@ -96,11 +92,7 @@ function pick<K extends string>(cs: CSSStyleDeclaration, props: readonly K[]): R
   return out;
 }
 
-export function measureOrigin(
-  textarea: HTMLTextAreaElement,
-  box: HTMLElement,
-  chip?: Element | null,
-): FlightOrigin {
+export function measureOrigin(textarea: HTMLTextAreaElement, box: HTMLElement): FlightOrigin {
   const r = textarea.getBoundingClientRect();
   const cs = getComputedStyle(textarea);
   return {
@@ -116,20 +108,14 @@ export function measureOrigin(
     visibleHeight: textarea.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom),
     style: pick(cs, MORPH_PROPS),
     box: rectOf(box),
-    ...(chip ? { chip: rectOf(chip) } : {}),
   };
 }
 
-export function measureTarget(
-  body: HTMLElement,
-  composer: HTMLElement,
-  chip?: Element | null,
-): FlightTarget {
+export function measureTarget(body: HTMLElement, composer: HTMLElement): FlightTarget {
   return {
     body: rectOf(body),
     style: pick(getComputedStyle(body), [...MORPH_PROPS, ...CHROME_PROPS, ...FRAME_PROPS]),
     composer: rectOf(composer),
-    ...(chip ? { chip: rectOf(chip) } : {}),
   };
 }
 
@@ -188,32 +174,19 @@ export function settleOffset(from: Rect, to: Rect): { dx: number; dy: number } {
  *  the box's centre, and its width and height onto the box's — so frame 0
  *  is the landing box, whatever the question's length. The composer wrap is
  *  pinned to the bottom of the page, so a height change moves the box's
- *  top, not its bottom: the wrap's translate aligns bottoms. With a scope
- *  set, the chat's chip also starts on the landing's. */
+ *  top, not its bottom: the wrap's translate aligns bottoms. The scope pill
+ *  sits in the box's footer on both ends, so it rides with these two and
+ *  needs no animation of its own. */
 export function composerKeyframes(
   o: FlightOrigin,
   t: FlightTarget,
-): { wrap: Keyframe[]; box: Keyframe[]; chip?: Keyframe[] } {
+): { wrap: Keyframe[]; box: Keyframe[] } {
   const { dx, dy } = settleOffset(o.box, t.composer);
-  const out: { wrap: Keyframe[]; box: Keyframe[]; chip?: Keyframe[] } = {
+  return {
     wrap: [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0px, 0px)" }],
     box: [
       { maxWidth: `${o.box.width}px`, height: `${o.box.height}px` },
       { maxWidth: `${t.composer.width}px`, height: `${t.composer.height}px` },
     ],
   };
-  if (o.chip && t.chip) {
-    // The chip rides inside the wrap, above the box, so it moves with the
-    // box's top: by the wrap's translate plus the box's height change. Net
-    // of both, it starts where the landing's chip is.
-    const cx = o.chip.left - t.chip.left - dx;
-    const cy = o.chip.top - t.chip.top - (o.box.top - t.composer.top);
-    // Opaque throughout: a script animation composites over the CSS fade-in
-    // the chip gets when there is no landing chip to travel from.
-    out.chip = [
-      { transform: `translate(${cx}px, ${cy}px)`, opacity: 1 },
-      { transform: "translate(0px, 0px)", opacity: 1 },
-    ];
-  }
-  return out;
 }

@@ -64,7 +64,7 @@ export default function ComposeField(props: ComposeFieldProps) {
         </div>
         <button
           class={classnames("compose-send", props.c.sendDisabled() && "disabled")}
-          onClick={props.c.send}
+          onClick={() => props.c.send()}
           disabled={props.disabled}
         >
           {props.sendLabel} <SendIcon />
