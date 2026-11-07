@@ -235,11 +235,12 @@ export default function Landing(props: LandingProps) {
                 <span class="landing-mobile-hint">ask about a passage, a work, an author</span>
               ) : (
                 <>
-                  {/* Kept on one line deliberately. Split across two, the
-                      newline between `&nbsp;&nbsp;` and the next `<span>`
-                      collapses to nothing, and whether that was intended is
-                      not readable from the source (typescript:S6772). */}
-                  <span class="kbd">↵</span> begin&nbsp;&nbsp;<span class="kbd">⇧ ↵</span> new line
+                  <span>
+                    <span class="kbd">↵</span> begin
+                  </span>
+                  <span>
+                    <span class="kbd">⇧ ↵</span> new line
+                  </span>
                 </>
               )
             }

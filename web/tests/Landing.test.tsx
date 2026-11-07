@@ -188,20 +188,27 @@ describe("<Landing />", () => {
     trigger.focus();
     expect(document.activeElement).toBe(trigger);
   });
-  // Characterization, not a fix: JSX collapses the newline between the two
-  // `.kbd` spans, which is what Sonar flags as ambiguous (typescript:S6772).
-  // Making the spacing explicit must not move a pixel, so this pins the exact
-  // rendered string — including the two non-breaking spaces — across that edit.
-  it("renders the desktop key hint with its exact spacing", () => {
+  // Each key sits with its word in one wrapper, as the chat composer's hint
+  // does: the footer's left side is a flex row with a 14px gap, so a bare
+  // word between the `.kbd` spans became a flex item of its own and the gap
+  // pushed it away from its key.
+  it("renders the desktop key hint as key + word pairs", () => {
     // No viewport stub of its own: #476's `afterEach` restores the desktop
     // default after the mobile test above, so this inherits it. The explicit
     // stub PR #473 needed here is what that fix removes.
     const { container } = renderLanding();
     const kbds = Array.from(container.querySelectorAll(".kbd"));
     expect(kbds.map((k) => k.textContent)).toEqual(["\u21b5", "\u21e7 \u21b5"]);
-    expect(kbds[0]?.parentElement?.textContent).toBe(
-      "\u21b5 begin\u00a0\u00a0\u21e7 \u21b5 new line",
+    expect(kbds.map((k) => k.parentElement?.textContent)).toEqual([
+      "\u21b5 begin",
+      "\u21e7 \u21b5 new line",
+    ]);
+    const row = must(container.querySelector(".compose-foot__left"));
+    const bare = Array.from(row.childNodes).filter(
+      (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim(),
     );
+    expect(bare).toEqual([]);
+    expect(kbds.every((k) => k.parentElement?.parentElement === row)).toBe(true);
   });
 
   it("opens the metrics surface from the landing page", () => {
