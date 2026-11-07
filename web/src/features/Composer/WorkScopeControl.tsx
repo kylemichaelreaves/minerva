@@ -112,7 +112,7 @@ export default function WorkScopeControl(props: WorkScopeControlProps) {
               class="chat-scope__pill chat-scope__work"
               aria-haspopup="dialog"
               aria-label={`Scope: ${scope().title}`}
-              title="Change work"
+              title={scope().title}
               onClick={openPicker}
             >
               {scope().title}

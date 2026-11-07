@@ -430,7 +430,15 @@ describe("defaultEnv", () => {
     env.play(origin, target).cancel();
     // ghost move + ghost chrome + composer wrap + composer box
     expect(animate).toHaveBeenCalledTimes(4);
-    expect(animate.mock.contexts).not.toContain(document.querySelector(".chat-scope-control"));
+    // Both pills by their own selector: a bare `.chat-scope-control` finds
+    // the landing's first, and the chat's — the one a chip leg animated —
+    // would go unchecked.
+    const chatPill = document.querySelector(".composer .chat-scope-control");
+    const landingPill = document.querySelector(".landing-input-wrap .chat-scope-control");
+    expect(chatPill).not.toBeNull();
+    expect(landingPill).not.toBeNull();
+    expect(animate.mock.contexts).not.toContain(chatPill);
+    expect(animate.mock.contexts).not.toContain(landingPill);
     delete (Element.prototype as { animate?: unknown }).animate;
   });
 

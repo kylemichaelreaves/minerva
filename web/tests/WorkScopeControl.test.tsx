@@ -30,6 +30,13 @@ describe("<WorkScopeControl /> pill", () => {
     expect(onSet).toHaveBeenCalledWith(null);
   });
 
+  it("shows the work's full title on hover, for a pill that truncates it", () => {
+    mount({ workId: 1, title: "Ethica ordine geometrico demonstrata" });
+    expect(
+      screen.getByRole("button", { name: "Scope: Ethica ordine geometrico demonstrata" }),
+    ).toHaveAttribute("title", "Ethica ordine geometrico demonstrata");
+  });
+
   it("opens the picker from the pill", () => {
     mount(null);
     fireEvent.click(screen.getByRole("button", { name: "Scope: All works" }));

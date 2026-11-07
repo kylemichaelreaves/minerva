@@ -38,7 +38,9 @@ describe.each([
   it("--ink is legible on --paper-raised", () => {
     expect(pair("--ink", "--paper-raised")).toBeGreaterThanOrEqual(4.5);
   });
-  it("--ink-mute (key hint) is legible on --paper-raised", () => {
+  // `--ink-mute` colours the `.kbd` key caps only; the hint words and the
+  // placeholder are `--ink-faint`, which this does not measure.
+  it("--ink-mute (key caps) is legible on --paper-raised", () => {
     expect(pair("--ink-mute", "--paper-raised")).toBeGreaterThanOrEqual(4.5);
   });
 });
