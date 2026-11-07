@@ -8,6 +8,7 @@ interface OverrideProps {
   sidebarCollapsed?: boolean;
   theme?: Theme;
   conversationTitle?: string | null | false;
+  entering?: boolean;
 }
 
 function renderTopbar(props: OverrideProps = {}) {
@@ -21,6 +22,7 @@ function renderTopbar(props: OverrideProps = {}) {
       theme={props.theme ?? "light"}
       onToggleTheme={onToggleTheme}
       conversationTitle={props.conversationTitle ?? null}
+      entering={props.entering}
     />
   ));
   return { onToggleSidebar, onToggleTheme, ...utils };
@@ -61,5 +63,15 @@ describe("<Topbar />", () => {
     const btn = screen.getByLabelText(/show sidebar/i);
     fireEvent.click(btn);
     expect(onToggleSidebar).toHaveBeenCalled();
+  });
+
+  it("marks itself as entering while the landing → chat transition runs", () => {
+    const { container } = renderTopbar({ entering: true });
+    expect(container.querySelector(".topbar")).toHaveClass("lt-entering");
+  });
+
+  it("is not entering by default", () => {
+    const { container } = renderTopbar();
+    expect(container.querySelector(".topbar")).not.toHaveClass("lt-entering");
   });
 });

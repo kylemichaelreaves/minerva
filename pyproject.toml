@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=84.0.0"]
+requires = ["setuptools>=84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -14,8 +14,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-embed = ["sentence-transformers>=6.1.0"]
-hegel = ["pymupdf>=1.28.2", "ebooklib>=0.20", "beautifulsoup4>=4.15.0", "lxml>=6.1.3"]
+embed = ["sentence-transformers>=6.2.0"]
+hegel = ["pymupdf>=2.0", "ebooklib>=0.21", "beautifulsoup4>=4.15.0", "lxml>=6.1.3"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
 # Install both halves:
@@ -37,7 +37,7 @@ lemma = [
     # `blis<0.8`, which fails to compile against 3.13's longobject API).
     # The models it loads — de/fr/en/grc/la — install from
     # `lemma-models.txt`.
-    "spacy>=3.8.16",
+    "spacy>=3.8.18",
     # Stanza: fallback for grc/lat when the LatinCy wheels are missing;
     # primary for Hebrew (`heb`) and Arabic (`ara`), and the only parser for
     # the German syntax feature. Models download on first use (~250 MB grc,
@@ -51,15 +51,15 @@ lemma = [
     "pyyaml>=6.0.3",
 ]
 all = [
-    "sentence-transformers>=6.1.0",
-    "pymupdf>=1.28.2",
-    "ebooklib>=0.20",
+    "sentence-transformers>=6.2.0",
+    "pymupdf>=2.0",
+    "ebooklib>=0.21",
     "beautifulsoup4>=4.15.0",
 ]
 dev = [
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.1",
+    "ruff>=0.17.3",
     "pyyaml>=6.0.3",
     "pytest-xdist>=3.8.0",
 ]
