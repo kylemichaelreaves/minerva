@@ -66,8 +66,9 @@ export default function ComposeField(props: ComposeFieldProps) {
           class={classnames("compose-send", props.c.sendDisabled() && "disabled")}
           onClick={() => props.c.send()}
           disabled={props.disabled}
+          aria-label={props.sendLabel}
         >
-          {props.sendLabel} <SendIcon />
+          <span class="compose-send__label">{props.sendLabel}</span> <SendIcon />
         </button>
       </div>
     </>

@@ -84,3 +84,83 @@ for (const theme of ["light", "dark"] as const) {
     });
   });
 }
+
+// ---- Phones ---------------------------------------------------------------
+// The card is the same card at 390px, with 12px gutters; send shrinks to a
+// 44px arrow-only circle (named by its label), and a long work title
+// truncates inside the pill instead of pushing send out of the card.
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  async function phoneChat(page: Page) {
+    await holdChat(page);
+    await page.goto("/");
+    const box = page.getByPlaceholder("What would you like to consider?");
+    await box.fill(QUESTION);
+    await box.press("Enter");
+    await expect(page.getByPlaceholder("Reply to Minerva…")).toBeVisible();
+    await expect(page.locator(".lift-ghost")).toHaveCount(0, { timeout: 3000 });
+  }
+
+  /** Scope the open chat to the fixture's longest-titled work, via the picker. */
+  async function scopeToLongestTitle(page: Page): Promise<string> {
+    const res = await page.request.get("/api/works");
+    const { works } = (await res.json()) as { works: { display_title: string }[] };
+    const longest = works.map((w) => w.display_title).sort((a, b) => b.length - a.length)[0];
+    if (!longest) throw new Error("/api/works returned no works");
+    await page.getByRole("button", { name: "Scope: All works" }).click();
+    await page.getByPlaceholder("Filter works by title or author…").fill(longest);
+    await page.locator(".chat-scope-pop__row").first().click();
+    return longest;
+  }
+
+  test("phone: the card keeps its border and radius", async ({ page }) => {
+    await holdChat(page);
+    await page.goto("/");
+    const look = await cardLook(page, ".landing-input-wrap");
+    expect(look.radius).toBe("10px");
+    expect(look.border).not.toBe("rgba(0, 0, 0, 0)");
+    const box = await page.locator(".landing-input-wrap").boundingBox();
+    expect(box?.x).toBe(12);
+    // `html` reserves a scrollbar gutter, so the right edge is measured
+    // against the landing's own box, not the 390px viewport.
+    const landing = await page.locator(".landing").boundingBox();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBe((landing?.x ?? 0) + (landing?.width ?? 0) - 12);
+
+    await phoneChat(page);
+    const chat = await cardLook(page, ".composer");
+    expect(chat).toEqual(look);
+  });
+
+  test("phone: send is a 44px circle named by its label", async ({ page }) => {
+    await phoneChat(page);
+    const send = page.getByRole("button", { name: "Send" });
+    const box = await send.boundingBox();
+    expect(box?.width).toBe(44);
+    expect(box?.height).toBe(44);
+  });
+
+  test("phone: a long work title truncates and send stays inside the card", async ({ page }) => {
+    await phoneChat(page);
+    const title = await scopeToLongestTitle(page);
+    const work = page.locator(".composer .chat-scope__work");
+    await expect(work).toHaveText(title);
+    expect(await work.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+
+    const card = await page.locator(".composer").boundingBox();
+    const send = await page.locator(".composer .compose-send").boundingBox();
+    if (!card || !send) throw new Error("card or send has no box");
+    expect(send.x).toBeGreaterThanOrEqual(card.x);
+    expect(send.x + send.width).toBeLessThanOrEqual(card.x + card.width);
+  });
+
+  test("phone: the scope picker fits on screen", async ({ page }) => {
+    await phoneChat(page);
+    await page.getByRole("button", { name: "Scope: All works" }).click();
+    const pop = await page.locator(".chat-scope-pop").boundingBox();
+    if (!pop) throw new Error("picker has no box");
+    expect(pop.x).toBeGreaterThanOrEqual(0);
+    expect(pop.x + pop.width).toBeLessThanOrEqual(390);
+  });
+});

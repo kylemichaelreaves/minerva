@@ -359,7 +359,8 @@
      brand mark right-aligned, very small.
      ================================================================ */
   .landing {
-    padding: 0 16px 24px;
+    --landing-gutter: 16px;
+    padding: 0 var(--landing-gutter) 24px;
     min-height: 100dvh;
     /* Re-order children via flex `order` — atlas moves above center. */
   }
@@ -463,9 +464,17 @@
     border-right: none;
     border-bottom: none;
   }
+  /* The composer card (composeCard.css) at phone width: 12px from the
+     screen edge, whatever the landing's own gutter is at this width. */
   .landing-input-wrap {
-    width: 100%;
-    margin-top: 28px;
+    --card-bleed: calc(var(--landing-gutter) - 12px);
+    width: calc(100% + 2 * var(--card-bleed));
+    margin: 28px calc(-1 * var(--card-bleed)) 0;
+  }
+  .landing-input {
+    font-size: 17px;
+    min-height: 96px;
+    padding: 16px 16px 4px;
   }
   .landing-pills {
     gap: 6px;
@@ -476,37 +485,6 @@
     min-height: 28px;
   }
 
-  /* Landing send button — design 1a renders a small outlined 32pt
-     square with just a "→" arrow, not the "Begin →" text desktop
-     uses. font-size: 0 hides the "Begin" label; ::after carries the
-     arrow glyph at a fixed size. */
-  .landing-input-wrap .send-btn {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 1px solid var(--ink);
-    border-radius: 0;
-    font-size: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: var(--paper);
-  }
-  .landing-input-wrap .send-btn::after {
-    content: "→";
-    font-family: var(--sans);
-    font-size: 14px;
-    color: var(--accent);
-    margin-left: 0;
-  }
-  .landing-input-wrap .send-btn:hover::after {
-    transform: none;
-  }
-  .landing-input-wrap .send-btn.disabled {
-    background: transparent;
-    border-color: var(--rule);
-  }
   /* CTAs sit in a 2×2 grid on mobile — the single side-by-side row is
      too cramped at phone widths. The grid shrinks to its content and
      centers under the composer rather than stretching to the chatbox
@@ -574,42 +552,19 @@
   .scroll {
     padding: 16px 18px 0;
   }
-  /* Composer pinned to bottom with safe-area inset. Tight mobile
-     padding (design 2a shows the composer flush with the screen edges
-     with 16px gutters), and the kbd hint row is hidden — the design's
-     mobile composer is just a field + outline-arrow send. */
+  /* The chat card, pinned to the bottom with the safe-area inset and the
+     same 12px side margins as the landing's. */
   .composer-wrap {
-    padding: 0 0 env(safe-area-inset-bottom, 0);
-    background: var(--paper);
-    border-top: 1px solid var(--rule);
-  }
-  .composer {
-    border: 0;
-    padding: 10px 16px 12px;
-    border-radius: 0;
-    max-width: none;
-    background: transparent;
-  }
-  .composer:focus-within {
-    border-color: transparent;
+    padding: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
   }
   .composer-input {
-    font-size: 15px;
-    font-family: var(--serif);
-    font-style: italic;
+    font-size: 17px;
+    min-height: 0;
+    padding: 14px 16px 4px;
   }
-  .composer-input::placeholder {
-    font-style: italic;
-    color: var(--ink-faint);
-  }
-  .composer-foot {
-    border-top: 0;
-    padding-top: 0;
-    margin-top: 6px;
-  }
-  /* Chat composer: kbd hint row hidden on mobile. Virtual keyboards
-     have no Enter shortcut affordance for a user to learn. */
-  .composer-foot .left {
+  /* Kbd hints are hidden in the chat: virtual keyboards have no Enter
+     shortcut to learn. The scope pill stays. */
+  .composer-foot .compose-foot__left > :not(.chat-scope-control) {
     display: none;
   }
   /* Landing composer: hint row stays, but its content swaps to one
@@ -627,28 +582,46 @@
     text-transform: uppercase;
     color: var(--ink-faint);
   }
-  /* Send button — outlined 38pt arrow per design 2a. The "Send" text
-     label that desktop renders next to the icon is hidden via
-     font-size: 0 (the SVG keeps its intrinsic dimensions). */
-  .composer .send-btn {
-    width: 38px;
-    height: 38px;
-    padding: 0;
-    border-radius: 0;
-    border: 1px solid var(--ink);
-    color: var(--accent);
-    font-size: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    text-transform: none;
-    letter-spacing: 0;
-    flex-shrink: 0;
+  /* Both cards: the footer tightens around a 44pt arrow-only send. The
+     button keeps its label for assistive tech (aria-label + the clipped
+     span). */
+  .compose-foot {
+    padding: 8px 8px 8px 16px;
   }
-  .composer .send-btn svg {
-    width: 16px;
-    height: 16px;
-    color: var(--accent);
+  .compose-send {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+  .compose-send svg {
+    width: 18px;
+    height: 18px;
+  }
+  .compose-send__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* A long work title truncates inside the pill. */
+  .chat-scope__pill {
+    max-width: 18ch;
+  }
+  /* The picker anchors to the card, not the pill: the card is 12px from
+     each screen edge, so the picker spans it and cannot overflow. */
+  .chat-scope-control {
+    position: static;
+  }
+  .chat-scope-pop {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
   }
 
   /* Citation chips inline in chat — design 2a swaps the desktop's
@@ -1404,7 +1377,8 @@
    ════════════════════════════════════════════════════════════════ */
 @media (max-width: 390px) {
   .landing {
-    padding: 0 12px 12px;
+    --landing-gutter: 12px;
+    padding: 0 var(--landing-gutter) 12px;
   }
   .landing-monogram {
     font-size: 44px;

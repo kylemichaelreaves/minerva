@@ -732,30 +732,3 @@ test("a scoped chat returns to an 'All works' landing without a flip", async ({
   await expect(page.locator(".thread")).toHaveCount(0, { timeout: 1500 });
   expect(await page.evaluate(landingPillName, null)).toBe("Scope: All works");
 });
-
-test.describe("on a phone", () => {
-  test.use({ viewport: { width: 375, height: 812 } });
-
-  const ruleColor = (page: Page) =>
-    page.locator(".composer-wrap").evaluate((w) => getComputedStyle(w).borderTopColor);
-
-  test("no hairline crosses the screen on the first frame", async ({ page }) => {
-    await holdChat(page);
-    await fillLanding(page, QUESTION);
-    await pressFrozen(page);
-    await seekTo(page, 0);
-    expect(await ruleColor(page)).toBe("rgba(0, 0, 0, 0)");
-  });
-
-  test("…nor while the composer travels back down to the landing", async ({ page }) => {
-    await settledChat(page);
-    const rest = await ruleColor(page);
-    expect(rest).not.toBe("rgba(0, 0, 0, 0)");
-    await pressFrozen(page, "Escape", ".landing.is-arriving");
-    // The two frames the hairline was seen in.
-    for (const t of [325, 490]) {
-      await seekTo(page, t);
-      expect(await ruleColor(page)).toBe("rgba(0, 0, 0, 0)");
-    }
-  });
-});

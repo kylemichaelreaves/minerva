@@ -47,18 +47,6 @@
     scale: var(--lt-scale, 1);
   }
 }
-/* The phone composer's top rule. `to` / `from` are left to the element's
-   own colour. */
-@keyframes lt-rule-in {
-  from {
-    border-top-color: transparent;
-  }
-}
-@keyframes lt-rule-out {
-  to {
-    border-top-color: transparent;
-  }
-}
 @keyframes lt-drop-in {
   from {
     translate: 0 -6px;
@@ -241,15 +229,6 @@
      header on the first frame. Arrives late, like the desktop topbar. */
   :root:has(.landing.is-leaving) .mobile-topbar {
     animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
-  }
-  /* The composer is a borderless bar here; its wrap's full-width top rule
-     would travel to the landing box as a hairline across the screen. It
-     fades in late in the lift, and out early in the return (#854). */
-  .composer-wrap.lt-entering {
-    animation: lt-rule-in calc(var(--lt-d) * 0.35) ease calc(var(--lt-d) * 0.5) both;
-  }
-  :root[data-lt-return="return"] .composer-wrap {
-    animation: lt-rule-out calc(var(--lt-d) * 0.35) ease both;
   }
   .landing:is(.is-leaving, .is-arriving) .landing-atlas {
     --lt-dy: -28px;
