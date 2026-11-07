@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach } from "vitest";
 import { cleanup } from "@solidjs/testing-library";
 import { assertNoUnexpectedSurfaceFailures, recordSurfaceFailure } from "./surfaceFailures";
+import { fakeMediaQueryList } from "./helpers/matchMedia";
 
 // jsdom doesn't implement window.matchMedia. The `useMobile` hook
 // reads it at module load time (to seed its initial signal), so any
@@ -13,16 +14,7 @@ import { assertNoUnexpectedSurfaceFailures, recordSurfaceFailure } from "./surfa
 // always exist, so the rule fires here but the check is real.
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 if (typeof window !== "undefined" && !window.matchMedia) {
-  window.matchMedia = (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => undefined, // legacy API some libs still use
-    removeListener: () => undefined,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    dispatchEvent: () => false,
-  });
+  window.matchMedia = (query: string) => fakeMediaQueryList(query, false);
 }
 
 // jsdom lacks ResizeObserver; Network ArcPanel observes wrap size.

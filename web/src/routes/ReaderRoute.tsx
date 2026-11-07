@@ -64,7 +64,7 @@ export function ReaderRoute(props: RouteContextProps) {
     const w = props.reader.currentWork();
     props.conversations.setChatScope(w ? { workId: w.work_id, title: w.display_title } : null);
     if (w || !loc) return;
-    // eslint-disable-next-line solid/reactivity -- deliberately untracked: the late callback must read chatScope as it is when the list resolves, not subscribe to it
+    // Deliberately untracked: the late callback must read chatScope as it is when the list resolves, not subscribe to it
     void props.reader.resolveWork(loc).then((late) => {
       if (!late) return;
       if (props.conversations.chatScope() !== null) return;

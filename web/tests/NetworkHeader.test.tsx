@@ -3,21 +3,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import { NetworkHeader } from "~/Network/components/Header";
+import { fakeMediaQueryList } from "./helpers/matchMedia";
 import { must } from "./helpers/must";
 
 const totals = { xrefs: 12345, authors: 48, works: 312 };
 
 function mount(opts: { mobile: boolean; totals?: typeof totals }) {
-  vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
-    matches: opts.mobile,
-    media: query,
-    onchange: null,
-    addListener: () => undefined,
-    removeListener: () => undefined,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    dispatchEvent: () => false,
-  }));
+  vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
+    fakeMediaQueryList(query, opts.mobile),
+  );
   const { container } = render(() => (
     <MobileShellProvider>
       <NetworkHeader
