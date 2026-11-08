@@ -9,7 +9,7 @@ interface ComposerProps {
    * lock would serialize concurrent requests anyway, but the UX feedback
    * is what users need to see. */
   disabled?: boolean;
-  /** Optional work-scope chip rendered above the input. */
+  /** Optional work-scope chip rendered in the footer. */
   scopeChip?: JSX.Element;
   /** Focus the textarea as soon as it mounts. Only the landing submit asks:
    *  the question you typed moves into this box, so your next keystroke

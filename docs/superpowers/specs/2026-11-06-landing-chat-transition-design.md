@@ -38,7 +38,10 @@ prototype cannot say.
    half; the composer's footer and placeholder switch from the landing
    copy (`↵ begin`, *Begin →*, "What would you like to consider?") to the
    chat copy (`Enter send`, *Send*, "Continue the enquiry…" /
-   "Reply to Minerva…" on mobile) partway through.
+   "Reply to Minerva…" on mobile) partway through. (As built since the
+   composer card, the footer does not fade: it has the same shape on both
+   ends and rides in the box, so its copy is the chat's from the swap; only
+   the placeholder is held transparent until the flight ends.)
 5. **No added latency.** The request to the server goes out the moment
    Begin is pressed, exactly as today (`startFromLanding` →
    `askMinerva`). "considering…" and the streamed reply render whenever
@@ -47,8 +50,11 @@ prototype cannot say.
 
 Approved timing: **~650ms total, a "settle" curve
 (`cubic-bezier(.2,.7,.1,1)`)** — fast start, soft landing. Within that:
-landing furniture fades over the first ~45%; the topbar and the chat footer
-fade in from ~50–55%; the user-turn rule draws in over the last ~35%.
+landing furniture fades over the first ~45%; the topbar fades in from
+~55%; the user-turn rule draws in over the last ~35%. (The prototype also
+faded the chat footer in from ~50%; as built since the composer card, both
+footers have the same shape, scope pill included, and the footer rides in
+the box instead — see the composer-card addendum below.)
 
 ### The prototype's choreography, in numbers
 
@@ -65,7 +71,7 @@ settle curve); they are the acceptance reference for "feel":
 | Mode row (+ aside) | down 28px | 1 → 0 | same |
 | Atlas | down 44px | 1 → 0 | same |
 | Topbar | down from −6px | 0 → 1 | 0.4D, starting at 0.55D |
-| Composer footer | crossfade landing → chat copy | — | 0.35D, chat copy starting at 0.5D |
+| Composer footer | rides in the box with the scope pill (built since the composer card; the prototype crossfaded landing → chat copy over 0.35D from 0.5D) | stays visible | with the box |
 | Thinking row / Minerva turn | — | 0 → 1 | from ~D (see "Calls made") |
 
 The box and the text cross paths: the text starts inside the box and rises
@@ -133,7 +139,8 @@ as the box descends.
   question, not just the one-liner in the prototype.
 - **Scope chip.** When a work scope is set, a `WorkScopeControl` chip sits
   above the input on both ends (`routes/ChatRoute.tsx`). It should travel
-  with the composer.
+  with the composer. (Since the composer card it is an always-on pill
+  inside the box's footer on both ends; see the addendum below.)
 - **Reduced motion is a per-file `@media (prefers-reduced-motion: reduce)`
   convention** (`styles/styles.css:360`, `Reader/reader.css:621`, …).
 - **Mobile is a different layout** (`styles/mobile.css`: landing at
@@ -210,11 +217,15 @@ as the box descends.
 - **Existing `fade-in` on `UserTurnView`** (`Thread/components/UserTurnView.tsx:5`)
   is suppressed for the first turn of a landing submit; it would fight the
   lift.
-- **Scope chip.** It sits inside the bordered box on the landing and
-  above `.composer` in chat; it travels with the box and may crossfade
-  between the two placements.
-- **Below 1280px**, `--col` is 680px — the same as the landing box — so
-  the box does not widen there; it only moves.
+- **Scope pill.** It sits in the footer inside the box on both ends, so it
+  rides with the box (superseded the earlier "inside the box on the landing,
+  above `.composer` in chat" placement; see the composer-card addendum).
+- **Below 1280px**, `--col` is 680px. (This used to be "the same as the
+  landing box, so the box does not widen there; it only moves". Since the
+  composer card the landing box is `min(720px, 100%)`, so below 1280px the
+  box *narrows* to the chat column as it moves — 720 → 680px — and between
+  the phone breakpoint and ~1064px, with the sidebar open, it is narrower
+  still, sized to the landing's column.)
 - **Mobile.** The atlas sits *above* the owl in the mobile layout, and
   `MobileTopBar` replaces the landing header; "owl up, rest down" is
   re-tuned for that order rather than copied.
@@ -257,7 +268,9 @@ empty landing, the same destination as "New conversation"
   hydrates, during either transition, over an unsent draft in the chat
   composer, and while any other field has focus.
 - **Choreography** (fractions of D = 650ms). The thread fades out over
-  0–.45, the topbar and the composer's footer and scope chip over 0–.35.
+  0–.45, the topbar over 0–.35. The composer's footer and scope pill ride
+  down inside the box (as built since the composer card; they used to fade
+  out over 0–.35).
   The real composer slides down into the landing box (translate,
   `max-width` and `height`, the inverse of the forward FLIP). The landing mounts at
   once as an inert layer and its furniture drifts back from the offsets it
@@ -286,6 +299,34 @@ empty landing, the same destination as "New conversation"
 - **A scoped landing's chip travels:** the chat's chip starts on the
   landing's (inside the box, painted over it) and slides to its place above
   the composer. An unscoped landing still fades the chat's "scope to a work"
-  control in from 0.5D.
+  control in from 0.5D. *(Superseded by the composer card: the pill rides
+  inside the box — see the addendum below.)*
 - **Phone:** the composer wrap's top rule fades in with the footer, and out
   with it on the return, instead of travelling as a full-width hairline.
+
+## Addendum: the pill rides inside the box (composer card, 2026-11-07)
+
+The composer card gave the landing and the chat one footer shape, with the
+scope control as an always-on pill in it ("All works" unscoped, the work's
+title scoped). That replaces the chip choreography above:
+
+- **The pill rides inside the box.** It sits in `.compose-foot` on both
+  ends, so it moves with the composer's `max-width`/`height` FLIP and the
+  wrap's translate. It has no animation of its own: the old separate chip
+  leg offset it twice once it lived in the box (`composerKeyframes` returns
+  only `wrap` and `box`).
+- **The footer stays visible** through the lift and the return; there is no
+  footer or chip fade. Only the placeholder still goes transparent while the
+  ghost leaves through the box.
+- **Both pills read "All works" for the whole return.** "New conversation"
+  clears the scope on arrival, so showing the scoped title on the way would
+  flip at the end. That goes for the chat composer's pill above all: it is
+  the one the user sees travel, since the landing box is hidden throughout
+  (`.landing.is-arriving .landing-input-wrap`). One accessor in
+  `ChatRoute.tsx` (`shownScope`) feeds both.
+- **The return cuts the copy at the end,** as the lift cuts it at the start.
+  What travels is the chat composer, so it carries the chat's copy (*Send*,
+  `Enter send` / `⇧ Enter new line`) all the way down; the landing's
+  (*Begin*, `↵ begin` / `⇧ ↵ new line`, its placeholder) appears in one frame
+  when the chat unmounts and the landing box takes its place. There is no
+  crossfade in either direction.

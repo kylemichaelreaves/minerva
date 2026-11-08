@@ -29,7 +29,7 @@ describe("<WorkScopeControl /> and Escape", () => {
 
   it("claims Escape to close an open picker", () => {
     mount();
-    fireEvent.click(screen.getByRole("button", { name: /scope to a work/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Scope: All works" }));
     expect(screen.getByRole("dialog", { name: /scope chat to a work/i })).toBeInTheDocument();
 
     expect(escape().defaultPrevented).toBe(true);

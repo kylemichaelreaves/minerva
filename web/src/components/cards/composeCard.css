@@ -1,0 +1,99 @@
+/* The weighted composer card, shared by the landing and the chat. Variant
+   differences (type size, resting height, padding, width) live beside each
+   view in landing.css / composer.css. */
+.compose-card {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper-raised);
+  box-shadow: var(--composer-shadow);
+  transition:
+    border-color 160ms,
+    box-shadow 160ms;
+}
+.compose-card:focus-within {
+  border-color: var(--ink);
+  box-shadow:
+    var(--composer-shadow),
+    0 0 0 3px var(--selection);
+}
+
+.compose-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  font-family: var(--serif);
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--ink);
+}
+/* The global `:where(...):focus-visible` ring is (0,1,0) -- the pseudo-class
+   counts even inside `:where()` -- so it ties with the `outline: none` above
+   and wins on source order, drawing a square outline across the card's rounded
+   border. The card's own `:focus-within` ring is the one focus indication. */
+.compose-input:focus-visible {
+  outline: none;
+}
+.compose-input::placeholder {
+  color: var(--ink-faint);
+  font-style: normal;
+}
+
+.compose-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px 14px 22px;
+  border-top: 0;
+}
+.compose-foot__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.compose-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 140ms;
+}
+.compose-send:hover {
+  filter: brightness(1.08);
+}
+.compose-send:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.compose-send svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.6;
+}
+.compose-send:disabled,
+.compose-send.disabled {
+  background: var(--rule);
+  color: var(--ink-mute);
+  pointer-events: none;
+}

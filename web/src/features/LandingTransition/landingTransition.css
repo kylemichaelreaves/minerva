@@ -47,18 +47,6 @@
     scale: var(--lt-scale, 1);
   }
 }
-/* The phone composer's top rule. `to` / `from` are left to the element's
-   own colour. */
-@keyframes lt-rule-in {
-  from {
-    border-top-color: transparent;
-  }
-}
-@keyframes lt-rule-out {
-  to {
-    border-top-color: transparent;
-  }
-}
 @keyframes lt-drop-in {
   from {
     translate: 0 -6px;
@@ -150,20 +138,8 @@
 .composer-wrap.lt-entering {
   z-index: 45;
 }
-/* The footer, and the scope control above the box — the chat composer
-   always offers one and an unscoped landing does not, so it would otherwise
-   pop in on the first frame. A scoped landing's chip travels instead
-   (controller.ts), and that animation overrides this fade. */
-.composer-wrap.lt-entering .composer-foot,
-.composer-wrap.lt-entering > :not(.composer) {
-  animation: lt-in calc(var(--lt-d) * 0.35) ease calc(var(--lt-d) * 0.5) both;
-}
-/* A scoped landing's chip travels (controller.ts) and starts inside the
-   landing box, so it must paint over the composer box, which is positioned
-   and comes later in the wrap. */
-.composer-wrap.lt-entering .chat-scope-control {
-  z-index: 1;
-}
+/* No footer fade: the landing and chat footers have the same shape, scope
+   pill included, so the footer stays visible and rides in the box. */
 /* The ghost leaves through this box; an empty-field placeholder under it
    would read as a second line of text. It returns, as a cut, when the
    flight ends — the design leaves crossfade-or-cut to the builder. */
@@ -174,10 +150,10 @@
 /* ════════════════════════════════════════════════════════════════
    CHAT → LANDING (Escape) — the inverse
    The landing mounts as a layer over the chat and its furniture drifts back
-   from the offsets it left by; the chat's thread, topbar and composer
-   footer fade out, and the real composer slides down into the landing box
-   (WAAPI, returnController.ts). Out first, in last: the chat is gone by
-   .45, the landing arrives from .3 and settles at 1. `data-lt-return` and
+   from the offsets it left by; the chat's thread and topbar fade out, and
+   the real composer — footer and scope pill included — slides down into
+   the landing box (WAAPI, returnController.ts). Out first, in last: the
+   chat is gone by .45, the landing arrives from .3 and settles at 1. `data-lt-return` and
    the layer's `--lt-top/left/width` are set on the root only while it runs.
    ════════════════════════════════════════════════════════════════ */
 @keyframes lt-drift-in {
@@ -225,13 +201,10 @@
 :root[data-lt-return="return"] .topbar {
   animation: lt-out calc(var(--lt-d) * 0.35) ease both;
 }
-/* Above the arriving landing, so the box passes over its fading-in parts. */
+/* Above the arriving landing, so the box passes over its fading-in parts.
+   Its footer stays, as on the way out: the landing's has the same shape. */
 :root[data-lt-return="return"] .composer-wrap {
   z-index: 45;
-}
-:root[data-lt-return="return"] .composer-wrap .composer-foot,
-:root[data-lt-return="return"] .composer-wrap > :not(.composer) {
-  animation: lt-out calc(var(--lt-d) * 0.35) ease both;
 }
 /* The landing box has its own placeholder, which takes over on arrival. */
 :root[data-lt-return="return"] .composer-input::placeholder {
@@ -256,15 +229,6 @@
      header on the first frame. Arrives late, like the desktop topbar. */
   :root:has(.landing.is-leaving) .mobile-topbar {
     animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
-  }
-  /* The composer is a borderless bar here; its wrap's full-width top rule
-     would travel to the landing box as a hairline across the screen. It
-     comes in with the footer, and leaves with it on the return (#854). */
-  .composer-wrap.lt-entering {
-    animation: lt-rule-in calc(var(--lt-d) * 0.35) ease calc(var(--lt-d) * 0.5) both;
-  }
-  :root[data-lt-return="return"] .composer-wrap {
-    animation: lt-rule-out calc(var(--lt-d) * 0.35) ease both;
   }
   .landing:is(.is-leaving, .is-arriving) .landing-atlas {
     --lt-dy: -28px;

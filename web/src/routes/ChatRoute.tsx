@@ -50,6 +50,12 @@ export function ChatRoute(props: RouteContextProps) {
     if (ok && !wouldDropInput()) back.begin(c.newConversation);
   });
   const returning = () => back.phase() !== "idle";
+  // The scope both pills show. Unscoped while returning: "New conversation"
+  // clears the scope on arrival, so a scoped pill would ride into the landing
+  // slot and flip to "All works" at the end. The chat composer's pill is the
+  // one the user sees travel (the landing box is hidden throughout), so both
+  // read this, and the flip happens on the first frame instead.
+  const shownScope = () => (returning() ? null : props.conversations.chatScope());
 
   // Leaving mid-flight drops the flight: "New conversation" brings the
   // landing back, a sidebar pick starts hydrating another conversation.
@@ -110,7 +116,7 @@ export function ChatRoute(props: RouteContextProps) {
           entering={lifting()}
           scopeChip={
             <WorkScopeControl
-              scope={props.conversations.chatScope}
+              scope={shownScope}
               works={props.reader.works}
               ensureWorks={props.reader.ensureWorks}
               onSet={props.conversations.setChatScope}
@@ -132,21 +138,15 @@ export function ChatRoute(props: RouteContextProps) {
           leaving={props.conversations.showLanding() ? undefined : transition.phase()}
           arriving={returning() ? back.phase() : undefined}
           scopeChip={
-            // Only when a scope is actually set (#350), so the cold landing
-            // stays the uncluttered brand screen. `WorkScopeControl` is the
-            // same dismissible chip the conversation composer uses above, so
-            // a work carried out of the Reader is visible and droppable
-            // rather than a hidden filter on the first question.
-            // Not while returning: "New conversation" clears the scope on
-            // arrival, so a chip shown on the way would pop out at the end.
-            <Show when={props.conversations.chatScope() && !returning()}>
-              <WorkScopeControl
-                scope={props.conversations.chatScope}
-                works={props.reader.works}
-                ensureWorks={props.reader.ensureWorks}
-                onSet={props.conversations.setChatScope}
-              />
-            </Show>
+            // Always on, like the chat composer's: "All works" when
+            // unscoped, the work's title when a work was carried out of the
+            // Reader (#350).
+            <WorkScopeControl
+              scope={shownScope}
+              works={props.reader.works}
+              ensureWorks={props.reader.ensureWorks}
+              onSet={props.conversations.setChatScope}
+            />
           }
           onOpenRead={() => {
             void props.reader.switchMode("reader");

@@ -9,50 +9,14 @@
   max-width: var(--col);
   margin: 0 auto;
   pointer-events: auto;
-  padding: 14px 16px 12px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
   position: relative;
-  transition: border-color 160ms;
-}
-.composer:focus-within {
-  border-color: var(--ink);
 }
 
 .composer-input {
-  width: 100%;
-  font-family: var(--serif);
-  font-size: 18px;
-  line-height: 1.5;
-  color: var(--ink);
-  resize: none;
-  display: block;
-  min-height: 28px;
+  font-size: 19px;
+  min-height: 64px;
   max-height: 180px;
-}
-.composer-input::placeholder {
-  color: var(--ink-faint);
-  font-style: italic;
-}
-
-.composer-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dotted var(--rule-soft);
-}
-.composer-foot .left {
-  font-family: var(--sans);
-  font-size: 10px;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  padding: 16px 22px 4px;
 }
 
 .kbd {
@@ -65,84 +29,69 @@
   color: var(--ink-mute);
 }
 
-/* Work-scope control — sits inside the sticky composer wrap, above the
-   input box, centered on the same column. Holds the scope chip (or the
-   "Scope to a work" affordance) and anchors the drop-up picker. */
+/* Work-scope control — a pill in the composer card's footer. Holds the
+   "All works" / work-title opener (and the × when scoped) and anchors the
+   drop-up picker. */
 .chat-scope-control {
   position: relative;
-  margin: 0 auto 8px;
   width: fit-content;
-  max-width: var(--col);
+  max-width: 100%;
+  min-width: 0;
   pointer-events: auto;
+  /* The footer's label type is small caps; the pill sets its own. */
+  text-transform: none;
+  letter-spacing: normal;
 }
 .chat-scope {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: fit-content;
-  padding: 4px 6px 4px 12px;
-  background: var(--paper-edge);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--radius-pill);
-  font-family: var(--sans);
-  font-size: 11px;
+  gap: 4px;
+  min-width: 0;
 }
-.chat-scope__label {
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 9.5px;
-  color: var(--ink-faint);
-}
-.chat-scope__work {
-  color: var(--ink);
-  font-style: italic;
-  max-width: 42ch;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font-family: var(--serif);
-  font-size: 13px;
-  cursor: pointer;
-}
-.chat-scope__work:hover {
-  color: var(--accent);
-}
-
-/* Unscoped affordance. */
-.chat-scope-add {
+.chat-scope__pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 12px;
-  border: 1px dashed var(--rule-soft);
+  gap: 6px;
+  max-width: 32ch;
+  padding: 6px 12px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule-soft);
   border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--ink-faint);
+  color: var(--ink-mute);
   font-family: var(--sans);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     color 120ms,
     border-color 120ms;
 }
-.chat-scope-add:hover {
+.chat-scope__pill:hover {
   color: var(--ink);
   border-color: var(--rule);
 }
-.chat-scope-add__plus {
-  font-size: 13px;
+.chat-scope__pill:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.chat-scope__work {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.chat-scope__chevron {
+  font-size: 10px;
   line-height: 1;
 }
 .chat-scope__clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  flex: none;
+  width: 22px;
+  height: 22px;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -155,7 +104,7 @@
     color 120ms;
 }
 .chat-scope__clear:hover {
-  background: var(--paper);
+  background: var(--paper-soft);
   color: var(--accent);
 }
 
@@ -237,4 +186,3 @@
   color: var(--ink-faint);
   text-align: center;
 }
-

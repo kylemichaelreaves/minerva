@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
 
 // The landing → chat transition and the layout it lands in. `/api/chat` is
@@ -365,7 +365,7 @@ test("Escape keeps a draft: it does not leave over unsent text", async ({ page }
 
 test("an Escape another surface claims does not also leave", async ({ page }) => {
   await settledChat(page);
-  await page.getByRole("button", { name: /scope to a work/i }).click();
+  await page.getByRole("button", { name: "Scope: All works" }).click();
   await expect(page.getByRole("listbox").or(page.getByRole("dialog")).first()).toBeVisible();
 
   await page.keyboard.press("Escape");
@@ -657,10 +657,9 @@ test("toggling the theme mid-flight cuts to the landed chat", async ({ page }) =
   expect(await flightState(page)).toEqual({ ghosts: 0, leaving: 0, timing: "" });
 });
 
-test("a work scope's chip travels from the landing's chip", async ({ page, request }) => {
-  await holdChat(page);
-  // A landing arrived at from a work carries its scope (#350): open the
-  // Reader and Escape out of it.
+/** A landing arrived at from a work carries its scope (#350): open the
+ *  Reader on the fixture index's first work and Escape out of it. */
+async function scopedLanding(page: Page, request: APIRequestContext) {
   const res = await request.get("/api/works");
   const works = (await res.json()) as { works: { work: string; lang: string }[] };
   const first = works.works[0];
@@ -668,52 +667,78 @@ test("a work scope's chip travels from the landing's chip", async ({ page, reque
   await page.goto(`/#/r/${encodeURIComponent(first.work)}?lang=${encodeURIComponent(first.lang)}`);
   await page.locator("[data-chunk-id]").first().waitFor();
   await page.keyboard.press("Escape");
+  await expect(page.locator(".landing .chat-scope__work")).toBeVisible();
+}
+
+test("the scope pill rides inside the box", async ({ page, request }) => {
+  await holdChat(page);
+  await scopedLanding(page, request);
   const box = page.getByPlaceholder("What would you like to consider?");
-  await expect(page.locator(".landing .chat-scope-control")).toBeVisible();
   await box.fill(QUESTION);
   await box.focus();
   await landingSettled(page);
-  const landingChip = await boxOf(page, ".landing .chat-scope-control");
 
   await pressFrozen(page);
-  await seekTo(page, 0);
-  const chip = page.locator(".composer-wrap .chat-scope-control");
-  const first0 = await boxOf(page, ".composer-wrap .chat-scope-control");
-  expect(Math.abs(first0.x - landingChip.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(first0.y - landingChip.y)).toBeLessThanOrEqual(1);
-  expect(await chip.evaluate((c) => Number(getComputedStyle(c).opacity))).toBe(1);
-  // …and painted, not under the composer box it starts inside of.
-  const onTop = await chip.evaluate((c) => {
-    const r = c.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return hit !== null && c.contains(hit);
+  await seekTo(page, 325);
+  const composer = await boxOf(page, ".composer");
+  const pill = await boxOf(page, ".composer .chat-scope-control");
+  expect(pill.x).toBeGreaterThanOrEqual(composer.x);
+  expect(pill.y).toBeGreaterThanOrEqual(composer.y);
+  expect(pill.x + pill.width).toBeLessThanOrEqual(composer.x + composer.width);
+  expect(pill.y + pill.height).toBeLessThanOrEqual(composer.y + composer.height);
+  // Its own opacity and every ancestor's: a fading footer would hide it too.
+  const opacity = await page.evaluate(() => {
+    let o = 1;
+    for (let el = document.querySelector(".composer .chat-scope-control"); el;) {
+      o *= Number(getComputedStyle(el).opacity);
+      el = el.parentElement;
+    }
+    return o;
   });
-  expect(onTop).toBe(true);
+  expect(opacity).toBe(1);
 });
 
-test.describe("on a phone", () => {
-  test.use({ viewport: { width: 375, height: 812 } });
+/** Runs in the page: each composer's pill by accessible name — the chat's
+ *  (`.composer`) and the landing's — "absent" for one not mounted. With
+ *  `when`, null until that selector matches. */
+function pillNames(when: string | null) {
+  if (when !== null && !document.querySelector(when)) return null;
+  const name = (sel: string) => document.querySelector(sel)?.getAttribute("aria-label") ?? "absent";
+  return {
+    chat: name(".composer .chat-scope__pill"),
+    landing: name(".landing .chat-scope__pill"),
+  };
+}
 
-  const ruleColor = (page: Page) =>
-    page.locator(".composer-wrap").evaluate((w) => getComputedStyle(w).borderTopColor);
+test("a scoped chat returns to an 'All works' landing without a flip", async ({
+  page,
+  request,
+}) => {
+  await answerChatAtOnce(page);
+  await scopedLanding(page, request);
+  const box = page.getByPlaceholder("What would you like to consider?");
+  await box.fill(QUESTION);
+  await box.press("Enter");
+  await expect(page.getByText("Dusk falls.")).toBeVisible();
+  await expect(page.locator(".lift-ghost")).toHaveCount(0, { timeout: 1500 });
+  await expect(page.locator(".composer .chat-scope__work")).toBeVisible();
 
-  test("no hairline crosses the screen on the first frame", async ({ page }) => {
-    await holdChat(page);
-    await fillLanding(page, QUESTION);
-    await pressFrozen(page);
-    await seekTo(page, 0);
-    expect(await ruleColor(page)).toBe("rgba(0, 0, 0, 0)");
+  await page.keyboard.press("Escape");
+  // Read once, in the return's first frame — never auto-retried, which would
+  // wait out a scoped pill until it cleared itself. The chat composer's pill
+  // is the one the user sees travel: the landing box is hidden throughout.
+  const first = await page.waitForFunction(pillNames, ".landing.is-arriving", {
+    polling: "raf",
+    timeout: 2000,
+  });
+  expect(await first.jsonValue()).toEqual({
+    chat: "Scope: All works",
+    landing: "Scope: All works",
   });
 
-  test("…nor while the composer travels back down to the landing", async ({ page }) => {
-    await settledChat(page);
-    const rest = await ruleColor(page);
-    expect(rest).not.toBe("rgba(0, 0, 0, 0)");
-    await pressFrozen(page, "Escape", ".landing.is-arriving");
-    // The two frames the hairline was seen in.
-    for (const t of [325, 490]) {
-      await seekTo(page, t);
-      expect(await ruleColor(page)).toBe("rgba(0, 0, 0, 0)");
-    }
+  await expect(page.locator(".thread")).toHaveCount(0, { timeout: 1500 });
+  expect(await page.evaluate(pillNames, null)).toEqual({
+    chat: "absent",
+    landing: "Scope: All works",
   });
 });

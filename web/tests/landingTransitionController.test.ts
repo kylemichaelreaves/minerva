@@ -8,6 +8,7 @@ import {
   type Flight,
   type TransitionEnv,
 } from "~/features/LandingTransition/controller";
+import { composerKeyframes } from "~/features/LandingTransition/flight";
 import type { FlightOrigin, FlightTarget } from "~/features/LandingTransition/flight";
 
 const ORIGIN = { text: "Q" } as FlightOrigin;
@@ -267,6 +268,23 @@ describe("createLandingTransition", () => {
   });
 });
 
+describe("composerKeyframes", () => {
+  it("composerKeyframes has no chip leg", () => {
+    const o = {
+      box: { top: 304, left: 300, width: 680, height: 88 },
+    } as FlightOrigin;
+    const t = {
+      composer: { top: 688, left: 280, width: 880, height: 96 },
+    } as FlightTarget;
+    // Even handed the pill's rects on both ends — what the old chip leg
+    // keyed on — there is nothing for it to animate: it rides in the box.
+    const pill = { top: 360, left: 316, width: 120, height: 28 };
+    const withPill = { ...o, chip: pill } as FlightOrigin;
+    const toPill = { ...t, chip: { ...pill, top: 752 } } as FlightTarget;
+    expect(Object.keys(composerKeyframes(withPill, toPill))).toEqual(["wrap", "box"]);
+  });
+});
+
 describe("defaultEnv", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -392,29 +410,35 @@ describe("defaultEnv", () => {
     delete (Element.prototype as { animate?: unknown }).animate;
   });
 
-  it("plays: a scope chip on both ends travels too", () => {
+  it("plays: the scope pill inside the composer gets no animation of its own", () => {
     mountLandingAndChat();
+    // Both ends carry the pill inside the box now, so it rides with the
+    // box's own animation; a separate leg would offset it twice.
     document
       .querySelector(".landing-input-wrap")
-      ?.insertAdjacentHTML("afterbegin", `<div class="chat-scope-control"></div>`);
+      ?.insertAdjacentHTML("beforeend", `<div class="chat-scope-control"></div>`);
     document
-      .querySelector(".composer-wrap")
-      ?.insertAdjacentHTML("afterbegin", `<div class="chat-scope-control"></div>`);
+      .querySelector(".composer")
+      ?.insertAdjacentHTML("beforeend", `<div class="chat-scope-control"></div>`);
     const animate = vi.fn(() => ({ finished: Promise.resolve(), cancel: vi.fn() }));
     Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true });
     const env = defaultEnv();
     const origin = env.measureOrigin();
     const target = env.measureTarget();
     if (!origin || !target) throw new Error("fixture did not measure");
-    expect(origin.chip).toBeDefined();
-    expect(target.chip).toBeDefined();
 
     env.play(origin, target).cancel();
-    // ghost move + ghost chrome + composer wrap + composer box + chip
-    expect(animate).toHaveBeenCalledTimes(5);
-    expect(animate.mock.contexts.at(-1)).toBe(
-      document.querySelector(".composer-wrap .chat-scope-control"),
-    );
+    // ghost move + ghost chrome + composer wrap + composer box
+    expect(animate).toHaveBeenCalledTimes(4);
+    // Both pills by their own selector: a bare `.chat-scope-control` finds
+    // the landing's first, and the chat's — the one a chip leg animated —
+    // would go unchecked.
+    const chatPill = document.querySelector(".composer .chat-scope-control");
+    const landingPill = document.querySelector(".landing-input-wrap .chat-scope-control");
+    expect(chatPill).not.toBeNull();
+    expect(landingPill).not.toBeNull();
+    expect(animate.mock.contexts).not.toContain(chatPill);
+    expect(animate.mock.contexts).not.toContain(landingPill);
     delete (Element.prototype as { animate?: unknown }).animate;
   });
 
