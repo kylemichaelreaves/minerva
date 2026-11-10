@@ -25,13 +25,13 @@ export const Dark: Story = {
   parameters: { backgrounds: { default: "paper-dark" } },
 };
 
-// Mobile (iPhone 14, 390×844). Atlas moves to TOP per design 1a, the
-// hero collapses to the Π monogram, the composer pills wrap to two
-// rows, and the three-mode entry stacks vertically. Those four changes
-// are the whole of what "design 1a" specified for this surface, recorded
-// here because the wireframe file they came from was a local scratch file
-// and never entered the repository — this story is the design of record
-// (#360).
+// Mobile (iPhone 14, 390×844). The hero collapses to the monogram, the
+// composer pills wrap to two rows, and the doors (Read / Citations /
+// Network / Concordance / Observability) sit under the composer as a
+// 2-column grid, since the header has no room for them. Design 1a (#360)
+// put the Atlas at the top here; the landing redesign moved the Atlas to the
+// Network page and the doors into the desktop header. The redesign's mocks
+// live on the "Minerva landing redesign" Claude Design canvas (option B).
 export const Mobile: Story = {
   parameters: {
     viewport: { defaultViewport: "iphone14" },

@@ -180,11 +180,11 @@ export function AppRoutes(props: AppRoutesProps) {
               cross-cutting concern" (an earlier version of this comment
               claimed that, and it was wrong): `useMobileTopBarConfig` has
               its own `onMetrics`, wired from `App.tsx`, so the mobile top
-              bar shows "Request timing" instead of falling through to the
+              bar shows "Observability" instead of falling through to the
               chat title/search action — a review caught it falling through
               before this was added. */}
           <Match when={props.routing.route().kind === "metrics"}>
-            <SurfaceErrorBoundary label="Request timing">
+            <SurfaceErrorBoundary label="Observability">
               <MetricsRoute {...ctx} />
             </SurfaceErrorBoundary>
           </Match>

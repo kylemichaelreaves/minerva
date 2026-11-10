@@ -3,12 +3,12 @@ import { test, expect } from "./fixtures";
 // styles.css's element reset set `outline: 0` on every button, input,
 // textarea and select, so a keyboard-focused control showed no ring unless its
 // component happened to add a `:focus-visible` rule of its own — 29 rules for
-// 131 buttons (#774). The landing page's mode buttons ("Read", "Refs",
-// "Network") are one of the many that never did: this asserts the global rule
-// reaches a control with no component-level focus style.
+// 131 buttons (#774). The landing page's door links ("Read", "Citations",
+// "Network" in the header) are one of the many that never did: this asserts
+// the global rule reaches a control with no component-level focus style.
 test("a keyboard-focused button with no rule of its own shows a focus ring", async ({ page }) => {
   await page.goto("/");
-  const mode = page.locator(".landing-mode").first();
+  const mode = page.locator(".landing-nav__link").first();
   await expect(mode).toBeVisible();
 
   // Real Tab presses, not `.focus()`: `:focus-visible` is the browser's

@@ -211,7 +211,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
   return (
     <div class="metrics-panel">
       <header class="metrics-head">
-        <h1>Request timing</h1>
+        <h1>Observability</h1>
         <span classList={{ "metrics-sub": true, "metrics-stale": refreshing(summary) }}>
           {WINDOW_PROSE[win()]} · {totalRequests().toLocaleString()} requests
         </span>

@@ -19,13 +19,14 @@ import {
   type Tradition,
 } from "~/data/atlasData";
 import { onActivateKey } from "~/utils/activateKey";
+import "~/Network/components/atlas.css";
 
 /** Format one corpus-fact number, tolerating a missing field.
  *
  *  Mirrors `fmtNum` in `Landing/index.tsx`, which renders the same three
- *  numbers in the mode row and has always guarded them. Kept as a local
- *  function rather than shared because the two differ in the em dash: the mode
- *  row's `—` sits in its own `.num` span, and here it is inline in a caption. */
+ *  numbers in the landing's stats line and has always guarded them. Kept as a
+ *  local function rather than shared because the two differ in the em dash:
+ *  the stats line's `—` sits in its own `.num` span, here it is inline. */
 const fmtStat = (n: number | undefined): string =>
   typeof n === "number" ? n.toLocaleString() : "—";
 
@@ -48,10 +49,10 @@ export function Atlas(props: {
   }
 
   return (
-    <div class="landing-atlas">
-      <div class="landing-atlas-scroll">
+    <div class="net-atlas">
+      <div class="net-atlas-scroll">
         <svg
-          class="landing-atlas-svg"
+          class="net-atlas-svg"
           viewBox={`0 0 ${VB_WIDTH} ${VB_HEIGHT}`}
           preserveAspectRatio="xMidYMid meet"
         >
@@ -187,12 +188,12 @@ export function Atlas(props: {
 
       {/* `<Show when={props.stats}>` proves the object is there, NOT that its
           fields are — a 200 carrying a partial payload made
-          `undefined.toLocaleString()` throw, which took the whole landing down
-          with it. `Landing/index.tsx` renders these same three numbers through
+          `undefined.toLocaleString()` throw, which took the whole landing (its home
+          then) down with it. `Landing/index.tsx` renders these same three numbers through
           its own `fmtNum` and has always been defensive; this copy was not, so
           the two disagreed about the same data. Formatted per-field for that
           reason, not out of superstition. */}
-      <div class="landing-atlas-caption">
+      <div class="net-atlas-caption">
         <Show when={props.stats}>
           {(s) => (
             <>

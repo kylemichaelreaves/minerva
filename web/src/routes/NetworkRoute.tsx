@@ -83,6 +83,9 @@ export function NetworkRoute(props: RouteContextProps) {
               targetWork: work,
             });
           }}
+          onOpenAuthor={(name) => {
+            props.routing.navigate({ kind: "refs", sourceAuthor: name });
+          }}
           onOpenArc={() => {
             const filters = networkFiltersFromRoute(mainRoute());
             props.routing.navigate(networkRouteFromFilters("network-arc", filters));

@@ -123,7 +123,7 @@ export function defaultEnv(): TransitionEnv {
         // Still in flow, before the swap. As a layer it is `inset: 0` on
         // `.main`, which shrinks to the chat's height the moment the chat
         // mounts; a landing taller than the viewport would reflow and its
-        // atlas jump up on frame 0.
+        // lower parts jump up on frame 0.
         const landing = document.querySelector(".landing");
         if (landing) s.setProperty("--lt-leave-h", `${landing.getBoundingClientRect().height}px`);
       } else {

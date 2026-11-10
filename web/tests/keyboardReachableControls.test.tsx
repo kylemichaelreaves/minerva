@@ -22,7 +22,7 @@ import { FilterBar } from "~/Concordance/components/FilterBar";
 import { FilterRail } from "~/Concordance/components/FilterRail";
 import { ScopePill } from "~/Concordance/components/ScopePill";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
-import { Atlas } from "~/features/Landing/components/Atlas";
+import { Atlas } from "~/Network/components/Atlas";
 import { RequestLedger } from "~/Metrics/RequestLedger";
 import { NetworkArc } from "~/Network/components/NetworkArc";
 import { ConcordanceTabPanel } from "~/Reader/components/ConcordanceTabPanel";

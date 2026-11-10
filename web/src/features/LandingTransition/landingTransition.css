@@ -67,7 +67,8 @@
   inset: 0;
   /* The landing's in-flow height, measured before the swap (controller.ts).
      `inset: 0` alone is `.main`'s post-swap height: a landing taller than
-     the viewport would reflow and its atlas jump on frame 0 (#854). */
+     the viewport would reflow and everything under the box jump on frame 0
+     (#854; then it was the atlas, since moved to the Network page). */
   height: var(--lt-leave-h, auto);
   z-index: 40;
   pointer-events: none;
@@ -76,13 +77,7 @@
   visibility: hidden;
 }
 .landing.is-leaving
-  :is(
-    .landing-monogram-wrap,
-    .landing-modes,
-    .landing-modes-aside,
-    .landing-atlas,
-    .landing-header
-  ) {
+  :is(.landing-monogram-wrap, .landing-hero > .landing-nav, .landing-stats, .landing-header) {
   animation:
     lt-out calc(var(--lt-d) * 0.45) ease both,
     lt-drift calc(var(--lt-d) * 0.7) var(--lt-ease) both;
@@ -93,12 +88,9 @@
   --lt-dy: -18px;
   --lt-scale: 0.96;
 }
-.landing:is(.is-leaving, .is-arriving) .landing-modes,
-.landing:is(.is-leaving, .is-arriving) .landing-modes-aside {
+/* The phone's doors sit under the box, and the stats line under them. */
+.landing:is(.is-leaving, .is-arriving) :is(.landing-hero > .landing-nav, .landing-stats) {
   --lt-dy: 28px;
-}
-.landing:is(.is-leaving, .is-arriving) .landing-atlas {
-  --lt-dy: 44px;
 }
 /* Reduced motion: nothing travels. The layer fades out over the chat,
    which is the crossfade. A literal 180ms, not `--lt-d` (the lift's). */
@@ -184,13 +176,7 @@
   visibility: hidden;
 }
 .landing.is-arriving
-  :is(
-    .landing-monogram-wrap,
-    .landing-modes,
-    .landing-modes-aside,
-    .landing-atlas,
-    .landing-header
-  ) {
+  :is(.landing-monogram-wrap, .landing-hero > .landing-nav, .landing-stats, .landing-header) {
   animation:
     lt-in calc(var(--lt-d) * 0.45) ease calc(var(--lt-d) * 0.55) both,
     lt-drift-in calc(var(--lt-d) * 0.7) var(--lt-ease) calc(var(--lt-d) * 0.3) both;
@@ -221,17 +207,13 @@
 }
 
 /* ---------- Phone ----------
-   The atlas sits above the owl here, and the landing header is the brand
-   bar, so "owl up, the rest down" becomes "everything above the box up". */
+   The landing header is the brand bar here, so it rises with the owl. */
 @media (max-width: 768px) {
   /* The app-level bar ("☰ Chat") lives outside ChatRoute and mounts the
      moment the landing yields; without this it lands on top of the landing
      header on the first frame. Arrives late, like the desktop topbar. */
   :root:has(.landing.is-leaving) .mobile-topbar {
     animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
-  }
-  .landing:is(.is-leaving, .is-arriving) .landing-atlas {
-    --lt-dy: -28px;
   }
   .landing:is(.is-leaving, .is-arriving) .landing-header {
     --lt-dy: -12px;
@@ -249,26 +231,14 @@
    motion, so a lift should never run — but if one does, nothing travels. */
 @media (prefers-reduced-motion: reduce) {
   .landing.is-leaving
-    :is(
-      .landing-monogram-wrap,
-      .landing-modes,
-      .landing-modes-aside,
-      .landing-atlas,
-      .landing-header
-    ) {
+    :is(.landing-monogram-wrap, .landing-hero > .landing-nav, .landing-stats, .landing-header) {
     animation: lt-out calc(var(--lt-d) * 0.45) ease both;
   }
   .topbar.lt-entering {
     animation: lt-in calc(var(--lt-d) * 0.4) ease calc(var(--lt-d) * 0.55) both;
   }
   .landing.is-arriving
-    :is(
-      .landing-monogram-wrap,
-      .landing-modes,
-      .landing-modes-aside,
-      .landing-atlas,
-      .landing-header
-    ) {
+    :is(.landing-monogram-wrap, .landing-hero > .landing-nav, .landing-stats, .landing-header) {
     animation: lt-in calc(var(--lt-d) * 0.45) ease calc(var(--lt-d) * 0.55) both;
   }
 }

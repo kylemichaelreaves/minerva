@@ -354,15 +354,14 @@
 
   /* ================================================================
      LANDING — mobile layout
-     Design 1a/1b: atlas at TOP, then monogram-only hero, then composer
-     with pills inside, then vertical modes list. Header strip is the
-     brand mark right-aligned, very small.
+     Monogram-only hero, then composer with pills inside, then the doors
+     as a 2-column grid (the desktop header has no room for them here),
+     then the stats line. Header strip is the brand mark and theme toggle.
      ================================================================ */
   .landing {
     --landing-gutter: 16px;
     padding: 0 var(--landing-gutter) 24px;
     min-height: 100dvh;
-    /* Re-order children via flex `order` — atlas moves above center. */
   }
   .landing-header {
     height: 44px;
@@ -384,12 +383,7 @@
   .landing-header .mark .pi {
     font-size: 18px;
   }
-  /* Atlas (chronological timeline) is hidden on mobile — the dense
-     author strip is too crowded at phone widths. Desktop keeps it. */
-  .landing-atlas {
-    display: none;
-  }
-  /* Center column (hero + modes) sits below the atlas. Generous
+  /* Center column (hero + doors). Generous
      vertical rhythm: the hero monogram + composer + modes each get
      room to breathe rather than crowding against each other. The
      column shrinks to fit its content so the modes sit close under
@@ -485,62 +479,36 @@
     min-height: 28px;
   }
 
-  /* CTAs sit in a 2×2 grid on mobile — the single side-by-side row is
-     too cramped at phone widths. The grid shrinks to its content and
-     centers under the composer rather than stretching to the chatbox
-     width. */
-  .landing-modes {
-    width: auto;
-    margin: 48px auto 0;
-    grid-template-columns: 1fr 1fr;
-    border-top: 1px solid var(--rule);
-    border-bottom: 1px solid var(--rule);
+  /* The doors, under the composer: Read/Citations, Network/Concordance,
+     then Observability across the bottom row. 44px rows for touch. */
+  .landing-nav {
+    width: 100%;
+    margin: 32px 0 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0;
+    border-top: 1px solid var(--rule-soft);
   }
-  /* The 2x2 grid gets a 48px top margin here, so the aside's desktop
-     negative margin would pull it into the grid's bottom border. Reset it
-     and give it a small gap of its own. */
-  .landing-modes-aside {
-    width: auto;
-    margin: 10px auto 0;
-    padding-right: 4px;
-  }
-  .landing-mode-aside {
-    padding: 6px 12px;
-  }
-  .landing-mode {
-    padding: 14px 16px;
-    border-right: 1px solid var(--rule-soft);
-    border-bottom: 1px solid var(--rule-soft);
-    min-height: 56px;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
+  .landing-nav__link {
+    min-height: 44px;
+    padding: 0 4px;
     text-align: left;
-    gap: 2px;
-  }
-  /* Interior dividers only: drop the right border on the right column
-     and the bottom border on the last row. Tuned for the current four
-     CTAs (2×2) — the outer frame comes from .landing-modes' top/bottom
-     borders. */
-  .landing-mode:nth-child(even) {
-    border-right: 0;
-  }
-  .landing-mode:nth-child(n + 3) {
-    border-bottom: 0;
-  }
-  .landing-mode .lbl {
     font-size: 13px;
-    line-height: 1.2;
+    border-bottom: 1px solid var(--rule-soft);
   }
-  .landing-mode .lbl .arr {
+  .landing-nav__link--util {
+    grid-column: 1 / -1;
+  }
+  .landing-nav__sep {
     display: none;
   }
-  .landing-mode .sub {
-    margin: 2px 0 0;
-    text-align: left;
-    font-size: 10px;
-    line-height: 1.3;
+  /* One line at 320px: the desktop tracking wraps "cross-references". */
+  .landing-stats {
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .landing-stats .sep {
+    margin: 0 5px;
   }
   /* ================================================================
      CHAT — mobile thread + composer (design 2a/2b)
