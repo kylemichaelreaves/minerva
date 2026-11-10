@@ -1,8 +1,17 @@
-// Landing — the corpus's frontispiece. Four elements stacked:
-//   1. Monogram, whose popover carries the Hegel epigraph
-//   2. Composer (Chat entry — the primary affordance)
-//   3. Mode entry row — explicit doors to Read / Refs / Network
-//   4. Atlas — chronological strip of every author in the corpus
+// Landing — the corpus's frontispiece:
+//   1. Header — the doors to every other surface (Read / Citations /
+//      Network / Concordance, then Observability apart as a utility) and
+//      the theme toggle
+//   2. Monogram, whose popover carries the Hegel epigraph
+//   3. Composer (Chat entry — the primary affordance)
+//   4. One line of corpus stats
+//
+// The doors used to be a 960px four-column grid under the composer, with
+// "Request timing" hung beneath it because a fifth cell would not fit, and
+// the Atlas timeline below that. The redesign put the doors in the header
+// so the composer stands alone, and moved the Atlas to the Network page.
+// On a phone the header has no room for five links, so they render under
+// the composer instead.
 //
 // There was a starter-prompts grid between 2 and 3. It offered four
 // un-anchored thematic questions — the shape this corpus answers worst,
@@ -15,7 +24,6 @@ import ComposeField from "~/components/cards/ComposeField";
 import { ThemeToggle } from "~/components/shell/ThemeToggle";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { useMobile } from "~/hooks/useMobile";
-import { Atlas } from "~/features/Landing/components/Atlas";
 import { classnames } from "~/utils/util";
 import type { Phase } from "~/features/LandingTransition/controller";
 import type { ReturnPhase } from "~/features/LandingTransition/returnController";
@@ -62,9 +70,9 @@ const TOOLTIP_ID = "landing-monogram-tooltip";
 
 // The last stats any landing fetched. A landing mounted again — New
 // conversation, or Escape from a chat — renders with them at once and
-// refreshes behind: the Atlas caption they fill in is a line tall, and its
-// arriving late re-centred the column, moving the composer box 8px after the
-// return transition had measured where to land.
+// refreshes behind. The stats line is reserved a line's height either way, so
+// its arriving late cannot re-centre the column and move the composer box
+// after the return transition has measured where to land.
 let lastStats: LandingStats | null = null;
 
 export default function Landing(props: LandingProps) {
@@ -146,6 +154,35 @@ export default function Landing(props: LandingProps) {
 
   const fmtNum = (n: number | undefined) => (n === undefined ? "—" : n.toLocaleString());
 
+  // The doors out of the landing. One list, placed in the header on desktop
+  // and under the composer on a phone (see the file comment). Observability
+  // watches the server rather than reading the corpus, so it sits after a
+  // divider, muted.
+  const nav = () => (
+    <nav class="landing-nav" aria-label="Explore the corpus">
+      <button type="button" class="landing-nav__link" onClick={() => props.onOpenRead()}>
+        Read
+      </button>
+      <button type="button" class="landing-nav__link" onClick={() => props.onOpenRefs()}>
+        Citations
+      </button>
+      <button type="button" class="landing-nav__link" onClick={() => props.onOpenNetwork()}>
+        Network
+      </button>
+      <button type="button" class="landing-nav__link" onClick={() => props.onOpenConcordance()}>
+        Concordance
+      </button>
+      <span class="landing-nav__sep" aria-hidden="true" />
+      <button
+        type="button"
+        class="landing-nav__link landing-nav__link--util"
+        onClick={() => props.onOpenMetrics()}
+      >
+        Observability
+      </button>
+    </nav>
+  );
+
   return (
     <div
       class={classnames(
@@ -163,6 +200,7 @@ export default function Landing(props: LandingProps) {
         <span class="mark">
           <span class="pi">M</span>inerva
         </span>
+        <Show when={!isMobile()}>{nav()}</Show>
         <Show when={props.onToggleTheme}>
           <ThemeToggle
             theme={props.theme ?? "light"}
@@ -245,58 +283,16 @@ export default function Landing(props: LandingProps) {
               )
             }
           />
-        </div>
-
-        <div class="landing-modes">
-          <button class="landing-mode" onClick={() => props.onOpenRead()}>
-            <span class="lbl">
-              Read the texts <span class="arr">→</span>
-            </span>
-            <span class="sub">
-              <span class="num">{stats()?.authors ?? "—"}</span> authors &middot;{" "}
-              <span class="num">{fmtNum(stats()?.works)}</span> works
-            </span>
-          </button>
-          <button class="landing-mode" onClick={() => props.onOpenRefs()}>
-            <span class="lbl">
-              Browse citations <span class="arr">→</span>
-            </span>
-            <span class="sub">
-              <span class="num">{fmtNum(stats()?.xrefs)}</span> cross-references
-            </span>
-          </button>
-          <button class="landing-mode" onClick={() => props.onOpenNetwork()}>
-            <span class="lbl">
-              See the network <span class="arr">→</span>
-            </span>
-            <span class="sub">visualize the corpus</span>
-          </button>
-          <button class="landing-mode" onClick={() => props.onOpenConcordance()}>
-            <span class="lbl">
-              Open concordance <span class="arr">→</span>
-            </span>
-            <span class="sub">lemma index &middot; KWIC grid</span>
-          </button>
-        </div>
-
-        {/* Deliberately outside `.landing-modes`. That grid is
-            `repeat(4, 1fr)` and its own comment notes the width auto-scales
-            "so adding/removing a CTA doesn't force the 4th onto its own
-            row" — a fifth cell is the case it was built to avoid. This is
-            also a different kind of destination: the four above are for
-            reading the corpus, this one is for watching the server, so it
-            reads as a utility rather than a peer. */}
-        <div class="landing-modes-aside">
-          <button class="landing-mode-aside" onClick={() => props.onOpenMetrics()}>
-            <span class="lbl">
-              Request timing <span class="arr">→</span>
-            </span>
-            <span class="sub">p95 by route &middot; latency over time</span>
-          </button>
+          <Show when={isMobile()}>{nav()}</Show>
+          <p class="landing-stats">
+            <span class="num">{stats()?.authors ?? "—"}</span> authors
+            <span class="sep">·</span>
+            <span class="num">{fmtNum(stats()?.works)}</span> works
+            <span class="sep">·</span>
+            <span class="num">{fmtNum(stats()?.xrefs)}</span> cross-references
+          </p>
         </div>
       </div>
-
-      <Atlas onPickAuthor={(name) => props.onOpenRefs(name)} stats={stats()} isMobile={isMobile} />
     </div>
   );
 }

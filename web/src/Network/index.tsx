@@ -1,10 +1,12 @@
 // Citation-network dashboard orchestrator.
 
 import { Show, createEffect, createSignal, onMount } from "solid-js";
+import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { fetchNetworkSummary } from "~/api/networkApi";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { MobileSheet } from "~/components/shell/MobileSheet";
 import { useMobileShell } from "~/components/shell/MobileShellContext";
+import { Atlas } from "~/Network/components/Atlas";
 import { NetworkBody } from "~/Network/components/Body";
 import { NetworkHeader } from "~/Network/components/Header";
 import { NetworkFiltersBar } from "~/Network/components/NetworkFiltersBar";
@@ -29,15 +31,25 @@ export interface NetworkProps {
   onOpenArc: () => void;
   /** Mobile drilldown — open verification coverage full-screen (6). */
   onOpenCoverage: () => void;
+  /** An author picked on the Atlas timeline — opens their citations. */
+  onOpenAuthor: (name: string) => void;
 }
 
 export default function Network(props: NetworkProps) {
   const shell = useMobileShell();
 
+  // The Atlas caption states whole-corpus facts, so it reads the landing's
+  // unfiltered stats rather than this page's filtered totals.
+  const [corpusStats, setCorpusStats] = createSignal<LandingStats | null>(null);
   onMount(() => {
     shell.registerSurfaceActions({
       openFilters: () => shell.setFiltersSheetOpen(true),
     });
+    void fetchLandingStats()
+      .then(setCorpusStats)
+      .catch(() => {
+        // The caption is decorative — silent on failure.
+      });
   });
 
   const { data, loading, error } = useAbortableFetch(
@@ -139,6 +151,14 @@ export default function Network(props: NetworkProps) {
           onPatch={patch}
         />
       </MobileSheet>
+      {/* The chronological strip of every author, moved here from the
+          landing. Desktop only: at phone width the strip is too dense, and
+          the mobile body links to the arc drilldown instead. */}
+      <Show when={!shell.isMobile()}>
+        <div class="net-atlas-band">
+          <Atlas onPickAuthor={props.onOpenAuthor} stats={corpusStats()} isMobile={() => false} />
+        </div>
+      </Show>
       <Show
         when={!error() && data()}
         fallback={

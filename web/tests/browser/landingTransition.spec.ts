@@ -604,10 +604,10 @@ test("the leaving landing keeps its height, so nothing on it jumps", async ({ pa
   // chat it is swapped for is not.
   await holdChat(page);
   await fillLanding(page, lines(20));
-  const before = await boxOf(page, ".landing-atlas");
+  const before = await boxOf(page, ".landing-stats");
   await pressFrozen(page);
   await seekTo(page, 0);
-  const first = await boxOf(page, ".landing-atlas");
+  const first = await boxOf(page, ".landing-stats");
   expect(Math.abs(first.y - before.y)).toBeLessThanOrEqual(1);
 });
 

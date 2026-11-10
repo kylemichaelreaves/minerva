@@ -72,7 +72,7 @@ for (const theme of ["light", "dark"] as const) {
       const send = page.locator(".compose-send");
       await page.getByPlaceholder("What would you like to consider?").fill("x");
       await expect(send).toHaveCSS("background-color", accent);
-      expect((await send.boundingBox())?.height).toBe(40);
+      expect((await send.boundingBox())?.height).toBeCloseTo(30, 1);
     });
 
     test("rests at three lines on the landing and two in the chat", async ({ page }) => {

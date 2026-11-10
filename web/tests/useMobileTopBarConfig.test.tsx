@@ -75,7 +75,7 @@ describe("useMobileTopBarConfig", () => {
     dispose();
   });
 
-  it("returns Request timing title and no action on the metrics route", () => {
+  it("returns Observability title and no action on the metrics route", () => {
     // Without an `onMetrics` branch, `#/metrics` used to fall through to
     // the chat case below and show the active conversation's title plus
     // a "Search within conversation" action over the metrics page —
@@ -93,7 +93,7 @@ describe("useMobileTopBarConfig", () => {
       readerWorkInfo: () => null,
     });
 
-    expect(config.title).toBe("Request timing");
+    expect(config.title).toBe("Observability");
     expect(config.action).toBeUndefined();
     expect(config.onAction).toBeUndefined();
     dispose();

@@ -105,7 +105,7 @@ describe("<App />", () => {
     // `#/metrics` reaches `MetricsRoute` through `AppRoutes`'s new
     // `<Match>`, not the panel's own behavior.
     await waitFor(() => {
-      expect(screen.getByText("Request timing")).toBeInTheDocument();
+      expect(screen.getByText("Observability")).toBeInTheDocument();
     });
   });
 

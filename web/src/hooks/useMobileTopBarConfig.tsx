@@ -41,7 +41,7 @@ export function useMobileTopBarConfig(input: MobileTopBarConfigInput): {
     // showed the active conversation's title (or "Chat") over the metrics
     // page — every other full-page surface (Network, Refs, Concordance)
     // has a title branch here; this one was missing (caught in review).
-    if (input.onMetrics()) return "Request timing";
+    if (input.onMetrics()) return "Observability";
     if (input.reader.mode() === "reader") {
       const info = input.readerWorkInfo();
       if (info) {

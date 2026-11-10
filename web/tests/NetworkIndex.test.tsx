@@ -12,6 +12,9 @@ vi.mock("~/api/networkApi", async (importOriginal) => ({
   fetchNetworkSummary: vi.fn(),
 }));
 const fetchMock = vi.mocked(fetchNetworkSummary);
+vi.mock("~/api/landingApi", () => ({
+  fetchLandingStats: vi.fn(() => Promise.resolve({ authors: 48, works: 867, xrefs: 57848 })),
+}));
 
 const plato: NetworkAuthor = { name: "Plato", short: "Pl", ord: 100, corpus: "class" };
 const kant: NetworkAuthor = { name: "Kant", short: "Ka", ord: 900, corpus: "mod" };
@@ -39,6 +42,7 @@ function mount(initialConf?: number) {
     onOpenTargetWork: vi.fn(),
     onOpenArc: vi.fn(),
     onOpenCoverage: vi.fn(),
+    onOpenAuthor: vi.fn(),
   };
   const result = render(() => (
     <MobileShellProvider>
@@ -110,6 +114,34 @@ describe("<Network />", () => {
     });
     expect(container.querySelector(".net-body")).toBeNull();
     expect(screen.queryByText("Author × Author citation matrix")).toBeNull();
+  });
+
+  it("carries the Atlas timeline on desktop; picking an author opens their citations", async () => {
+    fetchMock.mockResolvedValueOnce(makeNetworkSummary({ authors: [plato], cells: [SELF] }));
+    const { container, handlers } = mount();
+    const band = await waitFor(() => {
+      const el = container.querySelector(".net-atlas-band .net-atlas");
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    await waitFor(() => {
+      expect(band.querySelector(".net-atlas-caption")).toHaveTextContent(
+        `${(57848).toLocaleString()} VERIFIED CROSS-REFERENCES`,
+      );
+    });
+    const first = band.querySelector<SVGGElement>(".atlas-author");
+    if (!first) throw new Error("no atlas author");
+    fireEvent.click(first);
+    expect(handlers.onOpenAuthor).toHaveBeenCalledTimes(1);
+    expect(handlers.onOpenAuthor.mock.calls[0]?.[0]).toEqual(expect.any(String));
+  });
+
+  it("leaves the Atlas off at phone width", async () => {
+    forceMobile();
+    fetchMock.mockResolvedValueOnce(makeNetworkSummary({ authors: [plato], cells: [SELF] }));
+    const { container } = mount();
+    await waitFor(() => expect(container.querySelector(".net-loading")).toBeNull());
+    expect(container.querySelector(".net-atlas")).toBeNull();
   });
 
   it("mobile body routes pair, work, and footer taps to the Network's handlers", async () => {

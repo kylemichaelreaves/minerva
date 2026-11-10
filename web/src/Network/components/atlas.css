@@ -1,0 +1,155 @@
+/* ════════════════════════════════════════════════════════════════
+   ATLAS — chronological strip of every author in the corpus.
+   Lived on the landing page until the landing redesign moved it here,
+   onto the Network page, as a band between the header and the panels.
+   Light/dark tradition-band colours are local to this file.
+   ════════════════════════════════════════════════════════════════ */
+
+/* The band that holds it on the Network page. Fixed height (the strip
+   scales with width; capped so it never squeezes the panel grid below),
+   since `.net` is a 100vh column whose grid takes the remaining space. */
+.net-atlas-band {
+  flex: 0 0 auto;
+  padding: 22px 20px 10px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  justify-content: center;
+}
+.net-atlas-band > .net-atlas {
+  max-width: 1080px;
+}
+
+.net-atlas {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  /* Tradition-band colours — light mode defaults */
+  --atlas-scripture: #bfb29b;
+  --atlas-classical: #9ca3a0;
+  --atlas-medieval: #6f6a5e;
+  --atlas-earlymodern: #4a463e;
+  --atlas-modern: #25221e;
+  --atlas-rule-hair: #b8ae99;
+}
+[data-theme="dark"] .net-atlas {
+  --atlas-scripture: #4a4234;
+  --atlas-classical: #5d6260;
+  --atlas-medieval: #807a6c;
+  --atlas-earlymodern: #b1a896;
+  --atlas-modern: #e2d8c4;
+  --atlas-rule-hair: #463c30;
+}
+.net-atlas-scroll {
+  width: 100%;
+  position: relative;
+  overflow: visible;
+}
+.net-atlas-svg {
+  display: block;
+  /* The SVG fits the container's width (no horizontal scrolling) —
+     `preserveAspectRatio` on the element keeps text readable at the
+     scaled-down size. */
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.atlas-bandlbl {
+  font-family: var(--sans);
+  font-size: 9px;
+  fill: var(--ink-mute);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.atlas-year {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  fill: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+.atlas-name {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  fill: var(--ink);
+}
+.atlas-author:hover .atlas-name {
+  fill: var(--accent);
+}
+
+.atlas-tooltip {
+  pointer-events: none;
+  position: absolute;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 7px 10px 8px;
+  font-family: var(--sans);
+  color: var(--ink);
+  width: 220px;
+  line-height: 1.35;
+  box-shadow: 2px 2px 0 0 color-mix(in oklab, var(--ink) 18%, transparent);
+  transform: translate(-22px, calc(-100% - 12px));
+  z-index: 6;
+}
+/* Mirror image for authors in the right half (see Atlas.tsx): the box's
+   right edge sits 22px past the anchor instead of its left edge 22px
+   before it, and the arrow moves to the matching corner. */
+/* Two classes so these outrank `.atlas-tooltip` and `.atlas-tooltip::after`
+   whatever their order in the file — with one, the base `::after` below won
+   and the arrow stayed on the left corner, pointing away from the author. */
+.atlas-tooltip.atlas-tooltip-flip {
+  transform: translate(calc(-100% + 22px), calc(-100% - 12px));
+}
+.atlas-tooltip.atlas-tooltip-flip::after {
+  left: auto;
+  right: 16px;
+}
+.atlas-tooltip .nm {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink);
+}
+.atlas-tooltip .tr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: 3px;
+}
+.atlas-tooltip .wk {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 4px;
+}
+.atlas-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  width: 8px;
+  height: 8px;
+  background: var(--paper);
+  border-right: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  transform: translateY(-4px) rotate(45deg);
+}
+
+.net-atlas-caption {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  text-align: center;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.net-atlas-caption .sep {
+  color: var(--ink-faint);
+  margin: 0 10px;
+}

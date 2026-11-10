@@ -211,25 +211,69 @@ describe("<Landing />", () => {
     expect(kbds.every((k) => k.parentElement?.parentElement === row)).toBe(true);
   });
 
-  it("opens the metrics surface from the landing page", () => {
+  it("opens the metrics surface from the Observability link", () => {
     const { onOpenMetrics } = renderLanding();
-    fireEvent.click(screen.getByRole("button", { name: /request timing/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Observability" }));
     expect(onOpenMetrics).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the metrics entry out of the four-column modes grid", () => {
-    // The grid is `repeat(4, 1fr)` and its CSS notes the width auto-scales
-    // "so adding/removing a CTA doesn't force the 4th onto its own row".
-    // A fifth cell is exactly the case that comment designs against, so the
-    // metrics entry has to live outside the grid, not inside it.
+  it("puts the doors in the header on desktop, Observability last", () => {
     const { container } = renderLanding();
-    const grid = container.querySelector(".landing-modes");
-    expect(grid).not.toBeNull();
-    expect(grid?.querySelectorAll(".landing-mode").length).toBe(4);
-    expect(grid?.textContent).not.toMatch(/request timing/i);
+    const nav = must(container.querySelector(".landing-header .landing-nav"));
+    expect(screen.getByRole("navigation", { name: "Explore the corpus" })).toBe(nav);
+    expect(Array.from(nav.querySelectorAll("button")).map((b) => b.textContent)).toEqual([
+      "Read",
+      "Citations",
+      "Network",
+      "Concordance",
+      "Observability",
+    ]);
+    // One copy only: the under-composer placement is the phone's.
+    expect(container.querySelectorAll(".landing-nav")).toHaveLength(1);
+  });
 
-    const aside = container.querySelector(".landing-modes-aside");
-    expect(aside?.textContent).toMatch(/request timing/i);
+  it("each door calls its own handler", () => {
+    const h = renderLanding();
+    const cases: [string, () => unknown][] = [
+      ["Read", () => h.onOpenRead],
+      ["Citations", () => h.onOpenRefs],
+      ["Network", () => h.onOpenNetwork],
+      ["Concordance", () => h.onOpenConcordance],
+    ];
+    for (const [name, handler] of cases) {
+      fireEvent.click(screen.getByRole("button", { name }));
+      expect(handler()).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("puts the doors under the composer on a phone, not in the header", () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("max-width: 768px"),
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }));
+    const { container } = renderLanding();
+    expect(container.querySelector(".landing-header .landing-nav")).toBeNull();
+    const nav = must(container.querySelector(".landing-hero > .landing-nav"));
+    // Under the composer, above the stats line.
+    expect(nav.previousElementSibling).toHaveClass("landing-input-wrap");
+    expect(nav.nextElementSibling).toHaveClass("landing-stats");
+  });
+
+  it("shows a stats line with placeholders until the stats arrive", () => {
+    const { container } = renderLanding();
+    const line = must(container.querySelector(".landing-stats"));
+    expect(line.textContent).toMatch(/authors.*works.*cross-references/);
+  });
+
+  it("no longer carries the Atlas timeline (it moved to the Network page)", () => {
+    const { container } = renderLanding();
+    expect(container.querySelector(".net-atlas, .landing-atlas")).toBeNull();
   });
 
   describe("leaving for the chat", () => {

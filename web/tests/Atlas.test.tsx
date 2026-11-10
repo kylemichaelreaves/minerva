@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
-import { Atlas } from "~/features/Landing/components/Atlas";
+import { Atlas } from "~/Network/components/Atlas";
 import type { LandingStats } from "~/api/landingApi";
 import { ATLAS_AUTHORS, BANDS } from "~/data/atlasData";
 import { must } from "./helpers/must";
@@ -26,7 +26,7 @@ function renderAtlas(stats: LandingStats | null) {
 describe("<Atlas /> corpus-fact caption", () => {
   it("renders all three numbers, thousands-separated, when the payload is complete", () => {
     const { container } = renderAtlas(FULL);
-    const cap = container.querySelector(".landing-atlas-caption");
+    const cap = container.querySelector(".net-atlas-caption");
     expect(cap).not.toBeNull();
     expect(must(cap).textContent).toMatch(/48\s*AUTHORS/);
     expect(must(cap).textContent).toMatch(/866\s*WORKS/);
@@ -37,7 +37,7 @@ describe("<Atlas /> corpus-fact caption", () => {
 
   it("renders nothing at all when stats have not arrived", () => {
     const { container } = renderAtlas(null);
-    const cap = container.querySelector(".landing-atlas-caption");
+    const cap = container.querySelector(".net-atlas-caption");
     expect(cap).not.toBeNull();
     expect(must(cap).textContent.trim()).toBe("");
   });
@@ -55,7 +55,7 @@ describe("<Atlas /> corpus-fact caption", () => {
 
   it("shows an em dash for a missing number rather than blank or NaN", () => {
     const { container } = renderAtlas({ authors: 48 } as unknown as LandingStats);
-    const cap = must(container.querySelector(".landing-atlas-caption"));
+    const cap = must(container.querySelector(".net-atlas-caption"));
     expect(cap.textContent).toMatch(/—\s*WORKS/);
     expect(cap.textContent).toMatch(/—\s*VERIFIED CROSS-REFERENCES/);
     // The field that IS present must still render its real value.

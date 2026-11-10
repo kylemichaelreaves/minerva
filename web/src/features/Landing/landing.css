@@ -1,7 +1,6 @@
 /* ════════════════════════════════════════════════════════════════
    LANDING — the corpus's frontispiece.
    Tokens come from styles.css :root + [data-theme="dark"].
-   Light/dark tradition-band colours are local to this file.
    ════════════════════════════════════════════════════════════════ */
 
 .landing {
@@ -11,21 +10,6 @@
   align-items: center;
   padding: 0 32px 32px;
   min-height: 0;
-  /* Atlas band colours — light mode defaults */
-  --atlas-scripture: #bfb29b;
-  --atlas-classical: #9ca3a0;
-  --atlas-medieval: #6f6a5e;
-  --atlas-earlymodern: #4a463e;
-  --atlas-modern: #25221e;
-  --atlas-rule-hair: #b8ae99;
-}
-[data-theme="dark"] .landing {
-  --atlas-scripture: #4a4234;
-  --atlas-classical: #5d6260;
-  --atlas-medieval: #807a6c;
-  --atlas-earlymodern: #b1a896;
-  --atlas-modern: #e2d8c4;
-  --atlas-rule-hair: #463c30;
 }
 
 /* ---------- Header strip (brand + theme toggle) ----------
@@ -313,239 +297,61 @@
   padding: 20px 22px 8px;
 }
 
-/* ---------- Mode entry row ---------- */
-.landing-modes {
-  /* Width auto-scales with column count so adding/removing a CTA
-     doesn't force the 4th onto its own row. Capped at 960 so it
-     doesn't sprawl on ultra-wide displays. */
-  width: min(960px, 92vw);
-  margin: 28px auto;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  align-self: center;
+/* ---------- Doors (header nav) ----------
+   Read / Citations / Network / Concordance, then Observability after a
+   hairline. Quiet text links in the header beside the theme toggle — the
+   composer is the page's one primary affordance. mobile.css moves the list
+   under the composer as a 2-column grid. */
+.landing-nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-right: 22px;
 }
-.landing-mode {
-  padding: 14px 22px;
-  text-align: left;
-  background: transparent;
+.landing-nav__link {
+  background: none;
   border: 0;
-  border-right: 1px solid var(--rule);
-  display: flex;
-  flex-direction: column;
+  padding: 4px 0;
   cursor: pointer;
-  font-family: inherit;
-  color: inherit;
-}
-.landing-mode:last-child {
-  border-right: 0;
-}
-.landing-mode .lbl {
   font-family: var(--sans);
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 500;
-  letter-spacing: -0.005em;
-}
-.landing-mode .lbl .arr {
-  color: var(--ink-mute);
-  margin-left: 6px;
-  transition:
-    transform 120ms,
-    color 120ms;
-  display: inline-block;
-}
-.landing-mode:hover .lbl .arr {
-  color: var(--accent);
-  transform: translateX(2px);
-}
-/* The metrics entry sits below the four-column grid, not in it — see the
-   comment in Landing/index.tsx. Right-aligned and muted so it reads as a
-   utility rather than an orphaned fifth cell: left-aligned it looks like a
-   grid column that failed to fill, centered it looks like a continuation of
-   the four. */
-.landing-modes-aside {
-  width: min(960px, 92vw);
-  margin: -18px auto 28px;
-  display: flex;
-  justify-content: flex-end;
-  align-self: center;
-}
-.landing-mode-aside {
-  padding: 8px 22px;
-  text-align: right;
-  background: transparent;
-  border: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  cursor: pointer;
-  font-family: inherit;
-  color: inherit;
-}
-.landing-mode-aside .lbl {
-  font-family: var(--sans);
-  font-size: 11px;
-  color: var(--ink-mute);
-  font-weight: 400;
-  letter-spacing: -0.005em;
-}
-.landing-mode-aside .lbl .arr {
-  color: var(--ink-faint);
-  margin-left: 6px;
-  transition:
-    transform 120ms,
-    color 120ms;
-  display: inline-block;
-}
-.landing-mode-aside:hover .lbl {
-  color: var(--ink);
-}
-.landing-mode-aside:hover .lbl .arr {
-  color: var(--accent);
-  transform: translateX(2px);
-}
-.landing-mode-aside .sub {
-  font-family: var(--sans);
-  font-size: 10px;
-  color: var(--ink-faint);
-  letter-spacing: 0.02em;
-  margin-top: 3px;
-}
-
-.landing-mode .sub {
-  font-family: var(--sans);
-  font-size: 10.5px;
-  color: var(--ink-mute);
-  letter-spacing: 0.02em;
-  margin-top: 4px;
-  font-variant-numeric: tabular-nums;
-}
-.landing-mode .sub .num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--ink);
-}
-
-/* ---------- Atlas ---------- */
-.landing-atlas {
-  width: 100%;
-  margin: 22px 0 0;
-  padding: 0;
-  position: relative;
-}
-.landing-atlas-scroll {
-  width: 100%;
-  position: relative;
-  overflow: visible;
-}
-.landing-atlas-svg {
-  display: block;
-  /* The SVG fits the container's width (no horizontal scrolling) —
-     `preserveAspectRatio` on the element keeps text readable at the
-     scaled-down size. */
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-.atlas-bandlbl {
-  font-family: var(--sans);
-  font-size: 9px;
-  fill: var(--ink-mute);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.atlas-year {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 9.5px;
-  fill: var(--ink-faint);
-  letter-spacing: 0.04em;
-}
-.atlas-name {
-  font-family: var(--sans);
-  font-size: 10.5px;
-  fill: var(--ink);
-}
-.atlas-author:hover .atlas-name {
-  fill: var(--accent);
-}
-
-.atlas-tooltip {
-  pointer-events: none;
-  position: absolute;
-  background: var(--paper);
-  border: 1px solid var(--ink);
-  padding: 7px 10px 8px;
-  font-family: var(--sans);
-  color: var(--ink);
-  width: 220px;
-  line-height: 1.35;
-  box-shadow: 2px 2px 0 0 color-mix(in oklab, var(--ink) 18%, transparent);
-  transform: translate(-22px, calc(-100% - 12px));
-  z-index: 6;
-}
-/* Mirror image for authors in the right half (see Atlas.tsx): the box's
-   right edge sits 22px past the anchor instead of its left edge 22px
-   before it, and the arrow moves to the matching corner. */
-/* Two classes so these outrank `.atlas-tooltip` and `.atlas-tooltip::after`
-   whatever their order in the file — with one, the base `::after` below won
-   and the arrow stayed on the left corner, pointing away from the author. */
-.atlas-tooltip.atlas-tooltip-flip {
-  transform: translate(calc(-100% + 22px), calc(-100% - 12px));
-}
-.atlas-tooltip.atlas-tooltip-flip::after {
-  left: auto;
-  right: 16px;
-}
-.atlas-tooltip .nm {
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 14px;
-  color: var(--ink);
-}
-.atlas-tooltip .tr {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-top: 3px;
-}
-.atlas-tooltip .wk {
-  font-family: var(--serif);
-  font-style: italic;
   font-size: 12.5px;
-  color: var(--ink-mute);
-  margin-top: 4px;
+  letter-spacing: -0.005em;
+  color: var(--ink-soft);
+  transition: color 120ms;
 }
-.atlas-tooltip::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 16px;
-  width: 8px;
-  height: 8px;
-  background: var(--paper);
-  border-right: 1px solid var(--ink);
-  border-bottom: 1px solid var(--ink);
-  transform: translateY(-4px) rotate(45deg);
+.landing-nav__link:hover {
+  color: var(--accent);
+}
+.landing-nav__link--util {
+  color: var(--ink-mute);
+}
+.landing-nav__sep {
+  width: 1px;
+  height: 14px;
+  background: var(--rule);
 }
 
-.landing-atlas-caption {
+/* ---------- Corpus stats line ----------
+   `min-height` reserves the line before the stats arrive, so their landing
+   late cannot re-centre the column under the return transition. */
+.landing-stats {
+  margin: 18px 0 0;
+  min-height: 1.4em;
   font-family: var(--sans);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink-mute);
-  text-align: center;
-  margin-top: 16px;
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
 }
-.landing-atlas-caption .sep {
+.landing-stats .num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+.landing-stats .sep {
   color: var(--ink-faint);
-  margin: 0 10px;
+  margin: 0 8px;
 }
 
 /* ════════════════════════════════════════════════════════════════
