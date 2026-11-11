@@ -1,4 +1,4 @@
-import { For, Show, batch, createResource, createSignal } from "solid-js";
+import { For, Show, batch, createComputed, createResource, createSignal, on } from "solid-js";
 
 import {
   fetchMetricsRequests,
@@ -66,6 +66,24 @@ export function RequestLedger(props: { window: MetricWindow }) {
   const [older, setOlder] = createSignal<MetricsRequestRow[]>([]);
   const [cursor, setCursor] = createSignal<MetricsRequestsCursor | undefined>();
 
+  // A filter or window change invalidates every page already appended: they
+  // describe the PREVIOUS query, and keeping them would interleave two result
+  // sets with nothing on screen to say so.
+  const reset = () => {
+    setOlder([]);
+    setCursor(undefined);
+    setSelected(undefined);
+  };
+
+  // The checkboxes reset in their own handlers; the window arrives as a prop
+  // and the panel does not remount the ledger on a switch, so it needs its
+  // own trigger (#881). A computed rather than an effect, and created BEFORE
+  // the resource: it then runs ahead of the resource's source in the same
+  // update, so the new window is fetched once, from the top. With an effect
+  // the resource refetches first, asking the new window for rows older than
+  // the OLD window's cursor, and only then resets.
+  createComputed(on(() => props.window, reset, { defer: true }));
+
   const source = () => ({
     window: props.window,
     errors: errorsOnly(),
@@ -79,15 +97,6 @@ export function RequestLedger(props: { window: MetricWindow }) {
       before: s.before,
     }),
   );
-
-  // A filter or window change invalidates every page already appended: they
-  // describe the PREVIOUS query, and keeping them would interleave two result
-  // sets with nothing on screen to say so.
-  const reset = () => {
-    setOlder([]);
-    setCursor(undefined);
-    setSelected(undefined);
-  };
 
   // `rows.error` first: reading an errored Solid resource re-throws, which
   // would take down the error branch below with it.
