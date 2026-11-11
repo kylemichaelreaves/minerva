@@ -2,8 +2,8 @@ import { type JSX } from "solid-js";
 import { classnames } from "~/utils/util";
 import { SendIcon } from "~/components/primitives/Icons";
 import type { ComposerState } from "~/utils/composer";
-import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
-import { useMobile } from "~/hooks/useMobile";
+import { useIsMobile } from "~/components/shell/MobileShellContext";
+import { LANDING_LANG, LANDING_PROMPT } from "~/components/cards/landingPrompts";
 import "~/components/cards/composeCard.css";
 
 export interface ComposeFieldProps {
@@ -20,9 +20,7 @@ export interface ComposeFieldProps {
 
 export default function ComposeField(props: ComposeFieldProps) {
   const isLanding = () => props.variant === "landing";
-  const shell = useMobileShellOptional();
-  const fallbackMobile = useMobile();
-  const isMobile = () => shell?.isMobile() ?? fallbackMobile();
+  const isMobile = useIsMobile();
   const wrapClass = () =>
     classnames(
       isLanding() ? "landing-input-wrap compose-card" : "composer-wrap",
@@ -36,7 +34,7 @@ export default function ComposeField(props: ComposeFieldProps) {
   // "Reply to Minerva…" reads as a quoted invitation in the cramped
   // mobile context, where "Continue the enquiry…" felt abstract.
   const placeholder = (): string => {
-    if (isLanding()) return "What would you like to consider?";
+    if (isLanding()) return LANDING_PROMPT;
     if (props.disabled) return "Awaiting reply…";
     return isMobile() ? "Reply to Minerva…" : "Continue the enquiry…";
   };
@@ -50,6 +48,10 @@ export default function ComposeField(props: ComposeFieldProps) {
         ref={props.c.setRef}
         class={inputClass()}
         placeholder={placeholder()}
+        // The landing prompt may be French or German, so screen readers
+        // need its language. Only while empty: `lang` also sets the
+        // spellcheck language for whatever the user types.
+        lang={isLanding() && !props.c.value() ? LANDING_LANG : undefined}
         value={props.c.value()}
         disabled={props.disabled}
         onInput={(e) => props.c.onInput(e)}

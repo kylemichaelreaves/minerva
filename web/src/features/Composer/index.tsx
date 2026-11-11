@@ -1,7 +1,14 @@
 import { onMount, type JSX } from "solid-js";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/cards/ComposeField";
+import KeyHints from "~/components/cards/KeyHints";
 import "~/features/Composer/composer.css";
+
+// The no-break space keeps each label on its key cap's line.
+const HINTS = [
+  ["Enter", " send"],
+  ["⇧ Enter", " new line"],
+] as const;
 
 interface ComposerProps {
   onSend: (text: string) => void;
@@ -51,16 +58,7 @@ export default function Composer(props: ComposerProps) {
       sendLabel="Send"
       disabled={props.disabled}
       scopeChip={props.scopeChip}
-      hint={
-        <>
-          <span>
-            <span class="kbd">Enter</span> &nbsp;send
-          </span>
-          <span>
-            <span class="kbd">⇧ Enter</span> &nbsp;new line
-          </span>
-        </>
-      }
+      hint={<KeyHints hints={HINTS} />}
     />
   );
 }

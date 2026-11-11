@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { LANDING_PROMPT_RE } from "../../src/components/cards/landingPrompts";
 
 // The landing → chat transition and the layout it lands in. `/api/chat` is
 // routed per test: left pending by default, so the thread stays in its
@@ -18,7 +19,7 @@ async function holdChat(page: Page) {
 
 async function askFromLanding(page: Page, question = QUESTION) {
   await page.goto("/");
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await box.fill(question);
   await box.press("Enter");
 }
@@ -172,7 +173,7 @@ test("New conversation mid-flight cancels it cleanly", async ({ page }) => {
   expect(now).toEqual({ ghosts: 0, leaving: 0, timing: "" });
   await expect(page.locator(".landing")).toBeVisible();
   // A fresh landing, not the one that just sent: Enter must not re-send.
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await expect(box).toHaveValue("");
   await expect(box).toBeFocused();
 });
@@ -245,7 +246,7 @@ test("a multi-line question keeps its lines on the first frame", async ({ page }
   const lines = Array.from({ length: 6 }, (_, i) => `Line ${i + 1}`).join("\n");
   await holdChat(page);
   await page.goto("/");
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await box.fill(lines);
   await page.evaluate(() => {
     (window as unknown as { __before: Set<Animation> }).__before = new Set(
@@ -335,7 +336,7 @@ test("Escape in a settled chat returns to an empty landing", async ({ page }) =>
     timing: "",
   });
   await expect(page).not.toHaveURL(/c-e2e/);
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await expect(box).toHaveValue("");
   await expect(box).toBeFocused();
   // And it is the conversation's way out, not its end: still in the sidebar.
@@ -456,7 +457,7 @@ test.describe("Escape under reduced motion", () => {
     expect(mid).toMatchObject({ arriving: 0, fading: 1, stage: "fade" });
 
     await expect(page.locator(".thread")).toHaveCount(0, { timeout: 600 });
-    await expect(page.getByPlaceholder("What would you like to consider?")).toBeFocused();
+    await expect(page.getByPlaceholder(LANDING_PROMPT_RE)).toBeFocused();
   });
 });
 
@@ -555,7 +556,7 @@ async function boxOf(page: Page, selector: string) {
 
 async function fillLanding(page: Page, text: string) {
   await page.goto("/");
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await box.fill(text);
   await box.focus();
   await landingSettled(page);
@@ -673,7 +674,7 @@ async function scopedLanding(page: Page, request: APIRequestContext) {
 test("the scope pill rides inside the box", async ({ page, request }) => {
   await holdChat(page);
   await scopedLanding(page, request);
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await box.fill(QUESTION);
   await box.focus();
   await landingSettled(page);
@@ -716,7 +717,7 @@ test("a scoped chat returns to an 'All works' landing without a flip", async ({
 }) => {
   await answerChatAtOnce(page);
   await scopedLanding(page, request);
-  const box = page.getByPlaceholder("What would you like to consider?");
+  const box = page.getByPlaceholder(LANDING_PROMPT_RE);
   await box.fill(QUESTION);
   await box.press("Enter");
   await expect(page.getByText("Dusk falls.")).toBeVisible();
