@@ -94,11 +94,7 @@ export function MobileShellProvider(props: { children: JSX.Element }) {
     setThreadSearchOpen,
   };
 
-  return (
-    <MobileShellContext.Provider value={value}>
-      {props.children}
-    </MobileShellContext.Provider>
-  );
+  return <MobileShellContext.Provider value={value}>{props.children}</MobileShellContext.Provider>;
 }
 
 export function useMobileShell(): MobileShellContextValue {
@@ -112,4 +108,13 @@ export function useMobileShell(): MobileShellContextValue {
 /** Optional hook — returns undefined outside provider (for ComposeField). */
 export function useMobileShellOptional(): MobileShellContextValue | undefined {
   return useContext(MobileShellContext);
+}
+
+/** The shell's mobile flag when inside the provider, else the viewport's
+ *  own breakpoint — for components that also render outside the shell
+ *  (tests, stories). Call once per component, in its body. */
+export function useIsMobile(): Accessor<boolean> {
+  const shell = useMobileShellOptional();
+  const fallback = useMobile();
+  return () => shell?.isMobile() ?? fallback();
 }

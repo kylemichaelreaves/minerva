@@ -1,7 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import type { LandingStats } from "~/api/landingApi";
-import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
-import { useMobile } from "~/hooks/useMobile";
+import { useIsMobile } from "~/components/shell/MobileShellContext";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import {
   ATLAS_AUTHORS,
@@ -36,9 +35,8 @@ export function Atlas(props: {
   isMobile?: () => boolean;
 }) {
   const [hover, setHover] = createSignal<(AtlasAuthor & { computedRow: number }) | null>(null);
-  const shell = useMobileShellOptional();
-  const fallbackMobile = useMobile();
-  const isMobile = () => props.isMobile?.() ?? shell?.isMobile() ?? fallbackMobile();
+  const shellMobile = useIsMobile();
+  const isMobile = () => props.isMobile?.() ?? shellMobile();
 
   const labelFontSize = () => (isMobile() ? 20 : 10.5);
   const layout = createMemo(() => assignAtlasRows(ATLAS_AUTHORS, labelFontSize()));

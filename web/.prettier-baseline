@@ -34,7 +34,6 @@ src/components/primitives/Select.stories.tsx
 src/components/primitives/Select.tsx
 src/components/primitives/Toasts.tsx
 src/components/shell/FilterSheet.tsx
-src/components/shell/MobileShellContext.tsx
 src/Concordance/components/IndexPage.tsx
 src/Concordance/components/LemmaDetail.tsx
 src/features/conversations/conversationsCtrl.ts

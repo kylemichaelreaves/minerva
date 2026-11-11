@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
+import { LANDING_PROMPT_RE } from "~/components/cards/landingPrompts";
 import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
 import App from "~/App";
 import { _resetToastsForTesting } from "~/utils/apiError";
@@ -78,7 +79,7 @@ describe("<App />", () => {
       render(() => <App />);
     });
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/what would you like to consider/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(LANDING_PROMPT_RE)).toBeInTheDocument();
     });
     expect(document.querySelector(".app")).not.toBeNull();
     expect(document.querySelector(".toasts")).not.toBeNull();

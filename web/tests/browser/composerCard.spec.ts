@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { LANDING_PROMPT_RE } from "../../src/components/cards/landingPrompts";
 
 // The landing card and the chat card are one component in two sizes: they
 // share radius, background and border, and differ only in resting height.
@@ -45,7 +46,7 @@ for (const theme of ["light", "dark"] as const) {
     });
 
     async function beginQuestion(page: Page) {
-      const box = page.getByPlaceholder("What would you like to consider?");
+      const box = page.getByPlaceholder(LANDING_PROMPT_RE);
       await box.fill(QUESTION);
       await box.press("Enter");
       await expect(page.getByPlaceholder("Continue the enquiry…")).toBeVisible();
@@ -70,7 +71,7 @@ for (const theme of ["light", "dark"] as const) {
         return c;
       });
       const send = page.locator(".compose-send");
-      await page.getByPlaceholder("What would you like to consider?").fill("x");
+      await page.getByPlaceholder(LANDING_PROMPT_RE).fill("x");
       await expect(send).toHaveCSS("background-color", accent);
       expect((await send.boundingBox())?.height).toBeCloseTo(30, 1);
     });
@@ -88,7 +89,7 @@ for (const theme of ["light", "dark"] as const) {
 // One focus indication: the card's ring. The global `:focus-visible` rule
 // would otherwise paint a square accent outline over the card's rounded border.
 
-async function focusRingOf(page: Page, placeholder: string, card: string) {
+async function focusRingOf(page: Page, placeholder: string | RegExp, card: string) {
   const box = page.getByPlaceholder(placeholder);
   // Keyboard modality, so `:focus-visible` applies as it does for real users.
   for (let i = 0; i < 40; i++) {
@@ -116,11 +117,7 @@ test.describe("focus ring", () => {
       await setTheme(page, theme);
       await holdChat(page);
       await page.goto("/");
-      const { input, ring } = await focusRingOf(
-        page,
-        "What would you like to consider?",
-        ".landing-input-wrap",
-      );
+      const { input, ring } = await focusRingOf(page, LANDING_PROMPT_RE, ".landing-input-wrap");
       expect(input).toBe("none");
       expect(ring.border).toBe(ring.ink);
     });
@@ -129,7 +126,7 @@ test.describe("focus ring", () => {
       await setTheme(page, theme);
       await holdChat(page);
       await page.goto("/");
-      const box = page.getByPlaceholder("What would you like to consider?");
+      const box = page.getByPlaceholder(LANDING_PROMPT_RE);
       await box.fill(QUESTION);
       await box.press("Enter");
       await expect(page.getByPlaceholder("Continue the enquiry…")).toBeVisible();
@@ -179,7 +176,7 @@ test.describe("on a phone", () => {
   async function phoneChat(page: Page) {
     await holdChat(page);
     await page.goto("/");
-    const box = page.getByPlaceholder("What would you like to consider?");
+    const box = page.getByPlaceholder(LANDING_PROMPT_RE);
     await box.fill(QUESTION);
     await box.press("Enter");
     await expect(page.getByPlaceholder("Reply to Minerva…")).toBeVisible();

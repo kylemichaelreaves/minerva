@@ -46,7 +46,7 @@ export function AppRoutes(props: AppRoutesProps) {
 
   const streamTail = createMemo(() => {
     const msgs = props.conversations.messages();
-    const last = msgs[msgs.length - 1];
+    const last = msgs.at(-1);
     if (last?.role === "minerva" && last.streaming) return last.streamText ?? "";
     return "";
   });

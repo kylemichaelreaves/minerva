@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { LANDING_PROMPTS, LANDING_PROMPT_RE } from "~/components/cards/landingPrompts";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import { createSignal, type JSX } from "solid-js";
 import Landing from "~/features/Landing";
@@ -53,7 +54,15 @@ describe("<Landing />", () => {
   it("renders the monogram and the composer", () => {
     renderLanding();
     expect(screen.getByAltText("Minerva")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/what would you like to consider/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(LANDING_PROMPT_RE)).toBeInTheDocument();
+  });
+
+  it("tags the empty box with its prompt's language, and drops it once typed in", () => {
+    renderLanding();
+    const box = screen.getByPlaceholderText<HTMLTextAreaElement>(LANDING_PROMPT_RE);
+    expect(LANDING_PROMPTS[box.lang]).toContain(box.placeholder);
+    fireEvent.input(box, { target: { value: "on the good" } });
+    expect(box).not.toHaveAttribute("lang");
   });
 
   it("offers no starter prompts (#258)", () => {
@@ -99,7 +108,7 @@ describe("<Landing />", () => {
 
   it("Enter on the textarea calls onSubmit with trimmed value", () => {
     const { onSubmit } = renderLanding();
-    const ta = screen.getByPlaceholderText(/what would you like to consider/i);
+    const ta = screen.getByPlaceholderText(LANDING_PROMPT_RE);
     fireEvent.input(ta, { target: { value: "  on the good  " } });
     fireEvent.keyDown(ta, { key: "Enter" });
     expect(onSubmit).toHaveBeenCalledWith("on the good");
@@ -107,7 +116,7 @@ describe("<Landing />", () => {
 
   it("Shift+Enter is a newline, not a submit", () => {
     const { onSubmit } = renderLanding();
-    const ta = screen.getByPlaceholderText(/what would you like to consider/i);
+    const ta = screen.getByPlaceholderText(LANDING_PROMPT_RE);
     fireEvent.input(ta, { target: { value: "partial" } });
     fireEvent.keyDown(ta, { key: "Enter", shiftKey: true });
     expect(onSubmit).not.toHaveBeenCalled();
@@ -117,7 +126,7 @@ describe("<Landing />", () => {
     renderLanding();
     const btn = screen.getByRole("button", { name: /begin/i });
     expect(btn.classList.contains("disabled")).toBe(true);
-    fireEvent.input(screen.getByPlaceholderText(/what would you like/i), {
+    fireEvent.input(screen.getByPlaceholderText(LANDING_PROMPT_RE), {
       target: { value: "x" },
     });
     expect(btn.classList.contains("disabled")).toBe(false);
@@ -157,7 +166,7 @@ describe("<Landing />", () => {
       const { onSubmit } = renderLanding({
         scopeChip: <div data-testid="scope-chip">Das Kapital, Band I</div>,
       });
-      const ta = screen.getByPlaceholderText(/what would you like/i);
+      const ta = screen.getByPlaceholderText(LANDING_PROMPT_RE);
       fireEvent.input(ta, { target: { value: "what is the commodity form?" } });
       fireEvent.keyDown(ta, { key: "Enter" });
       expect(onSubmit).toHaveBeenCalledWith("what is the commodity form?");
@@ -308,9 +317,7 @@ describe("<Landing />", () => {
           leaving={leaving()}
         />
       ));
-      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(
-        /what would you like to consider/i,
-      );
+      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(LANDING_PROMPT_RE);
       fireEvent.input(ta, { target: { value: "What is Geist?" } });
       setLeaving("lift");
       ta.blur();
@@ -333,9 +340,7 @@ describe("<Landing />", () => {
           leaving={leaving()}
         />
       ));
-      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(
-        /what would you like to consider/i,
-      );
+      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(LANDING_PROMPT_RE);
       fireEvent.input(ta, { target: { value: "What is Geist?" } });
       ta.blur();
       setLeaving("idle");
@@ -392,9 +397,7 @@ describe("<Landing />", () => {
     it("takes focus once it has arrived, and never gets the fade back", async () => {
       const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
       const { container, setArriving } = renderArriving("return");
-      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(
-        /what would you like to consider/i,
-      );
+      const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(LANDING_PROMPT_RE);
       setArriving(undefined);
       await Promise.resolve();
 
