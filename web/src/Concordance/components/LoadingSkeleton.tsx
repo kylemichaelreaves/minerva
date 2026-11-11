@@ -27,7 +27,7 @@ export function LoadingSkeleton() {
           "align-items": "center",
           gap: "10px",
           padding: "12px 4px 6px",
-          color: "var(--muted, #888)",
+          color: "var(--ink-mute)",
           "font-size": "14px",
         }}
       >
