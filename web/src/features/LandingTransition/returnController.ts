@@ -15,15 +15,21 @@
 // The chat stays mounted until the end — `go` (which navigates, and so
 // clears the thread) runs only once the flight has settled.
 
-import { createSignal, type Accessor } from "solid-js";
-import { settleOffset, type Rect } from "~/features/LandingTransition/flight";
+import type { Accessor } from "solid-js";
+import { rectOf, settleOffset, type Rect } from "~/features/LandingTransition/flight";
 import {
+  animateAll,
+  attempt,
+  createFlightMachine,
   FADE_MS,
-  GRACE_MS,
   LIFT_MS,
+  motionProbes,
+  setTiming,
   SETTLE_EASE,
+  TIMING_VARS,
+  watchViewport,
   type Flight,
-} from "~/features/LandingTransition/controller";
+} from "~/features/LandingTransition/flightMachine";
 import "~/features/LandingTransition/landingTransition.css";
 
 export type ReturnPhase = "idle" | "return" | "fade";
@@ -44,6 +50,11 @@ export interface ReturnEnv {
   /** After it mounts. */
   measure(): ReturnGeometry | null;
   play(g: ReturnGeometry): Flight;
+  /** As the lift's: calls `interrupted` when the viewport width or the theme
+   *  changes, until the returned function is called. The layer is pinned
+   *  in px at the start, so a resize mid-return leaves it at the old width
+   *  (#865). */
+  watchInterrupts(interrupted: () => void): () => void;
 }
 
 /** Keyframes for the chat composer's slide into the landing box: its centre
@@ -61,12 +72,7 @@ export function returnKeyframes(g: ReturnGeometry): { wrap: Keyframe[]; box: Key
   };
 }
 
-function rectOf(el: Element): Rect {
-  const r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
-}
-
-const STAGE_VARS = ["--lt-d", "--lt-ease", "--lt-top", "--lt-left", "--lt-width"] as const;
+const STAGE_VARS = [...TIMING_VARS, "--lt-top", "--lt-left", "--lt-width"] as const;
 
 function setStage(phase: ReturnPhase) {
   const root = document.documentElement;
@@ -84,8 +90,7 @@ function setStage(phase: ReturnPhase) {
   // chat is gone and the page is that short again.
   const main = document.querySelector<HTMLElement>(".main");
   const r = main?.getBoundingClientRect();
-  root.style.setProperty("--lt-d", `${LIFT_MS}ms`);
-  root.style.setProperty("--lt-ease", SETTLE_EASE);
+  setTiming(root.style);
   root.style.setProperty("--lt-top", `${(r?.top ?? 0) + window.scrollY}px`);
   root.style.setProperty("--lt-left", `${r?.left ?? 0}px`);
   root.style.setProperty("--lt-width", `${r?.width ?? window.innerWidth}px`);
@@ -97,26 +102,15 @@ function setStage(phase: ReturnPhase) {
 function playReturn(g: ReturnGeometry): Flight {
   const k = returnKeyframes(g);
   const travel: KeyframeAnimationOptions = { duration: LIFT_MS, easing: SETTLE_EASE, fill: "both" };
-  const wrap = document.querySelector<HTMLElement>(".composer-wrap");
-  const composer = document.querySelector<HTMLElement>(".composer");
-  const anims: Animation[] = [];
-  const undo = () => {
-    for (const a of anims) a.cancel();
-  };
-  try {
-    if (wrap) anims.push(wrap.animate(k.wrap, travel));
-    if (composer) anims.push(composer.animate(k.box, travel));
-  } catch (err) {
-    undo();
-    throw err;
-  }
-  return { finished: Promise.all(anims.map((a) => a.finished)), cancel: undo };
+  return animateAll([
+    [document.querySelector(".composer-wrap"), k.wrap, travel],
+    [document.querySelector(".composer"), k.box, travel],
+  ]);
 }
 
 export function defaultReturnEnv(): ReturnEnv {
   return {
-    reducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
-    canAnimate: () => typeof Element.prototype.animate === "function",
+    ...motionProbes,
     setStage,
     measure: () => {
       const composer = document.querySelector<HTMLElement>(".composer");
@@ -124,16 +118,8 @@ export function defaultReturnEnv(): ReturnEnv {
       return composer && box ? { composer: rectOf(composer), box: rectOf(box) } : null;
     },
     play: playReturn,
+    watchInterrupts: watchViewport,
   };
-}
-
-function attempt<T>(fn: () => T): T | null {
-  try {
-    return fn();
-  } catch (err) {
-    console.warn("return transition skipped", err);
-    return null;
-  }
 }
 
 export function createReturnTransition(env: ReturnEnv = defaultReturnEnv()): {
@@ -141,53 +127,43 @@ export function createReturnTransition(env: ReturnEnv = defaultReturnEnv()): {
   begin(go: () => void): void;
   cancel(): void;
 } {
-  const [phase, setPhase] = createSignal<ReturnPhase>("idle");
-  let flight: Flight | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  function end() {
-    clearTimeout(timer);
-    timer = undefined;
-    const running = flight;
-    flight = null;
-    setPhase("idle");
-    env.setStage("idle");
-    running?.cancel();
-  }
+  const m = createFlightMachine<"return" | "fade">({
+    unstage: () => env.setStage("idle"),
+    watchInterrupts: (cb) => env.watchInterrupts(cb),
+  });
 
   /** `go` first, while the layer is still up: the landing it navigates to
-   *  is the layer itself (same instance), so there is no frame with neither. */
+   *  is the layer itself (same instance), so there is no frame with neither.
+   *  This is the return's "done" for every path — settle, timeout and
+   *  interrupt alike: an interrupted return arrives at once rather than
+   *  abandoning the reader mid-way back. */
   function finish(go: () => void) {
     try {
       go();
     } finally {
-      end();
+      m.end();
     }
   }
 
   function beginReturn(go: () => void) {
+    // Staged BEFORE the phase: the layer must be pinned before it mounts.
     env.setStage("return");
-    setPhase("return");
-    const g = attempt(() => env.measure());
-    const started = g && attempt(() => env.play(g));
+    m.enter("return");
+    const g = attempt("return transition", () => env.measure());
+    const started = g && attempt("return transition", () => env.play(g));
     if (!started) {
       finish(go);
       return;
     }
-    flight = started;
-    timer = setTimeout(() => finish(go), LIFT_MS + GRACE_MS);
-    const settle = () => {
-      if (flight === started) finish(go);
-    };
-    started.finished.then(settle, settle);
+    m.fly(started, () => finish(go));
   }
 
   function begin(go: () => void) {
-    if (phase() !== "idle") return;
+    if (m.phase() !== "idle") return;
     if (env.reducedMotion()) {
       env.setStage("fade");
-      setPhase("fade");
-      timer = setTimeout(() => finish(go), FADE_MS);
+      m.enter("fade");
+      m.after(FADE_MS, () => finish(go));
     } else if (env.canAnimate()) {
       beginReturn(go);
     } else {
@@ -197,9 +173,5 @@ export function createReturnTransition(env: ReturnEnv = defaultReturnEnv()): {
 
   /** Something else moved the page mid-flight (a sidebar pick, New
    *  conversation): stop, and do not navigate on top of it. */
-  function cancel() {
-    if (phase() !== "idle") end();
-  }
-
-  return { phase, begin, cancel };
+  return { phase: m.phase, begin, cancel: m.cancel };
 }

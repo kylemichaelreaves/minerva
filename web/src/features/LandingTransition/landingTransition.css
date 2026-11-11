@@ -1,7 +1,8 @@
 /* ════════════════════════════════════════════════════════════════
    LANDING → CHAT TRANSITION
-   Timing comes from `--lt-d` / `--lt-ease`, which the controller sets on
-   the root only while a lift runs. Every delay below is a fraction of the
+   Timing comes from `--lt-d` / `--lt-ease` (and `--lt-fade-d` for the
+   reduced-motion fades), which the controllers set on the root only while a
+   transition runs. Every delay below is a fraction of the
    lift, per the design doc's choreography table
    (docs/superpowers/specs/2026-11-06-landing-chat-transition-design.md).
    ════════════════════════════════════════════════════════════════ */
@@ -93,9 +94,11 @@
   --lt-dy: 28px;
 }
 /* Reduced motion: nothing travels. The layer fades out over the chat,
-   which is the crossfade. A literal 180ms, not `--lt-d` (the lift's). */
+   which is the crossfade. `--lt-fade-d`, not `--lt-d` (the lift's): the
+   controller sets it from FADE_MS, the same constant whose timer ends the
+   fade, so the two cannot disagree (#882). */
 .landing.is-fading {
-  animation: lt-out 180ms ease both;
+  animation: lt-out var(--lt-fade-d) ease both;
 }
 
 /* ---------- The chat, arriving ---------- */
@@ -200,10 +203,10 @@
 /* Reduced motion: nothing travels; the landing fades in over the chat as the
    chat fades out. */
 .landing.is-arriving-fade {
-  animation: lt-in 180ms ease both;
+  animation: lt-in var(--lt-fade-d) ease both;
 }
 :root[data-lt-return="fade"] :is(.thread, .topbar, .composer-wrap) {
-  animation: lt-out 180ms ease both;
+  animation: lt-out var(--lt-fade-d) ease both;
 }
 
 /* ---------- Phone ----------
@@ -223,7 +226,7 @@
     animation: lt-out calc(var(--lt-d) * 0.35) ease both;
   }
   :root[data-lt-return="fade"] .mobile-topbar {
-    animation: lt-out 180ms ease both;
+    animation: lt-out var(--lt-fade-d) ease both;
   }
 }
 
