@@ -30,8 +30,9 @@
      cannot drift; the dark theme needs no override at all for these.
 
      What stays Reader-owned, and why:
-     - --r-paper: a slightly lighter page than the app's --paper (#f4efe6).
-       Kept pending the owner's call on whether that is deliberate (#878).
+     - --r-paper (light only): #f6f2ea, a slightly lighter page than the
+       app's --paper (#f4efe6). Deliberate, confirmed by the owner on #878:
+       the reading page is a brighter sheet than the app around it.
      - --r-rule / --r-rule-soft: the Reader's hairlines have no global
        equivalent in dark (#2e2820 / #221c16 fall between --rule-soft
        and --rule), so aliasing them would visibly re-weight every rule in
