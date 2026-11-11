@@ -82,10 +82,10 @@ def undefined_uses(root: Path) -> dict[str, list[str]]:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
-    root = Path(argv[0]) if argv else _ROOT
-
+def main(root: Path = _ROOT) -> int:
+    # The root is a parameter for tests, never a command-line argument: this
+    # gate has one tree to check, and reading a path from argv only gave
+    # Sonar a path-traversal finding (pythonsecurity:S8707) to raise.
     missing = undefined_uses(root)
     if not missing:
         print("check-css-vars: ok (every var(--x) under web/src has a definition)")

@@ -31,7 +31,7 @@ def test_a_defined_property_passes(tmp_path: Path, capsys):
             "web/src/styles.css": ":root { --paper: #fff; }\n.a { color: var(--paper); }",
         },
     )
-    assert ccv.main([str(root)]) == 0
+    assert ccv.main(root) == 0
     assert "ok" in capsys.readouterr().out
 
 
@@ -43,7 +43,7 @@ def test_an_undefined_property_fails_with_its_site(tmp_path: Path, capsys):
             "web/src/review.css": ".card {\n  border: 1px solid var(--paper-deep);\n}",
         },
     )
-    assert ccv.main([str(root)]) == 1
+    assert ccv.main(root) == 1
     err = capsys.readouterr().err
     assert "--paper-deep  (1 use)" in err
     assert "web/src/review.css:2" in err
