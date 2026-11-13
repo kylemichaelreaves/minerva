@@ -50,7 +50,7 @@
 .refs-review-link {
   appearance: none;
   background: none;
-  border: 1px solid var(--paper-deep);
+  border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 4px 12px;
   font-family: var(--sans);

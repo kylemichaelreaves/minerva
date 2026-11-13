@@ -558,7 +558,7 @@ body::before {
    or an exception text, and wrapped/breakable so a long one cannot widen the
    box past its container. */
 .surface-error__detail {
-  font-family: var(--r-mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 12px;
   color: var(--ink-mute);
   margin-bottom: 14px;
