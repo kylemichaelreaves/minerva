@@ -29,7 +29,7 @@ LLM_MODEL_FLAG := $(if $(LLM_MODEL),--llm-model $(LLM_MODEL))
         lint lint-py lint-web format format-py format-web check \
         generate-authors check-authors check-api-types check-author-imports \
         check-pr-link check-pr-citations check-diff-coverage check-coverage-exclusions \
-        check-format-baseline check-test-location generate-scripts-index check-scripts-index \
+        check-format-baseline check-test-location check-css-vars generate-scripts-index check-scripts-index \
         build dev run run-host start ingest reindex reingest \
         ingest-only reingest-only embed embed-eng stats \
         install-lemma-models
@@ -191,6 +191,14 @@ check-coverage-exclusions:
 check-test-location:
 	$(PYTHON) scripts/check_test_location.py
 
+# A `var(--x)` naming a property nothing defines is invalid at computed-value
+# time and drops silently to its initial value (#877): `--paper-deep` was never
+# defined, so every Refs review card computed `border-style: none`. Six such
+# names had shipped since the initial commit, because nothing local or remote
+# looks at CSS custom properties.
+check-css-vars:
+	$(PYTHON) scripts/check_css_vars.py
+
 # docs/SCRIPTS.md is generated from each script's own docstring (Python) or
 # leading comment block (shell), and every script declares `Role: workflow`
 # or `Role: oneoff` there (#505). The hand-written index it replaced named 4
@@ -244,7 +252,7 @@ check-diff-coverage:
 check-format-baseline:
 	$(PYTHON) scripts/check_format_baseline.py
 
-check: lint typecheck test-py-cov test-unit-cov test-e2e test-browser check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location check-scripts-index
+check: lint typecheck test-py-cov test-unit-cov test-e2e test-browser check-diff-coverage check-authors check-api-types check-author-imports check-coverage-exclusions check-format-baseline check-test-location check-css-vars check-scripts-index
 
 # Full local dev: Python API in the background, Vite in the foreground.
 # When Vite exits (or Ctrl-C), the trap kills the backend.

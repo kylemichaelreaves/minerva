@@ -20,15 +20,31 @@
 }
 
 .reader {
-  /* Light — warm paper, deep ink, oxblood selection */
+  /* Light — warm paper, deep ink, oxblood selection.
+
+     The ink and inset-paper tokens alias the global palette in both themes
+     (#878). They used to restate it, and the light copies drifted when the
+     global ones were retuned: --r-ink-mute sat at #7e7565, 4.07:1 on the
+     Reader's paper and below AA, on 35 rules including the "Could not load
+     the source" error. The global --ink-mute is 5.30:1 here. An alias
+     cannot drift; the dark theme needs no override at all for these.
+
+     What stays Reader-owned, and why:
+     - --r-paper (light only): #f6f2ea, a slightly lighter page than the
+       app's --paper (#f4efe6). Deliberate, confirmed by the owner on #878:
+       the reading page is a brighter sheet than the app around it.
+     - --r-rule / --r-rule-soft: the Reader's hairlines have no global
+       equivalent in dark (#2e2820 / #221c16 fall between --rule-soft
+       and --rule), so aliasing them would visibly re-weight every rule in
+       the dark Reader. */
   --r-paper: #f6f2ea;
-  --r-paper-deep: #efe9dd;
+  --r-paper-deep: var(--paper-soft);
   --r-rule: #dcd4c2;
   --r-rule-soft: #e6dfce;
-  --r-ink: #1c1814;
-  --r-ink-soft: #4a4239;
-  --r-ink-mute: #7e7565;
-  --r-ink-faint: #a8a091;
+  --r-ink: var(--ink);
+  --r-ink-soft: var(--ink-soft);
+  --r-ink-mute: var(--ink-mute);
+  --r-ink-faint: var(--ink-faint);
   /* Identical to the global --accent in both themes — derive from it so a
      rebrand touches one place. (-soft/-mark keep their bespoke alphas.) */
   --r-accent: var(--accent);
@@ -54,14 +70,11 @@
 }
 
 [data-theme="dark"] .reader {
-  --r-paper: #14110e;
-  --r-paper-deep: #100d0a;
+  /* The aliased tokens above follow styles.css's dark palette on their
+     own. Dark --r-paper equals the global --paper, so it aliases here. */
+  --r-paper: var(--paper);
   --r-rule: #2e2820;
   --r-rule-soft: #221c16;
-  --r-ink: #e2d8c4;
-  --r-ink-soft: #c2b8a4;
-  --r-ink-mute: #8a8170;
-  --r-ink-faint: #5e574b;
   /* --r-accent derives from --accent (set above), which is already
      redefined for dark by styles.css — no override needed here. */
   --r-accent-soft: rgba(201, 122, 101, 0.16);
@@ -810,7 +823,7 @@
   width: 100%;
   margin-top: 10px;
   padding: 8px 10px;
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
   border: 1px solid var(--r-rule, var(--r-ink-mute));
   border-radius: 3px;
   color: var(--r-accent);
@@ -844,7 +857,7 @@
   width: 100%;
   padding: 8px 10px;
   margin: 0 0 14px;
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
   border: 1px solid var(--r-rule, var(--r-ink-mute));
   border-radius: 3px;
   color: var(--r-accent);
@@ -891,7 +904,7 @@
   cursor: pointer;
 }
 .reader .rail-concord-row:hover {
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
 }
 .reader .rail-concord-lem {
   font-family: var(--r-serif);
@@ -905,7 +918,7 @@
   text-transform: lowercase;
 }
 .reader .rail-concord-ct {
-  font-family: var(--r-mono);
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--r-ink);
   text-align: right;
@@ -918,9 +931,9 @@
   font-family: var(--r-sans);
 }
 .reader .rail-concord-empty code {
-  font-family: var(--r-mono);
+  font-family: var(--mono);
   font-size: 10.5px;
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
   padding: 1px 4px;
   border-radius: 2px;
 }
@@ -1306,7 +1319,7 @@
 }
 .selection-toolbar .kbd {
   display: inline-block;
-  font-family: var(--r-mono, "Geist Mono", ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 9px;
   padding: 1px 4px;
   border: 1px solid rgba(255, 255, 255, 0.22);

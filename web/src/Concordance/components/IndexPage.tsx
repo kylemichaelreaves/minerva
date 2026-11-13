@@ -14,7 +14,7 @@ import {
 import { listWorks } from "~/api/readerApi";
 import { ActiveFilterStrip } from "~/Concordance/components/ActiveFilterStrip";
 import { ConcEmpty, LemmaCacheEmpty } from "~/Concordance/components/ConcEmpty";
-import { FilterBar } from "~/Concordance/components/FilterBar";
+import { FilterBar, POS_OPTIONS } from "~/Concordance/components/FilterBar";
 import type { SelectOption } from "~/components/primitives/Select";
 import { LbRow } from "~/Concordance/components/LbRow";
 import { LoadingSkeleton } from "~/Concordance/components/LoadingSkeleton";
@@ -59,6 +59,16 @@ export interface IndexPageProps {
     scopeAuthors?: string[],
     scopeWorks?: string[],
   ) => void;
+}
+
+/** The POS chip's label, read from the dropdown's own option list so the
+ *  chip and the control that set it name the class the same way (#892).
+ *  "all" keeps its short form — the option's "(incl. function words)" gloss
+ *  is for the dropdown, not a chip. A value the dropdown does not list (a
+ *  hand-typed URL) falls back to the raw tag, lower-cased. */
+function posChipLabel(pos: string): string {
+  if (pos === "all") return "all";
+  return POS_OPTIONS.find((o) => o.value === pos)?.label ?? pos.toLowerCase();
 }
 
 export function ConcordanceIndexPage(props: IndexPageProps) {
@@ -211,10 +221,9 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       });
     }
     if (props.pos) {
-      const label = props.pos === "all" ? "all" : props.pos.toLowerCase();
       chips.push({
         k: "POS",
-        v: label,
+        v: posChipLabel(props.pos),
         onRemove: () => props.onNavigate({ pos: undefined }),
       });
     }
@@ -382,8 +391,9 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
       />
 
       {/* Mobile: floating Filters button — opens the bottom sheet that
-          re-renders the same controls. The badge counts only the
-          non-letter chips because the A-Z strip lives outside the sheet. */}
+          re-renders the same controls. The badge counts every chip in the
+          active-filter strip, the letter chip included, even though the A-Z
+          strip itself lives outside the sheet. */}
       <Show when={isMobile()}>
         <button type="button" class="conc-fab" onClick={() => setSheetOpen(true)}>
           ≡ Filters

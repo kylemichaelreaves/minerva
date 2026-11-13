@@ -1241,7 +1241,7 @@
     color: var(--ink);
   }
   .net .net-hero-meta .sep {
-    color: var(--ink-ghost);
+    color: var(--ink-faint);
     margin: 0 6px;
   }
 
@@ -1681,7 +1681,7 @@
     font-weight: 500;
   }
   .net-cov-summary .cov-u {
-    color: var(--ink-ghost);
+    color: var(--ink-faint);
     font-weight: 500;
   }
   .net-cov-summary .cov-x {
@@ -1719,7 +1719,7 @@
     background: #3a6f4a;
   }
   .net-cov-bar .u {
-    background: var(--ink-ghost);
+    background: var(--ink-faint);
   }
   .net-cov-bar .x {
     background: var(--accent);
@@ -1750,7 +1750,7 @@
     background: #3a6f4a;
   }
   .net-cov-legend .sw.u {
-    background: var(--ink-ghost);
+    background: var(--ink-faint);
   }
   .net-cov-legend .sw.x {
     background: var(--accent);

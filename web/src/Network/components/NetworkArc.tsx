@@ -14,18 +14,14 @@
 // this file owns the meta strip + SVG composition.
 
 import { For, Show, createMemo, createSignal } from "solid-js";
-import type { AuthorPair, NetworkSummary } from "~/api/networkApi";
+import type { AuthorPair, NetworkFilterParams, NetworkSummary } from "~/api/networkApi";
 import { YEAR_TICKS, formatYear } from "~/utils/atlasGeometry";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { NetworkDrilldownShell } from "~/Network/components/NetworkDrilldownShell";
 import { YEAR_BY_NAME, selectArcPairs } from "~/Network/components/ArcPanel";
 import { onActivateKey } from "~/utils/activateKey";
 
-interface Props {
-  minConfidence?: number;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
+interface Props extends NetworkFilterParams {
   onBack: () => void;
   onOpenAuthor: (name: string) => void;
 }
@@ -349,6 +345,7 @@ export function NetworkArc(props: Props) {
       title="Chronological arc"
       onBack={props.onBack}
       minConfidence={props.minConfidence}
+      includeRejected={props.includeRejected}
       sourceAuthors={props.sourceAuthors}
       corpora={props.corpora}
       sourceMethods={props.sourceMethods}

@@ -12,14 +12,10 @@
 // this file owns the summary strip + per-author bar list.
 
 import { For, Show } from "solid-js";
-import type { VerificationRow } from "~/api/networkApi";
+import type { NetworkFilterParams, VerificationRow } from "~/api/networkApi";
 import { NetworkDrilldownShell } from "~/Network/components/NetworkDrilldownShell";
 
-interface Props {
-  minConfidence?: number;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
+interface Props extends NetworkFilterParams {
   onBack: () => void;
 }
 
@@ -51,6 +47,7 @@ export function NetworkCoverage(props: Props) {
       title="Verification coverage"
       onBack={props.onBack}
       minConfidence={props.minConfidence}
+      includeRejected={props.includeRejected}
       sourceAuthors={props.sourceAuthors}
       corpora={props.corpora}
       sourceMethods={props.sourceMethods}

@@ -11,20 +11,10 @@ import { NetworkBody } from "~/Network/components/Body";
 import { NetworkHeader } from "~/Network/components/Header";
 import { NetworkFiltersBar } from "~/Network/components/NetworkFiltersBar";
 import "~/Network/network.css";
+import type { NetworkFilterParams } from "~/api/networkApi";
 
-export interface NetworkProps {
-  minConfidence?: number;
-  includeRejected?: boolean;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
-  onNavigate: (patch: {
-    minConfidence?: number;
-    includeRejected?: boolean;
-    sourceAuthors?: string[];
-    corpora?: string[];
-    sourceMethods?: string[];
-  }) => void;
+export interface NetworkProps extends NetworkFilterParams {
+  onNavigate: (patch: NetworkFilterParams) => void;
   onOpenPair: (source: string, target: string) => void;
   onOpenTargetWork: (author: string, work: string) => void;
   /** Mobile drilldown — open the chronological arc full-screen (5b). */
@@ -102,15 +92,7 @@ export default function Network(props: NetworkProps) {
     }
   });
 
-  function patch(
-    p: Partial<{
-      minConfidence?: number;
-      includeRejected?: boolean;
-      sourceAuthors?: string[];
-      corpora?: string[];
-      sourceMethods?: string[];
-    }>,
-  ) {
+  function patch(p: NetworkFilterParams) {
     props.onNavigate({
       minConfidence: props.minConfidence,
       includeRejected: props.includeRejected,

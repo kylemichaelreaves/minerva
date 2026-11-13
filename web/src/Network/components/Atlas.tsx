@@ -73,7 +73,7 @@ export function Atlas(props: {
                 y1={BASE_Y - 10}
                 x2={xOf(b.yEnd)}
                 y2={BASE_Y + 12}
-                stroke="var(--rule-hair, var(--rule))"
+                stroke="var(--rule)"
                 stroke-width="1"
               />
             )}
