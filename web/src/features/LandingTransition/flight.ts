@@ -74,7 +74,7 @@ export interface FlightTarget {
   composer: Rect;
 }
 
-function rectOf(el: Element): Rect {
+export function rectOf(el: Element): Rect {
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }

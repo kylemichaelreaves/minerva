@@ -12,7 +12,7 @@
 // Composer `entering`). Every DOM read and animation goes through
 // `TransitionEnv`, so tests can drive each path without a layout engine.
 
-import { createSignal, type Accessor } from "solid-js";
+import type { Accessor } from "solid-js";
 import {
   composerKeyframes,
   FRAME_PROPS,
@@ -22,21 +22,32 @@ import {
   type FlightOrigin,
   type FlightTarget,
 } from "~/features/LandingTransition/flight";
+import {
+  animateAll,
+  attempt,
+  createFlightMachine,
+  FADE_MS,
+  LIFT_MS,
+  motionProbes,
+  setTiming,
+  SETTLE_EASE,
+  TIMING_VARS,
+  watchViewport,
+  type Flight,
+} from "~/features/LandingTransition/flightMachine";
 import "~/features/LandingTransition/landingTransition.css";
 
+// Re-exported: the timing and the Flight shape are shared with the return
+// and live in flightMachine.ts, but this module is where callers find them.
+export {
+  FADE_MS,
+  GRACE_MS,
+  LIFT_MS,
+  SETTLE_EASE,
+  type Flight,
+} from "~/features/LandingTransition/flightMachine";
+
 export type Phase = "idle" | "lift" | "fade";
-
-export const LIFT_MS = 650;
-export const FADE_MS = 180;
-export const SETTLE_EASE = "cubic-bezier(.2,.7,.1,1)";
-/** How long past LIFT_MS a flight may run before it is ended regardless —
- *  a `finished` promise that never settles must not strand the phase. */
-export const GRACE_MS = 200;
-
-export interface Flight {
-  finished: Promise<unknown>;
-  cancel(): void;
-}
 
 export interface TransitionEnv {
   reducedMotion(): boolean;
@@ -64,44 +75,28 @@ function playFlight(o: FlightOrigin, t: FlightTarget): Flight {
   const g = ghostKeyframes(o, t);
   const c = composerKeyframes(o, t);
   const travel: KeyframeAnimationOptions = { duration: LIFT_MS, easing: SETTLE_EASE, fill: "both" };
-  const wrap = document.querySelector<HTMLElement>(".composer-wrap");
-  const composer = document.querySelector<HTMLElement>(".composer");
-  const anims: Animation[] = [];
-  const undo = () => {
-    for (const a of anims) a.cancel();
-    ghost.remove();
+  const chrome: KeyframeAnimationOptions = {
+    duration: LIFT_MS * 0.35,
+    delay: LIFT_MS * 0.65,
+    easing: "ease",
+    fill: "both",
   };
-  try {
-    anims.push(
-      ghost.animate(g.move, travel),
-      ghost.animate(g.chrome, {
-        duration: LIFT_MS * 0.35,
-        delay: LIFT_MS * 0.65,
-        easing: "ease",
-        fill: "both",
-      }),
-    );
-    if (wrap) anims.push(wrap.animate(c.wrap, travel));
-    if (composer) anims.push(composer.animate(c.box, travel));
-  } catch (err) {
-    // The controller will cut; nothing of the half-started flight may stay
-    // behind — least of all a fixed ghost holding the question.
-    undo();
-    throw err;
-  }
-
-  return {
-    finished: Promise.all(anims.map((a) => a.finished)),
-    // Also the normal end: cancelling a finished `fill: "both"` animation
-    // drops its held last frame, which is where the element sits anyway.
-    cancel: undo,
-  };
+  // On a failed start, and at the end, the ghost goes too — least of all may
+  // a fixed ghost holding the question stay behind.
+  return animateAll(
+    [
+      [ghost, g.move, travel],
+      [ghost, g.chrome, chrome],
+      [document.querySelector(".composer-wrap"), c.wrap, travel],
+      [document.querySelector(".composer"), c.box, travel],
+    ],
+    () => ghost.remove(),
+  );
 }
 
 export function defaultEnv(): TransitionEnv {
   return {
-    reducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
-    canAnimate: () => typeof Element.prototype.animate === "function",
+    ...motionProbes,
     measureOrigin: () => {
       const ta = document.querySelector<HTMLTextAreaElement>(".landing-input");
       const box = document.querySelector<HTMLElement>(".landing-input-wrap");
@@ -118,8 +113,7 @@ export function defaultEnv(): TransitionEnv {
     setStage: (on) => {
       const s = document.documentElement.style;
       if (on) {
-        s.setProperty("--lt-d", `${LIFT_MS}ms`);
-        s.setProperty("--lt-ease", SETTLE_EASE);
+        setTiming(s);
         // Still in flow, before the swap. As a layer it is `inset: 0` on
         // `.main`, which shrinks to the chat's height the moment the chat
         // mounts; a landing taller than the viewport would reflow and its
@@ -127,43 +121,11 @@ export function defaultEnv(): TransitionEnv {
         const landing = document.querySelector(".landing");
         if (landing) s.setProperty("--lt-leave-h", `${landing.getBoundingClientRect().height}px`);
       } else {
-        for (const v of ["--lt-d", "--lt-ease", "--lt-leave-h"]) s.removeProperty(v);
+        for (const v of [...TIMING_VARS, "--lt-leave-h"]) s.removeProperty(v);
       }
     },
-    watchInterrupts: (interrupted) => {
-      // The flight's ends are measured once, in px and computed colours, so
-      // a resize leaves the ghost aimed at the old target and a theme toggle
-      // leaves it in the old theme. Both are rare mid-flight; cut.
-      // Width only: a phone's keyboard opening or closing changes the
-      // height alone, which moves nothing the ghost is aimed at (the turn
-      // sits at the top, and the composer's FLIP is relative to wherever
-      // its wrap now is) — and cutting there would cut most phone flights.
-      const width = window.innerWidth;
-      const onResize = () => {
-        if (window.innerWidth !== width) interrupted();
-      };
-      const themes = new MutationObserver(interrupted);
-      themes.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["data-theme"],
-      });
-      window.addEventListener("resize", onResize);
-      return () => {
-        themes.disconnect();
-        window.removeEventListener("resize", onResize);
-      };
-    },
+    watchInterrupts: watchViewport,
   };
-}
-
-/** Runs `fn`; on a throw, logs and returns null so the caller can cut. */
-function attempt<T>(fn: () => T): T | null {
-  try {
-    return fn();
-  } catch (err) {
-    console.warn("landing transition skipped", err);
-    return null;
-  }
 }
 
 export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
@@ -171,75 +133,54 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
   begin(text: string, send: (text: string) => void): void;
   cancel(): void;
 } {
-  const [phase, setPhase] = createSignal<Phase>("idle");
-  let flight: Flight | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let unwatch: (() => void) | undefined;
+  const m = createFlightMachine<"lift" | "fade">({
+    unstage: () => env.setStage(false),
+    watchInterrupts: (cb) => env.watchInterrupts(cb),
+  });
 
-  function end() {
-    clearTimeout(timer);
-    timer = undefined;
-    unwatch?.();
-    unwatch = undefined;
-    const running = flight;
-    flight = null;
-    // Same task: the phase drop reveals the real body as the ghost goes.
-    setPhase("idle");
-    env.setStage(false);
-    running?.cancel();
-  }
-
+  /** The question is sent at the START of the flight, exactly once; if
+   *  sending throws, nothing is left staged. */
   function sendOrEnd(text: string, send: (text: string) => void) {
     try {
       send(text);
     } catch (err) {
-      end();
+      m.end();
       throw err;
     }
   }
 
   function beginFade(text: string, send: (text: string) => void) {
-    setPhase("fade");
+    m.enter("fade");
     env.setStage(true);
     sendOrEnd(text, send);
-    timer = setTimeout(end, FADE_MS);
+    m.after(FADE_MS, m.end);
   }
 
   function beginLift(text: string, send: (text: string) => void) {
-    const origin = attempt(() => env.measureOrigin());
+    const origin = attempt("landing transition", () => env.measureOrigin());
     if (!origin) {
       send(text);
       return;
     }
-    setPhase("lift");
+    m.enter("lift");
     env.setStage(true);
     sendOrEnd(text, send);
 
-    const target = attempt(() => env.measureTarget());
-    const started = target && attempt(() => env.play(origin, target));
+    const target = attempt("landing transition", () => env.measureTarget());
+    const started = target && attempt("landing transition", () => env.play(origin, target));
     if (!started) {
-      end();
+      m.end();
       return;
     }
-    flight = started;
-    unwatch = env.watchInterrupts(end);
-    timer = setTimeout(end, LIFT_MS + GRACE_MS);
-    const settle = () => {
-      if (flight === started) end();
-    };
-    started.finished.then(settle, settle);
+    m.fly(started, m.end);
   }
 
   function begin(text: string, send: (text: string) => void) {
-    if (phase() !== "idle") return;
+    if (m.phase() !== "idle") return;
     if (env.reducedMotion()) beginFade(text, send);
     else if (env.canAnimate()) beginLift(text, send);
     else send(text);
   }
 
-  function cancel() {
-    if (phase() !== "idle") end();
-  }
-
-  return { phase, begin, cancel };
+  return { phase: m.phase, begin, cancel: m.cancel };
 }

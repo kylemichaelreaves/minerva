@@ -25,14 +25,20 @@ function fakeEnv(over: Partial<ReturnEnv> = {}) {
   const done = deferred();
   const cancel = vi.fn();
   const flight: Flight = { finished: done.promise, cancel };
+  const interrupt: { fire: () => void } = { fire: () => undefined };
+  const unwatch = vi.fn();
   const env = {
     reducedMotion: vi.fn<ReturnEnv["reducedMotion"]>(over.reducedMotion ?? (() => false)),
     canAnimate: vi.fn<ReturnEnv["canAnimate"]>(over.canAnimate ?? (() => true)),
     setStage: vi.fn<ReturnEnv["setStage"]>(),
     measure: vi.fn<ReturnEnv["measure"]>(over.measure ?? (() => GEOMETRY)),
     play: vi.fn<ReturnEnv["play"]>(over.play ?? (() => flight)),
+    watchInterrupts: vi.fn<ReturnEnv["watchInterrupts"]>((cb) => {
+      interrupt.fire = cb;
+      return unwatch;
+    }),
   };
-  return { env, cancel, done };
+  return { env, cancel, done, interrupt, unwatch };
 }
 
 beforeEach(() => {
@@ -215,6 +221,44 @@ describe("createReturnTransition", () => {
     t.begin(vi.fn());
     expect(env.play).toHaveBeenCalledOnce();
   });
+
+  it("finishes at once when the flight's measurements go stale (#865)", async () => {
+    // A resize mid-return left the fixed landing layer pinned to the old
+    // width, so its furniture jumped 170px on arrival. The lift already cut
+    // on this (#854); the return had no watch at all.
+    const { env, cancel, done, interrupt, unwatch } = fakeEnv();
+    const go = vi.fn();
+    const t = createReturnTransition(env);
+    t.begin(go);
+    expect(env.watchInterrupts).toHaveBeenCalledOnce();
+
+    interrupt.fire();
+    // The return's cut is to arrive — navigate — not to abandon the flight.
+    expect(go).toHaveBeenCalledOnce();
+    expect(t.phase()).toBe("idle");
+    expect(env.setStage).toHaveBeenLastCalledWith("idle");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(unwatch).toHaveBeenCalledOnce();
+
+    // The flight settling later does not navigate a second time.
+    done.resolve();
+    await vi.advanceTimersByTimeAsync(LIFT_MS + GRACE_MS);
+    expect(go).toHaveBeenCalledOnce();
+  });
+
+  it("stops watching once the return settles", async () => {
+    const { env, done, unwatch } = fakeEnv();
+    createReturnTransition(env).begin(vi.fn());
+    done.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unwatch).toHaveBeenCalledOnce();
+  });
+
+  it("does not watch a fade, which measures nothing", () => {
+    const { env } = fakeEnv({ reducedMotion: vi.fn(() => true) });
+    createReturnTransition(env).begin(vi.fn());
+    expect(env.watchInterrupts).not.toHaveBeenCalled();
+  });
 });
 
 describe("defaultReturnEnv", () => {
@@ -253,13 +297,15 @@ describe("defaultReturnEnv", () => {
     env.setStage("return");
     expect(root.dataset.ltReturn).toBe("return");
     expect(root.style.getPropertyValue("--lt-d")).toBe(`${LIFT_MS}ms`);
+    // The fade's CSS duration comes from the same constant as its timer.
+    expect(root.style.getPropertyValue("--lt-fade-d")).toBe(`${FADE_MS}ms`);
     // Where `.main` starts at scroll 0: its (here zero) top plus the scroll.
     expect(root.style.getPropertyValue("--lt-top")).toBe("1200px");
     expect(wrap).toHaveAttribute("inert");
 
     env.setStage("idle");
     expect(root.dataset.ltReturn).toBeUndefined();
-    for (const v of ["--lt-d", "--lt-ease", "--lt-top", "--lt-left", "--lt-width"]) {
+    for (const v of ["--lt-d", "--lt-fade-d", "--lt-ease", "--lt-top", "--lt-left", "--lt-width"]) {
       expect(root.style.getPropertyValue(v)).toBe("");
     }
     expect(wrap).not.toHaveAttribute("inert");
@@ -270,6 +316,17 @@ describe("defaultReturnEnv", () => {
     expect(root.dataset.ltReturn).toBe("fade");
     expect(root.style.getPropertyValue("--lt-left")).toBe("0px");
     expect(root.style.getPropertyValue("--lt-width")).toBe(`${window.innerWidth}px`);
+  });
+
+  it("watches the same interrupts as the lift: a width change", () => {
+    const hit = vi.fn();
+    const unwatch = defaultReturnEnv().watchInterrupts(hit);
+    vi.stubGlobal("innerWidth", window.innerWidth - 340);
+    window.dispatchEvent(new Event("resize"));
+    expect(hit).toHaveBeenCalledOnce();
+    unwatch();
+    window.dispatchEvent(new Event("resize"));
+    expect(hit).toHaveBeenCalledOnce();
   });
 
   it("reports what the platform supports", () => {

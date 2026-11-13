@@ -444,6 +444,51 @@ test("from a scrolled chat the composer lands on the landing box", async ({ page
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
+test("a resize mid-return arrives at once, at the new width (#865)", async ({ page }) => {
+  // The return pins its fixed landing layer in px when it starts. A width
+  // change mid-flight used to leave the layer at the old width until the
+  // flight ended, and the landing's furniture then jumped (170px at 1440 →
+  // 1100). The return now watches the viewport as the lift does, and its cut
+  // is to arrive: navigate, unstage, and let the landing lay out in flow.
+  await settledChat(page);
+  await page.evaluate(() => {
+    (window as unknown as { __before: Set<Animation> }).__before = new Set(
+      document.getAnimations(),
+    );
+  });
+  await page.keyboard.press("Escape");
+  // Freeze the flight in its first frame, so only the interrupt can end the
+  // return before the LIFT_MS + GRACE_MS (850ms) timeout.
+  await page.waitForFunction(
+    () => {
+      if (!document.querySelector(".landing.is-arriving")) return false;
+      const before = (window as unknown as { __before: Set<Animation> }).__before;
+      for (const a of document.getAnimations()) if (!before.has(a)) a.pause();
+      return true;
+    },
+    undefined,
+    { polling: "raf", timeout: 2000 },
+  );
+  const size = page.viewportSize();
+  if (!size) throw new Error("no viewport");
+  await page.setViewportSize({ width: size.width - 240, height: size.height });
+
+  // Well inside the 850ms timeout: the interrupt, not the timer, ended it.
+  await page.waitForFunction(
+    () =>
+      !document.documentElement.dataset.ltReturn &&
+      document.querySelectorAll(".landing.is-arriving").length === 0,
+    undefined,
+    { polling: "raf", timeout: 600 },
+  );
+  await expect(page.locator(".thread")).toHaveCount(0);
+  const box = await page.locator(".landing-input-wrap").boundingBox();
+  const main = await page.locator(".main").boundingBox();
+  if (!box || !main) throw new Error("no landing box or no .main");
+  // Centred in the NEW .main, not the old one.
+  expect(Math.abs(box.x + box.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(1);
+});
+
 test.describe("Escape under reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
 
