@@ -17,23 +17,23 @@
 // alongside the visualization.
 
 import { Show, type JSX } from "solid-js";
-import { fetchNetworkSummary, type NetworkSummary } from "~/api/networkApi";
+import {
+  fetchNetworkSummary,
+  type NetworkFilterParams,
+  type NetworkSummary,
+} from "~/api/networkApi";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import "~/Network/network.css";
 
-interface Props {
+interface Props extends NetworkFilterParams {
   /** Page title shown center-aligned in the top bar (design: "Chronological
    *  arc" / "Verification coverage"). */
   title: string;
   /** Fired when the user taps the back affordance — caller routes
    *  back to the parent Network surface. */
   onBack: () => void;
-  /** Network filter params. Passed through to the fetcher so the
-   *  drilldown sees the same slice the parent does. */
-  minConfidence?: number;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
+  // The filter params (from NetworkFilterParams) pass through to the
+  // fetcher so the drilldown sees the same slice the parent does.
   /** Render-prop body: receives the resolved summary. Only invoked
    *  when fetch has settled successfully — otherwise the shell shows
    *  its own loading / error state. */
@@ -44,6 +44,7 @@ export function NetworkDrilldownShell(props: Props) {
   const { data, loading, error } = useAbortableFetch(
     () => ({
       minConfidence: props.minConfidence,
+      includeRejected: props.includeRejected,
       sourceAuthors: props.sourceAuthors,
       corpora: props.corpora,
       sourceMethods: props.sourceMethods,

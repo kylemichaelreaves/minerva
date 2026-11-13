@@ -109,6 +109,7 @@ export type Route =
        *  rendered. */
       kind: "network-arc";
       minConfidence?: number;
+      includeRejected?: boolean;
       sourceAuthors?: string[];
       corpora?: string[];
       sourceMethods?: string[];
@@ -119,6 +120,7 @@ export type Route =
        *  Same filter shape as `network`. */
       kind: "network-coverage";
       minConfidence?: number;
+      includeRejected?: boolean;
       sourceAuthors?: string[];
       corpora?: string[];
       sourceMethods?: string[];
@@ -251,6 +253,7 @@ const SORTS = ["freq", "alpha", "pos"] as const;
 /** The filter chips the network dashboard and both drilldowns share. */
 const networkFilters = (qs: URLSearchParams) => ({
   minConfidence: optConfidence(qs),
+  includeRejected: qs.get("include_rejected") === "1",
   sourceAuthors: decodeCsv(qs.get("source")),
   corpora: decodeCsv(qs.get("corpus")),
   sourceMethods: decodeCsv(qs.get("method")),
@@ -332,7 +335,6 @@ const ROUTE_RULES: readonly RouteRule[] = [
     build: (_m, qs) => ({
       kind: "network",
       ...networkFilters(qs),
-      includeRejected: qs.get("include_rejected") === "1",
     }),
   },
   {
@@ -449,16 +451,18 @@ function withQuery(base: string, pairs: readonly QueryPair[]): string {
 type RouteOf<K extends Route["kind"]> = Extract<Route, { kind: K }>;
 type NetworkFilters = Pick<
   RouteOf<"network-arc">,
-  "minConfidence" | "sourceAuthors" | "corpora" | "sourceMethods"
+  "minConfidence" | "includeRejected" | "sourceAuthors" | "corpora" | "sourceMethods"
 >;
 
-/** The shared network filters as query pairs. Only the dashboard itself
- *  carries `include_rejected`; the drilldowns pass nothing and the pair
- *  drops out. It sits between `min_confidence` and the chips because that
- *  is the parameter order the dashboard has always emitted. */
-const networkPairs = (r: NetworkFilters, includeRejected?: boolean): QueryPair[] => [
+/** The shared network filters as query pairs, for the dashboard and both
+ *  drilldowns alike. The drilldowns used to drop `include_rejected`, so a
+ *  drilldown counted a different slice from the dashboard that opened it,
+ *  and Back lost the toggle (#891). It sits between `min_confidence` and the
+ *  chips because that is the parameter order the dashboard has always
+ *  emitted. */
+const networkPairs = (r: NetworkFilters): QueryPair[] => [
   ["min_confidence", qNum(r.minConfidence)],
-  ["include_rejected", qFlag(includeRejected)],
+  ["include_rejected", qFlag(r.includeRejected)],
   ["source", qCsv(r.sourceAuthors)],
   ["corpus", qCsv(r.corpora)],
   ["method", qCsv(r.sourceMethods)],
@@ -496,7 +500,7 @@ const SERIALIZERS: { [K in Route["kind"]]: (r: RouteOf<K>) => string } = {
       ["type", qText(r.referenceType)],
       ["id", qNum(r.referenceId)],
     ]),
-  network: (r) => withQuery("#/network", networkPairs(r, r.includeRejected)),
+  network: (r) => withQuery("#/network", networkPairs(r)),
   "network-arc": (r) => withQuery("#/network/arc", networkPairs(r)),
   "network-coverage": (r) => withQuery("#/network/coverage", networkPairs(r)),
   concordance: (r) =>

@@ -83,13 +83,19 @@ export interface ApparatusSourceRow {
   n: number;
 }
 
-export interface NetworkSummaryArgs {
+/** The Network surface's filter set, shared by the dashboard, both
+ *  drilldowns, their routes and the summary fetch (#891). One type, so a
+ *  field added to the dashboard cannot silently stop at it again —
+ *  `includeRejected` did, because three copies of this shape omitted it. */
+export interface NetworkFilterParams {
   minConfidence?: number;
   includeRejected?: boolean;
   sourceAuthors?: string[];
   corpora?: string[];
   sourceMethods?: string[];
 }
+
+export type NetworkSummaryArgs = NetworkFilterParams;
 
 export async function fetchNetworkSummary(
   args: NetworkSummaryArgs,

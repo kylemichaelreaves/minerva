@@ -823,7 +823,7 @@
   width: 100%;
   margin-top: 10px;
   padding: 8px 10px;
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
   border: 1px solid var(--r-rule, var(--r-ink-mute));
   border-radius: 3px;
   color: var(--r-accent);
@@ -857,7 +857,7 @@
   width: 100%;
   padding: 8px 10px;
   margin: 0 0 14px;
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
   border: 1px solid var(--r-rule, var(--r-ink-mute));
   border-radius: 3px;
   color: var(--r-accent);
@@ -904,7 +904,7 @@
   cursor: pointer;
 }
 .reader .rail-concord-row:hover {
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
 }
 .reader .rail-concord-lem {
   font-family: var(--r-serif);
@@ -918,7 +918,7 @@
   text-transform: lowercase;
 }
 .reader .rail-concord-ct {
-  font-family: var(--r-mono);
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--r-ink);
   text-align: right;
@@ -931,9 +931,9 @@
   font-family: var(--r-sans);
 }
 .reader .rail-concord-empty code {
-  font-family: var(--r-mono);
+  font-family: var(--mono);
   font-size: 10.5px;
-  background: var(--r-paper-soft, transparent);
+  background: var(--r-paper-deep);
   padding: 1px 4px;
   border-radius: 2px;
 }
@@ -1319,7 +1319,7 @@
 }
 .selection-toolbar .kbd {
   display: inline-block;
-  font-family: var(--r-mono, "Geist Mono", ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 9px;
   padding: 1px 4px;
   border: 1px solid rgba(255, 255, 255, 0.22);

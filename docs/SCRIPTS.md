@@ -29,7 +29,7 @@ anything that mutates `data/index.sqlite`. See
 `KEEP` markers are documented in the script's own header.
 
 <!-- BEGIN GENERATED: scripts/generate_scripts_index.py — edit the scripts' docstrings, not this table -->
-44 scripts: 32 workflow, 12 one-off.
+45 scripts: 33 workflow, 12 one-off.
 
 ### Workflow
 
@@ -43,6 +43,7 @@ Run by the Makefile, CI, a hook, another script, or a documented procedure.
 | [`check_author_imports.py`](../scripts/check_author_imports.py) | Fail if code imports deprecated root minerva.&lt;author>_works shims. |
 | [`check_author_ingest.py`](../scripts/check_author_ingest.py) | Verify a corpus author is fully wired for ingest (registry, manifest, rules). |
 | [`check_coverage_exclusions.py`](../scripts/check_coverage_exclusions.py) | Check that `pyproject.toml`'s coverage `omit` and `sonar-project.properties`'s `sonar.coverage.exclusions` agree on `src/minerva/` (#345). |
+| [`check_css_vars.py`](../scripts/check_css_vars.py) | Fail when `web/src` reads a CSS custom property that nothing defines (#877). |
 | [`check_diff_coverage.py`](../scripts/check_diff_coverage.py) | Fail when the lines this diff changed are under-covered (#255). |
 | [`check_format_baseline.py`](../scripts/check_format_baseline.py) | Gate Prettier and ruff formatting against pinned baselines (#483, #136). |
 | [`check_pr_citations.py`](../scripts/check_pr_citations.py) | Verify every `PR #N` this repo cites in prose is actually a PR (#335). |
