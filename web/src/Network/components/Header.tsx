@@ -1,28 +1,17 @@
 import { Show } from "solid-js";
-import type { NetworkSummary } from "~/api/networkApi";
+import type { NetworkFilterParams, NetworkSummary } from "~/api/networkApi";
 import { CORPUS_YEAR_SPAN_LABEL } from "~/features/Landing/corpusFacts";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { NetworkFiltersBar } from "~/Network/components/NetworkFiltersBar";
 import { confLabel } from "~/Network/constants";
 
-export function NetworkHeader(props: {
-  minConfidence?: number;
-  includeRejected?: boolean;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
-  totals?: NetworkSummary["totals"];
-  authorOptions: string[];
-  onPatch: (
-    p: Partial<{
-      minConfidence?: number;
-      includeRejected?: boolean;
-      sourceAuthors?: string[];
-      corpora?: string[];
-      sourceMethods?: string[];
-    }>,
-  ) => void;
-}) {
+export function NetworkHeader(
+  props: NetworkFilterParams & {
+    totals?: NetworkSummary["totals"];
+    authorOptions: string[];
+    onPatch: (p: NetworkFilterParams) => void;
+  },
+) {
   const shell = useMobileShellOptional();
   const isMobile = () => shell?.isMobile() ?? false;
 

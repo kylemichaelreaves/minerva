@@ -2,24 +2,14 @@ import { Show, createMemo } from "solid-js";
 import { useMobileShellOptional } from "~/components/shell/MobileShellContext";
 import { CORPUS_BUCKETS, SOURCE_METHODS, confLabel } from "~/Network/constants";
 import { FilterMenuChip } from "~/Network/components/FilterMenuChip";
+import type { NetworkFilterParams } from "~/api/networkApi";
 
-export function NetworkFiltersBar(props: {
-  minConfidence?: number;
-  includeRejected?: boolean;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
-  authorOptions: string[];
-  onPatch: (
-    p: Partial<{
-      minConfidence?: number;
-      includeRejected?: boolean;
-      sourceAuthors?: string[];
-      corpora?: string[];
-      sourceMethods?: string[];
-    }>,
-  ) => void;
-}) {
+export function NetworkFiltersBar(
+  props: NetworkFilterParams & {
+    authorOptions: string[];
+    onPatch: (p: NetworkFilterParams) => void;
+  },
+) {
   // On mobile (design 5a) chip copy follows the wireframe:
   // - third chip label reads "Method" (not the raw `source_method`)
   // - all empty-state values say "any" (not "All" or "all 5")

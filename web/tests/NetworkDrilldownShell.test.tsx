@@ -72,4 +72,18 @@ describe("<NetworkDrilldownShell />", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to Network" }));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
+
+  it("fetches with includeRejected, so it sees the slice the dashboard does (#891)", async () => {
+    fetchMock.mockResolvedValueOnce(makeNetworkSummary());
+    render(() => (
+      <NetworkDrilldownShell title="Verification coverage" onBack={vi.fn()} includeRejected>
+        {() => <p data-testid="body">body</p>}
+      </NetworkDrilldownShell>
+    ));
+    await screen.findByTestId("body");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ includeRejected: true }),
+      expect.any(AbortSignal),
+    );
+  });
 });

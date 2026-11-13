@@ -83,25 +83,31 @@ const canonical: [string, Route, string][] = [
     {
       kind: "network-arc",
       minConfidence: 0.25,
+      includeRejected: true,
       sourceAuthors: ["Kant"],
       corpora: ["de", "la"],
       sourceMethods: ["llm"],
     },
-    "#/network/arc?min_confidence=0.25&source=Kant&corpus=de%2Cla&method=llm",
+    "#/network/arc?min_confidence=0.25&include_rejected=1&source=Kant&corpus=de%2Cla&method=llm",
   ],
-  ["network-arc, bare", { kind: "network-arc" }, "#/network/arc"],
+  ["network-arc, bare", { kind: "network-arc", includeRejected: false }, "#/network/arc"],
   [
     "network-coverage, full",
     {
       kind: "network-coverage",
       minConfidence: 1,
+      includeRejected: true,
       sourceAuthors: ["Kant"],
       corpora: ["de"],
       sourceMethods: ["llm"],
     },
-    "#/network/coverage?min_confidence=1&source=Kant&corpus=de&method=llm",
+    "#/network/coverage?min_confidence=1&include_rejected=1&source=Kant&corpus=de&method=llm",
   ],
-  ["network-coverage, bare", { kind: "network-coverage" }, "#/network/coverage"],
+  [
+    "network-coverage, bare",
+    { kind: "network-coverage", includeRejected: false },
+    "#/network/coverage",
+  ],
   [
     "concordance, full",
     {
@@ -187,8 +193,11 @@ const raw: [string, Route][] = [
   ["#/syntax/100%?work=Republic", LANDING],
   ["#/syntax/rep-509d?work=100%25", LANDING],
   // Network drilldowns come before the bare network match.
-  ["#/network/arc?min_confidence=high", { kind: "network-arc" }],
-  ["#/network/coverage?min_confidence=0.9", { kind: "network-coverage", minConfidence: 0.9 }],
+  ["#/network/arc?min_confidence=high", { kind: "network-arc", includeRejected: false }],
+  [
+    "#/network/coverage?min_confidence=0.9",
+    { kind: "network-coverage", minConfidence: 0.9, includeRejected: false },
+  ],
   ["#/network/other", LANDING],
   [
     "#/network?min_confidence=x&include_rejected=yes&source=,,A",

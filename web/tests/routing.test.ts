@@ -128,6 +128,7 @@ describe("readRoute", () => {
     const route: Route = {
       kind: "network-arc",
       minConfidence: 0.5,
+      includeRejected: false,
       sourceAuthors: ["Hegel", "Marx"],
       corpora: ["scrip"],
       sourceMethods: undefined,

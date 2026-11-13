@@ -1,3 +1,4 @@
+import type { NetworkFilterParams } from "~/api/networkApi";
 import type { Route } from "~/routing";
 
 export type RouteRefs = Extract<Route, { kind: "refs" }>;
@@ -64,12 +65,7 @@ export function keepsReaderAlive(r: Route): boolean {
   return r.kind === "concordance" || r.kind === "concordance-lemma";
 }
 
-export interface NetworkFilterFields {
-  minConfidence?: number;
-  sourceAuthors?: string[];
-  corpora?: string[];
-  sourceMethods?: string[];
-}
+export type NetworkFilterFields = NetworkFilterParams;
 
 /** Shared network filter fields from any network-related route. */
 export function networkFiltersFromRoute(
@@ -80,6 +76,7 @@ export function networkFiltersFromRoute(
 ): NetworkFilterFields {
   return {
     minConfidence: r.minConfidence,
+    includeRejected: r.includeRejected,
     sourceAuthors: r.sourceAuthors,
     corpora: r.corpora,
     sourceMethods: r.sourceMethods,
