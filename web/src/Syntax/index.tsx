@@ -253,7 +253,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
     // The dragged token's form is captured once at pointerdown on purpose: the
     // ghost label must stay the word the user picked up, even if `tokens()`
     // changes mid-drag.
-    // eslint-disable-next-line solid/reactivity -- deliberate snapshot at drag start, not a tracked read
+    // Deliberate snapshot at drag start, not a tracked read
     const form = tokens().find((t) => t.id === id)?.form ?? "";
     let dragging = false;
     const startX = e.clientX;
