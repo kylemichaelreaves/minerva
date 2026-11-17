@@ -84,13 +84,16 @@ German (Kant, Hegel, Nietzsche, Marx), and Wikisource Latin/French.
 
 ## Quickstart
 
-Targets Python **3.13** (`3.13.12` pinned via `.python-version`).
+Targets Python **3.13** (`3.13.18` pinned via `.python-version`).
 The upper bound (`<3.14` in `pyproject.toml`) is held by the
 Ancient Greek / Latin lemmatizer chain — LatinCy's spaCy wheels
 (`grc_dep_web_sm`, `la_core_web_sm`) and the Stanza fallback don't
 yet publish wheels compatible with 3.14. `pyenv`/`uv` will pick up
 the `.python-version` automatically; if neither is wired in, point
 the venv at a 3.13 binary directly.
+An older `uv` may not know the pinned patch release (uv 0.11.7 stops at
+3.13.13; 0.13.9 has 3.13.18) — run `uv self update` if `uv venv` reports
+"No download found".
 
 **Corpus data is not in git.** After install, run the downloaders below
 (or restore a tarball), then `ingest` / `index`.
@@ -107,7 +110,7 @@ npm ci --prefix web                         # frontend (make check / make run)
 cp .envrc.example .envrc                    # optional — LLM keys; then: direnv allow
 
 # …or with stdlib venv:
-~/.pyenv/versions/3.13.12/bin/python3 -m venv .venv
+~/.pyenv/versions/3.13.18/bin/python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -e '.[embed,hegel,lemma]'
 .venv/bin/pip install -r lemma-models.txt
