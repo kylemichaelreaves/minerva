@@ -232,6 +232,24 @@ def test_lxx_job_poetry_in_l_lines_is_ingested() -> None:
 _NT_DIR = REPO_ROOT / "data" / "nt" / "raw_grc"
 
 
+def test_sblgnt_suffix_handling_on_committed_fixture() -> None:
+    """Runs in CI (no ``data/`` needed): an empty ``<suffix>`` renders
+    as one space, a non-empty one verbatim, and a suffix before the
+    first verse-number milestone is dropped rather than leaking into
+    the first verse."""
+
+    from minerva.sources.sblgnt import parse_file
+
+    path = REPO_ROOT / "tests" / "fixtures" / "sblgnt" / "John_excerpt.xml"
+    chunks = list(parse_file(path, book_title="John", book_abbr="John", work_code="jn"))
+    assert [c.section for c in chunks] == ["John 1:1", "John 1:2"]
+    assert chunks[0].text == (
+        "Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν, καὶ θεὸς ἦν ὁ λόγος."
+    )
+    assert chunks[1].text == "οὗτος ἦν ἐν ἀρχῇ πρὸς τὸν θεόν."
+    assert all("STRAY" not in c.text for c in chunks)
+
+
 @pytest.mark.skipif(
     not (_NT_DIR / "John.xml").exists(),
     reason="SBLGNT John not downloaded; skipping",

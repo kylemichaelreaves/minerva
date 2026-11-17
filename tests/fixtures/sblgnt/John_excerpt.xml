@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Excerpt in the real SBLGNT shape: John 1:1-2, plus a stray suffix
+     before the first verse-number milestone (must be dropped, not
+     prepended to 1:1). Empty <suffix/> means a single space. -->
+<book id="Jn">
+  <title>ΚΑΤΑ ΙΩΑΝΝΗΝ</title>
+  <suffix>STRAY</suffix>
+  <p>
+    <verse-number id="John 1:1">1:1</verse-number>
+    <w>Ἐν</w><suffix></suffix><w>ἀρχῇ</w><suffix></suffix><w>ἦν</w><suffix></suffix><w>ὁ</w><suffix></suffix><w>λόγος</w><suffix>, </suffix><w>καὶ</w><suffix></suffix><w>ὁ</w><suffix></suffix><w>λόγος</w><suffix></suffix><w>ἦν</w><suffix></suffix><w>πρὸς</w><suffix></suffix><w>τὸν</w><suffix></suffix><w>θεόν</w><suffix>, </suffix><w>καὶ</w><suffix></suffix><w>θεὸς</w><suffix></suffix><w>ἦν</w><suffix></suffix><w>ὁ</w><suffix></suffix><w>λόγος</w><suffix>. </suffix>
+    <verse-number id="John 1:2">1:2</verse-number>
+    <w>οὗτος</w><suffix></suffix><w>ἦν</w><suffix></suffix><w>ἐν</w><suffix></suffix><w>ἀρχῇ</w><suffix></suffix><w>πρὸς</w><suffix></suffix><w>τὸν</w><suffix></suffix><w>θεόν</w><suffix>. </suffix>
+  </p>
+</book>

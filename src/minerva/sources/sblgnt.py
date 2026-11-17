@@ -155,15 +155,14 @@ def parse_file(
         elif tag == "w":
             if current_section is not None and elem.text:
                 current_chunks.append(elem.text)
-        elif tag == "suffix":
+        elif tag == "suffix" and current_section is not None:
             # SBL convention: an empty <suffix></suffix> means a
             # word-to-word boundary (render as a single space). A
             # non-empty suffix carries the inter-word punctuation
             # verbatim, including any trailing space — emit it as-is.
             # Em-dash suffixes like "—" or ",—" are intentionally
             # space-less (the dash glues to the next word).
-            if current_section is not None:
-                current_chunks.append(elem.text if elem.text else " ")
+            current_chunks.append(elem.text if elem.text else " ")
 
     # Flush the final verse at EOF.
     chunk = _flush()
