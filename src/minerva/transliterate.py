@@ -168,10 +168,9 @@ def looks_like_betacode(text: str) -> bool:
                 j += 1
             if j < n and text[j].lower() in _GREEK_BASE:
                 return True
-        elif ch in _DIACRITIC_CHARS:
+        elif ch in _DIACRITIC_CHARS and i > 0 and text[i - 1].lower() in _GREEK_BASE:
             # Diacritics follow the letter they modify in beta-code.
-            if i > 0 and text[i - 1].lower() in _GREEK_BASE:
-                return True
+            return True
     return False
 
 
