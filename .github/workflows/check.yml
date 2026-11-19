@@ -11,6 +11,8 @@
 #     runs here exactly as it does locally. It did not use to: the
 #     server ran against the gitignored `data/index.sqlite`, and each
 #     data-dependent test skipped itself in CI (#133).
+#   * bundle-size — gzipped asset sizes vs main's last build, posted as a
+#     PR comment. Reports only: never fails on growth, and isn't required.
 #
 # On a PR, a `changes` job runs first and skips the suites the diff can't
 # break: docs-only runs none, Python-only skips both web jobs, TypeScript-only
@@ -481,6 +483,104 @@ jobs:
           name: playwright-trace
           path: web/test-results/
           retention-days: 14
+
+  # Gzipped size of each built asset, compared with the last build on main
+  # (web/scripts/bundleSize.ts). Information, not a gate: it never fails on
+  # growth, and it is not a required check. On main it records the baseline as
+  # an artifact; on a PR it compares against the newest such artifact and
+  # keeps one comment up to date. Its own job, not a step in `web · e2e`, so a
+  # broken report can't turn the required check red.
+  bundle-size:
+    name: web · bundle size
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.web == 'true') }}
+    permissions:
+      contents: read
+      # Listing and downloading the baseline artifact from an earlier run.
+      actions: read
+      # Creating and editing the report comment.
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install the pinned npm
+        # Same reason as `web · e2e` (#605).
+        run: npm install -g "npm@$(node -p 'require("./package.json").packageManager.split("@")[1]')"
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Build and measure
+        run: |
+          npm run build
+          npm run --silent bundle-size -- measure dist > bundle-size.json
+          cat bundle-size.json
+
+      - name: Record the baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: bundle-size-baseline
+          path: web/bundle-size.json
+          # The newest one is read; 90 days outlasts any quiet spell on main.
+          retention-days: 90
+
+      - name: Fetch the baseline from main
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # The newest unexpired artifact from main, whatever became of the rest
+        # of that run — filtering on a successful run would skip a baseline
+        # because Sonar or an unrelated suite went red. Without one, the report
+        # says every asset is new; it does not fail.
+        run: |
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=bundle-size-baseline&per_page=30" \
+            --jq '[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == "main")][0].workflow_run.id // empty')
+          if [ -z "$run_id" ]; then
+            echo "::notice title=Bundle size::No baseline artifact from main yet; every asset reports as new."
+            exit 0
+          fi
+          mkdir -p ../baseline
+          gh run download "$run_id" --name bundle-size-baseline --dir ../baseline
+          mv ../baseline/bundle-size.json bundle-size-baseline.json
+
+      - name: Report
+        if: github.event_name == 'pull_request'
+        run: |
+          baseline=""
+          if [ -f bundle-size-baseline.json ]; then baseline=bundle-size-baseline.json; fi
+          npm run --silent bundle-size -- report bundle-size.json $baseline > bundle-size-report.md
+          cat bundle-size-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the PR
+        # Fork and Dependabot PRs get a read-only token, so commenting would
+        # 403; the step summary above still carries the report.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        # Edits the comment carrying the report's marker rather than
+        # `gh pr comment --edit-last`, which edits the bot's last comment of
+        # any kind.
+        run: |
+          comment_id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- bundle-size-report -->"))) | .id' | head -n1)
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" -F body=@bundle-size-report.md > /dev/null
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@bundle-size-report.md > /dev/null
+          fi
 
   # TWO checks come out of this, and they mean different things:
   #
