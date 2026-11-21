@@ -55,6 +55,8 @@ coverage.xml
 node_modules/
 web/dist/
 web/.vite/
+web/bundle-stats.html
+web/bundle-size*.json
 
 # ── Editors & IDEs ─────────────────────────────────────────────────
 .idea/

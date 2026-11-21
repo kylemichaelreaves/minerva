@@ -30,6 +30,7 @@ export default tseslint.config(
     files: [
       "src/**/*.{ts,tsx}",
       "tests/**/*.{ts,tsx}",
+      "scripts/**/*.ts",
       ".storybook/**/*.{ts,tsx}",
       "vite.config.ts",
       "playwright.config.ts",
