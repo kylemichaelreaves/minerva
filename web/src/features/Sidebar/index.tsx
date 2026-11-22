@@ -175,7 +175,7 @@ export default function Sidebar(props: SidebarProps) {
                     <button
                       type="button"
                       class="history-label history-label-toggle"
-                      aria-expanded={!collapsed()}
+                      aria-expanded={!collapsed() ? "true" : "false"}
                       onClick={() => {
                         toggleAuthor(group.author);
                       }}

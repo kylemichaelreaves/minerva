@@ -28,7 +28,7 @@ export function FilterMenuChip(props: {
   return (
     <div class="net-chip-wrap" ref={wrapEl}>
       <button
-        class={"net-chip" + (props.active ? " active" : "")}
+        class={["net-chip", { active: props.active }]}
         onClick={() => setOpen((v) => !v)}
         title={`${props.label} filter`}
       >
@@ -63,7 +63,7 @@ export function FilterMenuChip(props: {
                 const on = () => selectedSet().has(opt.key);
                 return (
                   <button
-                    class={"net-menu-item" + (on() ? " on" : "")}
+                    class={["net-menu-item", { on: on() }]}
                     onClick={() => props.onToggle(opt.key)}
                   >
                     <span class="mark">{on() ? "✓" : " "}</span>

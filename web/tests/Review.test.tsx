@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
-import { render, fireEvent, waitFor } from "@solidjs/testing-library";
+import { render, waitFor } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import Review, { type ReviewProps } from "~/features/Refs/components/Review";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import type { ReviewQueueResponse, ReviewQueueRow } from "~/api/refsApi";
@@ -273,6 +274,13 @@ describe("<Review />", () => {
       expect(props.onNavigateToReference).toHaveBeenLastCalledWith(11);
     });
     expect(queueCalls.length).toBe(1);
+    // The approve button is disabled while the first decision is in flight,
+    // and comes back a flush after the advance (Solid 2 commits the
+    // `acting` reset at the next microtask) — a click before then is a
+    // click on a disabled button.
+    await waitFor(() => {
+      expect(container.querySelector(".review-btn-approve")).not.toBeDisabled();
+    });
 
     // Approve row 11 → local rows exhausted → next page fetched. Both
     // loaded rows were decided, so the fetch must ask for offset 0.

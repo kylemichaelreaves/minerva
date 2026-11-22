@@ -1,4 +1,5 @@
-import { createMemo, type JSX } from "solid-js";
+import { createMemo } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { useConversations } from "~/features/conversations/conversationsCtrl";
 import type { useReader } from "~/Reader/readerCtrl";
 import type { useRouting } from "~/routing";

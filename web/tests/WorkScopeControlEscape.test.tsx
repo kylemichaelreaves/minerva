@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@solidjs/testing-library";
+import { render, screen } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
+import { flush } from "solid-js";
 import WorkScopeControl from "~/features/Composer/WorkScopeControl";
 
 function mount() {
@@ -16,6 +18,9 @@ function mount() {
 const escape = () => {
   const e = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
   window.dispatchEvent(e);
+  // Settled like `fireEvent`: the close is a signal write Solid 2 commits at
+  // the next flush.
+  flush();
   return e;
 };
 

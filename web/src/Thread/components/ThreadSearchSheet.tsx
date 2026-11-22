@@ -1,4 +1,5 @@
-import { For, Show, createEffect, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { Turn } from "~/utils/types";
 import { MobileSheet } from "~/components/shell/MobileSheet";
 import { turnId } from "~/Thread/turnId";
@@ -21,9 +22,12 @@ export function ThreadSearchSheet(props: {
 
   // Reset the query when the sheet closes so a stale search + its old
   // result list don't flash on the next open (issue #66).
-  createEffect(() => {
-    if (!props.open) setQuery("");
-  });
+  createEffect(
+    () => props.open,
+    (open) => {
+      if (!open) setQuery("");
+    },
+  );
 
   const PREVIEW_LEN = 160;
   const PREVIEW_LEAD = 30;

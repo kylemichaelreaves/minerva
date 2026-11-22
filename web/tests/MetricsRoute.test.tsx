@@ -4,7 +4,7 @@
 // turning into `routing.navigate`, and the wrong-route guard); the panel's
 // own behavior is `tests/MetricsPanel.test.tsx`'s job.
 
-import { ErrorBoundary } from "solid-js";
+import { Errored } from "solid-js";
 import { render, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { MetricsRoute } from "~/routes/MetricsRoute";
@@ -67,13 +67,13 @@ describe("MetricsRoute", () => {
     });
   });
 
-  it("throws when mounted off a non-metrics route, for an ErrorBoundary above it to catch", async () => {
+  it("throws when mounted off a non-metrics route, for an Errored boundary above it to catch", async () => {
     mockSummary();
     const routing = createTestRouting({ kind: "landing" });
     const view = render(() => (
-      <ErrorBoundary fallback={(err) => <div>broke: {(err as Error).message}</div>}>
+      <Errored fallback={(err) => <div>broke: {(err() as Error).message}</div>}>
         <MetricsRoute {...makeCtx(routing)} />
-      </ErrorBoundary>
+      </Errored>
     ));
     await waitFor(() => {
       expect(view.getByText(/expected metrics route/i)).toBeTruthy();

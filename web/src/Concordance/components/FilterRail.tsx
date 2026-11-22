@@ -160,8 +160,8 @@ export function FilterRail(props: {
         <div class="fr-scope">
           <button
             type="button"
-            class={"seg" + (props.scope === "corpus" ? " on" : "")}
-            aria-pressed={props.scope === "corpus"}
+            class={["seg", { on: props.scope === "corpus" }]}
+            aria-pressed={props.scope === "corpus" ? "true" : "false"}
             onClick={() => {
               if (props.scope !== "corpus") {
                 props.onSetScope({
@@ -176,8 +176,8 @@ export function FilterRail(props: {
           </button>
           <button
             type="button"
-            class={"seg" + (props.scope === "author" ? " on" : "")}
-            aria-pressed={props.scope === "author"}
+            class={["seg", { on: props.scope === "author" }]}
+            aria-pressed={props.scope === "author" ? "true" : "false"}
             onClick={() => {
               // Only navigable when we already have an author to scope
               // to — the work-list click below sets one, as does the
@@ -193,8 +193,8 @@ export function FilterRail(props: {
           </button>
           <button
             type="button"
-            class={"seg" + (props.scope === "work" ? " on" : "")}
-            aria-pressed={props.scope === "work"}
+            class={["seg", { on: props.scope === "work" }]}
+            aria-pressed={props.scope === "work" ? "true" : "false"}
             onClick={() => {
               if (props.scope !== "work" && selectedWorks().size > 0) {
                 props.onSetScope({ scope: "work" });
@@ -225,7 +225,7 @@ export function FilterRail(props: {
               {(p) => (
                 <span class="pill">
                   <span class="k">{p.k}</span>
-                  <span class={"v" + (p.italic ? " italic" : "")}>{p.v}</span>
+                  <span class={["v", { italic: p.italic }]}>{p.v}</span>
                   <button
                     type="button"
                     class="x"
@@ -279,8 +279,8 @@ export function FilterRail(props: {
             {(b) => (
               <button
                 type="button"
-                class={"fr-check" + (selectedWorks().has(b.value) ? " on" : "")}
-                aria-pressed={selectedWorks().has(b.value)}
+                class={["fr-check", { on: selectedWorks().has(b.value) }]}
+                aria-pressed={selectedWorks().has(b.value) ? "true" : "false"}
                 onClick={() => props.onToggleWork(b.value)}
                 title={b.value}
               >

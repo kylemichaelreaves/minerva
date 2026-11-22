@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { MatrixPanel } from "~/Network/components/MatrixPanel";
@@ -48,6 +49,7 @@ function resize(el: HTMLElement, w: number, h: number) {
   Object.defineProperty(el, "clientWidth", { value: w, configurable: true });
   Object.defineProperty(el, "clientHeight", { value: h, configurable: true });
   for (const cb of observerCallbacks) cb();
+  flush();
 }
 
 /** Mirrors MatrixPanel's geometry: PAD l 112, r 6. Cells are sized to the
@@ -118,14 +120,17 @@ describe("<MatrixPanel />", () => {
 
     expect(container.querySelector(".net-tooltip")).toBeNull();
     fireEvent.mouseEnter(rect);
+    flush();
     const tip = must(container.querySelector(".net-tooltip"), ".net-tooltip");
     expect(tip.querySelector(".pair")?.textContent).toBe("Aristotle → Plato");
     expect(tip.querySelector(".count")?.textContent).toBe(`${(1234).toLocaleString()} xrefs`);
 
     fireEvent.mouseLeave(rect);
+    flush();
     expect(container.querySelector(".net-tooltip")).toBeNull();
 
     fireEvent.click(rect);
+    flush();
     expect(onOpenPair).toHaveBeenCalledWith("Aristotle", "Plato");
   });
 });

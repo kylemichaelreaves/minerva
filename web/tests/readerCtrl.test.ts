@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
-import { createRoot } from "solid-js";
+import { createRoot, flush as flushSolid } from "solid-js";
 import { useReader } from "~/Reader/readerCtrl";
 import { _resetToastsForTesting, useToasts } from "~/utils/apiError";
 import type { Work } from "~/utils/types";
@@ -153,6 +153,8 @@ describe("useReader()", () => {
     });
     const { api, routing: r, dispose } = runReader(routing);
     api.growAuthorSlug("plato");
+    // The route is read by readerCtrl's own effect, on the next flush.
+    flushSolid();
     expect(r.replaceSpy).toHaveBeenCalledWith({
       kind: "reader",
       workSlug: "republic",
@@ -173,8 +175,11 @@ describe("useReader()", () => {
     });
     const { api, routing: r, dispose } = runReader(routing);
     api.growAuthorSlug("luther-1912");
+    flushSolid();
     r.setRoute({ kind: "landing" });
+    flushSolid();
     api.growAuthorSlug("plato");
+    flushSolid();
     expect(r.replaceSpy).not.toHaveBeenCalled();
     dispose();
   });

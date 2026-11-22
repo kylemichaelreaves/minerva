@@ -98,8 +98,9 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
     hydrateController = undefined;
   }
 
-  createEffect(() => {
-    const r = routing.route();
+  // Compute tracks the route alone; the hydrate / reset writes run in the
+  // apply phase, where Solid 2 allows them.
+  createEffect(() => routing.route(), (r) => {
     if (r.kind === "conversation") {
       if (lastHydratedId !== r.id) {
         lastHydratedId = r.id;
@@ -220,13 +221,21 @@ export function useConversations(routing: RoutingApi): ConversationsApi {
     // silent one.
     const turn: UserTurn = { role: "user", text, time: nowTime() };
     setMessages([turn]);
-    void askMinerva(text, sendDeps());
+    ask(text, [turn]);
   }
 
   function sendMessage(text: string) {
     const turn: UserTurn = { role: "user", text, time: nowTime() };
     setMessages((m) => [...m, turn]);
-    void askMinerva(text, sendDeps());
+    ask(text, [...messages(), turn]);
+  }
+
+  /** `askMinerva` reads the thread synchronously to build the history, and a
+   *  Solid 2 signal read returns the previous value until the write above it
+   *  is flushed — so it is handed the thread as written rather than the
+   *  signal. */
+  function ask(text: string, thread: Turn[]) {
+    void askMinerva(text, { ...sendDeps(), messages: () => thread });
   }
 
   function requestDelete(item: HistoryItem) {

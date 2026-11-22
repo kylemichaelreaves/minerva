@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { FilterMenuChip } from "~/Network/components/FilterMenuChip";
 
@@ -22,6 +23,7 @@ function mount(selected: string[]) {
     />
   ));
   fireEvent.click(screen.getByTitle("Corpus filter"));
+  flush();
   return { onToggle, onClear };
 }
 
@@ -29,6 +31,7 @@ describe("<FilterMenuChip />", () => {
   it("Clear calls onClear when something is selected", () => {
     const { onClear, onToggle } = mount(["scrip"]);
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    flush();
     expect(onClear).toHaveBeenCalledTimes(1);
     expect(onToggle).not.toHaveBeenCalled();
   });
@@ -37,6 +40,7 @@ describe("<FilterMenuChip />", () => {
     const { onToggle } = mount([]);
     expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Classical/ }));
+    flush();
     expect(onToggle).toHaveBeenCalledWith("class");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import ConfirmDialog from "~/components/primitives/ConfirmDialog";
 import { must } from "./helpers/must";
 
@@ -122,6 +122,8 @@ describe("<ConfirmDialog />", () => {
       />
     ));
     setOpen(false);
+    // The close lands when Solid 2 flushes the write, not at the call.
+    flush();
     fireEvent.keyDown(window, { key: "Enter" });
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onConfirm).not.toHaveBeenCalled();

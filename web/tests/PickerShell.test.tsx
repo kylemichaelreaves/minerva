@@ -8,7 +8,8 @@
  * committing must be impossible unless a row is highlighted, whatever is in
  * the input.
  */
-import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PickerShell, type PickerGroup } from "~/Syntax/components/PickerShell";
 import { must } from "./helpers/must";

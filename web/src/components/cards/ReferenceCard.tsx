@@ -90,7 +90,7 @@ export default function ReferenceCard(props: ReferenceCardProps) {
   // Parse a citation header into author + work + locator. The design's
   // header renders as "Aristotle, *De anima* III.7" — author in upright
   // serif, work in italic, locator (when present) in upright.
-  const targetCitation = (): import("solid-js").JSX.Element => {
+  const targetCitation = (): import("@solidjs/web").JSX.Element => {
     const t = props.reference.target;
     return (
       <>
@@ -119,7 +119,7 @@ export default function ReferenceCard(props: ReferenceCardProps) {
 
       <Show when={props.reference.quoted_phrase}>
         {(phrase) => (
-          <div class={`refcard-quote${greekQuote() ? " is-greek" : ""}`}>
+          <div class={["refcard-quote", { "is-greek": greekQuote() }]}>
             {phrase()}
           </div>
         )}
@@ -131,9 +131,7 @@ export default function ReferenceCard(props: ReferenceCardProps) {
       <Show when={isInCorpus()}>
         <Show when={props.previewText}>
           {(text) => (
-            <div
-              class={`refcard-preview${isPending() ? " is-muted" : ""}`}
-            >
+            <div class={["refcard-preview", { "is-muted": isPending() }]}>
               {text()}
             </div>
           )}

@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { HeatmapPanel } from "~/Network/components/HeatmapPanel";
 import type { HeatmapCell, HeatmapSection } from "~/api/networkApi";
 
@@ -123,6 +124,7 @@ describe("HeatmapPanel grid", () => {
     const firstWidth = before[0]?.getAttribute("width");
 
     resizeTo(1200, 500);
+    flush();
 
     const after = [...container.querySelectorAll("rect")];
     expect(after.length).toBe(before.length);

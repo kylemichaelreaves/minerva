@@ -1,6 +1,6 @@
 // App composition root. Wires composables into layout; routes live in AppRoutes.
 
-import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import Sidebar from "~/features/Sidebar";
 import ConfirmDialog from "~/components/primitives/ConfirmDialog";
 import MobileTopBar from "~/components/shell/MobileTopBar";
@@ -55,20 +55,21 @@ function AppShell() {
   const [scrolled, setScrolled] = createSignal(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = createSignal(false);
 
-  createEffect(() => {
-    if (isMobile() && mobileDrawerOpen()) {
-      document.body.dataset.mobileDrawer = "open";
-    } else {
-      delete document.body.dataset.mobileDrawer;
-    }
-  });
+  createEffect(
+    () => isMobile() && mobileDrawerOpen(),
+    (open) => {
+      if (open) {
+        document.body.dataset.mobileDrawer = "open";
+      } else {
+        delete document.body.dataset.mobileDrawer;
+      }
+    },
+  );
 
   createEffect(
-    on(
-      () => routing.route(),
-      () => { setMobileDrawerOpen(false); },
-      { defer: true },
-    ),
+    () => routing.route(),
+    () => { setMobileDrawerOpen(false); },
+    { defer: true },
   );
 
   const conversationTitle = createMemo<string | null>(() => {
@@ -179,10 +180,11 @@ function AppShell() {
           navigation, which is the point — but a mounted Reader under an opaque
           `position: fixed` overlay is still in the tab order, and before #342
           it was unreachable only because it had been destroyed. */}
-      {/* `attr:` because the plain prop compiles to `el.inert = …`, which is a
-          no-op wherever the property is unimplemented; the attribute is what
-          the browser's inert semantics actually key on. */}
-      <main class="main" attr:inert={onSyntax() ? "" : undefined}>
+      {/* Solid 2 sets `inert` as a boolean attribute (present/absent), which
+          is what the browser's inert semantics key on. Solid 1 compiled it to
+          `el.inert = …`, a no-op wherever the property is unimplemented, so
+          this used `attr:inert` until that namespace was removed. */}
+      <main class="main" inert={onSyntax()}>
         <Show
           when={
             isMobile() &&

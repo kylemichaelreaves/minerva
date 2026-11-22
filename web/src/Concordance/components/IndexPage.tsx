@@ -182,17 +182,25 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
    *  changes scope (different scope = different unfiltered max). */
   const [freqCeil, setFreqCeil] = createSignal(10000);
   let lastScopeKey = "";
-  createEffect(() => {
-    const scopeKey = `${lang()}|${scope()}|${(props.scopeAuthors ?? []).join("\t")}|${(props.scopeWorks ?? []).join("\t")}`;
-    if (scopeKey !== lastScopeKey) {
-      lastScopeKey = scopeKey;
-      setFreqCeil(10000);
-    }
-    const top = sort() === "freq" ? data()?.rows[0]?.count : undefined;
-    if (top && top > freqCeil()) {
-      setFreqCeil(top);
-    }
-  });
+  // The effect below is the only writer of `freqCeil`, so this plain copy is
+  // always equal to it. Apply works from the copy: reading the signal there is
+  // an untracked read (STRICT_READ_UNTRACKED), and straight after a reset it
+  // would still return the old scope's value, since Solid 2 reads lag writes.
+  let ceilNow = 10000;
+  createEffect(
+    () => ({
+      scopeKey: `${lang()}|${scope()}|${(props.scopeAuthors ?? []).join("\t")}|${(props.scopeWorks ?? []).join("\t")}`,
+      top: sort() === "freq" ? data()?.rows[0]?.count : undefined,
+    }),
+    ({ scopeKey, top }) => {
+      if (scopeKey !== lastScopeKey) {
+        lastScopeKey = scopeKey;
+        ceilNow = 10000;
+      }
+      if (top && top > ceilNow) ceilNow = top;
+      setFreqCeil(ceilNow);
+    },
+  );
 
   /** Chips shown in the active-filter strip. Each carries its own
    *  remove patch; the strip never needs to know what kind of filter
@@ -352,9 +360,9 @@ export function ConcordanceIndexPage(props: IndexPageProps) {
             return (
               <button
                 type="button"
-                class={`conc-btn ${klass()}`}
+                class={["conc-btn", klass()]}
                 title={title()}
-                aria-pressed={L === letter()}
+                aria-pressed={L === letter() ? "true" : "false"}
                 onClick={() => props.onNavigate({ letter: L === letter() ? undefined : L })}
               >
                 {L}
@@ -673,9 +681,10 @@ export function useConcordanceIndex(args: UseConcordanceIndexArgs) {
   // back empty. `usePaginatedAppend.hasMore` is deliberately unused for that
   // reason — this is the one caller that cannot use it.
   const pagination = usePaginatedAppend<LemmaIndexRow>(() => data());
-  const [cursor, setCursor] = createSignal<number | null>(null);
-  // Mirrors the hook's own reset: a new first page replaces the cursor.
-  createEffect(() => { setCursor(data()?.next_offset ?? null); });
+  // Mirrors the hook's own reset: a new first page replaces the cursor. A
+  // writable derived signal — it re-derives from each first page, and an
+  // appended page's `next_offset` writes over it.
+  const [cursor, setCursor] = createSignal<number | null>(() => data()?.next_offset ?? null);
 
   const firstPage = (): LemmaIndexRow[] => data()?.rows ?? [];
   const allRows = (): LemmaIndexRow[] => pagination.rows(firstPage());

@@ -4,7 +4,7 @@
 // (title + body + `$ minerva terms lemmatize` command + footer). Factored
 // here so the instructional copy and markup live in one place.
 
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 /** Generic centered empty/error panel: an icon glyph, a title, and
  *  caller-supplied body content. */

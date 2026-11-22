@@ -1,4 +1,5 @@
-import { type JSX, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import "~/components/primitives/popovercard.css";
 import { POPOVER_CARD_WIDTH } from "~/utils/popoverPosition";
 import { useClickOutside } from "~/hooks/useClickOutside";

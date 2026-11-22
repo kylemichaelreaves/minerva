@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MatrixPanel } from "~/Network/components/MatrixPanel";
 import type { MatrixCell, NetworkAuthor } from "~/api/networkApi";
@@ -65,6 +66,7 @@ describe("<MatrixPanel />", () => {
     expect(container.textContent).toContain("5k+");
 
     fireEvent.click(screen.getByRole("button", { name: "% of col" }));
+    flush();
     expect(screen.getByRole("button", { name: "% of col" }).getAttribute("aria-pressed")).toBe(
       "true",
     );
@@ -73,6 +75,7 @@ describe("<MatrixPanel />", () => {
     expect(container.textContent).toContain("who draws on this source?");
 
     fireEvent.click(screen.getByRole("button", { name: "% of row" }));
+    flush();
     // 300 of Aquinas's 1,000: 30% → step 4.
     expect(aquinasVulgate().getAttribute("fill")).toBe("var(--net-step-4)");
   });
@@ -80,6 +83,7 @@ describe("<MatrixPanel />", () => {
   it("shows shares on hover and highlights the pair's labels", () => {
     const { container, cell } = setup();
     fireEvent.mouseEnter(cell(1));
+    flush();
     const tip = container.querySelector(".net-tooltip");
     expect(tip?.textContent).toContain("300 xrefs");
     expect(tip?.textContent).toContain("30.0% of Aquinas’s citations");
@@ -91,6 +95,7 @@ describe("<MatrixPanel />", () => {
     expect(bold.sort()).toEqual(["Aquinas", "Vulgate"]);
 
     fireEvent.mouseLeave(cell(1));
+    flush();
     expect(container.querySelector(".net-tooltip")).toBeNull();
   });
 
@@ -102,6 +107,7 @@ describe("<MatrixPanel />", () => {
     const target = cell(1); // Aquinas → Vulgate: row 1, column 1 (neither is 0)
     const n = (el: Element | null | undefined, a: string) => Number(el?.getAttribute(a));
     fireEvent.mouseEnter(target);
+    flush();
 
     const [rowBar, colBar] = container.querySelectorAll(".net-matrix-crosshair rect");
     expect(n(rowBar, "y")).toBe(n(target, "y") - 0.5);
@@ -127,16 +133,20 @@ describe("<MatrixPanel />", () => {
     const toLastCol = cell(0); // Aquinas → Augustine
     const toFirstCol = cell(2); // Aquinas → Plato
     fireEvent.mouseEnter(toFirstCol);
+    flush();
     expect(tipLeft()).toBeGreaterThan(rectX(toFirstCol));
     fireEvent.mouseLeave(toFirstCol);
+    flush();
 
     fireEvent.mouseEnter(toLastCol);
+    flush();
     expect(tipLeft() + 240).toBeLessThan(rectX(toLastCol));
   });
 
   it("opens the pair on click", () => {
     const { onOpenPair, cell } = setup();
     fireEvent.click(cell(1));
+    flush();
     expect(onOpenPair).toHaveBeenCalledWith("Aquinas", "Vulgate");
   });
 
@@ -174,10 +184,13 @@ describe("<MatrixPanel />", () => {
       const { container, cell } = setup();
       cell(3).focus(); // Augustine → Vulgate
       fireEvent.keyDown(cell(3), { key: "ArrowDown" });
+      flush();
       expect(document.activeElement).toBe(cell(1)); // Aquinas → Vulgate
       fireEvent.keyDown(cell(1), { key: "ArrowLeft" });
+      flush();
       expect(document.activeElement).toBe(cell(2)); // Aquinas → Plato
       fireEvent.keyDown(cell(2), { key: "End" });
+      flush();
       expect(document.activeElement).toBe(cell(0)); // Aquinas → Augustine
       expect(tabbable(container)).toEqual([cell(0)]);
     });
@@ -186,9 +199,11 @@ describe("<MatrixPanel />", () => {
       const { container, cell } = setup();
       cell(3).focus();
       const up = fireEvent.keyDown(cell(3), { key: "ArrowUp" });
+      flush();
       expect(up).toBe(false); // handled: the page must not scroll
       expect(document.activeElement).toBe(cell(3));
       const tab = fireEvent.keyDown(cell(3), { key: "Tab" });
+      flush();
       expect(tab).toBe(true); // not ours: Tab still leaves the grid
       expect(tabbable(container)).toEqual([cell(3)]);
     });
@@ -196,17 +211,21 @@ describe("<MatrixPanel />", () => {
     it("opens the focused pair on Enter or Space", () => {
       const { onOpenPair, cell } = setup();
       fireEvent.keyDown(cell(1), { key: "Enter" });
+      flush();
       expect(onOpenPair).toHaveBeenLastCalledWith("Aquinas", "Vulgate");
       fireEvent.keyDown(cell(2), { key: " " });
+      flush();
       expect(onOpenPair).toHaveBeenLastCalledWith("Aquinas", "Plato");
     });
 
     it("shows the hover tooltip and crosshair on focus, and hides them on blur", () => {
       const { container, cell } = setup();
       fireEvent.focus(cell(1));
+      flush();
       expect(container.querySelector(".net-tooltip")?.textContent).toContain("300 xrefs");
       expect(container.querySelector(".net-matrix-crosshair")).toBeTruthy();
       fireEvent.blur(cell(1));
+      flush();
       expect(container.querySelector(".net-tooltip")).toBeNull();
       expect(container.querySelector(".net-matrix-crosshair")).toBeNull();
     });
