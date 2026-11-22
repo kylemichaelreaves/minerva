@@ -24,25 +24,25 @@ export function usePaginatedAppend<T>(
   const [appending, setAppending] = createSignal(false);
   const [appendError, setAppendError] = createSignal<string | null>(null);
   let generation = 0;
-  let seeded = false;
   let inFlight: AbortController | null = null;
 
-  createEffect(() => {
-    void firstPageData();
-    if (!seeded) {
-      seeded = true;
-      return;
-    }
-    generation += 1;
-    // Cancel any page fetch still in flight for the previous filter set
-    // so it doesn't waste a round-trip or briefly flash stale rows
-    // before the generation guard discards it (issue #62).
-    inFlight?.abort();
-    inFlight = null;
-    setExtraRows([]);
-    setAppendError(null);
-    setAppending(false);
-  });
+  // `defer: true` skips the initial run: the first page arriving for the
+  // first time is not a filter change, and must not reset anything.
+  createEffect(
+    () => firstPageData(),
+    () => {
+      generation += 1;
+      // Cancel any page fetch still in flight for the previous filter set
+      // so it doesn't waste a round-trip or briefly flash stale rows
+      // before the generation guard discards it (issue #62).
+      inFlight?.abort();
+      inFlight = null;
+      setExtraRows([]);
+      setAppendError(null);
+      setAppending(false);
+    },
+    { defer: true },
+  );
 
   const rows = (firstPage: T[]): T[] => [...firstPage, ...extraRows()];
 
@@ -53,7 +53,12 @@ export function usePaginatedAppend<T>(
     firstPage: T[],
     fetchPage: (offset: number, signal: AbortSignal) => Promise<{ items: T[] }>,
   ): Promise<void> {
-    if (appending()) return;
+    // The re-entrancy guard reads the plain `inFlight`, not `appending()`: a
+    // sentinel can fire several times in one task, and a Solid 2 signal read
+    // returns the old value until the write flushes, so `appending()` would
+    // still be false for the second call and stack a duplicate page fetch.
+    // `inFlight` is non-null exactly while `appending` is true.
+    if (inFlight !== null) return;
     const gen = generation;
     const controller = new AbortController();
     inFlight = controller;

@@ -17,7 +17,8 @@
 // un-anchored thematic questions — the shape this corpus answers worst,
 // since there is no locus to retrieve — and was removed in #258.
 
-import { Show, untrack, type JSX } from "solid-js";
+import { Show, untrack } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/cards/ComposeField";
 import KeyHints from "~/components/cards/KeyHints";
@@ -128,7 +129,7 @@ export default function Landing(props: LandingProps) {
         props.leaving && LEAVING_CLASS[props.leaving],
         props.arriving && ARRIVING_CLASS[props.arriving],
       )}
-      attr:inert={leaving() || arriving() ? "" : undefined}
+      inert={leaving() || arriving()}
       aria-hidden={leaving() || arriving() ? "true" : undefined}
     >
       <header class="landing-header">

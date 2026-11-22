@@ -13,7 +13,7 @@
 // /api/translate without reconstructing the selection from the DOM),
 // and the keyboard / outside-click effect that gates dismissal.
 
-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
+import { createEffect, createSignal, type Accessor } from "solid-js";
 import { useClickOutside } from "~/hooks/useClickOutside";
 import {
   loadHighlights,
@@ -122,9 +122,20 @@ export function useSelectionToolbar(
   props: SelectionToolbarProps,
 ): SelectionToolbarApi {
   const [selToolbar, setSelToolbar] = createSignal<SelToolbar | null>(null);
-  const [pinnedHighlights, setPinnedHighlights] = createSignal<
+  const [pinnedHighlights, setPinnedHighlightsSignal] = createSignal<
     PinnedHighlight[]
   >([]);
+  // Plain mirror of the latest WRITTEN pinned set. Solid 2 reads lag writes
+  // until the next flush, and `persistSavedHighlights` runs right after the
+  // write that changed the set — reading the signal there persisted the set
+  // from BEFORE the write (nothing on the first dismiss, a removed marker
+  // still in storage). Every write goes through `setPinned`, so updates
+  // compose on this value too.
+  let pinnedNow: PinnedHighlight[] = [];
+  const setPinned = (fn: (prev: PinnedHighlight[]) => PinnedHighlight[]) => {
+    pinnedNow = fn(pinnedNow);
+    setPinnedHighlightsSignal(pinnedNow);
+  };
 
   const savedTranslations = new Map<
     string,
@@ -142,8 +153,7 @@ export function useSelectionToolbar(
   // the source from the DOM). Switching works wipes the existing
   // in-memory state — the new work's annotations are scoped to that
   // work's storage key.
-  createEffect(() => {
-    const workId = props.workId();
+  createEffect(() => props.workId(), (workId) => {
     const stored = loadHighlights(workId);
     savedTranslations.clear();
     for (const h of stored) {
@@ -152,7 +162,7 @@ export function useSelectionToolbar(
         ref: h.ref,
       });
     }
-    setPinnedHighlights(
+    setPinned(() =>
       stored.map((h) => ({
         chunkId: h.chunkId,
         start: h.start,
@@ -167,7 +177,7 @@ export function useSelectionToolbar(
     // into localStorage. Active (saved=false) highlights are omitted
     // — they belong to an open rail, not the persistent layer.
     const snapshot: SavedHighlight[] = [];
-    for (const p of pinnedHighlights()) {
+    for (const p of pinnedNow) {
       if (!p.saved) continue;
       const meta = savedTranslations.get(savedKey(p.chunkId, p.start, p.end));
       if (!meta) continue; // missing meta — drop on the floor
@@ -234,7 +244,7 @@ export function useSelectionToolbar(
   }
 
   function commitTranslate(t: SelToolbar) {
-    setPinnedHighlights((prev) => {
+    setPinned((prev) => {
       // Drop any prior active highlights — only one translation is
       // foregrounded at a time. Preserve saved=true markers so the
       // user accumulates an annotation layer as they read.
@@ -284,7 +294,7 @@ export function useSelectionToolbar(
     const key = savedKey(chunkId, start, end);
     const saved = savedTranslations.get(key);
     if (!saved) return;
-    setPinnedHighlights((prev) =>
+    setPinned((prev) =>
       prev.map((p) =>
         p.chunkId === chunkId && p.start === start && p.end === end
           ? { ...p, saved: false }
@@ -297,7 +307,7 @@ export function useSelectionToolbar(
   }
 
   function markAllPinnedSaved() {
-    setPinnedHighlights((prev) => prev.map((p) => ({ ...p, saved: true })));
+    setPinned((prev) => prev.map((p) => ({ ...p, saved: true })));
     persistSavedHighlights(props.workId());
   }
 
@@ -306,7 +316,7 @@ export function useSelectionToolbar(
     start: number,
     end: number,
   ): void {
-    setPinnedHighlights((prev) =>
+    setPinned((prev) =>
       prev.filter(
         (p) => !(p.chunkId === chunkId && p.start === start && p.end === end),
       ),
@@ -320,36 +330,35 @@ export function useSelectionToolbar(
   }
 
   // Esc / keyboard shortcuts for the selection toolbar.
-  createEffect(() => {
-    // Deliberate per-run snapshot: the effect re-runs on every toolbar change and onCleanup drops the listener holding the old `t`.
-    const t = selToolbar();
-    if (!t) return;
-    if (props.suspended?.()) return;
-    const onKey = (e: KeyboardEvent) => {
-      const action = toolbarKeyAction(e, {
-        singleWord: t.singleWord,
-        syntaxEnabled: props.syntaxEnabled?.() ?? false,
-      });
-      if (action === null) return;
-      if (action === "dismiss") {
-        setSelToolbar(null);
-        return;
-      }
-      e.preventDefault();
-      if (action === "translate") commitTranslate(t);
-      else if (action === "lookup") commitLookup(t);
-      else commitSyntax(t);
-    };
-    document.addEventListener("keydown", onKey);
-    // Solid ignores values returned from createEffect — a returned
-    // cleanup function would never run, leaking one document-level
-    // listener (with a stale toolbar closure) per toolbar open.
-    // onCleanup registered inside the effect runs before each re-run
-    // and on dispose, which is the behavior we want.
-    onCleanup(() => {
-      document.removeEventListener("keydown", onKey);
-    });
-  });
+  createEffect(
+    // Per-run snapshot: the effect re-runs on every toolbar change and the
+    // returned cleanup drops the listener holding the old `t`.
+    () => (props.suspended?.() ? null : selToolbar()),
+    (t) => {
+      if (!t) return;
+      const onKey = (e: KeyboardEvent) => {
+        const action = toolbarKeyAction(e, {
+          singleWord: t.singleWord,
+          syntaxEnabled: props.syntaxEnabled?.() ?? false,
+        });
+        if (action === null) return;
+        if (action === "dismiss") {
+          setSelToolbar(null);
+          return;
+        }
+        e.preventDefault();
+        if (action === "translate") commitTranslate(t);
+        else if (action === "lookup") commitLookup(t);
+        else commitSyntax(t);
+      };
+      document.addEventListener("keydown", onKey);
+      // The apply's returned cleanup runs before each re-run and on
+      // dispose, so a toolbar change never leaks a stale listener.
+      return () => {
+        document.removeEventListener("keydown", onKey);
+      };
+    },
+  );
 
   useClickOutside(
     () =>

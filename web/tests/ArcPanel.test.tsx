@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ArcPanel } from "~/Network/components/ArcPanel";
 import type { AuthorPair, MatrixCell, NetworkAuthor } from "~/api/networkApi";
@@ -65,6 +66,7 @@ describe("<ArcPanel />", () => {
   it("shows intra-scripture pairs when the toggle is off", () => {
     const { detail, arcs } = setup();
     fireEvent.click(screen.getByRole("button", { name: /Hide intra-scripture/ }));
+    flush();
     expect(detail()).not.toContain("intra-scripture hidden");
     const fills = arcs().map((a) => a.getAttribute("fill"));
     expect(fills).toContain("var(--net-terra)");
@@ -83,6 +85,7 @@ describe("<ArcPanel />", () => {
   it("focuses an author on click: direction colours, lists, and a clear button", () => {
     const { label, detail, arcs, container } = setup();
     fireEvent.click(label("Plato"));
+    flush();
     expect(label("Plato").getAttribute("aria-pressed")).toBe("true");
     expect(detail()).toContain("Plato · 380 BC · reaches back furthest to Homer (420 yrs)");
     expect(detail()).toContain("Cites");
@@ -93,12 +96,14 @@ describe("<ArcPanel />", () => {
     expect(container.querySelector(".net-arc-legend")?.textContent).toContain("cites Plato");
 
     fireEvent.click(screen.getByRole("button", { name: "Clear ✕" }));
+    flush();
     expect(detail()).toContain("Top pairs");
   });
 
   it("shows every pair of the focused author, not only the top-N ones", () => {
     const { label, detail } = setup();
     fireEvent.click(label("Nietzsche"));
+    flush();
     expect(detail()).toContain("Pythagoras");
     // Pythagoras's year is interpolated, so it is not shown…
     expect(detail()).not.toMatch(/Pythagoras\d+ (BC|CE)/);
@@ -110,19 +115,24 @@ describe("<ArcPanel />", () => {
   it("previews on hover without pinning", () => {
     const { label, detail } = setup();
     fireEvent.mouseEnter(label("Homer"));
+    flush();
     expect(detail()).toContain("Homer · 800 BC");
     expect(screen.queryByRole("button", { name: "Clear ✕" })).toBeNull();
     fireEvent.mouseLeave(label("Homer"));
+    flush();
     expect(detail()).toContain("Top pairs");
   });
 
   it("toggles focus from the keyboard", () => {
     const { label, detail } = setup();
     fireEvent.keyDown(label("Plato"), { key: "Enter" });
+    flush();
     expect(detail()).toContain("Plato · 380 BC");
     fireEvent.keyDown(label("Plato"), { key: "Tab" });
+    flush();
     expect(detail()).toContain("Plato · 380 BC");
     fireEvent.keyDown(label("Plato"), { key: " " });
+    flush();
     expect(detail()).toContain("Top pairs");
   });
 
@@ -133,12 +143,14 @@ describe("<ArcPanel />", () => {
     );
     if (!row) throw new Error("no Plato → Homer row");
     fireEvent.click(row);
+    flush();
     expect(detail()).toContain("Plato · 380 BC");
     const homer = [...container.querySelectorAll<HTMLButtonElement>(".net-arc-detail .li")].find(
       (b) => b.textContent.startsWith("Homer"),
     );
     if (!homer) throw new Error("no Homer row");
     fireEvent.click(homer);
+    flush();
     expect(detail()).toContain("Homer · 800 BC");
   });
 
@@ -147,6 +159,7 @@ describe("<ArcPanel />", () => {
     const heaviest = arcs().at(-1);
     if (!heaviest) throw new Error("no arcs");
     fireEvent.mouseMove(heaviest, { clientX: 600, clientY: 200 });
+    flush();
     const tip = container.querySelector<HTMLElement>(".net-tooltip");
     expect(tip?.textContent).toContain("222 references");
     expect(tip?.textContent).toContain("reaches back 2,260 years · 380 BC");
@@ -154,8 +167,10 @@ describe("<ArcPanel />", () => {
     expect(heaviest.getAttribute("fill-opacity")).toBe("1");
 
     fireEvent.click(heaviest);
+    flush();
     expect(onOpenPair).toHaveBeenCalledWith("Nietzsche", "Plato");
     fireEvent.mouseLeave(heaviest);
+    flush();
     expect(container.querySelector(".net-tooltip")).toBeNull();
   });
 
@@ -164,6 +179,7 @@ describe("<ArcPanel />", () => {
     const lightest = arcs()[0]; // Nietzsche → Pythagoras, n=3
     if (!lightest) throw new Error("no arcs");
     fireEvent.mouseMove(lightest, { clientX: 10, clientY: 200 });
+    flush();
     const tip = container.querySelector<HTMLElement>(".net-tooltip");
     expect(tip?.textContent).toContain("3 references");
     expect(tip?.textContent).not.toContain("reaches back");
@@ -185,6 +201,7 @@ describe("<ArcPanel />", () => {
     const arc = container.querySelector<SVGPathElement>("path.net-arc");
     if (!arc) throw new Error("no arc");
     fireEvent.mouseMove(arc, { clientX: 10, clientY: 200 });
+    flush();
     const count = container.querySelector(".net-tooltip .count")?.textContent;
     expect(count).toBe("1 reference");
   });

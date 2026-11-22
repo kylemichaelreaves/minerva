@@ -8,7 +8,7 @@
 //   • single-word: [ Look up · L ] [ Translate · T ] [ Syntax · S ]? [Copy] [ <count> ]
 // `?` = rendered only when the corresponding handler is supplied.
 
-import { Show, onCleanup, onMount } from "solid-js";
+import { Show, onSettled } from "solid-js";
 
 export interface ToolbarAnchor {
   /** Selection bounding rect in viewport coords. */
@@ -57,15 +57,15 @@ export function SelectionToolbar(props: {
     el.style.left = `${Math.round(left)}px`;
   };
 
-  onMount(() => {
+  onSettled(() => {
     place();
     const handler = () => { place(); };
     window.addEventListener("resize", handler);
     window.addEventListener("scroll", handler, true);
-    onCleanup(() => {
+    return () => {
       window.removeEventListener("resize", handler);
       window.removeEventListener("scroll", handler, true);
-    });
+    };
   });
 
   // Mousedown handler stops native selection from clearing — without

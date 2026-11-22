@@ -7,10 +7,13 @@
 // true and `createEffect` never runs. Every hook test in this directory that
 // asserts on an effect then fails with "Number of calls: 0". vite.config.ts
 // puts the condition back; this file fails first if that stops working.
+// Still needed on @solidjs/vite-plugin 3.0.1 / solid-js 2.0.3: with the
+// `environments.ssr` override removed, both tests below fail (`isServer` is
+// true and the effect records nothing).
 
 import { describe, it, expect } from "vitest";
 import { createEffect, createRoot, createSignal } from "solid-js";
-import { isServer } from "solid-js/web";
+import { isServer } from "@solidjs/web";
 
 describe("solid-js under a per-file node environment", () => {
   it("resolves the client build, not the server build", () => {
@@ -21,7 +24,12 @@ describe("solid-js under a per-file node environment", () => {
     const seen: number[] = [];
     const [n, setN] = createSignal(1);
     const dispose = createRoot((d) => {
-      createEffect(() => seen.push(n()));
+      createEffect(
+        () => n(),
+        (v) => {
+          seen.push(v);
+        },
+      );
       return d;
     });
     await Promise.resolve();

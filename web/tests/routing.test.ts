@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import { readRoute, routeHash, useRouting, type Route } from "~/routing";
 
 function withHash<T>(hash: string, fn: () => T): T {
@@ -365,18 +365,18 @@ describe("useRouting history discipline", () => {
     withHash("#/", () => {
       const pushSpy = vi.spyOn(window.history, "pushState");
       try {
-        createRoot((dispose) => {
-          const routing = useRouting();
-          routing.navigate({ kind: "refs" });
-          expect(window.location.hash).toBe("#/refs");
-          expect(pushSpy).toHaveBeenCalledTimes(1);
-          // Navigating to the same route again must not stack another
-          // history entry (the old effect-driven writer was guarded the
-          // same way; keep the invariant).
-          routing.navigate({ kind: "refs" });
-          expect(pushSpy).toHaveBeenCalledTimes(1);
-          dispose();
-        });
+        // Created in the root, driven outside it: Solid 2 refuses a signal
+        // write inside an owned scope, and navigate is an event-time call.
+        const [routing, dispose] = createRoot((d) => [useRouting(), d] as const);
+        routing.navigate({ kind: "refs" });
+        expect(window.location.hash).toBe("#/refs");
+        expect(pushSpy).toHaveBeenCalledTimes(1);
+        // Navigating to the same route again must not stack another
+        // history entry (the old effect-driven writer was guarded the
+        // same way; keep the invariant).
+        routing.navigate({ kind: "refs" });
+        expect(pushSpy).toHaveBeenCalledTimes(1);
+        dispose();
       } finally {
         pushSpy.mockRestore();
       }
@@ -388,15 +388,13 @@ describe("useRouting history discipline", () => {
       const pushSpy = vi.spyOn(window.history, "pushState");
       const replaceSpy = vi.spyOn(window.history, "replaceState");
       try {
-        createRoot((dispose) => {
-          const routing = useRouting();
-          replaceSpy.mockClear();
-          routing.replace({ kind: "refs-review", referenceId: 7 });
-          expect(window.location.hash).toBe("#/refs/review?id=7");
-          expect(replaceSpy).toHaveBeenCalledTimes(1);
-          expect(pushSpy).not.toHaveBeenCalled();
-          dispose();
-        });
+        const [routing, dispose] = createRoot((d) => [useRouting(), d] as const);
+        replaceSpy.mockClear();
+        routing.replace({ kind: "refs-review", referenceId: 7 });
+        expect(window.location.hash).toBe("#/refs/review?id=7");
+        expect(replaceSpy).toHaveBeenCalledTimes(1);
+        expect(pushSpy).not.toHaveBeenCalled();
+        dispose();
       } finally {
         pushSpy.mockRestore();
         replaceSpy.mockRestore();
@@ -406,31 +404,31 @@ describe("useRouting history discipline", () => {
 
   it("popstate reads the route into the signal without writing history", async () => {
     await withHash("#/refs", async () => {
-      await createRoot(async (dispose) => {
-        const routing = useRouting();
-        // onMount's popstate listener registers on the next effect
-        // flush — wait a tick before dispatching.
-        await Promise.resolve();
-        // Simulate the browser restoring a different entry (back).
-        window.history.replaceState(null, "", "#/network");
-        const pushSpy = vi.spyOn(window.history, "pushState");
-        const replaceSpy = vi.spyOn(window.history, "replaceState");
-        try {
-          window.dispatchEvent(new PopStateEvent("popstate"));
-          expect(routing.route()).toMatchObject({ kind: "network" });
-          // No write-back: a pushState here is exactly the back-button
-          // trap this regression test pins.
-          expect(pushSpy).not.toHaveBeenCalled();
-          expect(replaceSpy).not.toHaveBeenCalled();
-        } finally {
-          pushSpy.mockRestore();
-          replaceSpy.mockRestore();
-        }
-        dispose();
-        // withHash's finally already ran (the async body resumes after
-        // it); restore the hash ourselves so nothing leaks.
-        window.history.replaceState(null, "", "#/");
-      });
+      const [routing, dispose] = createRoot((d) => [useRouting(), d] as const);
+      // The popstate listener registers in `onSettled`, once the root has
+      // settled — wait a tick before dispatching.
+      await Promise.resolve();
+      flush();
+      // Simulate the browser restoring a different entry (back).
+      window.history.replaceState(null, "", "#/network");
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      const replaceSpy = vi.spyOn(window.history, "replaceState");
+      try {
+        window.dispatchEvent(new PopStateEvent("popstate"));
+        flush();
+        expect(routing.route()).toMatchObject({ kind: "network" });
+        // No write-back: a pushState here is exactly the back-button
+        // trap this regression test pins.
+        expect(pushSpy).not.toHaveBeenCalled();
+        expect(replaceSpy).not.toHaveBeenCalled();
+      } finally {
+        pushSpy.mockRestore();
+        replaceSpy.mockRestore();
+      }
+      dispose();
+      // withHash's finally already ran (the async body resumes after
+      // it); restore the hash ourselves so nothing leaks.
+      window.history.replaceState(null, "", "#/");
     });
   });
 });

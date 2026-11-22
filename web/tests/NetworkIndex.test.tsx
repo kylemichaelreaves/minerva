@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchNetworkSummary, type NetworkAuthor } from "~/api/networkApi";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
@@ -170,6 +170,7 @@ describe("<Network />", () => {
     // "More views" has no route of its own: it opens the filters sheet.
     expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /More views/ }));
+    flush();
     expect(screen.getByRole("dialog", { name: "Filters" })).toBeTruthy();
   });
 });

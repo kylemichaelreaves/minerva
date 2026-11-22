@@ -58,6 +58,10 @@ export function RailContent(props: {
     }
     return null;
   };
+  /** The rail state narrowed to `ready`, for the translation branch. Read
+   *  through the `<Show>` accessor so a new response on a rail that stays
+   *  ready re-renders instead of freezing at the first one. */
+  const readyState = () => (props.state.kind === "ready" ? props.state : undefined);
   const isCrossChunk = (): boolean => {
     const r = refText();
     return r?.includes("—") ?? false;
@@ -76,12 +80,10 @@ export function RailContent(props: {
   // loading/ready): tapping a word is itself an explicit gesture, so
   // it wins over a previous manual tab pick, while later manual picks
   // are honored until the next lookup arrives.
-  // eslint-disable-next-line solid/reactivity -- deliberate one-time snapshot: seeds transition detection so a lookup already active at mount does not force-flip the tab.
-  let prevLookupActive = hasLemma();
-  createEffect(() => {
-    const active = hasLemma();
-    if (active && !prevLookupActive) setTab("lemma");
-    prevLookupActive = active;
+  // `prev` is undefined on the first run, so a lookup already active at
+  // mount does not force-flip the tab.
+  createEffect(hasLemma, (active, prev) => {
+    if (active && prev === false) setTab("lemma");
   });
   const activeTab = (): Tab => tab();
 
@@ -124,7 +126,7 @@ export function RailContent(props: {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab() === "translation"}
+          aria-selected={activeTab() === "translation" ? "true" : "false"}
           class={classnames("rail-tab", activeTab() === "translation" && "cur")}
           onClick={() => setTab("translation")}
         >
@@ -133,7 +135,7 @@ export function RailContent(props: {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab() === "lemma"}
+          aria-selected={activeTab() === "lemma" ? "true" : "false"}
           class={classnames("rail-tab", activeTab() === "lemma" && "cur")}
           onClick={() => setTab("lemma")}
           disabled={!hasLemma()}
@@ -143,7 +145,7 @@ export function RailContent(props: {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab() === "refs"}
+          aria-selected={activeTab() === "refs" ? "true" : "false"}
           class={classnames("rail-tab", activeTab() === "refs" && "cur")}
           onClick={() => setTab("refs")}
           disabled
@@ -153,7 +155,7 @@ export function RailContent(props: {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab() === "concord"}
+          aria-selected={activeTab() === "concord" ? "true" : "false"}
           class={classnames("rail-tab", activeTab() === "concord" && "cur")}
           onClick={() => setTab("concord")}
         >
@@ -161,7 +163,7 @@ export function RailContent(props: {
         </button>
       </div>
 
-      <div class="rail-tabpanel" data-tab="lemma" aria-hidden={activeTab() !== "lemma"}>
+      <div class="rail-tabpanel" data-tab="lemma" aria-hidden={activeTab() !== "lemma" ? "true" : "false"}>
         <WordInfoBlock
           state={props.wordInfo}
           onLoadMore={props.onLoadMoreSamples}
@@ -169,7 +171,7 @@ export function RailContent(props: {
         />
       </div>
 
-      <div class="rail-tabpanel" data-tab="translation" aria-hidden={activeTab() !== "translation"}>
+      <div class="rail-tabpanel" data-tab="translation" aria-hidden={activeTab() !== "translation" ? "true" : "false"}>
         <Show
           when={
             sourceText() && props.wordInfo.kind === "idle" && isCrossChunk()
@@ -222,31 +224,28 @@ export function RailContent(props: {
           </div>
         </Show>
 
-        <Show when={props.state.kind === "ready"}>
-          {(_) => {
-            const ready = props.state as Extract<RailState, { kind: "ready" }>;
-            return (
-              <>
-                <div class="translation">{ready.response.translated_text}</div>
-                <Show when={ready.response.literal_text}>
-                  <div class="translation-literal">
-                    <div class="translation-literal-label">Literal</div>
-                    <div class="translation-literal-text">
-                      {ready.response.literal_text}
-                    </div>
+        <Show when={readyState()}>
+          {(ready) => (
+            <>
+              <div class="translation">{ready().response.translated_text}</div>
+              <Show when={ready().response.literal_text}>
+                <div class="translation-literal">
+                  <div class="translation-literal-label">Literal</div>
+                  <div class="translation-literal-text">
+                    {ready().response.literal_text}
                   </div>
-                </Show>
-                <RailDismissFooter
-                  meta={ready.response.cached ? "cached" : ready.response.model}
-                  onDismiss={props.onDismiss}
-                />
-              </>
-            );
-          }}
+                </div>
+              </Show>
+              <RailDismissFooter
+                meta={ready().response.cached ? "cached" : ready().response.model}
+                onDismiss={props.onDismiss}
+              />
+            </>
+          )}
         </Show>
       </div>
 
-      <div class="rail-tabpanel" data-tab="refs" aria-hidden={activeTab() !== "refs"}>
+      <div class="rail-tabpanel" data-tab="refs" aria-hidden={activeTab() !== "refs" ? "true" : "false"}>
         {/* Refs tab is a placeholder for v1 — the desktop xref-card
             popover serves the same role and is currently unreachable
             via this sheet. */}
@@ -255,7 +254,7 @@ export function RailContent(props: {
       <div
         class="rail-tabpanel"
         data-tab="concord"
-        aria-hidden={activeTab() !== "concord"}
+        aria-hidden={activeTab() !== "concord" ? "true" : "false"}
       >
         <ConcordanceTabPanel
           workTitle={props.workTitle ?? null}

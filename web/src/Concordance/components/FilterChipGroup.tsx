@@ -5,7 +5,7 @@
 // locked-prose state, not a chip toggle).
 
 import { For, Show } from "solid-js";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { BreakdownBucket } from "~/api/concordanceApi";
 
 export function FilterChipGroup(props: {
@@ -47,8 +47,8 @@ export function FilterChipGroup(props: {
           {(b) => (
             <button
               type="button"
-              class={"fr-opt" + (props.selected === b.value ? " on" : "")}
-              aria-pressed={props.selected === b.value}
+              class={["fr-opt", { on: props.selected === b.value }]}
+              aria-pressed={props.selected === b.value ? "true" : "false"}
               onClick={() => props.onToggle(props.selected === b.value ? undefined : b.value)}
               title={props.titleFor(b)}
             >

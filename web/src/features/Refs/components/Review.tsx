@@ -1,14 +1,6 @@
 // Curator review surface for `curator_status='auto'` cross-references.
 
-import {
-  Show,
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onMount,
-  untrack,
-} from "solid-js";
+import { Show, createEffect, createMemo, createSignal, flush, onSettled } from "solid-js";
 import {
   fetchReferencesSources,
   fetchReviewQueue,
@@ -55,10 +47,11 @@ const PAGE_SIZE = REFS_PAGE_SIZE;
 export default function Review(props: ReviewProps) {
   const shell = useMobileShell();
 
-  onMount(() => {
-    shell.registerSurfaceActions({
-      openFilters: () => shell.setFiltersSheetOpen(true),
-    });
+  // In the body, not `onSettled`: the registration's `onCleanup` needs this
+  // component's owner, and Solid 2 forbids `onCleanup` inside `onSettled`
+  // (CLEANUP_IN_FORBIDDEN_SCOPE). It writes no signal.
+  shell.registerSurfaceActions({
+    openFilters: () => shell.setFiltersSheetOpen(true),
   });
 
   const [meta, setMeta] = createSignal<{
@@ -97,15 +90,16 @@ export default function Review(props: ReviewProps) {
   const [actionError, setActionError] = createSignal<string | null>(null);
   const error = () => fetchError() ?? actionError();
 
-  createEffect(() => {
-    const res = data();
-    if (res === null) return;
-    // Everything below is keyed ONLY on a fresh queue fetch. In
-    // particular `props.referenceId` must be read untracked: this
-    // effect WRITES the URL id (onNavigateToReference), so tracking
-    // the prop made the effect re-trigger itself and fight the
-    // cursor-advance path for ownership of the cursor.
-    untrack(() => {
+  // Everything in the apply is keyed ONLY on a fresh queue fetch: the
+  // compute reads `data()` alone. In particular `props.referenceId` is read
+  // in the (untracked) apply: this effect WRITES the URL id
+  // (onNavigateToReference), so tracking the prop made the effect
+  // re-trigger itself and fight the cursor-advance path for ownership of
+  // the cursor.
+  createEffect(
+    () => data(),
+    (res) => {
+      if (res === null) return;
       setMeta({ total_pending: res.total_pending });
       setDecidedCount(0);
       // Resolve the URL's referenceId (if any) to a cursor position
@@ -126,8 +120,8 @@ export default function Review(props: ReviewProps) {
         // Empty queue with a stale id in the URL — clear it.
         props.onNavigateToReference(undefined);
       }
-    });
-  });
+    },
+  );
 
   const currentRow = createMemo<ReviewQueueRow | null>(() => {
     const q = queue();
@@ -135,10 +129,12 @@ export default function Review(props: ReviewProps) {
     return q[c] ?? null;
   });
 
-  createEffect(() => {
-    const row = currentRow();
-    setNoteDraft(row?.note ?? "");
-  });
+  createEffect(
+    () => currentRow(),
+    (row) => {
+      setNoteDraft(row?.note ?? "");
+    },
+  );
 
   const advanceAfterWrite = async (): Promise<void> => {
     const c = cursor();
@@ -205,6 +201,9 @@ export default function Review(props: ReviewProps) {
         total_pending: Math.max(0, meta().total_pending - 1),
       });
       setDecidedCount((c) => c + 1);
+      // `advanceAfterWrite` reads both counts synchronously; Solid 2 would
+      // otherwise still return the pre-write values until the next microtask.
+      flush();
       await advanceAfterWrite();
     } catch (err) {
       setActionError(errorMessage(err));
@@ -294,13 +293,14 @@ export default function Review(props: ReviewProps) {
       goPrev();
     }
   };
-  onMount(() => {
-    if (!pageEl) return;
+  onSettled(() => {
+    const el = pageEl;
+    if (!el) return;
     // passive: false so preventDefault() works.
-    pageEl.addEventListener("wheel", onWheel, { passive: false });
-    onCleanup(() => {
-      pageEl.removeEventListener("wheel", onWheel);
-    });
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
   });
 
   const filtersBar = () => (

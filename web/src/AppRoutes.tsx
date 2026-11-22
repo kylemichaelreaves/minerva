@@ -1,13 +1,4 @@
-import {
-  Match,
-  Show,
-  Switch,
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onMount,
-} from "solid-js";
+import { Match, Show, Switch, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";
 import { ChatRoute } from "~/routes/ChatRoute";
@@ -51,18 +42,25 @@ export function AppRoutes(props: AppRoutesProps) {
     return "";
   });
 
-  createEffect(() => {
-    props.conversations.messages();
-    props.conversations.thinking();
-    streamTail();
-    if (!stickToBottom() || !scrollEl) return;
-    const el = scrollEl;
-    queueMicrotask(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-  });
+  // Compute subscribes to everything that grows the thread; apply pins the
+  // scroll to the bottom unless the user has scrolled away from it.
+  createEffect(
+    () => {
+      props.conversations.messages();
+      props.conversations.thinking();
+      streamTail();
+      return stickToBottom();
+    },
+    (stick) => {
+      if (!stick || !scrollEl) return;
+      const el = scrollEl;
+      queueMicrotask(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    },
+  );
 
-  onMount(() => {
+  onSettled(() => {
     const el = scrollEl;
     if (!el) return;
     const onScroll = () => {
@@ -70,7 +68,7 @@ export function AppRoutes(props: AppRoutesProps) {
       setStickToBottom(dist < NEAR_BOTTOM_PX);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
-    onCleanup(() => el.removeEventListener("scroll", onScroll));
+    return () => el.removeEventListener("scroll", onScroll);
   });
 
   // `ctx` copies stable controller bundles + functions (created once in
@@ -120,16 +118,9 @@ export function AppRoutes(props: AppRoutesProps) {
   return (
     <>
       <Show when={props.reader.readerWork() ?? props.reader.retainedWork()}>
-        {/* `attr:inert` because the plain prop compiles to `el.inert = …`, a
-            no-op wherever the property is unimplemented; the attribute is
-            what the browser's inert semantics key on. Same reason as
-            `App.tsx`. `hidden` needs no such escape — Solid treats it as a
-            boolean attribute — and `attr:hidden` is not in the JSX types. */}
-        <div
-          class="reader-keepalive"
-          hidden={!readerShowing()}
-          attr:inert={readerShowing() ? undefined : ""}
-        >
+        {/* `inert` and `hidden` are both boolean attributes in Solid 2:
+            present when true, removed when false. See `App.tsx`. */}
+        <div class="reader-keepalive" hidden={!readerShowing()} inert={!readerShowing()}>
           {/* Above `ReaderRoute`, not inside the Reader's JSX: hooks called in
               the Reader's own component body (`useTermCard`, its two
               `useEscape`s) resolve `useContext` against the provider that is

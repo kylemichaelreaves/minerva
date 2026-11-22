@@ -13,7 +13,8 @@
 // (Reader/index.tsx) is where the marker's open-card cycle actually
 // runs.
 
-import type { Component, JSX } from "solid-js";
+import type { Component } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { For } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { XrefMarker } from "~/components/cards/XrefMarker";

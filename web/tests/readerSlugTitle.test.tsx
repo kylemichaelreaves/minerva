@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } from "vitest";
 import { render, waitFor } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import App from "~/App";
 import Reader from "~/Reader";
 import { invalidateReads } from "~/api/readCache";
@@ -51,10 +51,17 @@ function renderReader(ui: () => JSX.Element) {
 describe("the saved-highlight key stays title-based", () => {
   beforeEach(() => {
     localStorage.clear();
+    invalidateReads();
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      // The companion maps share the `/api/works/` prefix; answering them with
+      // the range left `by_chunk` undefined. Solid 1 swallowed the resulting
+      // throw in the companion fetch's catch; Solid 2 halts on it.
+      if (url.includes("occurrence_map") || url.includes("references_map")) {
+        return Promise.resolve(okResponse({ work_id: 999, lang: "grc", by_chunk: {} }));
+      }
       if (url.includes("/api/works/")) return Promise.resolve(okResponse(RANGE));
       return Promise.resolve(okResponse({}));
     });

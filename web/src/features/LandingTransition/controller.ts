@@ -12,7 +12,7 @@
 // Composer `entering`). Every DOM read and animation goes through
 // `TransitionEnv`, so tests can drive each path without a layout engine.
 
-import type { Accessor } from "solid-js";
+import { flush, type Accessor } from "solid-js";
 import {
   composerKeyframes,
   FRAME_PROPS,
@@ -139,7 +139,10 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
   });
 
   /** The question is sent at the START of the flight, exactly once; if
-   *  sending throws, nothing is left staged. */
+   *  sending throws, nothing is left staged. The flush commits the send's
+   *  writes (and the phase) to the DOM now: Solid 2 batches writes to the
+   *  next microtask, and the lift measures the user turn the send renders
+   *  straight after this returns. */
   function sendOrEnd(text: string, send: (text: string) => void) {
     try {
       send(text);
@@ -147,6 +150,7 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
       m.end();
       throw err;
     }
+    flush();
   }
 
   function beginFade(text: string, send: (text: string) => void) {
@@ -176,7 +180,7 @@ export function createLandingTransition(env: TransitionEnv = defaultEnv()): {
   }
 
   function begin(text: string, send: (text: string) => void) {
-    if (m.phase() !== "idle") return;
+    if (!m.idle()) return;
     if (env.reducedMotion()) beginFade(text, send);
     else if (env.canAnimate()) beginLift(text, send);
     else send(text);

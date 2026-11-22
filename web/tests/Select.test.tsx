@@ -3,10 +3,11 @@
 // the FiltersBar (in /refs) and other call sites depend on.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { render } from "@solidjs/testing-library";
+import { createSignal, flush } from "solid-js";
 import { Select, type SelectOption } from "~/components/primitives/Select";
 import { must } from "./helpers/must";
+import { fireEvent } from "./helpers/settledFireEvent";
 
 const OPTS: SelectOption[] = [
   { value: "a", label: "Alpha" },
@@ -171,7 +172,7 @@ describe("<Select />", () => {
   });
 
   it("clearable={false} hides the clear button", () => {
-    const [value] = createSignal<string | undefined>("b");
+    const value = (): string | undefined => "b";
     const { container } = render(() => (
       <Select options={OPTS} value={value()} onChange={() => undefined} clearable={false} />
     ));
@@ -179,7 +180,7 @@ describe("<Select />", () => {
   });
 
   it("disabled trigger doesn't open on click", () => {
-    const [value] = createSignal<string | undefined>(undefined);
+    const value = (): string | undefined => undefined;
     const { container } = render(() => (
       <Select options={OPTS} value={value()} onChange={() => undefined} disabled />
     ));
@@ -446,6 +447,7 @@ describe("<Select />", () => {
     fireEvent.keyDown(must(filter()), { key: "ArrowDown" });
     fireEvent.keyDown(must(filter()), { key: "ArrowDown" }); // → Gamma, index 2
     setOpts([{ value: "a", label: "Alpha" }]);
+    flush(); // the caller's write settles before the reader's next key
     fireEvent.keyDown(must(filter()), { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith("a");
   });
@@ -486,7 +488,7 @@ describe("<Select />", () => {
   });
 
   it("does not open a disabled filterable select", () => {
-    const [value] = createSignal<string | undefined>(undefined);
+    const value = (): string | undefined => undefined;
     const { container } = render(() => (
       <Select options={OPTS} value={value()} onChange={() => undefined} filterable disabled />
     ));
@@ -495,7 +497,7 @@ describe("<Select />", () => {
   });
 
   it("falls back to a default placeholder when the caller gives none", () => {
-    const [value] = createSignal<string | undefined>(undefined);
+    const value = (): string | undefined => undefined;
     const { container } = render(() => (
       <Select options={OPTS} value={value()} onChange={() => undefined} filterable />
     ));

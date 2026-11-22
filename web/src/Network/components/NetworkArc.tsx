@@ -203,19 +203,21 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
         />
         <For each={YEAR_TICKS}>
           {(yr) => {
-            const y = yOf(yr);
+            // An accessor, not a const: the callback body is untracked, and
+            // the scale moves whenever the laid-out authors change.
+            const y = () => yOf(yr);
             return (
               <>
                 <line
                   x1={BASE_X - 5}
-                  y1={y}
+                  y1={y()}
                   x2={BASE_X + 5}
-                  y2={y}
+                  y2={y()}
                   stroke="var(--ink-faint, #8a8170)"
                   stroke-width="0.8"
                 />
                 <Show when={tickLabels().includes(yr)}>
-                  <text x={14} y={y + LABEL_TEXT_DY} class="net-arc-yearlbl">
+                  <text x={14} y={y() + LABEL_TEXT_DY} class="net-arc-yearlbl">
                     {formatYear(yr)}
                   </text>
                 </Show>
@@ -260,12 +262,17 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
         </For>
         <For each={arcs()}>
           {({ pair: p, src: srcYear, tgt: tgtYear }) => {
-            const ys = yOf(srcYear);
-            const yt = yOf(tgtYear);
-            const yA = Math.min(ys, yt);
-            const yB = Math.max(ys, yt);
-            const ry = (yB - yA) / 2;
-            const rx = Math.max(18, Math.min((yB - yA) * 0.48, 250));
+            // Geometry is an accessor for the same reason as the ticks above:
+            // it reads the layout's scale, which the untracked callback body
+            // would otherwise freeze at its first value.
+            const geo = () => {
+              const ys = yOf(srcYear);
+              const yt = yOf(tgtYear);
+              const yA = Math.min(ys, yt);
+              const yB = Math.max(ys, yt);
+              const rx = Math.max(18, Math.min((yB - yA) * 0.48, 250));
+              return { yA, yB, rx, ry: (yB - yA) / 2 };
+            };
             const backward = srcYear > tgtYear;
             const stroke = backward ? "var(--accent)" : "var(--ink-mute, #6b6357)";
             const sw = 0.6 + Math.log10(p.n + 1) * 0.5;
@@ -274,10 +281,13 @@ function ArcSvg(props: { summary: NetworkSummary; onOpenAuthor: (name: string) =
             // it visually associates with the tapped arc rather than the touch
             // point (which on mobile is wherever the user's finger happened to
             // land).
-            const show = () => setHovered({ pair: p, yViewBox: (yA + yB) / 2 });
+            const show = () => {
+              const { yA, yB } = geo();
+              setHovered({ pair: p, yViewBox: (yA + yB) / 2 });
+            };
             return (
               <path
-                d={`M ${BASE_X} ${yA} A ${rx} ${ry} 0 0 1 ${BASE_X} ${yB}`}
+                d={`M ${BASE_X} ${geo().yA} A ${geo().rx} ${geo().ry} 0 0 1 ${BASE_X} ${geo().yB}`}
                 fill="none"
                 stroke={stroke}
                 stroke-width={isHovered() ? sw + 0.8 : sw}

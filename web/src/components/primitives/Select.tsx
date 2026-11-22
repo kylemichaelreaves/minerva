@@ -26,15 +26,8 @@
 // and never the typed text — see `commitActive`. Three shapes exist; the one
 // that surprises people is mobile, and `isMobile` carries the reason.
 
-import {
-  For,
-  Show,
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  type JSX,
-} from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { useClickOutside } from "~/hooks/useClickOutside";
 import { useMobile } from "~/hooks/useMobile";
 import { matchesQuery } from "~/utils/searchFold";
@@ -125,11 +118,12 @@ export function Select(props: SelectProps): JSX.Element {
    *  reference — unless a filterable Select has a non-empty query.** That
    *  identity is what lets every index helper below read `view()` with provably
    *  no behaviour change for the five non-filterable call sites. */
-  const view = createMemo<SelectOption[]>(() => {
-    const q = query().trim();
+  const viewFor = (rawQuery: string): SelectOption[] => {
+    const q = rawQuery.trim();
     if (props.filterable !== true || q === "") return props.options;
     return props.options.filter((o) => matchesQuery(q, [o.label, o.sublabel]));
-  });
+  };
+  const view = createMemo<SelectOption[]>(() => viewFor(query()));
 
   // Resolved against `props.options`, NOT `view()`: the query can exclude the
   // selected option and the trigger still has to show it.
@@ -138,8 +132,15 @@ export function Select(props: SelectProps): JSX.Element {
   );
 
   // ── Index helpers, all view-relative ──────────────────────────────
-  const nextEnabledIdx = (from: number, dir: 1 | -1): number => {
-    const list = view();
+  // `list` defaults to the committed view. A handler that has just written
+  // `query` passes the list for the new query instead: in Solid 2 a signal
+  // read returns the old value until the write flushes, so `view()` would
+  // still be the pre-keystroke list.
+  const nextEnabledIdx = (
+    from: number,
+    dir: 1 | -1,
+    list: SelectOption[] = view(),
+  ): number => {
     const n = list.length;
     if (n === 0) return -1;
     let i = from;
@@ -162,10 +163,15 @@ export function Select(props: SelectProps): JSX.Element {
   };
 
   // ── Open / close / commit ─────────────────────────────────────────
-  const openPanel = (): void => {
-    if (props.disabled || isOpen()) return;
+  /** Returns the highlight the panel now has, so a caller acting in the same
+   *  handler does not read `activeIdx()` back — Solid 2 reads lag writes, and
+   *  it would still see the closed panel's -1. */
+  const openPanel = (): number => {
+    if (props.disabled || isOpen()) return activeIdx();
+    const seed = seedIdx();
     setOpen(true);
-    setActiveIdx(seedIdx());
+    setActiveIdx(seed);
+    return seed;
   };
 
   const closePanel = (returnFocus = true): void => {
@@ -207,20 +213,21 @@ export function Select(props: SelectProps): JSX.Element {
   // Keep the active option in view.
   // scrollIntoView so the *page* never scrolls when arrowing through
   // a select that's near the viewport edge — only the listbox moves.
-  createEffect(() => {
-    if (!isOpen()) return;
-    const i = activeIdx();
-    if (i < 0 || !listboxRef) return;
-    const el = listboxRef.children[i] as HTMLElement | undefined;
-    if (!el) return;
-    const top = el.offsetTop;
-    const bottom = top + el.offsetHeight;
-    const viewTop = listboxRef.scrollTop;
-    const viewBottom = viewTop + listboxRef.clientHeight;
-    if (top < viewTop) listboxRef.scrollTop = top;
-    else if (bottom > viewBottom)
-      listboxRef.scrollTop = bottom - listboxRef.clientHeight;
-  });
+  createEffect(
+    () => (isOpen() ? activeIdx() : -1),
+    (i) => {
+      if (i < 0 || !listboxRef) return;
+      const el = listboxRef.children[i] as HTMLElement | undefined;
+      if (!el) return;
+      const top = el.offsetTop;
+      const bottom = top + el.offsetHeight;
+      const viewTop = listboxRef.scrollTop;
+      const viewBottom = viewTop + listboxRef.clientHeight;
+      if (top < viewTop) listboxRef.scrollTop = top;
+      else if (bottom > viewBottom)
+        listboxRef.scrollTop = bottom - listboxRef.clientHeight;
+    },
+  );
 
   // The list can shorten under the highlight from either side: a keystroke
   // narrows it, and so does the caller (picking a work removes it from
@@ -229,11 +236,12 @@ export function Select(props: SelectProps): JSX.Element {
   // `aria-activedescendant` that does not exist.
   //
   // No `isOpen()` guard: activeIdx is -1 while closed and `-1 >= n` is false,
-  // so this self-neutralises. The updater form reads the current value without
-  // subscribing to it, so it cannot loop.
-  createEffect(() => {
-    const n = view().length;
-    const fallback = n === 0 ? -1 : firstEnabled();
+  // so this self-neutralises. Compute reads the list; the write is in the
+  // untracked apply phase, which works from the list it is handed, so it
+  // cannot loop.
+  createEffect(view, (list) => {
+    const n = list.length;
+    const fallback = n === 0 ? -1 : nextEnabledIdx(-1, 1, list);
     setActiveIdx((i) => (i >= n ? fallback : i));
   });
 
@@ -247,7 +255,9 @@ export function Select(props: SelectProps): JSX.Element {
   });
 
   // ── Type-ahead ────────────────────────────────────────────────────
-  const runTypeahead = (ch: string): void => {
+  /** `current` is the highlight to search from; it defaults to `activeIdx()`
+   *  and is passed explicitly when the panel was opened in the same handler. */
+  const runTypeahead = (ch: string, current: number = activeIdx()): void => {
     typeBuf += ch.toLowerCase();
     if (typeTimer !== undefined) clearTimeout(typeTimer);
     typeTimer = window.setTimeout(() => {
@@ -261,7 +271,7 @@ export function Select(props: SelectProps): JSX.Element {
     const isRepeat = typeBuf.length > 1 && /^(.)\1+$/.test(typeBuf);
     const needle = isRepeat ? typeBuf.charAt(0) : typeBuf;
     const n = props.options.length;
-    const startBase = activeIdx() < 0 ? 0 : activeIdx();
+    const startBase = current < 0 ? 0 : current;
     const start = isRepeat ? startBase + 1 : startBase;
 
     for (let k = 0; k < n; k++) {
@@ -356,8 +366,7 @@ export function Select(props: SelectProps): JSX.Element {
       // in `filterable` mode that shape only exists on mobile, where there is
       // no hardware keyboard to type on a closed select. On desktop the input
       // IS the trigger, so the character lands natively.
-      if (!open) openPanel();
-      runTypeahead(e.key);
+      runTypeahead(e.key, open ? activeIdx() : openPanel());
     }
   };
 
@@ -391,12 +400,14 @@ export function Select(props: SelectProps): JSX.Element {
   };
 
   const onFilterInput = (e: InputEvent): void => {
-    setQuery((e.currentTarget as HTMLInputElement).value);
+    const q = (e.currentTarget as HTMLInputElement).value;
+    setQuery(q);
     // Typing into a closed field opens the list — the reader is already saying
     // what they want, so making them click as well is pure friction.
     openPanel();
-    // Every keystroke re-aims the highlight at the top of what now matches.
-    setActiveIdx(firstEnabled());
+    // Every keystroke re-aims the highlight at the top of what now matches —
+    // the list for `q`, computed here, since `view()` has not caught up yet.
+    setActiveIdx(nextEnabledIdx(-1, 1, viewFor(q)));
   };
 
   /** The input's displayed text. It does double duty in the field shape: the
@@ -480,11 +491,13 @@ export function Select(props: SelectProps): JSX.Element {
   /** One set of props, spread into whichever site renders the field, so the
    *  two shapes cannot drift and neither is a copy of the other. */
   const fieldProps = () => ({
-    ref: (el: HTMLInputElement) => (filterRef = el),
+    ref: (el: HTMLInputElement) => {
+      filterRef = el;
+    },
     type: "text",
     class: "minerva-select__filter-input",
     role: "combobox" as const,
-    "aria-expanded": isOpen(),
+    "aria-expanded": isOpen() ? ("true" as const) : ("false" as const),
     "aria-controls": listboxId,
     "aria-activedescendant":
       isOpen() && activeIdx() >= 0 ? optionId(activeIdx()) : undefined,
@@ -564,11 +577,7 @@ export function Select(props: SelectProps): JSX.Element {
   return (
     <div
       ref={rootRef}
-      class={
-        "minerva-select" +
-        (isOpen() ? " is-open" : "") +
-        (props.disabled ? " is-disabled" : "")
-      }
+      class={["minerva-select", { "is-open": isOpen(), "is-disabled": props.disabled }]}
     >
       <Show when={fieldTrigger()} fallback={
               <button
@@ -582,7 +591,7 @@ export function Select(props: SelectProps): JSX.Element {
                 // element, so it goes wherever focus is.
                 role={filterInPanel() ? "button" : "combobox"}
                 aria-haspopup="listbox"
-                aria-expanded={isOpen()}
+                aria-expanded={isOpen() ? "true" : "false"}
                 aria-controls={listboxId}
                 aria-activedescendant={
                   !filterInPanel() && isOpen() && activeIdx() >= 0
@@ -591,7 +600,7 @@ export function Select(props: SelectProps): JSX.Element {
                 }
                 aria-label={props.ariaLabel}
                 aria-labelledby={props.ariaLabelledBy}
-                aria-disabled={props.disabled || undefined}
+                aria-disabled={props.disabled ? "true" : undefined}
                 disabled={props.disabled}
                 onClick={onTriggerClick}
                 onKeyDown={onTriggerKeyDown}
@@ -668,14 +677,16 @@ export function Select(props: SelectProps): JSX.Element {
                   <li
                     id={optionId(i())}
                     role="option"
-                    aria-selected={isSelected()}
-                    aria-disabled={opt.disabled || undefined}
-                    class={
-                      "minerva-select__option" +
-                      (isActive() ? " is-active" : "") +
-                      (isSelected() ? " is-selected" : "") +
-                      (opt.disabled ? " is-disabled" : "")
-                    }
+                    aria-selected={isSelected() ? "true" : "false"}
+                    aria-disabled={opt.disabled ? "true" : undefined}
+                    class={[
+                      "minerva-select__option",
+                      {
+                        "is-active": isActive(),
+                        "is-selected": isSelected(),
+                        "is-disabled": opt.disabled,
+                      },
+                    ]}
                     onPointerDown={(e) => {
                       // Keep focus on the trigger so the combobox
                       // pattern (aria-activedescendant) stays intact.

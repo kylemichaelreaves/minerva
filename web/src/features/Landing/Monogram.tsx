@@ -7,7 +7,7 @@
 // Brumaire. Random per mount so it reads as a quiet Easter egg rather than a
 // feature.
 
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 export const ROSE_LOGO_PROBABILITY = 0.2;
 
@@ -75,7 +75,7 @@ export default function Monogram() {
       </button>
       <div
         id={TOOLTIP_ID}
-        class={`landing-monogram-tooltip${logo.long ? " landing-monogram-tooltip-long" : ""}`}
+        class={["landing-monogram-tooltip", { "landing-monogram-tooltip-long": logo.long }]}
         role="tooltip"
       >
         {logo.epigraph()}

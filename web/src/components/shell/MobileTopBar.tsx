@@ -6,7 +6,8 @@
 // The component is purely presentational — App.tsx owns the
 // drawer-open signal and passes onOpenDrawer + onAction handlers.
 
-import { Show, type JSX } from "solid-js";
+import { Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 export interface MobileTopBarProps {
   onOpenDrawer: () => void;

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import Sidebar from "~/features/Sidebar";
 import type { HistoryItem, Work } from "~/utils/types";
 import { withTheme } from "../../../.storybook/decorators";

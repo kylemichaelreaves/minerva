@@ -60,18 +60,12 @@ describe("MetricsPanel", () => {
     await waitFor(async () => expect(await view.findByText(/couldn't load/i)).toBeTruthy());
   });
 
-  it("surfaces a string rejection's message once Solid's castError wraps it into an Error", async () => {
-    // NOT a demonstration of `errorMessage`'s non-Error fallback (a
-    // previous version of this test claimed that, and it was wrong —
-    // caught in review). Solid's `createResource` runs every rejection
-    // through its own `castError` before `.error` is ever readable, and
-    // `castError` turns a string rejection into `new Error(str)` — so
-    // `err instanceof Error` is true here too, same as the plain-`Error`
-    // case above; the text comes from `.message`, not `String(err)`. The
-    // `String()` branch itself is unreachable through any resource for
-    // exactly that reason, and is covered in `tests/util.test.ts` instead,
-    // calling `errorMessage` as a plain function with something
-    // `castError` never produces.
+  it("surfaces a string rejection's message, not just Error instances", async () => {
+    // Under Solid 1 this went through `createResource`'s `castError`, which
+    // turned a string rejection into `new Error(str)` before `.error` was
+    // readable. Solid 2 has no such wrapper: `createAsyncState` settles the
+    // raw rejected value into its `error`, so the string reaches
+    // `errorMessage` as a string and its `String()` branch supplies the text.
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue("offline"));
     const view = render(() => <MetricsPanel />);
     expect(await view.findByText(/couldn't load metrics: offline/i)).toBeTruthy();

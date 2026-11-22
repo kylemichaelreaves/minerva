@@ -165,20 +165,22 @@ export function MinervaTurnView(props: {
     }, REVEAL_INTERVAL_MS);
   };
 
-  createEffect(() => {
-    const full = streaming() ? (props.msg.streamText ?? "") : "";
-    if (full.length < consumedLen) {
-      // Stream reset (defensive — a fresh stream on a reused node).
-      queue = [];
-      consumedLen = 0;
-      setRevealed([]);
-    }
-    if (full.length > consumedLen) {
-      queue.push(...splitGraphemes(full.slice(consumedLen)));
-      consumedLen = full.length;
-      startConsumer();
-    }
-  });
+  createEffect(
+    () => (streaming() ? (props.msg.streamText ?? "") : ""),
+    (full) => {
+      if (full.length < consumedLen) {
+        // Stream reset (defensive — a fresh stream on a reused node).
+        queue = [];
+        consumedLen = 0;
+        setRevealed([]);
+      }
+      if (full.length > consumedLen) {
+        queue.push(...splitGraphemes(full.slice(consumedLen)));
+        consumedLen = full.length;
+        startConsumer();
+      }
+    },
+  );
   // Memo — the For row below calls this once per paragraph; without
   // the memo each call rebuilt the Map from scratch.
   const citationsByN = createMemo(() => new Map(props.msg.citations.map((c) => [c.n, c])));
@@ -225,7 +227,9 @@ export function MinervaTurnView(props: {
           when={streaming()}
           fallback={
             <div class="turn-body">
-              <For each={props.msg.paragraphs}>{(p) => renderParagraph(p, citationsByN())}</For>
+              <For each={props.msg.paragraphs}>
+                {(p) => <>{renderParagraph(p, citationsByN())}</>}
+              </For>
             </div>
           }
         >

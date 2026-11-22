@@ -40,11 +40,14 @@ export function MetricsHealthBanner(props: { health: MetricsHealth | undefined }
     <Show when={state()}>
       {(kind) => (
         <p
-          class={`metrics-health metrics-health-${kind() === "failing" ? "warn" : "bad"}`}
+          class={[
+            "metrics-health",
+            kind() === "failing" ? "metrics-health-warn" : "metrics-health-bad",
+          ]}
           role="status"
           aria-label="Metrics health"
         >
-          <span class={`metrics-dot ${kind() === "failing" ? "warn" : "bad"}`} aria-hidden="true" />
+          <span class={["metrics-dot", kind() === "failing" ? "warn" : "bad"]} aria-hidden="true" />
           <span>
             <Show
               when={kind() === "failing"}

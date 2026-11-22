@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@solidjs/testing-library";
+import { render } from "@solidjs/testing-library";
 import { FilterBar, FreqRange, SEARCH_DEBOUNCE_MS } from "~/Concordance/components/FilterBar";
 import { must } from "./helpers/must";
+import { fireEvent } from "./helpers/settledFireEvent";
 
 /** FreqRange stacks two native range inputs over a shared track.
  *  These tests exercise the clamping + undefined-edge logic, not the
