@@ -32,7 +32,8 @@
 // #356 moved the listener to the shell both cards share, and
 // `components/PopoverCard.tsx` does now, by reading this context directly.
 
-import { createContext, useContext, type Accessor, type JSX } from "solid-js";
+import { createContext, useContext, type Accessor } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 /** Default `false`: a subtree with no provider above it is never suspended,
  *  which is the correct answer for every route that is actually on screen. */
@@ -46,9 +47,9 @@ export function SuspendedSubtreeProvider(props: {
   // reference while the accessor stays reactive.
   return (
     // eslint-disable-next-line solid/reactivity -- the value is an accessor consumers call inside their own tracking scopes; wrapping it is what keeps the context reactive without re-providing
-    <SuspendedSubtreeContext.Provider value={() => props.suspended()}>
+    <SuspendedSubtreeContext value={() => props.suspended()}>
       {props.children}
-    </SuspendedSubtreeContext.Provider>
+    </SuspendedSubtreeContext>
   );
 }
 

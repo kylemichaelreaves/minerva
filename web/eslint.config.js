@@ -3,7 +3,10 @@
 // plus the Solid plugin for JSX-reactivity gotchas, and the Prettier
 // config last to disable any formatting rules we'd let Prettier handle.
 import js from "@eslint/js";
-import solid from "eslint-plugin-solid/configs/typescript";
+// `v2` is the plugin's Solid 2 preset: on top of the reactivity rules it adds
+// `removed-api`, `no-single-arg-create-effect` and `no-write-in-pure-computation`,
+// which catch the 1.x idioms that compile but throw or go stale under 2.0.
+import solid from "eslint-plugin-solid/configs/v2";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -35,7 +38,12 @@ export default tseslint.config(
       "playwright.config.ts",
     ],
     languageOptions: {
+      // Spread first: the preset sets `sourceType` and JSX parsing, and a
+      // whole-object `...solid` below would otherwise replace this block and
+      // drop `project`, turning off every type-checked rule.
+      ...solid.languageOptions,
       parserOptions: {
+        ...solid.languageOptions.parserOptions,
         project: "./tsconfig.json",
         tsconfigRootDir: import.meta.dirname,
       },
@@ -44,7 +52,8 @@ export default tseslint.config(
         ...globals.node,
       },
     },
-    ...solid,
+    plugins: solid.plugins,
+    settings: solid.settings,
     rules: {
       ...(solid.rules ?? {}),
       // Allow numbers/booleans in template literals — `${count}` and

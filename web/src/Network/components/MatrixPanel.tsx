@@ -112,8 +112,8 @@ export function MatrixPanel(props: {
             {(m) => (
               <button
                 type="button"
-                classList={{ on: mode() === m.id }}
-                aria-pressed={mode() === m.id}
+                class={{ on: mode() === m.id }}
+                aria-pressed={mode() === m.id ? "true" : "false"}
                 onClick={() => setMode(m.id)}
               >
                 {m.label}
@@ -250,12 +250,17 @@ function MatrixCellRect(props: {
 }) {
   const label = () =>
     `${props.g.src.name} → ${props.g.tgt.name}: ${props.g.cell.n.toLocaleString()} xrefs`;
+  let rectEl: SVGRectElement | undefined;
+  createEffect(
+    () => props.focusNow,
+    (focusNow) => {
+      if (focusNow) rectEl?.focus();
+    },
+  );
   return (
     <rect
       ref={(el) => {
-        createEffect(() => {
-          if (props.focusNow) el.focus();
-        });
+        rectEl = el;
       }}
       class="net-cell"
       role="gridcell"

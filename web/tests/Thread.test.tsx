@@ -1,9 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { render, screen } from "@solidjs/testing-library";
 import Thread from "~/Thread";
 import type { MinervaTurn, Turn, UserTurn } from "~/utils/types";
 import { must } from "./helpers/must";
+
+/** Advance the reveal consumer's fake clock. Flushed on both sides: Solid 2
+ *  commits a write (a new delta, a revealed character) at the next flush,
+ *  and fake timers never yield to the microtask that would run it. */
+function tick(ms: number): void {
+  flush();
+  vi.advanceTimersByTime(ms);
+  flush();
+}
 
 const POIETES_TURN: MinervaTurn = {
   role: "minerva",
@@ -79,7 +88,7 @@ describe("<Thread />", () => {
       // The cursor shows immediately; the text is typed in by the
       // steady-cadence consumer, so advance the timer to let it reveal.
       expect(container.querySelector(".stream-cursor")).not.toBeNull();
-      vi.advanceTimersByTime(500);
+      tick(500);
       expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("The cave");
       expect(container.querySelector("sup.cite-mark")).toBeNull();
       expect(container.querySelectorAll(".margin-note")).toHaveLength(1);
@@ -109,7 +118,7 @@ describe("<Thread />", () => {
 
       // SSE delta: same row, more streamText — must NOT recreate the view.
       setMsgs([{ ...base, streamText: "The cave is an image " }]);
-      vi.advanceTimersByTime(500);
+      tick(500);
       expect(container.querySelector(".turn-minerva")).toBe(node);
       expect(container.querySelector(".turn-body-streaming")?.textContent).toContain("is an image");
 
@@ -123,6 +132,7 @@ describe("<Thread />", () => {
           paragraphs: ["The cave is an image of education."],
         },
       ]);
+      flush();
       expect(container.querySelector(".turn-minerva")).toBe(node);
       expect(container.querySelector(".turn-body")?.textContent).toContain("image of education");
     } finally {
@@ -148,7 +158,7 @@ describe("<Thread />", () => {
       ));
       // The consumer types one character (span) at a time; advance the
       // timer to let the whole queue drain.
-      vi.advanceTimersByTime(1000);
+      tick(1000);
       const firstSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
       expect(firstSpans).toHaveLength("The cave".length);
       expect(firstSpans.map((s) => s.textContent).join("")).toBe("The cave");
@@ -157,7 +167,7 @@ describe("<Thread />", () => {
       // their identity so the glow animation never re-fires on text the
       // reader has already seen.
       setMsgs([{ ...base, streamText: "The cave is dark" }]);
-      vi.advanceTimersByTime(1000);
+      tick(1000);
       const nextSpans = [...container.querySelectorAll(".turn-body-streaming .tok-reveal")];
       expect(nextSpans).toHaveLength("The cave is dark".length);
       expect(nextSpans.map((s) => s.textContent).join("")).toBe("The cave is dark");

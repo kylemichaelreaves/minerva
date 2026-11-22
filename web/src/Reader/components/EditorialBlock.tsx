@@ -1,4 +1,5 @@
-import { createSignal, type JSX, Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 interface Props {
   /** What is hidden, in the reader's words — "Editorial Introduction". */
@@ -26,7 +27,7 @@ export function EditorialBlock(props: Props) {
       <button
         type="button"
         class="editorial-block-summary"
-        aria-expanded={open()}
+        aria-expanded={open() ? "true" : "false"}
         onClick={() => setOpen(!open())}
       >
         <span class="editorial-block-caret" aria-hidden="true">

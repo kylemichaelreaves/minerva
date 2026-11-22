@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createMemo, createSignal, flush } from "solid-js";
 import SurfaceErrorBoundary from "~/routes/SurfaceErrorBoundary";
 import { must } from "./helpers/must";
 import { expectSurfaceFailures } from "./surfaceFailures";
@@ -66,12 +66,13 @@ describe("<SurfaceErrorBoundary />", () => {
   });
 
   it("offers a retry that re-renders the subtree", () => {
-    // `reset()` clears the error and re-runs children. Flip the signal first so
-    // the retry has something different to render, which is what a real retry
-    // after a transient fetch failure looks like.
-    const [fail, setFail] = createSignal(true);
+    // `reset()` clears the error and re-runs children. The failure here is not
+    // reactive (a plain counter, like a transient fetch failure the graph
+    // cannot see change), so nothing but the retry can bring the subtree back.
+    let attempts = 0;
     const Child = () => {
-      if (fail()) throw new Error("transient");
+      attempts += 1;
+      if (attempts === 1) throw new Error("transient");
       return <div class="recovered">back</div>;
     };
     const { container } = render(() => (
@@ -81,8 +82,35 @@ describe("<SurfaceErrorBoundary />", () => {
     ));
     expect(container.querySelector(".surface-error")).not.toBeNull();
 
-    setFail(false);
     must(container.querySelector<HTMLButtonElement>(".surface-error__retry")).click();
+    flush();
+
+    expect(container.querySelector(".recovered")).not.toBeNull();
+    expect(container.querySelector(".surface-error")).toBeNull();
+  });
+
+  it("heals on its own when the reactive value that threw changes", () => {
+    // Solid 2 boundaries re-run the failed branch when anything it read
+    // changes, with no retry click. The throw is in a memo read from JSX, not
+    // at the top of the component: a component body is untracked in Solid 2,
+    // so a bare `fail()` there would never see the flip.
+    const [fail, setFail] = createSignal(true);
+    const Child = () => {
+      const ok = createMemo(() => {
+        if (fail()) throw new Error("transient");
+        return "back";
+      });
+      return <div class="recovered">{ok()}</div>;
+    };
+    const { container } = render(() => (
+      <SurfaceErrorBoundary label="Test surface">
+        <Child />
+      </SurfaceErrorBoundary>
+    ));
+    expect(container.querySelector(".surface-error")).not.toBeNull();
+
+    setFail(false);
+    flush();
 
     expect(container.querySelector(".recovered")).not.toBeNull();
     expect(container.querySelector(".surface-error")).toBeNull();
@@ -104,13 +132,12 @@ describe("<SurfaceErrorBoundary />", () => {
 
   describe("the message it shows for a non-Error throw", () => {
     // JS lets you throw anything, and a boundary whose detail line reads
-    // "Unknown error" is barely better than one that hides the reason.
+    // "Unknown error" or "[object Object]" is barely better than one that hides
+    // the reason.
     //
-    // Solid does not pass the thrown value through — `castError` wraps it as
-    // `new Error(typeof err === "string" ? err : "Unknown error", { cause: err })`
-    // (`solid-js/dist/solid.cjs:990`). So the interesting payloads all arrive on
-    // `.cause`, and these assert that they are unwrapped rather than reported as
-    // the placeholder.
+    // Solid 2's `<Errored>` passes the thrown value through unchanged (Solid 1's
+    // `castError` wrapped it in an `Error` with the value on `.cause`), so these
+    // assert that the raw payloads are described rather than stringified.
     const detailFor = (thrown: unknown): string => {
       const Thrower = (): never => {
         throw thrown;
@@ -144,8 +171,8 @@ describe("<SurfaceErrorBoundary />", () => {
     });
 
     it("falls back to the placeholder when there is nothing to describe", () => {
-      // A thrown `undefined` leaves `cause` undefined, and there is genuinely
-      // nothing better to say.
+      // A thrown `undefined` carries nothing, and there is genuinely nothing
+      // better to say.
       expect(() => detailFor(undefined)).not.toThrow();
       expect(detailFor(undefined)).toBe("Unknown error");
     });

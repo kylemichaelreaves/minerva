@@ -172,3 +172,22 @@ if (typeof window !== "undefined" && "happyDOM" in window) {
   globalThis.fetch = offline;
   window.fetch = offline;
 }
+
+// happy-dom drops a NUMBER assigned to `textContent`: `el.textContent = 0`
+// leaves the element empty, where a browser writes "0". @solidjs/web 2.0.3
+// assigns a lone numeric child as-is (Solid 1 stringified it first), so
+// `<b>{count()}</b>` starting at 0 left no text node for its next update to
+// write into, and the update halted the reactive system (REACTIVITY_HALTED).
+// SyntaxOverlay's corrected-count footer hit it. Coerce as a browser would.
+// `Element` is absent in `// @vitest-environment node` files.
+if (typeof Element !== "undefined") {
+  const textContent = Object.getOwnPropertyDescriptor(Element.prototype, "textContent");
+  if (textContent?.set) {
+    Object.defineProperty(Element.prototype, "textContent", {
+      ...textContent,
+      set(this: Element, v: unknown) {
+        textContent.set?.call(this, typeof v === "number" ? String(v) : v);
+      },
+    });
+  }
+}

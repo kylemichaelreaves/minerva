@@ -49,7 +49,6 @@ src/features/Sidebar/sidebar.css
 src/hooks/useEscape.tsx
 src/hooks/useListKeyboardNav.tsx
 src/hooks/usePaginatedAppend.tsx
-src/hooks/usePopoverPosition.tsx
 src/Network/components/Body.tsx
 src/Network/components/HeatmapPanel.tsx
 src/Network/components/LeaderboardPanel.tsx

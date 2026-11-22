@@ -1,4 +1,5 @@
 import { fireEvent, render } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import type { MetricsSummaryRow } from "~/api/metricsApi";
 import type { RouteEntry } from "~/Metrics/severity";
@@ -83,6 +84,7 @@ describe("RouteList", () => {
     // two different organising principles at once.
     const view = render(() => <RouteList entries={mixed} loading={false} onSelect={vi.fn()} />);
     fireEvent.change(view.getByLabelText(/sort routes/i), { target: { value: "name" } });
+    flush();
     expect(view.queryByText(/needs a look/i)).toBeNull();
   });
 
@@ -130,6 +132,7 @@ describe("RouteList", () => {
     const onSelect = vi.fn();
     const view = render(() => <RouteList entries={mixed} loading={false} onSelect={onSelect} />);
     fireEvent.click(view.getByText("works list"));
+    flush();
     expect(onSelect).toHaveBeenCalledWith("works list");
   });
 

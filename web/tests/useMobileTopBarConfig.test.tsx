@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoot } from "solid-js";
+import { render } from "@solidjs/testing-library";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
 import { useMobileTopBarConfig } from "~/hooks/useMobileTopBarConfig";
 
@@ -22,20 +22,21 @@ function mockConversations(showLanding: boolean, _title: string | null = null) {
   } as ReturnType<typeof import("~/features/conversations/conversationsCtrl").useConversations>;
 }
 
+// Mounted for real rather than built inside a bare createRoot: a Solid 2
+// context provider evaluates its children lazily, when its output is read,
+// so an unrendered tree never ran the hook and `config` stayed unset.
 function runConfig(input: Parameters<typeof useMobileTopBarConfig>[0]) {
   let config!: ReturnType<typeof useMobileTopBarConfig>;
-  const dispose = createRoot((d) => {
-    createRoot(() => (
-      <MobileShellProvider>
-        {(() => {
-          config = useMobileTopBarConfig(input);
-          return null;
-        })()}
-      </MobileShellProvider>
-    ));
-    return d;
-  });
-  return { config, dispose };
+  function Probe() {
+    config = useMobileTopBarConfig(input);
+    return null;
+  }
+  const { unmount } = render(() => (
+    <MobileShellProvider>
+      <Probe />
+    </MobileShellProvider>
+  ));
+  return { config, dispose: unmount };
 }
 
 describe("useMobileTopBarConfig", () => {

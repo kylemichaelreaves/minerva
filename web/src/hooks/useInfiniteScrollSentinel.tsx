@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 
 /**
  * Wires an IntersectionObserver to a sentinel element ref callback.
@@ -10,7 +10,8 @@ import { createEffect, createSignal, onCleanup } from "solid-js";
  * a `<Show>` that hasn't rendered yet) never re-runs and the observer
  * is never attached. Use this hook instead of hand-rolling.
  *
- * `opts.root` is read non-reactively when the observer is (re)built —
+ * `opts.root` is read non-reactively (in the effect's untracked apply
+ * phase) when the observer is (re)built —
  * by the time the sentinel element mounts, its scroll container
  * exists, so a plain ref accessor is fine.
  */
@@ -21,25 +22,31 @@ export function useInfiniteScrollSentinel(
 ): (el: HTMLDivElement) => void {
   const [sentinelEl, setSentinelEl] = createSignal<HTMLDivElement | null>(null);
 
-  createEffect(() => {
-    const el = sentinelEl();
-    if (!el || !enabled()) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            onIntersect();
+  createEffect(
+    () => (enabled() ? sentinelEl() : null),
+    (el) => {
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              onIntersect();
+            }
           }
-        }
-      },
-      {
-        root: opts?.root?.() ?? null,
-        rootMargin: opts?.rootMargin ?? "400px 0px",
-      },
-    );
-    obs.observe(el);
-    onCleanup(() => obs.disconnect());
-  });
+        },
+        {
+          root: opts?.root?.() ?? null,
+          rootMargin: opts?.rootMargin ?? "400px 0px",
+        },
+      );
+      obs.observe(el);
+      return () => {
+        obs.disconnect();
+      };
+    },
+  );
 
-  return setSentinelEl;
+  return (el) => {
+    setSentinelEl(el);
+  };
 }

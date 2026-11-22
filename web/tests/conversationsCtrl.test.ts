@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createRoot } from "solid-js";
+import { createRoot, flush as commit } from "solid-js";
 import { ApiError } from "~/api/client";
 import { useConversations } from "~/features/conversations/conversationsCtrl";
 import type { askMinerva } from "~/features/conversations/conversationsSend";
@@ -95,6 +95,7 @@ describe("useConversations()", () => {
     const { api, dispose } = runConversations(routing);
     await flush();
     api.startFromLanding("hello");
+    commit();
     expect(api.showLanding()).toBe(false);
     expect(api.messages()).toHaveLength(1);
     expect(askMinervaMock).toHaveBeenCalledWith("hello", expect.any(Object));
@@ -179,10 +180,13 @@ describe("useConversations()", () => {
     const { api, dispose } = runConversations();
     await flush();
     api.togglePin("chunk-a");
+    commit();
     expect(api.pinnedChunkIds()).toEqual(["chunk-a"]);
     api.togglePin("chunk-b");
+    commit();
     expect(api.pinnedChunkIds()).toEqual(["chunk-a", "chunk-b"]);
     api.togglePin("chunk-a");
+    commit();
     expect(api.pinnedChunkIds()).toEqual(["chunk-b"]);
     dispose();
   });
@@ -192,7 +196,9 @@ describe("useConversations()", () => {
     const { api, routing: r, dispose } = runConversations(routing);
     await flush();
     api.setChatScope({ workId: 1, title: "Republic" });
+    commit();
     api.newConversation();
+    commit();
     expect(api.chatScope()).toBeNull();
     expect(r.navigateSpy).toHaveBeenCalledWith({ kind: "landing" });
     dispose();
@@ -203,7 +209,9 @@ describe("useConversations()", () => {
     const { api, routing: r, dispose } = runConversations(routing);
     await flush();
     api.setChatScope({ workId: 2, title: "Ethics" });
+    commit();
     api.pickHistory("def");
+    commit();
     expect(api.chatScope()).toBeNull();
     expect(r.navigateSpy).toHaveBeenCalledWith({ kind: "conversation", id: "def" });
     dispose();
@@ -223,6 +231,7 @@ describe("useConversations()", () => {
     await flush();
     api.setChatScope({ workId: 781, title: "Das Kapital, Band I" });
     api.startFromLanding("what is the commodity form?");
+    commit();
     expect(api.chatScope()).toEqual({ workId: 781, title: "Das Kapital, Band I" });
     dispose();
   });
@@ -235,6 +244,7 @@ describe("useConversations()", () => {
     await flush();
     expect(api.chatScope()).toBeNull();
     api.startFromLanding("hello");
+    commit();
     expect(api.chatScope()).toBeNull();
     dispose();
   });
@@ -244,6 +254,7 @@ describe("useConversations()", () => {
     const { api, dispose } = runConversations(routing);
     await flush();
     api.sendMessage("follow up");
+    commit();
     expect(api.messages().some((m) => m.role === "user" && m.text === "follow up")).toBe(true);
     expect(askMinervaMock).toHaveBeenCalledWith("follow up", expect.any(Object));
     dispose();
@@ -254,8 +265,10 @@ describe("useConversations()", () => {
     await flush();
     const item = { id: "abc", title: "t", meta: "m", dominant: "P" as const };
     api.requestDelete(item);
+    commit();
     expect(api.deleteTarget()).toEqual(item);
     api.cancelDelete();
+    commit();
     expect(api.deleteTarget()).toBeNull();
     dispose();
   });
@@ -267,7 +280,12 @@ describe("useConversations()", () => {
     await waitForHistory(api);
     const item = must(api.history().find((h) => h.id === "abc"));
     api.requestDelete(item);
+    // The dialog's open and its confirm are two clicks; commit the first.
+    commit();
     api.confirmDelete();
+    // The optimistic removal, committed before the post-delete refresh lands
+    // (the mocked list still contains the row).
+    commit();
     await vi.waitFor(() => {
       expect(api.history().some((h) => h.id === "abc")).toBe(false);
     });
@@ -282,6 +300,8 @@ describe("useConversations()", () => {
     await waitForHistory(api);
     const item = must(api.history().find((h) => h.id === "abc"));
     api.requestDelete(item);
+    // The dialog's open and its confirm are two clicks; commit the first.
+    commit();
     api.confirmDelete();
     await vi.waitFor(() => {
       expect(useToasts()().some((t) => t.message.includes("Couldn't delete"))).toBe(true);

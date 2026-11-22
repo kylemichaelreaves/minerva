@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { Atlas } from "~/Network/components/Atlas";
 import type { LandingStats } from "~/api/landingApi";
 import { ATLAS_AUTHORS, BANDS } from "~/data/atlasData";
@@ -74,6 +75,7 @@ describe("<Atlas /> author popover", () => {
     const target = pick === "first" ? authors[0] : authors.at(-1);
     if (!target) throw new Error("the atlas rendered no authors");
     fireEvent.mouseEnter(target);
+    flush();
     return container.querySelector(".atlas-tooltip");
   }
 

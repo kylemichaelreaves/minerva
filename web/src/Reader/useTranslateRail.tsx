@@ -32,12 +32,15 @@ export function useTranslateRail(): TranslateRailApi {
   const [target, setTarget] = createSignal<TargetLang>("eng");
   let inflightController: AbortController | undefined;
 
-  async function runTranslateInternal(source: string, ref: string) {
+  // `lang` is passed in, not read from `target()` here: `setTargetLang` writes
+  // the target and re-runs in the same synchronous frame, and Solid 2 reads
+  // lag writes until the next flush — reading the signal would re-translate
+  // into the OLD language.
+  async function runTranslateInternal(source: string, ref: string, lang: TargetLang) {
     inflightController?.abort();
     const controller = new AbortController();
     inflightController = controller;
     setRail({ kind: "loading", source, ref });
-    const lang = target();
     try {
       const response = await translate(source, lang, controller.signal);
       if (inflightController === controller) {
@@ -57,7 +60,7 @@ export function useTranslateRail(): TranslateRailApi {
   }
 
   function runTranslate(source: string, ref: string) {
-    void runTranslateInternal(source, ref);
+    void runTranslateInternal(source, ref, target());
   }
 
   function retry() {

@@ -21,11 +21,8 @@ export function WordInfoBlock(props: {
         <Show when={props.state.kind === "loading"}>
           <div class="wordinfo-loading">Looking up word…</div>
         </Show>
-        <Show when={props.state.kind === "error"}>
-          {(_) => {
-            const e = props.state as Extract<WordInfoState, { kind: "error" }>;
-            return <div class="wordinfo-error">No word info: {e.message}</div>;
-          }}
+        <Show when={props.state.kind === "error" ? props.state : undefined}>
+          {(e) => <div class="wordinfo-error">No word info: {e().message}</div>}
         </Show>
         <Show when={props.state.kind === "ready"}>
           {(_) => {

@@ -14,7 +14,7 @@
 // mounted dialogs (e.g. ConfirmDialog, which lives at App scope and
 // gates on `props.open`) avoid intercepting Esc while closed.
 
-import { createEffect, onCleanup } from "solid-js";
+import { createEffect } from "solid-js";
 import { useSuspendedSubtree } from "~/hooks/suspendedSubtree";
 
 export function useEscape(
@@ -22,21 +22,23 @@ export function useEscape(
   active?: () => boolean,
 ): void {
   const suspended = useSuspendedSubtree();
-  createEffect(() => {
+  createEffect(
     // A stepped-out subtree registers nothing (#352). Callers that pass
     // `active` may already gate on their own suspension; callers that pass
     // none — `PopoverCard`, and so every TermCard / ReferenceCard — had no
     // gate at all, and answered Escape from behind the route on screen.
-    if (suspended()) return;
-    if (active && !active()) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      onEscape();
-    };
-    window.addEventListener("keydown", handler);
-    onCleanup(() => {
-      window.removeEventListener("keydown", handler);
-    });
-  });
+    () => !suspended() && (active === undefined || active()),
+    (live) => {
+      if (!live) return;
+      const handler = (e: KeyboardEvent) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        onEscape();
+      };
+      window.addEventListener("keydown", handler);
+      return () => {
+        window.removeEventListener("keydown", handler);
+      };
+    },
+  );
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createSignal } from "solid-js";
-import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
+import { createSignal, flush } from "solid-js";
+import { render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import type { ChunkContextResponse, MinervaTurn } from "~/utils/types";
 
 const fetchChunkContext = vi.fn();
@@ -50,6 +51,7 @@ describe("<MinervaTurnView /> open-in-reader handler reactivity", () => {
 
     const first = vi.fn<OpenReader>();
     setHandler(() => first);
+    flush();
     fireEvent.click(link());
     await waitFor(() => {
       expect(first).toHaveBeenCalledWith("Republic", "grc", "rep-441c");
@@ -58,6 +60,7 @@ describe("<MinervaTurnView /> open-in-reader handler reactivity", () => {
 
     const second = vi.fn<OpenReader>();
     setHandler(() => second);
+    flush();
     fireEvent.click(link());
     await waitFor(() => {
       expect(second).toHaveBeenCalledWith("Republic", "grc", "rep-441c");
@@ -70,6 +73,11 @@ describe("<MinervaTurnView /> open-in-reader handler reactivity", () => {
     render(() => <MinervaTurnView msg={TURN} marginNotes onOpenReader={onOpenReader} />);
     fireEvent.click(screen.getByRole("button", { name: "+ more" }));
     await screen.findByRole("button", { name: "− less" });
+    // "− less" shows from the loading state on; wait for the context itself,
+    // which is what "already expanded" means here. (Solid 2 commits the
+    // ready write a microtask after the fetch resolves, so the toggle label
+    // alone can win the race.)
+    await screen.findByText("focus");
     expect(fetchChunkContext).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Rep. IV 441c" }));
@@ -84,6 +92,7 @@ describe("<MinervaTurnView /> open-in-reader handler reactivity", () => {
 
     const onOpenReader = vi.fn<OpenReader>();
     setHandler(() => onOpenReader);
+    flush();
     fireEvent.click(screen.getByRole("button", { name: "Rep. IV 441c" }));
     await waitFor(() => {
       expect(onOpenReader).toHaveBeenCalledWith("Republic", "grc", "rep-441c");

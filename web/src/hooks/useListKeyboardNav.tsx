@@ -6,8 +6,8 @@
 // form-element guard (input/textarea only: selects and contenteditable
 // regions lost their arrow keys, and Escape fought the mobile filter
 // sheet). This hook owns:
-//   * the keydown listener lifecycle (added on mount, removed via
-//     onCleanup);
+//   * the keydown listener lifecycle (added in onSettled, removed by
+//     the cleanup it returns);
 //   * an editable-target guard (input, textarea, select,
 //     contenteditable) that exempts EVERY key;
 //   * an activatable-control guard (button, a[href], summary, and the
@@ -23,7 +23,7 @@
 // `preventDefault` fires only for keys the hook actually handles, so
 // unhandled keys keep their browser behavior.
 
-import { onCleanup, onMount } from "solid-js";
+import { onSettled } from "solid-js";
 
 /** True when the keystroke belongs to a form control or editable
  *  region and must not be hijacked for list navigation. */
@@ -97,8 +97,10 @@ export function useListKeyboardNav(opts: ListKeyboardNavOpts): void {
     }
   };
 
-  onMount(() => {
+  onSettled(() => {
     window.addEventListener("keydown", onKeydown);
-    onCleanup(() => window.removeEventListener("keydown", onKeydown));
+    return () => {
+      window.removeEventListener("keydown", onKeydown);
+    };
   });
 }

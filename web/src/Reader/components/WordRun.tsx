@@ -10,7 +10,8 @@
 // Selection still works across all spans, so the mouseUp → translate
 // flow is unaffected.
 
-import { For, Show, type JSX } from "solid-js";
+import { For, Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { HoverTip } from "~/components/primitives/HoverTip";
 import { detectAnchorDirection } from "~/utils/popoverPosition";
 import { romanize as romanizeArabic } from "~/utils/arabic";

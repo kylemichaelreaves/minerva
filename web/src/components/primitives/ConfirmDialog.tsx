@@ -5,8 +5,8 @@
 // Mounted only when `open` is true so the keydown handler isn't bound
 // when there's nothing to confirm.
 
-import { Show, createEffect, onCleanup } from "solid-js";
-import type { JSX } from "solid-js";
+import { Show, createEffect, createSignal } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { useDialogFocus } from "~/hooks/useDialogFocus";
 import { useEscape } from "~/hooks/useEscape";
 
@@ -21,7 +21,9 @@ interface ConfirmDialogProps {
 }
 
 export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
-  let dialogRef: HTMLDivElement | undefined;
+  // A signal, not a plain `let`: the dialog mounts behind `<Show>` after the
+  // hooks below run, and useDialogFocus tracks the ref to see it arrive.
+  const [dialogRef, setDialogRef] = createSignal<HTMLDivElement>();
 
   // Esc cancels. Enter confirms — but ONLY while focus is inside the
   // dialog. A window-level Enter that fired regardless of focus would
@@ -35,23 +37,23 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
     },
     () => props.open,
   );
-  useDialogFocus(
-    () => dialogRef,
+  useDialogFocus(dialogRef, () => props.open);
+  createEffect(
     () => props.open,
+    (open) => {
+      if (!open) return;
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Enter" && dialogRef()?.contains(document.activeElement)) {
+          e.preventDefault();
+          props.onConfirm();
+        }
+      };
+      window.addEventListener("keydown", onKey);
+      return () => {
+        window.removeEventListener("keydown", onKey);
+      };
+    },
   );
-  createEffect(() => {
-    if (!props.open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && dialogRef?.contains(document.activeElement)) {
-        e.preventDefault();
-        props.onConfirm();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("keydown", onKey);
-    });
-  });
 
   return (
     <Show when={props.open}>
@@ -72,7 +74,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
           }}
         />
         <div
-          ref={dialogRef}
+          ref={setDialogRef}
           class="dialog"
           role="dialog"
           aria-modal="true"

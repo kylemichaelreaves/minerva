@@ -1,6 +1,6 @@
 // Citation-network dashboard orchestrator.
 
-import { Show, createEffect, createSignal, onMount } from "solid-js";
+import { Show, createEffect, createSignal, onSettled } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 import { fetchNetworkSummary } from "~/api/networkApi";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
@@ -31,10 +31,12 @@ export default function Network(props: NetworkProps) {
   // The Atlas caption states whole-corpus facts, so it reads the landing's
   // unfiltered stats rather than this page's filtered totals.
   const [corpusStats, setCorpusStats] = createSignal<LandingStats | null>(null);
-  onMount(() => {
-    shell.registerSurfaceActions({
-      openFilters: () => shell.setFiltersSheetOpen(true),
-    });
+  // In the body, not `onSettled`: registration ties its removal to this
+  // component with `onCleanup`, which Solid 2 forbids inside `onSettled`.
+  shell.registerSurfaceActions({
+    openFilters: () => shell.setFiltersSheetOpen(true),
+  });
+  onSettled(() => {
     void fetchLandingStats()
       .then(setCorpusStats)
       .catch(() => {
@@ -59,38 +61,38 @@ export default function Network(props: NetworkProps) {
   // in createEffect, not a createMemo invoked for its side-effect.
   const [allAuthors, setAllAuthors] = createSignal<string[]>([]);
   let authorsSeedInflight = false;
-  createEffect(() => {
-    const d = data();
-    if (!d) return;
-    if (
-      !props.sourceAuthors?.length &&
-      !props.corpora?.length &&
-      !props.sourceMethods?.length &&
-      allAuthors().length === 0
-    ) {
-      // Only when there is something to seed. Writing `[]` over `[]` is a
-      // change to Solid (a new array), so an empty summary re-ran this effect
-      // until the stack overflowed (#761).
-      if (d.matrix.authors.length > 0) setAllAuthors(d.matrix.authors.map((a) => a.name));
-      return;
-    }
-    // Deep link with ?source= filters the matrix but the author
-    // dropdown must still offer every author — seed once via an
-    // unfiltered fetch.
-    if (allAuthors().length === 0 && !authorsSeedInflight) {
+  createEffect(
+    () => ({
+      d: data(),
+      seeded: allAuthors().length > 0,
+      unfiltered:
+        !props.sourceAuthors?.length && !props.corpora?.length && !props.sourceMethods?.length,
+      minConfidence: props.minConfidence,
+      includeRejected: props.includeRejected,
+    }),
+    ({ d, seeded, unfiltered, minConfidence, includeRejected }) => {
+      if (!d || seeded) return;
+      if (unfiltered) {
+        // Only when there is something to seed. Writing `[]` over `[]` is a
+        // change to Solid (a new array), so an empty summary re-ran this
+        // effect until the stack overflowed (#761).
+        if (d.matrix.authors.length > 0) setAllAuthors(d.matrix.authors.map((a) => a.name));
+        return;
+      }
+      // Deep link with ?source= filters the matrix but the author
+      // dropdown must still offer every author — seed once via an
+      // unfiltered fetch.
+      if (authorsSeedInflight) return;
       authorsSeedInflight = true;
-      void fetchNetworkSummary({
-        minConfidence: props.minConfidence,
-        includeRejected: props.includeRejected,
-      })
+      void fetchNetworkSummary({ minConfidence, includeRejected })
         .then((res) => {
           setAllAuthors(res.matrix.authors.map((a) => a.name));
         })
         .catch(() => {
           authorsSeedInflight = false;
         });
-    }
-  });
+    },
+  );
 
   function patch(p: NetworkFilterParams) {
     props.onNavigate({

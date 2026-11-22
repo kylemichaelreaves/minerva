@@ -165,7 +165,7 @@ export function Atlas(props: {
         <Show when={hover()}>
           {(h) => (
             <div
-              classList={{
+              class={{
                 "atlas-tooltip": true,
                 // Past the midpoint the popover opens leftward instead, so the
                 // authors near the right edge don't push it off the page.

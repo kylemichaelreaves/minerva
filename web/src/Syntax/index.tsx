@@ -1,15 +1,6 @@
-import {
-  For,
-  Match,
-  Show,
-  Switch,
-  createMemo,
-  createResource,
-  createSignal,
-  onCleanup,
-  onMount,
-} from "solid-js";
+import { For, Match, Show, Switch, createMemo, createSignal, onSettled } from "solid-js";
 import { fetchChunkSyntax } from "~/api/syntaxApi";
+import { createAsyncState } from "~/hooks/createAsyncState";
 import { createScopedSignal } from "~/Syntax/chunkScoped";
 import { loadErrorMessage } from "~/Syntax/loadError";
 import { ArcDiagram } from "~/Syntax/components/ArcDiagram";
@@ -76,10 +67,15 @@ export interface SyntaxOverlayProps {
 }
 
 export function SyntaxOverlay(props: SyntaxOverlayProps) {
-  const [doc] = createResource(
-    () => props.chunkId,
-    (id: string) => fetchChunkSyntax(id),
-  );
+  // Settled, not a raw async memo: a failed GET is data the stage renders
+  // inline (the server's reason, #235), not a rejection for the surface's
+  // `<Errored>` to blank the overlay with. And it never suspends, so the
+  // header, footer and store read straight through a fetch — no `<Loading>`
+  // boundary holds them.
+  const doc = createAsyncState(() => props.chunkId, fetchChunkSyntax);
+  /** "Parsing…": the first GET, or a refetch after a navigation to another
+   *  chunk — as Solid 1's `resource.loading` was for both. */
+  const parsing = () => doc.firstLoad() || doc.refreshing();
   // Everything below that names a sentence or a token is scoped to the chunk
   // it was set on. The route re-fetches instead of re-mounting, so none of it
   // is reinitialised by a navigation — and a sentence index kept from a longer
@@ -115,14 +111,15 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   // side by side; the store replays one over the other. Seeding it with the
   // saved log is what makes Revert work on a correction from an earlier
   // session — otherwise the button is there and points at nothing.
-  // `doc()` *throws* on an errored resource, and the header and footer read
-  // the tree unconditionally — so on a failed GET the throw escaped the
-  // Switch, the update that would have settled the resource was abandoned,
-  // and the overlay sat on "Parsing…" forever. Neither the server's reason
-  // nor the generic line ever reached the screen. Read through the failure
-  // instead: an empty tree is what the error branch is already rendering
+  // Under Solid 1, `doc()` *threw* on an errored resource, and the header and
+  // footer read the tree unconditionally — so on a failed GET the throw
+  // escaped the Switch, the update that would have settled the resource was
+  // abandoned, and the overlay sat on "Parsing…" forever. Neither the
+  // server's reason nor the generic line ever reached the screen. The settled
+  // state reads through the failure instead: `value()` is undefined on an
+  // error, and an empty tree is what the error branch is already rendering
   // over (#235).
-  const loaded = () => (doc.error === undefined ? doc() : undefined);
+  const loaded = () => doc.value();
   const store = createCorrectionStore(
     () => props.chunkId,
     () => loaded()?.sentences ?? [],
@@ -270,7 +267,9 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
       const over = tokenUnder(ev.clientX, ev.clientY);
       // Aim only at legal heads while moving; an illegal one stays unaimed so
       // the preview never suggests a drop that will be refused.
-      setProposed(over !== null && candidates().includes(over) ? over : null);
+      // `legalHeads` directly, not `candidates()`: on the first move `lift`
+      // has only just written `lifted`, and the memo still reads empty.
+      setProposed(over !== null && legalHeads(tokens(), id).includes(over) ? over : null);
     };
 
     const up = (ev: PointerEvent) => {
@@ -309,7 +308,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
   //
   // While a token is lifted the same arrows aim the reattachment instead: the
   // gesture is modal, and the status bar says so.
-  onMount(() => {
+  onSettled(() => {
     const onKey = (e: KeyboardEvent) => {
       if (picker() !== null) return;
 
@@ -336,7 +335,9 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
           // row and would otherwise need arrowing past every token.
           e.preventDefault();
           setProposed(0);
-          void commitReattach();
+          // The root, by argument: `proposed()` still reads the old aim until
+          // the write above is flushed.
+          void commitReattach(0);
         }
         return;
       }
@@ -381,9 +382,9 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
       }
     };
     window.addEventListener("keydown", onKey);
-    onCleanup(() => {
+    return () => {
       window.removeEventListener("keydown", onKey);
-    });
+    };
   });
 
   return (
@@ -407,7 +408,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
           <button
             type="button"
             class="syn-ctl"
-            aria-pressed={showFields()}
+            aria-pressed={showFields() ? "true" : "false"}
             title="Topological fields — Vorfeld, Klammern, Mittelfeld, Nachfeld"
             onClick={() => {
               setShowFields((on) => !on);
@@ -464,14 +465,14 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
 
         <main class="syn-stage">
           <Switch>
-            <Match when={doc.loading}>
+            <Match when={parsing()}>
               <div class="syn-empty">Parsing…</div>
             </Match>
-            <Match when={doc.error !== undefined}>
+            <Match when={doc.error() !== undefined}>
               {/* The server's own words when it has judged this chunk — since
                   #231 a non-German one is refused with the language it found,
                   and that is the only part that says what to do (#235). */}
-              <div class="syn-empty">{loadErrorMessage(doc.error)}</div>
+              <div class="syn-empty">{loadErrorMessage(doc.error())}</div>
             </Match>
             <Match when={tokens().length > 0}>
               {/* Frame 06's drop bar. The root is the one target that is
@@ -488,7 +489,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
               >
                 <button
                   type="button"
-                  class={`syn-rootbar${proposed() === 0 ? " on" : ""}`}
+                  class={["syn-rootbar", { on: proposed() === 0 }]}
                   onMouseEnter={() => setProposed(0)}
                   onClick={() => void commitReattach()}
                 >
@@ -514,7 +515,7 @@ export function SyntaxOverlay(props: SyntaxOverlayProps) {
                     // Mid-reattachment a click is a drop, not a selection.
                     if (candidates().includes(id)) {
                       setProposed(id);
-                      void commitReattach();
+                      void commitReattach(id);
                     }
                     return;
                   }

@@ -36,9 +36,12 @@ export default function WorkScopeControl(props: WorkScopeControlProps) {
   // (`preventDefault`) with the menu closed, so nothing after it — the chat's
   // Escape-to-landing — could tell a free Escape from one this had used.
   useEscape(() => setOpen(false), open);
-  createEffect(() => {
-    if (open()) filterInput?.focus();
-  });
+  createEffect(
+    () => open(),
+    (isOpen) => {
+      if (isOpen) filterInput?.focus();
+    },
+  );
 
   // /api/works returns a row per (work, language); collapse to one row
   // per work_id for the picker.

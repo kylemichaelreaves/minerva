@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type * as readerApi from "~/api/readerApi";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 
 const translate = vi.fn<typeof readerApi.translate>();
 vi.mock("~/api/readerApi", () => ({
@@ -52,7 +52,9 @@ describe("translate rail → hover cache language (#690)", () => {
   it("does not cache the old language's text under the new one when the re-translation fails", async () => {
     translate
       .mockResolvedValueOnce(response("and the man"))
-      .mockRejectedValueOnce(new Error("boom"));
+      .mockRejectedValueOnce(new Error("boom"))
+      // Switching back re-runs the errored rail once more; answer it.
+      .mockResolvedValueOnce(response("and the man"));
     const { railApi, hover, dispose } = setup();
 
     hover.registerWordClick("c1", 4, "virumque");
@@ -67,6 +69,7 @@ describe("translate rail → hover cache language (#690)", () => {
 
     // The English entry is still there, under English.
     railApi.setTargetLang("eng", { promote: false });
+    flush(); // the target write lands on flush in Solid 2
     expect(hover.lookup("c1", 4)).toBe("and the man");
     dispose();
   });

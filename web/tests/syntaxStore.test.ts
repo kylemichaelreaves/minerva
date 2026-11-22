@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/api/client";
 import type { CorrectionAccepted, SyntaxSentence, SyntaxToken } from "~/api/syntaxApi";
@@ -113,6 +113,8 @@ describe("createCorrectionStore", () => {
 
     await withStore(transport, async (store) => {
       const inFlight = store.relabel(0, 1, "nmod");
+      // Committed in the same flush as the click, before any answer.
+      flush();
 
       // The whole point: the tree has already moved.
       expect(at(at(store.sentences(), 0).tokens, 0).deprel).toBe("nmod");
@@ -443,8 +445,11 @@ describe("a navigation between chunks", () => {
       );
     });
     try {
+      // Flushed at once: Solid 2 commits the write at the next flush, and a
+      // navigation is its own event, committed before anything after it.
       await body(store, (id) => {
         setChunkId(id);
+        flush();
       });
     } finally {
       dispose();

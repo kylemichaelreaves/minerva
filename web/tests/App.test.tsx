@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } from "vitest";
 import { LANDING_PROMPT_RE } from "~/components/cards/landingPrompts";
-import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
+import { render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import App from "~/App";
 import { _resetToastsForTesting } from "~/utils/apiError";
 import { okResponse } from "./helpers/testRouting";

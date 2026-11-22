@@ -6,7 +6,7 @@
 // working when served from a subpath (e.g. `minerva serve` behind a
 // reverse proxy).
 
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onSettled } from "solid-js";
 import { METRIC_WINDOWS, type MetricWindow } from "~/api/metricsApi";
 import { slugify } from "~/slug";
 
@@ -602,14 +602,14 @@ export function useRouting(): RoutingApi {
   //     `history.pushState`. Without this, those fragment-only
   //     navigations would leave the route signal out of sync with the
   //     URL and the UI stuck on the wrong screen.
-  onMount(() => {
+  onSettled(() => {
     const handler = () => setRoute(readRoute());
     window.addEventListener("popstate", handler);
     window.addEventListener("hashchange", handler);
-    onCleanup(() => {
+    return () => {
       window.removeEventListener("popstate", handler);
       window.removeEventListener("hashchange", handler);
-    });
+    };
   });
 
   return { route, navigate, replace };
