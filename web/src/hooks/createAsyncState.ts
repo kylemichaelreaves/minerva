@@ -24,7 +24,7 @@
 // its fetches), and after its first answer a refetch keeps that answer
 // readable while `isPending` reports the refetch.
 
-import { createDeferred, isPending } from "solid-js";
+import { createDeferred, createMemo, isPending } from "solid-js";
 
 export type Settled<T> =
   /** The source returned `undefined`: nothing has been asked for. */
@@ -66,9 +66,15 @@ export function createAsyncState<S, T>(
   source: () => S | undefined,
   fetcher: (s: S) => Promise<T>,
 ): AsyncState<T> {
+  // Memoised, as `createResource` memoised its source: the node then
+  // re-asks only when the source's VALUE changes. Read directly, every
+  // upstream write re-ran the fetch — a route-row click changes the URL but
+  // not the window, and still refetched the summary and rebuilt every row of
+  // the route list under the click (tests/browser/metrics.spec.ts).
+  const key = createMemo(source);
   const node = createDeferred<Settled<T>>(
     () => {
-      const s = source();
+      const s = key();
       return s === undefined ? IDLE : settle(fetcher, s);
     },
     { loadingValue: LOADING },
