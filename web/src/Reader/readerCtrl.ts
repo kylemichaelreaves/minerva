@@ -90,6 +90,7 @@ export interface ReaderApi {
 export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi {
   const [works, setWorks] = createSignal<Work[]>([]);
   let worksFetchInflight: Promise<void> | null = null;
+  let worksLoaded = false;
 
   const readerWork = (): ReaderLocation | null => {
     const r = routing.route();
@@ -110,14 +111,16 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
   // A signal rather than a derivation because the whole point is to remember
   // a value the route no longer carries.
   const [retainedWork, setRetainedWork] = createSignal<ReaderLocation | null>(null);
-  createEffect(() => {
-    const loc = readerWork();
-    if (loc) {
-      setRetainedWork(loc);
-      return;
-    }
-    if (!keepsReaderAlive(routing.route())) setRetainedWork(null);
-  });
+  createEffect(
+    () => ({ loc: readerWork(), keepAlive: keepsReaderAlive(routing.route()) }),
+    ({ loc, keepAlive }) => {
+      if (loc) {
+        setRetainedWork(loc);
+        return;
+      }
+      if (!keepAlive) setRetainedWork(null);
+    },
+  );
 
   /** Match a reader location against a loaded works list. */
   const matchWork = (loc: ReaderLocation, list: Work[]): Work | null =>
@@ -185,11 +188,18 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
 
   // Lazy single-flight loader. Avoid hammering `/api/works` on every
   // sidebar render — only fetch the first time the user enters Reader.
+  //
+  // Gated on a plain flag rather than `works().length`: the mode effect below
+  // calls this from its apply phase, which is untracked, and a non-empty list
+  // is all the signal read was checking for. A failed or empty load leaves it
+  // false so the next entry retries, as before.
   function ensureWorks() {
-    if (works().length > 0 || worksFetchInflight) return worksFetchInflight ?? Promise.resolve();
+    if (worksLoaded || worksFetchInflight) return worksFetchInflight ?? Promise.resolve();
     worksFetchInflight = (async () => {
       try {
-        setWorks(await listWorks());
+        const list = await listWorks();
+        setWorks(list);
+        worksLoaded = list.length > 0;
       } catch (err) {
         console.warn("failed to load works for reader", err);
         apiError("Couldn't load the works list. Is the server running?");
@@ -199,9 +209,12 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     })();
     return worksFetchInflight;
   }
-  createEffect(() => {
-    if (mode() === "reader") void ensureWorks();
-  });
+  createEffect(
+    () => mode(),
+    (m) => {
+      if (m === "reader") void ensureWorks();
+    },
+  );
 
   async function switchMode(target: AppMode) {
     if (target === mode()) return;
@@ -272,8 +285,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
 
   // Remember the last reader location so Read → Chat → Read returns
   // to the same passage. Cleared only by explicit user navigation.
-  createEffect(() => {
-    const r = readerWork();
+  createEffect(readerWork, (r) => {
     if (r) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
@@ -286,8 +298,7 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
   // Mirror the last-conversation id whenever the route lands on one,
   // so Reader → Chat can return to it. Deletions in `conversationsCtrl`
   // also clear this key (see `deleteConversation` handler there).
-  createEffect(() => {
-    const r = routing.route();
+  createEffect(routing.route, (r) => {
     if (r.kind === "conversation") {
       try {
         localStorage.setItem(CONV_STORAGE_KEY, r.id);
@@ -309,15 +320,28 @@ export function useReader(routing: RoutingApi, abortChat: () => void): ReaderApi
     });
   }
 
+  // `growAuthorSlug` is called from the Reader's effect apply phase, which is
+  // untracked — so it only records the author, and this effect reads the route
+  // in its compute. The request is consumed on the very next run whatever the
+  // outcome, so an author can never be grafted onto a later route.
+  const [pendingAuthor, setPendingAuthor] = createSignal<string | null>(null);
+  createEffect(
+    () => ({ route: routing.route(), authorSlug: pendingAuthor() }),
+    ({ route: r, authorSlug }) => {
+      if (authorSlug === null) return;
+      setPendingAuthor(null);
+      // Only a one-segment reader route grows. A route that already names an
+      // author is left alone, and so is anything that is not the reader — a
+      // retained Reader behind the concordance (#348) reports its range too.
+      if (r.kind !== "reader" || r.authorSlug !== undefined) return;
+      // `replace`, not `navigate`: the one-segment form is the same location
+      // under a less readable name, not a step the back button should revisit.
+      routing.replace({ ...r, authorSlug });
+    },
+  );
+
   function growAuthorSlug(authorSlug: string) {
-    const r = routing.route();
-    // Only a one-segment reader route grows. A route that already names an
-    // author is left alone, and so is anything that is not the reader — a
-    // retained Reader behind the concordance (#348) reports its range too.
-    if (r.kind !== "reader" || r.authorSlug !== undefined) return;
-    // `replace`, not `navigate`: the one-segment form is the same location
-    // under a less readable name, not a step the back button should revisit.
-    routing.replace({ ...r, authorSlug });
+    setPendingAuthor(authorSlug);
   }
 
   return {

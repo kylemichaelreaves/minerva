@@ -4,7 +4,7 @@
 // guards.
 
 import { describe, it, expect, vi } from "vitest";
-import { createRoot, createSignal, type Setter } from "solid-js";
+import { createRoot, createSignal, flush as flushSolid, type Setter } from "solid-js";
 import { useAbortableFetch } from "~/hooks/useAbortableFetch";
 import { must } from "./helpers/must";
 
@@ -20,8 +20,13 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-/** Wait one microtask tick so any pending await chains flush. */
-const flush = (): Promise<void> => Promise.resolve();
+/** Wait one microtask tick so any pending await chains flush, then apply
+ *  the signal writes they queued: in Solid 2 a read returns the last
+ *  committed value until the scheduler flushes. */
+const flush = async (): Promise<void> => {
+  await Promise.resolve();
+  flushSolid();
+};
 
 describe("useAbortableFetch", () => {
   it("calls the fetcher with current args and exposes data on success", async () => {

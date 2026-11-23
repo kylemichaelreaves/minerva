@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@solidjs/testing-library";
+import { render, screen } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import Toasts from "~/components/primitives/Toasts";
 import { _resetToastsForTesting, apiError } from "~/utils/apiError";
 

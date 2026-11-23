@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { LANDING_PROMPTS, LANDING_PROMPT_RE } from "~/components/cards/landingPrompts";
-import { render, screen, fireEvent } from "@solidjs/testing-library";
-import { createSignal, type JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
+import { createSignal, flush } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import Landing from "~/features/Landing";
 import { must } from "./helpers/must";
 import type { Phase } from "~/features/LandingTransition/controller";
@@ -319,9 +321,12 @@ describe("<Landing />", () => {
       ));
       const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(LANDING_PROMPT_RE);
       fireEvent.input(ta, { target: { value: "What is Geist?" } });
+      // Each phase is its own update, as the controller's writes are.
       setLeaving("lift");
+      flush();
       ta.blur();
       setLeaving(undefined);
+      flush();
 
       expect(ta.value).toBe("");
       expect(document.activeElement).toBe(ta);
@@ -344,6 +349,7 @@ describe("<Landing />", () => {
       fireEvent.input(ta, { target: { value: "What is Geist?" } });
       ta.blur();
       setLeaving("idle");
+      flush();
 
       expect(ta.value).toBe("What is Geist?");
       expect(document.activeElement).not.toBe(ta);
@@ -399,6 +405,7 @@ describe("<Landing />", () => {
       const { container, setArriving } = renderArriving("return");
       const ta = screen.getByPlaceholderText<HTMLTextAreaElement>(LANDING_PROMPT_RE);
       setArriving(undefined);
+      flush();
       await Promise.resolve();
 
       expect(document.activeElement).toBe(ta);

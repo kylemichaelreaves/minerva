@@ -2,7 +2,7 @@
 // to the class the landing wears during it. A phase missing from its map
 // ("idle", or none at all) means no transition is running.
 
-import { createEffect, on } from "solid-js";
+import { createEffect } from "solid-js";
 import type { Phase } from "~/features/LandingTransition/controller";
 import type { ReturnPhase } from "~/features/LandingTransition/returnController";
 
@@ -32,8 +32,9 @@ export function createPhaseEndEffect<P extends string>(
   fn: () => void,
 ): void {
   createEffect(
-    on(phase, (now, was) => {
+    () => phase(),
+    (now, was) => {
       if (inFlight(classes, was) && now === undefined) fn();
-    }),
+    },
   );
 }

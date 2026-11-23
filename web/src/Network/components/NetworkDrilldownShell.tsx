@@ -16,7 +16,8 @@
 // (meta strip + chart) so it can lay out summary-dependent text
 // alongside the visualization.
 
-import { Show, type JSX } from "solid-js";
+import { Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import {
   fetchNetworkSummary,
   type NetworkFilterParams,

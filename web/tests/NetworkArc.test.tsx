@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchNetworkSummary, type AuthorPair } from "~/api/networkApi";
 import { NetworkArc } from "~/Network/components/NetworkArc";
@@ -33,6 +34,7 @@ function strokeByPair(container: HTMLElement): Record<string, string | null> {
   const out: Record<string, string | null> = {};
   for (const path of arcPaths(container)) {
     fireEvent.click(path);
+    flush();
     const label = container.querySelector(".net-tooltip .pair")?.textContent ?? "";
     out[label] = path.getAttribute("stroke");
   }

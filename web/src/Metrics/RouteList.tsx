@@ -38,8 +38,8 @@ export function sortEntries(entries: RouteEntry[], mode: SortMode): RouteEntry[]
 export interface RouteListProps {
   entries: RouteEntry[];
   /** FIRST load only — nothing to render yet. Deliberately NOT a
-   *  resource's `.loading`, which is also true during a refresh and would
-   *  unmount rows that are still perfectly good. `MetricsPanel.firstLoad`
+   *  "a fetch is in flight", which is also true during a refresh and would
+   *  unmount rows that are still perfectly good. `AsyncState.firstLoad`
    *  is the only thing that should feed this. */
   loading: boolean;
   /** These rows belong to the previous request and the next one is in
@@ -68,7 +68,7 @@ function Row(props: {
     <button
       type="button"
       class="metrics-row"
-      aria-pressed={props.selected}
+      aria-pressed={props.selected ? "true" : "false"}
       onClick={() => props.onSelect(row().label)}
     >
       <span class="metrics-row-name">
@@ -78,19 +78,19 @@ function Row(props: {
         </span>
         <span class="metrics-method">{row().method}</span>
       </span>
-      <span classList={{ "metrics-row-err": true, bad: row().error_rate > 0 }}>
+      <span class={{ "metrics-row-err": true, bad: row().error_rate > 0 }}>
         <Show when={row().error_rate > 0} fallback="—">
           {(row().error_rate * 100).toFixed(1)}%
         </Show>
       </span>
       <span class="metrics-row-count">{row().count.toLocaleString()}</span>
       <span>
-        <span classList={{ "metrics-row-p95": true, bad: props.entry.severity === "bad" }}>
+        <span class={{ "metrics-row-p95": true, bad: props.entry.severity === "bad" }}>
           {Math.round(row().p95_ms)}
           <small>ms</small>
         </span>
         <span class="metrics-row-bar">
-          <i classList={{ bad: props.entry.severity === "bad" }} style={{ width: `${width()}%` }} />
+          <i class={{ bad: props.entry.severity === "bad" }} style={{ width: `${width()}%` }} />
         </span>
       </span>
     </button>
@@ -123,7 +123,7 @@ export function RouteList(props: RouteListProps) {
   );
 
   return (
-    <div classList={{ "metrics-routes": true, "metrics-stale": props.stale }}>
+    <div class={{ "metrics-routes": true, "metrics-stale": props.stale }}>
       <div class="metrics-routes-head">
         <span class="metrics-label">
           {props.entries.length} {props.entries.length === 1 ? "route" : "routes"}

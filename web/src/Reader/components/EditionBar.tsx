@@ -21,8 +21,7 @@ export function EditionBar(props: {
           {(ed) => (
             <button
               type="button"
-              class="edition-seg"
-              classList={{ original: ed.is_original }}
+              class={["edition-seg", { original: ed.is_original }]}
               role="tab"
               aria-selected={ed.selector === props.current ? "true" : "false"}
               title={ed.label}

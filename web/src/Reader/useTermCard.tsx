@@ -15,7 +15,7 @@
 // gate (#352) moved with it, and reads the `suspendedSubtree` context there
 // instead of being threaded as a prop.
 
-import { createEffect, createSignal, untrack, type Accessor } from "solid-js";
+import { createEffect, createSignal, type Accessor } from "solid-js";
 
 export interface OpenTermCard {
   termId: number;
@@ -41,14 +41,22 @@ export interface TermCardProps {
 }
 
 export function useTermCard(props: TermCardProps): TermCardApi {
-  const [openCard, setOpenCard] = createSignal<OpenTermCard | null>(null);
+  const [openCard, setOpenCardSignal] = createSignal<OpenTermCard | null>(null);
+  // A plain mirror of the open card's term id, for the URL effect's apply
+  // phase below: it is untracked, and a signal read there would also lag a
+  // write made earlier in the same frame.
+  let shownTermId: number | null = null;
+  const setOpenCard = (card: OpenTermCard | null) => {
+    shownTermId = card?.termId ?? null;
+    setOpenCardSignal(card);
+  };
 
   function onTermClick(
     termId: number,
     anchor: DOMRect,
     direction?: "ltr" | "rtl",
   ) {
-    if (openCard()?.termId === termId) {
+    if (shownTermId === termId) {
       setOpenCard(null);
       props.onOpenTermIdChange?.(null);
       return;
@@ -68,17 +76,14 @@ export function useTermCard(props: TermCardProps): TermCardApi {
   // back button on an open card leaves it visible until the user
   // dismisses with Esc — acceptable for MVP, since the URL is still
   // the canonical state.
-  createEffect(() => {
-    const targetId = props.openTermId();
+  createEffect(() => props.openTermId(), (targetId) => {
     if (targetId === undefined) return;
-    // untrack: this effect must react to URL changes ONLY. Tracking
-    // openCard() too meant that close() — which nulls openCard first
-    // and clears the URL second — could flush this effect between the
-    // two writes (Esc/outside-click arrive via native listeners, so
-    // the writes aren't batched); it then saw the stale `?term=` and
-    // re-opened the just-dismissed card at the sentinel anchor.
-    const current = untrack(openCard);
-    if (current?.termId === targetId) return;
+    // The compute tracks the URL ONLY; the open card is consulted through
+    // the plain `shownTermId` mirror. Tracking openCard() too meant that
+    // close() — which nulls openCard first and clears the URL second — could
+    // re-run this effect between the two writes; it then saw the stale
+    // `?term=` and re-opened the just-dismissed card at the sentinel anchor.
+    if (shownTermId === targetId) return;
     const w = window.innerWidth;
     const sentinel = new DOMRect(w / 2 - 40, 100, 80, 20);
     setOpenCard({ termId: targetId, anchor: sentinel });

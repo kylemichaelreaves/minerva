@@ -44,7 +44,7 @@ export function TargetLangToggle(props: {
                 type="button"
                 class={props.target === t ? "on" : ""}
                 disabled={isDisabled(t)}
-                aria-disabled={isDisabled(t)}
+                aria-disabled={isDisabled(t) ? "true" : "false"}
                 title={
                   isDisabled(t) ? "Source text is already in this language" : undefined
                 }
@@ -77,7 +77,7 @@ export function TargetLangToggle(props: {
             <button
               class={props.target === t ? "on" : ""}
               disabled={isDisabled(t)}
-              aria-disabled={isDisabled(t)}
+              aria-disabled={isDisabled(t) ? "true" : "false"}
               title={
                 isDisabled(t)
                   ? "Source text is already in this language"

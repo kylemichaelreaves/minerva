@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthorPair, NetworkAuthor } from "~/api/networkApi";
 import { ArcPanel } from "~/Network/components/ArcPanel";
@@ -76,6 +77,7 @@ describe("<ArcPanel /> geometry", () => {
     expect(Math.abs((citing[1] ?? 0) - 112)).toBeLessThan(1);
 
     fireEvent.click(arc);
+    flush();
     expect(onOpenPair).toHaveBeenCalledWith("Aristotle", "Plato");
   });
 
@@ -88,9 +90,11 @@ describe("<ArcPanel /> geometry", () => {
     expect(no).toBeLessThan(ar);
 
     fireEvent.mouseEnter(screen.getByRole("button", { name: "Nobody: show citations" }));
+    flush();
     const detail = container.querySelector(".net-arc-detail")?.textContent ?? "";
     expect(detail).toMatch(/^Nobody(?! ·)/);
     fireEvent.mouseEnter(screen.getByRole("button", { name: "Plato: show citations" }));
+    flush();
     expect(container.querySelector(".net-arc-detail")?.textContent).toContain("Plato · 380 BC");
   });
 });
@@ -123,6 +127,7 @@ describe("<ArcPanel /> on resize", () => {
 
       width.mockReturnValue(1100);
       tick();
+      flush();
 
       expect(tickX(container).get("Ar")).toBeGreaterThan(before);
       expect(screen.getByRole("button", { name: "Aristotle: show citations" })).toBe(label);

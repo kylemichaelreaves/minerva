@@ -109,7 +109,16 @@ export function attempt<T>(what: string, fn: () => T): T | null {
 }
 
 export interface FlightMachine<P extends string> {
+  /** The phase as rendered. A signal, so — like every Solid 2 signal — a read
+   *  in the same synchronous frame as `enter` or `end` still returns the
+   *  previous value until the next flush. */
   phase: Accessor<P | "idle">;
+  /** Whether no flight is running, as of the last `enter` / `end` — read
+   *  synchronously, without waiting for the signal to commit. The guards
+   *  (`begin`'s re-entry check, `cancel`) use this rather than `phase()`, or
+   *  a second begin in the same frame as the first would start a second
+   *  flight. */
+  idle: () => boolean;
   /** Enters a running phase. The caller orders this against its own
    *  `setStage`: the lift enters first, the return stages first. */
   enter: (p: P) => void;
@@ -133,6 +142,7 @@ export function createFlightMachine<P extends string>(opts: {
   watchInterrupts(interrupted: () => void): () => void;
 }): FlightMachine<P> {
   const [phase, setPhase] = createSignal<P | "idle">("idle");
+  let current: P | "idle" = "idle";
   let flight: Flight | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let unwatch: (() => void) | undefined;
@@ -144,6 +154,7 @@ export function createFlightMachine<P extends string>(opts: {
     unwatch = undefined;
     const running = flight;
     flight = null;
+    current = "idle";
     setPhase("idle");
     opts.unstage();
     running?.cancel();
@@ -161,14 +172,18 @@ export function createFlightMachine<P extends string>(opts: {
 
   return {
     phase,
-    enter: (p) => setPhase(() => p),
+    idle: () => current === "idle",
+    enter: (p) => {
+      current = p;
+      setPhase(() => p);
+    },
     end,
     fly,
     after: (ms, done) => {
       timer = setTimeout(done, ms);
     },
     cancel: () => {
-      if (phase() !== "idle") end();
+      if (current !== "idle") end();
     },
   };
 }

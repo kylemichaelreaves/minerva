@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { defaultServerConditions } from "vite";
 import { configDefaults, defineConfig } from "vitest/config";
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
 import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig(({ mode }) => ({
@@ -29,6 +29,9 @@ export default defineConfig(({ mode }) => ({
   // when the global `test.environment` is a DOM one, without reading the
   // per-file docblock (#861). Those modules then also leaked into happy-dom
   // files sharing a worker, so the failure count changed from run to run.
+  // Still needed on @solidjs/vite-plugin 3.0.1 (the renamed plugin, Solid 2):
+  // without this block both solidClientRuntime tests fail, with `isServer`
+  // true and the effect never re-running.
   // tests/solidClientRuntime.test.ts fails if this stops taking effect.
   ...(mode === "test" && {
     environments: {

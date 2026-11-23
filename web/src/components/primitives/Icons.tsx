@@ -1,6 +1,6 @@
 // Inline SVG icons. Stroke + size come from CSS (.icon-btn svg).
 
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 type IconProps = JSX.SvgSVGAttributes<SVGSVGElement>;
 

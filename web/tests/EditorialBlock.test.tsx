@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
+import { flush } from "solid-js";
 import { EditorialBlock } from "~/Reader/components/EditorialBlock";
 
 describe("EditorialBlock", () => {
@@ -33,9 +34,11 @@ describe("EditorialBlock", () => {
     const block = container.querySelector(".editorial-block");
     expect(block?.hasAttribute("data-open")).toBe(false);
     fireEvent.click(summary);
+    flush();
     expect(screen.queryByText(/delivered these lectures/)).not.toBeNull();
     expect(block?.hasAttribute("data-open")).toBe(true);
     fireEvent.click(summary);
+    flush();
     expect(screen.queryByText(/delivered these lectures/)).toBeNull();
     expect(block?.hasAttribute("data-open")).toBe(false);
   });

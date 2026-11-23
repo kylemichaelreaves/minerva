@@ -104,7 +104,7 @@ export function NetworkFiltersBar(
         onClear={() => props.onPatch({ sourceMethods: undefined })}
       />
       <button
-        class={"net-chip" + (props.minConfidence !== undefined ? " active" : "")}
+        class={["net-chip", { active: props.minConfidence !== undefined }]}
         onClick={cycleConfidence}
         title="Cycle minimum confidence threshold"
       >
@@ -117,7 +117,7 @@ export function NetworkFiltersBar(
           action via the filter sheet (4b pattern). */}
       <Show when={!isMobile()}>
         <button
-          class={"net-chip" + (props.includeRejected ? " active" : "")}
+          class={["net-chip", { active: props.includeRejected }]}
           onClick={toggleRejected}
           title="Include rejected cross-references"
         >

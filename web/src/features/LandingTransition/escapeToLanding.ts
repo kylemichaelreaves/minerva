@@ -7,7 +7,7 @@
 // run AFTER this listener, and checking `defaultPrevented` here would see
 // none of them. The decision waits until the event has finished dispatching.
 
-import { onCleanup, onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import type { Turn } from "~/utils/uiTypes";
 
 export interface ChatState {
@@ -61,7 +61,7 @@ export function wouldDropInput(doc: Document = document): boolean {
 
 /** Calls `onEscape` for a plain Escape no other handler claimed. */
 export function useUnclaimedEscape(onEscape: () => void): void {
-  onMount(() => {
+  onSettled(() => {
     let pending: ReturnType<typeof setTimeout> | undefined;
     const onKey = (e: KeyboardEvent) => {
       if (!isPlainEscape(e)) return;
@@ -72,9 +72,9 @@ export function useUnclaimedEscape(onEscape: () => void): void {
       }, 0);
     };
     window.addEventListener("keydown", onKey);
-    onCleanup(() => {
+    return () => {
       clearTimeout(pending);
       window.removeEventListener("keydown", onKey);
-    });
+    };
   });
 }

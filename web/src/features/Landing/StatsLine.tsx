@@ -1,7 +1,7 @@
 // One line of corpus stats under the composer. Decorative: it fetches its
 // own numbers and shows "—" until (or unless) they arrive.
 
-import { For, Show, createSignal, onMount } from "solid-js";
+import { For, Show, createSignal, onSettled } from "solid-js";
 import { fetchLandingStats, type LandingStats } from "~/api/landingApi";
 
 // In order: field, then its noun.
@@ -22,7 +22,7 @@ const fmtNum = (n: number | undefined) => (n === undefined ? "—" : n.toLocaleS
 
 export default function StatsLine() {
   const [stats, setStats] = createSignal<LandingStats | null>(lastStats);
-  onMount(() => {
+  onSettled(() => {
     void fetchLandingStats()
       .then((s) => {
         lastStats = s;

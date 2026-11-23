@@ -1,4 +1,4 @@
-import { Show, createEffect, on, onCleanup } from "solid-js";
+import { Show, createEffect, flush, onCleanup } from "solid-js";
 import Landing from "~/features/Landing";
 import Composer from "~/features/Composer";
 import WorkScopeControl from "~/features/Composer/WorkScopeControl";
@@ -23,14 +23,17 @@ export function ChatRoute(props: RouteContextProps) {
   const transition = createLandingTransition();
   const lifting = () => transition.phase() === "lift";
   // A plain flag, not a signal: the chat branch — and its Composer — is
-  // created synchronously inside `startFromLanding`, so the Composer reads
-  // `true` at creation on every path (lift, fade or cut), and `false` for a
-  // sidebar pick or a direct load, which must not steal focus.
+  // created inside the `flush()` below (Solid 2 would otherwise hold
+  // `startFromLanding`'s writes to the next microtask, after the flag is
+  // reset), so the Composer reads `true` at creation on every path (lift,
+  // fade or cut), and `false` for a sidebar pick or a direct load, which
+  // must not steal focus.
   let fromLanding = false;
   const beginFromLanding = (text: string) => {
     fromLanding = true;
     try {
       transition.begin(text, props.conversations.startFromLanding);
+      flush();
     } finally {
       fromLanding = false;
     }
@@ -60,22 +63,21 @@ export function ChatRoute(props: RouteContextProps) {
   // Leaving mid-flight drops the flight: "New conversation" brings the
   // landing back, a sidebar pick starts hydrating another conversation.
   // (The stream's own route change does not hydrate — `onHydratedId` runs
-  // first — so a fast server's meta never cancels.) `on` so this tracks
-  // those two alone: `cancel()` reads the phase, and tracking it would re-run
-  // this the moment a lift starts, while `showLanding` is still true, and
-  // cancel the flight before the question was even sent. The same goes for
+  // first — so a fast server's meta never cancels.) The compute tracks those
+  // two alone and `cancel()` runs in the untracked apply: `cancel()` reads the
+  // phase, and tracking it would re-run this the moment a lift starts, while
+  // `showLanding` is still true, and cancel the flight before the question
+  // was even sent. The same goes for
   // the return, whose own arrival lands here too: by then it is finishing,
   // and its cancel only tidies up — it never navigates on top of a route
   // change.
   createEffect(
-    on(
-      () => props.conversations.showLanding() || props.conversations.hydrating(),
-      (left) => {
-        if (!left) return;
-        transition.cancel();
-        back.cancel();
-      },
-    ),
+    () => props.conversations.showLanding() || props.conversations.hydrating(),
+    (left) => {
+      if (!left) return;
+      transition.cancel();
+      back.cancel();
+    },
   );
   onCleanup(() => {
     transition.cancel();

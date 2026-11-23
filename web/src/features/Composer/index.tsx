@@ -1,4 +1,5 @@
-import { onMount, type JSX } from "solid-js";
+import { onSettled } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { createComposer } from "~/utils/composer";
 import ComposeField from "~/components/cards/ComposeField";
 import KeyHints from "~/components/cards/KeyHints";
@@ -46,7 +47,7 @@ export default function Composer(props: ComposerProps) {
       c.setRef(el);
     },
   };
-  onMount(() => {
+  onSettled(() => {
     if (props.focusOnMount) textarea?.focus({ preventScroll: true });
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { useWordHoverTranslations } from "~/Reader/useWordHoverTranslations";
 import type { RailState } from "~/Reader/types";
 import type { TargetLang } from "~/utils/types";
@@ -9,13 +9,16 @@ const CACHE_MAX = 500;
 
 function setup() {
   const [rail, setRail] = createSignal<RailState>({ kind: "idle" });
-  const [target] = createSignal<TargetLang>("eng");
+  const target = (): TargetLang => "eng";
   let dispose: () => void = () => undefined;
   const api = createRoot((d) => {
     dispose = d;
     return useWordHoverTranslations({ rail, target });
   });
-  /** Simulate a word click whose translate call then settles. */
+  /** Simulate a word click whose translate call then settles. The `flush()`
+   *  is the settle: each response lands in its own task in real use, and Solid
+   *  2 batches writes until a flush, so back-to-back `setRail`s without one
+   *  would reach the effect as just the last. */
   const translate = (chunkId: string, offset: number, text: string) => {
     const source = `${chunkId}@${offset}`;
     api.registerWordClick(chunkId, offset, source);
@@ -26,6 +29,7 @@ function setup() {
       ref: chunkId,
       response: { translated_text: text, literal_text: text, model: "m", cached: false },
     });
+    flush();
   };
   return { api, setRail, translate, dispose };
 }
@@ -50,6 +54,7 @@ describe("useWordHoverTranslations", () => {
       ref: "c1",
       response: { translated_text: "x", literal_text: "x", model: "m", cached: false },
     });
+    flush();
     expect(api.lookup("c1", 0)).toBeUndefined();
     api.clearPending();
     setRail({
@@ -59,6 +64,7 @@ describe("useWordHoverTranslations", () => {
       ref: "c1",
       response: { translated_text: "arms", literal_text: "arms", model: "m", cached: false },
     });
+    flush();
     expect(api.lookup("c1", 0)).toBeUndefined();
     dispose();
   });

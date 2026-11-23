@@ -28,7 +28,7 @@
 // failure should call `apiError(...)` from a `createEffect` watching
 // `error`.
 
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { errorMessage, isAbortError } from "~/utils/util";
 
 export interface AbortableFetchApi<T> {
@@ -61,15 +61,13 @@ export function useAbortableFetch<Args, T>(
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
-  let inflight: AbortController | undefined;
-
-  createEffect(() => {
-    // Reading args inside the effect tracks every reactive prop
-    // touched by the accessor. The effect re-runs on any change.
-    const args = argsAccessor();
-    inflight?.abort();
+  // Compute reads the args (tracking every reactive prop the accessor
+  // touches); apply starts the request. Apply's returned cleanup aborts it,
+  // and Solid runs that cleanup before the next apply and on disposal — so
+  // an args change cancels the request it supersedes, and unmounting
+  // cancels whatever is still in flight.
+  createEffect(argsAccessor, (args) => {
     const controller = new AbortController();
-    inflight = controller;
     if (options.resetOnChange) setData(null);
     setLoading(true);
     setError(null);
@@ -90,10 +88,9 @@ export function useAbortableFetch<Args, T>(
         }
       }
     })();
-  });
-
-  onCleanup(() => {
-    inflight?.abort();
+    return () => {
+      controller.abort();
+    };
   });
 
   return { data, loading, error };

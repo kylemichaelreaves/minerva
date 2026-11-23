@@ -141,13 +141,15 @@ function PairList(props: {
         <For each={props.pairs.slice(0, ROWS)}>
           {(p) => {
             const name = props.who(p);
-            const a = props.byName.get(name);
+            // An accessor: `byName` is a prop, and the callback body is
+            // untracked, so a const would keep the first map it saw.
+            const a = () => props.byName.get(name);
             return (
               <button type="button" class="li" onClick={() => props.onFocus(name)}>
                 <span class="nm">
                   {name}
-                  <Show when={a?.dated}>
-                    <span class="yr">{formatYearEra(a?.year ?? 0)}</span>
+                  <Show when={a()?.dated}>
+                    <span class="yr">{formatYearEra(a()?.year ?? 0)}</span>
                   </Show>
                 </span>
                 <Bar n={p.n} max={props.max} color={props.color} />

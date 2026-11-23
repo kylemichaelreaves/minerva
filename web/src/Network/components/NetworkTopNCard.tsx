@@ -13,7 +13,8 @@
 // "Show all N →" affordance live here so the per-card files stay
 // focused on row rendering.
 
-import { For, Show, type JSX } from "solid-js";
+import { For, Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 interface Props<T> {
   /** Italic-serif title shown on the left of the card head (e.g.

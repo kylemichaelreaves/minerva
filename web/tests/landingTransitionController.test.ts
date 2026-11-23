@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { flush } from "solid-js";
 import {
   createLandingTransition,
   defaultEnv,
@@ -13,6 +14,14 @@ import type { FlightOrigin, FlightTarget } from "~/features/LandingTransition/fl
 
 const ORIGIN = { text: "Q" } as FlightOrigin;
 const TARGET = { body: { top: 0, left: 0, width: 0, height: 0 } } as FlightTarget;
+
+/** The phase as rendered. Solid 2 commits a signal write at the next flush,
+ *  so a read straight after `begin` / a timer would still see the previous
+ *  phase; flush first, as the DOM would be by the next frame. */
+function committed(t: { phase: () => string }): string {
+  flush();
+  return t.phase();
+}
 
 function deferred() {
   let resolve!: () => void;
@@ -59,11 +68,11 @@ describe("createLandingTransition", () => {
 
     t.begin("Q", send);
     expect(send).toHaveBeenCalledExactlyOnceWith("Q");
-    expect(t.phase()).toBe("fade");
+    expect(committed(t)).toBe("fade");
     expect(env.play).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(FADE_MS);
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage.mock.calls).toEqual([[true], [false]]);
   });
 
@@ -74,7 +83,7 @@ describe("createLandingTransition", () => {
 
     t.begin("Q", send);
     expect(send).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.play).not.toHaveBeenCalled();
     expect(env.setStage).not.toHaveBeenCalled();
   });
@@ -92,7 +101,7 @@ describe("createLandingTransition", () => {
     expect(order(send)).toBeLessThan(order(env.measureTarget));
     expect(order(env.measureTarget)).toBeLessThan(order(env.play));
     expect(env.play).toHaveBeenCalledWith(ORIGIN, TARGET);
-    expect(t.phase()).toBe("lift");
+    expect(committed(t)).toBe("lift");
     expect(env.setStage).toHaveBeenCalledWith(true);
   });
 
@@ -104,7 +113,7 @@ describe("createLandingTransition", () => {
     done.resolve();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage).toHaveBeenLastCalledWith(false);
     expect(cancel).toHaveBeenCalledOnce();
   });
@@ -118,7 +127,7 @@ describe("createLandingTransition", () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -128,9 +137,9 @@ describe("createLandingTransition", () => {
     t.begin("Q", vi.fn());
 
     vi.advanceTimersByTime(LIFT_MS + GRACE_MS - 1);
-    expect(t.phase()).toBe("lift");
+    expect(committed(t)).toBe("lift");
     vi.advanceTimersByTime(1);
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -152,7 +161,7 @@ describe("createLandingTransition", () => {
 
     t.begin("Q", send);
     expect(send).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.measureTarget).not.toHaveBeenCalled();
     expect(env.setStage).not.toHaveBeenCalled();
   });
@@ -164,7 +173,7 @@ describe("createLandingTransition", () => {
 
     t.begin("Q", send);
     expect(send).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.play).not.toHaveBeenCalled();
     expect(env.setStage).toHaveBeenLastCalledWith(false);
   });
@@ -181,7 +190,7 @@ describe("createLandingTransition", () => {
 
     t.begin("Q", send);
     expect(send).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(warn).toHaveBeenCalledWith("landing transition skipped", expect.any(Error));
   });
 
@@ -197,7 +206,7 @@ describe("createLandingTransition", () => {
 
     t.begin("Q", send);
     expect(send).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
   });
 
   it("idles and rethrows if sending itself throws mid-lift", () => {
@@ -209,7 +218,7 @@ describe("createLandingTransition", () => {
         throw new Error("send failed");
       }),
     ).toThrow("send failed");
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage).toHaveBeenLastCalledWith(false);
   });
 
@@ -220,7 +229,7 @@ describe("createLandingTransition", () => {
 
     t.cancel();
     expect(cancel).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
 
     vi.advanceTimersByTime(LIFT_MS + GRACE_MS);
     t.cancel();
@@ -235,7 +244,7 @@ describe("createLandingTransition", () => {
     expect(env.watchInterrupts).toHaveBeenCalledOnce();
 
     interrupt.fire();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(cancel).toHaveBeenCalledOnce();
     expect(unwatch).toHaveBeenCalledOnce();
     expect(env.setStage.mock.calls).toEqual([[true], [false]]);
@@ -262,7 +271,7 @@ describe("createLandingTransition", () => {
     t.begin("Q", vi.fn());
 
     t.cancel();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     vi.advanceTimersByTime(FADE_MS);
     expect(env.setStage.mock.calls).toEqual([[true], [false]]);
   });

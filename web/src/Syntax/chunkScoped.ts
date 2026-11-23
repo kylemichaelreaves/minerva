@@ -26,20 +26,30 @@ type Update<T> = T | ((cur: T) => T);
  * was written on moves the reset into the read, where there is no beat.
  */
 export function createScopedSignal<T>(chunkId: () => string, empty: T) {
-  const [raw, setRaw] = createSignal({ chunk: chunkId(), value: empty });
+  // Stamped with no chunk to start: it reads as *empty* either way, and
+  // reading `chunkId()` here — in the caller's component body — would be an
+  // untracked reactive read that Solid 2 warns about.
+  const [raw, setRaw] = createSignal<{ chunk: string | null; value: T }>({
+    chunk: null,
+    value: empty,
+  });
 
-  const read = (): T => {
-    const r = raw();
-    return r.chunk === chunkId() ? r.value : empty;
-  };
+  const valueOn = (r: { chunk: string | null; value: T }, chunk: string): T =>
+    r.chunk === chunk ? r.value : empty;
+
+  const read = (): T => valueOn(raw(), chunkId());
 
   const write = (next: Update<T>): void => {
-    // An updater counts from `read()`, which is already *empty* on a new
-    // chunk — so `setSentOrd((n) => n + 1)` after a navigation moves off the
-    // first sentence of the new passage, not off wherever the reader was in
-    // the old one.
-    const value = typeof next === "function" ? (next as (cur: T) => T)(read()) : next;
-    setRaw({ chunk: chunkId(), value });
+    // An updater counts from the value on the current chunk, which is
+    // already *empty* on a new chunk — so `setSentOrd((n) => n + 1)` after a
+    // navigation moves off the first sentence of the new passage, not off
+    // wherever the reader was in the old one. Through the setter's own
+    // updater, so it counts from the latest write even before a flush.
+    const chunk = chunkId();
+    setRaw((prev) => ({
+      chunk,
+      value: typeof next === "function" ? (next as (cur: T) => T)(valueOn(prev, chunk)) : next,
+    }));
   };
 
   return [read, write] as const;

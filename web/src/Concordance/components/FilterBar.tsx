@@ -130,8 +130,9 @@ const SORT_OPTIONS: SelectOption[] = [
  *  time the signal updates (e.g. after a Reset).
  *
  *  Fix: hold a ref per thumb and write `.value` / `.max` from a
- *  ``createEffect`` whenever the source accessors fire. Solid tracks
- *  the reads inside the effect; the DOM stays in sync.
+ *  ``createEffect`` whenever the source accessors fire. The effect's
+ *  compute tracks the reads and its apply writes the DOM, so the DOM
+ *  stays in sync.
  */
 export function FreqRange(props: {
   min: number | undefined;
@@ -180,16 +181,19 @@ export function FreqRange(props: {
 
   let loEl: HTMLInputElement | undefined;
   let hiEl: HTMLInputElement | undefined;
-  createEffect(() => {
-    if (loEl) {
-      loEl.max = String(ceil());
-      loEl.value = String(lo());
-    }
-    if (hiEl) {
-      hiEl.max = String(ceil());
-      hiEl.value = String(hi());
-    }
-  });
+  createEffect(
+    () => ({ max: String(ceil()), lo: String(lo()), hi: String(hi()) }),
+    (v) => {
+      if (loEl) {
+        loEl.max = v.max;
+        loEl.value = v.lo;
+      }
+      if (hiEl) {
+        hiEl.max = v.max;
+        hiEl.value = v.hi;
+      }
+    },
+  );
 
   return (
     <span class="fbar-range">
@@ -222,11 +226,10 @@ export function FilterBar(props: FilterBarProps) {
   // Local live value for the search box. Committing (URL patch +
   // lemma-index refetch) is debounced; the input itself stays
   // responsive per keystroke. Enter/blur flush immediately.
-  const [qLocal, setQLocal] = createSignal("");
-  // Seeds the initial value on mount and re-syncs on external changes
-  // (chip removal, back/forward, the other FilterBar instance
-  // committing).
-  createEffect(() => setQLocal(props.q ?? ""));
+  // A writable derived signal: it seeds from `props.q` and re-derives on
+  // external changes (chip removal, back/forward, the other FilterBar
+  // instance committing), while keystrokes write over it locally.
+  const [qLocal, setQLocal] = createSignal(() => props.q ?? "");
   let qTimer: ReturnType<typeof setTimeout> | undefined;
   const cancelQTimer = () => {
     if (qTimer !== undefined) {

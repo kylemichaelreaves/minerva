@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as readerApi from "~/api/readerApi";
 import type { WorkRange } from "~/api/types/reader";
@@ -95,6 +95,10 @@ function mount(initial: Route = READER) {
       () => undefined,
     );
   });
+  // Settle the mount synchronously, as rendering does: Solid 2 runs an
+  // effect's first apply on flush, not at creation, so without this the
+  // first load would not have STARTED before a test's next route change.
+  flush();
   return { setRoute, dispose };
 }
 

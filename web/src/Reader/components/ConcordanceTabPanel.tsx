@@ -9,8 +9,9 @@
 // reader actually wants — the same lemma in *this* book — while the
 // top-nav entry is what they reach for the corpus-wide view.
 
-import { For, Show, createResource } from "solid-js";
-import { fetchLemmaIndex, type LemmaIndexRow } from "~/api/concordanceApi";
+import { For, Show } from "solid-js";
+import { createAsyncState } from "~/hooks/createAsyncState";
+import { fetchLemmaIndex, type LemmaIndexResponse, type LemmaIndexRow } from "~/api/concordanceApi";
 
 interface Props {
   workTitle: string | null;
@@ -19,39 +20,32 @@ interface Props {
   onOpenLemma: (lemma: string) => void;
 }
 
-export function ConcordanceTabPanel(props: Props) {
-  const [data] = createResource(
-    () => ({ work: props.workTitle, lang: props.lang }),
-    async (args) => {
-      if (!args.work) return null;
-      return fetchLemmaIndex({
-        lang: args.lang,
-        scope: "work",
-        works: [args.work],
-        limit: 12,
-        // sort=freq is default; default POS filter strips function words.
-      });
-    },
-  );
+function loadLemmaIndex(q: { work: string; lang: string }): Promise<LemmaIndexResponse> {
+  return fetchLemmaIndex({
+    lang: q.lang,
+    scope: "work",
+    works: [q.work],
+    limit: 12,
+    // sort=freq is default; default POS filter strips function words.
+  });
+}
 
-  /** The resource's value, or `undefined` when it failed.
-   *
-   *  Reading `data()` on an errored resource **throws** — Solid rethrows so an
-   *  `ErrorBoundary` can catch it. Every read below went through the raw
-   *  accessor, so on a failed fetch the throw escaped the update the rejection
-   *  triggered, abandoned it, and left this panel on "Loading lemma index…"
-   *  forever: the error branch beneath it never mounted, and its remedy line
-   *  (`minerva terms lemmatize`) never reached the screen (#426).
-   *
-   *  The guard at the old `:75` looked like it covered this —
-   *  `data() && !data.error && …` — but `&&` evaluates left to right, so
-   *  `data()` threw before `!data.error` was ever reached. Order was the whole
-   *  bug.
-   *
-   *  Same shape as `Syntax/index.tsx`'s `loaded()`, which fixed the identical
-   *  defect in the syntax overlay under #235 — deliberately the same spelling
-   *  rather than a third one. */
-  const loaded = () => (data.error === undefined ? data() : undefined);
+export function ConcordanceTabPanel(props: Props) {
+  /** Settled before the node sees it (see `createAsyncState`), so a failure
+   *  is ordinary data. That is the #426 fix carried forward: under Solid 1's
+   *  `createResource`, reading `data()` on an errored resource **threw**, the
+   *  throw abandoned the update the rejection triggered, and this panel sat on
+   *  "Loading lemma index…" forever — its remedy line (`minerva terms
+   *  lemmatize`) never reached the screen. No work open asks nothing. */
+  const data = createAsyncState(
+    () => (props.workTitle ? { work: props.workTitle, lang: props.lang } : undefined),
+    loadLemmaIndex,
+  );
+  /** First fetch in flight, or a refetch after a work/lang change. */
+  const loading = () => data.firstLoad() || data.refreshing();
+  const failed = () => data.error() !== undefined && !loading();
+  /** The loaded index, or `undefined` while loading / on error. */
+  const loaded = data.value;
   /** The loaded rows, or none while loading / on error. `?? []` also
    *  absorbs a malformed payload missing `rows`, which the response type
    *  claims is always present. */
@@ -73,11 +67,11 @@ export function ConcordanceTabPanel(props: Props) {
 
         <div class="rail-concord-head">Top lemmas · this work</div>
 
-        <Show when={data.loading}>
+        <Show when={loading()}>
           <div class="rail-concord-loading">Loading lemma index…</div>
         </Show>
 
-        <Show when={!!data.error}>
+        <Show when={failed()}>
           <div class="rail-concord-empty">
             Lemma index unavailable. Has <code>minerva terms lemmatize --lang {props.lang}</code>{" "}
             been run for this edition?
@@ -108,7 +102,7 @@ export function ConcordanceTabPanel(props: Props) {
             not claim the work has no lemmas — that is a different statement,
             and the error branch above is what should speak for it. */}
         {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-        <Show when={loaded() && (loaded()?.rows?.length ?? 0) === 0 && !data.loading}>
+        <Show when={loaded() && (loaded()?.rows?.length ?? 0) === 0 && !loading()}>
           <div class="rail-concord-empty">No content lemmas in this work.</div>
         </Show>
       </Show>

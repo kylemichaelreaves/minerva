@@ -1,4 +1,4 @@
-import { type JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { classnames } from "~/utils/util";
 import { SendIcon } from "~/components/primitives/Icons";
 import type { ComposerState } from "~/utils/composer";

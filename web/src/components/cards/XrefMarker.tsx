@@ -20,7 +20,8 @@
 // FocusVisible / Active stories (plus Dark variants) render exactly these
 // states (#360).
 
-import { Show, type JSX } from "solid-js";
+import { Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { xrefSuperscript } from "~/utils/xrefMarkerUtils";
 
 export interface XrefMarkerProps {

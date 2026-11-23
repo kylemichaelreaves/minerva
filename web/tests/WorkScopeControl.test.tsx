@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@solidjs/testing-library";
+import { render, screen } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import WorkScopeControl from "~/features/Composer/WorkScopeControl";
 import type { Work } from "~/utils/types";
 

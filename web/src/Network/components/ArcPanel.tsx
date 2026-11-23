@@ -1,4 +1,4 @@
-import { For, Index, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import type { AuthorPair, MatrixCell, NetworkAuthor } from "~/api/networkApi";
 import { ATLAS_AUTHORS } from "~/data/atlasData";
 import { useElementSize } from "~/hooks/useElementSize";
@@ -184,8 +184,8 @@ export function ArcPanel(props: {
           <div class="net-panel-q">Which authors reach back furthest, and to whom?</div>
         </div>
         <button
-          class={"net-toggle" + (hideIntra() ? " on" : "")}
-          aria-pressed={hideIntra()}
+          class={["net-toggle", { on: hideIntra() }]}
+          aria-pressed={hideIntra() ? "true" : "false"}
           onClick={() => setHideIntra((v) => !v)}
         >
           <span class="sw" /> Hide intra-scripture
@@ -211,13 +211,15 @@ export function ArcPanel(props: {
                 stroke-width={0.8}
               />
               <For each={geo().breaks}>{(x) => <AxisBreak x={x} />}</For>
-              {/* `Index`, not `For`: the arc and label objects are rebuilt on
+              {/* `keyed={false}`: the arc and label objects are rebuilt on
                   every resize, and keying by position keeps their DOM nodes
                   (and a focused label's focus) in place. */}
               <g class="net-arc-context">
-                <Index each={contextArcs()}>{(a) => <path d={arcD(a())} />}</Index>
+                <For each={contextArcs()} keyed={false}>
+                  {(a) => <path d={arcD(a())} />}
+                </For>
               </g>
-              <Index each={drawnArcs()}>
+              <For each={drawnArcs()} keyed={false}>
                 {(a) => (
                   <path
                     class="net-arc"
@@ -238,8 +240,8 @@ export function ArcPanel(props: {
                     onMouseLeave={() => setHovered(null)}
                   />
                 )}
-              </Index>
-              <Index each={geo().axis}>
+              </For>
+              <For each={geo().axis} keyed={false}>
                 {(a) => (
                   <AuthorLabel
                     author={a()}
@@ -251,7 +253,7 @@ export function ArcPanel(props: {
                     onToggle={toggleFocus}
                   />
                 )}
-              </Index>
+              </For>
             </svg>
             <Show when={hovered()}>
               {(h) => <ArcTooltip hover={h()} byName={byName()} width={geo().w} />}
@@ -365,7 +367,7 @@ function AuthorLabel(props: {
       class="net-arc-label"
       role="button"
       tabindex="0"
-      aria-pressed={props.pinned}
+      aria-pressed={props.pinned ? "true" : "false"}
       aria-label={`${name()}: show citations`}
       onMouseEnter={() => props.onPreview(name())}
       onMouseLeave={() => props.onPreview(null)}

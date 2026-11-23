@@ -15,7 +15,7 @@
 // The chat stays mounted until the end — `go` (which navigates, and so
 // clears the thread) runs only once the flight has settled.
 
-import type { Accessor } from "solid-js";
+import { flush, type Accessor } from "solid-js";
 import { rectOf, settleOffset, type Rect } from "~/features/LandingTransition/flight";
 import {
   animateAll,
@@ -136,10 +136,18 @@ export function createReturnTransition(env: ReturnEnv = defaultReturnEnv()): {
    *  is the layer itself (same instance), so there is no frame with neither.
    *  This is the return's "done" for every path — settle, timeout and
    *  interrupt alike: an interrupted return arrives at once rather than
-   *  abandoning the reader mid-way back. */
+   *  abandoning the reader mid-way back.
+   *
+   *  `flush()` between the two: in Solid 2 the navigation and the phase reset
+   *  would otherwise land in one update, ahead of the effect that clears the
+   *  thread on the route change. `showLanding` (landing route AND no
+   *  messages) is still false in that update, the phase is already idle, and
+   *  nothing holds the layer up, so it unmounts and a fresh landing mounts a
+   *  frame later, one that never saw the return end and takes no focus. */
   function finish(go: () => void) {
     try {
       go();
+      flush();
     } finally {
       m.end();
     }
@@ -149,6 +157,9 @@ export function createReturnTransition(env: ReturnEnv = defaultReturnEnv()): {
     // Staged BEFORE the phase: the layer must be pinned before it mounts.
     env.setStage("return");
     m.enter("return");
+    // Mount the landing layer now — Solid 2 holds the phase write to the next
+    // microtask, and `measure` needs the layer's box in the DOM.
+    flush();
     const g = attempt("return transition", () => env.measure());
     const started = g && attempt("return transition", () => env.play(g));
     if (!started) {
@@ -159,7 +170,7 @@ export function createReturnTransition(env: ReturnEnv = defaultReturnEnv()): {
   }
 
   function begin(go: () => void) {
-    if (m.phase() !== "idle") return;
+    if (!m.idle()) return;
     if (env.reducedMotion()) {
       env.setStage("fade");
       m.enter("fade");

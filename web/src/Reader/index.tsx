@@ -18,7 +18,7 @@
 // in their sibling files; pure helpers (inferRefFromSelection,
 // occurrenceFor) live in ./utils.
 
-import { Show, createEffect, onMount } from "solid-js";
+import { Show, createEffect } from "solid-js";
 import { classnames } from "~/utils/util";
 import ReferenceCard from "~/components/cards/ReferenceCard";
 import TermCard from "~/components/cards/TermCard";
@@ -97,10 +97,11 @@ export default function Reader(props: ReaderProps) {
   let stageRef: HTMLDivElement | undefined;
   const shell = useMobileShell();
 
-  onMount(() => {
-    shell.registerSurfaceActions({
-      openReaderSettings: () => shell.setReaderSettingsOpen(true),
-    });
+  // In the body, not `onSettled`: the registration's `onCleanup` ties it to
+  // this component's owner, and Solid 2 forbids `onCleanup` inside
+  // `onSettled` (CLEANUP_IN_FORBIDDEN_SCOPE). It writes no signal.
+  shell.registerSurfaceActions({
+    openReaderSettings: () => shell.setReaderSettingsOpen(true),
   });
 
   const { range, occMap, refsMap, loadError, loadMore, hasMore, loadingMore, switchEdition } =
@@ -145,12 +146,17 @@ export default function Reader(props: ReaderProps) {
   // the range is the work the slug names: the server resolves a focus link
   // off `around=` whatever the title segment says, and pairing that work's
   // author with a title slug it does not own would build a URL that 404s.
-  createEffect(() => {
-    const r = range();
-    if (r === null || props.authorSlug !== undefined) return;
-    if (slugify(r.work) !== props.workSlug) return;
-    props.onAuthorResolved?.(slugify(r.author));
-  });
+  createEffect(
+    () => {
+      const r = range();
+      if (r === null || props.authorSlug !== undefined) return null;
+      if (slugify(r.work) !== props.workSlug) return null;
+      return slugify(r.author);
+    },
+    (author) => {
+      if (author !== null) props.onAuthorResolved?.(author);
+    },
+  );
 
   const railApi = useTranslateRail();
 
@@ -158,18 +164,20 @@ export default function Reader(props: ReaderProps) {
   // language. Avoids landing on a disabled chip when reading an
   // English text (default target is also "eng"). Greek/Latin/Hebrew
   // sources never collide with the three target options, so no shift.
-  createEffect(() => {
-    const src = props.sourceLang;
-    // promote:false — this only adjusts the DEFAULT target so a chip
-    // isn't disabled; it must not open an empty rail on load (#63).
-    if (src === "eng" && railApi.target() === "eng") {
-      railApi.setTargetLang("deu", { promote: false });
-    } else if (src === "fra" && railApi.target() === "fra") {
-      railApi.setTargetLang("eng", { promote: false });
-    } else if (src === "deu" && railApi.target() === "deu") {
-      railApi.setTargetLang("eng", { promote: false });
-    }
-  });
+  createEffect(
+    () => ({ src: props.sourceLang, target: railApi.target() }),
+    ({ src, target }) => {
+      // promote:false — this only adjusts the DEFAULT target so a chip
+      // isn't disabled; it must not open an empty rail on load (#63).
+      if (src === "eng" && target === "eng") {
+        railApi.setTargetLang("deu", { promote: false });
+      } else if (src === "fra" && target === "fra") {
+        railApi.setTargetLang("eng", { promote: false });
+      } else if (src === "deu" && target === "deu") {
+        railApi.setTargetLang("eng", { promote: false });
+      }
+    },
+  );
 
   const hoverTranslations = useWordHoverTranslations({
     rail: railApi.rail,
@@ -416,7 +424,7 @@ export default function Reader(props: ReaderProps) {
           screen readers. */}
       <aside
         class={classnames("rail", hasRail() && "open")}
-        aria-hidden={!hasRail()}
+        aria-hidden={!hasRail() ? "true" : "false"}
       >
         <RailContent
           state={railApi.rail()}

@@ -16,7 +16,8 @@
 // These tests assert the behaviour, not the port: any implementation that
 // makes them pass is one a keyboard can drive.
 
-import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { render, screen } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import { describe, expect, it, vi } from "vitest";
 import { FilterBar } from "~/Concordance/components/FilterBar";
 

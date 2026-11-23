@@ -40,7 +40,6 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  on,
   onCleanup,
   untrack,
   type Accessor,
@@ -209,7 +208,10 @@ export function useWorkRange(
     })();
   }
 
-  async function loadWork() {
+  // `key` is the window to load. The load effect passes the `windowKey` it
+  // tracked rather than letting this read the props itself: the apply phase is
+  // untracked, and the props are getters over the route.
+  async function loadWork(key: WindowKey) {
     // Cancel the previous in-flight load — rapid navigation between
     // works could otherwise let an older getWorkRange complete after
     // a newer one and clobber `range()` with stale chunks.
@@ -221,20 +223,20 @@ export function useWorkRange(
     setOccMap(null);
     setRefsMap(null);
     setLoadingMore(false);
-    focusMode = Boolean(props.focusChunkId);
+    focusMode = Boolean(key.focusChunkId);
 
     try {
       // Consume the pending remap section for this load, then clear it.
       const atSection = pendingAtSection;
       pendingAtSection = undefined;
       const r = await getWorkRange(
-        props.workSlug,
+        key.workSlug,
         {
-          lang: props.sourceLang ?? "grc",
-          authorSlug: props.authorSlug,
+          lang: key.sourceLang ?? "grc",
+          authorSlug: key.authorSlug,
           edition: editionOverride,
-          ...(props.focusChunkId
-            ? { around: props.focusChunkId, limit: FOCUS_WINDOW }
+          ...(key.focusChunkId
+            ? { around: key.focusChunkId, limit: FOCUS_WINDOW }
             : { from: 0, limit: PAGE_SIZE, at_section: atSection }),
         },
         controller.signal,
@@ -249,7 +251,7 @@ export function useWorkRange(
       _fetchCompanionMaps(r.work_id, r.lang, r.offset, r.limit, controller);
 
       // After paint, scroll the focused chunk into view.
-      const focusChunkId = props.focusChunkId;
+      const focusChunkId = key.focusChunkId;
       if (focusChunkId) {
         queueMicrotask(() => {
           const stage = getStage();
@@ -344,10 +346,19 @@ export function useWorkRange(
   // separate effect produced two requests on first paint. The effect
   // alone is sufficient — Solid runs it synchronously after the
   // initial render.
+  /** The window the props name right now. Read it from a tracking scope or an
+   *  event handler, never an effect's apply. */
+  const currentKey = (): WindowKey => ({
+    workSlug: props.workSlug,
+    sourceLang: props.sourceLang,
+    authorSlug: props.authorSlug,
+    focusChunkId: props.focusChunkId,
+  });
+
   function switchEdition(selector: string, atSection?: string): void {
     editionOverride = selector;
     pendingAtSection = atSection;
-    void loadWork();
+    void loadWork(currentKey());
   }
 
   // The window's identity as one comparable value, so the load effect fires
@@ -368,26 +379,19 @@ export function useWorkRange(
   // produced, so it cannot change which edition loads, and reloading on it
   // would blank the stage for nothing. `sameWindow` absorbs it; the memo then
   // keeps the author-less key, so later route changes compare against that.
-  const windowKey = createMemo<WindowKey, undefined>(
-    () => ({
-      workSlug: props.workSlug,
-      sourceLang: props.sourceLang,
-      authorSlug: props.authorSlug,
-      focusChunkId: props.focusChunkId,
-    }),
-    undefined,
-    { equals: (prev, next) => sameWindow(prev, next, untrack(range)) },
-  );
+  const windowKey = createMemo<WindowKey>(currentKey, {
+    equals: (prev, next) => sameWindow(prev, next, untrack(range)),
+  });
 
-  createEffect(
-    on(windowKey, () => {
-      // A genuine work-identity change resets to the default edition —
-      // a selector chosen for the previous work must not leak across.
-      editionOverride = undefined;
-      pendingAtSection = undefined;
-      void loadWork();
-    }),
-  );
+  // The compute returns the memo, so the apply runs only when `windowKey`'s
+  // `equals` lets a change through (Solid 2 effects never compare on their own).
+  createEffect(windowKey, (key) => {
+    // A genuine work-identity change resets to the default edition —
+    // a selector chosen for the previous work must not leak across.
+    editionOverride = undefined;
+    pendingAtSection = undefined;
+    void loadWork(key);
+  });
 
   // Cancel any in-flight load when the component tears down so a
   // stale response can't apply state after unmount.

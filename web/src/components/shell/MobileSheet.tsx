@@ -1,5 +1,6 @@
-import { Show, type JSX, createSignal } from "solid-js";
-import { Portal } from "solid-js/web";
+import { Show, createSignal } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { Portal } from "@solidjs/web";
 import { useDialogFocus } from "~/hooks/useDialogFocus";
 import { useEscape } from "~/hooks/useEscape";
 

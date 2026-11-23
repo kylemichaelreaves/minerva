@@ -13,7 +13,7 @@
 // cannot distinguish "the shell dismisses" from "this card wired its own".
 
 import { render, fireEvent } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { describe, expect, it, vi } from "vitest";
 import PopoverCard from "~/components/primitives/PopoverCard";
 import { SuspendedSubtreeProvider } from "~/hooks/suspendedSubtree";

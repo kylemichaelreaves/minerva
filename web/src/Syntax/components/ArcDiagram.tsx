@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { SyntaxToken } from "~/api/syntaxApi";
 import {
   type Arc,
@@ -95,14 +95,14 @@ export function ArcDiagram(props: ArcDiagramProps) {
     setWidths(probeWidths(probe));
   };
 
-  onMount(() => {
+  onSettled(() => {
     remeasure();
     void document.fonts.ready.then(remeasure);
     const ro = new ResizeObserver(remeasure);
     if (host) ro.observe(host);
-    onCleanup(() => {
+    return () => {
       ro.disconnect();
-    });
+    };
   });
 
   const arcs = createMemo(() => arcsOf(props.tokens));
@@ -206,24 +206,33 @@ export function ArcDiagram(props: ArcDiagramProps) {
   // ancestor scrolls it, and does not need to.
   const [visibleRows, setVisibleRows] = createSignal<ReadonlySet<number>>(new Set());
 
-  const observeRow = (el: HTMLElement, rowIdx: number) => {
-    const io = new IntersectionObserver(
-      (entries) => {
-        const on = entries.at(-1)?.isIntersecting ?? false;
-        setVisibleRows((prev) => {
-          if (prev.has(rowIdx) === on) return prev;
-          const next = new Set(prev);
-          if (on) next.add(rowIdx);
-          else next.delete(rowIdx);
-          return next;
-        });
-      },
-      { threshold: 0 },
-    );
-    io.observe(el);
+  /** A ref for one row block. A factory, called in the row's owner: Solid 2
+   *  forbids `onCleanup` inside a ref callback, so the disconnect is
+   *  registered here and the observer is attached when the ref runs. The
+   *  index is read when the observer fires, so a row that moves keeps
+   *  reporting its current position. */
+  const observeRow = (rowIdx: () => number) => {
+    let io: IntersectionObserver | undefined;
     onCleanup(() => {
-      io.disconnect();
+      io?.disconnect();
     });
+    return (el: HTMLElement) => {
+      io = new IntersectionObserver(
+        (entries) => {
+          const on = entries.at(-1)?.isIntersecting ?? false;
+          const idx = rowIdx();
+          setVisibleRows((prev) => {
+            if (prev.has(idx) === on) return prev;
+            const next = new Set(prev);
+            if (on) next.add(idx);
+            else next.delete(idx);
+            return next;
+          });
+        },
+        { threshold: 0 },
+      );
+      io.observe(el);
+    };
   };
 
   const ticks = createMemo(() => {
@@ -275,7 +284,7 @@ export function ArcDiagram(props: ArcDiagramProps) {
             <For each={ticks()}>
               {(t) => (
                 <div
-                  class={`syn-tick${t.corrected ? " syn-tick-corr" : ""}`}
+                  class={["syn-tick", { "syn-tick-corr": t.corrected }]}
                   style={{ height: `${String(6 + (t.depth / maxDepth()) * 26)}px` }}
                 />
               )}
@@ -332,7 +341,7 @@ export function ArcDiagram(props: ArcDiagramProps) {
                   return (
                     <Show when={at()}>
                       {(c) => (
-                        <g class={`syn-arcg syn-a-${s.below ? "np" : "mach"}${dimClass()}`}>
+                        <g class={["syn-arcg", s.below ? "syn-a-np" : "syn-a-mach", dimClass()]}>
                           <path
                             class="syn-arc"
                             d={arcPath(c().xh, c().xd, apex(), rowY(), side, s.cutFrom, s.cutTo)}
@@ -385,12 +394,7 @@ export function ArcDiagram(props: ArcDiagramProps) {
           };
 
           return (
-            <div
-              class="syn-rowblock"
-              ref={(el) => {
-                observeRow(el, rowIdx());
-              }}
-            >
+            <div class="syn-rowblock" ref={observeRow(rowIdx)}>
               <div class="syn-above" style={{ height: `${above()}px` }}>
                 {stack(false, above())}
               </div>
@@ -398,6 +402,14 @@ export function ArcDiagram(props: ArcDiagramProps) {
                 <For each={ids}>
                   {(id) => {
                     const t = () => byId().get(id);
+                    // Keyboard focus follows `focused`. An effect, not a read
+                    // in the ref: a ref runs once and untracked, so it only
+                    // ever saw the value at mount.
+                    let tokEl: HTMLButtonElement | undefined;
+                    const isFocused = createMemo(() => props.focused === id);
+                    createEffect(isFocused, (on) => {
+                      if (on) tokEl?.focus();
+                    });
                     const state = () => {
                       const d = dimmed();
                       if (props.selected === id) return " syn-focus";
@@ -415,13 +427,20 @@ export function ArcDiagram(props: ArcDiagramProps) {
                         // tab stops in a row is not navigation.
                         tabindex={props.focused === id || (props.focused === null && id === ids[0]) ? 0 : -1}
                         ref={(el) => {
-                          if (props.focused === id) queueMicrotask(() => el.focus());
+                          tokEl = el;
                         }}
                         aria-label={`${t()?.form ?? ""}, token ${String(id)}`}
                         aria-current={props.focused === id ? "true" : undefined}
-                        class={`syn-tok${t()?.upos === "PUNCT" ? " syn-punct" : ""}${
-                          t()?.head === 0 ? " syn-root" : ""
-                        }${t()?.corrected ? " syn-corr" : ""}${state()}${reattachState(id)}`}
+                        class={[
+                          "syn-tok",
+                          {
+                            "syn-punct": t()?.upos === "PUNCT",
+                            "syn-root": t()?.head === 0,
+                            "syn-corr": Boolean(t()?.corrected),
+                          },
+                          state(),
+                          reattachState(id),
+                        ]}
                         onMouseEnter={() => props.onHover(id)}
                         onPointerDown={(e) => props.onDragStart?.(id, e)}
                         onClick={() => props.onSelect?.(id)}
@@ -446,7 +465,7 @@ export function ArcDiagram(props: ArcDiagramProps) {
                   <For each={bandsFor(rowIdx())}>
                     {(b) => (
                       <div
-                        class={`syn-field${b.stagger ? " syn-stag" : ""}`}
+                        class={["syn-field", { "syn-stag": b.stagger }]}
                         style={{ left: `${String(b.l - 4)}px`, width: `${String(b.r - b.l + 8)}px` }}
                       >
                         <span>{FIELD_NAMES[b.name]}</span>

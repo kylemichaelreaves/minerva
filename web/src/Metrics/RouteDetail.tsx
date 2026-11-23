@@ -1,13 +1,11 @@
 // The selected route's detail pane (#600): headline tiles, trend chart,
 // and the sub-span waterfall.
 //
-// Takes resource STATE as plain props (`seriesLoading`, `seriesErrorText`,
-// ...) rather than the `Resource` objects themselves. Solid's `Resource<T>`
-// types `.error` as `any` in its errored-state variant, so reading it
-// straight into a JSX prop is exactly the "assigning `any` into a typed
-// slot" case `no-unsafe-assignment` exists to catch. Narrowing once, in
-// the owner, keeps that cast in one place and leaves this component
-// mountable from a test with no resources at all.
+// Takes fetch STATE as plain props (`seriesLoading`, `seriesErrorText`,
+// ...) rather than the `AsyncState` objects themselves. An `AsyncState`
+// reports its error as `unknown`, and narrowing it to display text once,
+// in the owner, keeps that conversion in one place and leaves this
+// component mountable from a test with no fetches at all.
 
 import { Show } from "solid-js";
 import type { MetricsSeriesPoint, MetricsSummaryRow } from "~/api/metricsApi";
@@ -34,7 +32,7 @@ export interface RouteDetailProps {
   /** Rendered into the tiles' delta captions, e.g. "6h". */
   windowLabel: string;
   /** Everything in this pane belongs to one route+window snapshot, so it
-   *  dims as a unit while any of the three resources behind it refreshes.
+   *  dims as a unit while any of the three fetches behind it refreshes.
    *  One flag rather than three: dimming the chart for its own fetch AND
    *  again for the pane's would compound to 0.3 opacity. */
   stale?: boolean;
@@ -51,12 +49,12 @@ export interface RouteDetailProps {
 
   seriesPoints: MetricsSeriesPoint[];
   seriesBucketSeconds: number;
-  /** FIRST load only, not `series.loading` — see `RouteListProps.loading`. */
+  /** FIRST load only, not `series.refreshing()` as well — see `RouteListProps.loading`. */
   seriesLoading: boolean;
   seriesErrorText?: string;
 
   detailRows: MetricsSummaryRow[];
-  /** FIRST load only, not `detail.loading` — see `RouteListProps.loading`. */
+  /** FIRST load only, not `detail.refreshing()` as well — see `RouteListProps.loading`. */
   detailLoading: boolean;
   detailErrorText?: string;
 }
@@ -65,8 +63,8 @@ function Tab(props: { kind: SpanKind; active: SpanKind; onPick: (k: SpanKind) =>
   return (
     <button
       type="button"
-      classList={{ active: props.active === props.kind }}
-      aria-pressed={props.active === props.kind}
+      class={{ active: props.active === props.kind }}
+      aria-pressed={props.active === props.kind ? "true" : "false"}
       onClick={() => props.onPick(props.kind)}
     >
       {TAB_LABELS[props.kind]}
@@ -86,7 +84,7 @@ export function RouteDetail(props: RouteDetailProps) {
   };
 
   return (
-    <section classList={{ "metrics-detail": true, "metrics-stale": props.stale }}>
+    <section class={{ "metrics-detail": true, "metrics-stale": props.stale }}>
       <div class="metrics-detail-head">
         <button type="button" class="metrics-back" onClick={() => props.onBack()}>
           ← All routes
