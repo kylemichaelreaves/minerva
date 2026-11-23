@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-embed = ["sentence-transformers>=6.2.0"]
+embed = ["sentence-transformers>=6.3.0"]
 hegel = ["pymupdf>=2.1", "ebooklib>=0.21", "beautifulsoup4>=4.15.0", "lxml>=6.1.3"]
 # Lemmatizer + glossary-importer dependencies. Optional because the
 # Reader / chat / translate paths don't need them; only curators do.
@@ -47,11 +47,11 @@ lemma = [
     # therefore invalidates every downloaded model (#530); `syntax` builds its
     # pipeline with `download_method=None` and so fails hard rather than
     # re-fetching.
-    "stanza>=1.15.0",
+    "stanza>=1.15.1",
     "pyyaml>=6.0.3",
 ]
 all = [
-    "sentence-transformers>=6.2.0",
+    "sentence-transformers>=6.3.0",
     "pymupdf>=2.1",
     "ebooklib>=0.21",
     "beautifulsoup4>=4.15.0",
@@ -59,7 +59,7 @@ all = [
 dev = [
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.4",
+    "ruff>=0.17.5",
     "pyyaml>=6.0.3",
     "pytest-xdist>=3.8.0",
 ]
