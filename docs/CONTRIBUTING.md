@@ -146,6 +146,27 @@ after it was fourteen. Ask the runner instead:
 cd web && npx playwright test --list | tail -1
 ```
 
+### Bundle size
+
+Two tools, for two questions:
+
+- **What is in the bundle?** `cd web && npm run analyze:bundle` builds with
+  `rollup-plugin-visualizer` and opens `web/bundle-stats.html`: a treemap of
+  every module, with rendered, gzip and brotli sizes (gitignored).
+- **Did this PR grow it?** The `web · bundle size` CI job gzips each asset
+  under `dist/assets`, compares it with the newest `bundle-size-baseline`
+  artifact from `main`, and keeps one PR comment current. Growth under 1 kB is
+  noise; over 15% is red. It reports and never fails, and is not a required
+  check. Same thing locally:
+
+  ```
+  cd web && npm run build && npm run --silent bundle-size -- measure dist > bundle-size.json
+  npm run --silent bundle-size -- report bundle-size.json
+  ```
+
+  Its sizes come from Node's default gzip level, so they run ~1% under the
+  figures `vite build` prints.
+
 **Locators, in order. Reach lower only when every tier above genuinely
 cannot distinguish the target.**
 
