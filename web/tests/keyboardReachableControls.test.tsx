@@ -14,6 +14,7 @@
 // an eslint-disable naming its reason; eslint.mouseOnly.js is the gate.
 
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LemmaDetailResponse } from "~/api/concordanceApi";
 import { fetchNetworkSummary, type AuthorPair } from "~/api/networkApi";
@@ -178,8 +179,10 @@ describe("Concordance filter rail", () => {
   it("both '+N more' expanders are buttons", () => {
     renderRail();
     fireEvent.click(screen.getByRole("button", { name: /1 more work\b/ }));
+    flush();
     expect(screen.getByRole("button", { name: /Work 8/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /1 more form\b/ }));
+    flush();
     expect(screen.getByRole("button", { name: "form6" })).toBeInTheDocument();
   });
 });
@@ -284,8 +287,10 @@ describe("SVG author and arc controls", () => {
     const author = screen.getByRole("button", { name: `${name}: open references` });
     expect(container.querySelector(".atlas-tooltip")).toBeNull();
     fireEvent.focus(author);
+    flush();
     expect(must(container.querySelector(".atlas-tooltip")).textContent).toContain(name);
     fireEvent.blur(author);
+    flush();
     expect(container.querySelector(".atlas-tooltip")).toBeNull();
   });
 
@@ -311,6 +316,7 @@ describe("SVG author and arc controls", () => {
     expect(arc).toHaveAttribute("tabindex", "0");
     expect(container.querySelector(".net-tooltip")).toBeNull();
     fireEvent.keyDown(arc, { key: "Enter" });
+    flush();
     expect(must(container.querySelector(".net-tooltip .pair")).textContent).toBe("Nietzsche→Plato");
   });
 });

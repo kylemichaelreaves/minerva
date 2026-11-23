@@ -22,7 +22,7 @@
  * rather than to a visible error.
  */
 import { describe, it, expect } from "vitest";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import {
   MobileShellProvider,
   useMobileShell,
@@ -66,13 +66,17 @@ describe("registerSurfaceActions", () => {
 
   it("falls back to the provider's sheet when nothing is registered", () => {
     withShell((shell) => {
+      // flush(): a Solid 2 signal read shows the write once it is applied.
       shell.openMobilePanel("filters");
+      flush();
       expect(shell.filtersSheetOpen()).toBe(true);
 
       shell.openMobilePanel("reader-settings");
+      flush();
       expect(shell.readerSettingsOpen()).toBe(true);
 
       shell.openMobilePanel("thread-search");
+      flush();
       expect(shell.threadSearchOpen()).toBe(true);
     });
   });
@@ -126,6 +130,7 @@ describe("registerSurfaceActions", () => {
       dispose();
 
       shell.openMobilePanel("filters");
+      flush();
 
       expect(calls).toEqual([]);
       expect(shell.filtersSheetOpen()).toBe(true);

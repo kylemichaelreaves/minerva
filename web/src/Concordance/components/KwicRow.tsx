@@ -21,7 +21,7 @@ export function KwicRowEl(props: {
   });
   return (
     <div
-      class={"kwic-row" + (props.cur ? " cur" : "")}
+      class={["kwic-row", { cur: props.cur }]}
       // eslint-disable-next-line minerva/no-mouse-only-click -- keyboard path is LemmaDetail's j/k cursor + Enter, which opens the same chunk
       onClick={() => props.onClick()}
       onMouseEnter={() => props.onHover()}

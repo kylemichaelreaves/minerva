@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as concordanceApi from "~/api/concordanceApi";
 import type { LemmaDetailResponse } from "~/api/concordanceApi";
-import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { render, screen } from "@solidjs/testing-library";
 
 const fetchLemmaDetail = vi.fn<typeof concordanceApi.fetchLemmaDetail>();
 
@@ -28,6 +28,7 @@ import {
   type LemmaDetailProps,
 } from "~/Concordance/components/LemmaDetail";
 import { must } from "./helpers/must";
+import { fireEvent } from "./helpers/settledFireEvent";
 
 const ROW = {
   chunk_id: "c-1",

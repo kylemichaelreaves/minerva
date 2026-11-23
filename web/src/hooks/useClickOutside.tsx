@@ -1,4 +1,4 @@
-import { createEffect, onCleanup } from "solid-js";
+import { createEffect } from "solid-js";
 import type { Accessor } from "solid-js";
 
 export interface UseClickOutsideOptions {
@@ -17,8 +17,8 @@ export function useClickOutside(
   const eventName = options.event ?? "pointerdown";
   const capture = options.capture ?? true;
 
-  createEffect(() => {
-    if (!isActive()) return;
+  createEffect(isActive, (active) => {
+    if (!active) return;
 
     const onDoc = (e: Event) => {
       const root = rootRef();
@@ -31,8 +31,8 @@ export function useClickOutside(
     };
 
     document.addEventListener(eventName, onDoc, capture);
-    onCleanup(() => {
+    return () => {
       document.removeEventListener(eventName, onDoc, capture);
-    });
+    };
   });
 }

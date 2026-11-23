@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { render, screen } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import { createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as syntaxApi from "~/api/syntaxApi";

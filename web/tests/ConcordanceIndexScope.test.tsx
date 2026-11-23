@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type * as concordanceApi from "~/api/concordanceApi";
 import type { LemmaIndexResponse } from "~/api/concordanceApi";
 import type * as readerApi from "~/api/readerApi";
-import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
+import { render, screen, waitFor } from "@solidjs/testing-library";
 
 const fetchLemmaIndex = vi.fn<typeof concordanceApi.fetchLemmaIndex>();
 const listWorks = vi.fn<typeof readerApi.listWorks>();
@@ -57,6 +57,7 @@ vi.mock("~/api/concordanceApi", async (importOriginal) => {
 
 import { ConcordanceIndexPage } from "~/Concordance/components/IndexPage";
 import { must } from "./helpers/must";
+import { fireEvent } from "./helpers/settledFireEvent";
 
 const emptyIndex: LemmaIndexResponse = {
   scope: "work",

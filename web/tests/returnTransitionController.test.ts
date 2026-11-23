@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { flush } from "solid-js";
 import { FADE_MS, GRACE_MS, LIFT_MS, type Flight } from "~/features/LandingTransition/controller";
 import {
   createReturnTransition,
@@ -12,6 +13,14 @@ const GEOMETRY: ReturnGeometry = {
   composer: { top: 760, left: 300, width: 840, height: 90 },
   box: { top: 320, left: 380, width: 680, height: 82 },
 };
+
+/** The phase as rendered. Solid 2 commits a signal write at the next flush,
+ *  so a read straight after `begin` / a timer would still see the previous
+ *  phase; flush first, as the DOM would be by the next frame. */
+function committed(t: { phase: () => string }): string {
+  flush();
+  return t.phase();
+}
 
 function deferred() {
   let resolve!: () => void;
@@ -72,7 +81,7 @@ describe("createReturnTransition", () => {
     const t = createReturnTransition(env);
 
     t.begin(go);
-    expect(t.phase()).toBe("return");
+    expect(committed(t)).toBe("return");
     expect(env.setStage).toHaveBeenCalledWith("return");
     const order = (fn: { mock: { invocationCallOrder: number[] } }) =>
       fn.mock.invocationCallOrder[0] ?? Number.NaN;
@@ -92,7 +101,7 @@ describe("createReturnTransition", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage).toHaveBeenLastCalledWith("idle");
     expect(cancel).toHaveBeenCalledOnce();
     // Navigating first, while the layer is still up: no frame with neither.
@@ -110,7 +119,7 @@ describe("createReturnTransition", () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
   });
 
   it("navigates on the grace timeout if the flight never settles", () => {
@@ -123,7 +132,7 @@ describe("createReturnTransition", () => {
     expect(go).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
   });
 
   it("fades under reduced motion and navigates after FADE_MS", () => {
@@ -132,13 +141,13 @@ describe("createReturnTransition", () => {
     const t = createReturnTransition(env);
 
     t.begin(go);
-    expect(t.phase()).toBe("fade");
+    expect(committed(t)).toBe("fade");
     expect(env.setStage).toHaveBeenCalledWith("fade");
     expect(env.play).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(FADE_MS);
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
   });
 
   it("cuts when the browser cannot animate", () => {
@@ -148,7 +157,7 @@ describe("createReturnTransition", () => {
 
     t.begin(go);
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage).not.toHaveBeenCalled();
   });
 
@@ -178,7 +187,7 @@ describe("createReturnTransition", () => {
 
     t.begin(go);
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage).toHaveBeenLastCalledWith("idle");
   });
 
@@ -191,7 +200,7 @@ describe("createReturnTransition", () => {
         throw new Error("router");
       }),
     ).toThrow("router");
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
   });
 
   it("cancel stops the flight without navigating", async () => {
@@ -201,7 +210,7 @@ describe("createReturnTransition", () => {
     t.begin(go);
 
     t.cancel();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(cancel).toHaveBeenCalledOnce();
     done.resolve();
     await vi.advanceTimersByTimeAsync(LIFT_MS + GRACE_MS);
@@ -235,7 +244,7 @@ describe("createReturnTransition", () => {
     interrupt.fire();
     // The return's cut is to arrive — navigate — not to abandon the flight.
     expect(go).toHaveBeenCalledOnce();
-    expect(t.phase()).toBe("idle");
+    expect(committed(t)).toBe("idle");
     expect(env.setStage).toHaveBeenLastCalledWith("idle");
     expect(cancel).toHaveBeenCalledOnce();
     expect(unwatch).toHaveBeenCalledOnce();

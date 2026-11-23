@@ -287,7 +287,7 @@ export function ConcordanceLemmaDetail(props: LemmaDetailProps) {
         >
           <div class="kwic-stage">
             <Show when={!isMobile()}>{filterRail(d)}</Show>
-            <div class="kwic-pane" classList={{ "kwic-refetching": loading() }}>
+            <div class={["kwic-pane", { "kwic-refetching": loading() }]}>
               <div class="kwic-toolbar">
                 <span class="ct">
                   Showing <b>{d().rows.length}</b> of <b>{d().total.toLocaleString()}</b>
@@ -398,20 +398,21 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
   // rather than a flicker. The signal is what the raw `createResource` here
   // could not thread — a superseded lemma's request used to run to
   // completion against the server (#65).
+  const queryArgs = () => ({
+    lemma: args.lemma(),
+    lang: args.lang(),
+    scope: args.scope(),
+    authors: args.scopeAuthors(),
+    works: args.scopeWorks(),
+    surface: args.surface(),
+    morph: morph(),
+  });
   const {
     data,
     loading,
     error,
   } = useAbortableFetch(
-    () => ({
-      lemma: args.lemma(),
-      lang: args.lang(),
-      scope: args.scope(),
-      authors: args.scopeAuthors(),
-      works: args.scopeWorks(),
-      surface: args.surface(),
-      morph: morph(),
-    }),
+    queryArgs,
     async (p, signal) =>
       fetchLemmaDetail(
         {
@@ -429,18 +430,12 @@ export function useLemmaDetail(args: UseLemmaDetailArgs) {
   { resetOnChange: true },
   );
 
-  createEffect(() => {
-    // Reset the KWIC cursor whenever the underlying query changes. This
-    // must track EVERY input the `data` resource reads above — omitting
-    // lemma / lang / scope-authors / scope-works left the cursor on a
-    // stale (possibly out-of-range) row after those changed (issue #66).
-    args.lemma();
-    args.lang();
-    args.scope();
-    args.scopeAuthors();
-    args.scopeWorks();
-    args.surface();
-    morph();
+  // Reset the KWIC cursor whenever the underlying query changes. This
+  // must track EVERY input the `data` fetch reads above — omitting
+  // lemma / lang / scope-authors / scope-works left the cursor on a
+  // stale (possibly out-of-range) row after those changed (issue #66).
+  // Tracking the fetch's own args accessor makes that structural.
+  createEffect(queryArgs, () => {
     setCursor(0);
   });
 

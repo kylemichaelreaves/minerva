@@ -18,11 +18,12 @@
 //   - Esc / outside-click dismisses (the Reader owns the open/closed
 //     state; this component is presentation only).
 
-import { Show, For, createResource, createSignal } from "solid-js";
+import { Show, For, createSignal } from "solid-js";
+import { createAsyncState } from "~/hooks/createAsyncState";
 import { fetchTermDetail } from "~/api/readerApi";
 import PopoverCard from "~/components/primitives/PopoverCard";
 import "~/components/cards/termcard.css";
-import type { TermDetail, TermRenderingRow } from "~/utils/types";
+import type { TermRenderingRow } from "~/utils/types";
 
 export interface TermCardProps {
   termId: number;
@@ -40,17 +41,19 @@ export interface TermCardProps {
 
 export default function TermCard(props: TermCardProps) {
   const [showNote, setShowNote] = createSignal(false);
-  // No AbortSignal — Solid's createResource fetcher-info doesn't
-  // expose one in this version. If the user reopens the card on a
-  // different term while a prior fetch is in flight, Solid discards
-  // the older response on the next resolve. For a short-lived card
-  // this is fine; switching to manual AbortController would buy us
-  // back the request cost on rapid term-flipping but isn't worth the
-  // wiring at MVP scale.
-  const [term] = createResource<TermDetail, number>(
-    () => props.termId,
-    (id) => fetchTermDetail(id),
-  );
+  // No AbortSignal. If the user reopens the card on a different term while
+  // a prior fetch is in flight, the node discards the superseded answer. For
+  // a short-lived card this is fine; aborting from an `onCleanup` in the
+  // compute would buy back the request cost on rapid term-flipping but isn't
+  // worth the wiring at MVP scale.
+  //
+  // `createAsyncState` settles the fetch before the node sees it, so a failure
+  // is data rather than a throw (#361), and a term change keeps the previous
+  // term readable while it refetches — the shape `createResource` gave this card.
+  const termState = createAsyncState(() => props.termId, fetchTermDetail);
+  const loading = () => termState.firstLoad() || termState.refreshing();
+  const failed = () => termState.error() !== undefined && !loading();
+  const term = termState.value;
 
   const total = () => {
     const t = term();
@@ -73,10 +76,10 @@ export default function TermCard(props: TermCardProps) {
       anchorSelector=".term-mark"
       onClose={props.onClose}
     >
-      <Show when={term.loading}>
+      <Show when={loading()}>
         <div class="termcard-loading">Loading…</div>
       </Show>
-      <Show when={Boolean(term.error)}>
+      <Show when={failed()}>
         {/* One dismiss control, the shell's `×` (#361). This branch used to
             carry its own "Dismiss" button as well — written as a recovery
             affordance back when `PopoverCard` had no close control at all,
@@ -86,14 +89,15 @@ export default function TermCard(props: TermCardProps) {
         <div class="termcard-error">Could not load this term.</div>
       </Show>
 
-      {/* `!term.error` is load-bearing, not defensive (#361). Solid rethrows
-          the rejection when an errored resource is READ, so an unguarded
-          `when={term()}` threw inside this update — which aborted it, left
-          the card showing "Loading…" forever, and escaped as an uncaught
-          error (the app mounts no ErrorBoundary). The branch above was
-          therefore unreachable: a failed fetch never rendered the error
-          state at all. Measured, not inferred — see the PR. */}
-      <Show when={!term.error && term()}>
+      {/* Gated on the settled value, not a raw rejection (#361). Under Solid
+          1's `createResource`, reading an errored resource rethrew, so an
+          unguarded `when={term()}` threw inside this update — which aborted
+          it, left the card showing "Loading…" forever, and escaped as an
+          uncaught error (the app mounts no error boundary). The branch above
+          was therefore unreachable: a failed fetch never rendered the error
+          state at all. `loadTerm` now settles the rejection into data before
+          the node sees it, so `term()` is simply undefined on failure. */}
+      <Show when={term()}>
         {(t) => (
           <>
             <div class="termcard-head">
@@ -112,17 +116,15 @@ export default function TermCard(props: TermCardProps) {
                   - 2+ translators → grid for side-by-side comparison.
                 The grid only earns its space at 2+ rows; below that
                 it looks like overdesign relative to the gloss above. */}
-            <Show when={greekRenderings().length === 1}>
-              {(_unused) => {
-                const r = greekRenderings()[0];
-                if (r === undefined) return null;
-                return (
-                  <div class="termcard-sec termcard-single-rendering">
-                    <span class="termcard-single-label">{r.translator_name}</span>
-                    <span class="termcard-single-word">{r.default_rendering}</span>
-                  </div>
-                );
-              }}
+            <Show
+              when={greekRenderings().length === 1 ? greekRenderings()[0] : undefined}
+            >
+              {(r) => (
+                <div class="termcard-sec termcard-single-rendering">
+                  <span class="termcard-single-label">{r().translator_name}</span>
+                  <span class="termcard-single-word">{r().default_rendering}</span>
+                </div>
+              )}
             </Show>
             <Show when={greekRenderings().length >= 2}>
               <div class="termcard-sec">
@@ -152,7 +154,7 @@ export default function TermCard(props: TermCardProps) {
                 <button
                   class="termcard-disclosure"
                   onClick={() => setShowNote(!showNote())}
-                  aria-expanded={showNote()}
+                  aria-expanded={showNote() ? "true" : "false"}
                 >
                   <span>Why this rendering?</span>
                   <span class="termcard-chev">{showNote() ? "▾" : "▸"}</span>
@@ -176,7 +178,7 @@ export default function TermCard(props: TermCardProps) {
                 <span>
                   Appears <b>{total()}</b> times
                 </span>
-                <span class="termcard-see-all" aria-disabled>
+                <span class="termcard-see-all" aria-disabled="true">
                   See all occurrences →
                 </span>
               </div>

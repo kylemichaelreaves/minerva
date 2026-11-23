@@ -21,3 +21,7 @@ playwright-report/
 # frontend target (#486).
 src/data/atlasData.ts
 src/utils/dominantPhil.ts
+
+# Written by `npm run analyze:bundle` (gitignored); minified, so Prettier
+# would only ever report it as drift.
+bundle-stats.html

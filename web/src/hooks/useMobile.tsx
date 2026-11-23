@@ -4,7 +4,7 @@
 // desktop-shell and mobile-shell behavior — chiefly the sidebar
 // drawer pattern and the mobile top-bar.
 
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onSettled } from "solid-js";
 
 const MOBILE_QUERY = "(max-width: 768px)";
 
@@ -13,11 +13,13 @@ export function useMobile() {
     typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches,
   );
 
-  onMount(() => {
+  onSettled(() => {
     const mq = window.matchMedia(MOBILE_QUERY);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener("change", handler);
-    onCleanup(() => mq.removeEventListener("change", handler));
+    return () => {
+      mq.removeEventListener("change", handler);
+    };
   });
 
   return isMobile;

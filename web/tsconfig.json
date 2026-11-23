@@ -19,12 +19,13 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsxImportSource": "@solidjs/web",
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
     "src",
     "tests",
+    "scripts",
     "vite.config.ts",
     "playwright.config.ts",
     ".storybook/**/*.ts",

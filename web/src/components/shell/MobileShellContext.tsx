@@ -1,11 +1,5 @@
-import {
-  createContext,
-  createSignal,
-  onCleanup,
-  useContext,
-  type Accessor,
-  type JSX,
-} from "solid-js";
+import { createContext, createSignal, onCleanup, useContext, type Accessor } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { useMobile } from "~/hooks/useMobile";
 
 export type MobilePanel = "filters" | "reader-settings" | "thread-search";
@@ -28,7 +22,11 @@ export interface MobileShellContextValue {
   setThreadSearchOpen: (open: boolean) => void;
 }
 
-const MobileShellContext = createContext<MobileShellContextValue>();
+// `null` default, not default-less: in Solid 2 a default-less context throws
+// `ContextNotFoundError` from `useContext` outside a provider, and
+// `useMobileShellOptional` below exists precisely to answer "no provider"
+// without throwing. `null` is the documented optional-context form.
+const MobileShellContext = createContext<MobileShellContextValue | null>(null);
 
 export function MobileShellProvider(props: { children: JSX.Element }) {
   const isMobile = useMobile();
@@ -94,7 +92,7 @@ export function MobileShellProvider(props: { children: JSX.Element }) {
     setThreadSearchOpen,
   };
 
-  return <MobileShellContext.Provider value={value}>{props.children}</MobileShellContext.Provider>;
+  return <MobileShellContext value={value}>{props.children}</MobileShellContext>;
 }
 
 export function useMobileShell(): MobileShellContextValue {
@@ -107,7 +105,7 @@ export function useMobileShell(): MobileShellContextValue {
 
 /** Optional hook — returns undefined outside provider (for ComposeField). */
 export function useMobileShellOptional(): MobileShellContextValue | undefined {
-  return useContext(MobileShellContext);
+  return useContext(MobileShellContext) ?? undefined;
 }
 
 /** The shell's mobile flag when inside the provider, else the viewport's

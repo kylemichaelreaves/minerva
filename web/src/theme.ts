@@ -8,7 +8,7 @@
 // `useTheme` must be called from inside a Solid reactive root (i.e.
 // `App()`).
 
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, onSettled } from "solid-js";
 import type { AccentDef, AccentKey, Theme } from "~/utils/types";
 
 // Accent palettes. The bronze/lapis alternatives that once lived
@@ -60,23 +60,25 @@ export function useTheme(accentKey: AccentKey): ThemeApi {
   // user has explicitly toggled, so the OS-preference listener stays
   // effective for sessions where the theme was inferred rather than
   // chosen.
-  createEffect(() => {
-    const t = theme();
-    document.documentElement.setAttribute("data-theme", t);
-    if (userOverrode()) localStorage.setItem(STORAGE_KEY, t);
-    applyAccent(t, accentKey);
-  });
+  createEffect(
+    () => ({ t: theme(), persist: userOverrode() }),
+    ({ t, persist }) => {
+      document.documentElement.setAttribute("data-theme", t);
+      if (persist) localStorage.setItem(STORAGE_KEY, t);
+      applyAccent(t, accentKey);
+    },
+  );
 
   // Follow OS theme changes only when the user hasn't explicitly chosen one.
-  onMount(() => {
+  onSettled(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent) => {
       if (!userOverrode()) setTheme(e.matches ? "dark" : "light");
     };
     mq.addEventListener("change", handler);
-    onCleanup(() => {
+    return () => {
       mq.removeEventListener("change", handler);
-    });
+    };
   });
 
   function toggleTheme() {

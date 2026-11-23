@@ -3,7 +3,7 @@
 // the bottom sheet opens on the lemma).
 
 import { describe, expect, it } from "vitest";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import { RailContent } from "~/Reader/components/Rail";
 import type { WordLookup } from "~/api/types/reader";
@@ -70,22 +70,30 @@ describe("<RailContent /> tabs", () => {
   it("auto-flips to the Lemma tab when a word lookup starts", () => {
     const { activeTab, setWordInfo } = setup();
     setWordInfo({ kind: "loading" });
+    flush();
     expect(activeTab()).toContain("Lemma");
   });
 
   it("honors a later manual pick, then flips again on the NEXT lookup", () => {
     const { activeTab, setWordInfo, clickTab } = setup();
     setWordInfo({ kind: "loading" });
+    flush();
     expect(activeTab()).toContain("Lemma");
     // User flips back to Translation while the lookup is live.
     clickTab("Translation");
+    flush();
     expect(activeTab()).toContain("Translation");
     // loading → ready is the SAME lookup — no auto-flip.
     setWordInfo({ kind: "ready", info: GEIST, loadingMore: false });
+    flush();
     expect(activeTab()).toContain("Translation");
-    // A fresh lookup (idle → loading) flips again.
+    // A fresh lookup (idle → loading) flips again. Two separate updates, as
+    // in the app: writes in one frame batch, and the effect would see only
+    // ready → loading.
     setWordInfo({ kind: "idle" });
+    flush();
     setWordInfo({ kind: "loading" });
+    flush();
     expect(activeTab()).toContain("Lemma");
   });
 });

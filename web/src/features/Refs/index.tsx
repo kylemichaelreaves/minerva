@@ -3,7 +3,7 @@
 // useAbortableFetch hook below; an IntersectionObserver sentinel near
 // the bottom of the list fetches further pages and concatenates them.
 
-import { For, Show, onMount } from "solid-js";
+import { For, Show } from "solid-js";
 import {
   fetchReferencesList,
   fetchReferencesSources,
@@ -50,10 +50,11 @@ export interface RefsProps {
 export default function Refs(props: RefsProps) {
   const shell = useMobileShell();
 
-  onMount(() => {
-    shell.registerSurfaceActions({
-      openFilters: () => shell.setFiltersSheetOpen(true),
-    });
+  // In the body, not `onSettled`: the registration's `onCleanup` needs this
+  // component's owner, and Solid 2 forbids `onCleanup` inside `onSettled`
+  // (CLEANUP_IN_FORBIDDEN_SCOPE). It writes no signal.
+  shell.registerSurfaceActions({
+    openFilters: () => shell.setFiltersSheetOpen(true),
   });
 
   const { data, loading, error } = useAbortableFetch(

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { NetworkTopNCard } from "~/Network/components/NetworkTopNCard";
 
@@ -33,6 +33,7 @@ describe("<NetworkTopNCard />", () => {
     expect(screen.getByText("2 of 3")).toBeTruthy();
     expect(rowTexts()).toEqual(["0:Plato", "1:Kant"]);
     fireEvent.click(screen.getByRole("button", { name: "Show all 3 →" }));
+    flush();
     expect(onShowAll).toHaveBeenCalledTimes(1);
   });
 
@@ -54,6 +55,7 @@ describe("<NetworkTopNCard />", () => {
     expect(rowTexts()).toEqual(["0:Plato", "1:Kant", "2:Hegel"]);
 
     setItems([c, a, b]);
+    flush();
     expect(rowTexts()).toEqual(["0:Hegel", "1:Plato", "2:Kant"]);
     // No "Show all" affordance without an onShowAll handler.
     expect(screen.queryByRole("button")).toBeNull();

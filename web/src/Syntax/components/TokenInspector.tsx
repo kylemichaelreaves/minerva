@@ -116,7 +116,7 @@ export function TokenInspector(props: TokenInspectorProps) {
         </Show>
       </div>
       <div class="syn-prov">
-        <span class={`syn-dot${props.token.corrected ? " c" : ""}`} />
+        <span class={["syn-dot", { c: props.token.corrected }]} />
         {props.token.corrected ? "Hand-corrected" : "Machine-parsed · uncorrected"}
         {/* The "was obj" the design asks for. No author: this is a
             single-operator tool and there is no user to name. */}

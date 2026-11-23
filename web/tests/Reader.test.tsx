@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi, type MockedFunction } 
 import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import Reader from "~/Reader";
 import { MobileShellProvider } from "~/components/shell/MobileShellContext";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { flush } from "solid-js";
 import { readRoute, routeHash } from "~/routing";
+import { invalidateReads } from "~/api/readCache";
 import { must } from "./helpers/must";
 
 function renderReader(ui: () => JSX.Element) {
@@ -14,6 +16,29 @@ let fetchMock: MockedFunction<typeof fetch>;
 
 function okResponse(body: unknown): Response {
   return { ok: true, json: () => Promise.resolve(body) } as unknown as Response;
+}
+
+const NOT_MOCKED = {
+  ok: false,
+  status: 404,
+  statusText: "Not mocked",
+  json: () => Promise.resolve({}),
+} as unknown as Response;
+
+/** The per-test fetch mocks' fallback: the work range for the range endpoint,
+ *  and a 404 for anything else the test did not name.
+ *
+ *  These fallbacks used to answer EVERY unnamed URL with the range — the
+ *  references map, the word lookup, the lemma highlights. A range has none of
+ *  their fields, so the Reader threw reading them. Under Solid 1 that throw ran
+ *  synchronously inside the setter, escaped into the companion fetch's own
+ *  `catch`, and vanished; Solid 2 runs downstream computations at flush, where
+ *  an uncaught throw halts the reactive system for the rest of the file. */
+function rangeOr404(url: string, range: unknown): Promise<Response> {
+  const isRange =
+    url.startsWith("/api/works/") &&
+    !/\/(occurrence_map|references_map|lemma_highlights)\b/.test(url);
+  return Promise.resolve(isRange ? okResponse(range) : NOT_MOCKED);
 }
 
 const SAMPLE_RANGE = {
@@ -114,7 +139,7 @@ describe("<Reader />", () => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(TERM_OCC_MAP));
       if (url.includes("/api/terms/7")) return Promise.resolve(okResponse(TERM_DETAIL));
-      return Promise.resolve(okResponse(TERM_RANGE));
+      return rangeOr404(url, TERM_RANGE);
     });
     const { container } = renderReader(() => <Reader workSlug="categories" sourceLang="grc" />);
     await waitFor(() => {
@@ -130,6 +155,11 @@ describe("<Reader />", () => {
   }
 
   beforeEach(() => {
+    // `getWorkRange` and the companion maps are cached by path, and several
+    // tests here ask for the same window. A cache hit skips `fetch`, so a
+    // `mockResolvedValueOnce(range)` meant for the range lands on the next
+    // call instead — the occurrence map — which then has no `by_chunk`.
+    invalidateReads();
     fetchMock = vi.fn();
     // Default: an unmocked URL returns a benign 404. The Reader mounts
     // parallel fetches (work range, occurrence map, ConcordanceTabPanel
@@ -137,12 +167,7 @@ describe("<Reader />", () => {
     // bother with `.mockResolvedValueOnce`. Without a baseline the
     // ConcordanceTabPanel resource sees `undefined` and emits an
     // unhandled rejection vitest flags.
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 404,
-      statusText: "Not mocked",
-      json: () => Promise.resolve({}),
-    } as unknown as Response);
+    fetchMock.mockResolvedValue(NOT_MOCKED);
     vi.stubGlobal("fetch", fetchMock);
   });
   afterEach(() => {
@@ -181,6 +206,7 @@ describe("<Reader />", () => {
     const buttons = container.querySelectorAll(".lang button");
     expect(must(buttons[0]).classList.contains("on")).toBe(true);
     fireEvent.click(must(buttons[1])); // FR
+    flush();
     expect(must(buttons[1]).classList.contains("on")).toBe(true);
     expect(must(buttons[0]).classList.contains("on")).toBe(false);
   });
@@ -268,7 +294,7 @@ describe("<Reader />", () => {
       // narrow defensively without going through Object.toString.
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/occurrence_map")) return Promise.resolve(okResponse(occMap));
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => <Reader workSlug="categories" sourceLang="grc" />);
     await waitFor(() => {
@@ -380,7 +406,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -486,7 +512,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -601,7 +627,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="nicomachean-ethics" sourceLang="grc" />
@@ -691,7 +717,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -802,7 +828,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="nicomachean-ethics" sourceLang="grc" />
@@ -883,7 +909,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -963,7 +989,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -1012,7 +1038,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -1094,7 +1120,7 @@ describe("<Reader />", () => {
           }),
         );
       }
-      return Promise.resolve(okResponse(range));
+      return rangeOr404(url, range);
     });
     const { container } = renderReader(() => (
       <Reader workSlug="phanomenologie-des-geistes" sourceLang="deu" />
@@ -1186,7 +1212,7 @@ describe("<Reader />", () => {
             }),
           );
         }
-        return Promise.resolve(okResponse(range));
+        return rangeOr404(url, range);
       });
     }
 

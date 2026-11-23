@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import { SourceWithHighlight } from "~/features/Refs/components/SourceWithHighlight";
 import { must } from "./helpers/must";
@@ -36,6 +36,7 @@ describe("<SourceWithHighlight />", () => {
     ));
     expect(container.querySelector("mark")?.textContent).toBe("arma");
     setSpan([null, null]);
+    flush();
     expect(container.querySelector("mark")).toBeNull();
     expect(container.textContent).toBe(TEXT);
   });

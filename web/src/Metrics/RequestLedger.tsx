@@ -1,4 +1,4 @@
-import { For, Show, batch, createComputed, createResource, createSignal, on } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 
 import {
   fetchMetricsRequests,
@@ -7,7 +7,7 @@ import {
   type MetricWindow,
 } from "../api/metricsApi";
 import { cpuVerdict } from "./cpu";
-import { firstLoad, refreshing } from "~/Metrics/resourceState";
+import { createAsyncState } from "~/hooks/createAsyncState";
 import { onActivateKey } from "~/utils/activateKey";
 
 /** One row per request, from `request_spans` (#619).
@@ -59,30 +59,37 @@ function toneOf(status: number): string {
 export function RequestLedger(props: { window: MetricWindow }) {
   const [errorsOnly, setErrorsOnly] = createSignal(false);
   const [phasedOnly, setPhasedOnly] = createSignal(false);
-  const [selected, setSelected] = createSignal<string | undefined>();
-
-  // Pages already loaded, newest first. The resource holds only the page
-  // currently in flight; everything before it lives here.
-  const [older, setOlder] = createSignal<MetricsRequestRow[]>([]);
-  const [cursor, setCursor] = createSignal<MetricsRequestsCursor | undefined>();
 
   // A filter or window change invalidates every page already appended: they
   // describe the PREVIOUS query, and keeping them would interleave two result
-  // sets with nothing on screen to say so.
-  const reset = () => {
-    setOlder([]);
-    setCursor(undefined);
-    setSelected(undefined);
-  };
+  // sets with nothing on screen to say so. The window arrives as a prop and
+  // the panel does not remount the ledger on a switch, so it needs resetting
+  // too (#881).
+  //
+  // Each piece of paging state below is a writable DERIVED signal of this
+  // key: written by its handler, and recomputed to its initial value whenever
+  // the key changes. Being derived rather than reset by an effect is what
+  // keeps the fetch below correct: the fetch's source reads `cursor()`, and
+  // the graph hands it the already-reset cursor in the same update, so the
+  // new query is fetched once, from the top. Resetting from an effect would
+  // refetch first, asking the new window for rows older than the OLD
+  // window's cursor, and only then reset.
+  const queryKey = createMemo(() => `${props.window}|${errorsOnly()}|${phasedOnly()}`);
+  const [selected, setSelected] = createSignal<string | undefined>(() => {
+    queryKey();
+    return undefined;
+  });
 
-  // The checkboxes reset in their own handlers; the window arrives as a prop
-  // and the panel does not remount the ledger on a switch, so it needs its
-  // own trigger (#881). A computed rather than an effect, and created BEFORE
-  // the resource: it then runs ahead of the resource's source in the same
-  // update, so the new window is fetched once, from the top. With an effect
-  // the resource refetches first, asking the new window for rows older than
-  // the OLD window's cursor, and only then resets.
-  createComputed(on(() => props.window, reset, { defer: true }));
+  // Pages already loaded, newest first. The fetch holds only the page
+  // currently in flight; everything before it lives here.
+  const [older, setOlder] = createSignal<MetricsRequestRow[]>(() => {
+    queryKey();
+    return [];
+  });
+  const [cursor, setCursor] = createSignal<MetricsRequestsCursor | undefined>(() => {
+    queryKey();
+    return undefined;
+  });
 
   const source = () => ({
     window: props.window,
@@ -90,7 +97,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
     phased: phasedOnly(),
     before: cursor(),
   });
-  const [rows] = createResource(source, (s) =>
+  const rows = createAsyncState(source, (s) =>
     fetchMetricsRequests(s.window, {
       errors: s.errors,
       phased: s.phased,
@@ -98,18 +105,18 @@ export function RequestLedger(props: { window: MetricWindow }) {
     }),
   );
 
-  // `rows.error` first: reading an errored Solid resource re-throws, which
-  // would take down the error branch below with it.
+  // `value()` is `undefined` once the fetch has failed, so an error leaves
+  // only the pages already appended.
   const list = (): MetricsRequestRow[] => {
-    if (rows.error) return older();
-    const body = rows();
+    const body = rows.value();
     return body ? [...older(), ...body.rows] : older();
   };
 
-  const hasMore = () => (rows.error ? false : (rows()?.has_more ?? false));
+  const hasMore = () => rows.value()?.has_more ?? false;
+  const failed = () => rows.error() !== undefined;
 
   const loadOlder = () => {
-    const body = rows.error ? undefined : rows();
+    const body = rows.value();
     if (!body?.next_before) return;
     setOlder((prev) => [...prev, ...body.rows]);
     setCursor(body.next_before);
@@ -124,12 +131,7 @@ export function RequestLedger(props: { window: MetricWindow }) {
             type="checkbox"
             aria-label="Errors only"
             checked={errorsOnly()}
-            onChange={(e) => {
-              batch(() => {
-                reset();
-                setErrorsOnly(e.currentTarget.checked);
-              });
-            }}
+            onChange={(e) => setErrorsOnly(e.currentTarget.checked)}
           />{" "}
           Errors only
         </label>
@@ -138,37 +140,32 @@ export function RequestLedger(props: { window: MetricWindow }) {
             type="checkbox"
             aria-label="Has a phase"
             checked={phasedOnly()}
-            onChange={(e) => {
-              batch(() => {
-                reset();
-                setPhasedOnly(e.currentTarget.checked);
-              });
-            }}
+            onChange={(e) => setPhasedOnly(e.currentTarget.checked)}
           />{" "}
           Has a phase
         </label>
-        {/* `firstLoad`, not `rows.loading`: on a window switch the count was
-            unmounted and remounted 17ms later, blinking for no reason. The
+        {/* `firstLoad`, not "any fetch in flight": on a window switch the count
+            was unmounted and remounted 17ms later, blinking for no reason. The
             previous count, dimmed, is a better thing to show than nothing. */}
-        <Show when={!firstLoad(rows) && !rows.error}>
-          <span classList={{ "mledger-count": true, "metrics-stale": refreshing(rows) }}>
+        <Show when={!rows.firstLoad() && !failed()}>
+          <span class={{ "mledger-count": true, "metrics-stale": rows.refreshing() }}>
             {list().length} requests{hasMore() ? "+" : ""}
           </span>
         </Show>
       </div>
 
-      <Show when={rows.error !== undefined}>
+      <Show when={failed()}>
         <p class="mledger-msg">Couldn't load requests.</p>
       </Show>
 
-      <Show when={!rows.error && !rows.loading && list().length === 0}>
+      <Show when={!failed() && !rows.firstLoad() && !rows.refreshing() && list().length === 0}>
         {/* Not a bare empty table: with no traffic in the window this is the
             normal state, and saying so is more useful than blank rows. */}
         <p class="mledger-msg">No requests recorded in this window.</p>
       </Show>
 
       <Show when={list().length > 0}>
-        <div classList={{ "mledger-split": true, "metrics-stale": refreshing(rows) }}>
+        <div class={{ "mledger-split": true, "metrics-stale": rows.refreshing() }}>
           {/* Bounded and scrolled. Unbounded, a 200-row page is ~6,600px of
               table and the "Load older" control below it sits that far down
               the document — rendered, reachable by a test that only checks
@@ -192,15 +189,15 @@ export function RequestLedger(props: { window: MetricWindow }) {
                       tabindex="0"
                       onClick={() => setSelected(r.id)}
                       onKeyDown={onActivateKey(() => setSelected(r.id))}
-                      aria-selected={selected() === r.id}
-                      classList={{ sel: selected() === r.id }}
+                      aria-selected={selected() === r.id ? "true" : "false"}
+                      class={{ sel: selected() === r.id }}
                     >
                       <td class="num dim">{stampOf(r.at)}</td>
                       <td>
                         {r.label} <span class="mledger-meth">{r.method}</span>
                       </td>
                       <td>
-                        <span class={`mledger-st ${toneOf(r.status)}`}>{r.status}</span>
+                        <span class={["mledger-st", toneOf(r.status)]}>{r.status}</span>
                       </td>
                       <td class="num r">{ms(r.total_ms)}</td>
                       <td class="num dim">

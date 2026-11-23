@@ -32,7 +32,7 @@ export function SentenceList(props: SentenceListProps) {
           return (
             <button
               type="button"
-              class={`syn-sitem${sent.sent_ord === props.current ? " on" : ""}`}
+              class={["syn-sitem", { on: sent.sent_ord === props.current }]}
               aria-current={sent.sent_ord === props.current ? "true" : undefined}
               onClick={() => props.onPick(sent.sent_ord)}
             >
@@ -40,7 +40,7 @@ export function SentenceList(props: SentenceListProps) {
                 <span>
                   {String(sent.sent_ord + 1).padStart(2, "0")} · {sent.tokens.length} tokens
                 </span>
-                <span class={`syn-chip${corrected() ? " c" : ""}`}>
+                <span class={["syn-chip", { c: corrected() > 0 }]}>
                   {corrected() ? `${String(corrected())} corrected` : "machine"}
                 </span>
               </div>

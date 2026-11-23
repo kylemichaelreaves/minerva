@@ -7,7 +7,8 @@
 // citation rendering (`renderMarkdown.tsx`) and the Reader's
 // romanization tooltip share one visual treatment.
 
-import { Show, type JSX } from "solid-js";
+import { Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 export interface HoverTipProps {
   /** Optional small-caps eyebrow above the body. Citations use this

@@ -5,7 +5,7 @@
 // severity, the conclusion is stated in one recomputable sentence, and
 // the detail pane sits beside the list rather than above it.
 //
-// This file owns resources, selection and composition only. Everything
+// This file owns fetches, selection and composition only. Everything
 // it renders lives in `RouteList`, `RouteDetail`, `StatTiles`,
 // `SpanWaterfall` and the pure `severity` module — split up because
 // Sonar's maintainability gate grades new code on cognitive complexity
@@ -13,7 +13,7 @@
 // fails it at an A rating while `check-diff-coverage` stays green and
 // nothing local warns.
 
-import { For, Show, createMemo, createResource, createSignal, type Resource } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 
 import { MetricsHealthBanner } from "./MetricsHealthBanner";
 import { RequestLedger } from "./RequestLedger";
@@ -26,7 +26,7 @@ import {
 } from "~/api/metricsApi";
 import { RouteDetail, type SpanKind } from "~/Metrics/RouteDetail";
 import { RouteList } from "~/Metrics/RouteList";
-import { firstLoad, refreshing } from "~/Metrics/resourceState";
+import { createAsyncState, type AsyncState } from "~/hooks/createAsyncState";
 import { summarise } from "~/Metrics/severity";
 import { errorMessage } from "~/utils/util";
 import "./metrics.css";
@@ -64,24 +64,15 @@ const WINDOW_PROSE: Record<MetricWindow, string> = {
   all: "all time",
 };
 
-/** A resource's `.error`/`.loading` accessors are always safe to read;
- *  the accessor itself (calling `res()`) rethrows once the resource has
- *  errored (so an `ErrorBoundary` above can catch it). This panel wants
- *  its OWN inline message instead of handing the error up to the surface
- *  boundary and blanking the whole page, so every read of a resource's
- *  value goes through this guard rather than calling the accessor. */
-function valueUnlessErrored<T>(res: Resource<T>): T | undefined {
-  if (res.error !== undefined) return undefined;
-  return res();
-}
-
-/** The rendered message for a failed resource, or `undefined` while it
- *  has not failed. Solid types `.error` as `any` in its errored-state
- *  variant, so narrowing it to `string | undefined` here keeps that `any`
- *  from reaching a typed JSX prop. */
-function errorTextOf(res: Resource<unknown>): string | undefined {
-  if (res.error === undefined) return undefined;
-  return errorMessage(res.error);
+/** The rendered message for a failed fetch, or `undefined` while it has
+ *  not failed. The panel shows its OWN inline message instead of handing
+ *  the error up to the surface boundary and blanking the whole page, which
+ *  is why `createAsyncState` reports failure as a value at all; this
+ *  narrows that `unknown` to the `string | undefined` the JSX props take. */
+function errorTextOf(res: AsyncState<unknown>): string | undefined {
+  const err = res.error();
+  if (err === undefined) return undefined;
+  return errorMessage(err);
 }
 
 export function MetricsPanel(props: MetricsPanelProps) {
@@ -108,7 +99,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
   };
 
   const [view, setView] = createSignal<"routes" | "requests">("routes");
-  const [summary] = createResource(win, (w) => fetchMetricsSummary(w));
+  const summary = createAsyncState(win, (w) => fetchMetricsSummary(w));
   // The baseline. `offset: 1` is the window immediately before this one,
   // which is why it needed a backend parameter at all: before it, the
   // only available comparison was a WIDER window — this one plus more,
@@ -117,10 +108,10 @@ export function MetricsPanel(props: MetricsPanelProps) {
   //
   // `all` is skipped rather than requested: it starts at the epoch and
   // has no previous window, and the endpoint answers a non-zero offset
-  // there with a 400. Returning undefined stops Solid running the
-  // fetcher at all, so the tiles show an em dash instead.
+  // there with a 400. Returning undefined stops `createAsyncState` running
+  // the fetcher at all, so the tiles show an em dash instead.
   const priorSource = (): MetricWindow | undefined => (win() === "all" ? undefined : win());
-  const [prior] = createResource(priorSource, (w) => fetchMetricsSummary(w, { offset: 1 }));
+  const prior = createAsyncState(priorSource, (w) => fetchMetricsSummary(w, { offset: 1 }));
 
   // The unlabeled summary is dual-purpose, and the two halves must not be
   // confused: it carries ONE row per route for a plain request
@@ -128,10 +119,8 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // second `kind: "ttfe"` row at the same `span: ""` (`store.py`'s
   // `summary()`, unlabeled branch, filters on `span = ''` only, with no
   // `kind` filter).
-  const summaryRows = createMemo<MetricsSummaryRow[]>(
-    () => valueUnlessErrored(summary)?.rows ?? [],
-  );
-  const priorRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(prior)?.rows ?? []);
+  const summaryRows = createMemo<MetricsSummaryRow[]>(() => summary.value()?.rows ?? []);
+  const priorRows = createMemo<MetricsSummaryRow[]>(() => prior.value()?.rows ?? []);
 
   // `summarise` keeps only the `kind === "total"` half, so a streaming
   // route appears once in the list rather than twice with different
@@ -168,8 +157,8 @@ export function MetricsPanel(props: MetricsPanelProps) {
   const activeRow = createMemo(() => (spanKind() === "ttfe" ? ttfeRow() : selectedEntry()?.row));
   const activePrior = createMemo(() => rowFor(priorRows(), spanKind()));
 
-  // Solid skips a fetcher entirely when its source accessor returns a
-  // falsy value, so these never run while nothing is selected. `qs()`
+  // `createAsyncState` skips the fetcher entirely when its source returns
+  // `undefined`, so these never run while nothing is selected. `qs()`
   // drops an empty value, and `_handle_metrics_series` answers a
   // label-less request with 400 (`handlers/metrics.py`), so firing anyway
   // would mean a guaranteed-failing fetch and a spurious error banner.
@@ -177,7 +166,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
     const label = selectedLabel();
     return label ? { label, w: win() } : undefined;
   };
-  const [detail] = createResource(detailSource, (src) =>
+  const detail = createAsyncState(detailSource, (src) =>
     fetchMetricsSummary(src.w, { label: src.label }),
   );
 
@@ -185,7 +174,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
     const label = selectedLabel();
     return label ? { label, w: win(), kind: spanKind() } : undefined;
   };
-  const [series] = createResource(seriesSource, (src) =>
+  const series = createAsyncState(seriesSource, (src) =>
     fetchMetricsSeries(src.label, { window: src.w, kind: src.kind }),
   );
 
@@ -200,19 +189,19 @@ export function MetricsPanel(props: MetricsPanelProps) {
   // because the recorder only ever emitted one kind per span. That stopped
   // being true when `kind: "cpu"` was added; filtering still does not happen
   // HERE, but it does happen, and the reason changed.
-  const detailRows = createMemo<MetricsSummaryRow[]>(() => valueUnlessErrored(detail)?.rows ?? []);
-  const seriesPoints = createMemo(() => valueUnlessErrored(series)?.points ?? []);
+  const detailRows = createMemo<MetricsSummaryRow[]>(() => detail.value()?.rows ?? []);
+  const seriesPoints = createMemo(() => series.value()?.points ?? []);
   // The chart labels its x-axis from this: the server buckets daily for
   // `7d`/`30d`/`all`, where an HH:MM tick is always `00:00`. 0 while the
   // fetch is in flight or errored, which reads as "sub-daily" — the same
   // thing an empty chart shows anyway.
-  const seriesBucketSeconds = createMemo(() => valueUnlessErrored(series)?.bucket_seconds ?? 0);
+  const seriesBucketSeconds = createMemo(() => series.value()?.bucket_seconds ?? 0);
 
   return (
     <div class="metrics-panel">
       <header class="metrics-head">
         <h1>Observability</h1>
-        <span classList={{ "metrics-sub": true, "metrics-stale": refreshing(summary) }}>
+        <span class={{ "metrics-sub": true, "metrics-stale": summary.refreshing() }}>
           {WINDOW_PROSE[win()]} · {totalRequests().toLocaleString()} requests
         </span>
         <fieldset class="metrics-windows" aria-label="Time window">
@@ -220,8 +209,8 @@ export function MetricsPanel(props: MetricsPanelProps) {
             {(w) => (
               <button
                 type="button"
-                classList={{ "metrics-window-btn": true, active: win() === w }}
-                aria-pressed={win() === w}
+                class={{ "metrics-window-btn": true, active: win() === w }}
+                aria-pressed={win() === w ? "true" : "false"}
                 onClick={() => selectWindow(w)}
               >
                 {WINDOW_LABELS[w]}
@@ -239,14 +228,10 @@ export function MetricsPanel(props: MetricsPanelProps) {
           routes, this describes whether the numbers under it can be trusted
           at all. Renders nothing when healthy, so its presence is the
           signal (#618). */}
-      {/* `summary.error &&` first, deliberately: reading an errored Solid
-          resource RE-THROWS, so `summary()?.health` alone takes down the
-          whole error path — which is the one path where the page most needs
-          to still render. */}
-      <MetricsHealthBanner health={summary.error ? undefined : summary()?.health} />
+      <MetricsHealthBanner health={summary.value()?.health} />
 
-      <Show when={!firstLoad(summary) && errorTextOf(summary) === undefined}>
-        <p classList={{ "metrics-verdict": true, "metrics-stale": refreshing(summary) }}>
+      <Show when={!summary.firstLoad() && errorTextOf(summary) === undefined}>
+        <p class={{ "metrics-verdict": true, "metrics-stale": summary.refreshing() }}>
           <span class={`metrics-dot ${graded().verdict.severity}`} aria-hidden="true" />
           <span>
             <b>{graded().verdict.headline}</b> {graded().verdict.detail}
@@ -258,12 +243,16 @@ export function MetricsPanel(props: MetricsPanelProps) {
           over the Sonar complexity limit (#589) and grows a branch per
           surface, so adding one here would make that worse for no gain. */}
       <fieldset class="metrics-views" aria-label="Metrics view">
-        <button type="button" aria-pressed={view() === "routes"} onClick={() => setView("routes")}>
+        <button
+          type="button"
+          aria-pressed={view() === "routes" ? "true" : "false"}
+          onClick={() => setView("routes")}
+        >
           Routes
         </button>
         <button
           type="button"
-          aria-pressed={view() === "requests"}
+          aria-pressed={view() === "requests" ? "true" : "false"}
           onClick={() => setView("requests")}
         >
           Requests
@@ -275,11 +264,11 @@ export function MetricsPanel(props: MetricsPanelProps) {
       </Show>
 
       <Show when={view() === "routes"}>
-        <main classList={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
+        <main class={{ "metrics-split": true, "detail-open": selectedEntry() !== undefined }}>
           <RouteList
             entries={entries()}
-            loading={firstLoad(summary)}
-            stale={refreshing(summary)}
+            loading={summary.firstLoad()}
+            stale={summary.refreshing()}
             errorText={errorTextOf(summary)}
             selectedLabel={selectedLabel()}
             onSelect={selectLabel}
@@ -290,7 +279,7 @@ export function MetricsPanel(props: MetricsPanelProps) {
               <RouteDetail
                 label={entry().row.label}
                 method={entry().row.method}
-                stale={refreshing(summary) || refreshing(series) || refreshing(detail)}
+                stale={summary.refreshing() || series.refreshing() || detail.refreshing()}
                 row={activeRow()}
                 prior={activePrior()}
                 windowLabel={WINDOW_LABELS[win()]}
@@ -300,10 +289,10 @@ export function MetricsPanel(props: MetricsPanelProps) {
                 onBack={() => selectLabel(undefined)}
                 seriesPoints={seriesPoints()}
                 seriesBucketSeconds={seriesBucketSeconds()}
-                seriesLoading={firstLoad(series)}
+                seriesLoading={series.firstLoad()}
                 seriesErrorText={errorTextOf(series)}
                 detailRows={detailRows()}
-                detailLoading={firstLoad(detail)}
+                detailLoading={detail.firstLoad()}
                 detailErrorText={errorTextOf(detail)}
               />
             )}

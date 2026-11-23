@@ -1,10 +1,27 @@
 import { fileURLToPath, URL } from "node:url";
 import { defaultServerConditions } from "vite";
 import { configDefaults, defineConfig } from "vitest/config";
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
+import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig(({ mode }) => ({
-  plugins: [solid()],
+  plugins: [
+    solid(),
+    // `npm run analyze:bundle` only: an interactive treemap of what fills the
+    // bundle, with gzip and brotli sizes per module, opened in the browser.
+    // Written beside dist/, not into it, so `make start` never serves it.
+    ...(process.env.ANALYZE === "true"
+      ? [
+          visualizer({
+            filename: "bundle-stats.html",
+            template: "treemap",
+            gzipSize: true,
+            brotliSize: true,
+            open: true,
+          }),
+        ]
+      : []),
+  ],
   // Test runs only: files marked `// @vitest-environment node` run in Vite's
   // `ssr` environment, and need solid-js's *client* build there, or
   // `createEffect` is a no-op and `isServer` is true. vite-plugin-solid
@@ -12,6 +29,9 @@ export default defineConfig(({ mode }) => ({
   // when the global `test.environment` is a DOM one, without reading the
   // per-file docblock (#861). Those modules then also leaked into happy-dom
   // files sharing a worker, so the failure count changed from run to run.
+  // Still needed on @solidjs/vite-plugin 3.0.1 (the renamed plugin, Solid 2):
+  // without this block both solidClientRuntime tests fail, with `isServer`
+  // true and the effect never re-running.
   // tests/solidClientRuntime.test.ts fails if this stops taking effect.
   ...(mode === "test" && {
     environments: {

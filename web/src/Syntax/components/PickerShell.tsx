@@ -1,4 +1,5 @@
-import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 // The filter-and-commit picker both correction pickers are built from.
 //
@@ -45,7 +46,7 @@ export interface PickerShellProps {
   /** Total inventory size, for the "n of N" footer. */
   total: number;
   /** Shown when the filter matches nothing. Names what cannot be written. */
-  emptyHint: (query: string) => import("solid-js").JSX.Element;
+  emptyHint: (query: string) => JSX.Element;
   /** Trailing footer note, e.g. "UD v2 · German-HDT profile". */
   footNote: string;
   onCommit: (name: string) => void;
@@ -79,12 +80,14 @@ export function PickerShell(props: PickerShellProps) {
   const flat = createMemo(() => groups().flatMap((g) => g.rows.map((r) => r.name)));
 
   // Any keystroke can shorten the list out from under the cursor.
-  createEffect(() => {
-    const n = flat().length;
-    if (cursor() >= n) setCursor(Math.max(0, n - 1));
-  });
+  createEffect(
+    () => ({ n: flat().length, c: cursor() }),
+    ({ n, c }) => {
+      if (c >= n) setCursor(Math.max(0, n - 1));
+    },
+  );
 
-  onMount(() => {
+  onSettled(() => {
     input?.focus();
   });
 
@@ -158,7 +161,7 @@ export function PickerShell(props: PickerShellProps) {
           placeholder="filter…"
           aria-label={props.filterLabel}
           autocomplete="off"
-          spellcheck={false}
+          spellcheck="false"
           onInput={(e) => {
             setQuery(e.currentTarget.value);
             setCursor(0);
@@ -188,11 +191,10 @@ export function PickerShell(props: PickerShellProps) {
                   // lives in the filter input during normal use; the arrow
                   // keys move `cursor`, not focus.
                   <div
-                    class="syn-prow"
-                    classList={{ on: cursor() === row.index }}
+                    class={["syn-prow", { on: cursor() === row.index }]}
                     role="option"
                     tabindex={-1}
-                    aria-selected={cursor() === row.index}
+                    aria-selected={cursor() === row.index ? "true" : "false"}
                     onMouseEnter={() => setCursor(row.index)}
                     onKeyDown={(e) => onRowKeyDown(e, row.name)}
                     onClick={() => {

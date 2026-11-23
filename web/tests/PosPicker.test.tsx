@@ -6,7 +6,8 @@
  * current tag's gloss is looked up, and that the empty state names the mistake
  * it exists to prevent.
  */
-import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup } from "@solidjs/testing-library";
+import { fireEvent } from "./helpers/settledFireEvent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PosPicker } from "~/Syntax/components/PosPicker";
 

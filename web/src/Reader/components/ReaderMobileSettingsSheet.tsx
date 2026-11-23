@@ -1,4 +1,4 @@
-import { For, createSignal, onMount } from "solid-js";
+import { For, createSignal, onSettled } from "solid-js";
 import type { TargetLang } from "~/utils/types";
 import { MobileSheet } from "~/components/shell/MobileSheet";
 import { TargetLangToggle } from "~/Reader/components/TargetLangToggle";
@@ -18,7 +18,7 @@ export function ReaderMobileSettingsSheet(props: {
 }) {
   const [scale, setScale] = createSignal<(typeof SCALES)[number]["key"]>("m");
 
-  onMount(() => {
+  onSettled(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     const match = SCALES.find((s) => s.key === saved);
     if (match) {
@@ -50,7 +50,7 @@ export function ReaderMobileSettingsSheet(props: {
             {(s) => (
               <button
                 type="button"
-                class={"reader-scale-btn" + (scale() === s.key ? " active" : "")}
+                class={["reader-scale-btn", { active: scale() === s.key }]}
                 onClick={() => pickScale(s)}
               >
                 {s.label}

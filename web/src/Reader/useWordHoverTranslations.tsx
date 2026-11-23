@@ -45,8 +45,7 @@ export function useWordHoverTranslations(
   let pending: { chunkId: string; offset: number; source: string } | null =
     null;
 
-  createEffect(() => {
-    const r = props.rail();
+  createEffect(() => props.rail(), (r) => {
     if (r.kind !== "ready" || pending === null) return;
     if (r.source !== pending.source) return;
     // Key on the language the response was produced for, not the current

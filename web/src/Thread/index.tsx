@@ -1,4 +1,4 @@
-import { Index, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { classnames } from "~/utils/util";
 import { LoadingDots } from "~/components/primitives/LoadingDots";
 import type { MinervaTurn, Turn, UserTurn } from "~/utils/types";
@@ -37,7 +37,7 @@ export default function Thread(props: ThreadProps) {
       <Show when={showSkeleton()}>
         <ThreadSkeleton />
       </Show>
-      <Index each={props.messages}>
+      <For each={props.messages} keyed={false}>
         {(msg, index) => (
           <div data-turn-id={turnId(msg(), index)}>
             {/* <Show> (not a plain ternary) — the ternary re-evaluated as a
@@ -62,7 +62,7 @@ export default function Thread(props: ThreadProps) {
             </Show>
           </div>
         )}
-      </Index>
+      </For>
       <Show when={props.thinking}>
         <div class="turn turn-minerva">
           <div class="turn-meta">

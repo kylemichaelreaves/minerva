@@ -41,16 +41,19 @@ def _nvmrc() -> tuple[int, int, int]:
 
 # One clause of an npm `engines.node` range: `*`, `>=X[.Y[.Z]]` (optional
 # space and `v`), `^X[.Y[.Z]]` with X > 0, or a bare major `X`. These are
-# every shape in web/package-lock.json (68 distinct ranges, #760). npm also
-# has `<`, `~`, `x` wildcards, hyphens and space-joined comparators; none
-# occur, and an unknown shape raises rather than passing the gate.
+# every shape in web/package-lock.json (68 distinct ranges, #760), plus a
+# trailing `.*`/`.x` wildcard, which is the same range with it dropped:
+# get-caller-file@2 declares `6.* || 8.* || >= 10.*`, arriving with
+# rollup-plugin-visualizer's yargs. npm also has `<`, `~`, hyphens and
+# space-joined comparators; none occur, and an unknown shape raises rather
+# than passing the gate.
 _CLAUSE = re.compile(r"(?P<op>>=|\^)?\s*v?(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?")
 
 
 def _satisfies_clause(version: tuple[int, int, int], clause: str) -> bool:
     if clause == "*":
         return True
-    m = _CLAUSE.fullmatch(clause)
+    m = _CLAUSE.fullmatch(re.sub(r"(?:\.[*xX])+$", "", clause))
     if m is None:
         raise ValueError(f"unhandled engines clause {clause!r}")
     floor = (int(m["major"]), int(m["minor"] or 0), int(m["patch"] or 0))
@@ -132,6 +135,12 @@ def test_engines_is_at_least_as_strict_as_vite():
         ("18 || 20 || >=22", (19, 0, 0), False),
         ("18 || 20 || >=22", (20, 5, 1), True),
         ("*", (0, 0, 1), True),
+        ("16.x", (16, 4, 0), True),
+        ("16.x", (17, 0, 0), False),
+        # get-caller-file@2's range, the first wildcard in the lock.
+        ("6.* || 8.* || >= 10.*", (8, 1, 0), True),
+        ("6.* || 8.* || >= 10.*", (9, 0, 0), False),
+        ("6.* || 8.* || >= 10.*", (22, 23, 2), True),
         # The range that #760 is about: jsdom@30's floor.
         ("^22.22.2 || ^24.15.0 || >=26.0.0", (22, 21, 1), False),
         ("^22.22.2 || ^24.15.0 || >=26.0.0", (22, 23, 2), True),
@@ -143,7 +152,7 @@ def test_satisfies_reads_npm_engine_ranges(node_range, version, expected):
     assert _satisfies(version, node_range) is expected
 
 
-@pytest.mark.parametrize("node_range", ["<16", "~14.17.0", ">=12 <16", "^0.1.0", "16.x"])
+@pytest.mark.parametrize("node_range", ["<16", "~14.17.0", ">=12 <16", "^0.1.0", "16.2.x"])
 def test_satisfies_refuses_a_range_shape_it_cannot_read(node_range):
     """A shape this parser doesn't know must fail the gate, not pass it."""
 

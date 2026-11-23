@@ -9,6 +9,7 @@
  * chart contains no `NaN`. So the contract is pinned here, where it lives.
  */
 import { renderHook } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useElementSize } from "~/hooks/useElementSize";
 
@@ -28,7 +29,13 @@ function sizedEl(w: number, h: number) {
 }
 
 /** Captures the observer callback so a test can fire a resize tick. */
-let fireResize: () => void = () => undefined;
+let observerCallback: () => void = () => undefined;
+/** Fire a resize tick, then flush: in Solid 2 the size signal's write is only
+ *  visible to a read once the scheduler has applied it. */
+const fireResize = (): void => {
+  observerCallback();
+  flush();
+};
 let observers = 0;
 const disconnect = vi.fn();
 
@@ -40,7 +47,7 @@ beforeEach(() => {
     class {
       constructor(cb: () => void) {
         observers += 1;
-        fireResize = cb;
+        observerCallback = cb;
       }
       observe() {
         /* the test drives ticks through fireResize */

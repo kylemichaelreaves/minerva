@@ -8,7 +8,7 @@
 // Adjacent list-item blocks are grouped into a single `<ul>` so the
 // resulting HTML is semantically correct.
 
-import { type JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { type Block, parseBlocks, parseRichText, type RichFragment } from "~/utils/markdown";
 import { HoverTip } from "~/components/primitives/HoverTip";
 import type { Citation } from "~/utils/types";
