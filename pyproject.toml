@@ -48,7 +48,7 @@ lemma = [
     # pipeline with `download_method=None` and so fails hard rather than
     # re-fetching.
     "stanza>=1.15.1",
-    "pyyaml>=6.0.3",
+    "pyyaml>=6.0.4",
 ]
 all = [
     "sentence-transformers>=6.3.0",
@@ -59,8 +59,8 @@ all = [
 dev = [
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.5",
-    "pyyaml>=6.0.3",
+    "ruff>=0.17.6",
+    "pyyaml>=6.0.4",
     "pytest-xdist>=3.8.0",
 ]
 ocr-clean = [
